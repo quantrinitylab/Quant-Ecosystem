@@ -1,0 +1,37 @@
+{
+  "kind": "live-extraction-eval",
+  "capturedAt": "2026-07-09T17:37:51.869Z",
+  "commitSha": "1a54669014638af316526311b2ce544c6c476599",
+  "baseUrlHost": "bedrock-mantle.us-east-1.api.aws",
+  "extractionModel": "deepseek.v3.2",
+  "rows": [
+    {
+      "extractor": "rule",
+      "totalCandidates": 4,
+      "candidatePrecision": 0.75,
+      "candidateRecall": 1,
+      "hallucinations": 1,
+      "hallucinationRate": 0.25,
+      "avgConfidence": 1,
+      "ece": 0.25,
+      "brier": 0.25,
+      "totalTokens": 0,
+      "totalCostUsd": 0,
+      "avgLatencyMs": 0.375
+    },
+    {
+      "extractor": "deepseek.v3.2",
+      "totalCandidates": 4,
+      "candidatePrecision": 0.75,
+      "candidateRecall": 1,
+      "hallucinations": 1,
+      "hallucinationRate": 0.25,
+      "avgConfidence": 0.9375,
+      "ece": 0.21249999999999997,
+      "brier": 0.16062500000000005,
+      "totalTokens": 2131,
+      "totalCostUsd": 0.0006392999999999999,
+      "avgLatencyMs": 2076.75
+    }
+  ]
+}

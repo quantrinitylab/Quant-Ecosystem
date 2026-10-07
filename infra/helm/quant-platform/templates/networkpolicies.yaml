@@ -1,0 +1,80 @@
+{{- range $name, $svc := .Values.services }}
+{{- if and $svc.enabled $svc.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "quant-platform.fullname" $ }}-{{ $name }}
+  labels:
+    {{- include "quant-platform.serviceLabels" (dict "root" $ "name" $name) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "quant-platform.serviceSelectorLabels" (dict "root" $ "name" $name) | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from ingress-nginx namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: {{ $svc.port }}
+    # Allow ingress from same namespace (service-to-service)
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: {{ $svc.port }}
+    {{- range $svc.networkPolicy.allowedNamespaces }}
+    # Allow ingress from {{ . }} namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+      ports:
+        - protocol: TCP
+          port: {{ $svc.port }}
+    {{- end }}
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow egress to database (PostgreSQL) - restricted to database subnet CIDRs
+    {{- if $.Values.global.databaseCIDRs }}
+    - to:
+        {{- range $.Values.global.databaseCIDRs }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 5432
+    {{- end }}
+    # Allow egress to Redis - restricted to Redis subnet CIDRs
+    {{- if $.Values.global.redisCIDRs }}
+    - to:
+        {{- range $.Values.global.redisCIDRs }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 6379
+    {{- end }}
+    # Allow egress to services in same namespace
+    - to:
+        - podSelector: {}
+{{- end }}
+{{- end }}

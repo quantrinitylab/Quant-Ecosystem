@@ -1,0 +1,3900 @@
+openapi: 3.0.3
+info:
+  title: QuantMail API
+  description: Email platform with AI-powered features, Git integration, and infrastructure services.
+  version: 1.0.0
+  contact:
+    name: Quant Ecosystem
+servers:
+  - url: /api/v1
+    description: QuantMail API server
+
+tags:
+  - name: Auth
+    description: Authentication and registration
+  - name: OAuth
+    description: OAuth 2.0 / OpenID Connect
+  - name: Emails
+    description: Email CRUD and operations
+  - name: Email AI
+    description: AI-powered email features (summarize, compose, classify, phishing detection)
+  - name: Threads
+    description: Email thread management
+  - name: Folders
+    description: Email folder management
+  - name: Contacts
+    description: Contact management
+  - name: Labels
+    description: Email label management
+  - name: AI Services
+    description: Advanced AI services (triage, reply, summarize, compose, tone, style, etc.)
+  - name: Infrastructure
+    description: Aliases, disposable emails, tracker stripping, PGP, undo-send
+  - name: AI DevTools
+    description: AI-powered developer tools (code review, commit messages, PR descriptions, etc.)
+  - name: Repositories
+    description: Git repository management
+  - name: Issues
+    description: Issue tracking
+  - name: Pull Requests
+    description: Pull request management
+  - name: Reviews
+    description: Code review and comments
+  - name: CI
+    description: CI/CD pipeline management
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: BAD_REQUEST
+            message:
+              type: string
+              example: Validation failed
+            statusCode:
+              type: integer
+              example: 400
+
+    SuccessWrapper:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: usr_abc123
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        username:
+          type: string
+          example: johndoe
+        displayName:
+          type: string
+          example: John Doe
+
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            userId:
+              type: string
+            accessToken:
+              type: string
+            refreshToken:
+              type: string
+            expiresIn:
+              type: integer
+            user:
+              $ref: '#/components/schemas/User'
+
+    Email:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        subject:
+          type: string
+        bodyHtml:
+          type: string
+        bodyPlain:
+          type: string
+        from:
+          type: string
+        toAddresses:
+          type: array
+          items:
+            type: string
+        isRead:
+          type: boolean
+        isStarred:
+          type: boolean
+        folderId:
+          type: string
+        labels:
+          type: array
+          items:
+            type: string
+        receivedAt:
+          type: string
+          format: date-time
+        category:
+          type: string
+
+    Folder:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [INBOX, SENT, DRAFTS, SPAM, TRASH, ARCHIVE, CUSTOM]
+        color:
+          type: string
+        icon:
+          type: string
+
+    Contact:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        avatar:
+          type: string
+          format: uri
+
+    Repository:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        visibility:
+          type: string
+          enum: [PUBLIC, PRIVATE, INTERNAL]
+        defaultBranch:
+          type: string
+        ownerId:
+          type: string
+
+    Issue:
+      type: object
+      properties:
+        id:
+          type: string
+        number:
+          type: integer
+        title:
+          type: string
+        body:
+          type: string
+        status:
+          type: string
+          enum: [OPEN, CLOSED]
+        labels:
+          type: array
+          items:
+            type: string
+        assignees:
+          type: array
+          items:
+            type: string
+        authorId:
+          type: string
+        repoId:
+          type: string
+
+    PullRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        number:
+          type: integer
+        title:
+          type: string
+        body:
+          type: string
+        status:
+          type: string
+          enum: [OPEN, MERGED, CLOSED, DRAFT]
+        headBranch:
+          type: string
+        baseBranch:
+          type: string
+        authorId:
+          type: string
+        repoId:
+          type: string
+
+security:
+  - BearerAuth: []
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with email and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  example: '********'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Missing fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, username, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                username:
+                  type: string
+                displayName:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /oauth/token:
+    post:
+      tags: [OAuth]
+      summary: Exchange authorization code or refresh token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                grant_type:
+                  type: string
+                  enum: [authorization_code, refresh_token]
+                code:
+                  type: string
+                refresh_token:
+                  type: string
+                client_id:
+                  type: string
+                code_verifier:
+                  type: string
+                redirect_uri:
+                  type: string
+      responses:
+        '200':
+          description: Token pair returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                  refreshToken:
+                    type: string
+                  expiresIn:
+                    type: integer
+        '400':
+          description: Invalid grant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /oauth/revoke:
+    post:
+      tags: [OAuth]
+      summary: Revoke a token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+      responses:
+        '200':
+          description: Token revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /oauth/authorize:
+    get:
+      tags: [OAuth]
+      summary: Authorization endpoint (returns consent HTML or redirects)
+      parameters:
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: response_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [code]
+        - name: scope
+          in: query
+          schema:
+            type: string
+            example: openid profile email
+        - name: state
+          in: query
+          schema:
+            type: string
+        - name: code_challenge
+          in: query
+          schema:
+            type: string
+        - name: code_challenge_method
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Consent page HTML or redirect
+          content:
+            text/html:
+              schema:
+                type: string
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /oauth/consent:
+    post:
+      tags: [OAuth]
+      summary: Submit OAuth consent decision
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, client_id, redirect_uri, user_id, scope]
+              properties:
+                action:
+                  type: string
+                  enum: [approve, deny]
+                client_id:
+                  type: string
+                redirect_uri:
+                  type: string
+                user_id:
+                  type: string
+                scope:
+                  type: string
+                state:
+                  type: string
+      responses:
+        '302':
+          description: Redirect with authorization code or error
+
+  /oauth/register:
+    post:
+      tags: [OAuth]
+      summary: Register a new OAuth client
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, redirect_uris]
+              properties:
+                name:
+                  type: string
+                redirect_uris:
+                  type: array
+                  items:
+                    type: string
+                scopes:
+                  type: array
+                  items:
+                    type: string
+                is_confidential:
+                  type: boolean
+      responses:
+        '200':
+          description: Client registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  client_id:
+                    type: string
+                  client_secret:
+                    type: string
+                    nullable: true
+                  name:
+                    type: string
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /.well-known/openid-configuration:
+    get:
+      tags: [OAuth]
+      summary: OpenID Connect discovery document
+      security: []
+      responses:
+        '200':
+          description: OpenID configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  issuer:
+                    type: string
+                  authorization_endpoint:
+                    type: string
+                  token_endpoint:
+                    type: string
+                  revocation_endpoint:
+                    type: string
+                  registration_endpoint:
+                    type: string
+                  jwks_uri:
+                    type: string
+                  response_types_supported:
+                    type: array
+                    items:
+                      type: string
+                  grant_types_supported:
+                    type: array
+                    items:
+                      type: string
+
+  /.well-known/jwks.json:
+    get:
+      tags: [OAuth]
+      summary: JSON Web Key Set
+      security: []
+      responses:
+        '200':
+          description: JWKS document
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      type: object
+
+  /oauth/userinfo:
+    get:
+      tags: [OAuth]
+      summary: Get authenticated user info
+      responses:
+        '200':
+          description: User info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /emails:
+    post:
+      tags: [Emails]
+      summary: Compose and optionally send an email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [toAddresses, subject]
+              properties:
+                toAddresses:
+                  type: array
+                  items:
+                    type: string
+                    format: email
+                ccAddresses:
+                  type: array
+                  items:
+                    type: string
+                    format: email
+                bccAddresses:
+                  type: array
+                  items:
+                    type: string
+                    format: email
+                subject:
+                  type: string
+                  maxLength: 500
+                bodyHtml:
+                  type: string
+                bodyPlain:
+                  type: string
+                threadId:
+                  type: string
+                inReplyTo:
+                  type: string
+                send:
+                  type: boolean
+                sentFolderId:
+                  type: string
+      responses:
+        '201':
+          description: Email created (and optionally sent)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [Emails]
+      summary: List emails with pagination
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: folderId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated email list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Email'
+                  emails:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Email'
+                  page:
+                    type: integer
+                  pageSize:
+                    type: integer
+                  totalPages:
+                    type: integer
+                  totalCount:
+                    type: integer
+                  unreadCount:
+                    type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /emails/search:
+    get:
+      tags: [Emails]
+      summary: Search emails
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /emails/{id}:
+    get:
+      tags: [Emails]
+      summary: Get email by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Email details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Emails]
+      summary: Soft-delete an email
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Email deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /emails/{id}/read:
+    post:
+      tags: [Emails]
+      summary: Mark email as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Email marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /emails/{id}/star:
+    post:
+      tags: [Emails]
+      summary: Toggle star on email
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Star toggled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /emails/{id}/move:
+    post:
+      tags: [Emails]
+      summary: Move email to folder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [folderId]
+              properties:
+                folderId:
+                  type: string
+      responses:
+        '200':
+          description: Email moved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /emails/{id}/summarize:
+    post:
+      tags: [Email AI]
+      summary: Summarize an email using AI
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: AI summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /emails/compose-assist:
+    post:
+      tags: [Email AI]
+      summary: AI-assisted email composition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [instructions]
+              properties:
+                instructions:
+                  type: string
+                  maxLength: 2000
+                context:
+                  type: object
+                  properties:
+                    recipient:
+                      type: string
+                    subject:
+                      type: string
+                    tone:
+                      type: string
+      responses:
+        '200':
+          description: Composed email draft
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /emails/{id}/classify-priority:
+    post:
+      tags: [Email AI]
+      summary: Classify email priority using AI
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Priority classification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /emails/{id}/detect-phishing:
+    post:
+      tags: [Email AI]
+      summary: Detect phishing in an email using AI
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Phishing detection result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /emails/{id}/reply-suggestions:
+    get:
+      tags: [Email AI]
+      summary: Get AI-generated reply suggestions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reply suggestions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /threads:
+    get:
+      tags: [Threads]
+      summary: List email threads
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: folderId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thread list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /threads/{id}:
+    get:
+      tags: [Threads]
+      summary: Get a thread by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thread details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /folders:
+    post:
+      tags: [Folders]
+      summary: Create a folder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+                type:
+                  type: string
+                  enum: [INBOX, SENT, DRAFTS, SPAM, TRASH, ARCHIVE, CUSTOM]
+                color:
+                  type: string
+                icon:
+                  type: string
+      responses:
+        '201':
+          description: Folder created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [Folders]
+      summary: List all folders
+      responses:
+        '200':
+          description: Folder list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /folders/{id}:
+    put:
+      tags: [Folders]
+      summary: Update a folder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+                color:
+                  type: string
+                icon:
+                  type: string
+      responses:
+        '200':
+          description: Folder updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Folders]
+      summary: Delete a folder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Folder deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /contacts:
+    post:
+      tags: [Contacts]
+      summary: Add a contact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email]
+              properties:
+                name:
+                  type: string
+                  maxLength: 200
+                email:
+                  type: string
+                  format: email
+                avatar:
+                  type: string
+                  format: uri
+      responses:
+        '201':
+          description: Contact created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [Contacts]
+      summary: List contacts
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Contact list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /contacts/search:
+    get:
+      tags: [Contacts]
+      summary: Search contacts
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /contacts/{id}:
+    put:
+      tags: [Contacts]
+      summary: Update a contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 200
+                email:
+                  type: string
+                  format: email
+                avatar:
+                  type: string
+                  format: uri
+      responses:
+        '200':
+          description: Contact updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Contacts]
+      summary: Delete a contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Contact deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /labels:
+    get:
+      tags: [Labels]
+      summary: List all user labels
+      responses:
+        '200':
+          description: Label list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Labels]
+      summary: Create a label
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                color:
+                  type: string
+      responses:
+        '200':
+          description: Label created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '400':
+          description: Name is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/triage:
+    post:
+      tags: [AI Services]
+      summary: AI email triage (classify and prioritize)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject:
+                  type: string
+                body:
+                  type: string
+                from:
+                  type: string
+      responses:
+        '200':
+          description: Triage result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/triage/batch:
+    post:
+      tags: [AI Services]
+      summary: Batch AI triage (up to 50 emails)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [emails]
+              properties:
+                emails:
+                  type: array
+                  maxItems: 50
+                  items:
+                    type: object
+                    properties:
+                      subject:
+                        type: string
+                      body:
+                        type: string
+                      from:
+                        type: string
+      responses:
+        '200':
+          description: Batch triage results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/reply:
+    post:
+      tags: [AI Services]
+      summary: Draft an AI-generated reply
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: object
+                  properties:
+                    subject:
+                      type: string
+                    body:
+                      type: string
+                    from:
+                      type: string
+                options:
+                  type: object
+                  properties:
+                    tone:
+                      type: string
+                    length:
+                      type: string
+      responses:
+        '200':
+          description: Drafted reply
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/summarize-thread:
+    post:
+      tags: [AI Services]
+      summary: Summarize an email thread
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [messages]
+              properties:
+                messages:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      from:
+                        type: string
+                      body:
+                        type: string
+                      date:
+                        type: string
+                        format: date-time
+      responses:
+        '200':
+          description: Thread summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/summarize:
+    post:
+      tags: [AI Services]
+      summary: Summarize a single email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subject, body, from]
+              properties:
+                subject:
+                  type: string
+                body:
+                  type: string
+                from:
+                  type: string
+      responses:
+        '200':
+          description: Email summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/compose:
+    post:
+      tags: [AI Services]
+      summary: Compose email from bullet points
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bullets]
+              properties:
+                bullets:
+                  type: array
+                  items:
+                    type: string
+                context:
+                  type: object
+                  properties:
+                    recipient:
+                      type: string
+                    tone:
+                      type: string
+      responses:
+        '200':
+          description: Composed email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/compose/improve:
+    post:
+      tags: [AI Services]
+      summary: Improve an email draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [draft, instructions]
+              properties:
+                draft:
+                  type: string
+                instructions:
+                  type: string
+      responses:
+        '200':
+          description: Improved draft
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/unsubscribe/detect:
+    post:
+      tags: [AI Services]
+      summary: Detect newsletter/subscription emails
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [emails]
+              properties:
+                emails:
+                  type: array
+                  maxItems: 50
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      from:
+                        type: string
+                      subject:
+                        type: string
+      responses:
+        '200':
+          description: Detected newsletters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/unsubscribe/execute:
+    post:
+      tags: [AI Services]
+      summary: Execute batch unsubscribe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [actions]
+              properties:
+                actions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      emailId:
+                        type: string
+                      from:
+                        type: string
+                      method:
+                        type: string
+                        enum: [link, header, reply]
+                      unsubscribeUrl:
+                        type: string
+                      status:
+                        type: string
+                        enum: [pending, completed, failed]
+      responses:
+        '200':
+          description: Unsubscribe results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/followup/detect:
+    post:
+      tags: [AI Services]
+      summary: Detect follow-up commitments in email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: object
+                  properties:
+                    subject:
+                      type: string
+                    body:
+                      type: string
+                    from:
+                      type: string
+      responses:
+        '200':
+          description: Detected commitments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/followup/reminders:
+    post:
+      tags: [AI Services]
+      summary: Get active follow-up reminders
+      responses:
+        '200':
+          description: Active reminders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/meeting-extract:
+    post:
+      tags: [AI Services]
+      summary: Extract meeting details from email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: object
+                  properties:
+                    subject:
+                      type: string
+                    body:
+                      type: string
+                    from:
+                      type: string
+      responses:
+        '200':
+          description: Meeting details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/tone-shift:
+    post:
+      tags: [AI Services]
+      summary: Shift email tone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [emailText, targetTone]
+              properties:
+                emailText:
+                  type: string
+                targetTone:
+                  type: string
+                  example: professional
+      responses:
+        '200':
+          description: Tone-shifted text
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/tone-shift/detect:
+    post:
+      tags: [AI Services]
+      summary: Detect current email tone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [emailText]
+              properties:
+                emailText:
+                  type: string
+      responses:
+        '200':
+          description: Detected tone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/attachment-summary:
+    post:
+      tags: [AI Services]
+      summary: Summarize an email attachment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [attachment]
+              properties:
+                attachment:
+                  type: object
+                  properties:
+                    filename:
+                      type: string
+                    contentType:
+                      type: string
+                    size:
+                      type: integer
+      responses:
+        '200':
+          description: Attachment summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/contact-context/{email}:
+    get:
+      tags: [AI Services]
+      summary: Get AI-powered contact context
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        '200':
+          description: Contact context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/send-time:
+    post:
+      tags: [AI Services]
+      summary: Predict optimal send time
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipientEmail]
+              properties:
+                recipientEmail:
+                  type: string
+                  format: email
+                engagementHistory:
+                  type: object
+      responses:
+        '200':
+          description: Optimal send time
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/style/analyze:
+    post:
+      tags: [AI Services]
+      summary: Analyze writing style from sent emails
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sentEmails]
+              properties:
+                sentEmails:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      subject:
+                        type: string
+                      body:
+                        type: string
+      responses:
+        '200':
+          description: Style analysis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ai/style/draft:
+    post:
+      tags: [AI Services]
+      summary: Generate draft in user's writing style
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+      responses:
+        '200':
+          description: Styled draft
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /infra/aliases:
+    post:
+      tags: [Infrastructure]
+      summary: Create an email alias
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alias, baseAddress]
+              properties:
+                alias:
+                  type: string
+                baseAddress:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Alias created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [Infrastructure]
+      summary: List email aliases
+      responses:
+        '200':
+          description: Alias list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /infra/aliases/{id}:
+    delete:
+      tags: [Infrastructure]
+      summary: Delete an email alias
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Alias deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Alias not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /infra/disposable:
+    post:
+      tags: [Infrastructure]
+      summary: Create a disposable email address
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ttlMs:
+                  type: number
+      responses:
+        '200':
+          description: Disposable email created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [Infrastructure]
+      summary: List active disposable emails
+      responses:
+        '200':
+          description: Disposable email list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /infra/disposable/{address}:
+    delete:
+      tags: [Infrastructure]
+      summary: Revoke a disposable email
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Disposable email revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /infra/strip-trackers:
+    post:
+      tags: [Infrastructure]
+      summary: Strip tracking pixels from HTML
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [htmlBody]
+              properties:
+                htmlBody:
+                  type: string
+      responses:
+        '200':
+          description: Cleaned HTML
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /infra/strip-trackers/report:
+    post:
+      tags: [Infrastructure]
+      summary: Get tracker detection report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [htmlBody]
+              properties:
+                htmlBody:
+                  type: string
+      responses:
+        '200':
+          description: Tracker report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /infra/pgp/generate-keys:
+    post:
+      tags: [Infrastructure]
+      summary: Generate PGP key pair
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [passphrase]
+              properties:
+                passphrase:
+                  type: string
+                  minLength: 8
+      responses:
+        '200':
+          description: PGP key pair
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /infra/pgp/encrypt:
+    post:
+      tags: [Infrastructure]
+      summary: Encrypt a message with PGP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, recipientPublicKey]
+              properties:
+                message:
+                  type: string
+                recipientPublicKey:
+                  type: string
+      responses:
+        '200':
+          description: Encrypted message
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      encrypted:
+                        type: string
+
+  /infra/pgp/decrypt:
+    post:
+      tags: [Infrastructure]
+      summary: Decrypt a PGP message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [encryptedMessage, privateKey, passphrase]
+              properties:
+                encryptedMessage:
+                  type: string
+                privateKey:
+                  type: string
+                passphrase:
+                  type: string
+      responses:
+        '200':
+          description: Decrypted message
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      decrypted:
+                        type: string
+
+  /infra/pgp/sign:
+    post:
+      tags: [Infrastructure]
+      summary: Sign a message with PGP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, privateKey, passphrase]
+              properties:
+                message:
+                  type: string
+                privateKey:
+                  type: string
+                passphrase:
+                  type: string
+      responses:
+        '200':
+          description: Signature
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      signature:
+                        type: string
+
+  /infra/pgp/verify:
+    post:
+      tags: [Infrastructure]
+      summary: Verify a PGP signature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, signature, publicKey]
+              properties:
+                message:
+                  type: string
+                signature:
+                  type: string
+                publicKey:
+                  type: string
+      responses:
+        '200':
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      valid:
+                        type: boolean
+
+  /infra/undo-send:
+    post:
+      tags: [Infrastructure]
+      summary: Schedule an email with undo-send capability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to, subject, body]
+              properties:
+                to:
+                  type: string
+                subject:
+                  type: string
+                body:
+                  type: string
+                delayMs:
+                  type: number
+      responses:
+        '200':
+          description: Scheduled send job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /infra/undo-send/{jobId}:
+    get:
+      tags: [Infrastructure]
+      summary: Get undo-send job status
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Infrastructure]
+      summary: Cancel an undo-send job
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /code-review:
+    post:
+      tags: [AI DevTools]
+      summary: AI code review on a diff
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                diff:
+                  type: string
+                language:
+                  type: string
+      responses:
+        '200':
+          description: Code review result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /commit-message:
+    post:
+      tags: [AI DevTools]
+      summary: Generate AI commit message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                diff:
+                  type: string
+      responses:
+        '200':
+          description: Generated commit message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /pr-description:
+    post:
+      tags: [AI DevTools]
+      summary: Generate AI PR description
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                diff:
+                  type: string
+                title:
+                  type: string
+      responses:
+        '200':
+          description: Generated PR description
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ci-fix:
+    post:
+      tags: [AI DevTools]
+      summary: Suggest CI fix
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                logs:
+                  type: string
+                errorType:
+                  type: string
+      responses:
+        '200':
+          description: Suggested fix
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /code-search:
+    post:
+      tags: [AI DevTools]
+      summary: Semantic code search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                language:
+                  type: string
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /security-scan:
+    post:
+      tags: [AI DevTools]
+      summary: AI security scan on diff
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                diff:
+                  type: string
+      responses:
+        '200':
+          description: Security scan result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /repos:
+    post:
+      tags: [Repositories]
+      summary: Create a repository
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+                description:
+                  type: string
+                visibility:
+                  type: string
+                  enum: [PUBLIC, PRIVATE, INTERNAL]
+                  default: PUBLIC
+                defaultBranch:
+                  type: string
+                  default: main
+      responses:
+        '200':
+          description: Repository created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /repos/{owner}/{name}:
+    get:
+      tags: [Repositories]
+      summary: Get a repository
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Repository details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Repository not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      tags: [Repositories]
+      summary: Update a repository
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description:
+                  type: string
+                visibility:
+                  type: string
+                  enum: [PUBLIC, PRIVATE, INTERNAL]
+                defaultBranch:
+                  type: string
+      responses:
+        '200':
+          description: Repository updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Repository not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Repositories]
+      summary: Delete a repository
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Repository deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Repository not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /repos/{owner}/{name}/branches:
+    get:
+      tags: [Repositories]
+      summary: List repository branches
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Branch list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Repository not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/issues:
+    post:
+      tags: [Issues]
+      summary: Create an issue
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                  maxLength: 256
+                body:
+                  type: string
+                labels:
+                  type: array
+                  items:
+                    type: string
+                assignees:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Issue created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Repository not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [Issues]
+      summary: List issues
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [OPEN, CLOSED]
+        - name: labels
+          in: query
+          schema:
+            type: string
+            description: Comma-separated label names
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Issue list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Repository not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/issues/{number}:
+    get:
+      tags: [Issues]
+      summary: Get an issue
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Issue details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      tags: [Issues]
+      summary: Update an issue
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  maxLength: 256
+                body:
+                  type: string
+      responses:
+        '200':
+          description: Issue updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/issues/{number}/labels:
+    post:
+      tags: [Issues]
+      summary: Set issue labels
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [labels]
+              properties:
+                labels:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Labels set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/issues/{number}/assignees:
+    post:
+      tags: [Issues]
+      summary: Set issue assignees
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assignees]
+              properties:
+                assignees:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Assignees set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/issues/{number}/close:
+    post:
+      tags: [Issues]
+      summary: Close an issue
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Issue closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/issues/{number}/reopen:
+    post:
+      tags: [Issues]
+      summary: Reopen an issue
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Issue reopened
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/pulls:
+    post:
+      tags: [Pull Requests]
+      summary: Create a pull request
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, headBranch, baseBranch]
+              properties:
+                title:
+                  type: string
+                body:
+                  type: string
+                headBranch:
+                  type: string
+                baseBranch:
+                  type: string
+      responses:
+        '200':
+          description: PR created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Repository not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [Pull Requests]
+      summary: List pull requests
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [OPEN, MERGED, CLOSED, DRAFT]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: PR list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Repository not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/pulls/{number}:
+    get:
+      tags: [Pull Requests]
+      summary: Get a pull request
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: PR details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/pulls/{number}/merge:
+    post:
+      tags: [Pull Requests]
+      summary: Merge a pull request
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                method:
+                  type: string
+                  enum: [merge, squash, rebase]
+                commitMessage:
+                  type: string
+      responses:
+        '200':
+          description: PR merged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/pulls/{number}/close:
+    post:
+      tags: [Pull Requests]
+      summary: Close a pull request
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: PR closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/pulls/{number}/diff:
+    get:
+      tags: [Pull Requests]
+      summary: Get PR diff
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: PR diff
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/pulls/{number}/reviews:
+    post:
+      tags: [Reviews]
+      summary: Submit a code review
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [APPROVED, CHANGES_REQUESTED, COMMENTED]
+                body:
+                  type: string
+      responses:
+        '200':
+          description: Review submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [Reviews]
+      summary: List reviews for a PR
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Review list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/pulls/{number}/comments:
+    post:
+      tags: [Reviews]
+      summary: Add a review comment
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filePath, line, body]
+              properties:
+                filePath:
+                  type: string
+                line:
+                  type: integer
+                body:
+                  type: string
+      responses:
+        '200':
+          description: Comment added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/ci/runs:
+    get:
+      tags: [CI]
+      summary: List CI runs
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: branch
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, RUNNING, SUCCESS, FAILED, CANCELLED]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: CI run list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Repository not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/ci/runs/{runId}:
+    get:
+      tags: [CI]
+      summary: Get a CI run
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: CI run details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: CI run not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/ci/runs/{runId}/jobs:
+    get:
+      tags: [CI]
+      summary: List jobs for a CI run
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: CI run not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/ci/runs/{runId}/jobs/{jobId}/logs:
+    get:
+      tags: [CI]
+      summary: Get CI job logs
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Log lines
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: CI job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{owner}/{name}/ci/runs/{runId}/retry:
+    post:
+      tags: [CI]
+      summary: Retry a failed CI run
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: CI run retried
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: CI run not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Only failed runs can be retried
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

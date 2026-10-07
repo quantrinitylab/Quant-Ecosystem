@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Quant" parent="android:Theme.Material.NoActionBar">
+        <!-- Luxury Obsidian Dark Background to eliminate white flash during launch -->
+        <item name="android:windowBackground">@color/quant_obsidian_bg</item>
+        <item name="android:statusBarColor">@color/quant_obsidian_bg</item>
+        <item name="android:navigationBarColor">@color/quant_obsidian_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

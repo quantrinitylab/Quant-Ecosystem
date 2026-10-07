@@ -1,0 +1,78 @@
+# ============================================================================
+# Secure Dockerfile Template - Quant Platform
+# ============================================================================
+# Multi-stage build with distroless final image.
+# Security features: non-root user, read-only filesystem, no shell, minimal layers.
+# ============================================================================
+
+# Stage 1: Install dependencies
+FROM node:22-slim AS deps
+
+WORKDIR /app
+
+# Enable corepack for pnpm
+RUN corepack enable
+
+# Copy dependency manifests only (for layer caching)
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY patches/ ./patches/
+COPY packages/ ./packages/
+
+# Install production dependencies only
+RUN pnpm install --frozen-lockfile --prod
+
+# Stage 2: Build
+FROM node:22-slim AS builder
+
+WORKDIR /app
+
+RUN corepack enable
+
+# Copy all files for build
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
+COPY patches/ ./patches/
+COPY packages/ ./packages/
+COPY src/ ./src/
+
+# Install all dependencies (including devDependencies for build)
+RUN pnpm install --frozen-lockfile
+
+# Build the application
+RUN pnpm build
+
+# Stage 3: Production (distroless - no shell, no package manager)
+FROM gcr.io/distroless/nodejs22-debian12 AS production
+
+# Metadata
+LABEL maintainer="platform-team@quant.app"
+LABEL org.opencontainers.image.source="https://github.com/nicholasgriffintn/Quant-Ecosystem"
+LABEL org.opencontainers.image.description="Quant Platform Service (Hardened)"
+
+# Run as non-root user (nobody)
+USER 65532:65532
+
+WORKDIR /app
+
+# Copy production dependencies from deps stage
+COPY --from=deps --chown=65532:65532 /app/node_modules ./node_modules
+
+# Copy built application from builder stage
+COPY --from=builder --chown=65532:65532 /app/dist ./dist
+COPY --from=builder --chown=65532:65532 /app/package.json ./
+
+# Environment
+ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
+# Health check port
+EXPOSE 3000
+
+# Read-only filesystem enforced via runtime security context:
+# securityContext:
+#   readOnlyRootFilesystem: true
+#   allowPrivilegeEscalation: false
+#   capabilities:
+#     drop: [ALL]
+
+# Entrypoint - distroless provides /nodejs/bin/node
+CMD ["dist/index.js"]

@@ -1,0 +1,32 @@
+name: gram_core
+description: >-
+  QuantGram shared core — compile-time config, cold-start bootstrap, theme
+  (W2), OAuth2+PKCE auth and API client (W3). Shift 1 (W1): config + bootstrap only.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management for the provider graph (W3 auth providers land here).
+  flutter_riverpod: ^2.5.3
+
+  # HTTP client + crypto primitives for the W3 API client / PKCE helpers.
+  dio: ^5.7.0
+  crypto: ^3.0.6
+
+  # Secure token persistence (warmed TokenManager arrives in W3).
+  flutter_secure_storage: ^10.3.4
+
+  # Reactive token-state stream (TokenManager.onAuthStateChanged).
+  rxdart: ^0.27.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0

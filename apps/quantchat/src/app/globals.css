@@ -1,0 +1,321 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* P1 mobile fix: safe-area helpers consumed by shared-ui BottomNav/TopBar.
+   Previously referenced but never defined, so iOS notch/home-indicator
+   insets were silently ignored. */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+:root {
+  /* Brand System */
+  --brand-primary: #4f46e5;
+  --brand-primary-hover: #4338ca;
+  --brand-accent: #f59e0b;
+  --brand-accent-hover: #d97706;
+  --brand-app-color: #10b981;
+  --app-color: #10b981;
+
+  /* QuantChat brand tokens */
+  --quant-primary: #10b981;
+  --quant-secondary: #8b5cf6;
+  --quant-surface: #ffffff;
+  --quant-text: #0f172a;
+  --quant-background: #f8fafc;
+  --quant-foreground: #0f172a;
+  --quant-muted: #f1f5f9;
+  --quant-muted-foreground: #64748b;
+  --quant-border: #e2e8f0;
+  --quant-ring: var(--quant-primary);
+  --quant-radius: 0.5rem;
+  --quant-card: #ffffff;
+  --quant-card-foreground: #0f172a;
+  --quant-popover: #ffffff;
+  --quant-popover-foreground: #0f172a;
+  --quant-destructive: #ef4444;
+  --quant-destructive-foreground: #ffffff;
+  --quant-success: #22c55e;
+  --quant-warning: #f59e0b;
+}
+
+.dark {
+  --quant-primary: #34d399;
+  --quant-surface: #0f0f14;
+  --quant-text: #f8fafc;
+  --quant-background: #16161d;
+  --quant-foreground: #f8fafc;
+  --quant-muted: #16161d;
+  --quant-muted-foreground: #94a3b8;
+  --quant-border: #334155;
+  --quant-card: #1a1a24;
+  --quant-card-foreground: #f8fafc;
+  --quant-popover: #1a1a24;
+  --quant-popover-foreground: #f8fafc;
+  --quant-ring: var(--quant-primary);
+  --quant-destructive: #dc2626;
+  --quant-destructive-foreground: #ffffff;
+  --quant-success: #16a34a;
+  --quant-warning: #d97706;
+}
+
+html {
+  transition:
+    background-color 0.3s ease,
+    color 0.2s ease;
+}
+
+@layer base {
+  body {
+    @apply bg-[var(--quant-background)] text-[var(--quant-foreground)] antialiased;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
+  }
+
+  *:focus-visible {
+    @apply outline-none ring-2 ring-[var(--quant-ring)] ring-offset-2 ring-offset-[var(--quant-background)] rounded-sm;
+  }
+}
+
+@layer utilities {
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Responsive breakpoints */
+@media (max-width: 360px) {
+  :root {
+    --quant-radius: 0.375rem;
+    --quant-spacing: 0.75rem;
+    --quant-font-size-base: 14px;
+  }
+}
+
+@media (min-width: 414px) and (max-width: 767px) {
+  :root {
+    --quant-radius: 0.5rem;
+    --quant-spacing: 1rem;
+    --quant-font-size-base: 15px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root {
+    --quant-radius: 0.5rem;
+    --quant-spacing: 1.5rem;
+    --quant-font-size-base: 16px;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1439px) {
+  :root {
+    --quant-radius: 0.5rem;
+    --quant-spacing: 2rem;
+    --quant-font-size-base: 16px;
+  }
+}
+
+@media (min-width: 1440px) {
+  :root {
+    --quant-radius: 0.625rem;
+    --quant-spacing: 2.5rem;
+    --quant-font-size-base: 16px;
+  }
+}
+
+/* Optimistic rollback shake animation */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  10%,
+  50%,
+  90% {
+    transform: translateX(-3px);
+  }
+  30%,
+  70% {
+    transform: translateX(3px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+/* Skeleton shimmer animation — gradient slide from left to right, 1.5s infinite */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.15) 20%,
+    rgba(255, 255, 255, 0.3) 50%,
+    rgba(255, 255, 255, 0.15) 80%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
+.dark .skeleton-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 20%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 80%,
+    transparent 100%
+  );
+}
+
+/* ─── Task 11.13: CSS Haptic Feedback ────────────────────────────────────── */
+/* 50ms scale transform on :active for all interactive elements */
+.haptic-feedback {
+  transition: transform 50ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.haptic-feedback:active {
+  transform: scale(0.95);
+}
+
+/* Apply haptic feedback to common interactive elements */
+button,
+a[role='button'],
+[role='button'],
+.nav-item,
+.like-button,
+.send-button {
+  transition: transform 50ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:active,
+a[role='button']:active,
+[role='button']:active,
+.nav-item:active,
+.like-button:active,
+.send-button:active {
+  transform: scale(0.95);
+}
+
+/* ─── Task 11.9: FOMO Ring Animation ────────────────────────────────────── */
+@keyframes fomo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-fomo-spin {
+  animation: fomo-spin 2s linear infinite;
+}
+
+/* ─── Shimmer for LevelProgress bar ─────────────────────────────────────── */
+@keyframes animate-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: animate-shimmer 2s infinite linear;
+}
+
+/* ==========================================================================
+   Shared-UI primitives (Modal / Input / Select / TextArea / Card / Button)
+   Token-driven with fallbacks so dialogs never render as white boxes.
+   ========================================================================== */
+.quant-field {
+  border-radius: var(--quant-radius, 0.625rem);
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: var(--quant-surface, #101014);
+  color: var(--quant-foreground, #f5f3f7);
+  transition: border-color 180ms ease-out, box-shadow 180ms ease-out, background-color 180ms ease-out;
+}
+.quant-field::placeholder { color: var(--quant-muted-foreground, #9b99a6); }
+.quant-field:hover:not(:disabled) { border-color: var(--quant-border-strong, rgba(255, 255, 255, 0.2)); }
+.quant-field:focus,
+.quant-field:focus-visible {
+  outline: none;
+  border-color: var(--quant-accent-border, rgba(255, 173, 92, 0.4));
+  background: var(--quant-surface-elevated, #17171d);
+  box-shadow: 0 0 0 3px var(--quant-accent-soft, rgba(255, 153, 51, 0.14));
+}
+.quant-field-error { border-color: var(--quant-destructive, #f87171); }
+.quant-field-error:focus { box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.16); }
+.quant-field option {
+  background: var(--quant-surface-elevated, #17171d);
+  color: var(--quant-foreground, #f5f3f7);
+}
+
+.quant-panel {
+  background: var(--quant-card, #111115);
+  color: var(--quant-card-foreground, #f5f3f7);
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+}
+.quant-panel-elevated { box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32); }
+.quant-panel-flat { background: var(--quant-surface-subtle, #0d0d10); }
+
+.quant-btn { border: 1px solid transparent; }
+.quant-btn-primary {
+  background: var(--brand-primary, #ff9933);
+  color: #14100b;
+  font-weight: 640;
+}
+.quant-btn-primary:hover:not(:disabled) { background: var(--brand-primary-hover, #ffad5c); }
+.quant-btn-secondary {
+  background: var(--quant-surface-elevated, #17171d);
+  border-color: var(--quant-border, rgba(255, 255, 255, 0.12));
+  color: var(--quant-foreground, #f5f3f7);
+}
+.quant-btn-secondary:hover:not(:disabled) {
+  background: var(--quant-surface-hover, #1d1c23);
+  border-color: var(--quant-border-strong, rgba(255, 255, 255, 0.2));
+}
+.quant-btn-ghost { background: transparent; color: var(--quant-muted-foreground, #9b99a6); }
+.quant-btn-ghost:hover:not(:disabled) {
+  background: var(--quant-surface-hover, #1d1c23);
+  color: var(--quant-foreground, #f5f3f7);
+}
+
+/* ============================================================================
+ * DisappearingTimer selector-mode styles
+ * (apps/quantchat/src/components/DisappearingTimer.tsx)
+ * ========================================================================== */
+.disappearing-timer .timer-selector { display: flex; flex-direction: column; gap: 10px; }
+.disappearing-timer .timer-header { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--quant-foreground); }
+.disappearing-timer .preset-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.disappearing-timer .preset-btn,
+.disappearing-timer .custom-btn { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--quant-border); background: transparent; color: var(--quant-foreground); font-size: 12px; font-weight: 500; cursor: pointer; }
+.disappearing-timer .preset-btn.active { border: 2px solid #fffc00; background: rgba(255, 252, 0, 0.12); font-weight: 700; }
+.disappearing-timer .preset-btn.off-btn.active { border-color: var(--quant-muted-foreground); }
+.disappearing-timer .custom-input { display: flex; gap: 8px; align-items: flex-end; }
+.disappearing-timer .custom-fields { display: flex; gap: 8px; }
+.disappearing-timer .custom-fields .field { display: flex; align-items: center; gap: 4px; }
+.disappearing-timer .custom-fields .field input { width: 56px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--quant-border); background: var(--quant-muted); color: var(--quant-foreground); font-size: 12px; }
+.disappearing-timer .set-btn { padding: 6px 14px; border-radius: 8px; background: #fffc00; color: #000; font-weight: 700; font-size: 12px; cursor: pointer; }
+.disappearing-timer .set-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.disappearing-timer .timer-preview { display: flex; align-items: center; gap: 8px; }
+.disappearing-timer .preview-text { font-weight: 700; color: var(--quant-foreground); }

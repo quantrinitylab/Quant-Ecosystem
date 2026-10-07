@@ -1,0 +1,42 @@
+name: quantube_app
+description: >-
+  QuanTube dedicated Flutter app — the video/audio face of the Quant ecosystem,
+  competing with YouTube/Spotify on playback performance and offline downloads.
+  Shift 1: scaffold + theme + OAuth2+PKCE login (QuantMail SSO).
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management + navigation for the login → home → player flow.
+  flutter_riverpod: ^2.5.3
+  go_router: ^14.2.0
+
+  # System browser for the OAuth2 consent step.
+  url_launcher: ^6.3.0
+
+  # Cached thumbnails for the home feed (W2: VideoCard).
+  cached_network_image: ^3.3.1
+
+  # Local workspace packages.
+  quantube_core:
+    path: ../quantube_core
+
+  # Phase 0 foundation: Dio API client, TokenManager, OAuth2 PKCE helpers,
+  # @quant/brand Material 3 theme. Lives outside this workspace (read-only).
+  quant_foundation:
+    path: ../../../../../../phase0/foundation
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

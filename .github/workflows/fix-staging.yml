@@ -1,0 +1,361 @@
+name: Fix staging (migrations + rollout + ELB)
+
+# Auto-runs when this file is pushed to main; can also be run manually.
+#
+# MIGRATIONS RUN INSIDE THE CLUSTER, NOT FROM THE RUNNER. See "Run Prisma
+# migrations" below: the runner has no route to RDS, and the pod that already
+# talks to it every request does.
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-staging.yml'
+
+concurrency:
+  group: k8s-setup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  fix:
+    name: Diagnose + migrate + restart
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      EKS_CLUSTER: ${{ vars.EKS_CLUSTER }}
+      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+      # THE STAGING LABEL IS NOT THE PRODUCTION LABEL.
+      #
+      # `infra/k8s/quantmail-backend.yaml` is the *production* manifest and uses
+      # `app.kubernetes.io/name: quantmail-backend`. Staging's deployment is
+      # created inline by `bootstrap-aws.yml` with `app: quant-quantmail-backend`.
+      # This workflow used the production label, so `Diagnose current state`
+      # printed "Backend pod:" with nothing after it and the entire
+      # describe/logs/previous-logs dump was a silent no-op — in run
+      # 33433741846 that is the output we needed and did not get. Held here once
+      # so the two dumps below cannot drift apart again.
+      BACKEND_SELECTOR: app=quant-quantmail-backend
+      BACKEND_DEPLOY: quant-quantmail-backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-fix-staging-${{ github.run_id }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
+
+      - name: Diagnose current state
+        run: |
+          echo "=== Pods (with labels, so the selector below is checkable) ==="
+          kubectl get pods -n "$K8S_NAMESPACE" -o wide --show-labels || true
+          echo "=== Deployments ==="
+          kubectl get deploy -n "$K8S_NAMESPACE" || true
+          POD=$(kubectl get pods -n "$K8S_NAMESPACE" -l "$BACKEND_SELECTOR" --sort-by=.metadata.creationTimestamp -o name | tail -1)
+          echo "Backend pod: $POD"
+          if [ -n "$POD" ]; then
+            echo "=== Backend pod describe (tail) ==="
+            kubectl describe "$POD" -n "$K8S_NAMESPACE" | tail -40 || true
+            echo "=== Backend logs (current) ==="
+            kubectl logs "$POD" -n "$K8S_NAMESPACE" --tail=100 || true
+            echo "=== Backend logs (previous crash) ==="
+            kubectl logs "$POD" -n "$K8S_NAMESPACE" --previous --tail=100 || true
+          else
+            echo "::warning::No pod matched $BACKEND_SELECTOR — read the --show-labels listing above and correct BACKEND_SELECTOR."
+          fi
+          echo "=== Recent events ==="
+          kubectl get events -n "$K8S_NAMESPACE" --sort-by=.lastTimestamp | tail -30 || true
+          echo "=== Ingress controller service ==="
+          kubectl get svc -n ingress-nginx || true
+
+      - name: Run Prisma migrations (in-cluster Job)
+        id: migrate
+        run: |
+          set -uo pipefail
+          JOB="prisma-migrate-${{ github.run_id }}"
+
+          # WHY THE MIGRATION RUNS IN THE CLUSTER.
+          #
+          # This step used to be three: a socat pod, `kubectl port-forward`, and
+          # `psql`/`prisma` on the runner against 127.0.0.1:15432. Run 33433741846
+          # got as far as "Forwarding from 127.0.0.1:15432 -> 5432" and "Handling
+          # connection for 15432", then sat for 2m18s and died with "server closed
+          # the connection unexpectedly". The forward was fine; socat's own
+          # outbound TCP to RDS:5432 was being dropped. Migrations and the rollout
+          # both skipped.
+          #
+          # The pod that serves every request already holds a working route to
+          # that database, so the migration is run on that route, in that image,
+          # with that credential. This also removes the runner from the secret
+          # path entirely: `envFrom` reads `quant-staging-secrets` inside the
+          # cluster, so no DATABASE_URL is fetched, decoded, masked, or passed as
+          # `--env=` on an argv that `ps` and `kubectl get pod -o yaml` can read.
+          IMAGE="$(kubectl get deployment/$BACKEND_DEPLOY -n "$K8S_NAMESPACE" \
+            -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)"
+          if [ -z "$IMAGE" ]; then
+            echo "::error::Could not read the backend image from deployment/$BACKEND_DEPLOY in $K8S_NAMESPACE. Nothing was migrated."
+            exit 1
+          fi
+          echo "Image: $IMAGE"
+
+          # NOTHING INSIDE THE HEREDOC MAY CONTAIN A BACKTICK OR A $( — the
+          # delimiter is unquoted so `$JOB` and `$IMAGE` expand, which means a
+          # backtick in a YAML *comment* is still command substitution to bash.
+          # A first draft wrote "built with `pnpm install --ignore-scripts`" in
+          # the env comment below; bash ran pnpm, spliced its progress output
+          # into the manifest, and `kubectl apply` got invalid YAML.
+          kubectl delete job "$JOB" -n "$K8S_NAMESPACE" --ignore-not-found
+          kubectl apply -n "$K8S_NAMESPACE" -f - <<JOBEOF
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: $JOB
+          spec:
+            backoffLimit: 0
+            ttlSecondsAfterFinished: 600
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: migrate
+                    image: $IMAGE
+                    envFrom:
+                      - secretRef:
+                          name: quant-staging-secrets
+                    env:
+                      # The image installs with --ignore-scripts, so prisma's
+                      # postinstall never downloaded the schema engine. If the
+                      # CLI cannot find it, it fetches it; if egress is blocked
+                      # the job fails loudly rather than reporting a migration
+                      # it did not run.
+                      - name: PRISMA_HIDE_UPDATE_MESSAGE
+                        value: '1'
+                    command: ['sh', '-c', 'set -e; for p in packages/database/node_modules/.bin/prisma node_modules/.bin/prisma; do if [ -x "\$p" ]; then echo "prisma: \$p"; exec "\$p" migrate deploy --schema=packages/database/prisma/schema.prisma; fi; done; echo "no prisma binary in the image, falling back to npx"; exec npx --yes prisma@6.19.3 migrate deploy --schema=packages/database/prisma/schema.prisma']
+          JOBEOF
+
+          # A JOB THAT CANNOT FAIL VISIBLY IS NOT A MIGRATION, IT IS A WISH.
+          #
+          # `bootstrap-aws.yml` has the same in-cluster pattern, but it polls for
+          # Succeeded-or-Failed, tails 10 lines, and then prints ">> Migrations
+          # done" either way — the same class of lie the summary step below was
+          # fixed for. So: poll both counters, dump the WHOLE log (a Prisma
+          # failure names the migration and the SQL, and 10 lines truncates it),
+          # and exit non-zero on failure or timeout.
+          RESULT=timeout
+          for _ in $(seq 1 120); do
+            SUCCEEDED="$(kubectl get job "$JOB" -n "$K8S_NAMESPACE" -o jsonpath='{.status.succeeded}' 2>/dev/null || true)"
+            FAILED="$(kubectl get job "$JOB" -n "$K8S_NAMESPACE" -o jsonpath='{.status.failed}' 2>/dev/null || true)"
+            if [ "${SUCCEEDED:-0}" != "0" ] && [ -n "${SUCCEEDED:-}" ]; then RESULT=success; break; fi
+            if [ "${FAILED:-0}" != "0" ] && [ -n "${FAILED:-}" ]; then RESULT=failed; break; fi
+            sleep 5
+          done
+
+          echo "=== migrate job log ==="
+          kubectl logs "job/$JOB" -n "$K8S_NAMESPACE" --tail=-1 2>&1 || true
+          if [ "$RESULT" != success ]; then
+            echo "=== migrate job/pod state ($RESULT) ==="
+            kubectl describe "job/$JOB" -n "$K8S_NAMESPACE" 2>&1 | tail -30 || true
+            kubectl get pods -n "$K8S_NAMESPACE" -l "job-name=$JOB" -o wide 2>&1 || true
+          fi
+          kubectl delete job "$JOB" -n "$K8S_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
+
+          if [ "$RESULT" != success ]; then
+            echo "::error::Prisma migrate deploy did not complete ($RESULT). The schema is unchanged; do not dispatch deploy-staging."
+            exit 1
+          fi
+          echo "Migrations applied."
+
+      - name: Restart backend + wait
+        id: rollout
+        run: |
+          kubectl rollout restart deployment/$BACKEND_DEPLOY -n "$K8S_NAMESPACE"
+          if ! kubectl rollout status deployment/$BACKEND_DEPLOY -n "$K8S_NAMESPACE" --timeout=420s; then
+            echo "=== Rollout failed - dumping state ==="
+            kubectl get pods -n "$K8S_NAMESPACE" -l "$BACKEND_SELECTOR" -o wide || true
+            POD=$(kubectl get pods -n "$K8S_NAMESPACE" -l "$BACKEND_SELECTOR" --sort-by=.metadata.creationTimestamp -o name | tail -1)
+            if [ -n "$POD" ]; then
+              kubectl describe "$POD" -n "$K8S_NAMESPACE" | tail -40 || true
+              kubectl logs "$POD" -n "$K8S_NAMESPACE" --tail=120 || true
+              kubectl logs "$POD" -n "$K8S_NAMESPACE" --previous --tail=120 || true
+            fi
+            exit 1
+          fi
+
+      # THE ROLLOUT SAYS NOTHING ABOUT THE DATABASE, AND THIS CHECK IS ITS OWN
+      # STEP SO THAT IT CAN FAIL.
+      #
+      # Staging's deployment is created inline by `bootstrap-aws.yml` with no
+      # readiness probe of any kind, so "1/1 Running" means one thing only: the
+      # container process started. That is exactly how a backend that cannot
+      # reach Postgres reports itself healthy while `/api/calendar/events`
+      # returns 502. So ask the pod itself, from inside the cluster.
+      #
+      # This probe used to be the tail of the step above and it polled `/health`.
+      # No server-core app has ever served that route: `packages/server-core/src/
+      # plugins/health.ts` registers `/healthz`, `/livez` and `/readyz`, and
+      # `/health` survives only in that file's prefix-matched `publicPaths`
+      # allowlist. Run 33436032539 printed
+      #
+      #   404 {"message":"Route GET:/health not found","statusCode":404}
+      #
+      # and the step still reported success, because the node one-liner logged
+      # the status and exited 0. That is the same "cannot fail visibly" defect
+      # the migration and summary steps were rewritten to remove, reintroduced
+      # one commit later by the probe meant to catch it.
+      #
+      # `/readyz` and not `/healthz`: `/healthz` folds a degraded dependency into
+      # a 200 on purpose, so it cannot answer the only question worth asking
+      # after a rollout — can this pod reach Postgres? `/readyz` runs `SELECT 1`
+      # through the `fastify.prisma` decorator and returns 503 when it cannot.
+      - name: Verify backend readiness (/readyz)
+        id: readyz
+        run: |
+          set -uo pipefail
+          POD=$(kubectl get pods -n "$K8S_NAMESPACE" -l "$BACKEND_SELECTOR" --field-selector=status.phase=Running -o name | tail -1)
+          if [ -z "$POD" ]; then
+            echo "::error::Rollout reported success but no Running pod matches $BACKEND_SELECTOR, so nothing was verified."
+            exit 1
+          fi
+          echo "=== /readyz from inside $POD ==="
+          # The body is printed either way before the exit code is judged: a 503
+          # names the dependency that failed ("database":"fail"), which is the
+          # whole reason to read it rather than just count the status.
+          if ! kubectl exec "$POD" -n "$K8S_NAMESPACE" -- \
+            node -e "fetch('http://127.0.0.1:3011/readyz').then(async r=>{console.log('HTTP', r.status, (await r.text()).slice(0,400)); if (r.status !== 200) process.exit(1)}).catch(e=>{console.log('FETCH_FAILED', e.message); process.exit(1)})" 2>&1; then
+            echo "::error::Backend /readyz did not return 200 from inside $POD. The process is up but not ready to serve; do not dispatch deploy-staging."
+            exit 1
+          fi
+          echo "Backend is ready (database reachable)."
+
+      - name: Get ELB hostname
+        if: always()
+        run: |
+          ELB=""
+          for i in $(seq 1 30); do
+            ELB=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+            if [ -n "$ELB" ]; then break; fi
+            echo "Attempt $i/30 - ELB not ready, waiting 10s..."
+            sleep 10
+          done
+          if [ -z "$ELB" ]; then
+            echo "ELB still not assigned - diagnosing:"
+            kubectl describe svc ingress-nginx-controller -n ingress-nginx | tail -30 || true
+            kubectl get events -n ingress-nginx --sort-by=.lastTimestamp | tail -20 || true
+          fi
+          echo "ELB_HOSTNAME=$ELB" >> "$GITHUB_ENV"
+          echo "ELB: $ELB"
+
+      - name: Publish result file
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MIGRATE: ${{ steps.migrate.outcome || 'skipped' }}
+          ROLLOUT: ${{ steps.rollout.outcome || 'skipped' }}
+          READYZ: ${{ steps.readyz.outcome || 'skipped' }}
+        run: |
+          mkdir -p infra/status
+          {
+            echo "# fix-staging result (run ${{ github.run_id }})"
+            echo "time: $(date -u +%FT%TZ)"
+            echo "migrations: $MIGRATE"
+            echo "rollout: $ROLLOUT"
+            echo "readiness: $READYZ"
+            echo ""
+            echo "## deployments"
+            kubectl get deploy -n "$K8S_NAMESPACE" 2>/dev/null || echo "kubectl unavailable"
+            echo ""
+            echo "## pods"
+            kubectl get pods -n "$K8S_NAMESPACE" 2>/dev/null || true
+            echo ""
+            echo "## elb"
+            echo "${ELB_HOSTNAME:-NOT_ASSIGNED}"
+            echo ""
+            echo "## backend logs (tail)"
+            kubectl logs deployment/$BACKEND_DEPLOY -n "$K8S_NAMESPACE" --tail=40 2>/dev/null || true
+          } > infra/status/fix-staging-result.txt
+          # `status-report`, NOT main. This step used to commit and
+          # `git push origin HEAD:main`, which cannot ever succeed: main is
+          # protected with a required `gate` status check, and a direct push
+          # carries no check-run, so every run ended in
+          #
+          #   remote: error: GH006: Protected branch update failed for refs/heads/main.
+          #   remote: - Required status check "gate" is expected.
+          #
+          # swallowed by `|| echo "push failed (non-fatal)"`. Nine sibling
+          # workflows (verify-live, ui-probe, staging-status, deploy-redis, …)
+          # already publish their status files to the unprotected `status-report`
+          # branch; this one was the only outlier, and the only one that never
+          # published anything. The authoritative record is the run summary
+          # below — this file is a convenience, so a push failure warns rather
+          # than failing the job, but it no longer fails silently.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f infra/status/fix-staging-result.txt
+          if git commit -m "chore(status): fix-staging run ${{ github.run_id }} result [skip ci]"; then
+            git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+            if git push -f origin HEAD:refs/heads/status-report; then
+              echo "PUSH_OK — infra/status/fix-staging-result.txt on branch status-report"
+            else
+              echo "::warning::Could not publish infra/status/fix-staging-result.txt to the status-report branch. The run summary below is unaffected."
+            fi
+          fi
+
+      - name: Summary
+        if: always()
+        env:
+          MIGRATE: ${{ steps.migrate.outcome || 'skipped' }}
+          ROLLOUT: ${{ steps.rollout.outcome || 'skipped' }}
+          READYZ: ${{ steps.readyz.outcome || 'skipped' }}
+        run: |
+          # THE SUMMARY HAS TO SAY WHAT ACTUALLY HAPPENED.
+          #
+          # Every step from here down is `if: always()`, which is right — an ELB
+          # hostname is worth having even after a failure. But the table used to
+          # print only that hostname, so run 33432169698 — where the password step
+          # died and migrations and the rollout were both skipped — published a
+          # "Staging fix result" with a hostname and a next action, and read as a
+          # completed fix. A deploy tool that cannot fail visibly is worse than no
+          # deploy tool.
+          #
+          # Readiness is in the verdict, not merely in the table: a rollout that
+          # finished while `/readyz` returns 503 has put a pod that cannot reach
+          # Postgres into the load balancer, which is a worse outcome than a
+          # rollout that failed and left the previous pod serving.
+          verdict='applied'
+          if [ "$MIGRATE" != 'success' ] || [ "$ROLLOUT" != 'success' ] || [ "$READYZ" != 'success' ]; then
+            verdict='**NOT APPLIED** — see the rows below'
+          fi
+          {
+            echo "## Staging fix result"
+            echo ""
+            echo "| Item | Value |"
+            echo "|---|---|"
+            echo "| Outcome | $verdict |"
+            echo "| Prisma migrations | $MIGRATE |"
+            echo "| Backend rollout | $ROLLOUT |"
+            echo "| Readiness (/readyz) | $READYZ |"
+            echo "| ELB hostname | ${ELB_HOSTNAME:-NOT ASSIGNED} |"
+            echo ""
+            if [ "$verdict" = 'applied' ]; then
+              echo "Point Cloudflare CNAMEs (quantmail + staging) to the ELB hostname."
+            else
+              echo "The cluster was NOT changed as intended. Fix the failing step and re-run before dispatching deploy-staging."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "migrations=$MIGRATE rollout=$ROLLOUT readiness=$READYZ"

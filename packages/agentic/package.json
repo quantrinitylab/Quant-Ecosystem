@@ -1,0 +1,49 @@
+{
+  "name": "@quant/agentic",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./voice-commands": {
+      "types": "./src/voice/use-voice-commands.ts",
+      "import": "./src/voice/use-voice-commands.ts",
+      "default": "./src/voice/use-voice-commands.ts"
+    },
+    "./cross-app": {
+      "types": "./src/cross-app/browser.ts",
+      "import": "./src/cross-app/browser.ts",
+      "default": "./src/cross-app/browser.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["src", "dist"],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@quant/ai": "workspace:*",
+    "@quant/common": "workspace:*",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "~5.5.0",
+    "vitest": "^4.1.0",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
+  }
+}

@@ -1,0 +1,100 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>QuantWave</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.quant.wave</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>QuantWave</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+
+	<!-- Sovereign Microblogging & Live Audio Spaces Permissions -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>QuantWave requires microphone access for live audio spaces stage participation and voice broadcasts.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>QuantWave requires speech recognition access for real-time audio spaces transcription and voice dictation.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>QuantWave requires camera access to attach photos and video clips to waves.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>QuantWave requires photo library access to upload images, media, and profile avatars.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>QuantWave requires Face ID for biometric authentication and sovereign key protection.</string>
+
+	<!-- High-Performance Impeller Acceleration -->
+	<key>FLTEnableImpeller</key>
+	<true/>
+	<key>io.flutter.embedded_views_preview</key>
+	<true/>
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleLightContent</string>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+
+	<!-- Sovereign Deep Linking URL Schemes -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.quant.wave</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>quantwave</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- Sibling Quant Ecosystem App Discovery Schemes -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>quantmail</string>
+		<string>quantchat</string>
+		<string>quantgram</string>
+		<string>quantube</string>
+		<string>quanttube</string>
+		<string>quantai</string>
+		<string>quantdrive</string>
+		<string>quantcalendar</string>
+		<string>quantads</string>
+		<string>quantcooks</string>
+	</array>
+</dict>
+</plist>
+

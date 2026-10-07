@@ -1,0 +1,10 @@
+{
+  "commands": [
+    "docker system prune -af --volumes 2>&1 | tail -2",
+    "sudo systemctl restart docker 2>&1",
+    "sleep 5",
+    "docker info 2>&1 | grep -E 'Server Version|Storage Driver|Docker Root'",
+    "echo DOCKER_RESET_DONE",
+    "df -h / | tail -1"
+  ]
+}

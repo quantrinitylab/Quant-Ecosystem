@@ -1,0 +1,21 @@
+{
+  "commands": [
+    "set -eu",
+    "cd /opt/actions-runner/_work/deploy-quantmail",
+    "git pull 2>&1 | tail -3",
+    "RELEASE_SHA=$(git rev-parse HEAD)",
+    "REGISTRY=266176113726.dkr.ecr.us-east-1.amazonaws.com",
+    "echo Building quantchat...",
+    "docker build -f apps/quantchat/Dockerfile -t $REGISTRY/quant-quantchat:$RELEASE_SHA . 2>&1 | tail -8",
+    "echo CHAT_BUILD_EXIT=$?",
+    "docker push $REGISTRY/quant-quantchat:$RELEASE_SHA 2>&1 | tail -5",
+    "echo CHAT_PUSH_DONE",
+    "echo Building quantai...",
+    "docker build -f apps/quantai/Dockerfile -t $REGISTRY/quant-quantai:$RELEASE_SHA . 2>&1 | tail -8",
+    "echo AI_BUILD_EXIT=$?",
+    "docker push $REGISTRY/quant-quantai:$RELEASE_SHA 2>&1 | tail -5",
+    "echo AI_PUSH_DONE",
+    "aws ecr list-images --repository-name quant-quantchat --region us-east-1 --query 'imageIds[].imageTag' --output json 2>&1",
+    "aws ecr list-images --repository-name quant-quantai --region us-east-1 --query 'imageIds[].imageTag' --output json 2>&1"
+  ]
+}

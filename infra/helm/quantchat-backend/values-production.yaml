@@ -1,0 +1,36 @@
+# Production overrides for the quantchat-backend chart.
+# Usage:
+#   helm upgrade --install quantchat infra/helm/quantchat-backend \
+#     -f infra/helm/quantchat-backend/values-production.yaml \
+#     --set image.tag=<release-sha>
+
+image:
+  tag: latest # pin to an immutable release tag/sha in CI
+
+# Start at 3 replicas and let the HPA scale out under load. minReplicas stays
+# >= 2 regardless (enforced by the HPA template).
+replicaCount: 3
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 65
+  targetMemoryUtilizationPercentage: 75
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: '2'
+    memory: '1Gi'
+
+# Reference the production Secret provisioned out-of-band (external-secrets /
+# vault / sealed-secrets). No plaintext values live in this chart.
+secrets:
+  existingSecret: quantchat-backend-prod-secrets
+
+service:
+  type: ClusterIP
+  port: 80

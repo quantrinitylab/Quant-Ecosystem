@@ -1,0 +1,88 @@
+import tseslint from 'typescript-eslint';
+
+const createRuleStubPlugin = (ruleNames) => ({
+  rules: Object.fromEntries(
+    ruleNames.map((ruleName) => [
+      ruleName,
+      {
+        create() {
+          return {};
+        },
+      },
+    ]),
+  ),
+});
+
+export default tseslint.config(
+  {
+    linterOptions: {
+      reportUnusedDisableDirectives: 'off',
+    },
+    ignores: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/build/**',
+      '**/.next/**',
+      '**/coverage/**',
+      '.turbo/**',
+      '**/*.d.ts',
+      '**/*.test.ts',
+      '**/*.test.tsx',
+      '**/*.spec.ts',
+      '**/*.spec.tsx',
+      '**/__tests__/**',
+    ],
+  },
+  {
+    files: [
+      'packages/*/src/**/*.ts',
+      'apps/*/src/**/*.{ts,tsx}',
+      'apps/*/backend/**/*.ts',
+      'services/*/src/**/*.{ts,tsx}',
+    ],
+    plugins: {
+      '@next/next': createRuleStubPlugin([
+        'no-img-element',
+        'no-html-link-for-pages',
+        'no-sync-scripts',
+        'inline-script-id',
+        'no-head-element',
+      ]),
+      'react-hooks': createRuleStubPlugin(['exhaustive-deps', 'rules-of-hooks']),
+    },
+    extends: [tseslint.configs.recommended],
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-empty-object-type': 'off',
+      '@typescript-eslint/no-empty-interface': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/no-unsafe-function-type': 'off',
+      '@typescript-eslint/no-wrapper-object-types': 'off',
+      '@typescript-eslint/no-namespace': 'off',
+      '@typescript-eslint/no-this-alias': 'off',
+      'prefer-const': 'off',
+    },
+  },
+  {
+    files: [
+      'packages/*/src/**/*.ts',
+      'apps/*/src/**/*.{ts,tsx}',
+      'apps/*/backend/**/*.ts',
+      'services/*/src/**/*.{ts,tsx}',
+    ],
+    ignores: [
+      '**/*.test.ts',
+      '**/*.test.tsx',
+      '**/__tests__/**',
+      '**/*.spec.ts',
+    ],
+    rules: {
+      'no-console': 'error',
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-new-func': 'error',
+    },
+  },
+);

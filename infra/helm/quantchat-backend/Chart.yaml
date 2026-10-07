@@ -1,0 +1,20 @@
+apiVersion: v2
+name: quantchat-backend
+description: >-
+  QuantChat Fastify backend - horizontally scalable, durable messaging service.
+  Runs the production image from apps/quantchat/Dockerfile.backend as >= 2
+  replicas wired to the Redis-backed RealtimeBackplane and presence store, with
+  all secrets (REDIS_URL, JWT_SECRET, LiveKit + VAPID push keys, DATABASE_URL)
+  sourced from a Kubernetes Secret rather than committed env files.
+type: application
+version: 0.1.0
+# appVersion tracks the QuantChat backend release packaged in the production image.
+appVersion: '1.0.0'
+keywords:
+  - quantchat
+  - messaging
+  - fastify
+  - realtime
+home: https://github.com/quant-ecosystem/quant
+sources:
+  - https://github.com/quant-ecosystem/quant

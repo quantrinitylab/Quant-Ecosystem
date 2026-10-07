@@ -1,0 +1,148 @@
+global:
+  environment: staging
+  domain: quantrinity.in
+  appSubdomains:
+    quantmail: quantmail.quantrinity.in
+    quantchat: quantchat.quantrinity.in
+    quantai: quantai.quantrinity.in
+  databaseCIDRs:
+    - 10.1.20.0/24
+    - 10.1.21.0/24
+    - 10.1.22.0/24
+  redisCIDRs:
+    - 10.1.10.0/24
+    - 10.1.11.0/24
+    - 10.1.12.0/24
+
+configmap:
+  NODE_ENV: staging
+  LOG_LEVEL: debug
+  CORS_ORIGINS: 'https://quantmail.in,https://quantmail.quantrinity.in,https://quantchat.quantrinity.in,https://quantai.quantrinity.in,https://quantube.quantrinity.in,https://quantgram.quantrinity.in,https://quantwave.quantrinity.in,https://quantmax.quantrinity.in,https://quantcooks.quantrinity.in,https://quantrinity.in'
+  JWT_ISSUER: 'https://quantrinity.in'
+  JWT_AUDIENCE: 'quant-platform-staging'
+  QUANTMAIL_BACKEND_URL: 'http://quant-quantmail-backend:3011'
+  # Drive routes are served by the QuantMail backend in staging (no standalone
+  # QuantDrive service), so the Drive proxies target the same host.
+  QUANTDRIVE_BACKEND_URL: 'http://quant-quantmail-backend:3011'
+
+ingress:
+  tls:
+    secretName: quant-platform-staging-tls
+
+meilisearch:
+  enabled: true
+  storage:
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
+
+services:
+  ws-gateway:
+    replicaCount: 2
+    image:
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-ws-gateway
+    env:
+      - name: WS_PORT
+        value: '8080'
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 5
+    pdb:
+      minAvailable: 1
+
+  quantmail:
+    replicaCount: 1
+    image:
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantmail
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+    autoscaling:
+      minReplicas: 1
+      maxReplicas: 3
+    pdb:
+      minAvailable: 1
+
+  quantchat:
+    replicaCount: 1
+    image:
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantchat
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+    autoscaling:
+      minReplicas: 1
+      maxReplicas: 3
+    pdb:
+      minAvailable: 1
+
+  quantai:
+    replicaCount: 1
+    image:
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantai
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    autoscaling:
+      minReplicas: 1
+      maxReplicas: 5
+    pdb:
+      minAvailable: 1
+
+  admin:
+    replicaCount: 1
+    image:
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-admin
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+    autoscaling:
+      minReplicas: 1
+      maxReplicas: 3
+    pdb:
+      minAvailable: 1
+
+  triton-inference-server:
+    runAsNonRoot: false
+    readOnlyRootFilesystem: false
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 4Gi
+    autoscaling:
+      minReplicas: 1
+      maxReplicas: 3
+    pdb:
+      minAvailable: 1

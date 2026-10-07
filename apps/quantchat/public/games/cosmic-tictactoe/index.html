@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Cosmic Tic-Tac-Toe</title>
+    <link rel="stylesheet" href="../_shared/theme.css" />
+    <style>
+      .board {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        width: min(82vw, 340px);
+        aspect-ratio: 1 / 1;
+      }
+      .cell {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: clamp(34px, 13vw, 64px);
+        border-radius: 18px;
+        background: var(--qg-card);
+        border: 1px solid var(--qg-border);
+        cursor: pointer;
+        transition: transform 0.1s ease, background 0.2s ease, box-shadow 0.2s ease;
+      }
+      .cell:active { transform: scale(0.96); }
+      .cell.win { background: rgba(255, 252, 0, 0.18); box-shadow: 0 0 0 2px var(--qg-accent) inset; }
+      .cell[data-disabled='true'] { cursor: default; }
+      .status { font-weight: 800; font-size: 17px; min-height: 22px; }
+      .mode-pill {
+        display: inline-flex;
+        background: var(--qg-card);
+        border: 1px solid var(--qg-border);
+        border-radius: 999px;
+        padding: 4px;
+        gap: 4px;
+      }
+      .mode-pill button {
+        border: none;
+        background: transparent;
+        color: var(--qg-muted);
+        font-weight: 700;
+        padding: 7px 16px;
+        border-radius: 999px;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .mode-pill button[aria-pressed='true'] { background: var(--qg-accent); color: #1a1300; }
+    </style>
+  </head>
+  <body>
+    <div class="qg-stars"></div>
+    <div class="qg-shell">
+      <!-- Start screen -->
+      <div id="start" class="qg-fade-in">
+        <h1 class="qg-title">🛸 Cosmic Tic-Tac-Toe</h1>
+        <p class="qg-sub">Line up three across the galaxy. You are 🛸, the cosmos is 👾.</p>
+        <div class="mode-pill" role="group" aria-label="Game mode">
+          <button id="mode-ai" aria-pressed="true">Vs Cosmic AI</button>
+          <button id="mode-2p" aria-pressed="false">2 Players</button>
+        </div>
+        <div class="qg-row" style="margin-top: 8px">
+          <button class="qg-btn" id="play">Launch</button>
+        </div>
+      </div>
+
+      <!-- Game screen -->
+      <div id="game" style="display: none; flex-direction: column; align-items: center; gap: 16px">
+        <div class="status" id="status">Your move</div>
+        <div class="board" id="board"></div>
+        <div class="qg-row">
+          <button class="qg-btn qg-btn--ghost" id="finish">End game</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="../_shared/quant-game.js"></script>
+    <script>
+      (function () {
+        var GAME_ID = 'cosmic-tictactoe';
+        var HUMAN = '🛸';
+        var ENEMY = '👾';
+        var WIN_LINES = [
+          [0, 1, 2], [3, 4, 5], [6, 7, 8],
+          [0, 3, 6], [1, 4, 7], [2, 5, 8],
+          [0, 4, 8], [2, 4, 6],
+        ];
+
+        var state = {
+          board: Array(9).fill(''),
+          turn: HUMAN,
+          vsAI: true,
+          over: false,
+          roundsWon: { you: 0, enemy: 0 },
+          round: 1,
+          locked: false,
+        };
+
+        var el = {
+          start: document.getElementById('start'),
+          game: document.getElementById('game'),
+          board: document.getElementById('board'),
+          status: document.getElementById('status'),
+          modeAI: document.getElementById('mode-ai'),
+          mode2p: document.getElementById('mode-2p'),
+          play: document.getElementById('play'),
+          finish: document.getElementById('finish'),
+        };
+
+        // ---- Board rendering ----
+        var cells = [];
+        for (var i = 0; i < 9; i++) {
+          var c = document.createElement('div');
+          c.className = 'cell';
+          c.setAttribute('role', 'button');
+          c.dataset.idx = String(i);
+          c.addEventListener('click', onCell);
+          el.board.appendChild(c);
+          cells.push(c);
+        }
+
+        function render() {
+          for (var i = 0; i < 9; i++) {
+            cells[i].textContent = state.board[i];
+            cells[i].dataset.disabled = state.board[i] || state.over ? 'true' : 'false';
+            cells[i].classList.remove('win');
+          }
+        }
+
+        function winnerInfo(board) {
+          for (var k = 0; k < WIN_LINES.length; k++) {
+            var l = WIN_LINES[k];
+            if (board[l[0]] && board[l[0]] === board[l[1]] && board[l[1]] === board[l[2]]) {
+              return { mark: board[l[0]], line: l };
+            }
+          }
+          if (board.every(function (v) { return v; })) return { mark: 'draw', line: null };
+          return null;
+        }
+
+        // ---- Minimax AI (unbeatable) ----
+        function minimax(board, isMax) {
+          var info = winnerInfo(board);
+          if (info) {
+            if (info.mark === ENEMY) return { score: 10 };
+            if (info.mark === HUMAN) return { score: -10 };
+            return { score: 0 };
+          }
+          var best = { score: isMax ? -Infinity : Infinity, move: -1 };
+          for (var i = 0; i < 9; i++) {
+            if (board[i]) continue;
+            board[i] = isMax ? ENEMY : HUMAN;
+            var res = minimax(board, !isMax);
+            board[i] = '';
+            if (isMax ? res.score > best.score : res.score < best.score) {
+              best = { score: res.score, move: i };
+            }
+          }
+          return best;
+        }
+
+        function aiMove() {
+          // Light randomness on the very first move keeps it fresh; otherwise optimal.
+          var empties = state.board.map(function (v, i) { return v ? -1 : i; }).filter(function (i) { return i >= 0; });
+          var idx;
+          if (empties.length === 9) {
+            idx = empties[Math.floor(Math.random() * empties.length)];
+          } else {
+            idx = minimax(state.board.slice(), true).move;
+          }
+          place(idx, ENEMY);
+        }
+
+        function place(idx, mark) {
+          if (state.board[idx] || state.over) return;
+          state.board[idx] = mark;
+          var info = winnerInfo(state.board);
+          if (info) return endRound(info);
+          state.turn = mark === HUMAN ? ENEMY : HUMAN;
+          updateStatus();
+          render();
+          if (state.vsAI && state.turn === ENEMY && !state.over) {
+            state.locked = true;
+            setTimeout(function () { state.locked = false; aiMove(); }, 380);
+          }
+        }
+
+        function onCell(e) {
+          if (state.over || state.locked) return;
+          var idx = Number(e.currentTarget.dataset.idx);
+          if (state.board[idx]) return;
+          if (state.vsAI) {
+            if (state.turn !== HUMAN) return;
+            place(idx, HUMAN);
+          } else {
+            place(idx, state.turn);
+          }
+        }
+
+        function updateStatus() {
+          if (state.vsAI) {
+            el.status.textContent = state.turn === HUMAN ? 'Your move 🛸' : 'Cosmic AI thinking…';
+          } else {
+            el.status.textContent = (state.turn === HUMAN ? 'Player 1 🛸' : 'Player 2 👾') + ' move';
+          }
+        }
+
+        function endRound(info) {
+          state.over = true;
+          render();
+          if (info.line) {
+            info.line.forEach(function (i) { cells[i].classList.add('win'); });
+            if (info.mark === HUMAN) state.roundsWon.you++;
+            else state.roundsWon.enemy++;
+            el.status.textContent =
+              info.mark === HUMAN
+                ? (state.vsAI ? 'You win! 🎉' : 'Player 1 wins! 🎉')
+                : (state.vsAI ? 'Cosmic AI wins 👾' : 'Player 2 wins 👾');
+          } else {
+            el.status.textContent = "It's a draw 🤝";
+          }
+          // Best-of-3: keep playing until someone reaches 2, else finish.
+          var done = state.roundsWon.you >= 2 || state.roundsWon.enemy >= 2 || state.round >= 3;
+          setTimeout(function () {
+            if (done) {
+              reportAndFinish();
+            } else {
+              state.round++;
+              newRound();
+            }
+          }, info.line ? 1100 : 800);
+        }
+
+        function newRound() {
+          state.board = Array(9).fill('');
+          state.over = false;
+          state.locked = false;
+          // Loser (or human) starts next round.
+          state.turn = HUMAN;
+          updateStatus();
+          render();
+        }
+
+        function score() {
+          // Score = round wins * 100 + bonus for match victory.
+          var s = state.roundsWon.you * 100;
+          if (state.roundsWon.you > state.roundsWon.enemy) s += 50;
+          return s;
+        }
+
+        function reportAndFinish() {
+          var scores = [
+            { userId: QuantGame.localUserId(), displayName: 'You', score: score() },
+          ];
+          scores.push({
+            userId: state.vsAI ? 'cosmic-ai' : 'player-2',
+            displayName: state.vsAI ? 'Cosmic AI' : 'Player 2',
+            score: state.roundsWon.enemy * 100 + (state.roundsWon.enemy > state.roundsWon.you ? 50 : 0),
+          });
+          QuantGame.gameOver(GAME_ID, scores);
+        }
+
+        // ---- Wiring ----
+        el.modeAI.addEventListener('click', function () {
+          state.vsAI = true;
+          el.modeAI.setAttribute('aria-pressed', 'true');
+          el.mode2p.setAttribute('aria-pressed', 'false');
+        });
+        el.mode2p.addEventListener('click', function () {
+          state.vsAI = false;
+          el.mode2p.setAttribute('aria-pressed', 'true');
+          el.modeAI.setAttribute('aria-pressed', 'false');
+        });
+        el.play.addEventListener('click', function () {
+          el.start.style.display = 'none';
+          el.game.style.display = 'flex';
+          el.game.classList.add('qg-fade-in');
+          state.roundsWon = { you: 0, enemy: 0 };
+          state.round = 1;
+          newRound();
+        });
+        el.finish.addEventListener('click', reportAndFinish);
+
+        QuantGame.onEnd(function () { /* host quit — no-op, host tears down iframe */ });
+
+        try {
+          QuantGame.ready(GAME_ID);
+        } catch (err) {
+          QuantGame.error(GAME_ID, 'Failed to initialise: ' + err);
+        }
+      })();
+    </script>
+  </body>
+</html>

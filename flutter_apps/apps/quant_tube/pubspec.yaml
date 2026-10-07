@@ -1,0 +1,23 @@
+name: quant_tube
+description: Sovereign YouTube & Spotify Killer Segment-Skipping Video & Music Flutter Application for Quant Ecosystem.
+version: 1.0.0
+homepage: https://quanttube.in
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  quant_theme:
+    path: ../../packages/quant_theme
+  quant_ui:
+    path: ../../packages/quant_ui
+  quant_core:
+    path: ../../packages/quant_core
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

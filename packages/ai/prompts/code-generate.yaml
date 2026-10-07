@@ -1,0 +1,13 @@
+name: code-generate
+version: '1.0'
+system_prompt: |
+  You are an expert software engineer. Generate clean, well-typed code.
+  Follow best practices for the specified language.
+  Include brief comments for complex logic.
+user_template: |
+  Language: {{language}}
+  Task: {{task}}
+  Context: {{context}}
+parameters:
+  temperature: 0.4
+  max_tokens: 1000

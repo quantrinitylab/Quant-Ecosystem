@@ -1,0 +1,62 @@
+{{- if .Values.credentialRotation.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}-turn-credential-rotation
+  labels:
+    app: coturn
+    component: credential-rotation
+spec:
+  schedule: {{ .Values.credentialRotation.schedule | quote }}
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: {{ .Release.Name }}-turn-rotator
+          restartPolicy: OnFailure
+          containers:
+            - name: rotate-credentials
+              image: "{{ .Values.credentialRotation.image.repository }}:{{ .Values.credentialRotation.image.tag }}"
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  NEW_SECRET=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 64 | head -n 1)
+                  kubectl patch secret {{ .Release.Name }}-turn-credentials \
+                    -p "{\"data\":{\"static-auth-secret\":\"$(echo -n $NEW_SECRET | base64)\"}}"
+                  # Restart the coturn deployment to pick up the new secret
+                  kubectl rollout restart deployment/{{ .Release.Name }}-coturn
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-turn-rotator
+  labels:
+    app: coturn
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-turn-rotator
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["{{ .Release.Name }}-turn-credentials"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["{{ .Release.Name }}-coturn"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-turn-rotator
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Release.Name }}-turn-rotator
+roleRef:
+  kind: Role
+  name: {{ .Release.Name }}-turn-rotator
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

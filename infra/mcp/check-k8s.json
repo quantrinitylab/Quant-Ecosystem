@@ -1,0 +1,8 @@
+{
+  "commands": [
+    "aws eks update-kubeconfig --name quant-staging-eks --region us-east-1 2>&1",
+    "kubectl get namespace quant-staging 2>&1",
+    "kubectl get deployments -n quant-staging 2>&1",
+    "kubectl get pods -n quant-staging 2>&1 | head -20"
+  ]
+}

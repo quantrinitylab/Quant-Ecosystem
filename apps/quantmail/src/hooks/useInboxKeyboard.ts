@@ -1,0 +1,554 @@
+'use client';
+
+/**
+ * Superhuman-style cursor and mail actions for the thread list.
+ *
+ * Two things were wrong with the previous implementation, and both are fixed by
+ * the shape of this one rather than by patching it:
+ *
+ * 1. **It acted on the wrong row.** It was handed the flat `Email[]` from the
+ *    query while the list rendered *grouped conversations*, sorted differently
+ *    and of a different length. `j` highlighted row 4 and `e` archived whatever
+ *    message happened to sit at index 4 of the ungrouped array. This hook takes
+ *    the rows that are actually rendered, so the cursor and the action always
+ *    address the same conversation.
+ *
+ * 2. **Focus was an index.** When a mutation removed the focused row every index
+ *    below it shifted, so the cursor silently jumped. Focus is now an *id*, with
+ *    the last known position kept only as the fallback for "the row that took its
+ *    place" — which is exactly the behaviour wanted after archiving: `e` leaves
+ *    the cursor on the next conversation with no explicit advance step.
+ *
+ * The keys themselves are registered as commands in the `inbox` scope, so they
+ * appear in the palette and the shortcuts sheet automatically, and their depth in
+ * the scope stack is what resolves the conflicts the old `document` listener lost:
+ * the inbox's `r` (reply to the focused thread) outranks the global `r` (focus an
+ * inline reply box), and `Escape` reaches the list only when nothing modal is open.
+ *
+ * Their ids, labels, groups and keys come from `INBOX_COMMAND_REFERENCE` and are
+ * spread in below rather than restated, because the shortcuts sheet also reads
+ * that list to document these bindings from pages where this hook is not mounted.
+ * Two copies would drift, and the copy the user reads is the one that cannot be
+ * pressed to check.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useKeyboardScope, useRegisterCommands } from '../lib/keyboard/hooks';
+import { inboxCommand, type Command } from '../lib/keyboard/command-registry';
+import { hasPendingUndo, runPendingUndo, showToast } from '../lib/toast-bus';
+import type { MailMutations } from './useMailMutations';
+
+const SCOPE = 'inbox';
+
+/**
+ * The minimum a row must expose.
+ *
+ * Structural rather than an import of `ConversationThread` (`lib/threading.ts`)
+ * because these four fields are the whole of what the shortcuts touch: the hook
+ * is then usable by any list of thread-shaped things, and a field added to the
+ * inbox row cannot break it.
+ */
+export interface InboxKeyboardRow {
+  id: string;
+  threadId: string;
+  isRead: boolean;
+  isStarred: boolean;
+  messages?: unknown[];
+}
+
+export interface UseInboxKeyboardOptions<Row extends InboxKeyboardRow> {
+  /** The rows as rendered — grouped, filtered and sorted. Not the raw query data. */
+  rows: Row[];
+  /** Id of the conversation open in the reading pane, or `null`. */
+  selectedId: string | null;
+  /** Open a conversation. Called by `Enter`/`o`, and by `j`/`k` while a pane is open. */
+  onOpen: (row: Row) => void;
+  /** Close the reading pane. */
+  onClose: () => void;
+  /** Toggle the row's selection checkbox. */
+  onToggleSelect: (id: string) => void;
+  /**
+   * How many conversations are checked, and how to uncheck them. Escape clears a
+   * selection before it closes a reader: the selection header replaces the shell's
+   * own and is the loudest thing on screen, so it is what Escape must answer to.
+   * The header's tooltip has always promised this; until these two arrived it was
+   * the only thing in the bar that promised a key and delivered nothing.
+   */
+  selectionCount?: number;
+  onClearSelection?: () => void;
+  mutations: MailMutations;
+  /**
+   * Every message id a row stands for. A row is a conversation, so `e` has to
+   * archive all of it — `row.id` alone is just the newest message. Defaults to the
+   * row's own id for lists whose rows really are single messages.
+   */
+  expandIds?: (row: Row) => string[];
+  /** Usually the virtualizer's `scrollToIndex`; without it the cursor can leave the viewport. */
+  scrollToIndex?: (index: number) => void;
+  /** Set `false` on views that render the list but should not own the keys. */
+  active?: boolean;
+  /** Triggered by pressing 'c' to open docked composer on desktop or navigate on mobile. */
+  onCompose?: () => void;
+}
+
+export interface InboxKeyboardState {
+  /** Index of the focused row in `rows`, or `-1` when nothing is focused. */
+  focusedIndex: number;
+  focusedId: string | null;
+  /** Move the cursor to a row, e.g. from a click or a swipe. */
+  focusRow: (id: string) => void;
+  clearFocus: () => void;
+  /** Last archived conversation thread for instant undo */
+  lastArchivedThread: { id: string; threadId: string; messages: unknown[]; ids: string[] } | null;
+  /** Revert the last archived conversation */
+  undoLastArchive: () => void;
+}
+
+/**
+ * Pure controller backing useInboxKeyboard triaging, focus management,
+ * archive capture, and instant Z undo restoration.
+ */
+export class InboxKeyboardController<Row extends InboxKeyboardRow> {
+  public options: UseInboxKeyboardOptions<Row>;
+  public focusedId: string | null = null;
+  public lastIndex: number = -1;
+  public lastArchivedThread: {
+    id: string;
+    threadId: string;
+    messages: unknown[];
+    ids: string[];
+  } | null = null;
+
+  constructor(options: UseInboxKeyboardOptions<Row>) {
+    this.options = options;
+  }
+
+  public updateOptions(options: UseInboxKeyboardOptions<Row>) {
+    this.options = options;
+  }
+
+  public get focusedIndex(): number {
+    if (this.focusedId === null) return -1;
+    return this.options.rows.findIndex((row) => row.id === this.focusedId);
+  }
+
+  public get focusedRow(): Row | null {
+    const idx = this.focusedIndex;
+    return idx >= 0 ? this.options.rows[idx] : null;
+  }
+
+  public focusRow(id: string) {
+    const index = this.options.rows.findIndex((row) => row.id === id);
+    if (index >= 0) this.lastIndex = index;
+    this.focusedId = id;
+  }
+
+  public clearFocus() {
+    this.focusedId = null;
+    this.lastIndex = -1;
+  }
+
+  public move(delta: number) {
+    const { rows, selectedId, onOpen, scrollToIndex } = this.options;
+    if (rows.length === 0) return;
+    const currentIdx = this.focusedIndex;
+    const next =
+      currentIdx < 0
+        ? delta > 0
+          ? 0
+          : rows.length - 1
+        : Math.min(Math.max(currentIdx + delta, 0), rows.length - 1);
+
+    const row = rows[next];
+    if (!row) return;
+
+    this.lastIndex = next;
+    this.focusedId = row.id;
+    scrollToIndex?.(next);
+    if (selectedId !== null) onOpen(row);
+  }
+
+  public idsOf(row: Row): string[] {
+    const ids = this.options.expandIds?.(row) ?? [];
+    return ids.length > 0 ? ids : [row.id];
+  }
+
+  public archiveFocused(): boolean {
+    const row = this.focusedRow;
+    if (!row) return false;
+
+    // A row is a conversation: archive every message id it stands for, and
+    // remember exactly those ids for undo. `row.id` alone is just the newest
+    // message — undoing with only it left the rest of the thread archived,
+    // which is how a conversation ended up in both inbox and archive at once.
+    const ids = this.idsOf(row);
+    const threadToArchive = {
+      id: row.id,
+      threadId: row.threadId,
+      messages: (row as unknown as { messages?: unknown[] }).messages ?? [],
+      ids,
+    };
+    this.lastArchivedThread = threadToArchive;
+    void this.options.mutations.archive(ids);
+    showToast({
+      text: 'Conversation marked done. [Undo (Z)]',
+      type: 'info',
+      undoAction: () => this.undoLastArchive(),
+    });
+    return true;
+  }
+
+  public undoLastArchive(): boolean {
+    const thread = this.lastArchivedThread;
+    if (!thread) return false;
+    this.lastArchivedThread = null;
+    void this.options.mutations.unarchive(thread.ids);
+    showToast({
+      text: 'Action undone',
+      type: 'success',
+    });
+    return true;
+  }
+}
+
+export function useInboxKeyboard<Row extends InboxKeyboardRow>(
+  options: UseInboxKeyboardOptions<Row>,
+): InboxKeyboardState {
+  const {
+    rows,
+    selectedId,
+    onOpen,
+    onClose,
+    onToggleSelect,
+    selectionCount = 0,
+    onClearSelection,
+    mutations,
+    expandIds,
+    scrollToIndex,
+    active = true,
+  } = options;
+
+  const router = useRouter();
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [lastArchivedThread, setLastArchivedThread] = useState<{
+    id: string;
+    threadId: string;
+    messages: unknown[];
+    ids: string[];
+  } | null>(null);
+  const lastArchivedThreadRef = useRef<{
+    id: string;
+    threadId: string;
+    messages: unknown[];
+    ids: string[];
+  } | null>(null);
+
+  const undoLastArchive = useCallback(() => {
+    const thread = lastArchivedThreadRef.current;
+    if (!thread) return;
+    lastArchivedThreadRef.current = null;
+    setLastArchivedThread(null);
+    // Unarchive the exact message ids the archive acted on. `thread.id` is
+    // only the row's representative message — undoing with it alone left the
+    // rest of the thread archived (conversation in both inbox and archive).
+    void mutations.unarchive(thread.ids);
+    showToast({
+      text: 'Action undone',
+      type: 'success',
+    });
+  }, [mutations]);
+
+  /** Where the focused row last sat, so a removal can hand focus to its successor. */
+  const lastIndexRef = useRef(-1);
+  const rowsRef = useRef(rows);
+  const scrollRef = useRef(scrollToIndex);
+  const previousSelectedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    rowsRef.current = rows;
+    scrollRef.current = scrollToIndex;
+  });
+
+  const focusedIndex = useMemo(
+    () => (focusedId === null ? -1 : rows.findIndex((row) => row.id === focusedId)),
+    [rows, focusedId],
+  );
+  const focusedRow = focusedIndex >= 0 ? rows[focusedIndex] : null;
+
+  useEffect(() => {
+    if (focusedIndex >= 0) lastIndexRef.current = focusedIndex;
+  }, [focusedIndex]);
+
+  /**
+   * Re-seat the cursor when the focused row leaves the list — archived, trashed,
+   * snoozed, or filtered out by a tab change. The row that slid into its place is
+   * the one the user expects to be looking at.
+   */
+  useEffect(() => {
+    if (focusedId === null || focusedIndex !== -1) return;
+    if (rows.length === 0) {
+      setFocusedId(null);
+      lastIndexRef.current = -1;
+      return;
+    }
+    const next = Math.min(Math.max(lastIndexRef.current, 0), rows.length - 1);
+    lastIndexRef.current = next;
+    setFocusedId(rows[next].id);
+    scrollRef.current?.(next);
+  }, [focusedId, focusedIndex, rows]);
+
+  /** Follow the reading pane when it is opened from somewhere else — a click, a deep link. */
+  useEffect(() => {
+    if (selectedId === previousSelectedRef.current) return;
+    previousSelectedRef.current = selectedId;
+    if (selectedId === null) return;
+    const index = rows.findIndex((row) => row.id === selectedId);
+    if (index === -1) return;
+    lastIndexRef.current = index;
+    setFocusedId(selectedId);
+  }, [selectedId, rows]);
+
+  const focusRow = useCallback((id: string) => {
+    const index = rowsRef.current.findIndex((row) => row.id === id);
+    if (index >= 0) lastIndexRef.current = index;
+    setFocusedId(id);
+  }, []);
+
+  const clearFocus = useCallback(() => {
+    setFocusedId(null);
+    lastIndexRef.current = -1;
+  }, []);
+
+  useKeyboardScope(SCOPE, { active });
+
+  /**
+   * Move the cursor by `delta`, clamped. From nothing focused, `j` lands on the
+   * first row and `k` on the last. The reading pane follows the cursor only when
+   * it is already open, so `j` on a fresh inbox moves a highlight rather than
+   * marking messages read.
+   */
+  const move = (delta: number) => {
+    if (rows.length === 0) return;
+    const next =
+      focusedIndex < 0
+        ? delta > 0
+          ? 0
+          : rows.length - 1
+        : Math.min(Math.max(focusedIndex + delta, 0), rows.length - 1);
+
+    const row = rows[next];
+    if (!row) return;
+
+    lastIndexRef.current = next;
+    setFocusedId(row.id);
+    scrollRef.current?.(next);
+    if (selectedId !== null) onOpen(row);
+  };
+
+  /**
+   * Every message the row stands for. Falls back to the row's own id, so a caller
+   * that does not group loses nothing.
+   */
+  const idsOf = (row: Row): string[] => {
+    const ids = expandIds?.(row) ?? [];
+    return ids.length > 0 ? ids : [row.id];
+  };
+
+  // Rebuilt every render; `useRegisterCommands` re-registers only when the
+  // *shape* changes, and always calls the newest closure. That is what lets these
+  // read `focusedRow` directly instead of through a ref.
+  const commands: Command[] = [
+    {
+      ...inboxCommand('inbox.next'),
+      scope: SCOPE,
+      hidden: true,
+      enabled: () => rows.length > 0,
+      run: () => move(1),
+    },
+    {
+      ...inboxCommand('inbox.previous'),
+      scope: SCOPE,
+      hidden: true,
+      enabled: () => rows.length > 0,
+      run: () => move(-1),
+    },
+    {
+      ...inboxCommand('inbox.open'),
+      scope: SCOPE,
+      icon: 'envelopeOpen',
+      keywords: ['read', 'expand', 'view'],
+      enabled: () => focusedRow !== null,
+      run: () => {
+        if (focusedRow) onOpen(focusedRow);
+      },
+    },
+    {
+      ...inboxCommand('inbox.close'),
+      scope: SCOPE,
+      hidden: true,
+      // Only claims Escape when there is something to dismiss, so it falls
+      // through to the sidebar drawer otherwise.
+      enabled: () => selectionCount > 0 || selectedId !== null || focusedId !== null,
+      run: () => {
+        // Innermost thing first: a checked selection, then an open reader, then
+        // the cursor. Anything else and Escape would dismiss the wrong layer.
+        if (selectionCount > 0) onClearSelection?.();
+        else if (selectedId !== null) onClose();
+        else clearFocus();
+      },
+    },
+    {
+      ...inboxCommand('inbox.archive'),
+      scope: SCOPE,
+      icon: 'archive',
+      keywords: ['done', 'remove', 'clear'],
+      enabled: () => focusedRow !== null,
+      run: () => {
+        // No explicit advance: the row leaves `rows`, and the re-seat effect
+        // hands focus to whatever takes its index.
+        if (!focusedRow) return;
+        const ids = idsOf(focusedRow);
+        const threadToArchive = {
+          id: focusedRow.id,
+          threadId: focusedRow.threadId,
+          messages: (focusedRow as unknown as { messages?: unknown[] }).messages ?? [],
+          ids,
+        };
+        lastArchivedThreadRef.current = threadToArchive;
+        setLastArchivedThread(threadToArchive);
+        void mutations.archive(ids);
+        showToast({
+          text: 'Conversation marked done. [Undo (Z)]',
+          type: 'info',
+          undoAction: undoLastArchive,
+        });
+      },
+    },
+    {
+      ...inboxCommand('inbox.undo'),
+      scope: SCOPE,
+      icon: 'undo',
+      keywords: ['undo', 'restore', 'revert'],
+      enabled: () => {
+        // Either the toast bus has a pending undo (archive, trash, or any other
+        // reversible action) or the legacy archive ref is set. Previously this
+        // command only consulted the archive ref, so `z` after a trash silently
+        // did nothing even though the toast offered an undo.
+        if (lastArchivedThreadRef.current === null && !hasPendingUndo()) return false;
+        if (typeof document !== 'undefined') {
+          const el = document.activeElement;
+          if (el) {
+            const tag = el.tagName;
+            if (
+              tag === 'INPUT' ||
+              tag === 'TEXTAREA' ||
+              tag === 'SELECT' ||
+              (el as HTMLElement).isContentEditable
+            ) {
+              return false;
+            }
+          }
+        }
+        return true;
+      },
+      run: () => {
+        // The toast bus is the single source of truth for "the last reversible
+        // action" — it knows about trash/restore as well as archive. Only fall
+        // back to the legacy archive ref when the bus has nothing pending
+        // (e.g. the toast already expired but the ref is still set).
+        if (!runPendingUndo()) undoLastArchive();
+      },
+    },
+    {
+      ...inboxCommand('inbox.trash'),
+      scope: SCOPE,
+      icon: 'trash',
+      keywords: ['delete', 'bin', 'remove'],
+      enabled: () => focusedRow !== null,
+      run: () => {
+        if (focusedRow) void mutations.trash(idsOf(focusedRow));
+      },
+    },
+    {
+      ...inboxCommand('inbox.pin'),
+      scope: SCOPE,
+      icon: 'star',
+      keywords: ['flag', 'pin', 'important', 'star'],
+      enabled: () => focusedRow !== null,
+      run: () => {
+        if (focusedRow) void mutations.toggleStar(idsOf(focusedRow));
+      },
+    },
+    {
+      ...inboxCommand('inbox.toggleRead'),
+      // The only label that cannot live in the reference: it names the effect of
+      // pressing `u` on *this* row, and the sheet has no row to read.
+      label: focusedRow?.isRead === false ? 'Mark as read' : 'Mark as unread',
+      scope: SCOPE,
+      icon: 'envelopeOpen',
+      keywords: ['unread', 'read', 'seen'],
+      enabled: () => focusedRow !== null,
+      run: () => {
+        if (!focusedRow) return;
+        if (focusedRow.isRead) void mutations.markUnread(idsOf(focusedRow));
+        else void mutations.markRead(idsOf(focusedRow));
+      },
+    },
+    {
+      ...inboxCommand('inbox.reply'),
+      scope: SCOPE,
+      icon: 'reply',
+      keywords: ['respond', 'answer'],
+      enabled: () => focusedRow !== null,
+      run: () => {
+        if (focusedRow) router.push(`/compose?replyTo=${encodeURIComponent(focusedRow.threadId)}`);
+      },
+    },
+    {
+      ...inboxCommand('inbox.forward'),
+      scope: SCOPE,
+      icon: 'forward',
+      keywords: ['share', 'send on'],
+      enabled: () => focusedRow !== null,
+      run: () => {
+        if (focusedRow) router.push(`/compose?forward=${encodeURIComponent(focusedRow.id)}`);
+      },
+    },
+    {
+      ...inboxCommand('inbox.toggleSelect'),
+      scope: SCOPE,
+      icon: 'select',
+      keywords: ['check', 'tick', 'multi'],
+      enabled: () => focusedRow !== null,
+      run: () => {
+        if (focusedRow) onToggleSelect(focusedRow.id);
+      },
+    },
+    {
+      ...inboxCommand('inbox.compose'),
+      scope: SCOPE,
+      icon: 'compose',
+      keywords: ['compose', 'new', 'write', 'draft'],
+      enabled: () => true,
+      run: () => {
+        if (options.onCompose) {
+          options.onCompose();
+        } else {
+          router.push('/compose');
+        }
+      },
+    },
+  ];
+
+  useRegisterCommands(commands);
+
+  return {
+    focusedIndex,
+    focusedId,
+    focusRow,
+    clearFocus,
+    lastArchivedThread,
+    undoLastArchive,
+  };
+}

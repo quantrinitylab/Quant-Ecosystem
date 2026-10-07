@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-coturn
+  labels:
+    app: coturn
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: coturn
+  template:
+    metadata:
+      labels:
+        app: coturn
+    spec:
+      containers:
+        - name: coturn
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--realm={{ .Values.coturn.realm }}"
+            - "--listening-port={{ .Values.coturn.listeningPort }}"
+            - "--tls-listening-port={{ .Values.coturn.tlsListeningPort }}"
+            - "--min-port={{ .Values.coturn.minPort }}"
+            - "--max-port={{ .Values.coturn.maxPort }}"
+            - "--use-auth-secret"
+            - "--static-auth-secret=$(TURN_SECRET)"
+            - "--fingerprint"
+            - "--lt-cred-mech"
+            - "--no-cli"
+          env:
+            - name: TURN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-turn-credentials
+                  key: static-auth-secret
+          ports:
+            - name: turn-udp
+              containerPort: {{ .Values.coturn.listeningPort }}
+              protocol: UDP
+            - name: turn-tcp
+              containerPort: {{ .Values.coturn.listeningPort }}
+              protocol: TCP
+            - name: turn-tls
+              containerPort: {{ .Values.coturn.tlsListeningPort }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: turn-tcp
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: turn-tcp
+            initialDelaySeconds: 10
+            periodSeconds: 30

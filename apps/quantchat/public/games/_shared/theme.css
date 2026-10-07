@@ -1,0 +1,155 @@
+/* Shared cosmic theme for QuantChat embedded mini-games. Mobile-first. */
+:root {
+  --qg-bg-0: #07060f;
+  --qg-bg-1: #120b29;
+  --qg-bg-2: #1b1147;
+  --qg-accent: #fffc00; /* QuantChat / Snapchat-style yellow */
+  --qg-accent-2: #b66bff;
+  --qg-accent-3: #36e7ff;
+  --qg-text: #f4f2ff;
+  --qg-muted: rgba(244, 242, 255, 0.62);
+  --qg-card: rgba(255, 255, 255, 0.05);
+  --qg-border: rgba(255, 255, 255, 0.12);
+  --qg-good: #5cf08a;
+  --qg-bad: #ff5c7a;
+  --qg-font: 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  color: var(--qg-text);
+  font-family: var(--qg-font);
+  background:
+    radial-gradient(1200px 800px at 20% -10%, var(--qg-bg-2), transparent 60%),
+    radial-gradient(1000px 700px at 110% 110%, #2a0f4d, transparent 55%),
+    linear-gradient(160deg, var(--qg-bg-0), var(--qg-bg-1));
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.qg-stars {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 20% 30%, rgba(255, 255, 255, 0.9), transparent),
+    radial-gradient(1.5px 1.5px at 70% 60%, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(1px 1px at 40% 80%, rgba(255, 255, 255, 0.8), transparent),
+    radial-gradient(1px 1px at 85% 20%, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(2px 2px at 55% 15%, rgba(182, 107, 255, 0.7), transparent);
+  background-repeat: repeat;
+  background-size: 320px 320px;
+  animation: qg-drift 60s linear infinite;
+  opacity: 0.7;
+}
+
+@keyframes qg-drift {
+  from { background-position: 0 0; }
+  to { background-position: 320px 640px; }
+}
+
+.qg-shell {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 20px;
+  text-align: center;
+}
+
+.qg-title {
+  font-size: clamp(20px, 6vw, 30px);
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  margin: 0;
+  background: linear-gradient(90deg, var(--qg-accent), var(--qg-accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.qg-sub {
+  margin: 0;
+  color: var(--qg-muted);
+  font-size: 14px;
+  max-width: 30ch;
+}
+
+.qg-btn {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 16px;
+  padding: 13px 28px;
+  border-radius: 999px;
+  color: #1a1300;
+  background: linear-gradient(90deg, var(--qg-accent), #ffd400);
+  box-shadow: 0 8px 24px rgba(255, 252, 0, 0.25);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+}
+
+.qg-btn:active { transform: scale(0.95); }
+.qg-btn--ghost {
+  background: var(--qg-card);
+  color: var(--qg-text);
+  border: 1px solid var(--qg-border);
+  box-shadow: none;
+}
+.qg-btn:disabled { opacity: 0.45; cursor: default; }
+
+.qg-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+.qg-hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.qg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--qg-card);
+  border: 1px solid var(--qg-border);
+  backdrop-filter: blur(6px);
+}
+
+.qg-fade-in { animation: qg-fade 0.35s ease both; }
+@keyframes qg-fade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.qg-pop { animation: qg-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes qg-pop {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}

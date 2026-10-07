@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Quantum Pong</title>
+    <link rel="stylesheet" href="../_shared/theme.css" />
+    <style>
+      .arena-wrap { position: relative; width: min(90vw, 420px); aspect-ratio: 3 / 4; }
+      canvas { width: 100%; height: 100%; border-radius: 18px; border: 1px solid var(--qg-border); background: rgba(7, 6, 15, 0.6); touch-action: none; display: block; }
+      .scoreline { display: flex; justify-content: space-between; width: min(90vw, 420px); font-weight: 800; font-size: 15px; }
+      .scoreline .you { color: var(--qg-accent); }
+      .scoreline .ai { color: var(--qg-accent-2); }
+      .hint { color: var(--qg-muted); font-size: 13px; }
+      .big-score { font-size: clamp(40px, 14vw, 64px); font-weight: 900; background: linear-gradient(90deg, var(--qg-accent), var(--qg-accent-2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    </style>
+  </head>
+  <body>
+    <div class="qg-stars"></div>
+    <div class="qg-shell">
+      <div id="start" class="qg-fade-in">
+        <h1 class="qg-title">🪐 Quantum Pong</h1>
+        <p class="qg-sub">First to 5 points wins. Drag anywhere or use ← → to move your paddle. The rally speeds up — stay sharp.</p>
+        <button class="qg-btn" id="play">Play</button>
+      </div>
+
+      <div id="game" style="display: none; flex-direction: column; align-items: center; gap: 12px">
+        <div class="scoreline"><span class="ai" id="ai-score">Cosmic AI 0</span><span class="you" id="you-score">You 0</span></div>
+        <div class="arena-wrap"><canvas id="arena"></canvas></div>
+        <div class="hint" id="hint">Drag to move · first to 5</div>
+      </div>
+
+      <div id="end" style="display: none; flex-direction: column; align-items: center; gap: 12px" class="qg-fade-in">
+        <h1 class="qg-title" id="result">Match over</h1>
+        <div class="big-score qg-pop" id="final">0</div>
+        <p class="qg-sub" id="summary"></p>
+        <div class="qg-row">
+          <button class="qg-btn qg-btn--ghost" id="again">Rematch</button>
+          <button class="qg-btn" id="done">Post score</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="../_shared/quant-game.js"></script>
+    <script>
+      (function () {
+        var GAME_ID = 'quantum-pong';
+        var WIN_POINTS = 5;
+        var canvas = document.getElementById('arena');
+        var ctx = canvas.getContext('2d');
+
+        var el = {
+          start: document.getElementById('start'),
+          game: document.getElementById('game'),
+          end: document.getElementById('end'),
+          play: document.getElementById('play'),
+          again: document.getElementById('again'),
+          done: document.getElementById('done'),
+          youScore: document.getElementById('you-score'),
+          aiScore: document.getElementById('ai-score'),
+          result: document.getElementById('result'),
+          final: document.getElementById('final'),
+          summary: document.getElementById('summary'),
+          hint: document.getElementById('hint'),
+        };
+
+        // Logical resolution (scaled to the canvas element via CSS).
+        var W = 360, H = 480;
+        var state = null;
+        var raf = 0;
+
+        function resize() {
+          var dpr = Math.min(window.devicePixelRatio || 1, 2);
+          canvas.width = W * dpr;
+          canvas.height = H * dpr;
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        function newState() {
+          return {
+            you: { x: W / 2, w: 78, h: 12, y: H - 28 },
+            ai: { x: W / 2, w: 78, h: 12, y: 28 },
+            ball: { x: W / 2, y: H / 2, vx: 0, vy: 0, r: 8 },
+            youScore: 0,
+            aiScore: 0,
+            rallies: 0,
+            playing: false,
+            over: false,
+          };
+        }
+
+        function serve(towardYou) {
+          var b = state.ball;
+          b.x = W / 2; b.y = H / 2;
+          var speed = 4.2;
+          var angle = (Math.random() * 0.6 - 0.3); // small horizontal spread
+          b.vx = Math.sin(angle) * speed;
+          b.vy = (towardYou ? 1 : -1) * Math.cos(angle) * speed;
+          state.rallies = 0;
+        }
+
+        function startMatch() {
+          state = newState();
+          el.start.style.display = 'none';
+          el.end.style.display = 'none';
+          el.game.style.display = 'flex';
+          updateScore();
+          resize();
+          serve(Math.random() < 0.5);
+          state.playing = true;
+          cancelAnimationFrame(raf);
+          loop();
+        }
+
+        function updateScore() {
+          el.youScore.textContent = 'You ' + state.youScore;
+          el.aiScore.textContent = 'Cosmic AI ' + state.aiScore;
+        }
+
+        function clampPaddle(p) {
+          var half = p.w / 2;
+          if (p.x < half) p.x = half;
+          if (p.x > W - half) p.x = W - half;
+        }
+
+        function step() {
+          var b = state.ball;
+          b.x += b.vx;
+          b.y += b.vy;
+
+          // Side walls
+          if (b.x < b.r) { b.x = b.r; b.vx *= -1; }
+          if (b.x > W - b.r) { b.x = W - b.r; b.vx *= -1; }
+
+          // AI paddle tracking — eases toward the ball, imperfect so it's beatable.
+          var ai = state.ai;
+          var targetSpeed = 3.0 + Math.min(state.rallies * 0.12, 2.4);
+          var diff = b.x - ai.x;
+          ai.x += Math.max(-targetSpeed, Math.min(targetSpeed, diff * 0.12));
+          clampPaddle(ai);
+
+          // Paddle collisions
+          hitPaddle(state.you, 1);
+          hitPaddle(state.ai, -1);
+
+          // Scoring
+          if (b.y < -10) { state.youScore++; afterPoint(true); }
+          else if (b.y > H + 10) { state.aiScore++; afterPoint(false); }
+        }
+
+        function hitPaddle(p, dir) {
+          var b = state.ball;
+          var withinX = Math.abs(b.x - p.x) <= p.w / 2 + b.r;
+          var atY = dir === 1 ? b.y + b.r >= p.y && b.y < p.y + p.h : b.y - b.r <= p.y + p.h && b.y > p.y;
+          var movingToward = dir === 1 ? b.vy > 0 : b.vy < 0;
+          if (withinX && atY && movingToward) {
+            b.vy *= -1;
+            // English based on where it hits the paddle.
+            var offset = (b.x - p.x) / (p.w / 2);
+            b.vx += offset * 1.8;
+            // Speed up slightly each hit.
+            var sp = Math.hypot(b.vx, b.vy) * 1.04;
+            var ang = Math.atan2(b.vy, b.vx);
+            b.vx = Math.cos(ang) * sp;
+            b.vy = Math.sin(ang) * sp;
+            b.y = dir === 1 ? p.y - b.r - 0.5 : p.y + p.h + b.r + 0.5;
+            state.rallies++;
+          }
+        }
+
+        function afterPoint(youScored) {
+          updateScore();
+          if (state.youScore >= WIN_POINTS || state.aiScore >= WIN_POINTS) return finish();
+          state.playing = false;
+          flash(youScored ? 'var(--qg-accent)' : 'var(--qg-accent-2)');
+          setTimeout(function () { serve(youScored); state.playing = true; }, 650);
+        }
+
+        var flashColor = null, flashUntil = 0;
+        function flash(color) { flashColor = color; flashUntil = performance.now() + 350; }
+
+        function draw() {
+          ctx.clearRect(0, 0, W, H);
+          // Center dashed line
+          ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+          ctx.setLineDash([8, 10]);
+          ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
+          ctx.setLineDash([]);
+
+          if (flashColor && performance.now() < flashUntil) {
+            ctx.fillStyle = flashColor;
+            ctx.globalAlpha = 0.08;
+            ctx.fillRect(0, 0, W, H);
+            ctx.globalAlpha = 1;
+          }
+
+          // Paddles
+          paddle(state.you, getCss('--qg-accent'));
+          paddle(state.ai, getCss('--qg-accent-2'));
+
+          // Ball with glow
+          var b = state.ball;
+          ctx.shadowColor = getCss('--qg-accent-3');
+          ctx.shadowBlur = 16;
+          ctx.fillStyle = getCss('--qg-accent-3');
+          ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+
+        function paddle(p, color) {
+          ctx.fillStyle = color;
+          roundRect(p.x - p.w / 2, p.y, p.w, p.h, 6);
+          ctx.fill();
+        }
+
+        function roundRect(x, y, w, h, r) {
+          ctx.beginPath();
+          ctx.moveTo(x + r, y);
+          ctx.arcTo(x + w, y, x + w, y + h, r);
+          ctx.arcTo(x + w, y + h, x, y + h, r);
+          ctx.arcTo(x, y + h, x, y, r);
+          ctx.arcTo(x, y, x + w, y, r);
+          ctx.closePath();
+        }
+
+        var cssCache = {};
+        function getCss(varName) {
+          if (cssCache[varName]) return cssCache[varName];
+          var v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+          cssCache[varName] = v || '#fff';
+          return cssCache[varName];
+        }
+
+        function loop() {
+          if (state.over) return;
+          if (state.playing) step();
+          draw();
+          raf = requestAnimationFrame(loop);
+        }
+
+        function finish() {
+          state.over = true;
+          cancelAnimationFrame(raf);
+          var won = state.youScore > state.aiScore;
+          el.game.style.display = 'none';
+          el.end.style.display = 'flex';
+          el.result.textContent = won ? 'You win! 🎉' : 'Cosmic AI wins 👾';
+          // Score rewards points scored + rally skill, with a win bonus.
+          var pts = state.youScore * 40 + (won ? 80 : 0);
+          state._finalScore = pts;
+          el.final.textContent = pts;
+          el.summary.textContent = 'Final ' + state.youScore + ' – ' + state.aiScore;
+        }
+
+        function report() {
+          QuantGame.gameOver(GAME_ID, [
+            { userId: QuantGame.localUserId(), displayName: 'You', score: state._finalScore || 0 },
+            { userId: 'cosmic-ai', displayName: 'Cosmic AI', score: state.aiScore * 40 },
+          ]);
+        }
+
+        // ---- Input: drag + keyboard ----
+        function pointerX(e) {
+          var rect = canvas.getBoundingClientRect();
+          var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+          return ((clientX - rect.left) / rect.width) * W;
+        }
+        function onMove(e) {
+          if (!state || !state.playing) return;
+          e.preventDefault();
+          state.you.x = pointerX(e);
+          clampPaddle(state.you);
+        }
+        canvas.addEventListener('mousemove', onMove);
+        canvas.addEventListener('touchmove', onMove, { passive: false });
+        canvas.addEventListener('touchstart', onMove, { passive: false });
+
+        var keys = {};
+        window.addEventListener('keydown', function (e) { keys[e.key] = true; });
+        window.addEventListener('keyup', function (e) { keys[e.key] = false; });
+        setInterval(function () {
+          if (!state || !state.playing) return;
+          if (keys['ArrowLeft']) { state.you.x -= 9; clampPaddle(state.you); }
+          if (keys['ArrowRight']) { state.you.x += 9; clampPaddle(state.you); }
+        }, 16);
+
+        window.addEventListener('resize', function () { if (state && !state.over) resize(); });
+
+        el.play.addEventListener('click', startMatch);
+        el.again.addEventListener('click', startMatch);
+        el.done.addEventListener('click', report);
+
+        try {
+          QuantGame.ready(GAME_ID);
+        } catch (err) {
+          QuantGame.error(GAME_ID, 'Failed to initialise: ' + err);
+        }
+      })();
+    </script>
+  </body>
+</html>

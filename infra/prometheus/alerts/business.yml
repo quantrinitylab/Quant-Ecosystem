@@ -1,0 +1,82 @@
+groups:
+  - name: quant-business-alerts
+    rules:
+      - alert: SignupFailureRate
+        expr: |
+          sum(rate(auth_signup_failures_total[5m]))
+          / sum(rate(auth_signup_attempts_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High signup failure rate"
+          description: "Signup failure rate is >10% (current: {{ $value | humanizePercentage }})"
+
+      - alert: AuthenticationFailures
+        expr: |
+          sum(rate(auth_login_failures_total[1m])) > 20
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High authentication failure rate"
+          description: "More than 20 authentication failures per minute (current: {{ $value }})"
+
+      - alert: AIModelErrors
+        expr: |
+          sum(rate(http_requests_total{service="ai-api", status_code=~"5.."}[5m]))
+          / sum(rate(http_requests_total{service="ai-api"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: ai
+        annotations:
+          summary: "High AI API error rate"
+          description: "AI API error rate is >5% (current: {{ $value | humanizePercentage }})"
+
+      - alert: AICostAnomaly
+        expr: |
+          sum(rate(ai_token_cost_dollars_total[1h]))
+          > 2 * avg_over_time(sum(rate(ai_token_cost_dollars_total[1h]))[24h:1h])
+        for: 30m
+        labels:
+          severity: warning
+          team: ai
+        annotations:
+          summary: "AI cost anomaly detected"
+          description: "AI API cost is 2x the daily average (current rate: ${{ $value | humanize }}/hr)"
+
+      - alert: WebSocketDisconnections
+        expr: |
+          sum(rate(ws_disconnections_total[1m])) > 100
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High WebSocket disconnection rate"
+          description: "More than 100 WebSocket disconnections per minute (current: {{ $value }})"
+
+      - alert: MessageDeliveryDelay
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(message_delivery_duration_seconds_bucket[5m]))) > 5
+        for: 3m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High message delivery delay"
+          description: "P95 message delivery delay is >5s (current: {{ $value | humanizeDuration }})"
+
+      - alert: VideoProcessingBacklog
+        expr: |
+          sum(video_processing_queue_length) > 1000
+        for: 10m
+        labels:
+          severity: warning
+          team: media
+        annotations:
+          summary: "Video processing backlog"
+          description: "Video processing queue has >1000 items (current: {{ $value }})"

@@ -1,0 +1,37 @@
+# QuantAI Flutter workspace (Phase 3).
+#
+# melos manages the multi-package Flutter monorepo under packages/.
+# Requires: Dart >=3.4.0, Flutter >=3.22.0 (see `environment` below).
+#
+# Quick start (needs the Flutter SDK, not present in this build env):
+#   dart pub global activate melos
+#   melos bootstrap        # links local packages + `flutter pub get` everywhere
+#   melos run analyze      # dart analyze across all packages
+#   melos run test         # flutter test across all packages
+
+name: quantai_flutter
+
+packages:
+  - packages/**
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+command:
+  bootstrap:
+    # Respect each package's pubspec_overrides.yaml if one is added later.
+    usePubspecOverrides: true
+
+scripts:
+  bootstrap:
+    run: melos bootstrap
+    description: Link local path dependencies and fetch packages.
+
+  analyze:
+    run: melos exec -- dart analyze
+    description: Run the analyzer in every package with the workspace lint set.
+
+  test:
+    run: melos exec -- flutter test
+    description: Run the unit/widget test suites of every package.

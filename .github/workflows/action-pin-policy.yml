@@ -1,0 +1,65 @@
+name: Action pin policy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: action-pin-policy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify-action-pins:
+    name: Verify immutable action pins
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Reject mutable action references
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          workflow_dir = Path('.github/workflows')
+          uses_pattern = re.compile(r'^\s*-\s*uses:\s*([^\s#]+)')
+          commit_pattern = re.compile(r'^[0-9a-f]{40}$')
+          digest_pattern = re.compile(r'^sha256:[0-9a-f]{64}$')
+          violations = []
+
+          for path in sorted(workflow_dir.iterdir()):
+              if not path.is_file() or path.suffix not in {'.yml', '.yaml'}:
+                  continue
+              for line_number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
+                  match = uses_pattern.match(line)
+                  if not match:
+                      continue
+
+                  target = match.group(1).strip('"\'')
+                  if target.startswith('./'):
+                      continue
+
+                  if target.startswith('docker://'):
+                      if '@' not in target or not digest_pattern.fullmatch(target.rsplit('@', 1)[1]):
+                          violations.append((path, line_number, target, 'container actions must use a sha256 digest'))
+                      continue
+
+                  if '@' not in target or not commit_pattern.fullmatch(target.rsplit('@', 1)[1]):
+                      violations.append((path, line_number, target, 'remote actions must use a full 40-character commit SHA'))
+
+          for path, line_number, target, reason in violations:
+              print(f'::error file={path},line={line_number}::{target}: {reason}')
+
+          if violations:
+              print(f'Found {len(violations)} mutable action reference(s).', file=sys.stderr)
+              sys.exit(1)
+
+          print('All remote workflow actions use immutable commit or digest references.')
+          PY

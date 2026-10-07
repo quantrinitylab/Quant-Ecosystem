@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Nebula Trivia</title>
+    <link rel="stylesheet" href="../_shared/theme.css" />
+    <style>
+      .trivia { width: min(88vw, 420px); display: flex; flex-direction: column; gap: 16px; }
+      .timer-track { height: 8px; border-radius: 999px; background: var(--qg-card); overflow: hidden; }
+      .timer-fill { height: 100%; width: 100%; background: linear-gradient(90deg, var(--qg-accent-3), var(--qg-accent)); transition: width 0.1s linear; }
+      .q-text { font-size: clamp(17px, 4.6vw, 21px); font-weight: 800; min-height: 56px; }
+      .answers { display: grid; gap: 10px; }
+      .answer {
+        text-align: left;
+        padding: 14px 16px;
+        border-radius: 14px;
+        background: var(--qg-card);
+        border: 1px solid var(--qg-border);
+        color: var(--qg-text);
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+        font-family: inherit;
+        transition: transform 0.1s ease, background 0.2s ease, border-color 0.2s ease;
+      }
+      .answer:active { transform: scale(0.98); }
+      .answer.correct { background: rgba(92, 240, 138, 0.18); border-color: var(--qg-good); }
+      .answer.wrong { background: rgba(255, 92, 122, 0.18); border-color: var(--qg-bad); }
+      .answer[disabled] { cursor: default; }
+      .meta { display: flex; justify-content: space-between; font-size: 13px; color: var(--qg-muted); font-weight: 700; }
+      .score-pop { color: var(--qg-accent); font-weight: 800; }
+      .big-score { font-size: clamp(40px, 14vw, 64px); font-weight: 900; background: linear-gradient(90deg, var(--qg-accent), var(--qg-accent-2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    </style>
+  </head>
+  <body>
+    <div class="qg-stars"></div>
+    <div class="qg-shell">
+      <div id="start" class="qg-fade-in">
+        <h1 class="qg-title">🌌 Nebula Trivia</h1>
+        <p class="qg-sub">7 questions across the cosmos. Answer fast — speed and streaks earn bonus points.</p>
+        <button class="qg-btn" id="play">Start quiz</button>
+      </div>
+
+      <div id="quiz" class="trivia" style="display: none">
+        <div class="meta">
+          <span id="progress">Q1 / 7</span>
+          <span class="score-pop" id="score">0 pts</span>
+        </div>
+        <div class="timer-track"><div class="timer-fill" id="timer"></div></div>
+        <div class="q-text" id="question"></div>
+        <div class="answers" id="answers"></div>
+        <div class="meta"><span id="streak">Streak: 0 🔥</span><span id="feedback"></span></div>
+      </div>
+
+      <div id="end" style="display: none; flex-direction: column; align-items: center; gap: 12px" class="qg-fade-in">
+        <h1 class="qg-title">Quiz complete!</h1>
+        <div class="big-score qg-pop" id="final">0</div>
+        <p class="qg-sub" id="summary"></p>
+        <div class="qg-row">
+          <button class="qg-btn qg-btn--ghost" id="again">Play again</button>
+          <button class="qg-btn" id="done">Post score</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="../_shared/quant-game.js"></script>
+    <script>
+      (function () {
+        var GAME_ID = 'nebula-trivia';
+        var TIME_PER_Q = 15; // seconds
+        var BANK = [
+          { q: 'Which planet has the most moons in our solar system?', a: ['Jupiter', 'Saturn', 'Neptune', 'Mars'], c: 1 },
+          { q: 'What is the closest star to Earth?', a: ['Proxima Centauri', 'Sirius', 'The Sun', 'Betelgeuse'], c: 2 },
+          { q: 'A light-year is a measure of what?', a: ['Time', 'Brightness', 'Distance', 'Mass'], c: 2 },
+          { q: 'What galaxy is Earth located in?', a: ['Andromeda', 'Milky Way', 'Whirlpool', 'Sombrero'], c: 1 },
+          { q: 'Which planet is known as the Red Planet?', a: ['Venus', 'Jupiter', 'Mars', 'Mercury'], c: 2 },
+          { q: 'What force keeps planets in orbit around the Sun?', a: ['Magnetism', 'Gravity', 'Friction', 'Inertia'], c: 1 },
+          { q: 'What do we call a collapsed star with gravity so strong light cannot escape?', a: ['Pulsar', 'Quasar', 'Black hole', 'Nebula'], c: 2 },
+          { q: 'Which planet spins on its side?', a: ['Uranus', 'Saturn', 'Neptune', 'Earth'], c: 0 },
+          { q: 'What is the hottest planet in our solar system?', a: ['Mercury', 'Venus', 'Mars', 'Jupiter'], c: 1 },
+          { q: 'What is the name of the first artificial satellite?', a: ['Apollo', 'Voyager', 'Sputnik', 'Hubble'], c: 2 },
+        ];
+
+        var state = { order: [], idx: 0, score: 0, correct: 0, streak: 0, bestStreak: 0, timeLeft: 0, raf: 0, locked: false, startTs: 0 };
+
+        var el = {
+          start: document.getElementById('start'),
+          quiz: document.getElementById('quiz'),
+          end: document.getElementById('end'),
+          play: document.getElementById('play'),
+          progress: document.getElementById('progress'),
+          score: document.getElementById('score'),
+          timer: document.getElementById('timer'),
+          question: document.getElementById('question'),
+          answers: document.getElementById('answers'),
+          streak: document.getElementById('streak'),
+          feedback: document.getElementById('feedback'),
+          final: document.getElementById('final'),
+          summary: document.getElementById('summary'),
+          again: document.getElementById('again'),
+          done: document.getElementById('done'),
+        };
+
+        function shuffle(arr) {
+          var a = arr.slice();
+          for (var i = a.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var t = a[i]; a[i] = a[j]; a[j] = t;
+          }
+          return a;
+        }
+
+        function startQuiz() {
+          state.order = shuffle(BANK).slice(0, 7);
+          state.idx = 0; state.score = 0; state.correct = 0; state.streak = 0; state.bestStreak = 0;
+          el.start.style.display = 'none';
+          el.end.style.display = 'none';
+          el.quiz.style.display = 'flex';
+          renderQuestion();
+        }
+
+        function renderQuestion() {
+          state.locked = false;
+          var item = state.order[state.idx];
+          el.progress.textContent = 'Q' + (state.idx + 1) + ' / ' + state.order.length;
+          el.score.textContent = state.score + ' pts';
+          el.streak.textContent = 'Streak: ' + state.streak + ' 🔥';
+          el.feedback.textContent = '';
+          el.question.textContent = item.q;
+          el.answers.innerHTML = '';
+          item.a.forEach(function (text, i) {
+            var b = document.createElement('button');
+            b.className = 'answer';
+            b.textContent = text;
+            b.addEventListener('click', function () { answer(i, b); });
+            el.answers.appendChild(b);
+          });
+          startTimer();
+        }
+
+        function startTimer() {
+          state.timeLeft = TIME_PER_Q;
+          state.startTs = performance.now();
+          cancelAnimationFrame(state.raf);
+          (function tick() {
+            var elapsed = (performance.now() - state.startTs) / 1000;
+            var remain = Math.max(0, TIME_PER_Q - elapsed);
+            state.timeLeft = remain;
+            el.timer.style.width = (remain / TIME_PER_Q) * 100 + '%';
+            if (remain <= 0) { answer(-1, null); return; }
+            state.raf = requestAnimationFrame(tick);
+          })();
+        }
+
+        function answer(choice, btn) {
+          if (state.locked) return;
+          state.locked = true;
+          cancelAnimationFrame(state.raf);
+          var item = state.order[state.idx];
+          var buttons = el.answers.querySelectorAll('.answer');
+          buttons.forEach(function (b) { b.setAttribute('disabled', 'true'); });
+          buttons[item.c].classList.add('correct');
+
+          if (choice === item.c) {
+            var speedBonus = Math.round(state.timeLeft) * 2; // up to ~30
+            state.streak++;
+            state.bestStreak = Math.max(state.bestStreak, state.streak);
+            var streakBonus = (state.streak - 1) * 5;
+            var gained = 50 + speedBonus + streakBonus;
+            state.score += gained;
+            state.correct++;
+            el.feedback.innerHTML = '<span class="score-pop">+' + gained + '</span>';
+          } else {
+            state.streak = 0;
+            if (btn) btn.classList.add('wrong');
+            el.feedback.textContent = choice === -1 ? "Time's up!" : 'Nope';
+          }
+          el.score.textContent = state.score + ' pts';
+          el.streak.textContent = 'Streak: ' + state.streak + ' 🔥';
+
+          setTimeout(function () {
+            state.idx++;
+            if (state.idx >= state.order.length) finish();
+            else renderQuestion();
+          }, 900);
+        }
+
+        function finish() {
+          el.quiz.style.display = 'none';
+          el.end.style.display = 'flex';
+          el.final.textContent = state.score;
+          el.summary.textContent =
+            state.correct + ' / ' + state.order.length + ' correct · best streak ' + state.bestStreak + ' 🔥';
+        }
+
+        function report() {
+          QuantGame.gameOver(GAME_ID, [
+            { userId: QuantGame.localUserId(), displayName: 'You', score: state.score },
+          ]);
+        }
+
+        el.play.addEventListener('click', startQuiz);
+        el.again.addEventListener('click', startQuiz);
+        el.done.addEventListener('click', report);
+
+        try {
+          QuantGame.ready(GAME_ID);
+        } catch (err) {
+          QuantGame.error(GAME_ID, 'Failed to initialise: ' + err);
+        }
+      })();
+    </script>
+  </body>
+</html>

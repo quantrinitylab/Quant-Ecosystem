@@ -1,0 +1,70 @@
+name: Cloudflare Workers AI validation
+
+on:
+  pull_request:
+    paths:
+      - 'apps/quantai/backend/services/cloudflare-workers-ai.ts'
+      - 'apps/quantai/backend/services/ai-engine.ts'
+      - 'apps/quantai/backend/app.ts'
+      - 'apps/quantai/backend/__tests__/cloudflare-*.test.ts'
+      - 'apps/quantai/.env.example'
+      - '.env.example'
+      - '.github/workflows/cloudflare-workers-ai-validate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/quantai/backend/services/cloudflare-workers-ai.ts'
+      - 'apps/quantai/backend/services/ai-engine.ts'
+      - 'apps/quantai/backend/app.ts'
+      - 'apps/quantai/backend/__tests__/cloudflare-*.test.ts'
+      - 'apps/quantai/.env.example'
+      - '.env.example'
+      - '.github/workflows/cloudflare-workers-ai-validate.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-workers-ai-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-cloudflare-workers-ai:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build database dependency
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npx turbo build --concurrency=2 --filter=@quant/database
+
+      - name: Run Workers AI contract tests
+        run: >-
+          pnpm --filter @quant/quantai exec vitest run
+          backend/__tests__/cloudflare-workers-ai.test.ts
+          backend/__tests__/cloudflare-ai-engine.test.ts
+
+      - name: Typecheck QuantAI backend
+        run: pnpm --filter @quant/quantai run build:backend
+
+      - name: Lint Workers AI boundary
+        run: >-
+          pnpm exec eslint
+          apps/quantai/backend/services/cloudflare-workers-ai.ts
+          apps/quantai/backend/services/ai-engine.ts
+          apps/quantai/backend/__tests__/cloudflare-workers-ai.test.ts
+          apps/quantai/backend/__tests__/cloudflare-ai-engine.test.ts

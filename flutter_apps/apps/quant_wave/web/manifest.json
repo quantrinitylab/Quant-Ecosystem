@@ -1,0 +1,64 @@
+{
+  "name": "QuantWave · Sovereign Microblogging & Spaces",
+  "short_name": "QuantWave",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#090A0E",
+  "theme_color": "#090A0E",
+  "description": "Sovereign X / Twitter & Reddit Killer Microblogging, Live Audio Spaces Stage, and Interactive Party Games Platform with Impeller 120Hz Acceleration.",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "icons/Icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/Icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": [
+    "social",
+    "news",
+    "entertainment",
+    "community"
+  ],
+  "shortcuts": [
+    {
+      "name": "Timeline",
+      "short_name": "Timeline",
+      "description": "Sovereign microblogging timeline",
+      "url": "./#timeline",
+      "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Audio Spaces",
+      "short_name": "Spaces",
+      "description": "Live audio broadcast stage",
+      "url": "./#spaces",
+      "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Party Games",
+      "short_name": "Games",
+      "description": "Multiplayer interactive games lobby",
+      "url": "./#games",
+      "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

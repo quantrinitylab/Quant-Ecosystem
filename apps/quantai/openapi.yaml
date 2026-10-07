@@ -1,0 +1,2920 @@
+openapi: 3.0.3
+info:
+  title: QuantAI API
+  description: AI platform with agents, orchestration, memory, tools, ML pipelines, and cross-app coordination.
+  version: 1.0.0
+  contact:
+    name: Quant Ecosystem
+servers:
+  - url: /api/v1
+    description: QuantAI API server
+
+tags:
+  - name: Health
+    description: System health and readiness
+  - name: QuantOS
+    description: QuantOS agent registry and status
+  - name: Agentic
+    description: Agent execution and workflows
+  - name: Analytics
+    description: Agent analytics and stats
+  - name: Swarm
+    description: Agent swarm management
+  - name: Orchestration
+    description: Cross-app orchestration
+  - name: Personal Agent
+    description: Personal AI agent
+  - name: Agents
+    description: Agent marketplace
+  - name: ML
+    description: ML model training and jobs
+  - name: Tools
+    description: Tool execution
+  - name: Agent Health
+    description: Agent health monitoring
+  - name: Agent Logs
+    description: Agent log management
+  - name: Versioning
+    description: Agent version management
+  - name: Usage
+    description: Usage stats and billing
+  - name: Cache
+    description: Cache management
+  - name: Chat
+    description: AI chat sessions
+  - name: Voice
+    description: Voice interface (TTS/STT)
+  - name: Federation
+    description: Federated agent network
+  - name: Moderation
+    description: Content moderation
+  - name: Templates
+    description: Prompt/workflow templates
+  - name: AB Testing
+    description: A/B testing experiments
+  - name: Sessions
+    description: Chat session management
+  - name: Events
+    description: Event pipeline
+  - name: Marketplace
+    description: Agent marketplace (v2)
+  - name: Recommendations
+    description: Content recommendations
+  - name: Memory
+    description: Unified memory system
+  - name: CDN
+    description: CDN management
+  - name: Permissions
+    description: Agent permission management
+  - name: Scaling
+    description: Auto-scaling policies
+  - name: Payments
+    description: Payment processing
+  - name: Training
+    description: Agent training
+  - name: Ask
+    description: Single-shot AI Q&A
+  - name: Collaboration
+    description: Multi-agent collaboration
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: Invalid request body
+            statusCode:
+              type: integer
+              example: 400
+
+    SuccessWrapper:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: System health check
+      security: []
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                    example: 2.0.0-agentic
+                  agents:
+                    type: object
+                    properties:
+                      count:
+                        type: integer
+                      active:
+                        type: array
+                        items:
+                          type: string
+                  features:
+                    type: array
+                    items:
+                      type: string
+
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      security: []
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: boolean
+        '503':
+          description: Not ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: boolean
+                    example: false
+                  missing:
+                    type: array
+                    items:
+                      type: string
+
+  /quantos/agents:
+    get:
+      tags: [QuantOS]
+      summary: List active agents
+      security: []
+      responses:
+        '200':
+          description: Agent list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        status:
+                          type: string
+                        capabilities:
+                          type: array
+                          items:
+                            type: string
+                  total:
+                    type: integer
+
+  /quantos/status:
+    get:
+      tags: [QuantOS]
+      summary: System status
+      security: []
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  agents:
+                    type: integer
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+
+  /agentic/agents/run:
+    post:
+      tags: [Agentic]
+      summary: Run a specific agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agentId, input]
+              properties:
+                agentId:
+                  type: string
+                input:
+                  type: string
+                context:
+                  type: object
+      responses:
+        '200':
+          description: Agent result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  result:
+                    type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Agent error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /agentic/workflows:
+    post:
+      tags: [Agentic]
+      summary: Create and execute a workflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, goal]
+              properties:
+                name:
+                  type: string
+                goal:
+                  type: string
+      responses:
+        '200':
+          description: Workflow executed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  workflow:
+                    type: object
+                  results:
+                    type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [Agentic]
+      summary: List user workflows
+      responses:
+        '200':
+          description: Workflow list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /analytics/agents/top:
+    get:
+      tags: [Analytics]
+      summary: Get top performing agents
+      security: []
+      responses:
+        '200':
+          description: Top agents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /analytics/agents/{id}/stats:
+    get:
+      tags: [Analytics]
+      summary: Get agent stats
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent stats
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: No stats found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /swarm:
+    post:
+      tags: [Swarm]
+      summary: Form an agent swarm
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, agents, goal]
+              properties:
+                name:
+                  type: string
+                agents:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 2
+                goal:
+                  type: string
+      responses:
+        '200':
+          description: Swarm formed
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Swarm error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /swarm/{id}/activate:
+    post:
+      tags: [Swarm]
+      summary: Activate a swarm
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Swarm activated
+          content:
+            application/json:
+              schema:
+                type: object
+        '500':
+          description: Swarm error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /swarm/{id}:
+    get:
+      tags: [Swarm]
+      summary: Get swarm details
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Swarm details
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: Swarm not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /orchestrate/summarize-day:
+    post:
+      tags: [Orchestration]
+      summary: Summarize the user's day across apps
+      responses:
+        '200':
+          description: Day summary
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /orchestrate/draft-reply:
+    post:
+      tags: [Orchestration]
+      summary: Draft a cross-app reply
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [emailId]
+              properties:
+                emailId:
+                  type: string
+      responses:
+        '200':
+          description: Drafted reply
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /orchestrate/schedule-meeting:
+    post:
+      tags: [Orchestration]
+      summary: Schedule a meeting across apps
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, attendees, preferredTime]
+              properties:
+                title:
+                  type: string
+                attendees:
+                  type: array
+                  items:
+                    type: string
+                preferredTime:
+                  type: string
+      responses:
+        '200':
+          description: Meeting scheduled
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /orchestrate/search-and-summarize:
+    post:
+      tags: [Orchestration]
+      summary: Search across apps and summarize
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+      responses:
+        '200':
+          description: Search results summary
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /orchestrate/chat-followup:
+    post:
+      tags: [Orchestration]
+      summary: Chat follow-up from conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conversationId]
+              properties:
+                conversationId:
+                  type: string
+      responses:
+        '200':
+          description: Follow-up result
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /personal-agent:
+    post:
+      tags: [Personal Agent]
+      summary: Send input to personal agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [input]
+              properties:
+                input:
+                  type: string
+      responses:
+        '200':
+          description: Agent result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  result:
+                    type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Agent error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /personal-agent/context:
+    get:
+      tags: [Personal Agent]
+      summary: Get personal agent context
+      responses:
+        '200':
+          description: Agent context
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  context:
+                    type: array
+                    items:
+                      type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /agents/marketplace:
+    get:
+      tags: [Agents]
+      summary: List marketplace agents
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Agent list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+
+  /agents/{id}:
+    get:
+      tags: [Agents]
+      summary: Get a specific agent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+
+  /agents/install:
+    post:
+      tags: [Agents]
+      summary: Install an agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agentId]
+              properties:
+                agentId:
+                  type: string
+      responses:
+        '201':
+          description: Agent installed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /agents/{id}/uninstall:
+    delete:
+      tags: [Agents]
+      summary: Uninstall an agent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent uninstalled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /agents:
+    post:
+      tags: [Agents]
+      summary: Create a custom agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, description, version, capabilities, systemPrompt, tools]
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+                description:
+                  type: string
+                  maxLength: 1000
+                version:
+                  type: string
+                capabilities:
+                  type: array
+                  items:
+                    type: string
+                systemPrompt:
+                  type: string
+                  maxLength: 10000
+                tools:
+                  type: array
+                  items:
+                    type: string
+                modelPreference:
+                  type: string
+                icon:
+                  type: string
+      responses:
+        '201':
+          description: Agent created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ml/models:
+    get:
+      tags: [ML]
+      summary: List ML models
+      security: []
+      responses:
+        '200':
+          description: Model list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /ml/train:
+    post:
+      tags: [ML]
+      summary: Start ML training job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                modelName:
+                  type: string
+                dataset:
+                  type: object
+      responses:
+        '200':
+          description: Training job started
+          content:
+            application/json:
+              schema:
+                type: object
+        '500':
+          description: ML error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ml/jobs/{id}:
+    get:
+      tags: [ML]
+      summary: Get training job status
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job details
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tools:
+    get:
+      tags: [Tools]
+      summary: List available tools
+      responses:
+        '200':
+          description: Tool list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tools/{name}/execute:
+    post:
+      tags: [Tools]
+      summary: Execute a tool
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [args]
+              properties:
+                args:
+                  type: object
+      responses:
+        '200':
+          description: Tool result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /agent-health:
+    get:
+      tags: [Agent Health]
+      summary: Get all agent health data
+      security: []
+      responses:
+        '200':
+          description: Health data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /agent-health/{id}:
+    get:
+      tags: [Agent Health]
+      summary: Get specific agent health
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Health data
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: No health data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /agent-logs:
+    get:
+      tags: [Agent Logs]
+      summary: Get agent logs
+      security: []
+      parameters:
+        - name: agentId
+          in: query
+          schema:
+            type: string
+        - name: level
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+    delete:
+      tags: [Agent Logs]
+      summary: Clear agent logs
+      security: []
+      parameters:
+        - name: agentId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Logs cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /versioning/agents/{id}/versions:
+    get:
+      tags: [Versioning]
+      summary: Get agent versions
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Version list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '404':
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /versioning/agents/{id}/latest:
+    get:
+      tags: [Versioning]
+      summary: Get latest agent version
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Latest version
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: object
+        '404':
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /usage:
+    get:
+      tags: [Usage]
+      summary: Get usage statistics
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: day
+      responses:
+        '200':
+          description: Usage data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /usage/billing:
+    get:
+      tags: [Usage]
+      summary: Get billing info
+      responses:
+        '200':
+          description: Billing info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /cache/stats:
+    get:
+      tags: [Cache]
+      summary: Get cache statistics
+      security: []
+      responses:
+        '200':
+          description: Cache stats
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /cache/clear:
+    post:
+      tags: [Cache]
+      summary: Clear all cache
+      security: []
+      responses:
+        '200':
+          description: Cache cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /cache/{key}:
+    delete:
+      tags: [Cache]
+      summary: Delete a cache entry
+      security: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Entry deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /chat/{id}/messages:
+    post:
+      tags: [Chat]
+      summary: Send a message to AI chat session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            description: Session ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  maxLength: 100000
+                model:
+                  type: string
+                  example: gpt-4o
+                temperature:
+                  type: number
+                  minimum: 0
+                  maximum: 2
+                useAgent:
+                  type: boolean
+                agentId:
+                  type: string
+      responses:
+        '200':
+          description: AI response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  model:
+                    type: string
+                  usage:
+                    type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: AI/Agent error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /voice/tts:
+    post:
+      tags: [Voice]
+      summary: Text-to-speech
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+      responses:
+        '200':
+          description: Audio data
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+
+  /voice/stt:
+    post:
+      tags: [Voice]
+      summary: Speech-to-text
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Transcribed text
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  text:
+                    type: string
+
+  /voice/command:
+    post:
+      tags: [Voice]
+      summary: Process voice command
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                audio:
+                  type: string
+                  description: Base64-encoded audio
+                agentId:
+                  type: string
+      responses:
+        '200':
+          description: Command result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /federation/register:
+    post:
+      tags: [Federation]
+      summary: Register a federated agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, endpoint, capabilities, trustLevel]
+              properties:
+                id:
+                  type: string
+                endpoint:
+                  type: string
+                  format: uri
+                capabilities:
+                  type: array
+                  items:
+                    type: string
+                trustLevel:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+      responses:
+        '200':
+          description: Agent registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /federation/call/{id}:
+    post:
+      tags: [Federation]
+      summary: Call a federated agent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                input:
+                  type: string
+      responses:
+        '200':
+          description: Agent result
+          content:
+            application/json:
+              schema:
+                type: object
+        '500':
+          description: Federation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /federation:
+    get:
+      tags: [Federation]
+      summary: List federated agents
+      security: []
+      responses:
+        '200':
+          description: Federated agent list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /moderation/moderate:
+    post:
+      tags: [Moderation]
+      summary: Moderate content
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Moderation result
+          content:
+            application/json:
+              schema:
+                type: object
+        '500':
+          description: Moderation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /moderation/batch:
+    post:
+      tags: [Moderation]
+      summary: Batch moderate content
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contents:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '200':
+          description: Batch results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '500':
+          description: Moderation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /moderation/banned-words:
+    post:
+      tags: [Moderation]
+      summary: Add a banned word
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [word]
+              properties:
+                word:
+                  type: string
+      responses:
+        '200':
+          description: Word added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /templates:
+    get:
+      tags: [Templates]
+      summary: List all templates
+      security: []
+      responses:
+        '200':
+          description: Template list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /templates/{id}:
+    get:
+      tags: [Templates]
+      summary: Get a template
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Template details
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /templates/category/{category}:
+    get:
+      tags: [Templates]
+      summary: Get templates by category
+      security: []
+      parameters:
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Template list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /ab-testing/experiments:
+    post:
+      tags: [AB Testing]
+      summary: Create an experiment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Experiment created
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /ab-testing/experiments/{id}/start:
+    post:
+      tags: [AB Testing]
+      summary: Start an experiment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Experiment started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /ab-testing/experiments/{id}/variant:
+    get:
+      tags: [AB Testing]
+      summary: Get variant for user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Assigned variant
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  variant:
+                    type: object
+
+  /ab-testing/results:
+    post:
+      tags: [AB Testing]
+      summary: Record experiment result
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                experimentId:
+                  type: string
+                variantId:
+                  type: string
+                metrics:
+                  type: object
+      responses:
+        '200':
+          description: Result recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /sessions:
+    post:
+      tags: [Sessions]
+      summary: Create a chat session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  maxLength: 200
+                model:
+                  type: string
+                systemPrompt:
+                  type: string
+                  maxLength: 10000
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [Sessions]
+      summary: List sessions
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Session list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /sessions/{id}:
+    get:
+      tags: [Sessions]
+      summary: Get a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags: [Sessions]
+      summary: Update a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  maxLength: 200
+                model:
+                  type: string
+                systemPrompt:
+                  type: string
+                  maxLength: 10000
+      responses:
+        '200':
+          description: Session updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Sessions]
+      summary: Delete a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /sessions/{id}/archive:
+    post:
+      tags: [Sessions]
+      summary: Archive a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /sessions/{id}/pin:
+    post:
+      tags: [Sessions]
+      summary: Toggle session pin
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pin toggled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /events/publish:
+    post:
+      tags: [Events]
+      summary: Publish an event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Event published
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  eventId:
+                    type: string
+        '500':
+          description: Event error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /events/stats:
+    get:
+      tags: [Events]
+      summary: Get event pipeline stats
+      security: []
+      responses:
+        '200':
+          description: Pipeline stats
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /events/dead-letter:
+    get:
+      tags: [Events]
+      summary: Get dead letter queue
+      security: []
+      responses:
+        '200':
+          description: Dead letter queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /marketplace:
+    get:
+      tags: [Marketplace]
+      summary: List all marketplace agents
+      security: []
+      responses:
+        '200':
+          description: Agent list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /marketplace/{id}:
+    get:
+      tags: [Marketplace]
+      summary: Get marketplace agent
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /marketplace/{id}/install:
+    post:
+      tags: [Marketplace]
+      summary: Install marketplace agent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent installed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /recommendations/for-me:
+    get:
+      tags: [Recommendations]
+      summary: Get personalized recommendations
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [personalized, trending, similar]
+            default: personalized
+      responses:
+        '200':
+          description: Recommendations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Recommendation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /recommendations/interact:
+    post:
+      tags: [Recommendations]
+      summary: Record user interaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contentId:
+                  type: string
+                type:
+                  type: string
+                value:
+                  type: number
+      responses:
+        '200':
+          description: Interaction recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /recommendations/content:
+    post:
+      tags: [Recommendations]
+      summary: Add content to recommendation engine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, title]
+              properties:
+                id:
+                  type: string
+                  maxLength: 200
+                title:
+                  type: string
+                  maxLength: 500
+                description:
+                  type: string
+                  maxLength: 5000
+                category:
+                  type: string
+                  maxLength: 200
+                tags:
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 100
+                score:
+                  type: number
+      responses:
+        '200':
+          description: Content added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /memory:
+    get:
+      tags: [Memory]
+      summary: List memories
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [people, places, projects, preferences, skills, goals, schedules, routines]
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: tag
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Memory list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Memory]
+      summary: Create a memory (requires writeSignal explicit)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                [category, content, source, sourceApp, explanation, writeSignal, accessScopes, tags]
+              properties:
+                category:
+                  type: string
+                  enum: [people, places, projects, preferences, skills, goals, schedules, routines]
+                content:
+                  type: string
+                source:
+                  type: string
+                sourceApp:
+                  type: string
+                explanation:
+                  type: string
+                writeSignal:
+                  type: string
+                  enum: [explicit]
+                accessScopes:
+                  type: array
+                  items:
+                    type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                expiresAt:
+                  type: number
+      responses:
+        '201':
+          description: Memory created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /memory/{id}:
+    put:
+      tags: [Memory]
+      summary: Update a memory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                category:
+                  type: string
+                  enum: [people, places, projects, preferences, skills, goals, schedules, routines]
+                tags:
+                  type: array
+                  items:
+                    type: string
+                explanation:
+                  type: string
+      responses:
+        '200':
+          description: Memory updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Memory]
+      summary: Delete a memory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Memory deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /memory/purge/{tag}:
+    delete:
+      tags: [Memory]
+      summary: Purge all memories with tag
+      parameters:
+        - name: tag
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Memories purged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /memory/candidates:
+    get:
+      tags: [Memory]
+      summary: List pending memory candidates
+      responses:
+        '200':
+          description: Candidate list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /memory/candidates/{id}/approve:
+    post:
+      tags: [Memory]
+      summary: Approve a memory candidate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Candidate approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /memory/candidates/{id}/reject:
+    post:
+      tags: [Memory]
+      summary: Reject a memory candidate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Candidate rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /memory/export:
+    get:
+      tags: [Memory]
+      summary: Export memories
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, markdown, csv]
+            default: json
+      responses:
+        '200':
+          description: Exported memories
+          content:
+            application/json:
+              schema:
+                type: object
+            text/markdown:
+              schema:
+                type: string
+            text/csv:
+              schema:
+                type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /memory/import:
+    post:
+      tags: [Memory]
+      summary: Import memories from JSON
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version, exportedAt, userId, entries]
+              properties:
+                version:
+                  type: string
+                exportedAt:
+                  type: number
+                userId:
+                  type: string
+                entries:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '201':
+          description: Memories imported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /memory/disclosure:
+    get:
+      tags: [Memory]
+      summary: Full disclosure view of all memories
+      responses:
+        '200':
+          description: Full disclosure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /cdn/purge:
+    post:
+      tags: [CDN]
+      summary: Purge specific URLs from CDN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                urls:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Purge result
+          content:
+            application/json:
+              schema:
+                type: object
+        '500':
+          description: CDN error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /cdn/purge-all:
+    post:
+      tags: [CDN]
+      summary: Purge all CDN cache
+      responses:
+        '200':
+          description: Purge result
+          content:
+            application/json:
+              schema:
+                type: object
+        '500':
+          description: CDN error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /cdn/url:
+    get:
+      tags: [CDN]
+      summary: Get CDN URL for a resource
+      security: []
+      parameters:
+        - name: url
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: CDN URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cdnUrl:
+                    type: string
+
+  /permissions/grant:
+    post:
+      tags: [Permissions]
+      summary: Grant agent permission
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agentId, resource, actions]
+              properties:
+                agentId:
+                  type: string
+                resource:
+                  type: string
+                actions:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Permission granted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /permissions/my-permissions:
+    get:
+      tags: [Permissions]
+      summary: Get user permissions
+      responses:
+        '200':
+          description: Permission list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /scaling/policies:
+    get:
+      tags: [Scaling]
+      summary: List scaling policies
+      security: []
+      responses:
+        '200':
+          description: Policy list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  policies:
+                    type: array
+                    items:
+                      type: string
+                  message:
+                    type: string
+
+  /scaling/evaluate:
+    post:
+      tags: [Scaling]
+      summary: Evaluate scaling decision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                service:
+                  type: string
+                metrics:
+                  type: object
+      responses:
+        '200':
+          description: Scaling target
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    type: string
+                  targetReplicas:
+                    type: integer
+        '500':
+          description: Scaling error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /scaling/status/{service}:
+    get:
+      tags: [Scaling]
+      summary: Get service scaling status
+      security: []
+      parameters:
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Scaling status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    type: string
+                  currentReplicas:
+                    type: integer
+                  policy:
+                    type: object
+
+  /payments/methods:
+    post:
+      tags: [Payments]
+      summary: Add a payment method
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, isDefault]
+              properties:
+                type:
+                  type: string
+                  enum: [card, paypal, crypto]
+                isDefault:
+                  type: boolean
+                details:
+                  type: object
+      responses:
+        '200':
+          description: Payment method added
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Invalid payment method
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /payments/process:
+    post:
+      tags: [Payments]
+      summary: Process a payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                currency:
+                  type: string
+                  example: USD
+                type:
+                  type: string
+                metadata:
+                  type: object
+      responses:
+        '200':
+          description: Transaction processed
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /payments/transactions:
+    get:
+      tags: [Payments]
+      summary: Get user transactions
+      responses:
+        '200':
+          description: Transaction list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /training:
+    post:
+      tags: [Training]
+      summary: Start agent training
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agentId, examples]
+              properties:
+                agentId:
+                  type: string
+                examples:
+                  type: array
+                  items:
+                    type: object
+                    required: [input, expectedOutput]
+                    properties:
+                      input:
+                        type: string
+                      expectedOutput:
+                        type: string
+      responses:
+        '200':
+          description: Training session started
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Training error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /training/sessions/{agentId}:
+    get:
+      tags: [Training]
+      summary: Get training sessions for agent
+      security: []
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Training sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /ask:
+    post:
+      tags: [Ask]
+      summary: Single-shot AI Q&A
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question:
+                  type: string
+                model:
+                  type: string
+                systemPrompt:
+                  type: string
+      responses:
+        '200':
+          description: AI answer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      answer:
+                        type: string
+                      model:
+                        type: string
+                      usage:
+                        type: object
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /collaboration:
+    post:
+      tags: [Collaboration]
+      summary: Start multi-agent collaboration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agents, goal]
+              properties:
+                agents:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 2
+                goal:
+                  type: string
+      responses:
+        '200':
+          description: Collaboration session started
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Collaboration error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /collaboration/{id}:
+    get:
+      tags: [Collaboration]
+      summary: Get collaboration session
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session details
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

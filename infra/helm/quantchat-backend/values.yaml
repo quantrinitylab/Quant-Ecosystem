@@ -1,0 +1,134 @@
+# Default values for the quantchat-backend chart.
+# These run the QuantChat Fastify backend (production image built from
+# apps/quantchat/Dockerfile.backend) as a horizontally scalable Deployment.
+
+# At least 2 replicas so realtime fan-out is exercised across instances and the
+# service survives a single pod failure (Requirement 17.2). When autoscaling is
+# enabled the HPA owns the replica count (minReplicas also defaults to >= 2).
+replicaCount: 2
+
+image:
+  # Production backend image from Task 23.1 (apps/quantchat/Dockerfile.backend).
+  repository: quant/quantchat-backend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ''
+fullnameOverride: ''
+
+# The container listens on this port (Dockerfile.backend defaults PORT=3002).
+containerPort: 3002
+
+# Non-secret runtime configuration injected as plain environment variables.
+# Secrets are NEVER placed here - see `secrets` below.
+config:
+  NODE_ENV: production
+  HOST: 0.0.0.0
+  # Use the durable Prisma-backed key store in production (anything other than
+  # "memory" selects PrismaKeyStorage). Set to "memory" only for throwaway envs.
+  KEY_STORAGE: prisma
+  # Generic, non-plaintext push body subject is fine as plain config; the actual
+  # VAPID keys are secrets sourced from the Kubernetes Secret below.
+  LOG_LEVEL: info
+
+# Secret wiring (Requirement 17.3): REDIS_URL, JWT_SECRET, the LiveKit keys, the
+# VAPID push provider keys and DATABASE_URL are sourced from a Kubernetes Secret
+# via `valueFrom.secretKeyRef`. NO plaintext secret values are committed in this
+# chart - the operator provisions the Secret out-of-band (sealed-secrets,
+# external-secrets, vault, kubectl create secret, ...).
+secrets:
+  # Name of the pre-existing Kubernetes Secret holding all sensitive values.
+  # If empty, defaults to "<release-fullname>-secrets".
+  existingSecret: ''
+  # Map each required environment variable to the key within the Secret. Change
+  # the right-hand values if your Secret uses different key names.
+  keys:
+    REDIS_URL: REDIS_URL
+    JWT_SECRET: JWT_SECRET
+    DATABASE_URL: DATABASE_URL
+    LIVEKIT_API_KEY: LIVEKIT_API_KEY
+    LIVEKIT_API_SECRET: LIVEKIT_API_SECRET
+    LIVEKIT_URL: LIVEKIT_URL
+    VAPID_PUBLIC_KEY: VAPID_PUBLIC_KEY
+    VAPID_PRIVATE_KEY: VAPID_PRIVATE_KEY
+    VAPID_SUBJECT: VAPID_SUBJECT
+
+# Extra plain (non-secret) env vars, if needed.
+extraEnv: []
+# - name: SOME_FLAG
+#   value: "true"
+
+# Pull any additional whole Secrets/ConfigMaps via envFrom (optional).
+extraEnvFrom: []
+# - secretRef:
+#     name: my-extra-secret
+
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 384Mi
+  limits:
+    cpu: '1'
+    memory: 768Mi
+
+# Probes hit the Fastify health endpoints registered by @quant/server-core:
+#   /livez    -> liveness  (process is up)
+#   /healthz  -> readiness (dependencies, incl. realtime backplane, are healthy)
+probes:
+  liveness:
+    path: /livez
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    path: /healthz
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Optional Horizontal Pod Autoscaler. minReplicas stays >= 2 to preserve the
+# multi-replica guarantee even under low load.
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+podAnnotations: {}
+podLabels: {}
+
+# Hardened pod/container security context (non-root, read-only root fs).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Spread replicas across nodes for availability.
+podAntiAffinity:
+  enabled: true

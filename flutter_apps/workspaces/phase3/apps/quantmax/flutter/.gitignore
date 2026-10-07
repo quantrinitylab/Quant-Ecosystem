@@ -1,0 +1,31 @@
+# Dart/Flutter build outputs
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+*.log
+.packages
+.pub-cache/
+.pub/
+
+# Library packages must not commit their lock files.
+packages/**/pubspec.lock
+
+# Generated API client code — produced by CI from the QuantMax OpenAPI spec
+# (spec not built yet; see app-foundations/quantmax), never committed.
+packages/**/lib/src/codegen/generated/
+
+# Platform runner generated artifacts
+ios/Pods/
+ios/.symlinks/
+android/.gradle/
+macos/Pods/
+macos/Flutter/Flutter-Release.xcconfig
+windows/flutter/ephemeral/
+linux/flutter/ephemeral/
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store

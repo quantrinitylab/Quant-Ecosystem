@@ -1,0 +1,4785 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+// ==================== USERS & AUTH =============
+model User {
+  id                  String     @id @default(cuid())
+  email               String     @unique
+  username            String     @unique
+  displayName         String
+  passwordHash        String
+  avatarUrl           String?
+  bannerUrl           String?
+  phoneNumber         String?    @unique
+  role                UserRole   @default(USER)
+  status              UserStatus @default(PENDING_VERIFICATION)
+  emailVerified       Boolean    @default(false)
+  phoneVerified       Boolean    @default(false)
+  isVerified          Boolean    @default(false)
+  twoFactorEnabled    Boolean    @default(false)
+  twoFactorSecret     String?
+  // Held between /auth/2fa/setup and /auth/2fa/enable. The secret the client is
+  // shown must be the one the server later verifies against, or "enable" is just
+  // a 6-digit format check on a secret nobody stored.
+  twoFactorPendingSecret String?
+  twoFactorConfirmedAt   DateTime?
+  // The 30-second TOTP step of the last accepted code, plus one. A code is valid
+  // across three steps, so refusing anything at or below this number is what
+  // stops a captured code from being replayed inside its own window.
+  twoFactorLastUsedStep  Int?
+  bio                 String?
+  website             String?
+  location            String?
+  dateOfBirth         DateTime?
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
+  loginCount          Int        @default(0)
+  failedLoginAttempts Int        @default(0)
+  lockoutUntil        DateTime?
+  preferences         Json       @default("{}")
+  metadata            Json       @default("{}")
+  xpPoints            Int        @default(0)
+  level               Int        @default(1)
+  ghostMode           Boolean    @default(false)
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  deletedAt           DateTime?
+
+  // Relations
+  oauthAccounts      OAuthAccount[]
+  sessions           Session[]
+  refreshTokens      RefreshToken[]
+  twoFactorBackupCodes TwoFactorBackupCode[]
+  passwordResetTokens  PasswordResetToken[]
+  personalAccessTokens PersonalAccessToken[]
+  oauthClients       OAuthClient[]        @relation("UserOwnedClients")
+  oauthConsents      OAuthConsent[]
+  authorizationCodes AuthorizationCode[]
+  sentMessages       Message[]            @relation("MessageSender")
+  conversations      ConversationMember[]
+  emails             Email[]
+  posts              Post[]
+  comments           Comment[]
+  videos             Video[]
+  photos             Photo[]
+  stories            Story[]
+  notifications      Notification[]
+  aiSessions         AISession[]
+  quantyArtifacts    QuantyArtifact[]
+  campaigns          Campaign[]
+  datingProfile      DatingProfile?
+  shortVideos        ShortVideo[]
+
+  // Git hosting relations
+  repositories   Repository[]
+  repositoryStars RepositoryStar[]
+  pullRequests   PullRequest[]
+  reviews        Review[]
+  reviewComments ReviewComment[]
+  issues         Issue[]
+  issueComments  IssueComment[]
+  agentSessions  AgentSession[]
+  agentOrgs      AgentOrg[]
+
+  // QuantMail relations
+  labels        Label[]
+  contacts      Contact[]
+  contactGroups ContactGroup[]
+
+  // QuantMail productivity features
+  mailFilters       MailFilter[]
+  vacationResponder VacationResponder?
+  vacationReplyLogs VacationAutoReplyLog[]
+  emailTemplates    EmailTemplate[]
+  emailSignatures   EmailSignature[]
+
+  // Self-relations for followers
+  following UserRelationship[] @relation("UserFollowing")
+  followers UserRelationship[] @relation("UserFollower")
+
+  // Dating/matching relations
+  matchesAsUser1 Match[] @relation("MatchUser1")
+  matchesAsUser2 Match[] @relation("MatchUser2")
+  swipesGiven    Swipe[] @relation("SwipeSwiper")
+  swipesReceived Swipe[] @relation("SwipeTarget")
+  likes          Like[]
+
+  // Community membership
+  communityMemberships CommunityMember[]
+
+  // QuantChat Mega Upgrade relations
+  reels              Reel[]
+  streaksA           Streak[]          @relation("streakUserA")
+  streaksB           Streak[]          @relation("streakUserB")
+  gameBadges         GameBadge[]
+  gameScores         GameScore[]
+  memories           Memory[]
+  pushSubscriptions  PushSubscription[]
+  scheduledMessages  ScheduledMessage[]
+  quantAvatar        Avatar?           @relation()
+  preKeyBundle       PreKeyBundle?
+  snapViews          SnapView[]
+
+  @@index([email])
+  @@index([username])
+  @@index([phoneNumber])
+  @@index([status])
+  @@index([createdAt])
+  @@map("users")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  MODERATOR
+  CREATOR
+  ADVERTISER
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+  PENDING_VERIFICATION
+}
+
+model OAuthAccount {
+  id                String    @id @default(cuid())
+  userId            String
+  provider          String
+  providerAccountId String
+  accessToken       String?
+  refreshToken      String?
+  expiresAt         DateTime?
+  scope             String    @default("")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+model UserRelationship {
+  id          String           @id @default(cuid())
+  followerId  String
+  followingId String
+  type        RelationshipType @default(FOLLOW)
+  createdAt   DateTime         @default(now())
+
+  follower  User @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollower", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@map("user_relationships")
+}
+
+enum RelationshipType {
+  FOLLOW
+  BLOCK
+  MUTE
+  CLOSE_FRIEND
+}
+
+model Session {
+  id                 String   @id @default(cuid())
+  userId             String
+  token              String?  @unique
+  tokenId            String?
+  refreshTokenFamily String?
+  app                String?
+  isActive           Boolean  @default(true)
+  lastActivityAt     DateTime @default(now())
+  deviceInfo         Json     @default("{}")
+  ipAddress          String?
+  userAgent          String?
+  expiresAt          DateTime
+  createdAt          DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@index([isActive])
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  family    String
+  isRevoked Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([family])
+  @@map("refresh_tokens")
+}
+
+/// One-time recovery codes for TOTP two-factor auth.
+///
+/// Stored as SHA-256 digests, never in the clear: a recovery code is a password
+/// equivalent, and the whole point of it is to work when the authenticator is
+/// gone — so a leaked table would otherwise hand over every second factor. The
+/// user sees the plaintext exactly once, at generation.
+///
+/// `usedAt` rather than a delete, so "you have 3 codes left" is answerable and a
+/// replayed code is distinguishable from an unknown one in the audit trail.
+model TwoFactorBackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, codeHash])
+  @@index([userId])
+  @@map("two_factor_backup_codes")
+}
+
+/// A single password-reset link, stored as the digest of the token that was
+/// mailed out.
+///
+/// Only the digest is here for the same reason as a password: this row grants
+/// the right to take over the account, so a leaked table must not be a set of
+/// working reset links. `usedAt` rather than a delete keeps a spent link
+/// distinguishable from a forged one, and makes the single-use claim provable —
+/// the update that spends it is scoped to `usedAt: null`, so two simultaneous
+/// confirms cannot both win.
+///
+/// `requestedIp` is kept for abuse triage only; nothing in the flow reads it.
+model PasswordResetToken {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  requestedIp String?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+model PersonalAccessToken {
+  id         String    @id @default(cuid())
+  tokenId    String    @unique
+  tokenHash  String
+  userId     String
+  name       String
+  scopes     String[]
+  expiresAt  DateTime
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("personal_access_tokens")
+}
+
+model OAuthClient {
+  id               String   @id @default(cuid())
+  clientId         String   @unique
+  clientSecretHash String?
+  name             String
+  description      String?  @default("")
+  redirectUris     String[]
+  allowedScopes    String[]
+  isConfidential   Boolean  @default(true)
+  isFirstParty     Boolean  @default(false)
+  ownerId          String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  owner User? @relation("UserOwnedClients", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([ownerId])
+  @@map("oauth_clients")
+}
+
+model OAuthConsent {
+  id        String   @id @default(cuid())
+  userId    String
+  clientId  String
+  scopes    String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientId])
+  @@index([userId])
+  @@index([clientId])
+  @@map("oauth_consents")
+}
+
+model AuthorizationCode {
+  id                  String   @id @default(cuid())
+  code                String   @unique
+  clientId            String
+  userId              String
+  redirectUri         String
+  scopes              String[]
+  codeChallenge       String?
+  codeChallengeMethod String?
+  nonce               String?
+  expiresAt           DateTime
+  createdAt           DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([code])
+  @@index([userId])
+  @@map("authorization_codes")
+}
+
+// ==================== MESSAGES (QuantChat) =============
+model Conversation {
+  id            String           @id @default(cuid())
+  type          ConversationType @default(DIRECT)
+  name          String?
+  description   String?
+  avatarUrl     String?
+  createdBy     String
+  themeId       String?
+  disappearTimer Int?            // seconds, null = no timer
+  isArchived    Boolean          @default(false)
+  lastMessageAt DateTime?
+  metadata      Json             @default("{}")
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  deletedAt     DateTime?
+
+  members  ConversationMember[]
+  messages Message[]
+
+  @@index([createdBy])
+  @@index([lastMessageAt])
+  @@index([updatedAt])
+  @@map("conversations")
+}
+
+enum ConversationType {
+  DIRECT
+  GROUP
+  CHANNEL
+}
+
+model ConversationMember {
+  id             String           @id @default(cuid())
+  conversationId String
+  userId         String
+  role           ConversationRole @default(MEMBER)
+  nickname       String?
+  isMuted        Boolean          @default(false)
+  muteUntil      DateTime?
+  joinedAt       DateTime         @default(now())
+  leftAt         DateTime?
+  lastReadAt     DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([conversationId])
+  @@index([userId])
+  @@map("conversation_members")
+}
+
+enum ConversationRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Message {
+  id                String      @id @default(cuid())
+  conversationId    String
+  senderId          String
+  type              MessageType @default(TEXT)
+  content           String?
+  mediaUrl          String?
+  mediaThumbnailUrl String?
+  mediaType         String?
+  mediaDuration     Int?
+  replyToId         String?
+  isEdited          Boolean     @default(false)
+  isDeleted         Boolean     @default(false)
+  isAIGenerated     Boolean     @default(false)
+  expiresAt         DateTime?
+  mentions          Json        @default("[]")
+  metadata          Json        @default("{}")
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User              @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo      Message?          @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies      Message[]         @relation("MessageReplies")
+  reactions    MessageReaction[]
+  snapViews    SnapView[]
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@index([expiresAt])
+  @@map("messages")
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  FILE
+  STICKER
+  GIF
+  LOCATION
+  CONTACT
+  POLL
+  SYSTEM
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@map("message_reactions")
+}
+
+model SnapView {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  viewedAt  DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+  @@map("snap_views")
+}
+
+// ==================== EMAILS (QuantMail) =============
+model Email {
+  id             String        @id @default(cuid())
+  userId         String
+  threadId       String?
+  folderId       String?
+  fromAddress    String
+  fromName       String?
+  toAddresses    Json          @default("[]")
+  ccAddresses    Json          @default("[]")
+  bccAddresses   Json          @default("[]")
+  subject        String
+  bodyHtml       String?
+  bodyPlain      String?
+  snippet        String?
+  isRead         Boolean       @default(false)
+  isStarred      Boolean       @default(false)
+  isPinned       Boolean       @default(false)
+  isImportant    Boolean       @default(false)
+  isDraft        Boolean       @default(false)
+  isSent         Boolean       @default(false)
+  isSpam         Boolean       @default(false)
+  isTrash        Boolean       @default(false)
+  hasAttachments Boolean       @default(false)
+  attachments    Json          @default("[]")
+  labels         Json          @default("[]")
+  inReplyTo      String?
+  // Real outbound/inbound delivery (QuantMail SuperHub Pillar 1). Additive; existing
+  // rows default to `draft`. Advanced toward a terminal state by the OutboundDeliveryPipeline.
+  deliveryStatus EmailDeliveryStatus @default(draft)
+  messageId      String?
+  // Combined SPF/DKIM/DMARC AuthVerdict recorded by the InboundIngestAdapter for
+  // inbound mail (QuantMail SuperHub Pillar 1, Requirement 5.1). Additive/nullable;
+  // outbound and existing rows leave it null.
+  authResults    Json?
+  priority       EmailPriority @default(NORMAL)
+  // How this message was written, so the conversation can show both kinds side by
+  // side and mark which is which. `MAIL` is a full letter — its own subject line,
+  // a rich body, cc/bcc, attachments. `CHAT` is a line typed straight into the
+  // thread. Both are real messages that leave over the same delivery path and
+  // land in the same thread; only the composer and the mark differ. Defaults to
+  // `MAIL` so every row written before this column existed keeps its meaning.
+  messageKind    EmailMessageKind @default(MAIL)
+  aiSummary      String?
+  aiCategory     String?
+  sentAt         DateTime?
+  // When this copy entered *this* mailbox. Set for received mail on ingest and for
+  // a sent copy at the moment it is sent, because the unified inbox is one
+  // timeline ordered by this column — a null here means the message has no
+  // position in that timeline and cannot be shown next to the conversation it
+  // belongs to. Nullable only because drafts have not entered any timeline yet.
+  receivedAt     DateTime?
+  // Read-receipt pipeline (WhatsApp-style ticks). `deliveredAt` is stamped when
+  // the message reaches the recipient's mailbox (internal delivery is immediate;
+  // external delivery stamps it when SES accepts the message or the queued
+  // delivery pipeline completes). `readAt` is stamped on the *sender's* sent
+  // copy when a recipient opens the thread (ThreadService.markThreadRead
+  // propagates it via the shared messageId). Nullable: rows written before this
+  // pipeline existed have no events, and a queued-but-unsent message is neither
+  // delivered nor read.
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread EmailThread? @relation(fields: [threadId], references: [id])
+  folder EmailFolder? @relation(fields: [folderId], references: [id])
+
+  // Per-recipient delivery attempts recorded by the OutboundDeliveryPipeline worker.
+  deliveryAttempts DeliveryAttempt[]
+
+  @@index([userId])
+  @@index([threadId])
+  @@index([folderId])
+  @@index([isRead])
+  @@index([receivedAt])
+  // The inbox pages with `orderBy: [{ receivedAt: 'desc' }, { createdAt: 'desc' }]`.
+  // The composite keeps that an index scan, and the second column makes the page
+  // window deterministic when two messages share a timestamp — without it, a row
+  // can appear on two pages or on none.
+  @@index([receivedAt(sort: Desc), createdAt(sort: Desc)])
+  // One copy of a message per mailbox. SNS delivers at least once, so a retry, a
+  // DLQ redrive or an operator replay all re-present the same message to the
+  // ingest pipeline; `Message-ID` is assigned by the originating server and so
+  // identifies the message rather than describing it. Postgres allows multiple
+  // NULLs in a unique index, which is what lets mail that arrives without the
+  // header — and every row written before this column was populated — coexist.
+  @@unique([userId, messageId])
+  @@map("emails")
+}
+
+enum EmailPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+// Per-email/per-recipient delivery lifecycle for real outbound/inbound mail.
+// Values are lowercase to match the design's Delivery_State literals
+// (draft -> queued -> sent/deferred -> bounced/delivered) and never regress.
+enum EmailDeliveryStatus {
+  draft
+  queued
+  sent
+  deferred
+  bounced
+  delivered
+}
+
+// Mail or chat: the two ways a message in a QuantMail conversation can be
+// written. The distinction is recorded rather than guessed, because the only
+// things a reader could guess from are body length and whether an HTML part
+// exists — and a one-line letter and a long chat message both defeat that.
+enum EmailMessageKind {
+  MAIL
+  CHAT
+}
+
+model EmailThread {
+  id                   String    @id @default(cuid())
+  userId               String
+  subject              String
+  participantAddresses Json      @default("[]")
+  messageCount         Int       @default(0)
+  isRead               Boolean   @default(false)
+  isStarred            Boolean   @default(false)
+  isMuted              Boolean   @default(false)
+  snoozedUntil         DateTime?
+  lastEmailAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  emails Email[]
+
+  @@index([userId])
+  @@index([lastEmailAt])
+  @@map("email_threads")
+}
+
+model EmailFolder {
+  id          String          @id @default(cuid())
+  userId      String
+  name        String
+  type        EmailFolderType @default(CUSTOM)
+  color       String?
+  icon        String?
+  emailCount  Int             @default(0)
+  unreadCount Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  emails Email[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("email_folders")
+}
+
+enum EmailFolderType {
+  INBOX
+  SENT
+  DRAFTS
+  SPAM
+  TRASH
+  ARCHIVE
+  CUSTOM
+}
+
+// ==================== POSTS (QuantSync) =============
+model Post {
+  id               String           @id @default(cuid())
+  userId           String
+  type             PostType         @default(TEXT)
+  content          String?
+  mediaUrls        Json             @default("[]")
+  hashtags         Json             @default("[]")
+  mentions         Json             @default("[]")
+  linkPreview      Json?
+  replyToId        String?
+  communityId      String?
+  visibility       PostVisibility   @default(PUBLIC)
+  likeCount        Int              @default(0)
+  commentCount     Int              @default(0)
+  repostCount      Int              @default(0)
+  shareCount       Int              @default(0)
+  viewCount        Int              @default(0)
+  isEdited         Boolean          @default(false)
+  isPinned         Boolean          @default(false)
+  isAnonymous      Boolean          @default(false)
+  anonymousAlias   String?
+  space            String           @default("main")
+  moderationStatus ModerationStatus @default(APPROVED)
+  publishedAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replyTo   Post?      @relation("PostReplies", fields: [replyToId], references: [id])
+  replies   Post[]     @relation("PostReplies")
+  community Community? @relation(fields: [communityId], references: [id])
+  comments  Comment[]
+  poll      Poll?
+  likes     Like[]
+
+  @@index([userId])
+  @@index([communityId])
+  @@index([publishedAt])
+  @@index([visibility])
+  @@index([isAnonymous])
+  @@index([space])
+  @@map("posts")
+}
+
+enum PostType {
+  TEXT
+  IMAGE
+  VIDEO
+  POLL
+  LINK
+  REPOST
+  THREAD
+  ARTICLE
+}
+
+enum PostVisibility {
+  PUBLIC
+  FOLLOWERS_ONLY
+  PRIVATE
+  COMMUNITY_ONLY
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  FLAGGED
+}
+
+model Comment {
+  id         String    @id @default(cuid())
+  postId     String
+  userId     String
+  parentId   String?
+  content    String
+  mediaUrl   String?
+  likeCount  Int       @default(0)
+  replyCount Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  post    Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies Comment[] @relation("CommentReplies")
+
+  @@index([postId])
+  @@index([userId])
+  @@index([parentId])
+  @@map("comments")
+}
+
+model Community {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  avatarUrl   String?
+  bannerUrl   String?
+  category    String?
+  rules       Json     @default("[]")
+  memberCount Int      @default(0)
+  isPrivate   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  posts   Post[]
+  members CommunityMember[]
+
+  @@index([slug])
+  @@map("communities")
+}
+
+model CommunityMember {
+  id          String        @id @default(cuid())
+  communityId String
+  userId      String
+  role        CommunityRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, userId])
+  @@index([communityId])
+  @@index([userId])
+  @@map("community_members")
+}
+
+enum CommunityRole {
+  OWNER
+  ADMIN
+  MODERATOR
+  MEMBER
+}
+
+model Poll {
+  id            String    @id @default(cuid())
+  postId        String    @unique
+  question      String
+  options       Json      @default("[]")
+  endAt         DateTime?
+  voterCount    Int       @default(0)
+  allowMultiple Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+
+  post  Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  votes PollVote[]
+
+  @@map("polls")
+}
+
+model PollVote {
+  id          String   @id @default(cuid())
+  pollId      String
+  userId      String
+  optionIndex Int
+  createdAt   DateTime @default(now())
+
+  poll Poll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, userId, optionIndex])
+  @@index([pollId])
+  @@map("poll_votes")
+}
+
+// ==================== ADS (QuantAds) =============
+model Campaign {
+  id               String            @id @default(cuid())
+  advertiserId     String
+  name             String
+  objective        CampaignObjective @default(AWARENESS)
+  status           CampaignStatus    @default(DRAFT)
+  budget           Json              @default("{}")
+  schedule         Json              @default("{}")
+  targeting        Json              @default("{}")
+  totalSpend       Float             @default(0)
+  totalImpressions Int               @default(0)
+  totalClicks      Int               @default(0)
+  totalConversions Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  deletedAt        DateTime?
+
+  advertiser User    @relation(fields: [advertiserId], references: [id], onDelete: Cascade)
+  adSets     AdSet[]
+
+  @@index([advertiserId])
+  @@index([status])
+  @@map("campaigns")
+}
+
+enum CampaignObjective {
+  AWARENESS
+  TRAFFIC
+  ENGAGEMENT
+  LEADS
+  CONVERSIONS
+  APP_INSTALLS
+}
+
+enum CampaignStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  PAUSED
+  COMPLETED
+  REJECTED
+}
+
+model AdSet {
+  id         String      @id @default(cuid())
+  campaignId String
+  name       String
+  status     AdSetStatus @default(DRAFT)
+  budget     Json        @default("{}")
+  targeting  Json        @default("{}")
+  placement  Json        @default("[]")
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  ads      Ad[]
+
+  @@index([campaignId])
+  @@map("ad_sets")
+}
+
+enum AdSetStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+model Ad {
+  id         String   @id @default(cuid())
+  adSetId    String
+  creativeId String
+  name       String
+  status     AdStatus @default(DRAFT)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  adSet    AdSet      @relation(fields: [adSetId], references: [id], onDelete: Cascade)
+  creative AdCreative @relation(fields: [creativeId], references: [id])
+
+  @@index([adSetId])
+  @@index([creativeId])
+  @@map("ads")
+}
+
+enum AdStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  REJECTED
+}
+
+model AdCreative {
+  id           String         @id @default(cuid())
+  advertiserId String
+  type         AdCreativeType @default(IMAGE)
+  name         String
+  headline     String?
+  description  String?
+  mediaUrl     String?
+  callToAction String?
+  landingUrl   String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  ads Ad[]
+
+  @@index([advertiserId])
+  @@map("ad_creatives")
+}
+
+enum AdCreativeType {
+  IMAGE
+  VIDEO
+  CAROUSEL
+  COLLECTION
+}
+
+/// A durable per-click record for QuantAds click-fraud accounting. Every click
+/// on the serving surface is recorded here with a fraud verdict; only clicks
+/// with `billable = true` (not flagged) charge the advertiser and count toward
+/// publisher payouts. Relation-free (additive) so it is safe for the shared
+/// schema. `ipHash` is a salted hash — never a raw IP.
+model AdClickEvent {
+  id         String   @id @default(cuid())
+  adId       String
+  campaignId String?
+  publisherId String?
+  userId     String
+  ipHash     String?
+  deviceFp   String?
+  billable   Boolean  @default(true)
+  paidOut    Boolean  @default(false)
+  fraudFlag  Boolean  @default(false)
+  fraudReason String?
+  createdAt  DateTime @default(now())
+
+  @@index([adId])
+  @@index([userId, createdAt])
+  @@index([ipHash, createdAt])
+  @@index([publisherId, billable, paidOut])
+  @@map("ad_click_events")
+}
+
+/// A durable record of one daily publisher-payout batch. `utcDay` is unique so
+/// a re-run for the same day is idempotent. Counts give an at-a-glance audit of
+/// how many publishers were paid / skipped / failed and the total credits paid.
+model PublisherPayoutRun {
+  id                  String    @id @default(cuid())
+  utcDay              String    @unique
+  status              String    @default("running") // running | completed | failed
+  publishersConsidered Int      @default(0)
+  paid                Int       @default(0)
+  skipped             Int       @default(0)
+  failed              Int       @default(0)
+  totalCreditsPaid    Int       @default(0)
+  error               String?
+  startedAt           DateTime  @default(now())
+  finishedAt          DateTime?
+
+  @@map("publisher_payout_runs")
+}
+
+// ==================== MEDIA (QuantTube / QuantNeon) =============
+model Video {
+  id               String                @id @default(cuid())
+  userId           String
+  channelId        String?
+  title            String
+  description      String?
+  videoUrl         String
+  thumbnailUrl     String?
+  duration         Int                   @default(0)
+  width            Int?
+  height           Int?
+  fileSize         BigInt                @default(0)
+  category         String?
+  tags             Json                  @default("[]")
+  visibility       VideoVisibility       @default(PUBLIC)
+  ageRestricted    Boolean               @default(false)
+  viewCount        Int                   @default(0)
+  likeCount        Int                   @default(0)
+  commentCount     Int                   @default(0)
+  processingStatus VideoProcessingStatus @default(PENDING)
+  publishedAt      DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  deletedAt        DateTime?
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel VideoChannel? @relation(fields: [channelId], references: [id])
+
+  @@index([userId])
+  @@index([channelId])
+  @@index([publishedAt])
+  @@index([visibility])
+  @@map("videos")
+}
+
+/// AI/creator-defined content segments of a video, used to compute a skip-plan
+/// so playback can show only the useful parts (skip intros, sponsors, recaps,
+/// outros, filler). Relation-free + additive (no Video back-relation) so it is
+/// safe for the shared schema.
+model VideoSegment {
+  id        String   @id @default(cuid())
+  videoId   String
+  kind      String // intro | content | sponsor | recap | outro | filler
+  label     String?
+  startSec  Float
+  endSec    Float
+  source    String   @default("ai") // ai | creator | community
+  createdAt DateTime @default(now())
+
+  @@index([videoId])
+  @@map("video_segments")
+}
+
+enum VideoVisibility {
+  PUBLIC
+  UNLISTED
+  PRIVATE
+}
+
+enum VideoProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model VideoChannel {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String
+  handle          String   @unique
+  description     String?
+  avatarUrl       String?
+  bannerUrl       String?
+  subscriberCount Int      @default(0)
+  videoCount      Int      @default(0)
+  isVerified      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  videos    Video[]
+  playlists Playlist[]
+
+  @@index([userId])
+  @@index([handle])
+  @@map("video_channels")
+}
+
+model Playlist {
+  id          String          @id @default(cuid())
+  userId      String
+  channelId   String?
+  title       String
+  description String?
+  visibility  VideoVisibility @default(PUBLIC)
+  videoCount  Int             @default(0)
+  isSystem    Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  channel VideoChannel?  @relation(fields: [channelId], references: [id])
+  items   PlaylistItem[]
+
+  @@index([userId])
+  @@index([channelId])
+  @@map("playlists")
+}
+
+// QuantTube durable playlist membership (previously in-memory). Each row is a
+// video's position within a playlist (Watch Later is a server-reserved system
+// playlist via Playlist.isSystem).
+model PlaylistItem {
+  id         String   @id @default(cuid())
+  playlistId String
+  videoId    String
+  position   Int
+  addedAt    DateTime @default(now())
+
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, videoId])
+  @@index([playlistId])
+  @@map("playlist_items")
+}
+
+model Photo {
+  id           String    @id @default(cuid())
+  userId       String
+  albumId      String?
+  caption      String?
+  imageUrl     String
+  thumbnailUrl String?
+  width        Int?
+  height       Int?
+  fileSize     Int       @default(0)
+  filter       String?
+  location     Json?
+  tags         Json      @default("[]")
+  likeCount    Int       @default(0)
+  commentCount Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  album PhotoAlbum? @relation(fields: [albumId], references: [id])
+
+  @@index([userId])
+  @@index([albumId])
+  @@map("photos")
+}
+
+model PhotoAlbum {
+  id            String          @id @default(cuid())
+  userId        String
+  name          String
+  description   String?
+  coverPhotoUrl String?
+  photoCount    Int             @default(0)
+  visibility    VideoVisibility @default(PUBLIC)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  photos Photo[]
+
+  @@index([userId])
+  @@map("photo_albums")
+}
+
+model Story {
+  id           String    @id @default(cuid())
+  userId       String
+  type         StoryType @default(IMAGE)
+  mediaUrl     String?
+  thumbnailUrl String?
+  textContent  String? // text-story body (StoryType.TEXT only); NULL for photo/video
+  duration     Int       @default(15)
+  viewCount    Int       @default(0)
+  audience     String    @default("ALL") // ALL | CLOSE_FRIENDS
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("stories")
+}
+
+enum StoryType {
+  IMAGE
+  VIDEO
+  TEXT
+}
+
+/// A distinct per-viewer record of a story view. One row per (storyId, viewerId)
+/// so a re-view never inflates the count; Story.viewCount == count of these rows
+/// (excluding the owner's own views). Relation-free + additive (no back-relations).
+model StoryView {
+  id       String   @id @default(cuid())
+  storyId  String
+  viewerId String
+  viewedAt DateTime @default(now())
+
+  @@unique([storyId, viewerId])
+  @@index([storyId])
+  @@map("story_views")
+}
+
+model Music {
+  id         String   @id @default(cuid())
+  title      String
+  artistName String
+  albumName  String?
+  coverUrl   String?
+  audioUrl   String
+  duration   Int      @default(0)
+  genre      String?
+  playCount  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([artistName])
+  @@index([genre])
+  @@map("music")
+}
+
+// ==================== PROFILES (QuantMax) =============
+model DatingProfile {
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  displayName        String
+  bio                String?
+  age                Int
+  gender             String?
+  genderPreference   Json               @default("[]")
+  location           Json?
+  photos             Json               @default("[]")
+  interests          Json               @default("[]")
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  isActive           Boolean            @default(true)
+  profileScore       Float              @default(0)
+  lastActive         DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isActive])
+  @@map("dating_profiles")
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model Match {
+  id             String   @id @default(cuid())
+  user1Id        String
+  user2Id        String
+  matchedAt      DateTime @default(now())
+  conversationId String?
+  isActive       Boolean  @default(true)
+
+  user1 User @relation("MatchUser1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2 User @relation("MatchUser2", fields: [user2Id], references: [id], onDelete: Cascade)
+
+  @@unique([user1Id, user2Id])
+  @@index([user1Id])
+  @@index([user2Id])
+  @@map("matches")
+}
+
+model Swipe {
+  id        String         @id @default(cuid())
+  swiperId  String
+  targetId  String
+  direction SwipeDirection
+  createdAt DateTime       @default(now())
+
+  swiper User @relation("SwipeSwiper", fields: [swiperId], references: [id], onDelete: Cascade)
+  target User @relation("SwipeTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([swiperId, targetId])
+  @@index([swiperId])
+  @@index([targetId])
+  @@map("swipes")
+}
+
+enum SwipeDirection {
+  LEFT
+  RIGHT
+  SUPER_LIKE
+}
+
+model ShortVideo {
+  id           String    @id @default(cuid())
+  userId       String
+  videoUrl     String
+  thumbnailUrl String?
+  caption      String?
+  duration     Int       @default(0)
+  soundId      String?
+  hashtags     Json      @default("[]")
+  viewCount    Int       @default(0)
+  likeCount    Int       @default(0)
+  shareCount   Int       @default(0)
+  commentCount Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("short_videos")
+}
+
+model ShortVideoLike {
+  id           String   @id @default(cuid())
+  userId       String
+  shortVideoId String
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, shortVideoId])
+  @@index([shortVideoId])
+  @@map("short_video_likes")
+}
+
+model ShortVideoComment {
+  id           String    @id @default(cuid())
+  userId       String
+  shortVideoId String
+  body         String
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
+
+  @@index([shortVideoId, createdAt])
+  @@index([userId])
+  @@map("short_video_comments")
+}
+
+// ==================== AI (QuantAI) =============
+model AISession {
+  id              String    @id @default(cuid())
+  userId          String
+  title           String?
+  model           String    @default("gpt-4")
+  systemPrompt    String?
+  totalTokensUsed Int       @default(0)
+  totalCost       Float     @default(0)
+  tags            Json      @default("[]")
+  isArchived      Boolean   @default(false)
+  isPinned        Boolean   @default(false)
+  sourceApp       String?
+  topic           String?   // Side chats: nullable topic label for organizing conversations by topic
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AIMessage[]
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([userId, topic])
+  @@map("ai_sessions")
+}
+
+model AIMessage {
+  id           String        @id @default(cuid())
+  sessionId    String
+  role         AIMessageRole @default(USER)
+  content      String
+  attachments  Json          @default("[]")
+  functionCall Json?
+  tokenCount   Int           @default(0)
+  model        String?
+  latencyMs    Int?
+  feedback     AIFeedback?
+  createdAt    DateTime      @default(now())
+
+  session AISession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("ai_messages")
+}
+
+// ==================== Quanty (Muse parity) =============
+model QuantyArtifact {
+  id          String    @id @default(cuid())
+  userId      String
+  title       String
+  kind        String    @default("artifact") // 'artifact' | 'media'
+  type        String?   // artifact subtype: 'component' | 'code' | 'markdown'
+  language    String?
+  code        String?   @db.Text
+  markdown    String?   @db.Text
+  previewHtml String?   @db.Text
+  contentRef  String?   // external storage reference (e.g. media object key)
+  systemFile  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  openedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, kind])
+  @@index([userId, updatedAt])
+  @@map("quanty_artifacts")
+}
+
+enum AIMessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  FUNCTION
+}
+
+enum AIFeedback {
+  POSITIVE
+  NEGATIVE
+}
+
+// ==================== NOTIFICATIONS =============
+model Notification {
+  id             String               @id @default(cuid())
+  userId         String
+  type           String
+  title          String
+  body           String?
+  imageUrl       String?
+  actionUrl      String?
+  sourceApp      String?
+  sourceUserId   String?
+  sourceEntityId String?
+  data           Json                 @default("{}")
+  priority       NotificationPriority @default(NORMAL)
+  isRead         Boolean              @default(false)
+  readAt         DateTime?
+  sentVia        Json                 @default("[]")
+  expiresAt      DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+// ==================== DATA PLANE =============
+model OutboxEvent {
+  id            String    @id @default(cuid())
+  aggregateType String
+  aggregateId   String
+  eventType     String
+  payload       Json
+  createdAt     DateTime  @default(now())
+  publishedAt   DateTime?
+
+  @@index([publishedAt])
+  @@index([aggregateType, aggregateId])
+  @@index([createdAt])
+  @@map("outbox_events")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  orgId      String?
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json     @default("{}")
+  ip         String?
+  userAgent  String?
+  timestamp  DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([orgId])
+  @@index([action])
+  @@index([resource])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
+
+model EncryptionKey {
+  id           String    @id @default(cuid())
+  userId       String
+  encryptedKey String
+  algorithm    String    @default("AES-256-GCM")
+  rotatedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId])
+  @@map("encryption_keys")
+}
+
+// ==================== GIT HOSTING (QuantMail GitHub Killer) =============
+enum RepoVisibility {
+  PUBLIC
+  PRIVATE
+  INTERNAL
+}
+
+enum PRStatus {
+  OPEN
+  MERGED
+  CLOSED
+  DRAFT
+}
+
+enum ReviewStatus {
+  APPROVED
+  CHANGES_REQUESTED
+  COMMENTED
+  PENDING
+}
+
+enum IssueStatus {
+  OPEN
+  CLOSED
+}
+
+enum MergeStrategy {
+  MERGE
+  SQUASH
+  REBASE
+}
+
+enum CIStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+model Repository {
+  id             String         @id @default(cuid())
+  ownerId        String
+  name           String
+  description    String?
+  visibility     RepoVisibility @default(PUBLIC)
+  defaultBranch  String         @default("main")
+  storagePathUrl String?
+  starCount      Int            @default(0)
+  forkCount      Int            @default(0)
+  isArchived     Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+
+  owner             User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  branches          Branch[]
+  pullRequests      PullRequest[]
+  issues            Issue[]
+  branchProtections BranchProtection[]
+  ciRuns            CiRun[]
+  agentSessions     AgentSession[]
+  stars             RepositoryStar[]
+
+  @@unique([ownerId, name])
+  @@index([ownerId])
+  @@index([visibility])
+  @@index([createdAt])
+  @@map("repositories")
+}
+
+/// One row per (repository, user) star. The star count on Repository is a
+/// derived cache of `count(repository_stars)`, never a blind increment: the
+/// previous implementation incremented on every POST /repos/:id/star, so a
+/// single user could inflate any repository's stars without limit and could
+/// "unstar" a repository they had never starred.
+model RepositoryStar {
+  id           String   @id @default(cuid())
+  repositoryId String
+  userId       String
+  createdAt    DateTime @default(now())
+
+  repository Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([repositoryId, userId])
+  @@index([userId])
+  @@index([repositoryId])
+  @@map("repository_stars")
+}
+
+model Branch {
+  id          String   @id @default(cuid())
+  repoId      String
+  name        String
+  commitSha   String
+  isProtected Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  @@unique([repoId, name])
+  @@index([repoId])
+  @@map("branches")
+}
+
+model PullRequest {
+  id            String         @id @default(cuid())
+  repoId        String
+  number        Int
+  title         String
+  body          String?
+  authorId      String
+  status        PRStatus       @default(OPEN)
+  sourceBranch  String
+  targetBranch  String
+  mergeStrategy MergeStrategy?
+  mergeCommitSha String?
+  mergedAt      DateTime?
+  closedAt      DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  repository     Repository      @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  author         User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  reviews        Review[]
+  reviewComments ReviewComment[]
+
+  @@unique([repoId, number])
+  @@index([repoId])
+  @@index([authorId])
+  @@index([status])
+  @@map("pull_requests")
+}
+
+model Review {
+  id         String       @id @default(cuid())
+  prId       String
+  reviewerId String
+  status     ReviewStatus @default(PENDING)
+  body       String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  pullRequest PullRequest @relation(fields: [prId], references: [id], onDelete: Cascade)
+  reviewer    User        @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@index([prId])
+  @@index([reviewerId])
+  @@map("reviews")
+}
+
+model ReviewComment {
+  id        String   @id @default(cuid())
+  prId      String
+  authorId  String
+  filePath  String
+  line      Int
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pullRequest PullRequest @relation(fields: [prId], references: [id], onDelete: Cascade)
+  author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([prId])
+  @@index([authorId])
+  @@map("review_comments")
+}
+
+model Issue {
+  id        String      @id @default(cuid())
+  repoId    String
+  number    Int
+  title     String
+  body      String?
+  authorId  String
+  status    IssueStatus @default(OPEN)
+  labels    Json        @default("[]")
+  assignees Json        @default("[]")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  closedAt  DateTime?
+
+  repository Repository     @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  author     User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments   IssueComment[]
+
+  @@unique([repoId, number])
+  @@index([repoId])
+  @@index([authorId])
+  @@index([status])
+  @@map("issues")
+}
+
+model IssueComment {
+  id        String   @id @default(cuid())
+  issueId   String
+  authorId  String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  issue  Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([issueId, createdAt])
+  @@index([authorId])
+  @@map("issue_comments")
+}
+
+model BranchProtection {
+  id                  String   @id @default(cuid())
+  repoId              String
+  branchPattern       String
+  requiredApprovals   Int      @default(1)
+  requireStatusChecks Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  @@index([repoId])
+  @@map("branch_protections")
+}
+
+model CiRun {
+  id          String    @id @default(cuid())
+  repoId      String
+  prId        String?
+  branch      String
+  commitSha   String
+  status      CIStatus  @default(PENDING)
+  triggeredBy String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  jobs       CiJob[]
+
+  @@index([repoId])
+  @@index([status])
+  @@index([commitSha])
+  @@map("ci_runs")
+}
+
+model CiJob {
+  id          String    @id @default(cuid())
+  runId       String
+  name        String
+  status      CIStatus  @default(PENDING)
+  logs        String?
+  artifacts   Json      @default("[]")
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  run CiRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([status])
+  @@map("ci_jobs")
+}
+
+// ==================== QUANTMAIL: LABELS & CONTACTS =============// Additive, quantmail-owned models backing the email label manager
+// (backend/routes/labels.ts) and the contacts directory
+// (backend/services/contact.service.ts). Email-to-label association is stored
+// as a string-id array on Email.labels (Json); a Label row owns the label's
+// name/color metadata per user.
+
+model Label {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("labels")
+}
+
+model Contact {
+  id     String @id @default(cuid())
+  userId String
+  name   String
+  email  String
+  avatar String?
+
+  // The contacts UI has always collected and rendered these three — the create
+  // form has inputs for them, the list shows a company line and tag chips, and
+  // the vCard export writes TEL and ORG. Until this migration none of them had a
+  // column, so every value the user typed was accepted with a 200 and dropped.
+  phone   String?
+  company String?
+  tags    String[] @default([])
+
+  // The star in the list and the "Favorites" tab. `isFavorite` was in the
+  // frontend type and in the PUT body the star sent, but not in the schema, so
+  // the toggle ran a no-op update, reported success, and reverted on refetch.
+  isFavorite Boolean @default(false)
+
+  // `frequency` is incremented by ContactService.recordInteraction, which the
+  // send paths now call; `lastContactedAt` is what makes "frequent" orderable by
+  // recency as well as count.
+  frequency       Int       @default(0)
+  lastContactedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, email])
+  @@index([userId])
+  // The Favorites tab filters on exactly this pair.
+  @@index([userId, isFavorite])
+  @@map("contacts")
+}
+
+/// A named set of addresses the user writes to as a unit — "Family", "Standup".
+///
+/// The inbox's Groups lens has had a "New group" button since it shipped. It
+/// collected a name and a member list, toasted `Group "X" created with N
+/// members!`, and then opened the composer pre-filled with those addresses.
+/// Nothing was ever stored, so the group it claimed to have created did not
+/// outlive the toast. This is the table that makes that message true.
+///
+/// Membership is a list of ADDRESSES, not `Contact` ids, and that is deliberate:
+///
+///   * `Contact` is keyed `@@unique([userId, email])` and `recordInteraction`
+///     upserts on that pair, so in this schema an address already *is* a
+///     person's identity. A join table would add a second identity for the same
+///     thing and let the two disagree.
+///   * The group editor accepts any address the user types. Requiring a saved
+///     `Contact` would mean either silently dropping the ones that are not in
+///     the book — the exact class of lie this table exists to remove — or
+///     creating contacts as a side effect of naming a group.
+///   * A member who is in the address book still renders with their name and
+///     avatar: the client joins `emails` against the contacts it already holds.
+///     Storing the ids would buy nothing that join does not already give.
+///
+/// Addresses are stored trimmed and lowercased, so `Ann@x.com` and `ann@x.com`
+/// are one member. That matches `ContactService.listContactEmails`, which folds
+/// on read for the same reason.
+model ContactGroup {
+  id     String @id @default(cuid())
+  userId String
+  name   String
+
+  /// Trimmed, lowercased, de-duplicated. May be empty: a group you have named
+  /// but not filled in yet is not an error, and emptying one by removing its
+  /// last member must not delete it out from under the user.
+  emails String[] @default([])
+
+  /// Member addresses the owner has promoted to admin. A subset of `emails`
+  /// (the service keeps it that way on every write): admins are the members
+  /// who may manage the group — promote/demote others and remove members.
+  /// The owner (`userId`) is always an admin implicitly and is never listed
+  /// here.
+  adminEmails String[] @default([])
+
+  /// Active invite token for the group's join link. Null while no link has
+  /// been created or after it was revoked; regenerating replaces it, which
+  /// invalidates every copy of the old link.
+  inviteToken String? @unique
+
+  /// When the current invite token was issued, for the UI's "created" label.
+  inviteTokenCreatedAt DateTime?
+
+  /// Optional accent for the group's chip, `#rrggbb`. Null is not "unset" so
+  /// much as a real choice the editor offers first: the chip then paints brand
+  /// orange, which is what an accentless chip has always looked like.
+  color String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Two groups with the same name are indistinguishable in a chip row, so the
+  /// database refuses them rather than leaving the UI to guess which is which.
+  /// The service also rejects a case-insensitive collision, since `Family` and
+  /// `family` are just as indistinguishable to a reader as they are distinct to
+  /// this index.
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("contact_groups")
+}
+
+// ==================== QUANTMAIL: PRODUCTIVITY FEATURES =============// Additive, quantmail-owned models powering Gmail/Superhuman-class features:
+// server-side filters/rules, vacation auto-responder, reusable templates, and
+// signatures. Each is per-user and cascade-deleted with the owner.
+
+model MailFilter {
+  id         String   @id @default(cuid())
+  userId     String
+  name       String
+  enabled    Boolean  @default(true)
+  priority   Int      @default(0)
+  // `matchAll` true => ALL conditions must match (AND); false => ANY (OR).
+  matchAll   Boolean  @default(true)
+  // conditions: { from?, to?, subjectContains?, bodyContains?, hasAttachment?, domain? }
+  conditions Json     @default("{}")
+  // actions: { addLabelId?, moveToFolderId?, markRead?, star?, archive?, markSpam?, forwardTo?, delete? }
+  actions    Json     @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("mail_filters")
+}
+
+model VacationResponder {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  enabled      Boolean   @default(false)
+  subject      String
+  message      String
+  startAt      DateTime?
+  endAt        DateTime?
+  // When true, only auto-reply to known contacts.
+  onlyContacts Boolean   @default(false)
+  // Minimum days between auto-replies to the same sender.
+  intervalDays Int       @default(4)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("vacation_responders")
+}
+
+model VacationAutoReplyLog {
+  id        String   @id @default(cuid())
+  userId    String
+  toAddress String
+  repliedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, toAddress])
+  @@index([userId])
+  @@map("vacation_autoreply_logs")
+}
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  subject   String
+  bodyHtml  String
+  // Optional ":shortcut" expansion key used by the composer.
+  shortcut  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("email_templates")
+}
+
+model EmailSignature {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  contentHtml String
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_signatures")
+}
+
+// ==================== AGENT RUNTIME (Pillar 3) =============// quantmail-superhub · Task 12.1 (Requirements 7.1, 7.2)
+// Additive models for the bounded, branch-isolated autonomous coding agent.
+// An AgentSession is one execution of the Agent Runtime against a repo, on an
+// isolated agent branch (branchRef != Repository.defaultBranch), bounded by
+// maxIterations and a credit budget. AgentTranscript is the append-only,
+// auditable step log for a session.
+
+enum AgentSessionStatus {
+  PLANNING
+  RUNNING
+  AWAITING_REVIEW
+  DONE
+  FAILED
+  CANCELLED
+}
+
+enum AgentTranscriptRole {
+  PLAN
+  TOOL_CALL
+  OBSERVATION
+  MESSAGE
+}
+
+model AgentSession {
+  id             String             @id @default(cuid())
+  userId         String
+  repoId         String
+  instruction    String
+  status         AgentSessionStatus @default(PLANNING)
+  branchRef      String // isolated agent working branch; never the repo default branch
+  maxIterations  Int                @default(10)
+  iterationCount Int                @default(0)
+  costBudget     Float              @default(0) // credit budget reserved for the session
+  costSpent      Float              @default(0)
+  linkedPrId     String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repository  Repository        @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  transcripts AgentTranscript[]
+
+  @@index([userId])
+  @@index([repoId])
+  @@index([status])
+  @@map("agent_sessions")
+}
+
+model AgentTranscript {
+  id         String              @id @default(cuid())
+  sessionId  String
+  seq        Int // monotonically increasing per session
+  role       AgentTranscriptRole
+  toolName   String?
+  payload    Json                @default("{}")
+  tokensUsed Int                 @default(0)
+  timestamp  DateTime            @default(now())
+
+  session AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, seq])
+  @@index([sessionId])
+  @@map("agent_transcripts")
+}
+
+// ==================== AGENT COMPANY OS (Phase 6) =============// quantmail-superhub · Task 18.1 (Requirements 9.1, 9.2, 9.3, 9.4)
+// Additive models for the autonomous "agent company". An AgentOrg is the
+// company spun up for ONE CEO goal: tenant-scoped (every worker shares the
+// CEO's tenant), with a hard credit budget cap and an iteration cap. The
+// orchestrator creates it in PLANNING status bound to the authenticated tenant
+// owner (Req 9.1/9.2). An AgentWorker is a long-lived, role-specialized
+// "employee" with its own model, its own scoped QuantMail mailbox identity, a
+// tool scope, and a share of the org budget — fuller use lands in Tasks 19.x.
+// VALIDATION (enforced in app logic): org.costSpent <= org.budgetCap, and every
+// AgentWorker shares the org's tenantId.
+
+enum AgentOrgStatus {
+  PLANNING
+  PROVISIONING
+  RUNNING
+  AWAITING_APPROVAL
+  DONE
+  FAILED
+  CANCELLED
+}
+
+enum AgentRoleKey {
+  PLANNER
+  CODER
+  REVIEWER
+  TESTER
+  DEBUGGER
+  UPGRADER
+  DEVOPS
+}
+
+enum AgentWorkerStatus {
+  SPAWNING
+  ACTIVE
+  PAUSED
+  RETIRED
+}
+
+// Lifecycle of a worker's scoped agent mailbox identity (Task 19.2).
+// ACTIVE   — usable; holds only `agent-bus` + the worker's tool scope.
+// REVOKED  — tokens revoked (no longer authenticates) but not yet archived.
+// ARCHIVED — preserved for audit after retire; permanently unusable.
+enum AgentMailboxIdentityStatus {
+  ACTIVE
+  REVOKED
+  ARCHIVED
+}
+
+model AgentOrg {
+  id              String         @id @default(cuid())
+  ceoUserId       String // the human CEO; owner of the org's single tenant
+  tenantId        String // ownership/isolation boundary derived from the CEO
+  goalText        String
+  status          AgentOrgStatus @default(PLANNING)
+  workspaceRepoId String? // set at provisioning (Task 19.x); QuantCode repo id
+  budgetCap       Float          @default(0) // hard org-level credit ceiling
+  costSpent       Float          @default(0) // INVARIANT: costSpent <= budgetCap
+  maxIterations   Int            @default(100)
+  totalIterations Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  ceo     User          @relation(fields: [ceoUserId], references: [id], onDelete: Cascade)
+  workers AgentWorker[]
+
+  @@index([ceoUserId])
+  @@index([tenantId])
+  @@index([status])
+  @@map("agent_orgs")
+}
+
+model AgentWorker {
+  id                String            @id @default(cuid())
+  orgId             String
+  tenantId          String // INVARIANT: equals the org's tenantId
+  role              AgentRoleKey
+  modelRef          String // resolved ModelRef id (CEO override or role default)
+  mailboxIdentityId String? // scoped QuantMail identity (provisioned in Task 19.x)
+  toolScope         Json              @default("[]") // ToolDescriptor keys granted to the worker
+  status            AgentWorkerStatus @default(SPAWNING)
+  budgetShare       Float             @default(0) // share of org.budgetCap; SUM <= budgetCap
+  costSpent         Float             @default(0)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  org AgentOrg @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([tenantId])
+  @@index([status])
+  @@map("agent_workers")
+}
+
+// A tenant-scoped agent mailbox identity (Task 19.2 — design §"INTERFACE
+// AgentIdentityProvisioner"). Provisioned per `AgentWorker`, it EXTENDS the
+// existing alias/identity + OAuth-scope model: `scopes` is restricted to
+// `['agent-bus', ...the worker's tool scope]` and NEVER carries a human-inbox
+// or cross-tenant/global scope. `tenantId` (also baked into the agents domain
+// of `address`) confines the identity to its own tenant. On retire the row is
+// archived (never deleted) so it is preserved for audit but can no longer
+// authenticate (status != ACTIVE).
+model AgentMailboxIdentity {
+  id         String                     @id @default(cuid())
+  orgId      String
+  tenantId   String // INVARIANT: equals the org's tenantId (cross-tenant isolation)
+  workerSlot String // stable per-role slot, e.g. `coder-3`
+  roleKey    AgentRoleKey?
+  address    String                     @unique // unique + agent-namespaced
+  scopes     Json                       @default("[]") // ['agent-bus', ...toolScope] ONLY
+  status     AgentMailboxIdentityStatus @default(ACTIVE)
+  revokedAt  DateTime? // set when tokens are revoked on retire
+  archivedAt DateTime? // set when archived for audit on retire
+  createdAt  DateTime                   @default(now())
+  updatedAt  DateTime                   @updatedAt
+
+  @@unique([orgId, workerSlot])
+  @@index([orgId])
+  @@index([tenantId])
+  @@index([status])
+  @@map("agent_mailbox_identities")
+}
+
+// ==================== AGENT EMAIL BUS (Phase 6) =============// quantmail-superhub · Task 20.1 (Requirements 12.1, 12.2, 12.3, 12.4)
+// Agents coordinate by emailing each other THROUGH the normal mail pipeline
+// (design §"Component: Email as Message Bus"). Two additive models support this
+// WITHOUT changing the mail-domain `Email`/`EmailThread` models:
+//
+//   • AgentWorkItem — the unit of agent work; each work item maps to one bus
+//     EmailThread (`busThreadId`) so every handoff is a reply in that thread,
+//     giving a durable, observable, per-task conversation log. It optionally
+//     links to the executing `AgentSession` and the resulting PR.
+//
+//   • AgentBusEmailMeta — a STRUCTURED SIDECAR over a delivered `Email`. The
+//     reserved `agent-bus` label, the artifacts, the recipients and the thread
+//     all live on the real `Email` (delivered via the normal pipeline); this
+//     sidecar additionally records the structured bus headers
+//     (`X-Quant-Agent-Org` / `-From-Role` / `-Msg-Type`), the message type, and
+//     the sender/recipient WORKER ids so the orchestrator can route by the
+//     `agent-bus` label and a worker can poll its own messages — all without a
+//     `headers` column on `Email`. One row per delivered bus email (`emailId`
+//     unique).
+
+// The kind of an agent-bus message (design §"STRUCTURE AgentBusMessage").
+enum AgentBusMsgType {
+  TASK_ASSIGN
+  PR_READY
+  CHANGE_REQUEST
+  CI_RESULT
+  STATUS
+  ESCALATION
+  DONE
+}
+
+// Lifecycle of an AgentWorkItem as it moves through the agent company.
+enum AgentWorkItemStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  IN_REVIEW
+  BLOCKED
+  DONE
+}
+
+model AgentWorkItem {
+  id               String              @id @default(cuid())
+  orgId            String
+  assignedWorkerId String? // the AgentWorker currently responsible
+  busThreadId      String? // the EmailThread the bus conversation lives in
+  title            String
+  spec             String? // free-form work specification / description
+  status           AgentWorkItemStatus @default(OPEN)
+  linkedSessionId  String? // the AgentSession executing the item, when started
+  linkedPrId       String? // the PullRequest produced for the item, when opened
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([orgId])
+  @@index([assignedWorkerId])
+  @@index([busThreadId])
+  @@index([status])
+  @@map("agent_work_items")
+}
+
+model AgentBusEmailMeta {
+  id           String          @id @default(cuid())
+  emailId      String          @unique // the delivered Email this annotates
+  orgId        String // INVARIANT: sender + all recipients share this org/tenant
+  threadId     String // the work item's bus thread (== Email.threadId)
+  workItemId   String
+  fromWorkerId String
+  fromRole     String // wire role for the X-Quant-Agent-From-Role header
+  toWorkerIds  Json            @default("[]") // recipient AgentWorker ids
+  msgType      AgentBusMsgType
+  label        String          @default("agent-bus") // reserved system label
+  headers      Json            @default("{}") // the X-Quant-Agent-* headers
+  artifacts    Json            @default("[]") // diff|plan|log|report metadata
+  createdAt    DateTime        @default(now())
+
+  @@index([orgId])
+  @@index([workItemId])
+  @@index([threadId])
+  @@index([msgType])
+  @@map("agent_bus_email_meta")
+}
+
+// ==================== AGENT ACTION AUDIT + APPROVAL GATING (Phase 6) =============// quantmail-superhub · Task 22.1 (Requirements 14.1, 14.2, 14.3, 23.1, 23.3)
+// A unified, ADDITIVE audit trail for every SENSITIVE agent / Gmail-handler
+// action (design §"STRUCTURE AgentActionAudit"). Nothing in the existing schema
+// is modified. A sensitive action (a merge, or an external send above the
+// policy threshold) is NEVER executed autonomously: the approval-gating service
+// first records the action here in PENDING status (it does NOT execute), and a
+// human (the CEO / org owner) must explicitly APPROVE it before it may run.
+//
+// INVARIANT (enforced in app logic — design VALIDATION):
+//   sensitive actions (merge, external send above threshold) MUST have
+//   `approvedByHuman = true` before they are EXECUTED. `approvedByHuman` is set
+//   true ONLY by a human approval (Req 14.3 / 23.3); requesting or rejecting an
+//   action always leaves it false.
+//
+// `orgId` / `actorWorkerId` are nullable so the trail covers BOTH Company-OS
+// worker actions (orgId + actorWorkerId set) and plain Agent-Runtime / human
+// actions (org-less). `tenantId` always scopes the row for ownership authz.
+
+// The kind of sensitive action being gated/audited.
+enum AgentActionType {
+  MERGE // landing an agent PR onto a protected/base branch
+  GMAIL_SEND // an outbound send proposed by the autonomous handler
+  GMAIL_REPLY // an outbound reply proposed by the autonomous handler
+  GMAIL_ARCHIVE // archiving a message
+  GMAIL_LABEL // labeling a message
+  GMAIL_SCHEDULE_SEND // a scheduled send
+  GMAIL_FOLLOWUP // a follow-up send
+  EXTERNAL_SEND // any send/reply to an EXTERNAL recipient (above threshold)
+  OTHER
+}
+
+// Sensitivity / level of a proposed action (mirrors the Gmail handler's
+// SensitivityLevel). Actions above the policy threshold require human approval.
+enum AgentActionSensitivity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// Lifecycle of an audited sensitive action.
+//   PENDING  — recorded, awaiting a human decision; NOT executed.
+//   APPROVED — a human approved it (approvedByHuman = true); may now execute.
+//   REJECTED — a human rejected it; never executes.
+//   EXECUTED — the approved action has been carried out.
+enum AgentActionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXECUTED
+}
+
+model AgentActionAudit {
+  id               String                 @id @default(cuid())
+  tenantId         String // ownership/isolation boundary for authz
+  orgId            String? // set for Company-OS worker actions; null otherwise
+  actorWorkerId    String? // the AgentWorker that proposed it; null for non-worker actions
+  actionType       AgentActionType
+  targetRef        String // what the action targets (prId, emailId, address, ...)
+  sensitivity      AgentActionSensitivity @default(HIGH)
+  status           AgentActionStatus      @default(PENDING)
+  approvedByHuman  Boolean                @default(false) // true ONLY after a human approves (Req 14.3/23.3)
+  approvedByUserId String? // the human (CEO/owner) who decided
+  requestedAt      DateTime               @default(now())
+  decidedAt        DateTime? // set when approved or rejected
+  executedAt       DateTime? // set when the approved action is carried out
+  metadata         Json                   @default("{}") // payload/context for the action
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@index([tenantId])
+  @@index([orgId])
+  @@index([actorWorkerId])
+  @@index([status])
+  @@index([actionType])
+  @@map("agent_action_audits")
+}
+
+// ==================== ANSWER ENGINE (Pillar 4: Perplexity) =============// A DocumentChunk is the unit of retrievable evidence for the RAG answer
+// engine. Every chunk is owned by exactly one user (`userId`), and that owner
+// scopes EVERY retrieval (no cross-tenant leakage — Requirement 8.1). The
+// `sourceRef` JSON carries the provenance needed to cite the chunk
+// (Requirement 8.4): { emailId } for EMAIL, { repo, path, commit? } for REPO,
+// { url } for WEB. `embeddingId` is the Qdrant point id; the keyword copy lives
+// in Meilisearch. Both indexes are populated by the `search-indexer` service.
+
+enum DocumentChunkSource {
+  EMAIL
+  REPO
+  WEB
+}
+
+model DocumentChunk {
+  id          String              @id @default(cuid())
+  userId      String // OWNER — scopes every retrieval (Requirement 8.1)
+  sourceType  DocumentChunkSource
+  sourceRef   Json                @default("{}") // provenance: { emailId } | { repo, path, commit? } | { url }
+  text        String
+  embeddingId String? // Qdrant point id for the vector copy
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([userId])
+  @@index([userId, sourceType])
+  @@map("document_chunks")
+}
+
+// ==================== AI/AGENT MEMORY (packages/ai MemoryStore, ADR-006) =============// Durable home for the frozen MemoryStore port (ADR-005). Relation-free and
+// additive: polymorphic ownership (ownerType/ownerId/tenantId) mirrors
+// credit_ledger_entries, so there is NO User FK and this is safe for the shared
+// schema. Vectors live in Qdrant (pointed to by MemoryEmbedding), matching the
+// DocumentChunk convention. Writes are immutable-append (logicalId + version);
+// `archivedAt` is a soft archive, `deletedAt` a hard/GDPR erase intent.
+// The frozen port carries only `owner: string`; PrismaMemoryStore maps it to
+// ownerId and defaults ownerType='user'. The extra columns exist from day one so
+// polymorphic ownership needs NO future migration (see ADR-006).
+
+model MemoryRecord {
+  id         String    @id @default(cuid()) // internal surrogate row id
+  logicalId  String    @default(cuid()) // stable identity across versions (port `id`)
+  version    Int       @default(1) // immutable-append version
+  ownerType  String    @default("user") // user | org | workspace | agent | system
+  ownerId    String? // null = shared/world memory
+  tenantId   String? // authz/isolation boundary (null = self-owned)
+  kind       String // fact | preference | episodic | entity | document | custom
+  level      String // working | conversation | user | knowledge | org | world | custom
+  content    String // canonical text/caption (non-text via metadata.ref)
+  pinned     Boolean   @default(false)
+  metadata   Json      @default("{}")
+  expiresAt  DateTime?
+  archivedAt DateTime? // soft archive (ForgetPolicy 'archive')
+  deletedAt  DateTime? // hard/GDPR intent
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([logicalId, version])
+  @@index([ownerType, ownerId])
+  @@index([ownerType, ownerId, level])
+  @@index([ownerType, ownerId, kind])
+  @@index([ownerId, createdAt])
+  @@index([expiresAt])
+  @@index([archivedAt])
+  @@index([tenantId])
+  @@map("memory_records")
+}
+
+// One row per (memory, provider, model, embeddingVersion). Re-embedding = insert
+// a new row with a higher embeddingVersion; the vector lives in Qdrant
+// (embeddingRef = point id), matching the DocumentChunk convention. Relation-free
+// and additive (memoryId = MemoryRecord.logicalId, indexed, no FK) — consistent
+// with credit_ledger_entries / document_chunks and compatible with the frozen
+// port, which exposes only logicalId. logicalId is non-unique (versioning) so a
+// hard FK is intentionally avoided.
+model MemoryEmbedding {
+  id               String   @id @default(cuid())
+  memoryId         String // MemoryRecord.logicalId
+  provider         String // openai | bedrock | google | quant | local
+  model            String // e.g. text-embedding-3-large
+  dimension        Int
+  embeddingVersion Int      @default(1) // bumped on re-embedding
+  embeddingRef     String? // Qdrant point id (external vector store)
+  createdAt        DateTime @default(now())
+
+  @@unique([memoryId, provider, model, embeddingVersion])
+  @@index([memoryId])
+  @@index([provider, model])
+  @@map("memory_embeddings")
+}
+
+// ==================== BILLING / CREDITS (Phase 7) =============// quantmail-superhub Task 25.1 (Requirements 16.1-16.5).
+//
+// A CreditWallet is owner-scoped (a user OR an org) and DOES NOT store its
+// balance authoritatively — the balance is DERIVED as `sum(ledger)` over the
+// owner's CreditLedgerEntry rows (Req 16.1). Each row is IMMUTABLE and
+// APPEND-ONLY: entries are never mutated or deleted (Req 16.3). `amount` is a
+// SIGNED whole-credit delta (positive for grants/purchases/refunds, negative
+// for debits) so the wallet total is literally `SUM(amount)` and the invariant
+// `total >= 0` is enforced at append time (Req 16.2). The `bucket` dimension
+// (DAILY / MONTHLY / PURCHASED) lets `getBalance` derive the
+// {daily, monthly, purchased, total} breakdown. `actionKey` is the idempotency
+// key reserved for the metered debits/daily-grants that land in tasks 26-27;
+// it is unique so a replayed action cannot append a second entry.
+
+enum CreditBucket {
+  DAILY // recurring daily free allowance (resets each UTC day, no rollover)
+  MONTHLY // plan-included monthly credits
+  PURCHASED // purchased top-ups (and refunds/adjustments against them)
+}
+
+model CreditLedgerEntry {
+  id        String       @id @default(cuid())
+  ownerRef  String // OWNER — the user/org id that owns the wallet (scopes the balance)
+  ownerType String       @default("user") // "user" | "org"
+  tenantId  String? // ownership/isolation boundary for authz (null for self-owned)
+  entryType String // daily_grant | monthly_grant | purchase | refund | adjustment | debit
+  bucket    CreditBucket // which sub-balance this entry contributes to
+  amount    Int // SIGNED whole-credit delta; balance == SUM(amount)
+  actionKey String? // idempotency key for debits/daily grants (tasks 26-27)
+  sourceRef String? // provenance (payment id, reservation id, grant source, ...)
+  utcDay    String? // YYYY-MM-DD UTC bucket for idempotent daily grants (task 26)
+  reason    String? // human-readable audit note
+  createdAt DateTime     @default(now())
+
+  @@unique([actionKey])
+  @@index([ownerRef])
+  @@index([ownerRef, bucket])
+  @@index([ownerRef, entryType])
+  @@index([tenantId])
+  @@map("credit_ledger_entries")
+}
+
+// ==================== PLANS / ENTITLEMENTS (Phase 7) =============// quantmail-superhub Task 28.1 (Requirements 19.1, 19.2, 19.3, 19.4).
+//
+// An owner's active subscription tier. The four Plan_Tiers (free / pro / team /
+// enterprise) and the entitlements each grants (daily allowance, monthly
+// included credits, rate limits, unlocked models/features) live as CODE
+// constants in the billing module's static plan catalog — this row only records
+// WHICH tier an owner is on and the lifecycle of any scheduled change. The
+// authoritative entitlement resolution defaults to FREE when no active/trialing
+// row exists. `pendingPlanTier`/`effectiveAt` record a downgrade scheduled for
+// the next period/reset boundary; an upgrade is applied immediately by mutating
+// `planTier` (Req 19.3). At most one active/trialing subscription per owner is
+// enforced at the application layer (Req 19.4). `planTier`/`status` are stored
+// as strings (matching the CreditLedgerEntry style) to keep this change purely
+// additive — no enum migration is required.
+
+model PlanSubscription {
+  id                 String    @id @default(cuid())
+  ownerRef           String // OWNER — the user/org id the subscription is scoped to
+  ownerType          String    @default("user") // "user" | "org"
+  tenantId           String? // ownership/isolation boundary for authz
+  planTier           String // free | pro | team | enterprise
+  status             String // active | trialing | canceled | expired | past_due
+  currentPeriodStart DateTime  @default(now())
+  currentPeriodEnd   DateTime
+  pendingPlanTier    String? // a scheduled (downgrade) change applied at effectiveAt
+  effectiveAt        DateTime? // when the scheduled change takes effect (next reset)
+  providerSubId      String? // opaque ref into the PaymentProvider
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([ownerRef])
+  @@index([ownerRef, status])
+  @@index([tenantId])
+  @@map("plan_subscriptions")
+}
+
+// ==================== PAYMENTS / WEBHOOKS (Phase 7) =============// quantmail-superhub Task 29.1 (Requirements 20.1, 20.2, 20.3, 20.4, 20.5).
+//
+// Tracks a single payment intent driven through the vendor-neutral
+// PaymentProvider port. NO card data is ever stored here — checkout is
+// provider-hosted (Req 20.1); this row only records the opaque provider session
+// id, the normalized outcome, and the credits/plan the payment grants. A
+// `pending` row is created at checkout time; the signed provider webhook later
+// stamps it `succeeded`/`failed` and records the `providerEventId`.
+//
+// IDEMPOTENCY (Req 20.3): `providerEventId` is the at-most-once key for applying
+// a verified webhook — it is @unique so a replayed event can never append a
+// second grant / re-activate a subscription. It is nullable because a freshly
+// created checkout has not yet received an event (Prisma treats multiple NULLs
+// as distinct, so many pending checkouts coexist). `kind`/`status`/`planTier`
+// are stored as strings (matching the CreditLedgerEntry/PlanSubscription style)
+// to keep this change purely additive — no enum migration is required.
+
+model PaymentRecord {
+  id                String   @id @default(cuid())
+  ownerRef          String // OWNER — the user/org id the payment is billed to
+  ownerType         String   @default("user") // "user" | "org"
+  tenantId          String? // ownership/isolation boundary for authz
+  providerEventId   String?  @unique // at-most-once webhook key (Req 20.3); null until an event arrives
+  providerSessionId String? // opaque hosted-checkout session id (Req 20.1)
+  providerSubId     String? // opaque provider subscription ref (subscription kind)
+  kind              String // topup | subscription
+  status            String   @default("pending") // pending | succeeded | failed
+  amountCredits     Int? // credits granted on a successful top-up
+  planTier          String? // target tier for a subscription payment
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([ownerRef])
+  @@index([ownerRef, status])
+  @@index([providerSessionId])
+  @@index([tenantId])
+  @@map("payment_records")
+}
+
+// ==================== OVERAGE (Phase 7+) =============// Per-owner OVERAGE policy: whether the owner has explicitly OPTED IN to let
+// metered actions proceed BEYOND their available credit balance (the excess is
+// recorded as billable overage), and the per-period ceiling on such overage.
+//
+// Overage is OFF by default — the absence of a row (or `enabled = false`) means
+// the wallet stays fail-closed and a user is NEVER charged beyond the credits
+// they hold unless they deliberately turn this on (the vision's "overage only
+// when the user toggles it ON"). The UsageGate reads this (via an
+// OveragePolicyPort) to decide whether an over-balance action may proceed, and
+// QuantTrinity can manage it centrally. Strings/ints/bools only — purely
+// additive, no enum migration.
+
+model OverageSetting {
+  id                  String   @id @default(cuid())
+  ownerRef            String   @unique // OWNER — exactly one policy per wallet owner
+  ownerType           String   @default("user") // "user" | "org"
+  tenantId            String? // ownership/isolation boundary for authz
+  enabled             Boolean  @default(false) // OPT-IN; default OFF (no surprise charges)
+  monthlyLimitCredits Int      @default(0) // ceiling on overage credits per UTC month (0 = none)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([ownerRef])
+  @@index([tenantId])
+  @@map("overage_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Payout — a creator/owner withdrawal of EARNED credits to an external rail
+// (UPI / crypto / bank). Withdrawals never overdraw: requestWithdrawal debits
+// the ledger (actionKey "payout:{id}") inside the same transaction that creates
+// the pending row, and a terminal rail failure appends a compensating credit.
+// The set of non-failed payouts for an owner, summed, is the amount already
+// withdrawn; earned-balance minus that is what remains withdrawable. Amounts
+// above a configurable compliance threshold are held ("pending_review").
+// ---------------------------------------------------------------------------
+model Payout {
+  id            String    @id @default(cuid())
+  ownerRef      String // OWNER — the user/org id the payout is paid out to
+  ownerType     String    @default("user") // "user" | "org"
+  tenantId      String? // ownership/isolation boundary for authz
+  amountCredits Int // whole-credit amount requested (1 credit ≈ 1 USD)
+  method        String // upi | crypto | bank
+  destination   String? // masked rail destination (UPI vpa / wallet addr / acct) — no secrets
+  status        String    @default("pending") // pending | pending_review | processing | completed | failed
+  providerRef   String? // external rail reference (set once dispatched)
+  reason        String? // human-readable note (e.g. failure cause, hold reason)
+  requestedAt   DateTime  @default(now())
+  settledAt     DateTime? // set when completed or failed (terminal)
+
+  @@index([ownerRef, status])
+  @@index([tenantId])
+  @@map("payouts")
+}
+
+// ---------------------------------------------------------------------------
+// AutoWithdrawSetting — a per-owner standing instruction to automatically
+// withdraw EARNED credits on a daily cadence. Default OFF (no surprise auto
+// cash-out): the WithdrawScheduler only processes owners who explicitly opted
+// in. `minThresholdCredits` suppresses dust withdrawals (only auto-withdraw
+// when the withdrawable balance is at least this many credits).
+// ---------------------------------------------------------------------------
+model AutoWithdrawSetting {
+  id                  String   @id @default(cuid())
+  ownerRef            String   @unique // OWNER — exactly one auto-withdraw rule per owner
+  ownerType           String   @default("user") // "user" | "org"
+  tenantId            String? // ownership/isolation boundary for authz
+  enabled             Boolean  @default(false) // OPT-IN; default OFF
+  method              String   @default("upi") // upi | crypto | bank
+  destination         String? // masked rail destination — no secrets
+  minThresholdCredits Int      @default(100) // skip auto-withdraw below this amount
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([tenantId])
+  @@map("auto_withdraw_settings")
+}
+
+// ---------------------------------------------------------------------------
+// WithdrawSchedulerRun — a durable record of one daily auto-withdraw batch.
+// `utcDay` is unique so a re-run for the same day is idempotent (a completed
+// run is returned, never reprocessed). Counts give an at-a-glance audit of
+// how many owners were considered / withdrawn / skipped / failed.
+// ---------------------------------------------------------------------------
+model WithdrawSchedulerRun {
+  id                String    @id @default(cuid())
+  utcDay            String    @unique // YYYY-MM-DD batch key (one run per day)
+  status            String    @default("running") // running | completed | failed
+  ownersConsidered  Int       @default(0)
+  withdrawn         Int       @default(0)
+  skipped           Int       @default(0)
+  failed            Int       @default(0)
+  error             String?
+  startedAt         DateTime  @default(now())
+  finishedAt        DateTime?
+
+  @@map("withdraw_scheduler_runs")
+}
+
+// ---------------------------------------------------------------------------
+// PlatformConfig — the owner-controlled credit/economy configuration, persisted
+// so PricingEngine / PlanService / OverageService read durable values instead
+// of in-memory constants. QuantTrinity is the single writer (owner-only). One
+// row per scope ("global" by default; a tenant id enables per-tenant overrides
+// later). usdPerCredit sets credit<->USD value, dailyFreeCredits the free
+// allowance, commissionRate the marketplace/creator commission (0..1), and
+// overageEnabledDefault the DEFAULT overage stance for new owners (OFF).
+// ---------------------------------------------------------------------------
+model PlatformConfig {
+  id                    String   @id @default(cuid())
+  scope                 String   @unique @default("global") // "global" | tenant id
+  usdPerCredit          Float    @default(1) // USD value of one credit
+  dailyFreeCredits      Int      @default(100) // free daily allowance (whole credits)
+  commissionRate        Float    @default(0.2) // platform commission on earnings (0..1)
+  overageEnabledDefault Boolean  @default(false) // default overage stance (OFF)
+  updatedBy             String? // owner/admin principal id that last wrote it
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("platform_config")
+}
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String   @default("")
+  enabled     Boolean  @default(false)
+  rules       Json     @default("[]")
+  percentage  Int      @default(100)
+  variants    Json     @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+  @@index([enabled])
+  @@map("feature_flags")
+}
+
+// ==================== ORGANIZATIONS =============
+enum OrgPlan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum OrgMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+/// Lifecycle of an emailed workspace invitation.
+enum WorkspaceInviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  plan      OrgPlan  @default(FREE)
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  description String?
+  createdById String?
+
+  members    OrganizationMember[]
+  workspaces OrgWorkspace[]
+  invites    WorkspaceInvite[]
+
+  // Enterprise Governance relations (Wave 33)
+  domains            OrganizationDomain[]
+  orgUnits           OrganizationalUnit[]
+  ssoConfigs         EnterpriseSsoConfig[]
+  scimClients        ScimClient[]
+  complianceRules    EnterpriseMailComplianceRule[]
+  quarantineMessages AdminQuarantineMessage[]
+  matters            EnterpriseMatter[]
+  legalHolds         EnterpriseLegalHold[]
+  vaultExports       EnterpriseVaultExport[]
+  siemConfigs        EnterpriseSiemConfig[]
+
+  @@index([slug])
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id          String        @id @default(cuid())
+  orgId       String
+  userId      String
+  role        OrgMemberRole @default(MEMBER)
+  invitedById String?
+  joinedAt    DateTime      @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@index([orgId])
+  @@index([userId])
+  @@map("organization_members")
+}
+
+model OrgWorkspace {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("org_workspaces")
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([userId])
+  @@index([postId])
+  @@map("likes")
+}
+
+// ==================== QUANTCHAT MEGA UPGRADE =============
+model Reel {
+  id               String        @id @default(cuid())
+  creatorId        String
+  videoUrl         String
+  thumbnailUrl     String
+  caption          String
+  duration         Int           // seconds (5-60)
+  likeCount        Int           @default(0)
+  commentCount     Int           @default(0)
+  shareCount       Int           @default(0)
+  watchThroughRate Float         @default(0)
+  isFeatured       Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+
+  creator  User          @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  likes    ReelLike[]
+  comments ReelComment[]
+
+  @@index([creatorId])
+  @@index([createdAt])
+  @@index([likeCount, shareCount, watchThroughRate])
+  @@map("reels")
+}
+
+model ReelLike {
+  id        String   @id @default(cuid())
+  reelId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  reel Reel @relation(fields: [reelId], references: [id], onDelete: Cascade)
+
+  @@unique([reelId, userId])
+  @@index([reelId])
+  @@index([userId])
+  @@map("reel_likes")
+}
+
+model ReelComment {
+  id        String   @id @default(cuid())
+  reelId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  reel Reel @relation(fields: [reelId], references: [id], onDelete: Cascade)
+
+  @@index([reelId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("reel_comments")
+}
+
+model Call {
+  id             String   @id @default(cuid())
+  conversationId String
+  initiatorId    String
+  type           CallType @default(VIDEO)
+  status         CallStatus @default(RINGING)
+  startedAt      DateTime?
+  endedAt        DateTime?
+  duration       Int?     // seconds
+  participants   Json     @default("[]")
+  roomId         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([conversationId])
+  @@index([initiatorId])
+  @@index([createdAt])
+  @@map("calls")
+}
+
+enum CallType {
+  AUDIO
+  VIDEO
+}
+
+enum CallStatus {
+  RINGING
+  ACTIVE
+  ENDED
+  MISSED
+  DECLINED
+}
+
+model Media {
+  id           String         @id @default(cuid())
+  userId       String
+  type         QuantMediaType
+  url          String
+  thumbnailUrl String?
+  fileName     String?
+  fileSize     Int?
+  mimeType     String?
+  width        Int?
+  height       Int?
+  duration     Int?
+  createdAt    DateTime       @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("quantchat_media")
+}
+
+enum QuantMediaType {
+  PHOTO
+  VIDEO
+  AUDIO
+  DOCUMENT
+}
+
+model Avatar {
+  id           String     @id @default(cuid())
+  userId       String     @unique
+  style        AlienStyle
+  imageUrl     String
+  thumbnailUrl String
+  reactions    Json       // Map<ReactionEmotion, animationUrl>
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("avatars")
+}
+
+enum AlienStyle {
+  CRYSTALLINE
+  BIOLUMINESCENT
+  CYBERNETIC
+}
+
+model Streak {
+  id              String    @id @default(cuid())
+  userAId         String
+  userBId         String
+  count           Int       @default(0)
+  // Original field (kept, now optional): some flows set a single activity time.
+  lastActivityAt  DateTime?
+  // Per-side last-interaction times used by the StreakService engine to decide
+  // mutual-activity windows and increments.
+  lastFromA       DateTime?
+  lastFromB       DateTime?
+  lastIncrementAt DateTime?
+  startedAt       DateTime?
+  expiresAt       DateTime? // deadline to keep the streak alive
+
+  userA User @relation("streakUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB User @relation("streakUserB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+  @@index([expiresAt])
+  @@map("streaks")
+}
+
+model FriendLocation {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  latitude  Float
+  longitude Float
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("friend_locations")
+}
+
+model GameBadge {
+  id        String   @id @default(cuid())
+  userId    String
+  badgeType String
+  awardedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([badgeType])
+  @@map("game_badges")
+}
+
+// QuantMeet durable meeting rooms + participants. Previously the QuantMeet
+// backend kept all room/participant state in an in-memory Map, so every room
+// and who was in it was lost on restart/redeploy and not shared across
+// instances. These tables make rooms durable; `settings` holds the RoomSettings
+// JSON (maxParticipants, waitingRoom, muteOnEntry, allowScreenShare,
+// enableRecording, enableTranscript).
+model MeetingRoom {
+  id        String   @id @default(cuid())
+  name      String
+  hostId    String
+  status    String   @default("active") // active | closed
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants RoomParticipant[]
+
+  @@index([hostId])
+  @@index([status])
+  @@map("meeting_rooms")
+}
+
+model RoomParticipant {
+  id           String   @id @default(cuid())
+  roomId       String
+  userId       String
+  displayName  String
+  role         String   @default("participant") // host | co-host | participant
+  audioEnabled Boolean  @default(true)
+  videoEnabled Boolean  @default(true)
+  joinedAt     DateTime @default(now())
+
+  room MeetingRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+  @@map("room_participants")
+}
+
+// QuantMeet durable meeting recordings. Previously the RecordingService kept all
+// recordings in an in-memory Map (lost on restart). roomId is a logical room
+// reference (may be a LiveKit room id, so relation-free). status lifecycle:
+// recording -> processing -> completed | failed.
+model Recording {
+  id         String    @id @default(cuid())
+  roomId     String
+  userId     String
+  status     String    @default("recording")
+  startedAt  DateTime  @default(now())
+  stoppedAt  DateTime?
+  storageKey String
+  duration   Int?
+  fileSize   Int?
+  egressId   String?
+  createdAt  DateTime  @default(now())
+
+  @@index([roomId])
+  @@index([userId])
+  @@map("recordings")
+}
+
+// QuantMeet durable meeting transcript segments, AI summaries, and action items
+// (previously in-memory Maps, lost on restart). roomId is a logical room ref.
+model MeetingTranscriptSegment {
+  id            String   @id @default(cuid())
+  roomId        String
+  participantId String
+  text          String
+  duration      Float    @default(0)
+  confidence    Float    @default(0)
+  timestamp     DateTime @default(now())
+
+  @@index([roomId])
+  @@map("meeting_transcript_segments")
+}
+
+model MeetingSummary {
+  id          String   @id @default(cuid())
+  roomId      String   @unique
+  summary     String
+  keyPoints   Json     @default("[]")
+  decisions   Json     @default("[]")
+  generatedAt DateTime @default(now())
+
+  @@map("meeting_summaries")
+}
+
+model MeetingActionItem {
+  id          String   @id @default(cuid())
+  roomId      String
+  title       String
+  description String   @default("")
+  assignee    String?
+  dueDate     String?
+  priority    String   @default("medium") // low | medium | high | urgent
+  status      String   @default("pending") // pending | in_progress | completed
+  createdAt   DateTime @default(now())
+
+  @@index([roomId])
+  @@map("meeting_action_items")
+}
+
+// QuantNeon durable in-feed game sessions (previously in-memory). board/players
+// stored as JSON; status lifecycle waiting -> active -> finished | abandoned.
+model NeonGameSession {
+  id        String   @id @default(cuid())
+  gameId    String
+  host      String
+  players   Json     @default("[]")
+  state     String   @default("waiting")
+  turn      String?
+  board     Json     @default("[]")
+  winner    String?
+  isDraw    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([gameId])
+  @@index([state])
+  @@map("neon_game_sessions")
+}
+
+// Cross-app game leaderboard. Scores from EVERY Quant app (quantneon, quantchat,
+// quantmax, ...) land in this one table, tagged with the originating `app`, so a
+// user's game ranks are shared/aggregated across the whole ecosystem (the
+// vision's "saare Quant apps ke games rank ek dusre se connected"). Append-only
+// score events; the leaderboard derives best-per-user per game.
+model GameScore {
+  id          String   @id @default(cuid())
+  gameId      String // logical game, e.g. 'tic-tac-toe' | 'uno' | 'ludo'
+  userId      String
+  app         String // originating app: 'quantneon' | 'quantchat' | ...
+  score       Int
+  displayName String?
+  region      String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([gameId, score])
+  @@index([userId])
+  @@index([app])
+  @@map("game_scores")
+}
+
+model Memory {
+  id        String         @id @default(cuid())
+  userId    String
+  mediaUrl  String
+  mediaType QuantMediaType
+  caption   String?
+  location  String?
+  createdAt DateTime       @default(now())
+  deletedAt DateTime?      // soft delete for undo window
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, deletedAt])
+  @@map("memories")
+}
+
+model ScheduledMessage {
+  id             String                @id @default(cuid())
+  userId         String
+  conversationId String
+  content        String
+  scheduledFor   DateTime
+  status         QuantScheduleStatus   @default(PENDING)
+  createdAt      DateTime              @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([conversationId])
+  @@index([scheduledFor, status])
+  @@map("scheduled_messages")
+}
+
+enum QuantScheduleStatus {
+  PENDING
+  SENT
+  CANCELLED
+}
+
+model ChatTheme {
+  id                 String  @id @default(cuid())
+  name               String
+  backgroundGradient String
+  bubbleColor        String
+  fontStyle          String
+  isAlienTheme       Boolean @default(false)
+
+  @@map("chat_themes")
+}
+
+model PushSubscription {
+  id        String    @id @default(cuid())
+  userId    String
+  endpoint  String
+  p256dh    String
+  auth      String
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("push_subscriptions")
+}
+
+// ==================== QUANTCHAT E2EE KEY STORE (W1) =============// Zero-knowledge relay: PUBLIC key material only. Never persist private keys,
+// ratchet secrets, or plaintext.
+
+model PreKeyBundle {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  identityKey           String // public identity key (base64/DER)
+  signedPreKey          String // public signed prekey
+  signedPreKeySignature String
+  registrationId        Int
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  oneTimeKeys OneTimePreKey[]
+
+  @@map("prekey_bundles")
+}
+
+model OneTimePreKey {
+  id        String    @id @default(cuid())
+  userId    String
+  bundleId  String
+  publicKey String // public one-time prekey
+  claimed   Boolean   @default(false)
+  claimedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  bundle PreKeyBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, claimed])
+  @@map("onetime_prekeys")
+}
+
+model KeySession {
+  id          String   @id @default(cuid())
+  initiatorId String
+  responderId String
+  rootKey     String // opaque root key material as currently produced (server-relayed)
+  established Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@unique([initiatorId, responderId])
+  @@index([responderId])
+  @@map("key_sessions")
+}
+
+
+// ==================== QUANTCHAT DELIVERY & OUTBOX (W3) =============// Reliable delivery: a transactional outbox guarantees an at-least-once delivery
+// intent is committed in the same transaction as a Message, and first-class
+// delivery/read receipts replace race-prone Message.metadata JSON.
+// NOTE: This is distinct from the generic data-plane `OutboxEvent` model above;
+// `MessageOutbox` is specific to QuantChat message fan-out.
+
+model MessageOutbox {
+  id             String    @id @default(cuid())
+  conversationId String
+  messageId      String
+  recipientIds   String[]
+  attempts       Int       @default(0)
+  processedAt    DateTime?
+  lastError      String?
+  createdAt      DateTime  @default(now())
+
+  @@index([processedAt, createdAt])
+  @@map("message_outbox")
+}
+
+model MessageDelivery {
+  id          String    @id @default(cuid())
+  messageId   String
+  userId      String
+  deliveredAt DateTime?
+  readAt      DateTime?
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@map("message_deliveries")
+}
+
+
+// ==================== QUANTCHAT ENCRYPTED SEARCH (W5) =============// Client-built blind index: the client tokenizes plaintext, HMACs each token
+// with a per-user Search_Key, and uploads only opaque token hashes. The server
+// stores and matches HMAC token hashes only — it never sees plaintext tokens or
+// keys, preserving the zero-knowledge relay invariant (Requirements 14.3, 16.1).
+
+model BlindIndexEntry {
+  id             String   @id @default(cuid())
+  messageId      String
+  conversationId String
+  userId         String // index owner / Search_Key owner
+  tokenHash      String // single HMAC(Search_Key, token) value — one row per token
+  createdAt      DateTime @default(now())
+
+  @@index([userId, tokenHash])
+  @@index([conversationId])
+  @@map("blind_index_entries")
+}
+
+
+
+// ==================== OUTBOUND DELIVERY AUTH (QuantMail SuperHub — Pillar 1) =============//
+// Real outbound delivery: the OutboundDeliveryPipeline worker (`processDelivery`)
+// DKIM-signs each message, resolves recipient MX, attempts SMTP transmission, and
+// records a per-recipient DeliveryAttempt with a terminal-or-deferred state
+// (Requirements 4.3, 4.4). Per-recipient state only advances toward a terminal
+// state and never regresses (Requirement 4.5) — enforced in code via the
+// monotonic `advanceDeliveryState` guard, with one row per (emailId, recipient).
+
+model DeliveryAttempt {
+  id           String                @id @default(cuid())
+  emailId      String
+  recipient    String
+  status       DeliveryAttemptStatus @default(queued)
+  smtpResponse String?
+  attemptedAt  DateTime              @default(now())
+  nextRetryAt  DateTime?
+
+  email Email @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  // One authoritative row per recipient: retries update the same row, so the
+  // recorded status is the recipient's current (monotonic) Delivery_State.
+  @@unique([emailId, recipient])
+  @@index([emailId])
+  @@index([recipient])
+  @@map("delivery_attempts")
+}
+
+// Per-recipient delivery lifecycle subset (no draft/delivered — those are
+// email-level states). Lowercase to match the design's Delivery_State literals.
+enum DeliveryAttemptStatus {
+  queued
+  sent
+  deferred
+  bounced
+}
+
+// DKIM/SPF/DMARC domain authentication keys used by DeliverabilityAuthService.
+// The DKIM private key is held only as a KMS-resolvable reference
+// (`@quant/encryption` KeyVault, `kms://...`); raw private key material is NEVER
+// persisted in plaintext (Requirement 2.4 / design DomainAuthKey.privateKeyRef).
+model DomainAuthKey {
+  id            String   @id @default(cuid())
+  domain        String   @unique
+  dkimSelector  String
+  publicKey     String
+  privateKeyRef String
+  spfRecord     String?
+  dmarcPolicy   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("domain_auth_keys")
+}
+
+
+// ==================== QUANTAI MARKETPLACE =============// QuantAI agent marketplace. First-party "official" agents are defined in code
+// (apps/quantai/backend/services/agent-marketplace.service.ts OFFICIAL_AGENTS);
+// these tables persist USER-CREATED custom agents and durable per-user installs
+// (previously held in a per-request in-memory Map that lost state immediately).
+
+/// A user-published custom agent in the QuantAI marketplace.
+model AiMarketplaceAgent {
+  id              String   @id @default(cuid())
+  name            String
+  description     String
+  version         String
+  author          String
+  capabilities    Json     @default("[]")
+  systemPrompt    String
+  tools           Json     @default("[]")
+  modelPreference String?
+  icon            String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([author])
+  @@index([createdAt])
+  @@map("ai_marketplace_agents")
+}
+
+/// A durable record that a user has installed a marketplace agent (official or custom).
+model AiAgentInstall {
+  id        String   @id @default(cuid())
+  userId    String
+  agentId   String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, agentId])
+  @@index([userId])
+  @@map("ai_agent_installs")
+}
+
+/// A reusable prompt template saved by a user in the QuantAI prompt library.
+/// Persisted (not in-memory) so templates survive reloads and sync across
+/// devices. Additive and QuantAI-owned; per-user and indexed for fast listing.
+model AiPromptTemplate {
+  id         String   @id @default(cuid())
+  userId     String
+  title      String
+  content    String
+  category   String   @default("general")
+  tags       Json     @default("[]")
+  isFavorite Boolean  @default(false)
+  usageCount Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, category])
+  @@map("ai_prompt_templates")
+}
+
+/// A user's preferred default AI model (OpenRouter id). Resolved by the QuantAI
+/// ask/chat path when a request does not pin a model, via resolveUserModel with
+/// the platform default as fallback. Durable + per-user (one row per user).
+model UserModelPreference {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  model     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_model_preferences")
+}
+
+/// A QuantMax squad — a persistent group of users (for party games / group
+/// video rooms). Durable; the creator is the OWNER.
+model Squad {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+  @@map("squads")
+}
+
+/// Membership in a squad (OWNER/ADMIN/MEMBER). leftAt marks a departed member.
+model SquadMember {
+  id       String    @id @default(cuid())
+  squadId  String
+  userId   String
+  role     String    @default("MEMBER")
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+
+  @@unique([squadId, userId])
+  @@index([squadId])
+  @@map("squad_members")
+}
+
+/// A user's QuantTube watch history (durable; previously in-memory). One row per
+/// (user, video) — re-watching updates the same row's duration + timestamp.
+model WatchHistory {
+  id            String   @id @default(cuid())
+  userId        String
+  videoId       String
+  watchDuration Int      @default(0)
+  watchedAt     DateTime @default(now())
+
+  @@unique([userId, videoId])
+  @@index([userId, watchedAt])
+  @@map("watch_history")
+}
+
+/// A durable QuantEdits daily auto-edit run: select-source -> render -> meter ->
+/// schedule/post -> report. `utcDay` is unique per user so a re-run for the same
+/// day is idempotent (no double-post). Per-step checkpoints make an interrupted
+/// run inspectable/resumable. Rendering + publishing go through pluggable ports
+/// (NullRenderer fails closed until real WASM-ffmpeg is wired in staging).
+model AutoEditRun {
+  id             String    @id @default(cuid())
+  userId         String
+  utcDay         String
+  status         String    @default("running") // running | completed | failed
+  currentStep    Int       @default(0)
+  checkpoints    Json      @default("[]")
+  sourceRef      String?
+  outputUrl      String?
+  postId         String?
+  creditsCharged Int       @default(0)
+  error          String?
+  startedAt      DateTime  @default(now())
+  finishedAt     DateTime?
+
+  @@unique([userId, utcDay])
+  @@index([userId])
+  @@map("auto_edit_runs")
+}
+
+/// A user's opt-in for the QuantEdits daily auto-edit -> auto-post loop (default
+/// OFF). The daily scheduler only processes enabled users. Optional source /
+/// template / caption defaults feed each run.
+model AutoEditPreference {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  enabled    Boolean  @default(false)
+  sourceRef  String?
+  templateId String?
+  caption    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([enabled])
+  @@map("auto_edit_preferences")
+}
+
+/// A durable creator-marketplace listing: a digital good/asset a creator sells
+/// for credits. Replaces the prior in-memory (ephemeral, per-process) listing
+/// store so a creator's listings survive restarts. Purchases settle atomically
+/// on the @quant/credits ledger (MarketplaceLedger), crediting the seller
+/// withdrawable `marketplace_sale` proceeds (wired in the purchase phase).
+model CreatorListing {
+  id           String   @id @default(cuid())
+  creatorId    String
+  title        String
+  description  String
+  type         String // 'virtual_good' | 'game_pass'
+  priceCredits Int
+  status       String   @default("active") // 'active' | 'delisted'
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([creatorId])
+  @@index([status])
+  @@map("creator_listings")
+}
+
+/// A buyer's durable ownership record for a creator-marketplace purchase. Written
+/// idempotently (keyed by the ledger `purchaseId`) right AFTER MarketplaceLedger
+/// settles the money, so a retried purchase reconciles to exactly one
+/// entitlement — never money-moved-without-access, never double-granted. Powers
+/// "my purchases" listing + delivery/access gating.
+model CreatorPurchase {
+  id           String   @id @default(cuid())
+  purchaseId   String   @unique
+  buyerId      String
+  listingId    String
+  sellerId     String
+  priceCredits Int
+  createdAt    DateTime @default(now())
+
+  @@index([buyerId])
+  @@index([listingId])
+  @@map("creator_purchases")
+}
+
+/// A per-user registration of an EXTERNAL MCP server that QuantAI may bridge to
+/// (discover + invoke tools). Durable; the transport (http/stdio) is resolved by
+/// a pluggable port at runtime. Registration is metadata only — no secrets.
+model McpServerRegistration {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  endpoint  String
+  transport String   @default("http") // http | stdio
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("mcp_server_registrations")
+}
+
+/// A user-defined QuantAI automation (trigger + ordered actions + conditions).
+/// Persisted so automations survive restarts and sync across devices; the
+/// `/automations` API previously had no backend at all. Trigger, actions and
+/// conditions are stored as JSON documents matching the frontend Automation
+/// contract. Per-user and indexed for fast listing.
+model AiAutomation {
+  id             String    @id @default(cuid())
+  userId         String
+  name           String
+  description    String    @default("")
+  trigger        Json      @default("{}")
+  actions        Json      @default("[]")
+  conditions     Json      @default("[]")
+  isActive       Boolean   @default(true)
+  executionCount Int       @default(0)
+  lastExecutedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([userId, isActive])
+  @@map("ai_automations")
+}
+
+/// A durable execution record for an AiAutomation run. Each run captures
+/// per-step checkpoints (stepIndex, status, output/error) so an interrupted
+/// run can be inspected and resumed instead of silently losing progress.
+model AiAutomationRun {
+  id           String    @id @default(cuid())
+  automationId String
+  userId       String
+  status       String    @default("running")
+  currentStep  Int       @default(0)
+  checkpoints  Json      @default("[]")
+  error        String?
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+
+  @@index([automationId])
+  @@index([userId])
+  @@map("ai_automation_runs")
+}
+
+
+// ==================== QUANTNEON ADDITIVE MODELS =============// Relation-free bookmark + close-friends tables for the quantneon app.
+// Kept navigation-free (no User/Post back-relations) so they are additive
+// and safe for the shared schema.
+
+/// A user's bookmarked (saved) post. Toggled via POST /posts/:id/save.
+model SavedPost {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@index([userId])
+  @@index([postId])
+  @@map("saved_posts")
+}
+
+/// A close-friends edge (userId considers friendId a close friend).
+model CloseFriend {
+  id        String   @id @default(cuid())
+  userId    String
+  friendId  String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, friendId])
+  @@index([userId])
+  @@index([friendId])
+  @@map("close_friends")
+}
+
+
+// ==================== QuantTube Music (YouTube Music / Spotify) =============
+model MusicAlbum {
+  id          String       @id @default(cuid())
+  title       String
+  artistName  String
+  artworkUrl  String?
+  releaseDate DateTime?
+  createdAt   DateTime     @default(now())
+  tracks      MusicTrack[]
+
+  @@index([artistName])
+  @@map("music_albums")
+}
+
+model MusicTrack {
+  id          String      @id @default(cuid())
+  title       String
+  artistName  String
+  albumId     String?
+  audioUrl    String
+  artworkUrl  String?
+  durationSec Int         @default(0)
+  genre       String?
+  playCount   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  album       MusicAlbum? @relation(fields: [albumId], references: [id])
+
+  @@index([albumId])
+  @@index([artistName])
+  @@map("music_tracks")
+}
+
+
+
+// ==================== QuantTube Channel Subscriptions =============
+model VideoChannelSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  channelId String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, channelId])
+  @@index([userId])
+  @@index([channelId])
+  @@map("video_channel_subscriptions")
+}
+
+
+
+// ==================== QuantMax Safety (reports + safety settings) =============
+enum ReportTargetType {
+  VIDEO
+  PROFILE
+  MESSAGE
+  CHAT_SESSION
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  NUDITY
+  VIOLENCE
+  HATE_SPEECH
+  SELF_HARM
+  MISINFORMATION
+  UNDERAGE
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWING
+  ACTIONED
+  DISMISSED
+}
+
+model UserReport {
+  id         String           @id @default(cuid())
+  reporterId String
+  targetType ReportTargetType
+  targetId   String
+  reason     ReportReason
+  details    String?
+  status     ReportStatus     @default(PENDING)
+  createdAt  DateTime         @default(now())
+
+  @@index([reporterId])
+  @@index([targetType, targetId])
+  @@index([status])
+  @@map("user_reports")
+}
+
+model UserSafetySetting {
+  userId               String   @id
+  hideSensitiveContent Boolean  @default(true)
+  allowRandomChat      Boolean  @default(true)
+  blockUnknownMessages Boolean  @default(false)
+  filteredKeywords     Json     @default("[]")
+  updatedAt            DateTime @updatedAt
+
+  @@map("user_safety_settings")
+}
+
+// ==================== QuantTube Video Interactions (likes + comments) =============
+model VideoLike {
+  id        String   @id @default(cuid())
+  userId    String
+  videoId   String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, videoId])
+  @@index([videoId])
+  @@map("video_likes")
+}
+
+model VideoComment {
+  id        String   @id @default(cuid())
+  videoId   String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([videoId])
+  @@index([userId])
+  @@map("video_comments")
+}
+
+
+
+// ==================== QuantEdits Brand Kits =============
+model EditBrandKit {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  isDefault Boolean  @default(false)
+  colors    Json     @default("{}")
+  fonts     Json     @default("{}")
+  logos     Json     @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("edit_brand_kits")
+}
+
+
+
+// ==================== QuantEdits Collaboration =============
+enum EditCollaboratorRole {
+  OWNER
+  EDITOR
+  VIEWER
+  COMMENTER
+}
+
+model EditCollaborator {
+  id        String               @id @default(cuid())
+  projectId String
+  userId    String
+  role      EditCollaboratorRole @default(VIEWER)
+  createdAt DateTime             @default(now())
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@map("edit_collaborators")
+}
+
+model EditComment {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  content   String
+  layerId   String?
+  position  Json?
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+  @@map("edit_comments")
+}
+
+
+
+// ==================== QuantMax Video Chat (Omegle-style) =============
+enum VideoChatSessionStatus {
+  CONNECTED
+  ENDED
+  SKIPPED
+}
+
+model VideoChatSession {
+  id               String                 @id @default(cuid())
+  user1Id          String
+  user2Id          String
+  status           VideoChatSessionStatus @default(CONNECTED)
+  matchedInterests Json                   @default("[]")
+  hasTextFallback  Boolean                @default(false)
+  startedAt        DateTime               @default(now())
+  endedAt          DateTime?
+  durationSec      Int                    @default(0)
+
+  @@index([user1Id])
+  @@index([user2Id])
+  @@map("video_chat_sessions")
+}
+
+
+
+// ==================== QuantMax Live Streaming =============
+enum LiveStreamType {
+  SOLO
+  DATING_EVENT
+  SPEED_DATING
+  GROUP_VIDEO
+  PARTY
+}
+
+model LiveStream {
+  id              String         @id @default(cuid())
+  hostId          String
+  title           String
+  type            LiveStreamType @default(SOLO)
+  thumbnailUrl    String?
+  viewerCount     Int            @default(0)
+  maxParticipants Int            @default(0)
+  isLive          Boolean        @default(true)
+  tags            Json           @default("[]")
+  startedAt       DateTime       @default(now())
+  endedAt         DateTime?
+
+  @@index([isLive])
+  @@index([hostId])
+  @@map("live_streams")
+}
+
+model LiveStreamViewer {
+  id       String   @id @default(cuid())
+  streamId String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  @@unique([streamId, userId])
+  @@index([streamId])
+  @@map("live_stream_viewers")
+}
+
+// ==================== QuantSync Engagement (votes + bookmarks) =============
+model PostVote {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  value     Int
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@index([postId])
+  @@map("post_votes")
+}
+
+model PostBookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@index([userId])
+  @@map("post_bookmarks")
+}
+
+// ==================== QuantDocs (Google Docs killer) =============
+model Document {
+  id        String   @id @default(cuid())
+  title     String
+  content   String   @default("")
+  userId    String
+  metadata  Json     @default("{}")
+  isPublic           Boolean  @default(false)
+  isDeleted          Boolean  @default(false)
+  snapshotStorageKey String?  @map("snapshot_storage_key")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  versions      DocumentVersion[]
+  comments      DocComment[]
+  suggestions   DocSuggestion[]
+  collaborators DocumentCollaborator[]
+
+  @@index([userId])
+  @@index([userId, isDeleted, updatedAt])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id        String   @id @default(cuid())
+  docId     String
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+
+  document Document @relation(fields: [docId], references: [id], onDelete: Cascade)
+
+  @@index([docId])
+  @@map("document_versions")
+}
+
+model DocComment {
+  id        String   @id @default(cuid())
+  docId     String
+  userId    String
+  content   String
+  selection Json?
+  parentId  String?
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  document Document     @relation(fields: [docId], references: [id], onDelete: Cascade)
+  parent   DocComment?  @relation("DocCommentReplies", fields: [parentId], references: [id])
+  replies  DocComment[] @relation("DocCommentReplies")
+
+  @@index([docId])
+  @@index([parentId])
+  @@map("doc_comments")
+}
+
+model DocSuggestion {
+  id            String   @id @default(cuid())
+  docId         String
+  userId        String
+  originalText  String
+  suggestedText String
+  selection     Json
+  status        String   @default("pending")
+  createdAt     DateTime @default(now())
+
+  document Document @relation(fields: [docId], references: [id], onDelete: Cascade)
+
+  @@index([docId])
+  @@map("doc_suggestions")
+}
+
+model DocumentCollaborator {
+  id        String   @id @default(cuid())
+  docId     String
+  userId    String
+  role      String   @default("viewer")
+  createdAt DateTime @default(now())
+
+  document Document @relation(fields: [docId], references: [id], onDelete: Cascade)
+
+  @@unique([docId, userId])
+  @@index([docId])
+  @@map("document_collaborators")
+}
+
+
+
+// ==================== QuantDrive (Google Drive killer) =============
+model File {
+  id                String    @id @default(cuid())
+  name              String
+  mimeType          String
+  size              Int       @default(0)
+  encryptedContent  String
+  encryptionIV      String
+  encryptionAuthTag String
+  encryptionKey     String
+  contentHash       String
+  userId            String
+  folderId          String?
+  isStarred         Boolean   @default(false)
+  trashRootId       String?
+  isDeleted         Boolean   @default(false)
+  deletedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([userId, isDeleted])
+  @@index([folderId])
+  @@map("drive_files")
+}
+
+model Folder {
+  id          String    @id @default(cuid())
+  name        String
+  userId      String
+  parentId    String?
+  path        String
+  isStarred   Boolean   @default(false)
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+  trashRootId String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([parentId])
+  @@map("drive_folders")
+}
+
+model Share {
+  id               String   @id @default(cuid())
+  fileId           String?
+  folderId         String?
+  ownerUserId      String
+  sharedWithUserId String
+  encryptedFileKey String
+  permission       String   @default("read")
+  status           String   @default("pending")
+  createdAt        DateTime @default(now())
+
+  @@index([ownerUserId])
+  @@index([sharedWithUserId])
+  @@index([fileId])
+  @@map("drive_shares")
+}
+
+model DriveShare {
+  id          String    @id @default(cuid())
+  fileId      String
+  createdById String
+  token       String    @unique
+  role        String    @default("viewer")
+  password    String?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([token])
+  @@index([fileId])
+  @@index([createdById])
+  @@map("drive_share_links")
+}
+
+
+model FileVersion {
+  id                String   @id @default(cuid())
+  fileId            String
+  versionNumber     Int      @default(0)
+  encryptedContent  String
+  encryptionIV      String
+  encryptionAuthTag String
+  encryptionKey     String
+  size              Int      @default(0)
+  createdAt         DateTime @default(now())
+
+  @@index([fileId])
+  @@map("drive_file_versions")
+}
+
+model FileIndex {
+  id        String   @id @default(cuid())
+  fileId    String
+  userId    String
+  content   String
+  mimeType  String
+  indexedAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([fileId])
+  @@map("drive_file_indexes")
+}
+
+model UserSubscription {
+  userId    String   @id
+  tier      String   @default("FREE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("drive_user_subscriptions")
+}
+
+
+
+// ==================== QuantCalendar (Google Calendar killer) =============
+model Event {
+  id             String    @id @default(cuid())
+  title          String
+  description    String    @default("")
+  startTime      DateTime
+  endTime        DateTime
+  allDay         Boolean   @default(false)
+  location       String    @default("")
+  userId         String
+  calendarId     String?
+  calendar       Calendar? @relation(fields: [calendarId], references: [id], onDelete: SetNull)
+  attendees      String    @default("[]")
+  recurrenceRule String?
+  status         String    @default("confirmed")
+  reminders      String    @default("[]")
+  createdAt      DateTime
+  updatedAt      DateTime
+
+  @@index([userId, startTime])
+  @@index([calendarId])
+  @@map("calendar_events")
+}
+
+model BookingLink {
+  id            String   @id @default(cuid())
+  userId        String
+  slug          String   @unique
+  title         String
+  description   String   @default("")
+  duration      Int
+  availableDays String   @default("[1,2,3,4,5]")
+  startHour     Int      @default(9)
+  endHour       Int      @default(17)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime
+  updatedAt     DateTime
+
+  @@index([userId])
+  @@map("booking_links")
+}
+
+model Calendar {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String?
+  isPrimary Boolean  @default(false)
+  events    Event[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("calendars")
+}
+
+// QuantTrinity owner control-plane state. A single durable document (one row,
+// id = "singleton") holding the owner's team, app registry, model registry,
+// payouts, revenue streams, reports and audit trail. Replaces the previous
+// in-memory `globalThis.__trinity` store so owner state survives restarts and
+// is shared across backend instances. The shape is owned by the app's
+// `TrinityState` type; `data` is the serialized document. (The credit/economy
+// config is persisted separately by @quant/credits.)
+model TrinityControlState {
+  id        String   @id @default("singleton")
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("trinity_control_state")
+}
+
+// ==================== WORKSPACE INVITATIONS =============// Email-based invitations that let people from *different* mail addresses join
+// one shared workspace and collaborate. The raw token is emailed to the
+// invitee; only its SHA-256 hash is persisted here.
+model WorkspaceInvite {
+  id          String                @id @default(cuid())
+  orgId       String
+  email       String
+  role        OrgMemberRole         @default(MEMBER)
+  status      WorkspaceInviteStatus @default(PENDING)
+  tokenHash   String                @unique
+  message     String?
+  invitedById String
+  acceptedById String?
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  lastSentAt  DateTime              @default(now())
+  sendCount   Int                   @default(1)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([email])
+  @@index([status])
+  @@map("workspace_invites")
+}
+
+// ==================== COLLABORATION WAL (GATE 1) =============/// Append-only Yjs delta log. One row per CRDT update, pruned by compaction.
+/// Deliberately has NO foreign key to Document: this is a write-ahead log that
+/// must outlive document-row churn, and adding a relation would require editing
+/// the Document model inside a 129 KB schema file. See 0064 migration notes.
+model CollabDocumentUpdate {
+  id           String   @id
+  docId        String   @map("doc_id")
+  version      Int
+  updateBinary Bytes    @map("update_binary")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([docId, version])
+  @@index([docId, createdAt])
+  @@map("collab_document_updates")
+}
+
+// ==================== MAIL ATTACHMENTS (GATE 2) =============/// Mail attachment metadata. Bytes live in object storage (R2/S3) under storageKey.
+/// Status lifecycle: PENDING -> READY, or PENDING -> REJECTED.
+model MailAttachment {
+  id           String    @id
+  userId       String    @map("user_id")
+  emailId      String?   @map("email_id")
+  filename     String
+  contentType  String    @map("content_type")
+  declaredSize Int       @map("declared_size")
+  storedSize   Int?      @map("stored_size")
+  storageKey   String    @unique @map("storage_key")
+  status       String    @default("PENDING")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  uploadedAt   DateTime? @map("uploaded_at")
+
+  @@index([userId, createdAt])
+  @@index([emailId])
+  @@map("mail_attachments")
+}
+
+// ==================== EMAIL SUPPRESSIONS (GATE 4) =============/// Recipient suppression list for bounce/complaint protection against AWS SES thresholds.
+model EmailSuppression {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  reason    String   // BOUNCE | COMPLAINT | MANUAL | UNSUBSCRIBE
+  source    String   // SNS | USER | ADMIN
+  details   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([email])
+  @@map("email_suppressions")
+}
+
+
+// ==================== CROSS-APP INTEREST SIGNALS =============//
+// The projection side of the event spine. Apps emit domain events into
+// `outbox_events`; `services/cdc-relay` publishes them to per-aggregate Redis
+// Streams; `services/signal-projector` folds the ones that say something about a
+// person's interests into this table.
+//
+// Why a separate table rather than reading the streams directly: a stream is a
+// log with a retention bound, and a recommender needs to ask "what does this user
+// care about" without replaying history. This is the queryable projection of that
+// log — and the reason it is cross-app is that `category` and `creatorId` mean the
+// same thing whichever app produced the row, so a signal earned in QuanTube is
+// legible to QuantGram's feed.
+model UserInterestSignal {
+  id String @id @default(cuid())
+
+  /// The person the signal is ABOUT (the actor), not the content's owner.
+  userId String @map("user_id")
+
+  /// Which app observed it — `quantube`, `quantneon`, ... Kept so a consumer can
+  /// weight or exclude a source without inferring it from the subject type.
+  app String
+
+  /// What happened, in the emitting app's vocabulary: `Video.liked`, etc. Stored
+  /// verbatim rather than mapped to a small enum, because collapsing event types
+  /// at write time throws away the only information a future scorer might need.
+  eventType String @map("event_type")
+
+  /// What was acted on. `subjectType` is the aggregate ("Video"), `subjectId` its id.
+  subjectType String @map("subject_type")
+  subjectId   String @map("subject_id")
+
+  /// Whose content it was, when the event says. Enables creator affinity across
+  /// apps, which is the signal a follow graph cannot express on its own.
+  creatorId String? @map("creator_id")
+
+  /// The topical key. This is the field that makes a signal portable between
+  /// apps; null when the emitting app had no category for the subject.
+  category String?
+
+  /// Signed strength. A like is positive, an unlike is the same signal retracted,
+  /// so it is stored as a negative rather than as a delete — Law 2, history should
+  /// never disappear, and "liked then unliked" is not the same as "never liked".
+  weight Float @default(1)
+
+  /// When the ACTION happened (from the event), not when this row was written.
+  /// Those differ by the relay's lag and a scorer must use the former.
+  occurredAt DateTime @map("occurred_at")
+
+  /// The originating `outbox_events.id`. UNIQUE, and load-bearing: spine delivery
+  /// is at-least-once, so the projector will see redeliveries and this is what
+  /// makes folding one idempotent.
+  eventId String @unique @map("event_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, occurredAt])
+  @@index([userId, category])
+  @@index([creatorId])
+  @@map("user_interest_signals")
+}
+
+// ==================== WAVE 33 — ENTERPRISE GOVERNANCE =============
+enum DomainVerificationStatus {
+  PENDING
+  DNS_VERIFIED
+  MX_VERIFIED
+  SPF_VERIFIED
+  DKIM_VERIFIED
+  DMARC_VERIFIED
+  FULLY_VERIFIED
+}
+
+enum ComplianceRuleType {
+  KEYWORD
+  REGEX
+  LUHN_CREDIT_CARD
+  HIGH_ENTROPY
+}
+
+enum ComplianceAction {
+  BLOCK
+  QUARANTINE
+  ENCRYPT
+  AUDIT_LOG
+}
+
+enum MatterStatus {
+  OPEN
+  CLOSED
+  EXPORTED
+}
+
+enum LegalHoldType {
+  ACCOUNT
+  MAILBOX
+  DATE_RANGE
+}
+
+enum VaultExportFormat {
+  PST
+  MBOX
+  EML_ZIP
+}
+
+model OrganizationDomain {
+  id                 String                   @id @default(cuid())
+  organizationId     String
+  domain             String                   @unique
+  verificationStatus DomainVerificationStatus @default(PENDING)
+  dkimPublicKey      String?                  @db.Text
+  verificationToken  String
+  isPrimary          Boolean                  @default(false)
+  verifiedAt         DateTime?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([verificationStatus])
+  @@map("organization_domains")
+}
+
+model OrganizationalUnit {
+  id             String   @id @default(cuid())
+  organizationId String
+  parentId       String?
+  name           String
+  code           String?
+  description    String?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parent       OrganizationalUnit?  @relation("OUHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children     OrganizationalUnit[] @relation("OUHierarchy")
+
+  @@index([organizationId])
+  @@index([parentId])
+  @@map("organizational_units")
+}
+
+model EnterpriseSsoConfig {
+  id              String   @id @default(cuid())
+  organizationId  String
+  providerType    String   @default("SAML")
+  entityId        String
+  ssoUrl          String
+  certificate     String   @db.Text
+  mappingTemplate Json     @default("{}")
+  enabled         Boolean  @default(true)
+  enforceSso      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([entityId])
+  @@map("enterprise_sso_configs")
+}
+
+model ScimClient {
+  id             String    @id @default(cuid())
+  organizationId String
+  bearerToken    String
+  endpointUrl    String
+  name           String?
+  enabled        Boolean   @default(true)
+  lastSyncAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([bearerToken])
+  @@map("scim_clients")
+}
+
+model EnterpriseMailComplianceRule {
+  id             String             @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  ruleType       ComplianceRuleType
+  action         ComplianceAction
+  pattern        String?            @db.Text
+  severity       String             @default("HIGH")
+  enabled        Boolean            @default(true)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization       Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  quarantineMessages AdminQuarantineMessage[]
+
+  @@index([organizationId])
+  @@index([ruleType])
+  @@index([action])
+  @@index([enabled])
+  @@map("enterprise_mail_compliance_rules")
+}
+
+model AdminQuarantineMessage {
+  id                String   @id @default(cuid())
+  organizationId    String
+  complianceRuleId  String?
+  sender            String
+  originalRecipient String
+  subject           String?
+  reason            String
+  releaseStatus     String   @default("QUARANTINED")
+  messageId         String?
+  rawHeaders        Json?
+  metadata          Json     @default("{}")
+  reviewedById      String?
+  reviewedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization   Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  complianceRule EnterpriseMailComplianceRule? @relation(fields: [complianceRuleId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([originalRecipient])
+  @@index([releaseStatus])
+  @@index([complianceRuleId])
+  @@index([createdAt])
+  @@map("admin_quarantine_messages")
+}
+
+model EnterpriseMatter {
+  id             String       @id @default(cuid())
+  organizationId String
+  matterName     String
+  caseNumber     String?
+  description    String?
+  status         MatterStatus @default(OPEN)
+  leadAttorney   String?
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  legalHolds   EnterpriseLegalHold[]
+  vaultExports EnterpriseVaultExport[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([matterName])
+  @@map("enterprise_matters")
+}
+
+model EnterpriseLegalHold {
+  id             String        @id @default(cuid())
+  organizationId String
+  matterId       String
+  name           String
+  holdType       LegalHoldType
+  targetUserId   String?
+  targetMailbox  String?
+  startDate      DateTime?
+  endDate        DateTime?
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  matter       EnterpriseMatter @relation(fields: [matterId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([matterId])
+  @@index([targetUserId])
+  @@index([holdType])
+  @@index([isActive])
+  @@map("enterprise_legal_holds")
+}
+
+model EnterpriseVaultExport {
+  id             String            @id @default(cuid())
+  organizationId String
+  matterId       String?
+  name           String
+  exportFormat   VaultExportFormat
+  sha256Manifest String?
+  status         String            @default("PENDING")
+  downloadUrl    String?
+  fileSizeBytes  BigInt?
+  totalItems     Int               @default(0)
+  queryFilter    Json              @default("{}")
+  createdById    String?
+  expiresAt      DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  matter       EnterpriseMatter? @relation(fields: [matterId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([matterId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("enterprise_vault_exports")
+}
+
+model EnterpriseSiemConfig {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  webhookUrl     String
+  eventTypes     String[]
+  signingSecret  String
+  enabled        Boolean   @default(true)
+  format         String    @default("JSON")
+  lastDeliveryAt DateTime?
+  lastStatus     Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([enabled])
+  @@map("enterprise_siem_configs")
+}
+
+// ==================== LEGAL HOLDS (W33-03) =============/// Enterprise Legal Holds for custodian accounts to preserve communications against deletion.
+model LegalHold {
+  id             String    @id @default(cuid())
+  custodianEmail String    @map("custodian_email")
+  matterName     String    @map("matter_name")
+  reason         String
+  placedBy       String    @map("placed_by")
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  releasedAt     DateTime? @map("released_at")
+  releaseReason  String?   @map("release_reason")
+
+  @@index([custodianEmail])
+  @@index([active])
+  @@map("legal_holds")
+}
+
+// ==================== QUANTY FEED (Q8) =============/// Per-user personalized feed: editable instruction prompt, generated posts,
+/// and like/dislike reactions. Provenance is explicit: posts are either
+/// 'agent_brief' (AI-generated from the user's instructions, clearly labeled)
+/// or 'external' (real fetched URLs only — never fabricated headlines).
+model FeedInstruction {
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  prompt    String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("feed_instructions")
+}
+
+model FeedPost {
+  id         String        @id @default(cuid())
+  userId     String        @map("user_id")
+  title      String
+  excerpt    String        @db.Text
+  /// Only set for provenance='external' and only with real fetched URLs.
+  sourceUrl  String?       @map("source_url")
+  sourceName String?       @map("source_name")
+  imageUrl   String?       @map("image_url")
+  emoji      String?
+  /// 'agent_brief' = AI-generated from instructions (labeled in UI).
+  /// 'external' = real fetched URL (sourceUrl required).
+  provenance String        @default("agent_brief")
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  reactions FeedReaction[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("feed_posts")
+}
+
+model FeedReaction {
+  id        String   @id @default(cuid())
+  postId    String   @map("post_id")
+  userId    String   @map("user_id")
+  kind      String   /// 'like' | 'dislike'
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@map("feed_reactions")
+}
+
+// ==================== QUANTY GOALS (user goals) =============// User-facing goals surfaced in the Quanty Goals UI (Tracking / Goals
+// sections). Additive, relation-free: no back-relations to User.
+
+/// A user goal: title, optional description, category, tracking|done status.
+model QuantyGoal {
+  id          String    @id @default(cuid())
+  userId      String
+  title       String
+  description String    @default("")
+  category    String    @default("custom")
+  status      String    @default("tracking")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  @@index([userId])
+  @@index([userId, status])
+  @@map("quanty_goals")
+}
+
+/// An agent-proposed goal. NEVER auto-applied: a proposal only becomes a
+/// QuantyGoal when the user explicitly accepts it.
+model QuantyGoalProposal {
+  id          String    @id @default(cuid())
+  userId      String
+  title       String
+  description String    @default("")
+  category    String    @default("custom")
+  source      String    @default("")
+  status      String    @default("pending")
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
+
+  @@index([userId])
+  @@index([userId, status])
+  @@map("quanty_goal_proposals")
+}
+
+// ==================== QUANTY MCP CONNECTIONS (Q2) ====================
+/// External OAuth connections backing Quanty's MCP connectors (e.g. Gmail).
+/// Refresh tokens are encrypted at rest (AES-256-GCM); plaintext tokens
+/// NEVER touch this table — only the encrypted blob.
+model McpConnection {
+  id String @id @default(cuid())
+
+  /// Quant user who owns this grant. Scoped lookups only — no cross-user reads.
+  userId String @map("user_id")
+
+  /// Provider key: 'gmail' (future: 'github', 'calendar', 'notion', ...).
+  provider String
+
+  /// 'connected' | 'revoked' | 'error'
+  status String @default("connected")
+
+  /// AES-256-GCM encrypted refresh token (iv:authTag:data hex). Opaque blob.
+  encryptedTokens String @map("encrypted_tokens") @db.Text
+
+  /// Granted OAuth scopes (verbatim from the provider).
+  scopes String[]
+
+  /// Provider account identity (safe to display in UI).
+  accountEmail String? @map("account_email")
+  accountLabel String? @map("account_label")
+
+  /// Per-connection kill switch — when false, mcp.<provider>.* tools are
+  /// unavailable to the agent for this user.
+  enabled Boolean @default(true)
+
+  connectedAt     DateTime  @default(now()) @map("connected_at")
+  lastRefreshedAt DateTime? @map("last_refreshed_at")
+  lastTestedAt    DateTime? @map("last_tested_at")
+  lastTestOk      Boolean?  @map("last_test_ok")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([userId, provider])
+  @@index([userId])
+  @@index([provider, status])
+  @@map("mcp_connections")
+}
+
+/// Audit trail for MCP grant lifecycle events. Written on every
+/// connect / disconnect / test / token-refresh outcome. Never stores tokens.
+model McpGrantAudit {
+  id String @id @default(cuid())
+
+  userId   String @map("user_id")
+  provider String
+
+  /// 'connected' | 'disconnected' | 'test_ok' | 'test_failed' |
+  /// 'token_refreshed' | 'refresh_failed' | 'revoked'
+  event String
+
+  /// Human-safe detail (no tokens, no codes, no secrets).
+  detail String? @db.Text
+
+  ipAddress String? @map("ip_address")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, provider])
+  @@index([createdAt])
+  @@map("mcp_grant_audit")
+}
+/// A proactive idea card proposed by Quanty (or created by the user).
+/// Ideas are proposals, never auto-created clutter: the agent suggests, the
+/// user saves or dismisses. Dismissed ideas remain queryable but are hidden
+/// from the default "new" feed.
+model QuantyIdea {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  description String   @default("")
+  emoji       String   @default("💡")
+  status      String   @default("new") // new | saved | dismissed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, status])
+  @@map("quanty_ideas")
+}

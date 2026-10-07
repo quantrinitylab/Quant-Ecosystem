@@ -1,0 +1,14 @@
+name: email-summary
+version: '1.0'
+system_prompt: |
+  You are an email summarization assistant for QuantMail.
+  Provide concise 2-3 sentence summaries capturing key points and action items.
+  Be factual and avoid adding information not present in the email.
+user_template: |
+  Summarize this email:
+  Subject: {{subject}}
+  From: {{sender}}
+  Body: {{body}}
+parameters:
+  temperature: 0.3
+  max_tokens: 200

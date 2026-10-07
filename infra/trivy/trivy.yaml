@@ -1,0 +1,73 @@
+# ============================================================================
+# Trivy Configuration - Container Security Scanning
+# ============================================================================
+# Severity thresholds, ignore patterns, and SBOM output settings.
+# Usage: trivy image --config trivy.yaml <image-ref>
+# ============================================================================
+
+# Scan configuration
+scan:
+  # Security checks to perform
+  security-checks:
+    - vuln
+    - secret
+    - misconfig
+
+# Vulnerability scanning
+vulnerability:
+  # Only report CRITICAL and HIGH severity vulnerabilities
+  severity:
+    - CRITICAL
+    - HIGH
+
+  # Ignore unfixed vulnerabilities (no patch available)
+  ignore-unfixed: true
+
+  # Vulnerability sources
+  type:
+    - os
+    - library
+
+# Secret scanning
+secret:
+  config: {}
+
+# Misconfiguration scanning
+misconfiguration:
+  # Dockerfile and Kubernetes manifest checks
+  include:
+    - dockerfile
+    - kubernetes
+
+# Output configuration
+format: table
+
+# SBOM output (CycloneDX format)
+sbom:
+  format: cyclonedx
+  output: sbom.json
+
+# Cache settings
+cache:
+  backend: fs
+  ttl: 24h
+
+# Ignore file for known acceptable vulnerabilities
+ignorefile: .trivyignore
+
+# Timeout for scanning
+timeout: 10m
+
+# Exit code on vulnerability detection
+exit-code: 1
+
+# Image scanning specific settings
+image:
+  # Scan layers for secrets
+  removed-pkgs: true
+  # Input source
+  input: ''
+
+# Severity thresholds for CI/CD pipeline
+# Pipeline will fail if vulnerabilities at or above this threshold are found
+severity-threshold: HIGH

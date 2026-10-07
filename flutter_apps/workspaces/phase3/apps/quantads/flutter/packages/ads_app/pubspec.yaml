@@ -1,0 +1,43 @@
+name: ads_app
+description: >-
+  QuantAds omnipresent Flutter app — the ads/monetization face of the
+  9-app Quant ecosystem. Shift 1: melos-style package scaffold, AdsTheme
+  wiring, OAuth2+PKCE login (QuantMail SSO), dashboard placeholder.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management + navigation (same versions as phase1 quant_app).
+  flutter_riverpod: ^2.5.3
+  go_router: ^14.2.0
+
+  # System browser for the OAuth2 consent step.
+  url_launcher: ^6.3.0
+
+  # Local workspace packages (W2/W3-owned; written in parallel).
+  ads_core:
+    path: ../ads_core
+  ads_theme:
+    path: ../ads_theme
+
+  # Phase 0 foundation: Dio API client, TokenManager, OAuth2 PKCE helpers.
+  # Lives outside this workspace (read-only).
+  quant_foundation:
+    path: ../../../../../../phase0/foundation
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  # Fake UrlLauncherPlatform in tests (test/ only).
+  url_launcher_platform_interface: ^2.3.2
+
+flutter:
+  uses-material-design: true

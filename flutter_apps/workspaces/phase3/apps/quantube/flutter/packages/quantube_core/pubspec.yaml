@@ -1,0 +1,32 @@
+name: quantube_core
+description: >-
+  QuanTube shared core — theme and auth (OAuth2+PKCE) barrel exports for the
+  dedicated QuanTube Flutter app. Playback and offline-download features land
+  here in later shifts.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management (plain providers; no codegen / build_runner yet).
+  flutter_riverpod: ^2.5.3
+
+  # HTTP client for the auth bootstrap calls (same version line as the
+  # phase-0 foundation, so the transitive graph stays consistent).
+  dio: ^5.9.0
+
+  # Phase 0 foundation: Dio API client, TokenManager, OAuth2 PKCE helpers,
+  # @quant/brand Material 3 theme. Lives outside this workspace (read-only).
+  quant_foundation:
+    path: ../../../../../../phase0/foundation
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0

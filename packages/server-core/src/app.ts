@@ -1,0 +1,234 @@
+import Fastify from 'fastify';
+import { randomUUID } from 'node:crypto';
+import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
+import type { AppConfig, PublicPathEntry } from './types';
+import { assertProductionSecret } from './secrets';
+import errorHandler from './plugins/error-handler';
+import healthPlugin from './plugins/health';
+import authPlugin from './plugins/auth';
+import prismaPlugin from './plugins/prisma';
+import metricsPlugin from './plugins/metrics';
+import requestIdPlugin from './plugins/request-id';
+import requestLoggerPlugin from './plugins/request-logger';
+import gracefulShutdownPlugin from './plugins/graceful-shutdown';
+import observabilityPlugin from './plugins/observability';
+import performancePlugin from './plugins/performance';
+import errorMonitoringPlugin from './plugins/error-monitoring';
+import featureFlagsPlugin from './plugins/feature-flags';
+import auditPlugin from './plugins/audit';
+import organizationsPlugin from './plugins/organizations';
+import notificationsPlugin from './plugins/notifications';
+import identityPermissionsPlugin from './plugins/identity-permissions';
+import teamsPlugin from './plugins/teams';
+import idempotencyPlugin from './plugins/idempotency';
+import rateLimitPlugin from '@fastify/rate-limit';
+
+export async function createApp(config: AppConfig) {
+  // Production security validation. The length check this replaced passed any
+  // 32-character string, so a longer placeholder would have booted; the value
+  // itself is now checked against the placeholders committed to this repo.
+  if (config.env === 'production') {
+    assertProductionSecret(config.jwtSecret, {
+      name: 'JWT_SECRET',
+      provisionedBy: 'External Secrets (AWS Secrets Manager key quant/jwt)',
+    });
+  }
+
+  const fastify = Fastify({
+    logger:
+      config.env === 'test'
+        ? false
+        : {
+            level: config.logLevel,
+            ...(config.env === 'development' ? { transport: { target: 'pino-pretty' } } : {}),
+          },
+    genReqId: () => randomUUID(),
+    disableRequestLogging: config.env === 'test',
+  });
+
+  // Register WebDAV / CalDAV / CardDAV HTTP methods (RFC 4791 / RFC 6350)
+  for (const method of ['PROPFIND', 'REPORT', 'MKCALENDAR']) {
+    try {
+      fastify.addHttpMethod(method, { hasBody: true });
+    } catch {
+      // already registered
+    }
+  }
+
+  // Set Zod as the schema validator/serializer
+  fastify.setValidatorCompiler(validatorCompiler);
+  fastify.setSerializerCompiler(serializerCompiler);
+
+  // Register helmet for security headers
+  const helmet = await import('@fastify/helmet');
+  await fastify.register(helmet.default, { global: true });
+
+  // Register CORS
+  const cors = await import('@fastify/cors');
+  await fastify.register(cors.default, {
+    origin: config.corsOrigins,
+    credentials: true,
+  });
+
+  // Register rate limiting with Redis or in-memory fallback
+  const rateLimitOpts: Record<string, unknown> = {
+    max: config.rateLimitMax,
+    timeWindow: config.rateLimitWindow,
+  };
+
+  let redisClient: import('ioredis').Redis | undefined;
+
+  if (config.redisUrl) {
+    try {
+      const { default: Redis } = await import('ioredis');
+      redisClient = new Redis(config.redisUrl);
+      rateLimitOpts['redis'] = redisClient;
+    } catch {
+      // Fall back to in-memory if Redis connection fails
+    }
+  }
+
+  await fastify.register(rateLimitPlugin, rateLimitOpts);
+
+  // Register cookie support
+  const cookie = await import('@fastify/cookie');
+  await fastify.register(cookie.default as any);
+
+  // Register error handler
+  await fastify.register(errorHandler);
+
+  // Register request-id propagation
+  await fastify.register(requestIdPlugin);
+
+  // Register idempotency-key handling (K4). Global hooks, but strictly opt-in:
+  // a route file calls `fastify.idempotency()` once to mark its mutating
+  // routes. Reuses the same Redis connection as the rate limiter above.
+  await fastify.register(idempotencyPlugin, {
+    redisClient,
+    ttlSeconds: 24 * 3600,
+  });
+
+  // Register request logger (after error handler so errors are logged)
+  await fastify.register(requestLoggerPlugin);
+
+  // Register metrics collection
+  await fastify.register(metricsPlugin);
+
+  // Register Prisma client
+  await fastify.register(prismaPlugin);
+
+  // Register auth plugin
+  await fastify.register(authPlugin, {
+    jwtSecret: config.jwtSecret,
+    jwtIssuer: config.jwtIssuer,
+    jwtAudience: config.jwtAudience,
+  });
+
+  // Register cross-cutting engine plugins (Category A — wired once, inherited by
+  // every app via createApp()). Registered AFTER prisma + auth so each plugin's
+  // construction/runtime can rely on `fastify.prisma` and `request.auth`.
+  // - observability: import-gated behind OTEL_EXPORTER_OTLP_ENDPOINT (no-op when unset)
+  // - performance: request timing + opt-in per-route SLO budget hook (no-op when
+  //   no budget is defined); decorates `fastify.performance`
+  // - feature-flags: decorates `fastify.flags`
+  // - audit: decorates `fastify.audit`, reads `request.auth` in onResponse
+  // - organizations: decorates `fastify.org` + org-context middleware
+  // - notifications: decorates `fastify.notifications` (PreferenceService +
+  //   NotificationFanout + CrossAppDispatcher); depends on `prisma`
+  // - error-monitoring: captures/forwards errors via an `onError` hook,
+  //   correlated by `x-request-id`; decorates `fastify.errorMonitoring`. Depends
+  //   on `error-handler` (which owns the envelope) + `request-id` (correlation),
+  //   both registered above — the envelope/status are left untouched.
+  await fastify.register(observabilityPlugin);
+  await fastify.register(performancePlugin);
+  await fastify.register(errorMonitoringPlugin);
+  await fastify.register(featureFlagsPlugin);
+  await fastify.register(auditPlugin);
+  await fastify.register(organizationsPlugin);
+  await fastify.register(notificationsPlugin);
+
+  // Register the RBAC auth substrate (Category A — cross-cutting). Registered
+  // AFTER `auth` (declares `dependencies: ['auth']`) so `requireAuth({ scopes })`
+  // scope evaluation is backed by `@quant/identity-permissions`, and BEFORE any
+  // per-app route that declares fine-grained scopes (Requirement 4.3). `teams`
+  // depends on `identity-permissions` and provides multi-actor team context.
+  await fastify.register(identityPermissionsPlugin);
+  await fastify.register(teamsPlugin);
+
+  // Public paths that bypass auth (health/metrics are GET-only exact matches by default)
+  const PUBLIC_PATHS: PublicPathEntry[] = [
+    { path: '/health', methods: ['GET'], exact: true },
+    { path: '/healthz', methods: ['GET'], exact: true },
+    { path: '/ready', methods: ['GET'], exact: true },
+    { path: '/readyz', methods: ['GET'], exact: true },
+    { path: '/live', methods: ['GET'], exact: true },
+    { path: '/livez', methods: ['GET'], exact: true },
+    { path: '/metrics', methods: ['GET'], exact: true },
+    // Caller-supplied pre-authentication endpoints (e.g. login/OTP) or public read paths.
+    ...(config.publicPaths ?? []),
+  ];
+
+  function matchesPublicPath(entry: PublicPathEntry, path: string, method: string): boolean {
+    let pattern: string;
+    let allowedMethods: string[] | undefined;
+    let exact = true;
+
+    if (typeof entry === 'string') {
+      if (entry.endsWith('/*')) {
+        pattern = entry.slice(0, -2);
+        exact = false;
+      } else {
+        pattern = entry;
+        exact = false;
+      }
+    } else {
+      pattern = entry.path;
+      allowedMethods = entry.methods;
+      exact = entry.exact ?? true;
+    }
+
+    if (allowedMethods && allowedMethods.length > 0 && !allowedMethods.includes(method)) {
+      return false;
+    }
+
+    if (pattern.includes(':')) {
+      const patternSegments = pattern.split('/').filter(Boolean);
+      const pathSegments = path.split('/').filter(Boolean);
+      if (patternSegments.length === pathSegments.length) {
+        return patternSegments.every((seg, i) => seg.startsWith(':') || seg === pathSegments[i]);
+      }
+      return false;
+    }
+
+    if (exact) {
+      return path === pattern;
+    }
+
+    // Wildcard prefix matching ONLY when explicitly declared (e.g. pattern ends with /*)
+    return path === pattern || path.startsWith(pattern + '/');
+  }
+
+  // Enforce auth on all routes except health/metrics and caller-configured public paths
+  fastify.addHook('onRequest', async (request, reply) => {
+    const path = request.url.split('?')[0] ?? '';
+    const method = request.method;
+    if (PUBLIC_PATHS.some((p) => matchesPublicPath(p, path, method))) {
+      await fastify.optionalAuth()(request);
+      return;
+    }
+    await fastify.requireAuth()(request, reply);
+    if (reply.sent) return;
+  });
+
+  // Register health endpoints
+  await fastify.register(healthPlugin, {
+    redisClient,
+  });
+
+  // Register graceful shutdown
+  await fastify.register(gracefulShutdownPlugin, { timeoutMs: 30000 });
+
+  return fastify;
+}
+
+// Security: CodeQL #170: @fastify/rate-limit registered globally (static import).

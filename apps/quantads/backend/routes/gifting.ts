@@ -1,0 +1,85 @@
+import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import { createAppError } from '@quant/server-core';
+import { QuantAdsCreditsWallet } from '../services/credits-wallet.js';
+import { GiftingLedgerService, TippingLedgerService } from '../services/coin-services.js';
+
+const giftSchema = z.object({
+  fromUserId: z.string().min(1),
+  toUserId: z.string().min(1),
+  itemId: z.string().min(1),
+});
+
+const tipSchema = z.object({
+  fromUserId: z.string().min(1),
+  toUserId: z.string().min(1),
+  amount: z.number().positive(),
+});
+
+export default async function giftingRoutes(fastify: FastifyInstance) {
+  const { catalog, inventory } = fastify.economy;
+  const wallet = new QuantAdsCreditsWallet((fastify as unknown as { prisma: unknown }).prisma);
+  const giftingService = new GiftingLedgerService(wallet, catalog, inventory);
+  const tippingService = new TippingLedgerService(wallet);
+  fastify.post('/gift', async (request, reply) => {
+    const parseResult = giftSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+
+    const { fromUserId, toUserId, itemId } = parseResult.data;
+
+    try {
+      const result = await giftingService.sendGift(fromUserId, toUserId, itemId);
+      if (!result.success) {
+        throw createAppError(result.message ?? 'Gift failed', 400, 'GIFT_FAILED');
+      }
+      return reply.status(201).send({ success: true, data: result.gift });
+    } catch (e: unknown) {
+      if (e && typeof e === 'object' && 'statusCode' in e) throw e;
+      const message = e instanceof Error ? e.message : 'Gift sending failed';
+      throw createAppError(message, 400, 'GIFT_FAILED');
+    }
+  });
+
+  fastify.post('/tip', async (request, reply) => {
+    const parseResult = tipSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+
+    const { fromUserId, toUserId, amount } = parseResult.data;
+
+    try {
+      const result = await tippingService.sendTip(fromUserId, toUserId, amount);
+      if (!result.success) {
+        throw createAppError(result.message ?? 'Tip failed', 400, 'TIP_FAILED');
+      }
+      return reply.status(201).send({ success: true, data: result.tip });
+    } catch (e: unknown) {
+      if (e && typeof e === 'object' && 'statusCode' in e) throw e;
+      const message = e instanceof Error ? e.message : 'Tip sending failed';
+      throw createAppError(message, 400, 'TIP_FAILED');
+    }
+  });
+
+  fastify.get<{ Params: { userId: string } }>('/received/:userId', async (request, reply) => {
+    try {
+      const gifts = giftingService.getReceivedGifts(request.params.userId);
+      return reply.send({ success: true, data: gifts });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Failed to get received gifts';
+      throw createAppError(message, 400, 'GIFTS_FETCH_FAILED');
+    }
+  });
+
+  fastify.get<{ Params: { userId: string } }>('/tips/:userId', async (request, reply) => {
+    try {
+      const tips = tippingService.getTipsReceived(request.params.userId);
+      return reply.send({ success: true, data: tips });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Failed to get tips';
+      throw createAppError(message, 400, 'TIPS_FETCH_FAILED');
+    }
+  });
+}

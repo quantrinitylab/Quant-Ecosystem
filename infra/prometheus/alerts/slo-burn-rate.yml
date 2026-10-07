@@ -1,0 +1,123 @@
+groups:
+  - name: quant-slo-burn-rate
+    rules:
+      # Critical: 14.4x burn rate over 1h window, confirmed by 5m window
+      # At this rate, the entire monthly error budget is consumed in ~2 days
+      - alert: SLOBurnRateCritical
+        expr: |
+          (
+            sum by (service) (rate(http_requests_total{status_code=~"5.."}[1h]))
+            / sum by (service) (rate(http_requests_total[1h]))
+          ) > (14.4 * 0.001)
+          and
+          (
+            sum by (service) (rate(http_requests_total{status_code=~"5.."}[5m]))
+            / sum by (service) (rate(http_requests_total[5m]))
+          ) > (14.4 * 0.001)
+        for: 2m
+        labels:
+          severity: critical
+          slo_window: 1h
+          burn_rate: "14.4x"
+        annotations:
+          summary: "Critical SLO burn rate on {{ $labels.service }}"
+          description: "Service {{ $labels.service }} is burning error budget at 14.4x the sustainable rate. At this pace, the monthly budget will be exhausted in ~2 days. Current error rate: {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.quant.internal/runbooks/slo-burn-rate-critical"
+
+      # Warning: 6x burn rate over 6h window, confirmed by 30m window
+      # At this rate, the entire monthly error budget is consumed in ~5 days
+      - alert: SLOBurnRateWarning
+        expr: |
+          (
+            sum by (service) (rate(http_requests_total{status_code=~"5.."}[6h]))
+            / sum by (service) (rate(http_requests_total[6h]))
+          ) > (6 * 0.001)
+          and
+          (
+            sum by (service) (rate(http_requests_total{status_code=~"5.."}[30m]))
+            / sum by (service) (rate(http_requests_total[30m]))
+          ) > (6 * 0.001)
+        for: 5m
+        labels:
+          severity: warning
+          slo_window: 6h
+          burn_rate: "6x"
+        annotations:
+          summary: "Elevated SLO burn rate on {{ $labels.service }}"
+          description: "Service {{ $labels.service }} is burning error budget at 6x the sustainable rate. At this pace, the monthly budget will be exhausted in ~5 days. Current error rate: {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.quant.internal/runbooks/slo-burn-rate-warning"
+
+      # Info: 3x burn rate over 24h window, confirmed by 1h window
+      # At this rate, the entire monthly error budget is consumed in ~10 days
+      - alert: SLOBurnRateInfo
+        expr: |
+          (
+            sum by (service) (rate(http_requests_total{status_code=~"5.."}[24h]))
+            / sum by (service) (rate(http_requests_total[24h]))
+          ) > (3 * 0.001)
+          and
+          (
+            sum by (service) (rate(http_requests_total{status_code=~"5.."}[1h]))
+            / sum by (service) (rate(http_requests_total[1h]))
+          ) > (3 * 0.001)
+        for: 15m
+        labels:
+          severity: info
+          slo_window: 24h
+          burn_rate: "3x"
+        annotations:
+          summary: "SLO burn rate above normal on {{ $labels.service }}"
+          description: "Service {{ $labels.service }} is burning error budget at 3x the sustainable rate. At this pace, the monthly budget will be exhausted in ~10 days. Current error rate: {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.quant.internal/runbooks/slo-burn-rate-info"
+
+      # Latency SLO burn rate - Critical
+      - alert: LatencySLOBurnRateCritical
+        expr: |
+          (
+            1 - (
+              sum by (service) (rate(http_request_duration_seconds_bucket{le="0.5"}[1h]))
+              / sum by (service) (rate(http_request_duration_seconds_count[1h]))
+            )
+          ) > (14.4 * 0.001)
+          and
+          (
+            1 - (
+              sum by (service) (rate(http_request_duration_seconds_bucket{le="0.5"}[5m]))
+              / sum by (service) (rate(http_request_duration_seconds_count[5m]))
+            )
+          ) > (14.4 * 0.001)
+        for: 2m
+        labels:
+          severity: critical
+          slo_window: 1h
+          burn_rate: "14.4x"
+          slo_type: latency
+        annotations:
+          summary: "Critical latency SLO burn rate on {{ $labels.service }}"
+          description: "Service {{ $labels.service }} latency SLO is burning at 14.4x rate. Too many requests exceeding 500ms threshold."
+
+      # Latency SLO burn rate - Warning
+      - alert: LatencySLOBurnRateWarning
+        expr: |
+          (
+            1 - (
+              sum by (service) (rate(http_request_duration_seconds_bucket{le="0.5"}[6h]))
+              / sum by (service) (rate(http_request_duration_seconds_count[6h]))
+            )
+          ) > (6 * 0.001)
+          and
+          (
+            1 - (
+              sum by (service) (rate(http_request_duration_seconds_bucket{le="0.5"}[30m]))
+              / sum by (service) (rate(http_request_duration_seconds_count[30m]))
+            )
+          ) > (6 * 0.001)
+        for: 5m
+        labels:
+          severity: warning
+          slo_window: 6h
+          burn_rate: "6x"
+          slo_type: latency
+        annotations:
+          summary: "Elevated latency SLO burn rate on {{ $labels.service }}"
+          description: "Service {{ $labels.service }} latency SLO is burning at 6x rate. Investigate slow requests."

@@ -1,0 +1,43 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "composite": true,
+    "jsx": "react-jsx"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"],
+  "references": [
+    {
+      "path": "../brand"
+    },
+    {
+      "path": "../common"
+    },
+    {
+      "path": "../agentic"
+    },
+    {
+      "path": "../api-client"
+    },
+    {
+      "path": "../bharat-ai"
+    },
+    {
+      "path": "../command-palette"
+    },
+    {
+      "path": "../contextual-sidekick"
+    },
+    {
+      "path": "../onboarding"
+    },
+    {
+      "path": "../universal-timeline"
+    },
+    {
+      "path": "../wellbeing"
+    }
+  ]
+}

@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Squircle Clip -->
+    <clipPath id="squircleClip">
+      <rect x="16" y="16" width="480" height="480" rx="112" ry="112" />
+    </clipPath>
+
+    <!-- Liquid Lava Radial Gradients -->
+    <radialGradient id="solarGold" cx="35%" cy="75%" r="60%">
+      <stop offset="0%" stop-color="#FFC700" />
+      <stop offset="35%" stop-color="#FF8A00" />
+      <stop offset="70%" stop-color="#FF4500" />
+      <stop offset="100%" stop-color="#FF4500" stop-opacity="0" />
+    </radialGradient>
+
+    <radialGradient id="fireOrange" cx="55%" cy="25%" r="65%">
+      <stop offset="0%" stop-color="#FF5500" />
+      <stop offset="40%" stop-color="#FF2E00" />
+      <stop offset="75%" stop-color="#D61800" />
+      <stop offset="100%" stop-color="#D61800" stop-opacity="0" />
+    </radialGradient>
+
+    <radialGradient id="crimsonFlame" cx="80%" cy="75%" r="65%">
+      <stop offset="0%" stop-color="#E52E14" />
+      <stop offset="45%" stop-color="#BF1200" />
+      <stop offset="80%" stop-color="#660000" />
+      <stop offset="100%" stop-color="#660000" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Obsidian Void Depth -->
+    <radialGradient id="obsidianVoid" cx="45%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#060709" stop-opacity="0.95" />
+      <stop offset="60%" stop-color="#0E1017" stop-opacity="0.6" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Glass Specular Rim Gradient -->
+    <linearGradient id="glassRim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.6" />
+      <stop offset="30%" stop-color="#FF9933" stop-opacity="0.35" />
+      <stop offset="70%" stop-color="#FF5500" stop-opacity="0.15" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.1" />
+    </linearGradient>
+
+    <!-- Mascot 3D Shadow Filter -->
+    <filter id="mascotShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#000000" flood-opacity="0.65" />
+    </filter>
+  </defs>
+
+  <!-- Fluid Lava Squircle Group -->
+  <g clip-path="url(#squircleClip)">
+    <!-- Base Deep Obsidian Background -->
+    <rect width="512" height="512" fill="#060709" />
+    
+    <!-- Dynamic Lava Swirls -->
+    <rect width="512" height="512" fill="url(#crimsonFlame)" />
+    <rect width="512" height="512" fill="url(#fireOrange)" />
+    <rect width="512" height="512" fill="url(#solarGold)" />
+    <rect width="512" height="512" fill="url(#obsidianVoid)" />
+
+    <!-- Solid White "M" Quanty Mascot (Scaled & Centered) -->
+    <!-- Center (256, 266), Width 270, Height 220 -->
+    <path
+      d="
+        M 156 376
+        A 35 35 0 0 1 121 341
+        L 121 166
+        C 121 126 141 106 166 106
+        C 196 116 226 191 256 191
+        C 286 191 316 116 346 106
+        C 371 106 391 126 391 166
+        L 391 341
+        A 35 35 0 0 1 356 376
+        Z
+      "
+      fill="#FFFFFF"
+      filter="url(#mascotShadow)"
+    />
+
+    <!-- Lively Open Eyes (Tracking & Specular Catchlights) -->
+    <!-- Left Eye Center: (208, 296), Right Eye Center: (304, 296) -->
+    <!-- Left Pupil -->
+    <circle cx="208" cy="296" r="17.5" fill="#060709" />
+    <!-- Left Specular Sparkle -->
+    <circle cx="213.5" cy="290.5" r="6" fill="#FFFFFF" />
+
+    <!-- Right Pupil -->
+    <circle cx="304" cy="296" r="17.5" fill="#060709" />
+    <!-- Right Specular Sparkle -->
+    <circle cx="309.5" cy="290.5" r="6" fill="#FFFFFF" />
+
+    <!-- Warm Cheek Blush -->
+    <circle cx="170" cy="324" r="13" fill="#FF7A00" fill-opacity="0.38" />
+    <circle cx="342" cy="324" r="13" fill="#FF7A00" fill-opacity="0.38" />
+  </g>
+
+  <!-- Glass Specular Outer Border Rim -->
+  <rect
+    x="16"
+    y="16"
+    width="480"
+    height="480"
+    rx="112"
+    ry="112"
+    fill="none"
+    stroke="url(#glassRim)"
+    stroke-width="7"
+  />
+</svg>

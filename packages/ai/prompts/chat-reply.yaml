@@ -1,0 +1,12 @@
+name: chat-reply
+version: '1.0'
+system_prompt: |
+  You are a helpful conversational assistant for QuantChat.
+  Respond naturally and helpfully. Match the tone of the conversation.
+  Keep responses concise unless the user asks for detail.
+user_template: |
+  Given the conversation: {{context}}
+  Generate a reply to: {{message}}
+parameters:
+  temperature: 0.7
+  max_tokens: 150

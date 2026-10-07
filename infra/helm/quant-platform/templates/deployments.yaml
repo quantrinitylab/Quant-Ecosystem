@@ -1,0 +1,104 @@
+{{- range $name, $svc := .Values.services }}
+{{- if $svc.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "quant-platform.fullname" $ }}-{{ $name }}
+  labels:
+    {{- include "quant-platform.serviceLabels" (dict "root" $ "name" $name) | nindent 4 }}
+spec:
+  {{- if not $svc.autoscaling.enabled }}
+  replicas: {{ $svc.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "quant-platform.serviceSelectorLabels" (dict "root" $ "name" $name) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "quant-platform.serviceSelectorLabels" (dict "root" $ "name" $name) | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") $ | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "quant-platform.serviceAccountName" $ }}
+      {{- with $.Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: {{ if ne $svc.runAsNonRoot false }}true{{ else }}false{{ end }}
+        runAsUser: {{ default 1001 $svc.runAsUser }}
+        fsGroup: {{ default 1001 $svc.fsGroup }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - {{ $name }}
+                    - key: app.kubernetes.io/instance
+                      operator: In
+                      values:
+                        - {{ $.Release.Name }}
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: {{ $name }}
+          image: {{ include "quant-platform.image" (dict "root" $ "svc" $svc) }}
+          imagePullPolicy: {{ $svc.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ $svc.port }}
+              protocol: TCP
+            {{- if $svc.healthPort }}
+            - name: health
+              containerPort: {{ $svc.healthPort }}
+              protocol: TCP
+            {{- end }}
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          securityContext:
+            runAsNonRoot: {{ if ne $svc.runAsNonRoot false }}true{{ else }}false{{ end }}
+            runAsUser: {{ default 1001 $svc.runAsUser }}
+            readOnlyRootFilesystem: {{ if eq $svc.readOnlyRootFilesystem false }}false{{ else }}true{{ end }}
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: {{ include "quant-platform.fullname" $ }}-config
+            - secretRef:
+                name: {{ include "quant-platform.fullname" $ }}-secrets
+                optional: {{ if (default false $.Values.secrets.required) }}false{{ else }}true{{ end }}
+          {{- if $svc.env }}
+          env:
+            {{- toYaml $svc.env | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ $svc.probes.liveness.path }}
+              port: {{ default (default "http" (and $svc.healthPort "health")) $svc.probes.liveness.port }}
+            initialDelaySeconds: {{ $svc.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ $svc.probes.liveness.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ $svc.probes.readiness.path }}
+              port: {{ default (default "http" (and $svc.healthPort "health")) $svc.probes.readiness.port }}
+            initialDelaySeconds: {{ $svc.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ $svc.probes.readiness.periodSeconds }}
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}
+{{- end }}

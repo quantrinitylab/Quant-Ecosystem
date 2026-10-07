@@ -1,0 +1,63 @@
+{
+  "name": "QuantAds · Sovereign Ad Exchange & Monetization Engine",
+  "short_name": "QuantAds",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#090A0E",
+  "theme_color": "#090A0E",
+  "description": "Sovereign Meta Ads & Google Ads Killer Ad Exchange & Creator Monetization Platform with OpenRTB 3.0 Real-Time Bidding, 70% Creator Revenue Share, and Multi-Rail Instant Payouts.",
+  "orientation": "any",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "icons/Icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/Icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": [
+    "business",
+    "finance",
+    "marketing"
+  ],
+  "shortcuts": [
+    {
+      "name": "Live RTB Auction",
+      "short_name": "Auction",
+      "description": "Monitor OpenRTB 3.0 real-time bidding auction stream",
+      "url": "./#auction",
+      "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Creator Payouts",
+      "short_name": "Payouts",
+      "description": "Manage 70% revenue share disbursements",
+      "url": "./#payouts",
+      "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Ad Campaigns",
+      "short_name": "Campaigns",
+      "description": "Manage advertiser campaigns and ad units",
+      "url": "./#campaigns",
+      "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

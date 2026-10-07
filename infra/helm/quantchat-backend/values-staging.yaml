@@ -1,0 +1,76 @@
+# Staging overrides for the quantchat-backend chart.
+#
+# Purpose (Requirement 18.5): stand up a staging environment that mirrors the
+# production topology closely enough to VALIDATE HORIZONTAL SCALING and sustained
+# throughput with the k6 load/soak scripts in apps/quantchat/load-tests/.
+#
+# Staging therefore keeps the launch-critical multi-instance guarantees:
+#   * multiple replicas (>= 2) so cross-instance realtime fan-out is exercised
+#   * the durable Prisma key store + Redis-backed RealtimeBackplane and presence
+#     store (REDIS_URL sourced from the staging Secret)
+#   * HPA enabled so a load test can drive the cluster to scale out and we can
+#     confirm fan-out latency holds the p95 < 300ms SLO while scaling
+#
+# Usage:
+#   helm upgrade --install quantchat-staging infra/helm/quantchat-backend \
+#     -n quantchat-staging --create-namespace \
+#     -f infra/helm/quantchat-backend/values-staging.yaml \
+#     --set image.tag=<staging-sha>
+#
+# Then point k6 at the staging ingress (see apps/quantchat/load-tests/README.md):
+#   k6 run -e SCENARIO=load -e WS_URL=wss://chat-staging.example.com/ws/chat \
+#          -e TOKENS="<jwt1>,<jwt2>,..." \
+#          apps/quantchat/load-tests/quantchat-ws.js
+
+image:
+  # Pin to the staging release sha in CI; `latest` here is a convenience default.
+  tag: latest
+
+# Start at 2 replicas (the minimum that proves cross-instance fan-out) and let
+# the HPA scale out under k6 load. minReplicas stays >= 2 (enforced by the HPA
+# template) so the multi-instance path is always exercised.
+replicaCount: 2
+
+# Durable Prisma key store + Redis backplane/presence — same code paths as prod
+# so a staging load test validates the real horizontal-scaling behaviour.
+config:
+  NODE_ENV: staging
+  HOST: 0.0.0.0
+  KEY_STORAGE: prisma
+  LOG_LEVEL: debug
+
+# HPA enabled so load/soak runs can demonstrate scale-out. Lower ceiling and
+# more aggressive CPU target than prod so staging scales visibly on modest load
+# (cheaper staging nodes, faster feedback for the k6 run).
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 60
+  targetMemoryUtilizationPercentage: 75
+
+# Smaller footprint than production to keep staging inexpensive while still
+# leaving CPU headroom for the HPA to react to load.
+resources:
+  requests:
+    cpu: 250m
+    memory: 384Mi
+  limits:
+    cpu: '1'
+    memory: 768Mi
+
+# Reference the staging Secret provisioned out-of-band (external-secrets / vault
+# / sealed-secrets). REDIS_URL, JWT_SECRET, LiveKit + VAPID keys and DATABASE_URL
+# all come from here — no plaintext secret values are committed (Requirement 17.3).
+# NOTE: the JWT_SECRET in this Secret must match the one used to mint the load
+# test tokens (see apps/quantchat/load-tests/README.md).
+secrets:
+  existingSecret: quantchat-backend-staging-secrets
+
+service:
+  type: ClusterIP
+  port: 80
+
+# Spread the staging replicas across nodes so fan-out crosses real instances.
+podAntiAffinity:
+  enabled: true

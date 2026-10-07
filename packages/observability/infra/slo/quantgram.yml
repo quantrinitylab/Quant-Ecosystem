@@ -1,0 +1,19 @@
+service: quantgram
+slos:
+  availability:
+    target: 0.999
+    window_days: 30
+    burn_rate_thresholds:
+      critical: { burn_rate: 14.4, short_window: '5m', long_window: '1h' }
+      warning: { burn_rate: 6, short_window: '30m', long_window: '6h' }
+  latency_p95:
+    target: 0.95
+    threshold_ms: 200
+    window_days: 30
+  latency_p99:
+    target: 0.99
+    threshold_ms: 500
+    window_days: 30
+  error_budget:
+    window_days: 30
+    alert_on_remaining_percent: 25

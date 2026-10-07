@@ -1,0 +1,420 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Quant shell overrides — GitHub-style header hamburger + overlay navigation.
+   Imported after globals.css so these rules win the cascade.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.quant-shell-header {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.quant-shell-header-slot { flex: 1 1 auto; min-width: 0; }
+
+.quant-shell-trigger {
+  position: static;
+  top: auto;
+  left: auto;
+  flex: 0 0 auto;
+  align-self: center;
+  margin-left: 0.6rem;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: none;
+  backdrop-filter: none;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: none;
+}
+.quant-shell-trigger:hover {
+  transform: none;
+  border-color: rgba(255, 140, 66, 0.35);
+  background: rgba(255, 140, 66, 0.12);
+}
+.quant-shell-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--quant-accent-soft);
+}
+
+.quant-shell-close {
+  position: absolute;
+  top: 0.8rem;
+  right: -1.1rem;
+  z-index: 2;
+  display: grid;
+  width: 2.15rem;
+  height: 2.15rem;
+  place-items: center;
+  border: 1px solid var(--quant-border-subtle);
+  border-radius: 999px;
+  background: rgba(20, 20, 22, 0.92);
+  color: var(--quant-muted-foreground);
+  backdrop-filter: blur(14px) saturate(140%);
+  transition: color 150ms var(--brand-ease-out), border-color 150ms var(--brand-ease-out);
+}
+.quant-shell-close:hover {
+  color: var(--quant-foreground);
+  border-color: #FF8C42;
+}
+.quant-shell-panel .quant-shell-pin { top: 3.3rem; }
+
+/* Hamburger now lives in the header, so the canvas needs no reserved gutter. */
+[data-shell-fullscreen='true'] > div > main { padding-left: 0; }
+@media (max-width: 768px) {
+  [data-shell-fullscreen='true'] > div > main { padding-left: 0; padding-top: 0; }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   P0 fixes — mobile single-pane inbox, QuantAI trigger visibility, and
+   centered auth forms. shell.css loads after globals.css on purpose.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* 1) Mobile inbox is a true single pane. Phones navigate to /thread/:id, so
+      the desktop preview pane must never render (it was stacking an empty
+      panel under the list and creating dead space).
+      NOTE: the 899px boundary must stay in sync with MOBILE_BREAKPOINT_PX
+      in `src/hooks/useIsMobile.ts` — CSS hides the pane below 900px and JS
+      navigates to the thread route below 900px. If they drift, taps either
+      open an invisible pane or navigate away while the pane is visible. */
+@media (max-width: 899px) {
+  .quantmail-shell .inbox-workspace {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 100%;
+  }
+  .quantmail-shell .reading-pane { display: none !important; }
+  .quantmail-shell .inbox-list-pane {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: 100%;
+    min-height: 0;
+  }
+  /* The AppShell mobile top-bar already carries the brand logo and compose
+     button.  Showing the inbox-hero H1/kicker/p below it creates a visible
+     double-header stack that wastes ~120px on small phones.  Hide the hero
+     copy on mobile; the compose button in mobileActions remains accessible. */
+  .quantmail-shell .inbox-hero { display: none; }
+  /* One compose entry point on phones — the header action stays. */
+  .quantmail-shell .hero-compose { display: none; }
+
+  /* 1b) Thread view slides in from the right on phones, like a native
+     push navigation. The back affordance (header back button + left-edge
+     swipe) slides it back out. `motion-reduce` users get no animation. */
+  .quantmail-shell .thread-workspace {
+    animation: quantmail-thread-slide-in 240ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+
+@keyframes quantmail-thread-slide-in {
+  from { transform: translateX(2.5rem); opacity: 0.4; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quantmail-shell .thread-workspace {
+    animation: none;
+  }
+}
+
+/* 1c) Small phones (<480px): rows were brutally cramped — the 0.65rem
+   padding and 0.7rem gap left ~280px for sender+subject+snippet. Give rows
+   air: roomier padding, a guaranteed 44px+ touch target, and let the text
+   column use the full width instead of squeezing beside oversized chrome. */
+@media (max-width: 479px) {
+  .quantmail-shell .mail-row {
+    min-height: 4.4rem;
+    gap: 0.6rem;
+    padding: 0.8rem 0.75rem;
+  }
+  /* The text column owns the row on small phones: sender, subject and
+     snippet get the full remaining width instead of squeezing beside
+     oversized chrome. */
+  .quantmail-shell .mail-row .mail-row-copy {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .quantmail-shell .mail-row-copy h3 { font-size: 0.78rem; }
+  .quantmail-shell .mail-row-copy p { font-size: 0.7rem; }
+}
+
+/* 2) QuantAI trigger pill mounts outside the app shell's theme scope, so its
+      theme variables can be undefined there (blank white pill). Give it
+      self-contained styling that reads in every context. */
+.mail-copilot-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(16, 16, 20, 0.94) !important;
+  color: #f6f6f7 !important;
+  border: 1px solid rgba(255, 140, 66, 0.35) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 0 16px rgba(255, 140, 66, 0.12), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px) saturate(140%);
+}
+.mail-copilot-trigger strong,
+.mail-copilot-trigger small,
+.mail-copilot-trigger span {
+  color: inherit !important;
+  opacity: 1;
+  visibility: visible;
+}
+.mail-copilot-trigger svg { color: #FF8C42; }
+
+/* 3) Auth pages: the access form stays vertically centered, and desktop is a
+      real two-column layout instead of a short form lost in empty space.
+      On mobile, the brand illustration panel is hidden so there is no dead
+      gap below the sign-in form. */
+.auth-shell .auth-shell-form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.auth-shell .auth-shell-form-content {
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+}
+/* Brand panel: visible only on desktop */
+.auth-shell-brand { display: none; }
+@media (min-width: 1024px) {
+  .auth-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    align-items: stretch;
+    min-height: 100dvh;
+  }
+  .auth-shell-brand { display: flex; }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Folder mailboxes (Starred / Snoozed / Archive / Spam) — per-row rescue
+   action button used by MailFolderPage.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.folder-row-action {
+  flex: 0 0 auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  color: inherit;
+  opacity: 0.85;
+  background: transparent;
+  white-space: nowrap;
+  transition: opacity 150ms ease, border-color 150ms ease;
+}
+.folder-row-action:hover {
+  opacity: 1;
+  border-color: rgba(255, 140, 66, 0.35);
+  background: rgba(255, 140, 66, 0.12);
+  color: #FF8C42;
+}
+.folder-row-action:focus-visible {
+  outline: 2px solid #FF8C42;
+  outline-offset: 2px;
+  opacity: 1;
+}
+.folder-row-action:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* How many messages the conversation on this row is made of. Only rendered
+   past one, so a single-message row stays quiet. */
+.folder-row-count {
+  flex: 0 0 auto;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid #282C35;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #A1A4AC;
+  white-space: nowrap;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Touch-device mail rows — the hover-action bar is mouse-only.
+
+   A coarse pointer has no hover, so a bar that appears on hover can only ever
+   appear stuck; it is hidden outright rather than restyled. What a finger gets
+   instead is on the row itself: a 44px Archive and a 44px Pin, always visible,
+   always in the same place. Snooze and the read-state toggle are one long-press
+   away — 450ms selects the conversation (`page.tsx`), which swaps the shell
+   header for the selection bar and its full set of bulk actions.
+
+   This used to credit "the swipe-to-archive gesture". That gesture was removed:
+   a horizontal drag on a vertical list steals the scroll it was competing with,
+   and a mis-swipe filed a message somewhere the user never chose. See the
+   `EmailRow` comment for the reasoning that replaced it with buttons.
+   ────────────────────────────────────────────────────────────────────────── */
+
+@media (hover: none), (pointer: coarse) {
+  .hover-actions { display: none !important; }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Sidebar layout: compose button is sticky so the label list scrolls
+   underneath it without the button scrolling away.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.sidebar-compose-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  /* Slight backdrop so the list rows don't bleed through on scroll */
+  background: var(--quant-surface, rgba(12, 12, 16, 0.96));
+  padding: 0.75rem 0.875rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Superhuman-style Snooze Popover (Floating, Glassmorphic, High Z-Index)
+   ────────────────────────────────────────────────────────────────────────── */
+
+.snooze-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.snooze-trigger {
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: none;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease;
+}
+.snooze-trigger:hover {
+  background: rgba(255, 140, 66, 0.12);
+  color: #FF8C42;
+}
+.snooze-trigger.is-hidden {
+  display: none !important;
+}
+
+.snooze-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  width: 240px;
+  max-width: 90vw;
+  background: #16181D;
+  border: 1px solid #282C35;
+  border-radius: 0.85rem;
+  padding: 0.5rem;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(16px);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.snooze-menu-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #a1a1aa;
+  padding: 0.35rem 0.6rem 0.2rem;
+  margin: 0;
+}
+
+.snooze-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: #f4f4f5;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 100ms ease;
+}
+
+.snooze-option:hover {
+  background: rgba(255, 140, 66, 0.12);
+  border-color: rgba(255, 140, 66, 0.30);
+  color: #FF8C42;
+}
+
+.snooze-option-date {
+  font-size: 0.7rem;
+  color: #A1A4AC;
+  font-variant-numeric: tabular-nums;
+}
+
+.snooze-option:hover .snooze-option-date {
+  color: #FF9B5A;
+}
+
+.snooze-custom {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 0.25rem;
+  padding-top: 0.35rem;
+}
+
+.snooze-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.4rem 0.25rem;
+}
+
+.snooze-custom-row input[type='datetime-local'] {
+  flex: 1;
+  min-width: 0;
+  background: #09090b;
+  border: 1px solid #27272a;
+  border-radius: 0.45rem;
+  padding: 0.3rem 0.45rem;
+  font-size: 0.7rem;
+  color: #e4e4e7;
+  outline: none;
+}
+
+.snooze-custom-row input[type='datetime-local']:focus {
+  border-color: #FF8C42;
+}
+
+.snooze-custom-row button {
+  padding: 0.3rem 0.65rem;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(255, 140, 66, 0.30);
+  background: rgba(255, 140, 66, 0.12);
+  color: #FF8C42;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 100ms ease;
+}
+
+.snooze-custom-row button:hover:not(:disabled) {
+  background: #FF8C42;
+  color: #111111;
+}
+
+.snooze-custom-row button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+

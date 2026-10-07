@@ -1,0 +1,8 @@
+{
+  "InstanceIds": ["i-04331c285e901cc2d"],
+  "DocumentName": "AWS-RunShellScript",
+  "TimeoutSeconds": 60,
+  "Parameters": {
+    "commands": ["growpart /dev/xvda 1 2>/dev/null; resize2fs /dev/xvda1 2>/dev/null; df -h / && cd /tmp && rm -rf Quant-Ecosystem && git clone --depth 1 https://github.com/quantrinitylabsgo/Quant-Ecosystem.git && nohup bash -c 'cd /tmp/Quant-Ecosystem && aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 266176113726.dkr.ecr.us-east-1.amazonaws.com && docker build -f services/ws-gateway/Dockerfile -t 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-ws-gateway:latest . && docker push 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-ws-gateway:latest && docker build -f apps/quantchat/Dockerfile.backend -t 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantchat-backend:latest . && docker push 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantchat-backend:latest && docker build -f apps/quantai/Dockerfile.backend -t 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantai-backend:latest . && docker push 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantai-backend:latest && echo ALL_BUILDS_COMPLETE' > /tmp/backend-build.log 2>&1 &", "echo 'Builds kicked off. WS-gateway first (smallest). Logs at /tmp/backend-build.log'"]
+  }
+}

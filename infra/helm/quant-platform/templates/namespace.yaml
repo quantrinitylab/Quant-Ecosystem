@@ -1,0 +1,10 @@
+# NOTE: This template is optional. If you install the chart with
+# `helm install --create-namespace`, the namespace is created automatically
+# and this resource is not needed. You can safely skip or remove this file
+# if using --create-namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Release.Namespace }}
+  labels:
+    {{- include "quant-platform.labels" . | nindent 4 }}

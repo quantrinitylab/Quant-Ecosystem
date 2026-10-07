@@ -1,0 +1,65 @@
+{
+  "name": "QuantCooks · Sovereign Video & Audio Creation Studio",
+  "short_name": "QuantCooks",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#090A0E",
+  "theme_color": "#090A0E",
+  "description": "Sovereign CapCut, Premiere Rush, and Final Cut Pro Replacement AI Creation Studio with Multi-Track Timeline and 4K ProRes Export.",
+  "orientation": "landscape-primary",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "icons/Icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/Icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": [
+    "multimedia",
+    "productivity",
+    "video",
+    "photo",
+    "utilities"
+  ],
+  "shortcuts": [
+    {
+      "name": "Timeline Studio",
+      "short_name": "Studio",
+      "description": "Multi-track video and audio timeline editor",
+      "url": "./#studio",
+      "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "AI Tools",
+      "short_name": "AI Tools",
+      "description": "Whisper V3 kinetic captions and Gen-3 synthesis",
+      "url": "./#aitools",
+      "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "4K ProRes Export",
+      "short_name": "Export",
+      "description": "Master hardware export studio",
+      "url": "./#export",
+      "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

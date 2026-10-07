@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="7" y1="5" x2="57" y2="61" gradientUnits="userSpaceOnUse"><stop stop-color="#242427"/><stop offset=".58" stop-color="#0B0B0C"/><stop offset="1" stop-color="#050506"/></linearGradient>
+    <linearGradient id="r" x1="8" y1="18" x2="56" y2="47" gradientUnits="userSpaceOnUse"><stop stop-color="#FFB15F"/><stop offset=".28" stop-color="#FF8A18"/><stop offset=".47" stop-color="#FFF8E8"/><stop offset=".58" stop-color="#E8EEF4"/><stop offset=".78" stop-color="#45B94D"/><stop offset="1" stop-color="#0F700B"/></linearGradient>
+    <linearGradient id="d" x1="8" y1="26" x2="55" y2="52" gradientUnits="userSpaceOnUse"><stop stop-color="#8A3600"/><stop offset=".5" stop-color="#6F746F"/><stop offset="1" stop-color="#063F09"/></linearGradient>
+    <radialGradient id="g"><stop stop-color="#FF9933" stop-opacity=".28"/><stop offset="1" stop-color="#FF9933" stop-opacity="0"/></radialGradient>
+    <filter id="s" x="-35%" y="-45%" width="170%" height="210%"><feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#000" flood-opacity=".82"/></filter>
+  </defs>
+  <rect width="64" height="64" rx="17" fill="url(#bg)"/><rect x=".5" y=".5" width="63" height="63" rx="16.5" stroke="white" stroke-opacity=".1"/>
+  <circle cx="22" cy="20" r="22" fill="url(#g)"/>
+  <path d="M11 44.8c-5 0-8.5-3.9-8.5-8.8s3.5-8.8 8.5-8.8c6.9 0 11 5 14.8 9.7 3.5 4.3 6.5 7.9 11.3 7.9 3.6 0 6.2-2.7 6.2-6.2s-2.6-6.2-6.2-6.2c-3 0-5.4 2-8.3 5.5l-4.4-5.1c3.8-4.6 7.6-7.6 12.7-7.6 7.7 0 13.5 5.7 13.5 13.4S44.8 52 37.1 52c-8.2 0-13-5.8-17.2-10.9-3.3-4-5.9-7-8.9-7-1.2 0-2 .8-2 1.9s.8 1.9 2 1.9c2 0 3.8-1.7 6.3-4.6l4.5 5.1c-3.7 4.1-7 6.4-10.8 6.4Z" fill="url(#d)" opacity=".9"/>
+  <path d="M11 42.5c-5 0-8.5-3.9-8.5-8.8s3.5-8.8 8.5-8.8c6.9 0 11 5 14.8 9.7 3.5 4.3 6.5 7.9 11.3 7.9 3.6 0 6.2-2.7 6.2-6.2s-2.6-6.2-6.2-6.2c-3 0-5.4 2-8.3 5.5l-4.4-5.1c3.8-4.6 7.6-7.6 12.7-7.6 7.7 0 13.5 5.7 13.5 13.4s-5.8 13.4-13.5 13.4c-8.2 0-13-5.8-17.2-10.9-3.3-4-5.9-7-8.9-7-1.2 0-2 .8-2 1.9s.8 1.9 2 1.9c2 0 3.8-1.7 6.3-4.6l4.5 5.1c-3.7 4.1-7 6.4-10.8 6.4Z" fill="url(#r)" filter="url(#s)"/>
+  <path d="M8 27.7c6.8-3.3 12.3 3.3 17.8 10 4.2 5.1 8.2 7.9 13 6.5" stroke="white" stroke-opacity=".5" stroke-width="1.1" stroke-linecap="round"/>
+  <circle cx="31.8" cy="34.4" r="2.8" fill="#0B3D91" stroke="#FFF" stroke-width=".75"/><circle cx="31.8" cy="34.4" r="1" fill="#FFF"/>
+</svg>

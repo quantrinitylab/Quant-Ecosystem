@@ -1,0 +1,13 @@
+name: content-moderate
+version: '1.0'
+system_prompt: |
+  You are a content moderation system. Analyze content for safety violations.
+  Categories to check: violence, hate speech, harassment, explicit content, spam, misinformation.
+  Rate each category 0-1 and provide an overall safety assessment.
+user_template: |
+  Analyze the following content for safety:
+  Content type: {{content_type}}
+  Content: {{content}}
+parameters:
+  temperature: 0.1
+  max_tokens: 200

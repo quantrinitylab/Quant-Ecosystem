@@ -1,0 +1,205 @@
+name: smoke-live
+
+# Turns "we think it is live" into a test.
+#
+# Status codes alone cannot tell a working app from a dead shell: every app
+# proxies `/api/*` behind an auth check that runs before route matching, so
+# any unknown API path answers 401 whether or not a backend is behind it, and a
+# logged-out Next.js shell answers 200 with a body that renders nothing. So each
+# live host is asserted on what a user actually gets:
+#
+#   1. `/` returns 200 and, rendered in a headless browser, produces real text.
+#      This is the check that catches the blank-shell failure several hosts
+#      shipped for weeks while returning 200 to every monitor.
+#   2. `/login` exists, where the app is login-gated.
+#   3. An authenticated API route answers 401 rather than 404 or 5xx.
+#   4. `/api/healthz` returns `status: ok`, for the hosts whose nginx ingress
+#      rewrites `/api(/|$)(.*)` onto a Fastify backend. Note the `z`: those
+#      backends serve `/healthz`, `/livez`, `/readyz` and never `/health`, so
+#      probing `/api/health` on them returns the backend's own 404 and tells you
+#      nothing. That single character is why three healthy backends were first
+#      recorded as "no evidence".
+#   5. The route table inside the *served* build manifest contains a route that
+#      exists in this commit. A deployed Next.js bundle publishes the pages it
+#      was built with, so this is the cheapest honest drift detector there is:
+#      when `/login` is in the repo but missing from the manifest the host is
+#      serving, the artifact is stale and no amount of code review will fix it.
+#
+# Hosts in `mode: down` have their frontend recorded, not asserted, with one
+# exception: `backend_healthz` is asserted in every mode, because a live backend
+# under a dead frontend is a deploy problem and losing the backend as well
+# should not be silent. Drift is only a warning while a host is down — it is
+# stale by definition there — and becomes a hard failure the moment the host is
+# flipped to `mode: live`, which is the commit that should also make it true.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: ${{ matrix.host }} (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - host: quantmail.in
+            mode: live
+            authed_path: /api/emails
+            login_required: 'true'
+            backend_healthz: 'true'
+          - host: quantchat.quantrinity.in
+            mode: live
+            authed_path: /api/conversations
+            login_required: 'true'
+          - host: quantai.quantrinity.in
+            mode: live
+            authed_path: /api/sessions
+            login_required: 'false'
+          - host: quanttrinity.quantrinity.in
+            mode: down
+          # Backend live and healthy, frontend serving a pre-/login artifact.
+          # Flip to `mode: live` in the PR that redeploys it.
+          # No `expect_build_route`: quantads is App Router, which does not
+          # publish a `_buildManifest.js` route table to compare against.
+          - host: quantads.quantrinity.in
+            mode: down
+            backend_healthz: 'true'
+          - host: quantube.quantrinity.in
+            mode: down
+            backend_healthz: 'true'
+            expect_build_route: /login
+          - host: quantmax.quantrinity.in
+            mode: down
+            backend_healthz: 'true'
+            expect_build_route: /login
+          - host: quantsync.quantrinity.in
+            mode: down
+          - host: quantneon.quantrinity.in
+            mode: down
+          - host: quantedits.quantrinity.in
+            mode: down
+    steps:
+      - name: Probe ${{ matrix.host }}
+        shell: bash
+        env:
+          HOST: ${{ matrix.host }}
+          MODE: ${{ matrix.mode }}
+          AUTHED_PATH: ${{ matrix.authed_path }}
+          LOGIN_REQUIRED: ${{ matrix.login_required }}
+          BACKEND_HEALTHZ: ${{ matrix.backend_healthz }}
+          EXPECT_BUILD_ROUTE: ${{ matrix.expect_build_route }}
+          MIN_RENDERED_CHARS: '150'
+        run: |
+          set -uo pipefail
+          fail=0
+
+          probe() { curl -s -o /tmp/body -w '%{http_code}' --connect-timeout 15 --max-time 40 "https://$HOST$1" || echo 000; }
+          strip_markup() { python3 -c "import re,sys;h=sys.stdin.read();h=re.sub(r'<script.*?</script>','',h,flags=re.S);h=re.sub(r'<style.*?</style>','',h,flags=re.S);print(len(re.sub(r'\\s+',' ',re.sub(r'<[^>]*>',' ',h)).strip()))"; }
+
+          browser=''
+          for candidate in google-chrome chromium-browser chromium; do
+            if command -v "$candidate" >/dev/null 2>&1; then browser="$candidate"; break; fi
+          done
+
+          home_code="$(probe /)"
+          static_chars="$(strip_markup < /tmp/body)"
+          cp /tmp/body /tmp/home.html
+          login_code="$(probe /login)"
+          health_code="$(probe /api/health)"
+
+          healthz_code='skipped'
+          healthz_ok='skipped'
+          if [ "${BACKEND_HEALTHZ:-}" = 'true' ]; then
+            healthz_code="$(probe /api/healthz)"
+            healthz_ok='no'
+            grep -q '"status":"ok"' /tmp/body && healthz_ok='yes'
+          fi
+
+          # The served build manifest is the deployed artifact's own route table.
+          build_id="$(grep -o '/_next/static/[A-Za-z0-9_-]\{8,\}/_buildManifest\.js' /tmp/home.html | head -1)"
+          build_route='skipped'
+          if [ -n "${EXPECT_BUILD_ROUTE:-}" ]; then
+            build_route='no-manifest'
+            if [ -n "$build_id" ]; then
+              if curl -sf --max-time 30 "https://$HOST$build_id" -o /tmp/manifest.js; then
+                build_route='missing'
+                grep -q "\"$EXPECT_BUILD_ROUTE\"" /tmp/manifest.js && build_route='present'
+              fi
+            fi
+          fi
+
+          rendered_chars='no-browser'
+          if [ -n "$browser" ]; then
+            "$browser" --headless --disable-gpu --no-sandbox --virtual-time-budget=9000 \
+              --dump-dom "https://$HOST/" > /tmp/dom 2>/dev/null || true
+            rendered_chars="$(strip_markup < /tmp/dom)"
+          fi
+
+          authed_code='skipped'
+          if [ -n "${AUTHED_PATH:-}" ]; then authed_code="$(probe "$AUTHED_PATH")"; fi
+
+          {
+            echo "### $HOST (mode: $MODE)"
+            echo ''
+            echo '| Probe | Result |'
+            echo '| --- | --- |'
+            echo "| \`GET /\` | $home_code |"
+            echo "| characters in raw HTML | $static_chars |"
+            echo "| characters after render | $rendered_chars |"
+            echo "| \`GET /login\` | $login_code |"
+            echo "| \`GET /api/health\` | $health_code (informational) |"
+            echo "| \`GET /api/healthz\` | $healthz_code, status ok: $healthz_ok |"
+            echo "| \`GET ${AUTHED_PATH:-n/a}\` | $authed_code |"
+            echo "| served route \`${EXPECT_BUILD_ROUTE:-n/a}\` | $build_route |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Asserted in every mode: a healthy backend behind a dead frontend is a
+          # deploy problem, and it should not become an outage without anyone noticing.
+          if [ "${BACKEND_HEALTHZ:-}" = 'true' ]; then
+            if [ "$healthz_code" != '200' ] || [ "$healthz_ok" != 'yes' ]; then
+              echo "FAIL: /api/healthz returned $healthz_code (status ok: $healthz_ok)"
+              fail=1
+            fi
+          fi
+
+          if [ "$build_route" = 'missing' ]; then
+            if [ "$MODE" = 'live' ]; then
+              echo "FAIL: this commit has $EXPECT_BUILD_ROUTE but the served build manifest does not — stale artifact"
+              fail=1
+            else
+              echo "WARNING: $HOST is serving an artifact without $EXPECT_BUILD_ROUTE — stale, as expected while down."
+            fi
+          fi
+
+          if [ "$MODE" != 'live' ]; then
+            echo "$HOST is tracked as not-live; frontend checks recorded without assertions."
+            exit "$fail"
+          fi
+
+          [ "$home_code" = '200' ] || { echo "FAIL: GET / returned $home_code"; fail=1; }
+
+          if [ "$rendered_chars" = 'no-browser' ]; then
+            echo "WARNING: no headless browser on this runner; the render check was skipped."
+          elif [ "$rendered_chars" -lt "$MIN_RENDERED_CHARS" ] 2>/dev/null; then
+            echo "FAIL: / rendered $rendered_chars characters (expected >= $MIN_RENDERED_CHARS) — blank shell"
+            fail=1
+          fi
+
+          if [ "$LOGIN_REQUIRED" = 'true' ] && [ "$login_code" != '200' ]; then
+            echo "FAIL: GET /login returned $login_code"
+            fail=1
+          fi
+
+          if [ -n "${AUTHED_PATH:-}" ] && [ "$authed_code" != '401' ]; then
+            echo "FAIL: $AUTHED_PATH returned $authed_code (expected 401 from a live, auth-enforcing backend)"
+            fail=1
+          fi
+
+          exit "$fail"

@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+:root {
+  --quant-background: #ffffff;
+  --quant-surface: #f9fafb;
+  --quant-text-primary: #111827;
+  --quant-text-secondary: #6b7280;
+  --quant-border: #e5e7eb;
+}
+
+.dark {
+  --quant-background: #0f0f14;
+  --quant-surface: #1a1a24;
+  --quant-text-primary: #f3f4f6;
+  --quant-text-secondary: #9ca3af;
+  --quant-border: #374151;
+}
+
+body {
+  background-color: var(--quant-background);
+  color: var(--quant-text-primary);
+}

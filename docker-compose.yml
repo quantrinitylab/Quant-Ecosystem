@@ -1,0 +1,203 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: ankane/pgvector:latest
+    environment:
+      POSTGRES_USER: quant
+      POSTGRES_PASSWORD: quant_secret
+      POSTGRES_DB: quantdb
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U quant']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quant-network
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quant-network
+
+  quantmail:
+    build:
+      context: .
+      dockerfile: apps/quantmail/Dockerfile
+    ports:
+      - '3010:3010'
+    environment:
+      DATABASE_URL: postgresql://quant:quant_secret@postgres:5432/quantdb
+      REDIS_URL: redis://redis:6379
+      # Set JWT_SECRET in .env for local dev; required in production
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-in-production!!!}
+      NODE_ENV: ${NODE_ENV:-development}
+      MEILISEARCH_URL: http://meilisearch:7700
+      MEILISEARCH_KEY: ${MEILI_MASTER_KEY:-quant-search-dev-key}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - quant-network
+
+  quantchat:
+    build:
+      context: .
+      dockerfile: apps/quantchat/Dockerfile
+    ports:
+      - '3015:3015'
+    environment:
+      DATABASE_URL: postgresql://quant:quant_secret@postgres:5432/quantdb
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-in-production!!!}
+      NODE_ENV: ${NODE_ENV:-development}
+      MEILISEARCH_URL: http://meilisearch:7700
+      MEILISEARCH_KEY: ${MEILI_MASTER_KEY:-quant-search-dev-key}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - quant-network
+
+  quantai:
+    build:
+      context: .
+      dockerfile: apps/quantai/Dockerfile
+    ports:
+      - '3020:3020'
+    environment:
+      DATABASE_URL: postgresql://quant:quant_secret@postgres:5432/quantdb
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-in-production!!!}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      NODE_ENV: ${NODE_ENV:-development}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - quant-network
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+    ports:
+      - '3100:3100'
+    environment:
+      DATABASE_URL: postgresql://quant:quant_secret@postgres:5432/quantdb
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-in-production!!!}
+      NODE_ENV: ${NODE_ENV:-development}
+      MEILISEARCH_URL: http://meilisearch:7700
+      MEILISEARCH_KEY: ${MEILI_MASTER_KEY:-quant-search-dev-key}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - quant-network
+
+  ws-gateway:
+    build:
+      context: .
+      dockerfile: services/ws-gateway/Dockerfile
+    ports:
+      - '8080:8080'
+    environment:
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: ${NODE_ENV:-development}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - quant-network
+
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    ports:
+      - '7700:7700'
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-quant-search-dev-key}
+      MEILI_ENV: development
+    volumes:
+      - meilisearch_data:/meili_data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:7700/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quant-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - '16686:16686'
+      - '4318:4318'
+    environment:
+      COLLECTOR_OTLP_ENABLED: 'true'
+    networks:
+      - quant-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - quant-network
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - '3200:3000'
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - quant-network
+
+networks:
+  quant-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  meilisearch_data:
+  prometheus_data:
+  grafana_data:

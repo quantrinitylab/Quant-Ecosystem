@@ -1,0 +1,39 @@
+name: quantcooks_core
+description: >-
+  QuantCooks shared core — domain models, repositories, and Riverpod providers
+  for the creator/tools Flutter app (Shift 1: scaffold + auth groundwork).
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management (plain providers; no codegen / build_runner in Shift 1).
+  flutter_riverpod: ^2.5.3
+
+  # HTTP client; foundation already wires Dio interceptors, this is the
+  # raw client for any QuantCooks-specific networking not yet in foundation.
+  dio: ^5.7.0
+
+  # Secure storage for OAuth tokens (aligned with quant_foundation's
+  # flutter_secure_storage ^10.0.0 constraint so version solving succeeds;
+  # the package is not referenced directly in Dart code — foundation's
+  # TokenManager is the token backend).
+  flutter_secure_storage: ^10.0.0
+
+  # Phase 0 foundation: Dio API client, TokenManager, OAuth2 PKCE helpers,
+  # @quant/brand Material 3 theme. Lives outside this workspace (read-only).
+  # TODO(UNVERIFIED): verify that phase0/foundation exposes the QuantCooks
+  # API client / SSO endpoints once the QuantCooks OpenAPI spec is published.
+  quant_foundation:
+    path: ../../../../../../phase0/foundation
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0

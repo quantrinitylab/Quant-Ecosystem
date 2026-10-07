@@ -1,0 +1,294 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { createAppError } from '@quant/server-core';
+import { RepoStorageService } from './repo-storage.service';
+import { GIT_CHILD_ENV } from './git-child-env';
+
+const execFileAsync = promisify(execFile);
+const MAX_GIT_OUTPUT_BUFFER = 50 * 1024 * 1024;
+const VALID_REF = /^[a-zA-Z0-9_.\-/]+$/;
+
+function validateRef(ref: string): void {
+  if (!ref || ref.startsWith('-') || !VALID_REF.test(ref)) {
+    throw createAppError('Invalid Git ref', 400, 'INVALID_GIT_REF');
+  }
+}
+
+export interface GitTreeEntry {
+  mode: string;
+  type: 'blob' | 'tree';
+  sha: string;
+  size: number;
+  path: string;
+  name: string;
+}
+
+export interface GitBlob {
+  path: string;
+  content: string;
+  size: number;
+  sha: string;
+}
+
+export interface GitCommit {
+  sha: string;
+  parents: string[];
+  author: { name: string; email: string };
+  timestamp: number;
+  message: string;
+}
+
+export class GitInspectService {
+  constructor(private readonly repoStorage: RepoStorageService = new RepoStorageService()) {}
+
+  async getTree(
+    owner: string,
+    name: string,
+    ref: string,
+    treePath?: string,
+  ): Promise<GitTreeEntry[]> {
+    validateRef(ref);
+    if (!(await this.repoStorage.repoExists(owner, name))) return [];
+
+    const repoPath = this.repoStorage.getRepoPath(owner, name);
+    const args = ['ls-tree', '-l', '--end-of-options', ref];
+    if (treePath) args.push('--', `${treePath.replace(/\/$/, '')}/`);
+
+    try {
+      const { stdout } = await execFileAsync('git', args, {
+        cwd: repoPath,
+        maxBuffer: MAX_GIT_OUTPUT_BUFFER,
+        env: GIT_CHILD_ENV,
+      });
+
+      if (!stdout.trim()) return [];
+      return stdout
+        .split('\n')
+        .filter(Boolean)
+        .flatMap((line): GitTreeEntry[] => {
+          const match = line.match(/^(\d+)\s+(blob|tree)\s+([0-9a-f]+)\s+(\d+|-)\t(.+)$/);
+          if (!match) return [];
+          const [, mode, type, sha, rawSize, path] = match;
+          const pathParts = path.split('/');
+          return [
+            {
+              mode,
+              type: type as 'blob' | 'tree',
+              sha,
+              size: rawSize === '-' ? 0 : Number.parseInt(rawSize, 10),
+              path,
+              name: pathParts[pathParts.length - 1] ?? path,
+            },
+          ];
+        });
+    } catch {
+      return [];
+    }
+  }
+
+  async getBlob(owner: string, name: string, ref: string, filePath: string): Promise<GitBlob> {
+    validateRef(ref);
+    if (!(await this.repoStorage.repoExists(owner, name))) {
+      throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+    }
+
+    const repoPath = this.repoStorage.getRepoPath(owner, name);
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        ['show', '--end-of-options', `${ref}:${filePath}`, '--'],
+        { cwd: repoPath, maxBuffer: MAX_GIT_OUTPUT_BUFFER, env: GIT_CHILD_ENV },
+      );
+      return {
+        path: filePath,
+        content: stdout,
+        size: Buffer.byteLength(stdout),
+        sha: ref,
+      };
+    } catch {
+      throw createAppError('File not found in ref', 404, 'FILE_NOT_FOUND');
+    }
+  }
+
+  async getCommits(
+    owner: string,
+    name: string,
+    ref = 'HEAD',
+    options: { limit?: number; skip?: number } = {},
+  ): Promise<GitCommit[]> {
+    validateRef(ref);
+    if (!(await this.repoStorage.repoExists(owner, name))) return [];
+
+    const repoPath = this.repoStorage.getRepoPath(owner, name);
+    const limit = options.limit || 30;
+    const skip = options.skip || 0;
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        [
+          'log',
+          '--format=%H%x1f%P%x1f%an%x1f%ae%x1f%at%x1f%s',
+          '-n',
+          String(limit),
+          '--skip',
+          String(skip),
+          '--end-of-options',
+          ref,
+        ],
+        { cwd: repoPath, maxBuffer: MAX_GIT_OUTPUT_BUFFER, env: GIT_CHILD_ENV },
+      );
+
+      if (!stdout.trim()) return [];
+      return stdout
+        .trimEnd()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => {
+          const [sha, rawParents, authorName, authorEmail, rawTimestamp, message] =
+            line.split('\x1f');
+          return {
+            sha,
+            parents: rawParents ? rawParents.split(' ').filter(Boolean) : [],
+            author: { name: authorName, email: authorEmail },
+            timestamp: Number.parseInt(rawTimestamp, 10),
+            message,
+          };
+        });
+    } catch {
+      return [];
+    }
+  }
+
+  async getDiff(
+    owner: string,
+    name: string,
+    base: string,
+    head: string,
+  ): Promise<{
+    patch: string;
+    stat: string;
+    base: string;
+    head: string;
+    additions: number;
+    deletions: number;
+    changedFiles: number;
+  }> {
+    validateRef(base);
+    validateRef(head);
+    const repoPath = this.repoStorage.getRepoPath(owner, name);
+    const range = `${base}..${head}`;
+    const options = {
+      cwd: repoPath,
+      maxBuffer: MAX_GIT_OUTPUT_BUFFER,
+      env: GIT_CHILD_ENV,
+    };
+
+    const [{ stdout: patch }, { stdout: stat }, { stdout: numstat }] = await Promise.all([
+      execFileAsync('git', ['diff', '-p', '--end-of-options', range, '--'], options),
+      execFileAsync('git', ['diff', '--stat', '--end-of-options', range, '--'], options),
+      execFileAsync('git', ['diff', '--numstat', '--end-of-options', range, '--'], options),
+    ]);
+
+    let additions = 0;
+    let deletions = 0;
+    let changedFiles = 0;
+
+    for (const line of numstat.split('\n')) {
+      if (!line.trim()) continue;
+      const parts = line.split('\t');
+      if (parts.length >= 3) {
+        const add = parts[0] === '-' ? 0 : Number.parseInt(parts[0], 10) || 0;
+        const del = parts[1] === '-' ? 0 : Number.parseInt(parts[1], 10) || 0;
+        additions += add;
+        deletions += del;
+        changedFiles += 1;
+      }
+    }
+
+    return { patch, stat, base, head, additions, deletions, changedFiles };
+  }
+
+  async checkMerge(
+    owner: string,
+    name: string,
+    base: string,
+    head: string,
+  ): Promise<{ clean: boolean; output: string }> {
+    validateRef(base);
+    validateRef(head);
+    const repoPath = this.repoStorage.getRepoPath(owner, name);
+    const { stdout } = await execFileAsync('git', ['merge-tree', base, head], {
+      cwd: repoPath,
+      maxBuffer: MAX_GIT_OUTPUT_BUFFER,
+      env: GIT_CHILD_ENV,
+    });
+    return { clean: !stdout.includes('<<<<<<<'), output: stdout };
+  }
+
+  async searchCode(
+    owner: string,
+    name: string,
+    ref: string,
+    query: string,
+    pathFilter?: string,
+  ): Promise<GitCodeSearchMatch[]> {
+    validateRef(ref);
+    if (!(await this.repoStorage.repoExists(owner, name))) return [];
+
+    const repoPath = this.repoStorage.getRepoPath(owner, name);
+    const args = ['grep', '-n', '-I', '--ignore-case', '-m', '100', '-e', query, ref];
+    if (pathFilter) {
+      args.push('--', pathFilter);
+    }
+
+    try {
+      const { stdout } = await execFileAsync('git', args, {
+        cwd: repoPath,
+        maxBuffer: MAX_GIT_OUTPUT_BUFFER,
+        env: GIT_CHILD_ENV,
+        timeout: 5000,
+      });
+
+      if (!stdout.trim()) return [];
+      const matches: GitCodeSearchMatch[] = [];
+      const lines = stdout.split('\n');
+      for (const rawLine of lines) {
+        if (!rawLine.trim()) continue;
+        let stripped = rawLine;
+        if (stripped.startsWith(`${ref}:`)) {
+          stripped = stripped.slice(ref.length + 1);
+        }
+        const firstColon = stripped.indexOf(':');
+        if (firstColon === -1) continue;
+        const secondColon = stripped.indexOf(':', firstColon + 1);
+        if (secondColon === -1) continue;
+
+        const filePath = stripped.slice(0, firstColon);
+        const lineNumStr = stripped.slice(firstColon + 1, secondColon);
+        const lineContent = stripped.slice(secondColon + 1);
+        const lineNumber = parseInt(lineNumStr, 10);
+        if (isNaN(lineNumber)) continue;
+
+        matches.push({
+          path: filePath,
+          lineNumber,
+          lineContent,
+        });
+        if (matches.length >= 100) break;
+      }
+      return matches;
+    } catch (err: any) {
+      // Git grep exits with code 1 when no matches are found — standard expected behavior
+      if (err?.code === 1 || err?.status === 1) {
+        return [];
+      }
+      return [];
+    }
+  }
+}
+
+export interface GitCodeSearchMatch {
+  path: string;
+  lineNumber: number;
+  lineContent: string;
+}

@@ -1,0 +1,51 @@
+{
+  "name": "@quant/quantwave",
+  "version": "1.0.0",
+  "private": true,
+  "description": "QuantWave - Twitter/X + Threads + Reddit killer platform with real-time threads, communities, and verified spaces",
+  "main": "backend/app.ts",
+  "scripts": {
+    "dev": "next dev -p 3003",
+    "dev:backend": "node --loader ts-node/esm backend/app.ts",
+    "build": "next build",
+    "start": "next start -p 3003",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "argon2": "0.43.1",
+    "@quant/agentic": "workspace:*",
+    "@quant/api-client": "workspace:*",
+    "@quant/auth": "workspace:*",
+    "@quant/ai": "workspace:*",
+    "@quant/brand": "workspace:*",
+    "@quant/common": "workspace:*",
+    "@quant/database": "workspace:*",
+    "@prisma/client": "^6.19.3",
+    "@quant/moderation": "workspace:*",
+    "@quant/realtime": "workspace:*",
+    "@quant/server-core": "workspace:*",
+    "@quant/shared-ui": "workspace:*",
+    "@tanstack/react-query": "^5.60.0",
+    "fastify": "^5.3.3",
+    "framer-motion": "^11.0.0",
+    "ioredis": "^5.6.1",
+    "next": "^15.5.16",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.25.23"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/node": "^22",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "jsdom": "^25.0.1",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "vitest": "^4"
+  }
+}

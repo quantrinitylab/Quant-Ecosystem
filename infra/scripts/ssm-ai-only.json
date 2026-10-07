@@ -1,0 +1,8 @@
+{
+  "InstanceIds": ["i-04331c285e901cc2d"],
+  "DocumentName": "AWS-RunShellScript",
+  "TimeoutSeconds": 60,
+  "Parameters": {
+    "commands": ["docker system prune -af; rm -rf /tmp/Quant-Ecosystem/node_modules /root/.local/share/pnpm/store; df -h /; nohup bash -c 'set -e; cd /tmp/Quant-Ecosystem; aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 266176113726.dkr.ecr.us-east-1.amazonaws.com; docker build -f apps/quantai/Dockerfile.backend -t 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantai-backend:latest . && docker push 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantai-backend:latest && echo AI_BACKEND_DONE' > /tmp/ai-build.log 2>&1 &", "echo AI_BUILD_STARTED"]
+  }
+}

@@ -1,0 +1,95 @@
+groups:
+  - name: quant-canary-analysis
+    rules:
+      # Canary error rate significantly higher than stable
+      - alert: CanaryHighErrorRate
+        expr: |
+          (
+            sum by (service) (rate(http_requests_total{status_code=~"5..", deployment_type="canary"}[5m]))
+            / sum by (service) (rate(http_requests_total{deployment_type="canary"}[5m]))
+          )
+          >
+          (
+            sum by (service) (rate(http_requests_total{status_code=~"5..", deployment_type="stable"}[5m]))
+            / sum by (service) (rate(http_requests_total{deployment_type="stable"}[5m]))
+          ) * 1.5
+        for: 3m
+        labels:
+          severity: warning
+          component: canary
+        annotations:
+          summary: "Canary {{ $labels.service }} has elevated error rate"
+          description: "Canary deployment of {{ $labels.service }} has error rate 1.5x higher than stable. Consider rolling back the canary."
+          runbook_url: "https://docs.quant.internal/runbooks/canary-rollback"
+
+      # Canary latency significantly higher than stable
+      - alert: CanaryHighLatency
+        expr: |
+          (
+            histogram_quantile(0.95,
+              sum by (le, service) (rate(http_request_duration_seconds_bucket{deployment_type="canary"}[5m]))
+            )
+          )
+          >
+          (
+            histogram_quantile(0.95,
+              sum by (le, service) (rate(http_request_duration_seconds_bucket{deployment_type="stable"}[5m]))
+            )
+          ) * 1.5
+        for: 5m
+        labels:
+          severity: warning
+          component: canary
+        annotations:
+          summary: "Canary {{ $labels.service }} has elevated P95 latency"
+          description: "Canary deployment of {{ $labels.service }} P95 latency is 1.5x higher than stable. Current canary P95: {{ $value | humanizeDuration }}"
+          runbook_url: "https://docs.quant.internal/runbooks/canary-rollback"
+
+      # Canary has zero successful requests (possible crash)
+      - alert: CanaryNoTraffic
+        expr: |
+          sum by (service) (rate(http_requests_total{deployment_type="canary", status_code=~"2.."}[5m])) == 0
+          and
+          sum by (service) (rate(http_requests_total{deployment_type="stable", status_code=~"2.."}[5m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+          component: canary
+        annotations:
+          summary: "Canary {{ $labels.service }} has no successful traffic"
+          description: "Canary deployment of {{ $labels.service }} is not serving any 2xx responses while stable is healthy. The canary may be crashing."
+          runbook_url: "https://docs.quant.internal/runbooks/canary-rollback"
+
+      # Canary saturation check - high resource usage
+      - alert: CanaryHighSaturation
+        expr: |
+          (
+            container_memory_working_set_bytes{pod=~".*-canary-.*"}
+            / container_spec_memory_limit_bytes{pod=~".*-canary-.*"}
+          ) > 0.85
+        for: 3m
+        labels:
+          severity: warning
+          component: canary
+        annotations:
+          summary: "Canary pod {{ $labels.pod }} memory saturation"
+          description: "Canary pod {{ $labels.pod }} is using >85% of memory limit. The new version may have a memory leak."
+
+      # Auto-promotion gate: canary is healthy
+      - record: canary:promotion_safe:bool
+        expr: |
+          (
+            (
+              sum by (service) (rate(http_requests_total{status_code=~"5..", deployment_type="canary"}[10m]))
+              / sum by (service) (rate(http_requests_total{deployment_type="canary"}[10m]))
+            )
+            <=
+            (
+              sum by (service) (rate(http_requests_total{status_code=~"5..", deployment_type="stable"}[10m]))
+              / sum by (service) (rate(http_requests_total{deployment_type="stable"}[10m]))
+            ) * 1.1
+          )
+          and
+          (
+            sum by (service) (rate(http_requests_total{deployment_type="canary"}[10m])) > 0.1
+          )

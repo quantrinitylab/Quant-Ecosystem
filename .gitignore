@@ -1,0 +1,53 @@
+node_modules/
+.turbo/
+.next/
+dist/
+build/
+# Exception: quant-studio's SOURCE directory is named "build" (not build output)
+!packages/quant-studio/src/build/
+coverage/
+.env
+.env.*
+!.env.example
+!.env.local.example
+*.log
+.DS_Store
+.prisma/
+*.tsbuildinfo
+
+# Build artifacts in source directories
+packages/*/src/**/*.js
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts.map
+!packages/*/src/**/*.test.js
+!packages/*/src/**/*.spec.js
+helm.zip
+helm-extracted/
+
+# Local scratch artifacts that must never be committed
+Quant-Ecosystem.bundle
+*.postman.json
+*.postman_collection.json
+.quant-latest-work/
+.quantmail-release-candidate/
+_bedrock-probe*.mts
+
+.quant-latest-clone-*
+.quant-fresh-clone-*
+
+# Secrets
+.kiro/settings/mcp.json
+infra/scripts/patch-secret.json
+infra/scripts/patch-cf.json
+
+# Android build caches
+.gradle/
+android-project/**/build/
+android-project/.gradle/
+android-project/local.properties
+
+# Git worktrees
+.worktrees/
+
+

@@ -1,0 +1,56 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: quant-platform
+  namespace: argocd
+spec:
+  description: Quant Platform - Production and Staging environments
+
+  sourceRepos:
+    - "https://github.com/quantmailteamsupport-dev/Quant-Ecosystem.git"
+
+  destinations:
+    - namespace: quant-staging
+      server: https://kubernetes.default.svc
+    - namespace: quant-production
+      server: https://kubernetes.default.svc
+    - namespace: quant-monitoring
+      server: https://kubernetes.default.svc
+
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: "*"
+    - group: apps
+      kind: "*"
+    - group: batch
+      kind: "*"
+    - group: networking.k8s.io
+      kind: "*"
+    - group: autoscaling
+      kind: "*"
+    - group: policy
+      kind: "*"
+    - group: external-secrets.io
+      kind: "*"
+
+  roles:
+    - name: admin
+      description: Full access to the quant-platform project
+      policies:
+        - p, proj:quant-platform:admin, applications, *, quant-platform/*, allow
+        - p, proj:quant-platform:admin, repositories, *, quant-platform/*, allow
+      groups:
+        - quant-admins
+
+    - name: deployer
+      description: Deploy access for CI/CD pipelines
+      policies:
+        - p, proj:quant-platform:deployer, applications, get, quant-platform/*, allow
+        - p, proj:quant-platform:deployer, applications, sync, quant-platform/*, allow
+        - p, proj:quant-platform:deployer, applications, update, quant-platform/*, allow
+      groups:
+        - quant-deployers

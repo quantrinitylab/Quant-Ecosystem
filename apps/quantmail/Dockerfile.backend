@@ -1,0 +1,88 @@
+# syntax=docker/dockerfile:1
+# ============================================================================
+# @quant/quantmail — BACKEND (Fastify API) image.
+# The frontend image runs `next start`; this image runs the bundled Fastify
+# backend (backend/server.ts). The monorepo uses moduleResolution=bundler, so
+# the backend is bundled into one self-contained ESM file via esbuild
+# (infra/scripts/build-backend.mjs); only native/generated packages
+# (@prisma/client + query engine, argon2, sharp) stay external and are provided
+# by the copied node_modules.
+# ============================================================================
+FROM node:22-slim AS deps
+# `openssl`, and it is not optional. Prisma's query engine picks its binary by
+# detecting the libssl version at runtime, and `node:22-slim` ships no openssl —
+# so the deployed pod logs "Prisma failed to detect the libssl/openssl version
+# to use ... defaulting to openssl-1.1.x" and then *guesses*. Proof, from inside
+# the running staging pod: `which openssl` exits 1.
+#
+# A guess that happens to match is still a guess: the day the base image's libssl
+# moves to a version whose engine was never generated, this fails at connect time
+# in production rather than at build time in CI. Installed in this stage too, not
+# only in `runner`, because `prisma generate` runs in the `builder` stage that
+# derives from here and the detection it does there decides which engine binary
+# ends up in the image.
+#
+# ca-certificates is deliberately NOT added: corepack already fetches pnpm over
+# HTTPS in this stage, so the base image plainly has it.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
+WORKDIR /app
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json turbo.json ./
+COPY patches/ ./patches/
+COPY packages/ ./packages/
+COPY apps/quantmail/ ./apps/quantmail/
+COPY infra/scripts/ ./infra/scripts/
+RUN pnpm install --frozen-lockfile --ignore-scripts --network-concurrency 1 --child-concurrency 1
+
+FROM deps AS builder
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+RUN npx prisma@6.19.3 generate --schema=packages/database/prisma/schema.prisma
+RUN node infra/scripts/build-backend.mjs apps/quantmail backend/server.ts apps/quantmail/backend/dist/server.mjs
+
+FROM node:22-slim AS runner
+# See the note on the `deps` stage: this is the stage the query engine actually
+# runs in, so the detection has to succeed here as well.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 quantapp
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3011
+ENV HOST=0.0.0.0
+ENV HOME=/tmp
+
+# node_modules provides the external native/generated deps (@prisma/client +
+# generated client + query engine, argon2, sharp) that the bundle require()s.
+COPY --from=builder --chown=quantapp:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=quantapp:nodejs /app/packages/ ./packages/
+COPY --from=builder --chown=quantapp:nodejs /app/apps/quantmail/ ./apps/quantmail/
+COPY --from=builder --chown=quantapp:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=quantapp:nodejs /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+
+USER quantapp
+EXPOSE 3011
+
+# `/livez`, not `/health` — THE ROUTE THIS USED TO POLL DOES NOT EXIST.
+#
+# `packages/server-core/src/plugins/health.ts` registers `/healthz`, `/livez` and
+# `/readyz`. `/health` appears only in that file's `publicPaths` list, so it was
+# never a route, and this HEALTHCHECK has reported the container unhealthy since
+# it was written. Proof, from inside the running staging pod:
+#
+#   404 {"message":"Route GET:/health not found","statusCode":404}
+#
+# Kubernetes ignores a Dockerfile HEALTHCHECK, which is the only reason this went
+# unnoticed — anyone running the image under plain Docker or Compose saw an
+# `(unhealthy)` container that was serving every request correctly.
+#
+# `/livez` and not `/readyz`: liveness must answer "is this process alive", and
+# `/readyz` returns 503 when Postgres is briefly unreachable. Restarting a
+# healthy container because its database blinked turns one outage into two.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://localhost:3011/livez').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" || exit 1
+
+CMD ["node", "apps/quantmail/backend/dist/server.mjs"]

@@ -1,0 +1,7 @@
+{
+  "commands": [
+    "docker ps -a --format '{{.Names}} {{.Status}} {{.Image}}' | head -5",
+    "df -h / | tail -1",
+    "ps aux | grep -i docker | grep -v grep | head -5"
+  ]
+}

@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #ffffff;
+    --foreground: #0f172a;
+    --surface: #f8fafc;
+    --surface-elevated: #ffffff;
+    --primary: #7c3aed;
+    --primary-foreground: #ffffff;
+    --accent: #f59e0b;
+    --accent-foreground: #1f2937;
+    --border: #e2e8f0;
+    --muted: #f1f5f9;
+    --muted-foreground: #64748b;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --ring: #7c3aed;
+
+    /* --quant-* / --brand-* semantic tokens (light). Components are themed on
+       these names, but they were never defined here and the @quant/brand
+       preset was never imported — so every themed surface degraded to
+       transparent/inherited (invisible "Sign in" button, invisible logo
+       tile, white-on-white text). Values are the ecosystem's canonical
+       @quant/brand `light` theme, hardcoded so the button is visible whether
+       or not the brand pipeline is wired up. */
+    --brand-primary: #4f46e5;
+    --brand-primary-foreground: #ffffff;
+    --brand-accent: #d97706;
+    --brand-accent-foreground: #000000;
+    --quant-background: #ffffff;
+    --quant-foreground: #0f172a;
+    --quant-surface: #f8fafc;
+    --quant-surface-elevated: #ffffff;
+    --quant-border: #e2e8f0;
+    --quant-muted: #f1f5f9;
+    --quant-muted-foreground: #64748b;
+    --quant-destructive: #dc2626;
+    --quant-destructive-foreground: #ffffff;
+    --brand-font-display: 'Inter', system-ui, sans-serif;
+    --brand-font-body: 'Inter', system-ui, sans-serif;
+  }
+
+  .dark {
+    --background: #0f172a;
+    --foreground: #f8fafc;
+    --surface: #1e293b;
+    --surface-elevated: #334155;
+    --primary: #a78bfa;
+    --primary-foreground: #0f172a;
+    --accent: #fbbf24;
+    --accent-foreground: #0f172a;
+    --border: #334155;
+    --muted: #1e293b;
+    --muted-foreground: #94a3b8;
+    --destructive: #f87171;
+    --destructive-foreground: #0f172a;
+    --ring: #a78bfa;
+
+    /* Dark-mode values for the same tokens (canonical @quant/brand `dark`
+       theme), so themed components stay visible in dark mode too. */
+    --brand-primary: #ff8c42;
+    --brand-primary-foreground: #111111;
+    --brand-accent: #ffb875;
+    --brand-accent-foreground: #111111;
+    --quant-background: #090a0c;
+    --quant-foreground: #f5f5f5;
+    --quant-surface: #111318;
+    --quant-surface-elevated: #16181d;
+    --quant-border: #282c35;
+    --quant-muted: #16181d;
+    --quant-muted-foreground: #a1a4ac;
+    --quant-destructive: #dc2626;
+    --quant-destructive-foreground: #ffffff;
+  }
+
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--brand-font-body, 'Inter', system-ui, sans-serif);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease;
+  }
+}
+
+@layer utilities {
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

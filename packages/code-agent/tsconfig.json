@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    // "types" replaces TypeScript's default "load every @types package", so
+    // listing only vitest silently dropped the @types/node this package already
+    // depends on. That is why `process`, `fetch`, `Response`, `RequestInfo`,
+    // `RequestInit` and `URL` were all unresolved here. Node 22 types supply the
+    // fetch family via undici-types, so "node" is the correct fix rather than
+    // adding "DOM" to lib, which would hand a server-only package browser globals.
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}

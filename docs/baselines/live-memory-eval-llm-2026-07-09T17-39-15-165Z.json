@@ -1,0 +1,171 @@
+{
+  "kind": "live-memory-eval-llm-extraction",
+  "capturedAt": "2026-07-09T17:39:15.165Z",
+  "commitSha": "1a54669014638af316526311b2ce544c6c476599",
+  "baseUrlHost": "bedrock-mantle.us-east-1.api.aws",
+  "extractionModel": "deepseek.v3.2",
+  "retrieval": "keyword (variable under test: extraction quality)",
+  "persistence": "in-memory client (plumbing proven separately by env gate)",
+  "perScenario": [
+    {
+      "scenario": "facts",
+      "totalQueries": 3,
+      "recallAccuracy": 0,
+      "precision": 1,
+      "duplicateRate": 0,
+      "avgLatencyMs": 0,
+      "wrongMemories": 0,
+      "missedMemories": 3
+    },
+    {
+      "scenario": "preferences",
+      "totalQueries": 2,
+      "recallAccuracy": 0,
+      "precision": 1,
+      "duplicateRate": 0,
+      "avgLatencyMs": 0,
+      "wrongMemories": 0,
+      "missedMemories": 2
+    },
+    {
+      "scenario": "noise",
+      "totalQueries": 1,
+      "recallAccuracy": 1,
+      "precision": 1,
+      "duplicateRate": 0,
+      "avgLatencyMs": 0,
+      "wrongMemories": 0,
+      "missedMemories": 0
+    },
+    {
+      "scenario": "isolation",
+      "totalQueries": 1,
+      "recallAccuracy": 1,
+      "precision": 1,
+      "duplicateRate": 0,
+      "avgLatencyMs": 0,
+      "wrongMemories": 0,
+      "missedMemories": 0
+    },
+    {
+      "scenario": "employment",
+      "totalQueries": 1,
+      "recallAccuracy": 0,
+      "precision": 1,
+      "duplicateRate": 0,
+      "avgLatencyMs": 0,
+      "wrongMemories": 0,
+      "missedMemories": 1
+    },
+    {
+      "scenario": "corrections",
+      "totalQueries": 1,
+      "recallAccuracy": 0,
+      "precision": 1,
+      "duplicateRate": 0,
+      "avgLatencyMs": 1,
+      "wrongMemories": 0,
+      "missedMemories": 1
+    },
+    {
+      "scenario": "temporal",
+      "totalQueries": 1,
+      "recallAccuracy": 0,
+      "precision": 1,
+      "duplicateRate": 0,
+      "avgLatencyMs": 0,
+      "wrongMemories": 0,
+      "missedMemories": 1
+    },
+    {
+      "scenario": "negation",
+      "totalQueries": 1,
+      "recallAccuracy": 1,
+      "precision": 1,
+      "duplicateRate": 0,
+      "avgLatencyMs": 0,
+      "wrongMemories": 0,
+      "missedMemories": 0
+    },
+    {
+      "scenario": "departure",
+      "totalQueries": 1,
+      "recallAccuracy": 1,
+      "precision": 1,
+      "duplicateRate": 0,
+      "avgLatencyMs": 0,
+      "wrongMemories": 0,
+      "missedMemories": 0
+    },
+    {
+      "scenario": "transient",
+      "totalQueries": 1,
+      "recallAccuracy": 0,
+      "precision": 1,
+      "duplicateRate": 0,
+      "avgLatencyMs": 0,
+      "wrongMemories": 0,
+      "missedMemories": 1
+    },
+    {
+      "scenario": "hinglish",
+      "totalQueries": 2,
+      "recallAccuracy": 0,
+      "precision": 1,
+      "duplicateRate": 0,
+      "avgLatencyMs": 0,
+      "wrongMemories": 0,
+      "missedMemories": 2
+    },
+    {
+      "scenario": "typos",
+      "totalQueries": 1,
+      "recallAccuracy": 0,
+      "precision": 1,
+      "duplicateRate": 0,
+      "avgLatencyMs": 0,
+      "wrongMemories": 0,
+      "missedMemories": 1
+    },
+    {
+      "scenario": "temporal-complex",
+      "totalQueries": 1,
+      "recallAccuracy": 0,
+      "precision": 1,
+      "duplicateRate": 0,
+      "avgLatencyMs": 0,
+      "wrongMemories": 0,
+      "missedMemories": 1
+    },
+    {
+      "scenario": "multi-current",
+      "totalQueries": 1,
+      "recallAccuracy": 0,
+      "precision": 1,
+      "duplicateRate": 0,
+      "avgLatencyMs": 0,
+      "wrongMemories": 0,
+      "missedMemories": 1
+    },
+    {
+      "scenario": "hallucination",
+      "totalQueries": 4,
+      "recallAccuracy": 1,
+      "precision": 1,
+      "duplicateRate": 0,
+      "avgLatencyMs": 0,
+      "wrongMemories": 0,
+      "missedMemories": 0
+    }
+  ],
+  "overall": {
+    "scenario": "OVERALL",
+    "totalQueries": 22,
+    "recallAccuracy": 0.36363636363636365,
+    "precision": 1,
+    "duplicateRate": 0,
+    "avgLatencyMs": 0.045454545454545456,
+    "wrongMemories": 0,
+    "missedMemories": 14
+  }
+}

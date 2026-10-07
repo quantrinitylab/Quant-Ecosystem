@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: quant-ecosystem
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/quantmailteamsupport-dev/Quant-Ecosystem.git
+    targetRevision: HEAD
+    path: infra/k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: quant-ecosystem
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true

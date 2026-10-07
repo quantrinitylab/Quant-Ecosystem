@@ -1,0 +1,38 @@
+name: chat_core
+description: >-
+  QuantChat shared core — domain models, repositories, and Riverpod providers
+  for the chat client (chat list → conversation → realtime).
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management (plain providers; no codegen / build_runner in this phase).
+  flutter_riverpod: ^2.5.3
+
+  # HTTP client for the AuthRepository / chat repositories. Declared
+  # explicitly (rather than relying on quant_foundation's transitive export)
+  # so version resolution is pinned at the point of use.
+  dio: ^5.7.0
+
+  # Realtime channels (QuantChat ws endpoints per openapi.yaml): reserved for
+  # the realtime workstream's chat socket client. Declared at the core
+  # boundary so the dependency is pinned once, not per consumer.
+  web_socket_channel: ^3.0.2
+
+  # Phase 0 foundation: Dio API client (auth/refresh/retry interceptors),
+  # TokenManager, OAuth2 PKCE helpers, @quant/brand Material 3 theme.
+  # Lives outside this workspace (read-only).
+  quant_foundation:
+    path: ../../../../../../phase0/foundation
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0

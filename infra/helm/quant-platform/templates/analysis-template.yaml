@@ -1,0 +1,56 @@
+{{- if .Values.canary }}
+{{- if .Values.canary.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ include "quant-platform.fullname" . }}-canary-analysis
+  labels:
+    {{- include "quant-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: canary-analysis
+spec:
+  args:
+    - name: service-name
+  metrics:
+    # Success rate must be >= 99%
+    - name: success-rate
+      interval: 60s
+      count: 5
+      successCondition: result[0] >= 0.99
+      failureLimit: 3
+      provider:
+        prometheus:
+          address: {{ .Values.canary.prometheus.address | default "http://prometheus-server.monitoring:9090" }}
+          query: |
+            sum(rate(http_requests_total{service="{{`{{args.service-name}}`}}", code=~"2.."}[5m]))
+            /
+            sum(rate(http_requests_total{service="{{`{{args.service-name}}`}}"}[5m]))
+
+    # P99 latency must be < 2000ms
+    - name: p99-latency
+      interval: 60s
+      count: 5
+      successCondition: result[0] < 2000
+      failureLimit: 3
+      provider:
+        prometheus:
+          address: {{ .Values.canary.prometheus.address | default "http://prometheus-server.monitoring:9090" }}
+          query: |
+            histogram_quantile(0.99,
+              sum(rate(http_request_duration_milliseconds_bucket{service="{{`{{args.service-name}}`}}"}[5m])) by (le)
+            )
+
+    # Error rate must be < 1%
+    - name: error-rate
+      interval: 60s
+      count: 5
+      successCondition: result[0] < 0.01
+      failureLimit: 3
+      provider:
+        prometheus:
+          address: {{ .Values.canary.prometheus.address | default "http://prometheus-server.monitoring:9090" }}
+          query: |
+            sum(rate(http_requests_total{service="{{`{{args.service-name}}`}}", code=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{service="{{`{{args.service-name}}`}}"}[5m]))
+{{- end }}
+{{- end }}

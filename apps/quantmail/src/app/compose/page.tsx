@@ -1,0 +1,289 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { AppShell } from '../../components/AppShell';
+import { AppSidebar } from '../../components/AppSidebar';
+import { EmailComposer } from '../../components/EmailComposer';
+import type { ComposerMessageData } from '../../components/EmailComposer';
+import { showToast } from '../../components/InboxToast';
+import { stripTrailingSignature } from '../../lib/email-body';
+import { invalidateMailLists } from '../../lib/offline/folders';
+import { apiClient } from '../../services/api-client';
+import type { MessageKind } from '../../types';
+import { UndoSendProvider } from '../../components/UndoSendCountdownBar';
+import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
+
+export default function ComposePage() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const replyTo = searchParams?.get('replyTo') ?? null;
+  const forwardId = searchParams?.get('forward') ?? null;
+  const draftId = searchParams?.get('draftId') ?? null;
+  const prefillBody = searchParams?.get('body') ?? null;
+  const prefillSubject = searchParams?.get('subject') ?? null;
+  const prefillTo = searchParams?.get('to') ?? null;
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(draftId);
+
+  const [draftData, setDraftData] = useState<{
+    to?: Array<{ email: string }>;
+    subject?: string;
+    body?: string;
+  } | null>(null);
+  const [draftLoading, setDraftLoading] = useState(Boolean(draftId));
+
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem('quant_undo_draft');
+      if (saved) {
+        sessionStorage.removeItem('quant_undo_draft');
+        const parsed = JSON.parse(saved);
+        setDraftData({
+          to: parsed.toRecipients || (parsed.to ? [{ email: parsed.to }] : []),
+          subject: parsed.subject || '',
+          body: parsed.body || '',
+        });
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!draftId) return;
+    let active = true;
+    setDraftLoading(true);
+    apiClient
+      .getEmail(draftId)
+      .then((response) => {
+        if (!active) return;
+        if (response.success && response.data) {
+          const storedDraft = response.data as typeof response.data & {
+            toAddresses?: string[];
+            bodyPlain?: string;
+          };
+          setDraftData({
+            to: storedDraft.to ?? storedDraft.toAddresses?.map((email) => ({ email })),
+            subject: storedDraft.subject ?? '',
+            // A saved draft's plain-text half ends with the appended signature,
+            // behind the RFC 3676 "-- " line. It must not come back into the
+            // editable body: the signature is attached from the saved default at
+            // send time, so a restored copy would be appended a second time and
+            // would freeze whatever the signature said on the day of the draft.
+            body: stripTrailingSignature(
+              storedDraft.bodyText ?? storedDraft.bodyPlain ?? storedDraft.snippet ?? '',
+            ),
+          });
+        }
+        setDraftLoading(false);
+      })
+      .catch(() => {
+        if (active) setDraftLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [draftId]);
+
+  // `?kind=chat` (from the inbox's "New chat" button) starts a chat thread
+  // instead of a letter; the kind travels to the backend compose call and to
+  // the composer itself.
+  const composeKind: MessageKind = searchParams?.get('kind') === 'chat' ? 'chat' : 'mail';
+
+  const composeDraft = useCallback(
+    async (data: ComposerMessageData) => {
+      const toAddresses: import('../../types').EmailAddress[] = Array.isArray(data.to)
+        ? (data.to as any[]).map((t) =>
+            typeof t === 'string' ? { email: t } : { email: t.email || '' },
+          )
+        : typeof data.to === 'string'
+          ? data.to
+              .split(/[,;\s]+/)
+              .filter(Boolean)
+              .map((email) => ({ email }))
+          : [];
+
+      const ccAddresses: import('../../types').EmailAddress[] | undefined = data.cc
+        ? typeof data.cc === 'string'
+          ? data.cc
+              .split(/[,;\s]+/)
+              .filter(Boolean)
+              .map((email) => ({ email }))
+          : Array.isArray(data.cc)
+            ? (data.cc as any[]).map((t) =>
+                typeof t === 'string' ? { email: t } : { email: t.email || '' },
+              )
+            : undefined
+        : undefined;
+
+      const bccAddresses: import('../../types').EmailAddress[] | undefined = data.bcc
+        ? typeof data.bcc === 'string'
+          ? data.bcc
+              .split(/[,;\s]+/)
+              .filter(Boolean)
+              .map((email) => ({ email }))
+          : Array.isArray(data.bcc)
+            ? (data.bcc as any[]).map((t) =>
+                typeof t === 'string' ? { email: t } : { email: t.email || '' },
+              )
+            : undefined
+        : undefined;
+
+      // `?kind=chat` travels via composeKind from the page's search params.
+      const payload = {
+        to: toAddresses,
+        cc: ccAddresses,
+        bcc: bccAddresses,
+        subject:
+          data.subject ||
+          (composeKind === 'chat' ? `Chat with ${toAddresses.map((t) => t.email).join(', ')}` : ''),
+        bodyText: data.bodyText || data.body || '',
+        bodyHtml: data.bodyHtml || data.body || '',
+        priority: data.priority || 'normal',
+        scheduledAt: data.scheduledAt
+          ? typeof data.scheduledAt === 'string'
+            ? data.scheduledAt
+            : new Date(data.scheduledAt).toISOString()
+          : undefined,
+        inReplyTo: replyTo || undefined,
+        attachments: (data.attachments as any) || [],
+        isDraft: true,
+        // Stated rather than left to the server's default so the thread's mark
+        // comes from what the sender actually chose.
+        messageKind: composeKind,
+      };
+      const response = currentDraftId
+        ? await apiClient.updateDraft(currentDraftId, payload)
+        : await apiClient.composeEmail(payload);
+
+      if (!response.success || !response.data) {
+        throw new Error(response.error?.message || 'Draft could not be saved.');
+      }
+
+      if (!currentDraftId) setCurrentDraftId(response.data.id);
+      return response.data;
+    },
+    [currentDraftId, replyTo, searchParams],
+  );
+
+  const handleSend = useCallback(
+    async (data: ComposerMessageData) => {
+      const draft = await composeDraft(data);
+
+      // Scheduling currently persists an explicitly scheduled draft only.
+      if (data.scheduledAt) return;
+
+      const response = await apiClient.sendEmail(draft.id, { delayMs: 10000 });
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Message could not be sent.');
+      }
+
+      // Before the redirect, not after: `/` renders from the React Query cache, so
+      // a list left marked fresh would paint without the message that was just sent.
+      invalidateMailLists(queryClient);
+
+      showToast({
+        text: 'Message sent',
+        type: 'success',
+        duration: 10000,
+        countdown: 10,
+        undoAction: async () => {
+          try {
+            const undoRes = await apiClient.undoSend(draft.id);
+            if (undoRes.success) {
+              showToast({ text: 'Sending undone. Message restored to Drafts.', type: 'info' });
+              invalidateMailLists(queryClient);
+            } else {
+              showToast({
+                text: undoRes.error?.message || 'Could not undo send.',
+                type: 'warning',
+              });
+            }
+          } catch {
+            showToast({ text: 'Could not undo send.', type: 'error' });
+          }
+        },
+      });
+      router.push('/');
+    },
+    [composeDraft, queryClient, router],
+  );
+
+  const handleSaveDraft = useCallback(
+    async (data: ComposerMessageData) => {
+      await composeDraft(data);
+    },
+    [composeDraft],
+  );
+
+  const handleDiscard = useCallback(async () => {
+    // Delete the saved server draft (if any) so "Discard" actually discards.
+    if (currentDraftId) {
+      try {
+        await apiClient.deleteEmail(currentDraftId);
+      } catch {
+        // Best-effort: still navigate away even if the delete fails.
+      }
+      setCurrentDraftId(null);
+    }
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/');
+    }
+  }, [router, currentDraftId]);
+
+  // Left-edge swipe → same as the composer's close/discard affordance.
+  useEdgeSwipeBack(handleDiscard, { disabled: draftLoading });
+
+  const handleAIAssist = useCallback(
+    async (action: 'compose' | 'improve' | 'shorten' | 'formalize', text: string) => {
+      const response = await apiClient.aiCompose({
+        instructions: `${action}: ${text}`,
+        tone: action === 'formalize' ? 'formal' : 'professional',
+        length: action === 'shorten' ? 'short' : 'medium',
+      });
+
+      if (!response.success) {
+        throw new Error(response.error?.message || 'AI writing assistance is unavailable.');
+      }
+
+      return response.data?.body || text;
+    },
+    [],
+  );
+
+  if (draftLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#0d1017] text-[#A1A4AC] text-sm">
+        <p>Loading draft…</p>
+      </div>
+    );
+  }
+
+  return (
+    <UndoSendProvider>
+      <div className="h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[#0d1017] flex justify-center">
+        <div className="w-full max-w-[880px] h-full">
+        <EmailComposer
+          // Handed over as the raw string, not wrapped in a one-entry array: `?to=`
+          // can carry a whole group's members, and the composer is the thing that
+          // knows how to cut a list of addresses into one chip each.
+          initialTo={draftData?.to ?? prefillTo ?? undefined}
+          initialSubject={
+            draftData?.subject ??
+            (prefillSubject ? prefillSubject.replace(/^(Re:\s*)+/i, '').trim() : '')
+          }
+          initialBody={draftData?.body ?? prefillBody ?? undefined}
+          inReplyTo={replyTo || undefined}
+          onSend={handleSend}
+          onSaveDraft={handleSaveDraft}
+          onDiscard={handleDiscard}
+          onAIAssist={handleAIAssist}
+          initialMessageKind={composeKind}
+        />
+        </div>
+      </div>
+    </UndoSendProvider>
+  );
+}

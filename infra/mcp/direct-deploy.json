@@ -1,0 +1,22 @@
+{
+  "commands": [
+    "set -eu",
+    "export PATH=/opt/actions-runner/externals/node24/bin:$PATH",
+    "cd /opt/actions-runner/_work",
+    "rm -rf deploy-quantmail && mkdir deploy-quantmail && cd deploy-quantmail",
+    "git clone --depth 1 https://github.com/quantrinitylabsgo/Quant-Ecosystem.git . 2>&1 | tail -3",
+    "echo CLONED",
+    "RELEASE_SHA=$(git rev-parse HEAD)",
+    "echo SHA=$RELEASE_SHA",
+    "REGISTRY=266176113726.dkr.ecr.us-east-1.amazonaws.com",
+    "REPO=quant-quantmail",
+    "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REGISTRY 2>&1",
+    "echo ECR_LOGIN_OK",
+    "docker build -f apps/quantmail/Dockerfile -t $REGISTRY/$REPO:$RELEASE_SHA . 2>&1 | tail -10",
+    "echo DOCKER_BUILD_DONE",
+    "docker push $REGISTRY/$REPO:$RELEASE_SHA 2>&1 | tail -5",
+    "echo PUSH_DONE",
+    "aws ecr describe-images --repository-name $REPO --image-ids imageTag=$RELEASE_SHA --region us-east-1 --query 'imageDetails[0].imageDigest' --output text 2>&1",
+    "echo DEPLOY_IMAGE_READY"
+  ]
+}

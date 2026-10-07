@@ -1,0 +1,400 @@
+'use client';
+
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
+import { spring } from '@quant/brand';
+import { AppShell, TopBar, BottomNav, ChatList, useAuth } from '@quant/shared-ui';
+import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
+import { useConversations } from '../hooks/useConversations';
+import { usePresence, type PresenceStatus } from '../hooks/usePresence';
+import { useChatSocket } from '../hooks/useChatSocket';
+import { navItems, routes } from '../lib/navigation';
+import { listContainerVariants, listItemVariants } from '../lib/motion-variants';
+
+interface EnhancedConversation {
+  id: string;
+  name: string;
+  lastMessage: string;
+  timestamp: string;
+  unreadCount: number;
+  presence: PresenceStatus;
+  isPinned: boolean;
+  isArchived: boolean;
+  avatarInitial: string;
+}
+
+function formatRelativeTime(dateStr: string): string {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffSec < 30) return 'just now';
+  if (diffMin < 1) return `${diffSec}s`;
+  if (diffMin < 60) return `${diffMin}m`;
+  if (diffHour < 24) return `${diffHour}h`;
+  if (diffDay === 1) return 'yesterday';
+  if (diffDay < 7) return `${diffDay}d`;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function NewChatButton() {
+  const router = useRouter();
+  return (
+    <button
+      onClick={() => router.push('/new-chat')}
+      className="w-9 h-9 rounded-full flex items-center justify-center text-xl hover:bg-gray-100 active:bg-gray-200 transition-colors"
+      aria-label="Start new chat"
+      title="New chat"
+    >
+      <span aria-hidden>✏️</span>
+    </button>
+  );
+}
+
+function UserIndicator() {
+  const { user } = useAuth();
+  if (!user) return null;
+
+  return (
+    <div className="relative group cursor-pointer">
+      {/* Tap = go to /profile on touch devices; hover card kept for desktop */}
+      <a
+        href="/profile"
+        aria-label="Open profile"
+        className="block w-11 h-11 min-h-[44px] min-w-[44px] rounded-full bg-indigo-500 text-white flex items-center justify-center font-semibold text-sm"
+      >
+        {user.displayName.substring(0, 2).toUpperCase()}
+      </a>
+      <div className="absolute right-0 top-10 w-64 bg-white shadow-lg rounded-xl p-4 border border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none group-hover:pointer-events-auto">
+        <p className="font-bold text-[var(--quant-foreground)]">{user.displayName}</p>
+        <p className="text-sm text-[var(--quant-muted-foreground)]">@{user.username}</p>
+        <p className="text-sm text-[var(--quant-muted-foreground)]">{user.email}</p>
+        {user.kycStatus === 'verified' && (
+          <div className="mt-2 text-xs font-medium text-emerald-600 flex items-center gap-1">
+            <span>🛡️</span> Quant Identity Verified
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PresenceDot({ status }: { status: PresenceStatus }) {
+  // Requirement 11.4: a user whose presence could not be resolved renders in an
+  // explicit `unknown` (neutral) state rather than being shown as online.
+  const colorClass =
+    status === 'online'
+      ? 'bg-emerald-500'
+      : status === 'away'
+        ? 'bg-yellow-400'
+        : status === 'unknown'
+          ? 'bg-gray-300'
+          : 'bg-gray-400';
+
+  return (
+    <span
+      className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[var(--quant-background)] ${colorClass}`}
+      aria-label={`${status}`}
+    />
+  );
+}
+
+interface SwipeableChatItemProps {
+  item: EnhancedConversation;
+  onSelect: () => void;
+  onArchive: () => void;
+  onPin: () => void;
+}
+
+function SwipeableChatItem({ item, onSelect, onArchive, onPin }: SwipeableChatItemProps) {
+  const x = useMotionValue(0);
+  const archiveOpacity = useTransform(x, [-120, -60], [1, 0]);
+  const pinOpacity = useTransform(x, [60, 120], [0, 1]);
+  const [swiped, setSwiped] = useState<'archive' | 'pin' | null>(null);
+
+  const handleDragEnd = useCallback(
+    (_: unknown, info: { offset: { x: number } }) => {
+      if (info.offset.x < -100) {
+        setSwiped('archive');
+        onArchive();
+      } else if (info.offset.x > 100) {
+        setSwiped('pin');
+        onPin();
+      }
+    },
+    [onArchive, onPin],
+  );
+
+  if (swiped === 'archive') return null;
+
+  return (
+    <div className="relative overflow-hidden">
+      {/* Archive background (left swipe) */}
+      <motion.div
+        className="absolute inset-y-0 right-0 flex items-center justify-end px-6 bg-orange-500/20"
+        style={{ opacity: archiveOpacity }}
+      >
+        <span className="text-sm font-medium text-orange-500">Archive</span>
+      </motion.div>
+      {/* Pin background (right swipe) */}
+      <motion.div
+        className="absolute inset-y-0 left-0 flex items-center px-6 bg-emerald-500/20"
+        style={{ opacity: pinOpacity }}
+      >
+        <span className="text-sm font-medium text-emerald-500">Pin</span>
+      </motion.div>
+
+      <motion.div
+        className={`relative z-10 flex items-center gap-3 p-3 rounded-xl cursor-pointer min-h-touch transition-colors ${
+          item.isPinned
+            ? 'bg-emerald-500/5 border border-emerald-500/20'
+            : 'hover:bg-[var(--quant-muted)]'
+        }`}
+        style={{ x }}
+        drag="x"
+        dragConstraints={{ left: -140, right: 140 }}
+        dragElastic={0.2}
+        onDragEnd={handleDragEnd}
+        onClick={onSelect}
+        whileTap={{ scale: 0.98 }}
+        transition={{ type: 'spring', ...spring.snappy }}
+      >
+        {/* Avatar with presence */}
+        <div className="relative flex-shrink-0">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-indigo-500 flex items-center justify-center text-white font-bold">
+            {item.avatarInitial}
+          </div>
+          <PresenceDot status={item.presence} />
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-[var(--quant-foreground)] truncate">
+              {item.name}
+            </span>
+            <span className="text-xs text-[var(--quant-muted-foreground)] flex-shrink-0 ml-2">
+              {item.timestamp}
+            </span>
+          </div>
+          <div className="flex items-center justify-between mt-0.5">
+            <span className="text-xs text-[var(--quant-muted-foreground)] truncate">
+              {item.lastMessage}
+            </span>
+            {item.unreadCount > 0 && (
+              <span className="flex-shrink-0 ml-2 min-w-[20px] h-5 flex items-center justify-center rounded-full bg-emerald-500 text-white text-[10px] font-bold px-1.5">
+                {item.unreadCount > 99 ? '99+' : item.unreadCount}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Pin indicator */}
+        {item.isPinned && (
+          <span className="text-emerald-500 text-xs flex-shrink-0" aria-label="Pinned">
+            &#128204;
+          </span>
+        )}
+      </motion.div>
+    </div>
+  );
+}
+
+export default function ChatListPage() {
+  const router = useRouter();
+  const { conversations, isLoading, error, refetch } = useConversations();
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
+  const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
+
+  const conversationList = useMemo(() => {
+    if (Array.isArray(conversations)) return conversations;
+    if (
+      conversations &&
+      typeof conversations === 'object' &&
+      Array.isArray((conversations as unknown as { data?: typeof conversations }).data)
+    ) {
+      return (conversations as unknown as { data: typeof conversations }).data!;
+    }
+    return [];
+  }, [conversations]);
+
+  // Live presence keyed on the real member ids of every conversation in the
+  // list (Requirements 11.1, 11.2). usePresence seeds from the backend presence
+  // snapshot and stays live over the WebSocket; it returns `unknown` for ids it
+  // cannot resolve rather than fabricating online state (Requirement 11.4).
+  const memberIds = useMemo(
+    () =>
+      Array.from(
+        new Set(conversationList.flatMap((conv) => (conv.participants ?? []).map((p) => p.userId))),
+      ),
+    [conversationList],
+  );
+  const presenceMap = usePresence(memberIds);
+
+  // Keep the conversation list live: join every conversation room over the
+  // shared chat socket and refetch the list when a new message arrives so the
+  // last-message preview / ordering / unread counts reflect real-time activity.
+  const conversationIds = useMemo(
+    () => conversationList.map((conv) => conv.id),
+    [conversationList],
+  );
+  const handleSocketEvent = useCallback(
+    (event: { type?: string; payload?: { type?: string } }) => {
+      const type = event?.type ?? event?.payload?.type;
+      if (type === 'new_message') void refetch();
+    },
+    [refetch],
+  );
+  const { subscribe } = useChatSocket(handleSocketEvent);
+  useEffect(() => {
+    conversationIds.forEach((id) => subscribe(id));
+  }, [conversationIds, subscribe]);
+
+  if (isLoading) return <LoadingState variant="skeleton" text="Loading conversations..." />;
+  if (error) return <ErrorState message={error.message} onRetry={() => void refetch()} />;
+
+  if (conversationList.length === 0)
+    return (
+      <AppShell
+        topBar={
+          <TopBar
+            title="QuantChat"
+            profileHref="/profile"
+            rightActions={[
+              <NewChatButton key="new-chat" />,
+              <UserIndicator key="user-indicator" />,
+            ]}
+          />
+        }
+      >
+        <EmptyState
+          title="No conversations"
+          description="Start a new chat to get connected"
+          actionLabel="Start a new chat"
+          onAction={() => router.push('/new-chat')}
+        />
+        <BottomNav
+          items={navItems}
+          activeId="chats"
+          onChange={(id) => {
+            const route = routes[id];
+            if (route) router.push(route);
+          }}
+        />
+      </AppShell>
+    );
+
+  // Derive a single presence indicator per conversation from its members' live
+  // statuses (online > away > offline; unknown when nothing is resolvable).
+  const presenceForConversation = (memberUserIds: string[]): PresenceStatus => {
+    const statuses = memberUserIds
+      .map((userId) => presenceMap[userId])
+      .filter((s): s is PresenceStatus => Boolean(s));
+    if (statuses.includes('online')) return 'online';
+    if (statuses.includes('away')) return 'away';
+    if (statuses.length === 0 || statuses.every((s) => s === 'unknown')) return 'unknown';
+    return 'offline';
+  };
+
+  const enhancedItems: EnhancedConversation[] = conversationList
+    .map((conv) => {
+      const fallback = conv as unknown as Partial<EnhancedConversation>;
+      const rawMsg = conv.lastMessage as unknown;
+      const lastMsgText =
+        typeof rawMsg === 'string'
+          ? rawMsg
+          : (rawMsg as { content?: string } | undefined)?.content || 'Tap to start chatting';
+      const rawTimestamp = conv.lastActivityAt
+        ? conv.lastActivityAt instanceof Date
+          ? conv.lastActivityAt.toISOString()
+          : String(conv.lastActivityAt)
+        : fallback.timestamp || '';
+
+      return {
+        id: conv.id,
+        name: conv.name || 'Chat',
+        lastMessage: lastMsgText,
+        timestamp: formatRelativeTime(rawTimestamp),
+        unreadCount: conv.unreadCount || 0,
+        presence:
+          fallback.presence ||
+          presenceForConversation((conv.participants ?? []).map((p) => p.userId)),
+        isPinned: pinnedIds.has(conv.id) || Boolean(fallback.isPinned),
+        isArchived: archivedIds.has(conv.id) || Boolean(fallback.isArchived),
+        avatarInitial: fallback.avatarInitial || (conv.name || 'C').charAt(0).toUpperCase(),
+      };
+    })
+    .filter((item) => !item.isArchived)
+    .sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return 0;
+    });
+
+  return (
+    <AppShell
+      topBar={
+        <TopBar
+          title="QuantChat"
+          profileHref="/profile"
+          rightActions={[
+            <NewChatButton key="new-chat" />,
+            <UserIndicator key="user-indicator" />,
+          ]}
+        />
+      }
+    >
+      <motion.div
+        className="flex flex-col h-full pb-16 overflow-y-auto"
+        variants={listContainerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        <div className="px-3 py-2 space-y-1">
+          <AnimatePresence>
+            {enhancedItems.map((item) => (
+              <motion.div
+                key={item.id}
+                variants={listItemVariants}
+                layout
+                exit={{ opacity: 0, x: -200 }}
+                transition={{ type: 'spring', ...spring.gentle }}
+              >
+                <SwipeableChatItem
+                  item={item}
+                  onSelect={() => router.push(`/chat/${item.id}`)}
+                  onArchive={() => setArchivedIds((prev) => new Set([...prev, item.id]))}
+                  onPin={() =>
+                    setPinnedIds((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(item.id)) {
+                        next.delete(item.id);
+                      } else {
+                        next.add(item.id);
+                      }
+                      return next;
+                    })
+                  }
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      </motion.div>
+      <BottomNav
+        items={navItems}
+        activeId="chats"
+        onChange={(id) => {
+          const route = routes[id];
+          if (route) router.push(route);
+        }}
+      />
+    </AppShell>
+  );
+}

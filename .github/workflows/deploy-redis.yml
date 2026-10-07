@@ -1,0 +1,125 @@
+name: Deploy redis (staging)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-redis.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  redis:
+    name: Deploy redis + restart backend
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      EKS_CLUSTER: ${{ vars.EKS_CLUSTER }}
+      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-redis-${{ github.run_id }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
+
+      - name: Deploy redis deployment + service
+        run: |
+          kubectl apply -n "$K8S_NAMESPACE" -f - <<'EOF'
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: redis
+            labels:
+              app: redis
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: redis
+            template:
+              metadata:
+                labels:
+                  app: redis
+              spec:
+                containers:
+                  - name: redis
+                    image: redis:7-alpine
+                    ports:
+                      - containerPort: 6379
+                    resources:
+                      requests:
+                        cpu: 50m
+                        memory: 64Mi
+                      limits:
+                        memory: 256Mi
+                    readinessProbe:
+                      tcpSocket:
+                        port: 6379
+                      initialDelaySeconds: 2
+                      periodSeconds: 5
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: redis
+          spec:
+            selector:
+              app: redis
+            ports:
+              - port: 6379
+                targetPort: 6379
+          EOF
+          kubectl rollout status deployment/redis -n "$K8S_NAMESPACE" --timeout=120s
+
+      - name: Point app at redis + restart backend
+        run: |
+          kubectl patch configmap quant-platform-production-config -n "$K8S_NAMESPACE" -p '{"data":{"REDIS_URL":"redis://redis:6379","REDIS_HOST":"redis","REDIS_PORT":"6379"}}'
+          kubectl rollout restart deployment/quant-quantmail-backend -n "$K8S_NAMESPACE"
+          kubectl rollout status deployment/quant-quantmail-backend -n "$K8S_NAMESPACE" --timeout=300s || echo "rollout not complete yet"
+          sleep 25
+
+      - name: Publish result to status-report branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p infra/status
+          {
+            echo "# redis deploy result (run ${{ github.run_id }})"
+            echo "time: $(date -u +%FT%TZ)"
+            echo ""
+            echo "## deployments"
+            kubectl get deploy -n "$K8S_NAMESPACE" || true
+            echo ""
+            echo "## pods"
+            kubectl get pods -n "$K8S_NAMESPACE" -o wide || true
+            echo ""
+            echo "## services"
+            kubectl get svc -n "$K8S_NAMESPACE" || true
+            echo ""
+            echo "## backend logs (tail 40, post-restart)"
+            kubectl logs deployment/quant-quantmail-backend -n "$K8S_NAMESPACE" --tail=40 --all-containers 2>&1 || true
+          } > infra/status/redis-result.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f infra/status/redis-result.txt
+          git commit -m "chore(status): redis deploy run ${{ github.run_id }} [skip ci]" || echo "nothing to commit"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          git push -f origin HEAD:refs/heads/status-report && echo "PUSH_OK" || echo "PUSH_FAILED"

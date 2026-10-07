@@ -1,0 +1,37 @@
+# TURN server (coturn) configuration
+replicaCount: 2
+
+image:
+  repository: coturn/coturn
+  tag: '4.6.2'
+  pullPolicy: IfNotPresent
+
+coturn:
+  realm: turn.quant.app
+  listeningPort: 3478
+  tlsListeningPort: 5349
+  minPort: 49152
+  maxPort: 65535
+  # Credential rotation interval in hours
+  credentialRotationIntervalHours: 24
+  # Static credentials (overridden by rotation CronJob)
+  staticAuthSecret: ''
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+service:
+  type: LoadBalancer
+  annotations: {}
+
+credentialRotation:
+  enabled: true
+  schedule: '0 0 * * *'
+  image:
+    repository: bitnami/kubectl
+    tag: '1.28'

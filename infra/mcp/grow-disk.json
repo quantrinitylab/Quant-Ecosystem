@@ -1,0 +1,8 @@
+{
+  "commands": [
+    "lsblk",
+    "sudo growpart /dev/xvda 1 2>&1 || sudo growpart /dev/nvme0n1p1 1 2>&1 || echo GROWPART_SKIPPED",
+    "sudo resize2fs /dev/xvda1 2>&1 || sudo resize2fs /dev/nvme0n1p1 2>&1 || sudo xfs_growfs / 2>&1 || echo RESIZE_DONE",
+    "df -h / | tail -1"
+  ]
+}

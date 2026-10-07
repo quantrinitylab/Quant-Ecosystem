@@ -1,0 +1,117 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+overrides:
+  react: ^19.0.0
+  react-dom: ^19.0.0
+  '@types/react': ^19.0.0
+  '@types/react-dom': ^19.0.0
+  esbuild: '>=0.28.1'
+  vite: ^6.4.3
+  postcss@<=8.5.22: 8.5.23
+  uuid: '>=11.1.1'
+  form-data: ^4.0.6
+  js-yaml@>=4.0.0 <4.3.2: 4.3.2
+  js-yaml@>=3.0.0 <3.15.1: 3.15.1
+  brace-expansion: 5.0.9
+  adm-zip@<0.6.1: 0.6.1
+  morgan@<1.12.0: 1.12.0
+  vitest@<4.1.11: 4.1.11
+  '@vitest/mocker@<4.1.11': 4.1.11
+  tmp@<0.2.7: 0.2.7
+  '@ai-sdk/provider-utils@>=3.0.0 <3.0.28': 3.0.28
+  '@ai-sdk/provider-utils@>=4.0.0 <4.0.33': 4.0.33
+  websocket-driver@<0.7.5: 0.7.5
+  linkify-it@<=5.0.1: 5.0.2
+  nodemailer@<=9.1.0: 9.1.1
+  find-my-way@<=9.6.0: 9.7.0
+  next@>=12.0.0 <15.5.25: 15.5.25
+  sharp@<0.35.4: 0.35.4
+  fast-uri@>=2.3.1 <=2.4.2: 2.4.3
+  fast-uri@>=3.0.0 <3.1.6: 3.1.7
+  fast-uri@<4.1.3: 4.1.3
+  undici@>=7.0.0 <7.29.0: 7.29.0
+  '@opentelemetry/propagator-jaeger@<2.9.0': 2.9.0
+  axios@>=1.15.2 <1.18.0: 1.18.0
+  tar@<=7.5.20: 7.5.22
+  protobufjs@<=7.6.4: 7.6.5
+  '@opentelemetry/core@<2.8.0': 2.9.0
+  request@<=2.88.2: npm:@cypress/request@4.0.1
+  qs@<6.16.0: 6.16.0
+  fastify@<5.12.1: 5.12.1
+  sanitize-html@<2.17.7: 2.17.7
+  '@xmldom/xmldom@<0.9.12': 0.9.12
+  postcss-selector-parser@<6.1.3: 6.1.3
+  tough-cookie@<4.1.3: 4.1.3
+  nanoid@<3.3.18: 3.3.18
+  body-parser@<1.20.6: 1.20.6
+  deepmerge-ts@<8.0.0: 8.0.1
+  browserslist@<=4.28.6: 4.28.8
+
+importers:
+
+  .:
+    dependencies:
+      '@quant/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@quant/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@quant/app-registry':
+        specifier: workspace:*
+        version: link:../../packages/app-registry
+      '@quant/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@quant/brand':
+        specifier: workspace:*
+        version: link:../../packages/brand
+      '@quant/common':
+        specifier: workspace:*
+        version: link:../../packages/common
+      '@quant/credits':
+        specifier: workspace:*
+        version: link:../../packages/credits
+      '@quant/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@quant/encryption':
+        specifier: workspace:*
+        version: link:../../packages/encryption
+      '@quant/federation':
+        specifier: workspace:*
+        version: link:../../packages/federation
+      '@quant/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
+      '@quant/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
+      '@quant/realtime':
+        specifier: workspace:*
+        version: link:../../packages/realtime
+      '@quant/server-core':
+        specifier: workspace:*
+        version: link:../../packages/server-core
+      '@quant/shared-ui':
+        specifier: workspace:*
+        version: link:../../packages/shared-ui
+      '@quant/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+      three:
+        specifier: ^0.186.1
+        version: 0.186.1
+
+packages:
+
+  three@0.186.1:
+    resolution: {integrity: sha512-blFeqb49wRCSGUGj7gtpfnSGHy2lwDk94RhUmS1c/hTby70kvChbWpkJ4Pm1390LqzzvTmzgXKHPEafJwCb8jA==}
+
+snapshots:
+
+  three@0.186.1: {}

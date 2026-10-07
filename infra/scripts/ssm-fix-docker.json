@@ -1,0 +1,8 @@
+{
+  "InstanceIds": ["i-04331c285e901cc2d"],
+  "DocumentName": "AWS-RunShellScript",
+  "TimeoutSeconds": 120,
+  "Parameters": {
+    "commands": ["set -e; echo '{\"features\":{\"containerd-snapshotter\":false}}' > /etc/docker/daemon.json; systemctl restart docker; sleep 5; docker info | grep -i storage; cd /tmp/Quant-Ecosystem; aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 266176113726.dkr.ecr.us-east-1.amazonaws.com; docker build -f services/ws-gateway/Dockerfile -t test-push:v1 . 2>&1 | tail -3; docker tag test-push:v1 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantchat-backend:test; docker push 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantchat-backend:test 2>&1 | tail -5; echo PUSH_TEST_DONE"]
+  }
+}

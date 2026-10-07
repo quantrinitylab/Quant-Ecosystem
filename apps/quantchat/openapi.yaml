@@ -1,0 +1,906 @@
+openapi: 3.0.3
+info:
+  title: QuantChat API
+  description: Real-time messaging platform with E2E encryption, voice/video calls, and AI smart replies.
+  version: 1.0.0
+  contact:
+    name: Quant Ecosystem
+servers:
+  - url: /api/v1
+    description: QuantChat API server
+
+tags:
+  - name: Conversations
+    description: Conversation management (direct and group)
+  - name: Messages
+    description: Message CRUD and operations
+  - name: AI
+    description: AI-powered smart replies
+  - name: Media
+    description: Media upload and metadata
+  - name: Encryption
+    description: End-to-end encryption key management
+  - name: WebSocket
+    description: Real-time WebSocket connection
+  - name: Calls
+    description: Voice and video calls (LiveKit)
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: Invalid request body
+            statusCode:
+              type: integer
+              example: 400
+
+    SuccessWrapper:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [direct, group]
+        name:
+          type: string
+        description:
+          type: string
+        isArchived:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        conversationId:
+          type: string
+        senderId:
+          type: string
+        content:
+          type: string
+        type:
+          type: string
+          enum: [text, image, video, audio, file, location]
+        mediaUrl:
+          type: string
+          format: uri
+        replyToId:
+          type: string
+        isPinned:
+          type: boolean
+        isEdited:
+          type: boolean
+        isDeleted:
+          type: boolean
+        metadata:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+security:
+  - BearerAuth: []
+
+paths:
+  /conversations:
+    post:
+      tags: [Conversations]
+      summary: Create a conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [participantIds, type]
+              properties:
+                participantIds:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 1
+                type:
+                  type: string
+                  enum: [direct, group]
+                name:
+                  type: string
+                  maxLength: 100
+                description:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Conversation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [Conversations]
+      summary: List user conversations
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Conversation list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /conversations/{id}:
+    get:
+      tags: [Conversations]
+      summary: Get a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Conversation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '404':
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags: [Conversations]
+      summary: Update a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+                description:
+                  type: string
+                  maxLength: 500
+                isArchived:
+                  type: boolean
+      responses:
+        '200':
+          description: Conversation updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /conversations/{id}/members:
+    post:
+      tags: [Conversations]
+      summary: Add a member to conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: string
+                role:
+                  type: string
+                  enum: [ADMIN, MEMBER]
+      responses:
+        '201':
+          description: Member added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /conversations/{id}/members/{userId}:
+    delete:
+      tags: [Conversations]
+      summary: Remove a member from conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Member removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /conversations/{id}/messages:
+    post:
+      tags: [Messages]
+      summary: Send a message
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            description: Conversation ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  minLength: 1
+                  maxLength: 10000
+                type:
+                  type: string
+                  enum: [text, image, video, audio, file, location]
+                mediaUrl:
+                  type: string
+                  format: uri
+                replyToId:
+                  type: string
+                metadata:
+                  type: object
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [Messages]
+      summary: List messages in a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            description: Conversation ID
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Message list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+
+  /messages/{id}:
+    put:
+      tags: [Messages]
+      summary: Edit a message
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            description: Message ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  minLength: 1
+                  maxLength: 10000
+      responses:
+        '200':
+          description: Message edited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Messages]
+      summary: Delete a message
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            description: Message ID
+      responses:
+        '200':
+          description: Message deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /messages/{id}/pin:
+    post:
+      tags: [Messages]
+      summary: Pin a message
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            description: Message ID
+      responses:
+        '200':
+          description: Message pinned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /smart-replies:
+    post:
+      tags: [AI]
+      summary: Generate AI smart replies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                messageContent:
+                  type: string
+                conversationContext:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '200':
+          description: Smart replies generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /media/upload-url:
+    post:
+      tags: [Media]
+      summary: Generate presigned upload URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, contentType]
+              properties:
+                filename:
+                  type: string
+                  maxLength: 255
+                contentType:
+                  type: string
+                  example: image/jpeg
+      responses:
+        '201':
+          description: Upload URL generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /media/{id}:
+    get:
+      tags: [Media]
+      summary: Get media metadata
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Media metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+
+  /encryption/keys:
+    post:
+      tags: [Encryption]
+      summary: Upload prekey bundle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identityKey, signedPreKey, signedPreKeySignature, registrationId]
+              properties:
+                identityKey:
+                  type: string
+                signedPreKey:
+                  type: string
+                signedPreKeySignature:
+                  type: string
+                oneTimePreKey:
+                  type: string
+                registrationId:
+                  type: integer
+      responses:
+        '201':
+          description: Prekey bundle uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /encryption/keys/{userId}:
+    get:
+      tags: [Encryption]
+      summary: Get user prekey bundle
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Prekey bundle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /encryption/sessions:
+    post:
+      tags: [Encryption]
+      summary: Establish encrypted session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [responderId]
+              properties:
+                responderId:
+                  type: string
+      responses:
+        '201':
+          description: Session established
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      sessionId:
+                        type: string
+                      established:
+                        type: boolean
+                      createdAt:
+                        type: string
+                        format: date-time
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /chat:
+    get:
+      tags: [WebSocket]
+      summary: WebSocket endpoint for real-time chat
+      description: |
+        Upgrade to WebSocket for real-time messaging.
+        Authenticate via JWT in the upgrade request.
+
+        **Message types:**
+        - `join_conversation` - Join a conversation room
+        - `chat_message` - Send a real-time message
+        - `typing` - Send typing indicator
+      parameters:
+        - name: conversationId
+          in: query
+          schema:
+            type: string
+            description: Initial conversation to join
+      responses:
+        '101':
+          description: Switching protocols (WebSocket upgrade)
+
+  /presence:
+    get:
+      tags: [WebSocket]
+      summary: Get online users
+      security: []
+      responses:
+        '200':
+          description: Online user list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  online:
+                    type: array
+                    items:
+                      type: string
+
+  /calls/initiate:
+    post:
+      tags: [Calls]
+      summary: Initiate a 1:1 call
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [calleeId]
+              properties:
+                calleeId:
+                  type: string
+      responses:
+        '201':
+          description: Call initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /calls/group:
+    post:
+      tags: [Calls]
+      summary: Initiate a group call
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [participantIds]
+              properties:
+                participantIds:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 1
+                  maxItems: 7
+      responses:
+        '201':
+          description: Group call initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /calls/{id}/join:
+    post:
+      tags: [Calls]
+      summary: Join a call and get LiveKit token
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Call token generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /calls/{id}/leave:
+    post:
+      tags: [Calls]
+      summary: Leave a call
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Left call (or call ended)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: Left call
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /calls/{id}/token:
+    get:
+      tags: [Calls]
+      summary: Get participant token for a call
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Call token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

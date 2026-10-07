@@ -1,0 +1,8 @@
+{
+  "InstanceIds": ["i-04331c285e901cc2d"],
+  "DocumentName": "AWS-RunShellScript",
+  "TimeoutSeconds": 30,
+  "Parameters": {
+    "commands": ["tail -8 /tmp/mail-backend-build.log 2>/dev/null || echo NO_LOG"]
+  }
+}

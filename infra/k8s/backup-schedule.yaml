@@ -1,0 +1,32 @@
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-backup
+spec:
+  schedule: '0 2 * * *' # Every day at 2 AM
+  template:
+    includedNamespaces:
+      - quant-ecosystem
+    includedResources:
+      - persistentvolumeclaims
+      - persistentvolumes
+      - deployments
+      - statefulsets
+      - services
+      - secrets
+      - configmaps
+    ttl: 720h0m0s # Keep backups for 30 days
+    storageLocation: default
+---
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: default
+spec:
+  provider: aws
+  objectStorage:
+    bucket: quant-backups
+    prefix: velero
+  config:
+    region: us-east-1
+    s3ForcePathStyle: 'true'

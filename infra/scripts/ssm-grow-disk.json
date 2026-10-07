@@ -1,0 +1,8 @@
+{
+  "InstanceIds": ["i-04331c285e901cc2d"],
+  "DocumentName": "AWS-RunShellScript",
+  "TimeoutSeconds": 60,
+  "Parameters": {
+    "commands": ["lsblk; growpart /dev/nvme0n1 1 2>/dev/null || growpart /dev/xvda 1 2>/dev/null || growpart /dev/sda 1 2>/dev/null; resize2fs /dev/nvme0n1p1 2>/dev/null || resize2fs /dev/xvda1 2>/dev/null || resize2fs /dev/sda1 2>/dev/null; df -h /"]
+  }
+}

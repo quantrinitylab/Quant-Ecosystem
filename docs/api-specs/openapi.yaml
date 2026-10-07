@@ -1,0 +1,169 @@
+openapi: 3.0.3
+info:
+  title: Quant Ecosystem API
+  description: |
+    Combined API specification for the Quant Ecosystem platform.
+
+    This specification references the individual OpenAPI specs for each application:
+    - **QuantMail** - Email platform with AI features and Git integration
+    - **QuantChat** - Real-time messaging with E2E encryption and voice/video calls
+    - **QuantAI** - AI platform with agents, orchestration, memory, and ML pipelines
+
+    Use the individual specs for app-specific development. This combined spec provides
+    a unified view for cross-app integration and API gateway configuration.
+  version: 1.0.0
+  contact:
+    name: Quant Ecosystem
+  license:
+    name: Proprietary
+
+servers:
+  - url: /api/v1
+    description: QuantMail API
+  - url: /api/v1
+    description: QuantChat API
+  - url: /api/v1
+    description: QuantAI API
+
+tags:
+  - name: QuantMail
+    description: Email, contacts, folders, AI email services, Git/CI integration
+    externalDocs:
+      url: ../apps/quantmail/openapi.yaml
+  - name: QuantChat
+    description: Conversations, messages, encryption, calls, WebSocket
+    externalDocs:
+      url: ../apps/quantchat/openapi.yaml
+  - name: QuantAI
+    description: Agents, orchestration, memory, tools, ML, sessions
+    externalDocs:
+      url: ../apps/quantai/openapi.yaml
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token obtained from /auth/login or /oauth/token
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: Invalid request body
+            statusCode:
+              type: integer
+              example: 400
+
+    SuccessWrapper:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+
+security:
+  - BearerAuth: []
+
+x-apps:
+  quantmail:
+    spec: ../apps/quantmail/openapi.yaml
+    description: Email platform with AI-powered features, Git integration, and infrastructure services
+    endpointCount: 95
+    tags:
+      - Auth
+      - OAuth
+      - Emails
+      - Email AI
+      - Threads
+      - Folders
+      - Contacts
+      - Labels
+      - AI Services
+      - Infrastructure
+      - AI DevTools
+      - Repositories
+      - Issues
+      - Pull Requests
+      - Reviews
+      - CI
+
+  quantchat:
+    spec: ../apps/quantchat/openapi.yaml
+    description: Real-time messaging with E2E encryption, voice/video calls, and AI smart replies
+    endpointCount: 17
+    tags:
+      - Conversations
+      - Messages
+      - AI
+      - Media
+      - Encryption
+      - WebSocket
+      - Calls
+
+  quantai:
+    spec: ../apps/quantai/openapi.yaml
+    description: AI platform with agents, orchestration, memory, tools, ML pipelines, and cross-app coordination
+    endpointCount: 85
+    tags:
+      - Health
+      - QuantOS
+      - Agentic
+      - Analytics
+      - Swarm
+      - Orchestration
+      - Personal Agent
+      - Agents
+      - ML
+      - Tools
+      - Agent Health
+      - Agent Logs
+      - Versioning
+      - Usage
+      - Cache
+      - Chat
+      - Voice
+      - Federation
+      - Moderation
+      - Templates
+      - AB Testing
+      - Sessions
+      - Events
+      - Marketplace
+      - Recommendations
+      - Memory
+      - CDN
+      - Permissions
+      - Scaling
+      - Payments
+      - Training
+      - Ask
+      - Collaboration
+
+paths:
+  /auth/login:
+    $ref: '../apps/quantmail/openapi.yaml#/paths/~1auth~1login'
+  /auth/register:
+    $ref: '../apps/quantmail/openapi.yaml#/paths/~1auth~1register'
+  /oauth/token:
+    $ref: '../apps/quantmail/openapi.yaml#/paths/~1oauth~1token'
+  /health:
+    $ref: '../apps/quantai/openapi.yaml#/paths/~1health'
+  /ready:
+    $ref: '../apps/quantai/openapi.yaml#/paths/~1ready'
+  /ask:
+    $ref: '../apps/quantai/openapi.yaml#/paths/~1ask'

@@ -1,0 +1,12 @@
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: default
+spec:
+  provider: aws
+  objectStorage:
+    bucket: quant-backups
+    prefix: velero
+  config:
+    region: us-east-1
+    s3ForcePathStyle: 'true'

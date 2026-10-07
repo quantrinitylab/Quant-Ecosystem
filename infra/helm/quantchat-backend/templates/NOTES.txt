@@ -1,0 +1,27 @@
+QuantChat backend deployed as {{ .Values.replicaCount }} replica(s)
+(autoscaling: {{ .Values.autoscaling.enabled }}).
+
+Image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+
+This chart does NOT create any Secret with plaintext values. Before/alongside
+installing, provision the Kubernetes Secret it references (Requirement 17.3):
+
+  kubectl create secret generic {{ include "quantchat-backend.secretName" . }} \
+    --from-literal=REDIS_URL='redis://...' \
+    --from-literal=JWT_SECRET='...' \
+    --from-literal=DATABASE_URL='postgresql://...' \
+    --from-literal=LIVEKIT_API_KEY='...' \
+    --from-literal=LIVEKIT_API_SECRET='...' \
+    --from-literal=LIVEKIT_URL='wss://...' \
+    --from-literal=VAPID_PUBLIC_KEY='...' \
+    --from-literal=VAPID_PRIVATE_KEY='...' \
+    --from-literal=VAPID_SUBJECT='mailto:ops@quant.app'
+
+(Or manage it via external-secrets / sealed-secrets / vault.)
+
+REDIS_URL wires both the RealtimeBackplane and the presence store, enabling
+correct cross-instance fan-out across the {{ .Values.replicaCount }} replicas.
+
+Health endpoints:
+  readiness -> {{ .Values.probes.readiness.path }}
+  liveness  -> {{ .Values.probes.liveness.path }}

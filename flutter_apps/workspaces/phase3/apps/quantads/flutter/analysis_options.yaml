@@ -1,0 +1,10 @@
+# Workspace-wide analyzer configuration for the QuantAds Flutter packages.
+#
+# Every package under packages/ inherits this via the analyzer's upward
+# directory lookup. `flutter_lints` must be a dev_dependency of each package.
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-raw-types: true

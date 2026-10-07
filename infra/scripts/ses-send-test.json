@@ -1,0 +1,24 @@
+{
+  "FromEmailAddress": "kundan@quantmail.in",
+  "Destination": {
+    "ToAddresses": ["kundansinghrajput31980@gmail.com"]
+  },
+  "Content": {
+    "Simple": {
+      "Subject": {
+        "Data": "Hello from QuantMail! Your first email is here.",
+        "Charset": "UTF-8"
+      },
+      "Body": {
+        "Text": {
+          "Data": "This is your first email sent from QuantMail (kundan@quantmail.in). Your staging deployment is LIVE and sending real emails! - Sent via QuantMail by Quantrinity, Built in India.",
+          "Charset": "UTF-8"
+        },
+        "Html": {
+          "Data": "<div style='font-family:Inter,system-ui,sans-serif;max-width:600px;margin:0 auto;padding:32px;background:#0b0b0d;color:#e5e5e5;border-radius:16px;'><div style='text-align:center;margin-bottom:24px;'><span style='font-size:32px;'>&#8734;</span><h1 style='color:#ff9933;font-size:24px;margin:8px 0;'>QuantMail</h1><p style='color:#888;font-size:12px;'>BY QUANTRINITY</p></div><h2 style='color:#ffffff;font-size:20px;'>Hello Kundan!</h2><p style='line-height:1.6;'>This is your <strong>first real email</strong> sent from <span style='color:#ff9933;font-weight:bold;'>kundan@quantmail.in</span></p><p style='line-height:1.6;'>Your QuantMail staging deployment is <span style='color:#22c55e;font-weight:bold;'>LIVE</span> and sending real emails through Amazon SES with verified DKIM, SPF, and DMARC.</p><div style='margin:24px 0;padding:16px;background:#1a1a1d;border-radius:12px;border-left:3px solid #ff9933;'><p style='margin:0;color:#ccc;'><strong>What just happened:</strong></p><ul style='color:#aaa;margin:8px 0;padding-left:20px;'><li>Email composed on quantmail.in</li><li>Sent via AWS SES (verified domain)</li><li>DKIM signed, SPF passed, DMARC aligned</li><li>Delivered to your Gmail inbox</li></ul></div><hr style='border:none;border-top:1px solid #333;margin:24px 0;'/><p style='color:#666;font-size:11px;text-align:center;'>Sent via QuantMail by Quantrinity | Built in India | Private Beta 2026</p></div>",
+          "Charset": "UTF-8"
+        }
+      }
+    }
+  }
+}

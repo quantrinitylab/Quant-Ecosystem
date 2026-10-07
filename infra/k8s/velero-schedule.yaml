@@ -1,0 +1,19 @@
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-backup
+spec:
+  schedule: '0 2 * * *'
+  template:
+    includedNamespaces:
+      - quant-ecosystem
+    includedResources:
+      - persistentvolumeclaims
+      - persistentvolumes
+      - deployments
+      - statefulsets
+      - services
+      - secrets
+      - configmaps
+    ttl: 720h0m0s
+    storageLocation: default

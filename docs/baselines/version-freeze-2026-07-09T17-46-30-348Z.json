@@ -1,0 +1,11 @@
+{
+  "capturedAt": "2026-07-09T17:46:30.348Z",
+  "extractionModel": "deepseek.v3.2",
+  "embeddingModel": "text-embedding-3-small",
+  "promptRevision": "b5a6df97ec7fc046",
+  "policyVersion": "v1",
+  "corpusVersion": "real-conv-v1",
+  "commitSha": "bbae536e969688cf3146e709b83bbb76b33f6d74",
+  "workingTreeDirty": false,
+  "lockfileHash": "403437024d92b617"
+}

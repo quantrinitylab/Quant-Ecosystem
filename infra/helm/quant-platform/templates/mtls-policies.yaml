@@ -1,0 +1,51 @@
+# ============================================================================
+# Istio mTLS Policies - Strict Mode
+# ============================================================================
+# Enforces mutual TLS between all services in the mesh.
+# Requires Istio sidecar injection enabled on the namespace.
+# ============================================================================
+{{- if and .Values.istio .Values.istio.enabled }}
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: {{ include "quant-platform.fullname" . }}-strict-mtls
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "quant-platform.labels" . | nindent 4 }}
+spec:
+  mtls:
+    mode: STRICT
+
+---
+{{- range $name, $svc := .Values.services }}
+{{- if $svc.enabled }}
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: {{ include "quant-platform.fullname" $ }}-{{ $name }}-mtls
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "quant-platform.serviceLabels" (dict "root" $ "name" $name) | nindent 4 }}
+spec:
+  host: {{ $name }}.{{ $.Release.Namespace }}.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 10s
+      http:
+        h2UpgradePolicy: UPGRADE
+        maxRequestsPerConnection: 100
+        maxRetries: 3
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+---
+{{- end }}
+{{- end }}
+{{- end }}

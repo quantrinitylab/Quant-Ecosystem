@@ -1,0 +1,169 @@
+global:
+  environment: production
+  domain: quant.app
+  databaseCIDRs:
+    - 10.0.20.0/24
+    - 10.0.21.0/24
+    - 10.0.22.0/24
+  redisCIDRs:
+    - 10.0.10.0/24
+    - 10.0.11.0/24
+    - 10.0.12.0/24
+  multiRegion:
+    enabled: true
+    primary: us-east-1
+    secondary: eu-west-1
+
+configmap:
+  NODE_ENV: production
+  LOG_LEVEL: warn
+  CORS_ORIGINS: 'https://quant.app'
+  JWT_ISSUER: 'https://quant.app'
+  JWT_AUDIENCE: 'quant-platform'
+  # Internal cluster DNS the app frontends use to reach their Fastify backends
+  # (server-side proxy in Next route handlers). Kept in the shared configmap so
+  # every frontend/back-end pod resolves the same origin at runtime.
+  QUANTCHAT_BACKEND_URL: 'http://quant-platform-production-quantchat-backend:3002'
+  QUANTAI_BACKEND_URL: 'http://quant-platform-production-quantai-backend:3004'
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+    nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
+    nginx.ingress.kubernetes.io/hsts: 'true'
+    nginx.ingress.kubernetes.io/hsts-max-age: '31536000'
+    external-dns.alpha.kubernetes.io/hostname: quant.app
+    multi-region/failover: 'enabled'
+  hosts:
+    - host: quant.app
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    enabled: true
+    secretName: quant-platform-production-tls
+    hosts:
+      - quant.app
+      - '*.quant.app'
+
+canary:
+  enabled: false
+  prometheus:
+    address: http://prometheus-server.monitoring:9090
+  rollback:
+    maxErrorRate: 0.01
+    maxP99Latency: 2000
+
+meilisearch:
+  enabled: true
+  storage:
+    size: 50Gi
+
+services:
+  ws-gateway:
+    replicaCount: 2
+    image:
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-ws-gateway
+    env:
+      - name: WS_PORT
+        value: '8080'
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 4
+    pdb:
+      minAvailable: 1
+
+  quantmail:
+    replicaCount: 2
+    image:
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantmail
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 4
+    pdb:
+      minAvailable: 1
+
+  quantchat:
+    replicaCount: 2
+    image:
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantchat
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 4
+    pdb:
+      minAvailable: 1
+
+  quantai:
+    replicaCount: 2
+    image:
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantai
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 4
+    pdb:
+      minAvailable: 1
+
+  admin:
+    replicaCount: 2
+    image:
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-admin
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 4
+    pdb:
+      minAvailable: 1
+
+  triton-inference-server:
+    runAsNonRoot: false
+    readOnlyRootFilesystem: false
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    autoscaling:
+      minReplicas: 2
+      maxReplicas: 4
+    pdb:
+      minAvailable: 1

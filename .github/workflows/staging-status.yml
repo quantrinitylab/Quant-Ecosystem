@@ -1,0 +1,88 @@
+name: Staging status snapshot
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/staging-status.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  status:
+    name: Dump staging status
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      EKS_CLUSTER: ${{ vars.EKS_CLUSTER }}
+      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-status-${{ github.run_id }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
+
+      - name: Collect status
+        run: |
+          mkdir -p infra/status
+          FRONTEND_POD_IP=$(kubectl get pods -n "$K8S_NAMESPACE" -l app.kubernetes.io/name=quantmail -o jsonpath='{.items[0].status.podIP}' 2>/dev/null || echo "")
+          {
+            echo "# staging status (run ${{ github.run_id }})"
+            echo "time: $(date -u +%FT%TZ)"
+            echo ""
+            echo "## deployments"
+            kubectl get deploy -n "$K8S_NAMESPACE" -o wide || true
+            echo ""
+            echo "## endpoints"
+            kubectl get endpoints -n "$K8S_NAMESPACE" || true
+            echo ""
+            echo "## frontend pod logs (tail 20)"
+            kubectl logs deployment/quant-quantmail -n "$K8S_NAMESPACE" --tail=20 --all-containers 2>&1 || true
+            echo ""
+            echo "## frontend container spec (ports / readinessProbe / env)"
+            kubectl get deploy quant-quantmail -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].ports}' || true
+            echo ""
+            kubectl get deploy quant-quantmail -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].readinessProbe}' || true
+            echo ""
+            kubectl get deploy quant-quantmail -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].env}' || true
+            echo ""
+            echo "## frontend fetch diagnostics (svc DNS, svc IP, pod IP: $FRONTEND_POD_IP)"
+            kubectl exec -n "$K8S_NAMESPACE" deploy/quant-quantmail-backend -- node -e "(async()=>{const targets=['http://quant-quantmail:3000/','http://10.100.47.234:3000/','http://$FRONTEND_POD_IP:3000/'];for(const u of targets){try{const r=await fetch(u,{signal:AbortSignal.timeout(5000)});const t=await r.text();console.log(u,'->',r.status,'len',t.length)}catch(e){console.log(u,'-> ERR',String(e).slice(0,60),'| cause:',String(e&&e.cause).slice(0,140))}}})()" 2>&1 || echo "exec failed"
+            echo ""
+            echo "## backend health (localhost:3011/healthz)"
+            kubectl exec -n "$K8S_NAMESPACE" deploy/quant-quantmail-backend -- node -e "fetch('http://127.0.0.1:3011/healthz').then(async r=>console.log(r.status,(await r.text()).slice(0,100)))" 2>&1 || echo "exec failed"
+            echo ""
+            echo "## ingress-nginx svc"
+            kubectl get svc ingress-nginx-controller -n ingress-nginx -o wide || true
+          } > infra/status/staging-status.txt
+          echo "--- file preview ---"
+          cat infra/status/staging-status.txt
+
+      - name: Publish to status-report branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f infra/status/staging-status.txt
+          git commit -m "chore(status): staging status run ${{ github.run_id }} [skip ci]" || echo "nothing to commit"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          git push -f origin HEAD:refs/heads/status-report && echo "PUSH_OK" || echo "PUSH_FAILED"

@@ -1,0 +1,153 @@
+# Routes quantchat.online subdomains to each app frontend service + terminates
+# TLS via a cert-manager Let's Encrypt certificate. Apply with:
+#   kubectl apply -f infra/k8s/app-routing-ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: quant-apps-routing
+  namespace: quant-production
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - mail.quantchat.online
+        - chat.quantchat.online
+        - ai.quantchat.online
+        - admin.quantchat.online
+        - ws.quantchat.online
+      secretName: quant-apps-tls
+    # New primary brand domain (quantrinity.in). Separate cert secret so a
+    # reissue here never disturbs the working quantchat.online certificate.
+    - hosts:
+        - quantmail.in
+        - www.quantmail.in
+        - quantmail.quantrinity.in
+        - quantchat.quantrinity.in
+        - quantai.quantrinity.in
+        - quanttrinity.quantrinity.in
+        - quantws.quantrinity.in
+      secretName: quant-trinity-tls
+  rules:
+    - host: quantmail.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantmail
+                port:
+                  number: 3010
+    - host: www.quantmail.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantmail
+                port:
+                  number: 3010
+    - host: quantmail.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantmail
+                port:
+                  number: 3010
+    - host: quantchat.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantchat
+                port:
+                  number: 3015
+    - host: quantai.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantai
+                port:
+                  number: 3020
+    - host: quanttrinity.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-admin
+                port:
+                  number: 3100
+    - host: quantws.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-ws-gateway
+                port:
+                  number: 8080
+    - host: mail.quantchat.online
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantmail
+                port:
+                  number: 3010
+    - host: chat.quantchat.online
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantchat
+                port:
+                  number: 3015
+    - host: ai.quantchat.online
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantai
+                port:
+                  number: 3020
+    - host: admin.quantchat.online
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-admin
+                port:
+                  number: 3100
+    - host: ws.quantchat.online
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-ws-gateway
+                port:
+                  number: 8080

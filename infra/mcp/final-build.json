@@ -1,0 +1,23 @@
+{
+  "commands": [
+    "set -eu",
+    "docker system prune -af 2>&1 | tail -2",
+    "rm -rf /opt/actions-runner/_work/deploy-quantmail",
+    "cd /opt/actions-runner/_work",
+    "git clone --depth 1 https://github.com/quantrinitylabsgo/Quant-Ecosystem.git deploy-quantmail 2>&1 | tail -2",
+    "cd deploy-quantmail",
+    "ls patches/ 2>&1",
+    "grep patches apps/quantmail/Dockerfile | head -2",
+    "RELEASE_SHA=$(git rev-parse HEAD)",
+    "echo SHA=$RELEASE_SHA",
+    "REGISTRY=266176113726.dkr.ecr.us-east-1.amazonaws.com",
+    "REPO=quant-quantmail",
+    "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REGISTRY 2>&1 | tail -1",
+    "echo STARTING_BUILD",
+    "docker build -f apps/quantmail/Dockerfile -t $REGISTRY/$REPO:$RELEASE_SHA . 2>&1 | tail -20",
+    "echo BUILD_EXIT=$?",
+    "docker push $REGISTRY/$REPO:$RELEASE_SHA 2>&1 | tail -8",
+    "echo PUSH_EXIT=$?",
+    "aws ecr describe-images --repository-name $REPO --image-ids imageTag=$RELEASE_SHA --region us-east-1 --query 'imageDetails[0].imageDigest' --output text 2>&1"
+  ]
+}

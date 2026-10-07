@@ -1,0 +1,6 @@
+apiVersion: v2
+name: quant-turn
+description: TURN/STUN server (coturn) for Quant Ecosystem WebRTC connectivity
+type: application
+version: 0.1.0
+appVersion: '4.6.2'

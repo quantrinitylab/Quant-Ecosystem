@@ -1,0 +1,1119 @@
+// ============================================================================
+// QuantDocs — Document REST API Routes (Wave 9 Phase N / Task N04)
+// ============================================================================
+
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
+import { createAppError } from '@quant/server-core';
+
+function getPrisma(fastify: FastifyInstance): any {
+  return (fastify as unknown as { prisma?: unknown }).prisma;
+}
+
+function requireUserId(request: FastifyRequest): string {
+  const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
+  if (!userId) {
+    throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+  }
+  return userId;
+}
+
+const createDocumentSchema = z.object({
+  title: z.string().trim().min(1, 'Document title is required').default('Untitled'),
+  content: z.string().optional().default(''),
+  metadata: z.record(z.unknown()).optional().default({}),
+  isPublic: z.boolean().optional().default(false),
+  parentId: z.string().nullable().optional(),
+});
+
+const updateDocumentSchema = z.object({
+  title: z.string().trim().min(1).max(255).optional(),
+  content: z.string().optional(),
+  metadata: z.record(z.unknown()).optional(),
+  tags: z.array(z.string()).optional(),
+  isPublic: z.boolean().optional(),
+  parentId: z.string().nullable().optional(),
+});
+
+const listDocumentsQuerySchema = z.object({
+  search: z.string().optional(),
+  q: z.string().optional(),
+  sortBy: z.enum(['updatedAt', 'createdAt', 'title']).optional().default('updatedAt'),
+  sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
+  sort: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+  parentId: z.string().nullable().optional(),
+});
+
+const exportQuerySchema = z.object({
+  format: z.enum(['md', 'markdown', 'html', 'json', 'txt']).default('md'),
+});
+
+const documentParamsSchema = z.object({
+  id: z.string().min(1),
+});
+
+const createShareLinkSchema = z.object({
+  role: z.enum(['view', 'edit']).default('view'),
+  expiresAt: z.string().optional().nullable(),
+});
+
+// P0-4b: the doc share dialog's "Add Collaborators" form previously never called
+// any endpoint — the handler just showed a fake success toast. This schema backs
+// the real invite endpoint below.
+const addCollaboratorSchema = z.object({
+  email: z.string().trim().email('A valid email address is required'),
+  role: z.enum(['viewer', 'editor', 'admin']).default('viewer'),
+});
+
+export const documentShareLinks = new Map<
+  string,
+  {
+    docId: string;
+    token: string;
+    role: 'view' | 'edit';
+    expiresAt: string | null;
+    createdAt: string;
+  }
+>();
+
+export function resetDocumentShareLinks(): void {
+  documentShareLinks.clear();
+}
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function formatInline(text: string): string {
+  const escaped = escapeHtml(text);
+  return escaped
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`(.*?)`/g, '<code>$1</code>');
+}
+
+function stripHtml(str: string): string {
+  return str
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .trim();
+}
+
+function htmlToMarkdown(html: string): string {
+  return html
+    .replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '# $1\n\n')
+    .replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '## $1\n\n')
+    .replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '### $1\n\n')
+    .replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, '#### $1\n\n')
+    .replace(/<h5[^>]*>([\s\S]*?)<\/h5>/gi, '##### $1\n\n')
+    .replace(/<h6[^>]*>([\s\S]*?)<\/h6>/gi, '###### $1\n\n')
+    .replace(/<pre[^>]*><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, '```\n$1\n```\n\n')
+    .replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, '`$1`')
+    .replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, '> $1\n\n')
+    .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '**$1**')
+    .replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, '**$1**')
+    .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, '*$1*')
+    .replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, '*$1*')
+    .replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '- $1\n')
+    .replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, '$1\n')
+    .replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, '$1\n')
+    .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1\n\n')
+    .replace(/<hr\s*\/?>/gi, '\n---\n\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function markdownToHtml(md: string): string {
+  if (/<(p|h[1-6]|ul|ol|li|blockquote|div|table|pre)[^>]*>/i.test(md)) {
+    return md;
+  }
+  const lines = md.split('\n');
+  const htmlLines: string[] = [];
+  let inCodeBlock = false;
+  let inList = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (line.startsWith('```')) {
+      if (!inCodeBlock) {
+        if (inList) {
+          htmlLines.push('</ul>');
+          inList = false;
+        }
+        htmlLines.push('<pre><code>');
+        inCodeBlock = true;
+      } else {
+        htmlLines.push('</code></pre>');
+        inCodeBlock = false;
+      }
+      continue;
+    }
+    if (inCodeBlock) {
+      htmlLines.push(escapeHtml(rawLine));
+      continue;
+    }
+
+    if (line.startsWith('# ')) {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+      htmlLines.push(`<h1>${formatInline(line.slice(2))}</h1>`);
+    } else if (line.startsWith('## ')) {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+      htmlLines.push(`<h2>${formatInline(line.slice(3))}</h2>`);
+    } else if (line.startsWith('### ')) {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+      htmlLines.push(`<h3>${formatInline(line.slice(4))}</h3>`);
+    } else if (line.startsWith('> ')) {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+      htmlLines.push(`<blockquote>${formatInline(line.slice(2))}</blockquote>`);
+    } else if (line.startsWith('- ') || line.startsWith('* ')) {
+      if (!inList) {
+        htmlLines.push('<ul>');
+        inList = true;
+      }
+      htmlLines.push(`<li>${formatInline(line.slice(2))}</li>`);
+    } else if (line === '---') {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+      htmlLines.push('<hr />');
+    } else if (line.trim().length === 0) {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+    } else {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+      htmlLines.push(`<p>${formatInline(line)}</p>`);
+    }
+  }
+  if (inList) htmlLines.push('</ul>');
+  if (inCodeBlock) htmlLines.push('</code></pre>');
+
+  return htmlLines.join('\n');
+}
+
+function extractTextFromTipTap(node: any): string {
+  if (!node) return '';
+  if (node.text) return node.text;
+  if (Array.isArray(node.content)) {
+    return node.content.map(extractTextFromTipTap).join('\n');
+  }
+  return '';
+}
+
+function parseContentIfJson(content: string): { isJson: boolean; text?: string; json?: any } {
+  const trimmed = content.trim();
+  if (
+    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+    (trimmed.startsWith('[') && trimmed.endsWith(']'))
+  ) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed?.type === 'doc' && Array.isArray(parsed?.content)) {
+        const extractedText = extractTextFromTipTap(parsed);
+        return { isJson: true, text: extractedText, json: parsed };
+      }
+      return { isJson: true, json: parsed };
+    } catch {
+      return { isJson: false };
+    }
+  }
+  return { isJson: false };
+}
+
+export default async function documentRoutes(fastify: FastifyInstance) {
+  // GET /documents — Lists documents owned by user (where: { userId, isDeleted: false }) with sorting, search across title & content, and parentId filtering
+  fastify.get('/', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const query = listDocumentsQuerySchema.parse(request.query ?? {});
+
+    const search = query.search ?? query.q;
+    const where: Record<string, unknown> = {
+      userId,
+      isDeleted: false,
+    };
+
+    if (search && search.trim()) {
+      where.OR = [
+        { title: { contains: search.trim(), mode: 'insensitive' } },
+        { content: { contains: search.trim(), mode: 'insensitive' } },
+      ];
+    }
+
+    let orderByField = query.sortBy ?? 'updatedAt';
+    let orderByDirection: 'asc' | 'desc' = query.sortOrder ?? 'desc';
+    if (query.sort) {
+      const parts = query.sort.split(':');
+      if (['updatedAt', 'createdAt', 'title'].includes(parts[0])) {
+        orderByField = parts[0] as 'updatedAt' | 'createdAt' | 'title';
+      }
+      if (parts[1] === 'asc' || parts[1] === 'desc') {
+        orderByDirection = parts[1] as 'asc' | 'desc';
+      }
+    }
+
+    let documents = await prisma.document.findMany({
+      where,
+      orderBy: { [orderByField]: orderByDirection },
+      take: query.limit,
+      skip: query.offset,
+      include: {
+        versions: {
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+        },
+        collaborators: true,
+      },
+    });
+
+    if (query.parentId !== undefined) {
+      if (query.parentId === 'root' || query.parentId === 'null' || query.parentId === null) {
+        documents = documents.filter((doc: any) => {
+          const pid = (doc.metadata as Record<string, unknown> | null)?.parentId;
+          return pid === undefined || pid === null || pid === '';
+        });
+      } else {
+        documents = documents.filter((doc: any) => {
+          const pid = (doc.metadata as Record<string, unknown> | null)?.parentId;
+          return pid === query.parentId;
+        });
+      }
+    }
+
+    if (search && search.trim()) {
+      const term = search.trim().toLowerCase();
+      documents = documents.filter((doc: any) => {
+        const titleMatch = (doc.title || '').toLowerCase().includes(term);
+        const contentMatch = (doc.content || '').toLowerCase().includes(term);
+        return titleMatch || contentMatch;
+      });
+    }
+
+    return reply.send({ success: true, data: documents });
+  });
+
+  // POST /documents — Creates new document (title, content: "", userId, metadata: {}). Returns 201.
+  fastify.post('/', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const parsed = createDocumentSchema.parse(request.body ?? {});
+
+    if (parsed.parentId) {
+      const parentDoc = await prisma.document.findFirst({
+        where: { id: parsed.parentId, userId, isDeleted: false },
+      });
+      if (!parentDoc) {
+        throw createAppError('Parent document not found', 404, 'PARENT_DOCUMENT_NOT_FOUND');
+      }
+    }
+
+    const document = await prisma.document.create({
+      data: {
+        title: parsed.title,
+        content: parsed.content ?? '',
+        userId,
+        metadata: {
+          ...(parsed.metadata ?? {}),
+          parentId:
+            parsed.parentId !== undefined
+              ? parsed.parentId
+              : ((parsed.metadata as any)?.parentId ?? null),
+        },
+        isPublic: parsed.isPublic ?? false,
+        isDeleted: false,
+      },
+      include: {
+        versions: true,
+        collaborators: true,
+      },
+    });
+
+    return reply.status(201).send({ success: true, data: document });
+  });
+
+  // GET /documents/:id — Fetches document metadata, version history, collaborator permissions, subpages, and breadcrumbs
+  fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const { id } = documentParamsSchema.parse(request.params);
+
+    const document = await prisma.document.findUnique({
+      where: { id },
+      include: {
+        versions: {
+          orderBy: { createdAt: 'desc' },
+        },
+        collaborators: true,
+      },
+    });
+
+    if (!document || document.isDeleted) {
+      throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+    }
+
+    if (document.userId !== userId) {
+      const isCollaborator = document.collaborators?.some(
+        (c: { userId: string; role?: string }) => c.userId === userId,
+      );
+      if (!isCollaborator && !document.isPublic) {
+        throw createAppError('Forbidden: not authorized to access this document', 403, 'FORBIDDEN');
+      }
+    }
+
+    // Fetch subpages for this document: all user documents whose metadata.parentId === id and isDeleted: false
+    let allUserDocs: any[] = [];
+    try {
+      allUserDocs =
+        (await prisma.document.findMany({
+          where: {
+            userId: document.userId,
+            isDeleted: false,
+          },
+        })) || [];
+    } catch {
+      allUserDocs = [];
+    }
+
+    const subpages = allUserDocs.filter(
+      (d: any) => (d.metadata as Record<string, unknown> | null)?.parentId === id,
+    );
+
+    // Compute breadcrumbs hierarchy: recursively resolve ancestral chain of parent documents up to root: breadcrumbs: [{ id, title }, ...]
+    const docMap = new Map<string, any>(allUserDocs.map((d: any) => [d.id, d]));
+    const breadcrumbs: Array<{ id: string; title: string }> = [];
+    const visited = new Set<string>([document.id]);
+    let currentParentId = (document.metadata as Record<string, unknown> | null)?.parentId as
+      | string
+      | null
+      | undefined;
+
+    while (currentParentId && !visited.has(currentParentId)) {
+      visited.add(currentParentId);
+      let parentDoc = docMap.get(currentParentId);
+      if (!parentDoc && prisma.document?.findFirst) {
+        parentDoc = await prisma.document.findFirst({
+          where: { id: currentParentId, userId: document.userId, isDeleted: false },
+        });
+      }
+      if (!parentDoc || parentDoc.isDeleted) break;
+      breadcrumbs.unshift({ id: parentDoc.id, title: parentDoc.title });
+      currentParentId = (parentDoc.metadata as Record<string, unknown> | null)?.parentId as
+        | string
+        | null
+        | undefined;
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        ...document,
+        subpages,
+        breadcrumbs,
+      },
+    });
+  });
+
+  // GET /documents/:id/export — Exports document to specified format (md, html, json, txt)
+  fastify.get<{ Params: { id: string } }>('/:id/export', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const { id } = documentParamsSchema.parse(request.params);
+    const { format } = exportQuerySchema.parse(request.query ?? {});
+
+    const document = await prisma.document.findUnique({
+      where: { id },
+      include: {
+        collaborators: true,
+      },
+    });
+
+    if (!document || document.isDeleted) {
+      throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+    }
+
+    if (document.userId !== userId) {
+      const isCollaborator = document.collaborators?.some(
+        (c: { userId: string; role?: string }) => c.userId === userId,
+      );
+      if (!isCollaborator && !document.isPublic) {
+        throw createAppError('Forbidden: not authorized to access this document', 403, 'FORBIDDEN');
+      }
+    }
+
+    const safeFileName = (document.title || 'Untitled').replace(/[^a-zA-Z0-9_-]/g, '_');
+    let ext = 'md';
+    let contentType = 'text/markdown; charset=utf-8';
+    let exportedContent = '';
+
+    const contentStr = document.content ?? '';
+    const jsonInfo = parseContentIfJson(contentStr);
+
+    switch (format) {
+      case 'json': {
+        ext = 'json';
+        contentType = 'application/json; charset=utf-8';
+        if (jsonInfo.isJson && jsonInfo.json !== undefined) {
+          exportedContent = JSON.stringify(jsonInfo.json, null, 2);
+        } else {
+          exportedContent = JSON.stringify(
+            {
+              id: document.id,
+              title: document.title,
+              content: contentStr,
+              metadata: document.metadata ?? {},
+            },
+            null,
+            2,
+          );
+        }
+        break;
+      }
+      case 'html': {
+        ext = 'html';
+        contentType = 'text/html; charset=utf-8';
+        const bodyContent = jsonInfo.isJson ? (jsonInfo.text ?? '') : contentStr;
+        const bodyHtml = markdownToHtml(bodyContent);
+        const escapedTitle = escapeHtml(document.title || 'Untitled');
+        exportedContent = `<!DOCTYPE html><html><head><title>${escapedTitle}</title></head><body><h1>${escapedTitle}</h1>${bodyHtml ? `\n${bodyHtml}\n` : ''}</body></html>`;
+        break;
+      }
+      case 'txt': {
+        ext = 'txt';
+        contentType = 'text/plain; charset=utf-8';
+        const bodyContent = jsonInfo.isJson ? (jsonInfo.text ?? '') : contentStr;
+        exportedContent = stripHtml(bodyContent);
+        break;
+      }
+      case 'md':
+      case 'markdown':
+      default: {
+        ext = 'md';
+        contentType = 'text/markdown; charset=utf-8';
+        const bodyContent = jsonInfo.isJson ? (jsonInfo.text ?? '') : contentStr;
+        if (/<[a-z][\s\S]*>/i.test(bodyContent)) {
+          exportedContent = htmlToMarkdown(bodyContent);
+        } else {
+          exportedContent = bodyContent;
+        }
+        break;
+      }
+    }
+
+    return reply
+      .header('Content-Type', contentType)
+      .header('Content-Disposition', `attachment; filename="${safeFileName}.${ext}"`)
+      .send(exportedContent);
+  });
+
+  // Reusable updater for PATCH and PUT
+  async function updateDocument(
+    request: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply,
+  ) {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const { id } = documentParamsSchema.parse(request.params);
+    const parsed = updateDocumentSchema.parse(request.body ?? {});
+
+    const existing = await prisma.document.findUnique({
+      where: { id },
+      include: { collaborators: true },
+    });
+
+    if (!existing || existing.isDeleted) {
+      throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+    }
+
+    if (existing.userId !== userId) {
+      const canEdit = existing.collaborators?.some(
+        (c: { userId: string; role?: string }) =>
+          c.userId === userId && (c.role === 'editor' || c.role === 'admin'),
+      );
+      if (!canEdit) {
+        throw createAppError('Forbidden: not authorized to update this document', 403, 'FORBIDDEN');
+      }
+    }
+
+    const updateData: Record<string, unknown> = {};
+    if (parsed.title !== undefined) updateData.title = parsed.title;
+    if (parsed.content !== undefined) updateData.content = parsed.content;
+    if (parsed.isPublic !== undefined) updateData.isPublic = parsed.isPublic;
+
+    let metadataObj = (existing.metadata as Record<string, unknown>) ?? {};
+    let metadataChanged = false;
+    if (parsed.metadata !== undefined) {
+      metadataObj = { ...metadataObj, ...parsed.metadata };
+      metadataChanged = true;
+    }
+    if (parsed.tags !== undefined) {
+      metadataObj = { ...metadataObj, tags: parsed.tags };
+      metadataChanged = true;
+    }
+    if (parsed.parentId !== undefined) {
+      if (parsed.parentId) {
+        const parentDoc = await prisma.document.findFirst({
+          where: { id: parsed.parentId, userId, isDeleted: false },
+        });
+        if (!parentDoc) {
+          throw createAppError('Parent document not found', 404, 'PARENT_DOCUMENT_NOT_FOUND');
+        }
+      }
+      metadataObj = { ...metadataObj, parentId: parsed.parentId };
+      metadataChanged = true;
+    }
+    if (metadataChanged) {
+      updateData.metadata = metadataObj;
+    }
+
+    // If content changed, snapshot version history if versioning model is present
+    if (
+      parsed.content !== undefined &&
+      parsed.content !== existing.content &&
+      prisma.documentVersion?.create
+    ) {
+      await prisma.documentVersion
+        .create({
+          data: {
+            docId: existing.id,
+            title: parsed.title ?? existing.title,
+            content: existing.content,
+          },
+        })
+        .catch(() => {});
+    }
+
+    const updated = await prisma.document.update({
+      where: { id: existing.id },
+      data: updateData,
+      include: {
+        versions: {
+          orderBy: { createdAt: 'desc' },
+        },
+        collaborators: true,
+      },
+    });
+
+    return reply.send({ success: true, data: updated });
+  }
+
+  // PATCH /documents/:id — Renames document (title), updates metadata or tags
+  fastify.patch<{ Params: { id: string } }>('/:id', updateDocument);
+  fastify.put<{ Params: { id: string } }>('/:id', updateDocument);
+
+  // DELETE /documents/:id — Soft-deletes document (isDeleted: true)
+  fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const { id } = documentParamsSchema.parse(request.params);
+
+    const existing = await prisma.document.findUnique({
+      where: { id },
+    });
+
+    if (!existing || existing.isDeleted) {
+      throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+    }
+
+    if (existing.userId !== userId) {
+      throw createAppError('Forbidden: not authorized to delete this document', 403, 'FORBIDDEN');
+    }
+
+    await prisma.document.update({
+      where: { id: existing.id },
+      data: { isDeleted: true },
+    });
+
+    return reply.send({
+      success: true,
+      data: { id: existing.id, isDeleted: true },
+    });
+  });
+
+  // GET /documents/:id/versions (Task N11) — Lists document snapshot version history
+  fastify.get<{ Params: { id: string } }>('/:id/versions', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const { id } = documentParamsSchema.parse(request.params);
+
+    const document = await prisma.document.findUnique({
+      where: { id },
+      include: {
+        collaborators: true,
+      },
+    });
+
+    if (!document || document.isDeleted) {
+      throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+    }
+
+    if (document.userId !== userId) {
+      const isCollaborator = document.collaborators?.some(
+        (c: { userId: string }) => c.userId === userId,
+      );
+      if (!isCollaborator && !document.isPublic) {
+        throw createAppError(
+          'Forbidden: not authorized to access document versions',
+          403,
+          'FORBIDDEN',
+        );
+      }
+    }
+
+    const versions = await prisma.documentVersion.findMany({
+      where: { docId: document.id },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        docId: true,
+        title: true,
+        createdAt: true,
+        content: true,
+      },
+    });
+
+    return reply.send({ success: true, data: versions });
+  });
+
+  // POST /documents/:id/versions (Task N11) — Creates a named checkpoint snapshot
+  fastify.post<{ Params: { id: string } }>('/:id/versions', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const { id } = documentParamsSchema.parse(request.params);
+
+    const bodySchema = z.object({
+      title: z.string().min(1).max(200).optional(),
+    });
+    const parsed = bodySchema.parse(request.body ?? {});
+
+    const document = await prisma.document.findUnique({
+      where: { id },
+      include: {
+        collaborators: true,
+      },
+    });
+
+    if (!document || document.isDeleted) {
+      throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+    }
+
+    if (document.userId !== userId) {
+      const isEditor = document.collaborators?.some(
+        (c: { userId: string; role?: string }) =>
+          c.userId === userId && (c.role === 'EDIT' || c.role === 'ADMIN' || !c.role),
+      );
+      if (!isEditor) {
+        throw createAppError(
+          'Forbidden: not authorized to snapshot this document',
+          403,
+          'FORBIDDEN',
+        );
+      }
+    }
+
+    const snapshotTitle = parsed.title?.trim() || `${document.title || 'Untitled'} (Snapshot)`;
+    const version = await prisma.documentVersion.create({
+      data: {
+        docId: document.id,
+        title: snapshotTitle,
+        content: document.content || '',
+      },
+      select: {
+        id: true,
+        docId: true,
+        title: true,
+        createdAt: true,
+        content: true,
+      },
+    });
+
+    return reply.status(201).send({ success: true, data: version });
+  });
+
+  // POST /documents/:id/versions/:versionId/restore (Task N11) — Restores historical version
+  fastify.post<{ Params: { id: string; versionId: string } }>(
+    '/:id/versions/:versionId/restore',
+    async (request, reply) => {
+      const userId = requireUserId(request);
+      const prisma = getPrisma(fastify);
+      const { id } = documentParamsSchema.parse({ id: request.params.id });
+      const versionId = request.params.versionId;
+
+      const document = await prisma.document.findUnique({
+        where: { id },
+        include: {
+          collaborators: true,
+        },
+      });
+
+      if (!document || document.isDeleted) {
+        throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+      }
+
+      if (document.userId !== userId) {
+        const isEditor = document.collaborators?.some(
+          (c: { userId: string; role?: string }) =>
+            c.userId === userId && (c.role === 'EDIT' || c.role === 'ADMIN' || !c.role),
+        );
+        if (!isEditor) {
+          throw createAppError(
+            'Forbidden: not authorized to restore this document',
+            403,
+            'FORBIDDEN',
+          );
+        }
+      }
+
+      const targetVersion = await prisma.documentVersion.findFirst({
+        where: { id: versionId, docId: document.id },
+      });
+
+      if (!targetVersion) {
+        throw createAppError('Version not found', 404, 'VERSION_NOT_FOUND');
+      }
+
+      // Safe pre-restore checkpoint: save current document state so no edits are lost
+      await prisma.documentVersion
+        .create({
+          data: {
+            docId: document.id,
+            title: `Pre-restore snapshot: ${document.title}`,
+            content: document.content || '',
+          },
+        })
+        .catch(() => {});
+
+      // Restore document content and title
+      const updated = await prisma.document.update({
+        where: { id: document.id },
+        data: {
+          title: targetVersion.title.replace(/^Pre-restore snapshot:\s*/i, ''),
+          content: targetVersion.content,
+          updatedAt: new Date(),
+        },
+        include: {
+          versions: {
+            orderBy: { createdAt: 'desc' },
+          },
+          collaborators: true,
+        },
+      });
+
+      return reply.send({
+        success: true,
+        data: updated,
+        restoredVersionId: targetVersion.id,
+      });
+    },
+  );
+
+  // POST /documents/:id/share-link (Tasks N12 & D04) — Create public share link with role & expiration
+  fastify.post<{ Params: { id: string } }>('/:id/share-link', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const { id } = documentParamsSchema.parse({ id: request.params.id });
+
+    const parsed = createShareLinkSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      throw createAppError(
+        parsed.error.errors[0]?.message || 'Invalid share link options',
+        400,
+        'VALIDATION_ERROR',
+      );
+    }
+
+    if (parsed.data.expiresAt && isNaN(Date.parse(parsed.data.expiresAt))) {
+      throw createAppError('Invalid expiresAt timestamp format', 400, 'VALIDATION_ERROR');
+    }
+
+    const document = await prisma.document.findUnique({
+      where: { id },
+      include: {
+        collaborators: true,
+      },
+    });
+
+    if (!document || document.isDeleted) {
+      throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+    }
+
+    if (document.userId !== userId) {
+      const isOwnerOrAdmin = document.collaborators?.some(
+        (c: { userId: string; role?: string }) =>
+          c.userId === userId && (c.role === 'ADMIN' || c.role === 'OWNER'),
+      );
+      if (!isOwnerOrAdmin) {
+        throw createAppError('Forbidden: not authorized to share this document', 403, 'FORBIDDEN');
+      }
+    }
+
+    const token = `doc_share_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 10)}`;
+    const role = parsed.data.role ?? 'view';
+    const expiresAt = parsed.data.expiresAt ?? null;
+
+    const shareRecord = {
+      docId: document.id,
+      token,
+      role,
+      expiresAt,
+      createdAt: new Date().toISOString(),
+    };
+
+    documentShareLinks.set(token, shareRecord);
+
+    const currentMetadata =
+      document.metadata && typeof document.metadata === 'object'
+        ? { ...(document.metadata as Record<string, unknown>) }
+        : {};
+
+    await prisma.document.update({
+      where: { id: document.id },
+      data: {
+        metadata: {
+          ...currentMetadata,
+          shareToken: token,
+          shareRole: role,
+          shareExpiresAt: expiresAt,
+          publicShare: shareRecord,
+        },
+        updatedAt: new Date(),
+      },
+    });
+
+    return reply.status(201).send({
+      success: true,
+      data: {
+        id: document.id,
+        token,
+        role,
+        expiresAt,
+        shareUrl: `/documents/public/share/${token}`,
+      },
+    });
+  });
+
+  // POST /documents/:id/collaborators (P0-4b) — Invite a collaborator by email.
+  // The doc share dialog previously had no server action behind "Invite" at
+  // all: the button never even submitted its form (default type="button"), and
+  // the handler showed a fabricated success toast without any network call.
+  // This endpoint makes the invite real and returns honest, specific errors.
+  fastify.post<{ Params: { id: string } }>('/:id/collaborators', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const { id } = documentParamsSchema.parse({ id: request.params.id });
+
+    const parsed = addCollaboratorSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      throw createAppError(
+        parsed.error.errors[0]?.message || 'Invalid collaborator details',
+        400,
+        'VALIDATION_ERROR',
+      );
+    }
+
+    const document = await prisma.document.findUnique({
+      where: { id },
+      include: {
+        collaborators: true,
+      },
+    });
+
+    if (!document || document.isDeleted) {
+      throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+    }
+
+    const canInvite =
+      document.userId === userId ||
+      document.collaborators?.some(
+        (c: { userId: string; role?: string }) =>
+          c.userId === userId &&
+          (c.role === 'ADMIN' || c.role === 'OWNER' || c.role === 'admin'),
+      );
+    if (!canInvite) {
+      throw createAppError(
+        'Forbidden: not authorized to invite collaborators to this document',
+        403,
+        'FORBIDDEN',
+      );
+    }
+
+    const recipient = await prisma.user.findFirst({
+      where: { email: { equals: parsed.data.email, mode: 'insensitive' } },
+      select: { id: true, email: true },
+    });
+    if (!recipient) {
+      // The invitee must have a Quant account — say so plainly instead of
+      // pretending the invite went out.
+      throw createAppError(
+        `No Quant account found for ${parsed.data.email}. They need to sign up before they can be added as a collaborator.`,
+        404,
+        'USER_NOT_FOUND',
+      );
+    }
+    if (recipient.id === userId) {
+      throw createAppError('You already have access to this document', 400, 'INVALID_RECIPIENT');
+    }
+
+    // Re-inviting changes the role rather than failing on the unique key.
+    const collaborator = await prisma.documentCollaborator.upsert({
+      where: { docId_userId: { docId: document.id, userId: recipient.id } },
+      update: { role: parsed.data.role },
+      create: { docId: document.id, userId: recipient.id, role: parsed.data.role },
+    });
+
+    return reply.status(201).send({
+      success: true,
+      data: {
+        id: collaborator.id,
+        docId: collaborator.docId,
+        email: recipient.email,
+        role: collaborator.role,
+      },
+    });
+  });
+
+  // GET /documents/public/share/:token (Tasks N12 & D04) — Public link resolution without authentication
+  fastify.get<{ Params: { token: string } }>('/public/share/:token', async (request, reply) => {
+    const prisma = getPrisma(fastify);
+    const token = request.params.token;
+
+    let docId: string | undefined;
+    const cachedShare = documentShareLinks.get(token);
+
+    if (cachedShare) {
+      docId = cachedShare.docId;
+    }
+
+    let document: any = null;
+    if (docId) {
+      document = await prisma.document.findUnique({
+        where: { id: docId },
+      });
+    }
+
+    if (!document) {
+      try {
+        const candidates = await prisma.document.findMany({
+          where: { isDeleted: false },
+        });
+        document = candidates.find((d: any) => (d.metadata as any)?.shareToken === token);
+      } catch {
+        // Fallback for offline harness
+      }
+    }
+
+    if (!document || document.isDeleted) {
+      throw createAppError('Document share link not found', 404, 'SHARE_LINK_NOT_FOUND');
+    }
+
+    const metadata = (document.metadata as Record<string, unknown>) || {};
+    const role = cachedShare?.role || (metadata.shareRole as 'view' | 'edit') || 'view';
+    const expiresAt = cachedShare?.expiresAt || (metadata.shareExpiresAt as string | null);
+
+    if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
+      throw createAppError('This share link has expired', 410, 'LINK_EXPIRED');
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        id: document.id,
+        title: document.title,
+        content: document.content,
+        role,
+        expiresAt,
+        updatedAt: document.updatedAt,
+      },
+    });
+  });
+
+  // DELETE /documents/:id/share-link (Tasks N12 & D04) — Revoke public share link
+  fastify.delete<{ Params: { id: string } }>('/:id/share-link', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const { id } = documentParamsSchema.parse({ id: request.params.id });
+
+    const document = await prisma.document.findUnique({
+      where: { id },
+      include: {
+        collaborators: true,
+      },
+    });
+
+    if (!document || document.isDeleted) {
+      throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+    }
+
+    if (document.userId !== userId) {
+      const isOwnerOrAdmin = document.collaborators?.some(
+        (c: { userId: string; role?: string }) =>
+          c.userId === userId && (c.role === 'ADMIN' || c.role === 'OWNER'),
+      );
+      if (!isOwnerOrAdmin) {
+        throw createAppError('Forbidden: not authorized to revoke share link', 403, 'FORBIDDEN');
+      }
+    }
+
+    const metadata = (document.metadata as Record<string, unknown>) || {};
+    const token = metadata.shareToken as string | undefined;
+    if (token) {
+      documentShareLinks.delete(token);
+    }
+
+    const nextMetadata = { ...metadata };
+    delete nextMetadata.shareToken;
+    delete nextMetadata.shareRole;
+    delete nextMetadata.shareExpiresAt;
+    delete nextMetadata.publicShare;
+
+    await prisma.document.update({
+      where: { id: document.id },
+      data: {
+        metadata: nextMetadata,
+        updatedAt: new Date(),
+      },
+    });
+
+    return reply.send({
+      success: true,
+      data: {
+        id: document.id,
+        revoked: true,
+        message: 'Share link revoked successfully',
+      },
+    });
+  });
+}

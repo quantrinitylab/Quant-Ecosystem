@@ -1,0 +1,149 @@
+{
+  "info": {
+    "name": "QuantSync - Poll API",
+    "description": "Covers the poll lifecycle wired by poll.service.ts: create poll, read results, vote/toggle, and validation/error paths. Base URL defaults to the QuantSync backend on port 3004.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3004" },
+    { "key": "access_token", "value": "" },
+    { "key": "post_id", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Create POLL post",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{base_url}}/posts", "host": ["{{base_url}}"], "path": ["posts"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"content\": \"What should we build next?\",\n  \"type\": \"POLL\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('post created (201)', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test('returns post id', () => pm.expect(body.data && body.data.id).to.be.a('string'));",
+              "if (body.data && body.data.id) pm.collectionVariables.set('post_id', body.data.id);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create poll on post",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "{{base_url}}/posts/{{post_id}}/poll",
+          "host": ["{{base_url}}"],
+          "path": ["posts", "{{post_id}}", "poll"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"What should we build next?\",\n  \"options\": [\"Dark mode\", \"Mobile app\", \"API v2\"],\n  \"allowMultiple\": false\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('poll created (201)', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test('poll bound to post', () => pm.expect(body.data.postId).to.eql(pm.collectionVariables.get('post_id')));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Vote option 0",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "{{base_url}}/posts/{{post_id}}/poll/vote",
+          "host": ["{{base_url}}"],
+          "path": ["posts", "{{post_id}}", "poll", "vote"]
+        },
+        "body": { "mode": "raw", "raw": "{\n  \"optionIndex\": 0\n}" }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('vote accepted (200)', () => pm.response.to.have.status(200));",
+              "const r = pm.response.json().data;",
+              "pm.test('total votes is 1', () => pm.expect(r.totalVotes).to.eql(1));",
+              "pm.test('caller selected option 0', () => pm.expect(r.userVotes).to.include(0));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get poll results",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/posts/{{post_id}}/poll",
+          "host": ["{{base_url}}"],
+          "path": ["posts", "{{post_id}}", "poll"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('results returned (200)', () => pm.response.to.have.status(200));",
+              "const r = pm.response.json().data;",
+              "pm.test('three options present', () => pm.expect(r.options.length).to.eql(3));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Vote invalid option (expect 400)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "{{base_url}}/posts/{{post_id}}/poll/vote",
+          "host": ["{{base_url}}"],
+          "path": ["posts", "{{post_id}}", "poll", "vote"]
+        },
+        "body": { "mode": "raw", "raw": "{\n  \"optionIndex\": 99\n}" }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('invalid option rejected (400)', () => pm.response.to.have.status(400));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+  ]
+}

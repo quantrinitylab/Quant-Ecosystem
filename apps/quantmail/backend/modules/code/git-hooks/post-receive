@@ -1,0 +1,52 @@
+#!/usr/bin/env node
+import { createHmac } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+try {
+  const commands = readFileSync(0, 'utf8').split('\n').filter(Boolean).map((line) => {
+    const [oldSha, newSha, ref] = line.split(' ');
+    return { oldSha, newSha, ref };
+  });
+  const baseUrl = process.env.QUANTCODE_HOOK_URL;
+  const secret = process.env.QUANTCODE_HOOK_SECRET;
+  if (!baseUrl || !secret) throw new Error('Missing hook configuration');
+  const payload = JSON.stringify({
+    pushId: process.env.QUANTCODE_PUSH_ID,
+    repoId: process.env.QUANTCODE_REPO_ID,
+    userId: process.env.QUANTCODE_PUSHER_ID,
+    quarantinePath: process.env.GIT_QUARANTINE_PATH ?? null,
+    gitDir: resolve(process.env.GIT_DIR ?? process.cwd()),
+    commands,
+  });
+  const signature = createHmac('sha256', secret).update(payload).digest('hex');
+  let response;
+  const maxAttempts = 3;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    response = await fetch(`${baseUrl}/post-receive`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-quantcode-signature': `sha256=${signature}`,
+      },
+      body: payload,
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (response.status === 429 && attempt < maxAttempts - 1) {
+      const retryAfter = Number(response.headers.get('retry-after')) || 1;
+      await new Promise((resolveWait) => setTimeout(resolveWait, Math.min(retryAfter * 1000, 2000)));
+      continue;
+    }
+    break;
+  }
+  if (!response.ok) throw new Error(`metadata service returned HTTP ${response.status}`);
+} catch (error) {
+  // post-receive cannot roll back an accepted push. Reconciliation repairs any
+  // metadata drift; the error remains visible in receive-pack logs.
+  process.stderr.write(
+    `QuantCode: branch metadata synchronization failed: ${
+      error instanceof Error ? error.message : 'unknown error'
+    }\n`,
+  );
+}
+process.exit(0);

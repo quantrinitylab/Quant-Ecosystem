@@ -1,0 +1,118 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "quant-platform.fullname" . }}
+  labels:
+    {{- include "quant-platform.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.global.domain }}
+        - "*.{{ .Values.global.domain }}"
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.global.domain }}
+      http:
+        paths:
+          - path: /api/ws
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "quant-platform.fullname" . }}-ws-gateway
+                port:
+                  number: 8080
+    {{- if .Values.global.appSubdomains }}
+    - host: {{ .Values.global.appSubdomains.quantmail }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "quant-platform.fullname" . }}-quantmail
+                port:
+                  number: {{ .Values.services.quantmail.port }}
+    - host: {{ .Values.global.appSubdomains.quantchat }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "quant-platform.fullname" . }}-quantchat
+                port:
+                  number: {{ .Values.services.quantchat.port }}
+    - host: {{ .Values.global.appSubdomains.quantai }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "quant-platform.fullname" . }}-quantai
+                port:
+                  number: {{ .Values.services.quantai.port }}
+    {{- end }}
+    - host: ws.{{ .Values.global.domain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "quant-platform.fullname" . }}-ws-gateway
+                port:
+                  number: 8080
+---
+# WebSocket-specific ingress with upgrade annotations
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "quant-platform.fullname" . }}-websocket
+  labels:
+    {{- include "quant-platform.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$remote_addr"
+    nginx.ingress.kubernetes.io/connection-proxy-header: "keep-alive"
+    nginx.ingress.kubernetes.io/server-snippets: |
+      location / {
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_http_version 1.1;
+      }
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - ws.{{ .Values.global.domain }}
+      secretName: {{ .Values.ingress.tls.secretName }}-ws
+  {{- end }}
+  rules:
+    - host: ws.{{ .Values.global.domain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "quant-platform.fullname" . }}-ws-gateway
+                port:
+                  number: 8080
+{{- end }}

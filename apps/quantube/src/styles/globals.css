@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Brand System - QuantTube app color: #F43F5E, hue: 350 */
+  --brand-primary: #F43F5E;
+  --brand-primary-hover: #E11D48;
+  --brand-accent: #FB923C;
+  --brand-accent-hover: #F97316;
+  --brand-app-color: #F43F5E;
+  --app-color: #F43F5E;
+
+  /* Semantic tokens */
+  --quant-primary: var(--brand-primary);
+  --quant-secondary: #f97316;
+  --quant-background: #ffffff;
+  --quant-foreground: #0f172a;
+  --quant-muted: #f1f5f9;
+  --quant-muted-foreground: #64748b;
+  --quant-border: #e2e8f0;
+  --quant-ring: var(--brand-primary);
+  --quant-radius: 0.5rem;
+  --quant-card: #ffffff;
+  --quant-card-foreground: #0f172a;
+  --quant-popover: #ffffff;
+  --quant-popover-foreground: #0f172a;
+  --quant-destructive: #ef4444;
+  --quant-destructive-foreground: #ffffff;
+  --quant-success: #22c55e;
+  --quant-warning: #f59e0b;
+
+  /* Surface tokens */
+  --surface: #ffffff;
+  --surface-elevated: #f8fafc;
+  --surface-hover: #f1f5f9;
+
+  /* Foreground */
+  --foreground: #0f172a;
+  --foreground-secondary: #64748b;
+
+  /* Primary for components */
+  --primary: var(--brand-primary);
+  --primary-foreground: #ffffff;
+}
+
+.dark {
+  --quant-background: #0f0f14;
+  --quant-foreground: #f8fafc;
+  --quant-muted: #16161d;
+  --quant-muted-foreground: #94a3b8;
+  --quant-border: #1e293b;
+  --quant-card: #1a1a24;
+  --quant-card-foreground: #f8fafc;
+  --quant-popover: #1a1a24;
+  --quant-popover-foreground: #f8fafc;
+  --quant-ring: var(--brand-primary);
+  --quant-destructive: #dc2626;
+  --quant-destructive-foreground: #ffffff;
+  --quant-success: #16a34a;
+  --quant-warning: #d97706;
+
+  /* Surface tokens - dark */
+  --surface: #0f0f14;
+  --surface-elevated: #1a1a24;
+  --surface-hover: #252530;
+
+  /* Foreground - dark */
+  --foreground: #f8fafc;
+  --foreground-secondary: #94a3b8;
+
+  /* Primary - dark */
+  --primary: var(--brand-primary);
+  --primary-foreground: #ffffff;
+}
+
+html {
+  transition:
+    background-color 0.3s ease,
+    color 0.2s ease;
+}
+
+@layer base {
+  body {
+    @apply bg-[var(--quant-background)] text-[var(--quant-foreground)] antialiased;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
+  }
+}
+
+/* Responsive breakpoints */
+@media (max-width: 360px) {
+  :root {
+    --quant-radius: 0.375rem;
+    --quant-spacing: 0.75rem;
+    --quant-font-size-base: 14px;
+  }
+}
+
+@media (min-width: 414px) and (max-width: 767px) {
+  :root {
+    --quant-radius: 0.5rem;
+    --quant-spacing: 1rem;
+    --quant-font-size-base: 15px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root {
+    --quant-radius: 0.5rem;
+    --quant-spacing: 1.5rem;
+    --quant-font-size-base: 16px;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1439px) {
+  :root {
+    --quant-radius: 0.5rem;
+    --quant-spacing: 2rem;
+    --quant-font-size-base: 16px;
+  }
+}
+
+@media (min-width: 1440px) {
+  :root {
+    --quant-radius: 0.625rem;
+    --quant-spacing: 2.5rem;
+    --quant-font-size-base: 16px;
+  }
+}
