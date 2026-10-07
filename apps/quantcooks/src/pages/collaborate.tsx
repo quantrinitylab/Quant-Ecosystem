@@ -9,6 +9,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { PageTransition } from '../components/PageTransition';
+import { apiFetchRaw } from '@quant/api-client';
 
 /** Backend roles from the collaboration service. */
 type ApiRole = 'owner' | 'editor' | 'viewer' | 'commenter';
@@ -130,8 +131,8 @@ const CollaboratePage: React.FC<CollaboratePageProps> = ({ projectId, currentUse
     setError(null);
     try {
       const [membersRes, commentsRes] = await Promise.all([
-        fetch(membersUrl),
-        fetch(commentsUrl),
+        apiFetchRaw(membersUrl),
+        apiFetchRaw(commentsUrl),
       ]);
       const membersPayload = (await membersRes.json().catch(() => null)) as ApiResponse<
         ApiCollaborator[]
@@ -165,7 +166,7 @@ const CollaboratePage: React.FC<CollaboratePageProps> = ({ projectId, currentUse
 
   const refreshComments = useCallback(async () => {
     try {
-      const res = await fetch(commentsUrl);
+      const res = await apiFetchRaw(commentsUrl);
       const payload = (await res.json().catch(() => null)) as ApiResponse<ApiComment[]> | null;
       if (res.ok && payload?.success) {
         setComments(mapComments(payload.data ?? []));
@@ -177,7 +178,7 @@ const CollaboratePage: React.FC<CollaboratePageProps> = ({ projectId, currentUse
 
   const refreshMembers = useCallback(async () => {
     try {
-      const res = await fetch(membersUrl);
+      const res = await apiFetchRaw(membersUrl);
       const payload = (await res.json().catch(() => null)) as ApiResponse<ApiCollaborator[]> | null;
       if (res.ok && payload?.success) {
         setCollaborators(mapCollaborators(payload.data ?? []));
@@ -193,7 +194,7 @@ const CollaboratePage: React.FC<CollaboratePageProps> = ({ projectId, currentUse
     setInviting(true);
     setInviteError(null);
     try {
-      const res = await fetch(inviteUrl, {
+      const res = await apiFetchRaw(inviteUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: identifier, role: permissionToApiRole(invitePermission) }),
@@ -217,7 +218,7 @@ const CollaboratePage: React.FC<CollaboratePageProps> = ({ projectId, currentUse
       // The backend invite endpoint upserts, so re-inviting with a new role
       // is the real way to change a collaborator's role.
       try {
-        const res = await fetch(inviteUrl, {
+        const res = await apiFetchRaw(inviteUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId, role: permissionToApiRole(permission) }),
@@ -237,7 +238,7 @@ const CollaboratePage: React.FC<CollaboratePageProps> = ({ projectId, currentUse
   const handleRemoveCollaborator = useCallback(
     async (userId: string) => {
       try {
-        const res = await fetch(
+        const res = await apiFetchRaw(
           `/api/collaboration/${encodeURIComponent(projectId)}/members/${encodeURIComponent(userId)}`,
           { method: 'DELETE' },
         );
@@ -259,7 +260,7 @@ const CollaboratePage: React.FC<CollaboratePageProps> = ({ projectId, currentUse
     setPostingComment(true);
     setCommentError(null);
     try {
-      const res = await fetch(commentsUrl, {
+      const res = await apiFetchRaw(commentsUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),
@@ -280,7 +281,7 @@ const CollaboratePage: React.FC<CollaboratePageProps> = ({ projectId, currentUse
   const handleResolveComment = useCallback(
     async (commentId: string, currentlyResolved: boolean) => {
       try {
-        const res = await fetch(
+        const res = await apiFetchRaw(
           `/api/collaboration/${encodeURIComponent(projectId)}/comments/${encodeURIComponent(commentId)}/resolve`,
           {
             method: 'PATCH',
