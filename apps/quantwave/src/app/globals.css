@@ -138,8 +138,9 @@ html {
   left: 0.75rem;
   z-index: 70;
   display: grid;
-  width: 2.35rem;
-  height: 2.35rem;
+  /* 44px standard touch target — keep in sync with shared-ui AppShell.css. */
+  width: 2.75rem;
+  height: 2.75rem;
   place-items: center;
   border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
   border-radius: 0.75rem;

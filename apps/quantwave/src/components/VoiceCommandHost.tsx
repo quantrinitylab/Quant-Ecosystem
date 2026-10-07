@@ -1,5 +1,13 @@
 'use client';
 
+// ============================================================================
+// QuantWave — global voice-command host.
+//
+// The bar starts COLLAPSED as a small floating mic button and only expands on
+// explicit user action. It must never auto-open on page load: the expanded
+// overlay previously covered the Sign in button on the login screen.
+// ============================================================================
+
 import { useState } from 'react';
 import { VoiceCommandBar } from '@quant/shared-ui';
 
@@ -9,7 +17,7 @@ export interface VoiceCommandHostProps {
 }
 
 export function VoiceCommandHost({ appId, userId = 'guest' }: VoiceCommandHostProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <>
