@@ -55,6 +55,10 @@ function fakePrisma() {
       update: vi.fn().mockResolvedValue(ROW),
       delete: vi.fn().mockResolvedValue(ROW),
     },
+    // Only the invite preview/join paths touch the user delegate.
+    user: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
   };
 }
 
@@ -374,7 +378,7 @@ describe('PUT /contact-groups/:id', () => {
     expect(res.statusCode).toBe(200);
     // ROW holds two members; the editor always holds the whole list, so a merge
     // would make removing a member impossible.
-    expect(updatedData()).toEqual({ emails: ['new@example.com'] });
+    expect(updatedData()).toEqual({ emails: ['new@example.com'], adminEmails: [] });
   });
 
   it('clears the accent when sent null, and touches nothing else', async () => {
@@ -487,5 +491,280 @@ describe('DELETE /contact-groups/:id', () => {
     expect(res.statusCode).toBe(401);
     expect(prisma.contactGroup.findUnique).not.toHaveBeenCalled();
     expect(prisma.contactGroup.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /contact-groups/:id/admins (promote)', () => {
+  const owned = { ...ROW, adminEmails: [] as string[] };
+
+  it('promotes a member to admin, normalising the address', async () => {
+    const app = await buildApp();
+    prisma.contactGroup.findUnique.mockResolvedValue(owned);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/contact-groups/g1/admins',
+      payload: { email: 'Ada@Example.com' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(updatedData().adminEmails).toEqual(['ada@example.com']);
+  });
+
+  it('is idempotent: promoting an admin again keeps one entry', async () => {
+    const app = await buildApp();
+    prisma.contactGroup.findUnique.mockResolvedValue({ ...owned, adminEmails: ['ada@example.com'] });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/contact-groups/g1/admins',
+      payload: { email: 'ada@example.com' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(updatedData().adminEmails).toEqual(['ada@example.com']);
+  });
+
+  it('400s a promote for an address that is not a member', async () => {
+    const app = await buildApp();
+    prisma.contactGroup.findUnique.mockResolvedValue(owned);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/contact-groups/g1/admins',
+      payload: { email: 'stranger@example.com' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('NOT_A_MEMBER');
+    expect(prisma.contactGroup.update).not.toHaveBeenCalled();
+  });
+
+  it('400s a malformed body instead of promoting nobody', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/contact-groups/g1/admins',
+      payload: { email: 'not-an-email' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(prisma.contactGroup.update).not.toHaveBeenCalled();
+  });
+
+  it("403s somebody else's group before touching roles", async () => {
+    const app = await buildApp();
+    prisma.contactGroup.findUnique.mockResolvedValue({ ...owned, userId: 'user-2' });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/contact-groups/g1/admins',
+      payload: { email: 'ada@example.com' },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(prisma.contactGroup.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('DELETE /contact-groups/:id/admins/:email (demote)', () => {
+  it('demotes an admin back to a plain member', async () => {
+    prisma.contactGroup.findUnique.mockResolvedValue({
+      ...ROW,
+      adminEmails: ['ada@example.com'],
+    });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/contact-groups/g1/admins/${encodeURIComponent('ada@example.com')}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(updatedData().adminEmails).toEqual([]);
+  });
+
+  it('400s a demote for an address that is not a member', async () => {
+    const app = await buildApp();
+    prisma.contactGroup.findUnique.mockResolvedValue({ ...ROW, adminEmails: [] });
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/contact-groups/g1/admins/${encodeURIComponent('stranger@example.com')}`,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('NOT_A_MEMBER');
+  });
+});
+
+describe('DELETE /contact-groups/:id/members/:email (remove member)', () => {
+  it('removes the member and strips their admin role with them', async () => {
+    prisma.contactGroup.findUnique.mockResolvedValue({
+      ...ROW,
+      adminEmails: ['ada@example.com'],
+    });
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/contact-groups/g1/members/${encodeURIComponent('ada@example.com')}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const data = updatedData();
+    expect(data.emails).toEqual(['grace@example.com']);
+    // An admin badge on a non-member would be a lie the modal renders.
+    expect(data.adminEmails).toEqual([]);
+  });
+
+  it('404s removing an address that is not a member', async () => {
+    const app = await buildApp();
+    prisma.contactGroup.findUnique.mockResolvedValue({ ...ROW, adminEmails: [] });
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/contact-groups/g1/members/${encodeURIComponent('stranger@example.com')}`,
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(prisma.contactGroup.update).not.toHaveBeenCalled();
+  });
+
+  it('401s an unauthenticated removal', async () => {
+    const app = await buildApp(null);
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/contact-groups/g1/members/${encodeURIComponent('ada@example.com')}`,
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(prisma.contactGroup.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('contact group invite links', () => {
+  const owned = { ...ROW, adminEmails: [] as string[], inviteToken: null };
+
+  it('creates a join link: 201 with a /groups/join/ URL', async () => {
+    const app = await buildApp();
+    prisma.contactGroup.findUnique.mockResolvedValue(owned);
+    const res = await app.inject({ method: 'POST', url: '/contact-groups/g1/invite-link' });
+
+    expect(res.statusCode).toBe(201);
+    const data = res.json().data;
+    expect(typeof data.token).toBe('string');
+    expect(data.token.length).toBeGreaterThan(16);
+    expect(data.inviteUrl).toContain(`/groups/join/${data.token}`);
+    const written = updatedData();
+    expect(written.inviteToken).toBe(data.token);
+    expect(written.inviteTokenCreatedAt).toBeInstanceOf(Date);
+  });
+
+  it('regenerating replaces the token, invalidating the old link', async () => {
+    const app = await buildApp();
+    prisma.contactGroup.findUnique.mockResolvedValue({ ...owned, inviteToken: 'old-token' });
+    const res = await app.inject({ method: 'POST', url: '/contact-groups/g1/invite-link' });
+
+    expect(res.statusCode).toBe(201);
+    const data = res.json().data;
+    expect(data.token).not.toBe('old-token');
+  });
+
+  it('GET returns the active link, null when there is none', async () => {
+    const app = await buildApp();
+    prisma.contactGroup.findUnique.mockResolvedValue({ ...owned, inviteToken: 'tok-1' });
+    const res = await app.inject({ method: 'GET', url: '/contact-groups/g1/invite-link' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.inviteUrl).toContain('/groups/join/tok-1');
+
+    prisma.contactGroup.findUnique.mockResolvedValue(owned);
+    const res2 = await app.inject({ method: 'GET', url: '/contact-groups/g1/invite-link' });
+    expect(res2.statusCode).toBe(200);
+    expect(res2.json().data).toBeNull();
+  });
+
+  it('revoking clears the token rather than expiring it', async () => {
+    const app = await buildApp();
+    prisma.contactGroup.findUnique.mockResolvedValue({ ...owned, inviteToken: 'tok-1' });
+    const res = await app.inject({ method: 'DELETE', url: '/contact-groups/g1/invite-link' });
+
+    expect(res.statusCode).toBe(200);
+    const written = updatedData();
+    expect(written.inviteToken).toBeNull();
+    expect(written.inviteTokenCreatedAt).toBeNull();
+  });
+
+  it('preview is public and leaks no member addresses', async () => {
+    const app = await buildApp(null);
+    prisma.contactGroup.findFirst.mockResolvedValue({ ...owned, inviteToken: 'tok-1' });
+    prisma.user.findUnique.mockResolvedValue({ displayName: 'Ada L.', email: 'ada@example.com' });
+    const res = await app.inject({ method: 'GET', url: '/contact-groups/invite/tok-1' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toEqual({
+      groupName: 'Family',
+      memberCount: 2,
+      ownerName: 'Ada L.',
+    });
+  });
+
+  it('preview 404s an unknown token without confirming anything else', async () => {
+    const app = await buildApp(null);
+    prisma.contactGroup.findFirst.mockResolvedValue(null);
+    const res = await app.inject({ method: 'GET', url: '/contact-groups/invite/nope' });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error.code).toBe('INVITE_NOT_FOUND');
+  });
+
+  it('join adds the signed-in user address, idempotently', async () => {
+    const app = await buildApp();
+    prisma.contactGroup.findFirst.mockResolvedValue({ ...owned, inviteToken: 'tok-1' });
+    prisma.user.findUnique.mockResolvedValue({ email: 'Joiner@Example.com' });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/contact-groups/join',
+      payload: { token: 'tok-1' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(updatedData().emails).toEqual([
+      'ada@example.com',
+      'grace@example.com',
+      'joiner@example.com',
+    ]);
+  });
+
+  it('join is a no-op when the address is already a member', async () => {
+    const app = await buildApp();
+    prisma.contactGroup.findFirst.mockResolvedValue({ ...owned, inviteToken: 'tok-1' });
+    prisma.user.findUnique.mockResolvedValue({ email: 'ada@example.com' });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/contact-groups/join',
+      payload: { token: 'tok-1' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(prisma.contactGroup.update).not.toHaveBeenCalled();
+  });
+
+  it('join 404s an unknown token', async () => {
+    const app = await buildApp();
+    prisma.contactGroup.findFirst.mockResolvedValue(null);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/contact-groups/join',
+      payload: { token: 'nope' },
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(prisma.contactGroup.update).not.toHaveBeenCalled();
+  });
+
+  it('join 401s an unauthenticated caller', async () => {
+    const app = await buildApp(null);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/contact-groups/join',
+      payload: { token: 'tok-1' },
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(prisma.contactGroup.update).not.toHaveBeenCalled();
   });
 });

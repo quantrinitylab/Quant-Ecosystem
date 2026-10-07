@@ -101,3 +101,146 @@ export function useDeleteContactGroup() {
     },
   });
 }
+
+/**
+ * Admin roles and member management, shown in the group info modal's Members
+ * tab. Every one of these is owner-gated server-side (the owner is the
+ * group's implicit admin), so a 403 here means the caller is not the owner —
+ * the modal only ever opens on the owner's own groups.
+ */
+export function usePromoteGroupAdmin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, email }: { id: string; email: string }) => {
+      const response = await apiClient.promoteGroupAdmin(id, email);
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to promote admin');
+      }
+      return response.data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: GROUPS_KEY });
+    },
+  });
+}
+
+export function useDemoteGroupAdmin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, email }: { id: string; email: string }) => {
+      const response = await apiClient.demoteGroupAdmin(id, email);
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to demote admin');
+      }
+      return response.data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: GROUPS_KEY });
+    },
+  });
+}
+
+export function useRemoveGroupMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, email }: { id: string; email: string }) => {
+      const response = await apiClient.removeGroupMember(id, email);
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to remove member');
+      }
+      return response.data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: GROUPS_KEY });
+    },
+  });
+}
+
+/**
+ * The group's active join link, if one exists. Queried (not derived from the
+ * group row) so Generate/Revoke in the modal always shows the live token.
+ */
+export function useGroupInviteLink(groupId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: [...GROUPS_KEY, groupId, 'invite-link'] as const,
+    enabled: enabled && Boolean(groupId),
+    queryFn: async () => {
+      const response = await apiClient.getGroupInviteLink(groupId as string);
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to load invite link');
+      }
+      return response.data ?? null;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useCreateGroupInviteLink() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.createGroupInviteLink(id);
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to create invite link');
+      }
+      return response.data!;
+    },
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: [...GROUPS_KEY, id, 'invite-link'] });
+      queryClient.invalidateQueries({ queryKey: GROUPS_KEY });
+    },
+  });
+}
+
+export function useRevokeGroupInviteLink() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.revokeGroupInviteLink(id);
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to revoke invite link');
+      }
+      return response.data!;
+    },
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: [...GROUPS_KEY, id, 'invite-link'] });
+      queryClient.invalidateQueries({ queryKey: GROUPS_KEY });
+    },
+  });
+}
+
+/**
+ * Public preview of a join link — what the join page shows before the visitor
+ * signs in. Follows the workspace `useInvitePreview` shape: same `unwrap`
+ * failure message becomes the ErrorState copy.
+ */
+export function useGroupInvitePreview(token: string | undefined) {
+  return useQuery({
+    queryKey: ['group-invite', token],
+    enabled: Boolean(token),
+    retry: false,
+    queryFn: async () => {
+      const response = await apiClient.getGroupInvitePreview(token as string);
+      if (!response.success) {
+        throw new Error(response.error?.message || 'This invite link is not valid.');
+      }
+      return response.data!;
+    },
+  });
+}
+
+export function useJoinGroupByInvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (token: string) => {
+      const response = await apiClient.joinGroupByInvite(token);
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Could not join the group.');
+      }
+      return response.data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: GROUPS_KEY });
+    },
+  });
+}

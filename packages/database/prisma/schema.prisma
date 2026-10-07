@@ -1880,6 +1880,21 @@ model ContactGroup {
   /// last member must not delete it out from under the user.
   emails String[] @default([])
 
+  /// Member addresses the owner has promoted to admin. A subset of `emails`
+  /// (the service keeps it that way on every write): admins are the members
+  /// who may manage the group — promote/demote others and remove members.
+  /// The owner (`userId`) is always an admin implicitly and is never listed
+  /// here.
+  adminEmails String[] @default([])
+
+  /// Active invite token for the group's join link. Null while no link has
+  /// been created or after it was revoked; regenerating replaces it, which
+  /// invalidates every copy of the old link.
+  inviteToken String? @unique
+
+  /// When the current invite token was issued, for the UI's "created" label.
+  inviteTokenCreatedAt DateTime?
+
   /// Optional accent for the group's chip, `#rrggbb`. Null is not "unset" so
   /// much as a real choice the editor offers first: the chip then paints brand
   /// orange, which is what an accentless chip has always looked like.
