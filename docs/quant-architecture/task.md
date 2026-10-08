@@ -1699,10 +1699,22 @@ Required: make recursive trash use an authoritative hierarchy traversal that can
 
 The invariant must be explicit: after successful folder trash, every owned descendant reachable through parentId from the selected root at the operation snapshot is deleted and carries the same trashRootId; no reachable descendant may remain active. Restore and purge must operate on exactly the same authoritative trash root, and no active descendant may be accidentally restored or purged from another operation.
 
-Tests: construct trees at depths 29, 30, 31, 100 and beyond; assert every descendant is trashed; inject traversal/database failures and assert no false success; cycle/corrupt-parent fixtures; concurrent child creation/move; nested folder selections; repeated trash requests; restore after deep trash; and purge after deep trash. Add a regression test proving the previous 30-level cap cannot silently leave an active descendant.
+## QM-SCREEN-060 — QuantMail email share links must be server-authoritative, not locally fabricated
 
-Scope: `apps/quantmail/backend/routes/drive.ts` `folderTree()` and `POST /drive/files/trash`; Drive folder hierarchy service; trash/restore operation state if asynchronous; Prisma folder/file transactions; backend integration tests; Web/Flutter trash UI state for pending/failure outcomes.
+Status: [ ] TODO
 
-Dependencies: QM-SCREEN-046; QM-SCREEN-048; existing Drive trash/restore contract.
+Finding: the live apps/quantmail/src/components/EmailShareLink.tsx presents a production-looking Share workflow for email threads, but generateLink() never calls a backend endpoint. It locally constructs a URL using the email ID, selected expiry and Math.random() signature. The source comment itself says that production should call the backend to generate a signed, time-limited URL, but the current implementation is only a client-side fake token.
 
-Validation: source audit on 2026-10-08 against `main` verified `folderTree()` stops when `depth < MAX_DEPTH` with `MAX_DEPTH = 30`, returns the visited IDs without a truncation/error signal, and `POST /drive/files/trash` uses that result directly for its soft-delete transaction before returning `{ ok: true }`.
+The UI then tells the user "Anyone with this link can view the email for the chosen duration" even though the inspected repository contains no corresponding QuantMail backend share-link creation/validation contract for this /shared/:emailId URL. The repository search found the /shared/ string in this component but no authoritative email-share route implementing the claimed signed link flow. Therefore the displayed expiry and signature are not security controls, and the generated URL must not be treated as an access grant.
+
+This is distinct from QuantDrive public-link tasks QM-SCREEN-039/044/049: those concern the Drive driveShare object/link lifecycle. This task concerns the separate QuantMail email-thread sharing UI and its /shared/:emailId URL scheme.
+
+Required: either remove/disable the Email Share Link surface until the backend contract exists, or implement a canonical server-owned email-share resource. The server must authorize the source email/thread owner or otherwise permitted actor, generate an unpredictable high-entropy token, bind it to the exact resource/scope and recipient/audience policy, persist expiry/revocation state, and enforce the token on every public/shared read. The share URL must never derive authorization from an email ID plus client-controlled exp/sig query parameters. Define whether sharing one message exposes only that message or the complete conversation, including attachments, inline content, headers, recipient identities and linked resources; enforce that scope server-side.
+
+The creation response must be authoritative and idempotent where appropriate, and the UI must show loading/success/failure only after server confirmation. Add revoke/list-active-share support if the product promises ongoing management, plus audit events for creation/access/revocation without logging the bearer token. Apply rate limits, abuse controls and privacy protections to public access; prevent enumeration of email IDs; use a cryptographically secure token and constant-time verification where applicable. Add tests for forged/modified expiry, random signature substitution, expired/revoked links, unauthorized source users, cross-account email IDs, attachment exposure, conversation-scope leakage, repeated generation, concurrent revocation/access and token leakage in logs/referrers.
+
+Scope: apps/quantmail/src/components/EmailShareLink.tsx; QuantMail shared-email route/page; backend email-share service/schema; authorization/token/expiry/revocation; audit/rate-limit controls; Web/Flutter parity if the feature is retained; security and integration tests.
+
+Dependencies: QM-BACK-003; QM-BACK-004; QuantMail authorization/privacy architecture.
+
+Validation: source audit on 2026-10-08 against main verified EmailShareLink.generateLink() constructs the share URL entirely in the browser with Math.random(), stores it only in local React state, and contains an explicit comment that the production implementation should call the backend. Repository search for the /shared/ path found this component but no inspected authoritative email-share creation/validation endpoint. No remediation implementation claim yet.
