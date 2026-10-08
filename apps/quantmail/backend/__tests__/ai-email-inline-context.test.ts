@@ -147,9 +147,10 @@ describe('AIEmailService QM-QUANTY-002 wiring', () => {
       expect(result.provenance.sourceCount).toBe(1);
       expect(result.cost.meter).toBe('ai.tokens');
       // Existing behavior preserved: summary is cached on the email.
+      // QM-BACK-002: system writes also bump the version column.
       expect(prisma.email.update).toHaveBeenCalledWith({
         where: { id: 'email-1' },
-        data: { aiSummary: 'Launch Friday.' },
+        data: { aiSummary: 'Launch Friday.', version: { increment: 1 } },
       });
     });
   });
