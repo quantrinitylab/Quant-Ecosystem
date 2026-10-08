@@ -481,7 +481,7 @@ export default function PublicBookingPage(props: PageProps) {
   return (
     <div className="min-h-screen bg-[var(--quant-background)] text-[var(--quant-foreground)] font-sans flex flex-col justify-between selection:bg-[var(--quant-primary)]/30 selection:text-white">
       {/* Top Brand Bar */}
-      <header className="border-b border-[var(--quant-surface-elevated)]/60 bg-[#0c0c0f]/80 backdrop-blur-md px-6 py-4 flex items-center justify-between">
+      <header className="border-b border-[var(--quant-surface-elevated)]/60 bg-black/80 backdrop-blur-md px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="size-8 rounded-xl bg-gradient-to-tr from-[var(--quant-primary)] to-[#FFB076] flex items-center justify-center text-[var(--quant-background)] font-black text-sm shadow-md shadow-[var(--quant-primary)]/20">
             Q
@@ -956,7 +956,7 @@ export default function PublicBookingPage(props: PageProps) {
       </main>
 
       {/* Footer */}
-      <footer className="py-4 text-center text-xs text-[#5E6472] border-t border-[var(--quant-surface-elevated)]/60 bg-[#0c0c0f]">
+      <footer className="py-4 text-center text-xs text-[#5E6472] border-t border-[var(--quant-surface-elevated)]/60 bg-black">
         QuantCalendar • Sovereign Scheduling Platform • Zero Ads
       </footer>
     </div>

@@ -854,7 +854,7 @@ export default function SettingsPage() {
                               className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
                                 isSelected
                                   ? 'bg-[var(--brand-primary)] text-[#111111]'
-                                  : 'border border-[var(--quant-border-strong)] bg-[var(--quant-border)] text-[var(--quant-muted-foreground)]'
+                                  : 'border border-[var(--quant-border-strong)] bg-white/[0.06] text-[var(--quant-muted-foreground)]'
                               }`}
                             >
                               {model.badge}
@@ -967,7 +967,7 @@ export default function SettingsPage() {
                 action={
                   <Link
                     href="/settings/account"
-                    className="rounded-md border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-2.5 py-1 text-[11px] font-semibold text-[var(--quant-foreground)] hover:bg-[var(--quant-border)] transition-colors"
+                    className="rounded-md border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-2.5 py-1 text-[11px] font-semibold text-[var(--quant-foreground)] hover:bg-white/[0.08] transition-colors"
                   >
                     Manage Account
                   </Link>

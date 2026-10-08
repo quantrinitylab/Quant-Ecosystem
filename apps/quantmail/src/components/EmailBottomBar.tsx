@@ -8,7 +8,7 @@ export interface EmailBottomBarProps {
 
 export function EmailBottomBar({ onReply, onForward, onEmoji }: EmailBottomBarProps) {
   return (
-    <div className="sticky bottom-0 z-20 flex items-center justify-between gap-3 px-4 sm:px-6 py-3 border-t border-[var(--quant-surface-elevated)] bg-[#0c1017]/95 backdrop-blur-xl shadow-2xl">
+    <div className="sticky bottom-0 z-20 flex items-center justify-between gap-3 px-4 sm:px-6 py-3 border-t border-[var(--quant-surface-elevated)] bg-black/95 backdrop-blur-xl shadow-2xl">
       <div className="flex items-center gap-2.5">
         <button
           type="button"

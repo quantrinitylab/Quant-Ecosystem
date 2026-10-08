@@ -664,7 +664,7 @@ export default function ContactsPage() {
             {/* ------------------------------------------------------------ */}
             {/* LEFT PANE: 360px Width, Sticky Scrollable Contact List       */}
             {/* ------------------------------------------------------------ */}
-            <div className="w-full md:w-[360px] md:min-w-[360px] md:max-w-[360px] shrink-0 border-r border-[#232938] flex flex-col h-full bg-[#0C0E14] relative z-10">
+            <div className="w-full md:w-[360px] md:min-w-[360px] md:max-w-[360px] shrink-0 border-r border-[#232938] flex flex-col h-full bg-black relative z-10">
               {/* Left Pane Top Controls */}
               <div className="p-3 border-b border-[#232938] bg-[#0E1118] space-y-2.5 shrink-0">
                 {/* Search Bar with Icon */}
@@ -882,7 +882,7 @@ export default function ContactsPage() {
                     <div className="space-y-4">
                       {groupedContacts.map((group) => (
                         <div key={group.letter} id={`letter-${group.letter}`} className="space-y-1">
-                          <div className="sticky top-0 z-10 bg-[#0C0E14]/95 backdrop-blur-sm px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[var(--quant-primary)] border-b border-[#1E2536]">
+                          <div className="sticky top-0 z-10 bg-black/95 backdrop-blur-sm px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[var(--quant-primary)] border-b border-[#1E2536]">
                             {group.letter} ({group.contacts.length})
                           </div>
 

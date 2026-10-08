@@ -301,7 +301,7 @@ export function CalendarHeader({
   }, [now]);
 
   return (
-    <header className="border-b border-[var(--quant-surface-elevated)]/80 bg-[#0c0c0f]">
+    <header className="border-b border-[var(--quant-surface-elevated)]/80 bg-black">
       {/* ======================================================================
           Desktop Header Toolbar (Clean 1-row layout)
           ====================================================================== */}

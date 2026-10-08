@@ -48,27 +48,29 @@
   --brand-app-color: #FF8C42;
   --app-color: #FF8C42;
 
-  /* Official Dark Foundation Tokens */
+  /* Official Dark Foundation Tokens — QM-UIUX-072 pure-black law (2026-10-09):
+     every surface is pure black, zero visible borders/dividers. Hierarchy
+     comes from typography + spacing only. */
   --quant-primary: var(--brand-primary);
   --quant-primary-hover: var(--brand-primary-hover);
   --quant-secondary: #22C55E;
-  --quant-background: #090A0C;
+  --quant-background: #000000;
   --quant-foreground: #F5F5F5;
-  --quant-surface: #111318;
-  --quant-surface-elevated: #16181D;
-  --quant-surface-subtle: #0D0F12;
-  --quant-surface-hover: rgba(255, 255, 255, 0.04);
-  --quant-muted: #16181D;
+  --quant-surface: #000000;
+  --quant-surface-elevated: #000000;
+  --quant-surface-subtle: #000000;
+  --quant-surface-hover: rgba(255, 255, 255, 0.06);
+  --quant-muted: #000000;
   --quant-muted-foreground: #A1A4AC;
   --quant-text-muted: #6B6E76;
-  --quant-border: rgba(255, 255, 255, 0.08);
-  --quant-border-subtle: rgba(255, 255, 255, 0.05);
-  --quant-border-strong: rgba(255, 255, 255, 0.14);
+  --quant-border: transparent;
+  --quant-border-subtle: transparent;
+  --quant-border-strong: transparent;
   --quant-ring: #FF8C42;
   --quant-radius: 0.5rem;
-  --quant-card: #111318;
+  --quant-card: #000000;
   --quant-card-foreground: #F5F5F5;
-  --quant-popover: #16181D;
+  --quant-popover: #000000;
   --quant-popover-foreground: #F5F5F5;
   --quant-destructive: #EF4444;
   --quant-destructive-foreground: #FFFFFF;
@@ -112,24 +114,24 @@
 
 .dark,
 :root[data-theme='dark'] {
-  --quant-background: #090A0C;
+  --quant-background: #000000;
   --quant-foreground: #F5F5F5;
-  --quant-surface: #111318;
-  --quant-surface-elevated: #16181D;
-  --quant-surface-subtle: #0D0F12;
-  --quant-surface-hover: rgba(255, 255, 255, 0.04);
-  --quant-muted: #16181D;
+  --quant-surface: #000000;
+  --quant-surface-elevated: #000000;
+  --quant-surface-subtle: #000000;
+  --quant-surface-hover: rgba(255, 255, 255, 0.06);
+  --quant-muted: #000000;
   --quant-muted-foreground: #A1A4AC;
   --quant-text-muted: #6B6E76;
-  --quant-border: rgba(255, 255, 255, 0.08);
-  --quant-border-subtle: rgba(255, 255, 255, 0.05);
-  --quant-border-strong: rgba(255, 255, 255, 0.14);
+  --quant-border: transparent;
+  --quant-border-subtle: transparent;
+  --quant-border-strong: transparent;
   --brand-soft: rgba(255, 140, 66, 0.12);
   --brand-soft-border: rgba(255, 140, 66, 0.28);
   --brand-subtle: rgba(255, 140, 66, 0.05);
-  --quant-card: #111318;
+  --quant-card: #000000;
   --quant-card-foreground: #F5F5F5;
-  --quant-popover: #16181D;
+  --quant-popover: #000000;
   --quant-popover-foreground: #F5F5F5;
   --quant-ring: #FF8C42;
   --quant-destructive: #EF4444;
@@ -140,25 +142,28 @@
 }
 
 /*
- * Desktop Gmail-style whole dark theme (user decision 2026-10-07).
- * Pure black backgrounds, no visible divider lines — spacing and subtle
- * background shifts carry the hierarchy instead of borders, exactly like
- * Gmail's dark mode. Scoped to desktop (min-width: 900px) so the mobile
- * theme is untouched.
+ * Pure-black law (QM-UIUX-072, user decision 2026-10-09, Gmail mobile dark
+ * reference). Supersedes the 2026-10-07 desktop-only override: on EVERY
+ * viewport, in dark theme, every surface is pure black and NO
+ * border or divider line is visible anywhere. Visual hierarchy comes from
+ * typography scale and spacing only — never from lines.
+ *
+ * Implementation:
+ * - Border *widths* are preserved, so there is zero layout shift; only the
+ *   ink is removed (border-color: transparent). This single rule neutralizes
+ *   every Tailwind `border-*` / `divide-*` and every `<hr>` in the app, because
+ *   unlayered author CSS beats Tailwind's `@layer utilities`.
+ * - Token borders (--quant-border*) are already transparent above, so plain
+ *   CSS using `border: 1px solid var(--quant-border)` is covered too.
+ * - Exceptions are usability, not decoration:
+ *     input/textarea/select keep their borders (form affordance);
+ *     [class*='animate-spin'] keeps the two-tone spinner borders;
+ *     .composer-drop-message keeps its dashed drop-target outline.
+ * - Keyboard focus rings use outline / box-shadow (ring-*) and are untouched.
  */
-@media (min-width: 900px) {
-  :root[data-theme='dark'] {
-    --quant-background: #000000;
-    --quant-surface: #000000;
-    --quant-surface-elevated: #0a0a0a;
-    --quant-surface-subtle: #000000;
-    --quant-card: #0a0a0a;
-    --quant-popover: #0a0a0a;
-    --quant-muted: #0a0a0a;
-    --quant-border: transparent;
-    --quant-border-subtle: transparent;
-    --quant-border-strong: rgba(255, 255, 255, 0.08);
-  }
+:root[data-theme='dark'] :not(input):not(textarea):not(select):not([class*='animate-spin']):not(.composer-drop-message),
+.dark :not(input):not(textarea):not(select):not([class*='animate-spin']):not(.composer-drop-message) {
+  border-color: transparent;
 }
 
 :root[data-theme='light'] {
@@ -824,21 +829,21 @@ html {
   --app-color: #FF8C42;
   --quant-primary: #FF8C42;
   --quant-secondary: #138808;
-  --quant-background: #090A0C;
+  --quant-background: #000000;
   --quant-foreground: #F5F5F5;
-  --quant-surface: #111318;
-  --quant-surface-elevated: #16181D;
-  --quant-surface-subtle: #0C0E11;
-  --quant-surface-hover: #1C1F26;
-  --quant-muted: #1F2228;
+  --quant-surface: #000000;
+  --quant-surface-elevated: #000000;
+  --quant-surface-subtle: #000000;
+  --quant-surface-hover: rgba(255, 255, 255, 0.06);
+  --quant-muted: #000000;
   --quant-muted-foreground: #A1A4AC;
-  --quant-border: #282C35;
-  --quant-border-subtle: rgba(255, 255, 255, 0.07);
-  --quant-border-strong: rgba(255, 255, 255, 0.15);
+  --quant-border: transparent;
+  --quant-border-subtle: transparent;
+  --quant-border-strong: transparent;
   --quant-ring: #FF8C42;
-  --quant-card: #111318;
+  --quant-card: #000000;
   --quant-card-foreground: #F5F5F5;
-  --quant-popover: #16181D;
+  --quant-popover: #000000;
   --quant-popover-foreground: #F5F5F5;
   --quant-success: #22C55E;
   --quant-warning: #F59E0B;
@@ -900,6 +905,11 @@ body {
     radial-gradient(circle at 82% -10%, color-mix(in srgb, var(--quant-primary) 8%, transparent), transparent 32rem),
     var(--quant-background);
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+/* QM-UIUX-072 pure-black law: dark theme body is pure black — no ambient glow. */
+:root[data-theme='dark'] body,
+.dark body {
+  background: var(--quant-background);
 }
 ::selection { background: color-mix(in srgb, var(--quant-primary) 32%, transparent); color: var(--quant-foreground); }
 
@@ -1012,8 +1022,8 @@ body {
 .hero-compose-chat { background: transparent; color: #FFB974; border-color: rgba(255, 185, 116, 0.45); box-shadow: none; }
 .hero-compose-chat:hover { background: rgba(255, 140, 66, 0.12); }
 .inbox-search-wrap { padding: 0.25rem 1.25rem 0.8rem; }
-.inbox-search { display: flex; height: 2.8rem; align-items: center; gap: 0.65rem; border: 1px solid var(--quant-border); border-radius: 0.72rem; padding: 0 0.75rem; background: var(--quant-surface); color: #A1A4AC; box-shadow: inset 0 1px rgba(255, 255, 255, 0.025); transition: border-color 150ms ease, box-shadow 150ms ease; }
-.inbox-search:focus-within { border-color: rgba(255, 140, 66, 0.48); box-shadow: 0 0 0 3px var(--quant-accent-faint); }
+.inbox-search { display: flex; height: 2.8rem; align-items: center; gap: 0.65rem; border: 1px solid transparent; border-radius: 0.72rem; padding: 0 0.75rem; background: rgba(255, 255, 255, 0.06); color: #A1A4AC; box-shadow: none; transition: background 150ms ease, box-shadow 150ms ease; }
+.inbox-search:focus-within { border-color: transparent; background: rgba(255, 255, 255, 0.09); box-shadow: 0 0 0 3px var(--quant-accent-faint); }
 .inbox-search input { min-width: 0; flex: 1; outline: none; background: transparent; color: var(--quant-foreground); font-size: 0.76rem; }
 .inbox-search input::placeholder { color: #A1A4AC; }
 .inbox-search kbd, .reading-shortcuts kbd { border: 1px solid #3A404D; border-radius: 0.3rem; padding: 0.08rem 0.34rem; background: var(--quant-surface-elevated); color: #C6C8CE; font-size: 0.6875rem; box-shadow: inset 0 -1px rgba(0, 0, 0, 0.4); }
@@ -1041,12 +1051,12 @@ body {
 .mail-row-shell { position: relative; overflow: hidden; border-radius: 0.72rem; }
 .mail-row { position: relative; display: flex; min-height: 4.85rem; align-items: center; gap: 0.7rem; border: 1px solid transparent; border-radius: 0.72rem; padding: 0.65rem 0.65rem; background: var(--quant-surface-subtle); cursor: pointer; transition: background 130ms ease, border-color 130ms ease; }
 /*
- * Subtle divider between rows (P1-D chat feel): each row's own bottom edge
- * doubles as the hairline — Gmail/WhatsApp read as one list, not floating
- * cards. Hover/active keep their full borders, which override this.
+ * QM-UIUX-072 pure-black law: NO divider between rows — not even a hairline.
+ * Row separation comes from list spacing, not lines (Gmail mobile dark).
+ * Hover/active keep a near-black lift so functional signals survive.
  */
-.mail-row { border-bottom-color: rgba(255,255,255,0.055); }
-.mail-row:hover { border-color: #2d2d30; background: var(--quant-surface); }
+.mail-row { border-bottom-color: transparent; }
+.mail-row:hover { border-color: transparent; background: var(--quant-surface); }
 /*
  * Desktop (md+, 768px): deep black, no divider lines (explicit user requirement).
  * Row separation comes from list spacing, not hairlines. Unread/active keep a
@@ -1095,7 +1105,7 @@ body {
  * signal on a row and it belongs to unread; painting the open row orange too
  * meant two rows in the same list wore the same colour for unrelated reasons.
  */
-.mail-row.is-active { border-color: #3A404D; background: var(--quant-surface-elevated); }
+.mail-row.is-active { border-color: transparent; background: var(--quant-surface-elevated); }
 /*
  * Unread is carried by weight and surface: a lighter card than a read row, a
  * near-white name at 730, a near-white subject at 680, and the one orange dot on
