@@ -439,6 +439,29 @@ Commit SHA: d71c3148095946b378797b4992b45038a46bdf42
 Notes: this does not establish mailbox E2EE; cryptographic architecture remains governed by product/backend contracts.
 
 
+
+## QM-AUTH-014 — SSO must not bypass secure browser session boundary
+Status: [~] IN_PROGRESS
+Owner: Architecture/UI audit agent
+Branch: architecture/quant-company-system-v1
+Scope: packages/shared-ui/src/interconnection/UniversalSSOTokenBridge.ts; apps/quantmail/src/app/sso/SsoChooserContent.tsx; apps/quantmail/backend/routes/auth.ts; receiving-app SSO consumers.
+Finding: QuantMail already uses an HttpOnly refresh cookie and memory-scoped access token, but the SSO chooser/shared bridge serializes that bearer access token into URL parameters. The client-side handoff ticket is base64-encoded JSON, not a server-verifiable signature, and cannot provide single-use replay protection.
+Required: replace bearer-token URL handoff with a server-verifiable opaque/signed short-lived ticket bound to source, audience, nonce and return target; consume exactly once; destination reauthorizes and issues its own session; never treat client decoding as authentication.
+Validation: source audit confirmed secure cookie rotation in auth-session.ts and bearer URL construction in both SSO paths. No remediation implementation claim yet.
+Dependencies: QM-AUTH-009; ecosystem contract 20.
+
+## QM-AUTH-015 — Restrict SSO postMessage trust boundary
+Status: [ ] TODO
+Finding: UniversalSSOTokenBridge sends cross-window messages with targetOrigin='*' even though incoming origins are allowlisted. This creates an unnecessary exfiltration boundary for session events/payloads.
+Required: derive exact target origin from the registered app descriptor; reject unknown origins; never broadcast credentials through postMessage.
+Dependencies: QM-AUTH-014.
+
+## QM-AUTH-016 — Remove legacy bearer-token URL consumers across ecosystem
+Status: [ ] TODO
+Finding: QuantChat, QuantAI, QuantWave, QuantCooks, QuantGram, QuanTube, QuantMax and QuantAds contain URL-token capture/compatibility paths in addition to QuantMail's chooser.
+Required: migrate all consumers to the same one-time server handoff contract; keep temporary compatibility only behind an explicit deprecation boundary with telemetry and hard removal date.
+Dependencies: QM-AUTH-014.
+
 ## QM-PLAT-006 — QuantMail web/mobile implementation divergence audit
 Status: [ ] TODO
 Finding: repository contains a Next.js QuantMail surface and a separate Flutter QuantMail workspace. Their screen contracts must be reconciled before claiming all-platform completion.
