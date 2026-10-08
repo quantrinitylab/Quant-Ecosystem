@@ -74,13 +74,14 @@ describe('SmartInboxBackfillService', () => {
     expect(prisma.email.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ userId: 'user-1', aiCategory: null, id: { in: ['a'] } }),
-        data: { aiCategory: 'updates' },
+        // QM-BACK-002: system writes keep the version column truthful.
+        data: { aiCategory: 'updates', version: { increment: 1 } },
       }),
     );
     expect(prisma.email.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ userId: 'user-1', aiCategory: null, id: { in: ['b'] } }),
-        data: { aiCategory: 'promotions' },
+        data: { aiCategory: 'promotions', version: { increment: 1 } },
       }),
     );
     expect(result).toEqual({

@@ -1,5 +1,7 @@
 import type { PrismaClient, Email, EmailThread } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
+import type { MutationOptions } from '../lib/mutation-context';
+import { versionedUpdate, VersionedTx } from '../lib/optimistic-update';
 
 export interface PaginationOptions {
   page?: number;
@@ -165,6 +167,7 @@ export class ThreadService {
   async muteThread(
     threadId: string,
     userId: string,
+    opts?: MutationOptions,
   ): Promise<EmailThread & { preferences: ThreadPreferences }> {
     const thread = await this.prisma.emailThread.findUnique({
       where: { id: threadId },
@@ -178,10 +181,18 @@ export class ThreadService {
       throw createAppError('Not authorized', 403, 'FORBIDDEN');
     }
 
-    const updated = await this.prisma.emailThread.update({
-      where: { id: threadId },
-      data: { isMuted: true },
-    });
+    // QM-BACK-002: atomic conditional update (VERSION_CONFLICT on races).
+    const updated = await versionedUpdate<EmailThread>(
+      this.prisma as unknown as VersionedTx,
+      {
+        id: threadId,
+        resource: 'EmailThread',
+        notFoundCode: 'THREAD_NOT_FOUND',
+        notFoundMessage: 'Thread not found',
+        expectedVersion: opts?.expectedVersion,
+        data: { isMuted: true },
+      },
+    );
 
     return { ...updated, preferences: ThreadService.toPreferences(updated) };
   }
@@ -192,6 +203,7 @@ export class ThreadService {
   async unmuteThread(
     threadId: string,
     userId: string,
+    opts?: MutationOptions,
   ): Promise<EmailThread & { preferences: ThreadPreferences }> {
     const thread = await this.prisma.emailThread.findUnique({
       where: { id: threadId },
@@ -205,10 +217,18 @@ export class ThreadService {
       throw createAppError('Not authorized', 403, 'FORBIDDEN');
     }
 
-    const updated = await this.prisma.emailThread.update({
-      where: { id: threadId },
-      data: { isMuted: false },
-    });
+    // QM-BACK-002: atomic conditional update (VERSION_CONFLICT on races).
+    const updated = await versionedUpdate<EmailThread>(
+      this.prisma as unknown as VersionedTx,
+      {
+        id: threadId,
+        resource: 'EmailThread',
+        notFoundCode: 'THREAD_NOT_FOUND',
+        notFoundMessage: 'Thread not found',
+        expectedVersion: opts?.expectedVersion,
+        data: { isMuted: false },
+      },
+    );
 
     return { ...updated, preferences: ThreadService.toPreferences(updated) };
   }
@@ -228,6 +248,7 @@ export class ThreadService {
   async markThreadRead(
     threadId: string,
     userId: string,
+    _opts?: MutationOptions,
   ): Promise<{ marked: number; readAt: string }> {
     const prisma = this.prisma as unknown as {
       email: {
@@ -260,7 +281,8 @@ export class ThreadService {
     if (unread.length > 0) {
       await prisma.email.updateMany({
         where: { id: { in: unread.map((u) => u.id) } },
-        data: { isRead: true, readAt: now },
+        // QM-BACK-002: keep the version column truthful on bulk writes.
+        data: { isRead: true, readAt: now, version: { increment: 1 } },
       });
     }
 
@@ -277,7 +299,8 @@ export class ThreadService {
           readAt: null,
           deletedAt: null,
         },
-        data: { readAt: now },
+        // QM-BACK-002: keep the version column truthful on bulk writes.
+        data: { readAt: now, version: { increment: 1 } },
       });
     }
 
@@ -292,6 +315,7 @@ export class ThreadService {
     threadId: string,
     userId: string,
     until: Date,
+    opts?: MutationOptions,
   ): Promise<EmailThread & { preferences: ThreadPreferences }> {
     const thread = await this.prisma.emailThread.findUnique({
       where: { id: threadId },
@@ -305,10 +329,18 @@ export class ThreadService {
       throw createAppError('Not authorized', 403, 'FORBIDDEN');
     }
 
-    const updated = await this.prisma.emailThread.update({
-      where: { id: threadId },
-      data: { snoozedUntil: until },
-    });
+    // QM-BACK-002: atomic conditional update (VERSION_CONFLICT on races).
+    const updated = await versionedUpdate<EmailThread>(
+      this.prisma as unknown as VersionedTx,
+      {
+        id: threadId,
+        resource: 'EmailThread',
+        notFoundCode: 'THREAD_NOT_FOUND',
+        notFoundMessage: 'Thread not found',
+        expectedVersion: opts?.expectedVersion,
+        data: { snoozedUntil: until },
+      },
+    );
 
     return { ...updated, preferences: ThreadService.toPreferences(updated) };
   }
@@ -383,6 +415,8 @@ export class ThreadService {
         lastEmailAt: nextLastEmailAt,
         participantAddresses: mergedParticipants,
         isRead: false,
+        // QM-BACK-002: keep the version column truthful on system writes.
+        version: { increment: 1 },
       },
     });
 

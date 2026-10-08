@@ -40,7 +40,8 @@ describe('EmailService.setCategory', () => {
         userId: 'user-1',
         deletedAt: null,
       },
-      data: { aiCategory: 'updates', updatedAt: expect.any(Date) },
+      // QM-BACK-002: batch writes keep the version column truthful.
+      data: { aiCategory: 'updates', updatedAt: expect.any(Date), version: { increment: 1 } },
     });
     expect(result.updated).toBe(2);
     expect(

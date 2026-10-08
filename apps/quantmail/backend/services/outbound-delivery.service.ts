@@ -239,6 +239,8 @@ export class OutboundDeliveryPipeline {
           data: {
             deliveryStatus: 'queued',
             ...(options.sentFolderId ? { folderId: options.sentFolderId } : {}),
+            // QM-BACK-002: keep the version column truthful on system writes.
+            version: { increment: 1 },
           } as never,
         });
 

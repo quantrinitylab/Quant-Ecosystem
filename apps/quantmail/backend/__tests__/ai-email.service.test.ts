@@ -64,7 +64,8 @@ describe('AIEmailService', () => {
       // Verify summary is stored
       expect(prisma.email.update).toHaveBeenCalledWith({
         where: { id: 'email-1' },
-        data: { aiSummary: 'Summary of weekly project updates with action items.' },
+        // QM-BACK-002: system writes keep the version column truthful.
+        data: { aiSummary: 'Summary of weekly project updates with action items.', version: { increment: 1 } },
       });
     });
 

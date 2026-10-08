@@ -562,6 +562,11 @@ model Email {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?
+  // QM-BACK-002: optimistic-concurrency version. Guarded mutations do an
+  // atomic conditional update (WHERE id AND version = :expected) and increment
+  // this column; a mismatch raises VERSION_CONFLICT (409). Existing rows start
+  // at 0; callers that pass no expectedVersion are unaffected.
+  version        Int           @default(0)
 
   user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   thread EmailThread? @relation(fields: [threadId], references: [id])
@@ -631,6 +636,8 @@ model EmailThread {
   lastEmailAt          DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
+  // QM-BACK-002: optimistic-concurrency version (see Email.version).
+  version              Int       @default(0)
 
   emails Email[]
 

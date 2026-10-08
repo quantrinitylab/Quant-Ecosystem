@@ -102,6 +102,27 @@ function createInMemoryPrisma() {
         emails.set(where.id, updated);
         return { ...updated };
       }),
+      // QM-BACK-002: versionedUpdate runs a conditional updateMany; the fake
+      // honours the version predicate and the { increment } marker.
+      updateMany: vi.fn().mockImplementation(async ({ where, data }: any) => {
+        let count = 0;
+        for (const [id, item] of emails) {
+          if (where.id !== undefined && id !== where.id) continue;
+          if (where.version !== undefined && (item.version ?? 0) !== where.version) continue;
+          const next: any = { ...item };
+          for (const [k, v] of Object.entries(data as Record<string, any>)) {
+            if (k === 'version' && typeof v === 'object' && v !== null && 'increment' in v) {
+              next.version = (item.version ?? 0) + (v as { increment: number }).increment;
+            } else {
+              next[k] = v;
+            }
+          }
+          next.updatedAt = new Date();
+          emails.set(id, next);
+          count++;
+        }
+        return { count };
+      }),
       delete: vi.fn().mockImplementation(async ({ where }: any) => {
         const existing = emails.get(where.id);
         emails.delete(where.id);

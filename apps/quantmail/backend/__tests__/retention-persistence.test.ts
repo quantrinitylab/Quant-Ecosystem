@@ -68,6 +68,8 @@ describe('Task W33-03: PostgreSQL Persistence Migration for Legal Holds', () => 
       email: {
         findUnique: vi.fn(),
         update: vi.fn(),
+        // QM-BACK-002: versionedUpdate's conditional updateMany.
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       emailFolder: {
         findFirst: vi.fn(),
@@ -297,14 +299,24 @@ describe('Task W33-03: PostgreSQL Persistence Migration for Legal Holds', () => 
         isTrash: false,
       });
       mockPrisma.emailFolder.findFirst.mockResolvedValue({ id: 'trash-folder-id' });
-      mockPrisma.email.update.mockResolvedValue({
-        id: 'regular-email',
-        userId: 'user-owner',
-        fromAddress: 'sender@quantmail.in',
-        toAddresses: ['receiver@quantmail.in'],
-        folderId: 'trash-folder-id',
-        isTrash: true,
-      });
+      // QM-BACK-002: the DELETE route trash-moves via versionedUpdate —
+      // ownership read, then the conditional update's re-read.
+      mockPrisma.email.findUnique
+        .mockResolvedValueOnce({
+          id: 'regular-email',
+          userId: 'user-owner',
+          fromAddress: 'sender@quantmail.in',
+          toAddresses: ['receiver@quantmail.in'],
+          isTrash: false,
+        })
+        .mockResolvedValueOnce({
+          id: 'regular-email',
+          userId: 'user-owner',
+          fromAddress: 'sender@quantmail.in',
+          toAddresses: ['receiver@quantmail.in'],
+          folderId: 'trash-folder-id',
+          isTrash: true,
+        });
 
       const app = await buildEmailApp(mockPrisma, 'user-owner');
 

@@ -175,7 +175,8 @@ describe('the first delivery records the key a redelivery is recognised by', () 
     expect(prisma.email.create).toHaveBeenCalledTimes(1);
     expect(prisma.email.update).toHaveBeenCalledWith({
       where: { id: stored.id },
-      data: { messageId: MESSAGE_ID },
+      // QM-BACK-002: system writes keep the version column truthful.
+      data: { messageId: MESSAGE_ID, version: { increment: 1 } },
     });
     // Read back through the double: this is the row a later lookup has to match.
     expect(prisma.rows).toEqual([expect.objectContaining({ userId: BOB, messageId: MESSAGE_ID })]);

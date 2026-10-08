@@ -76,6 +76,26 @@ function createTxPrisma(opts: { failOutbox?: boolean; recipients?: Row[] } = {})
         Object.assign(row, args.data);
         return row;
       },
+      // QM-BACK-002: versionedUpdate runs a conditional updateMany (+ version
+      // reads) inside the tx. The fake honours the version predicate and the
+      // { increment } marker so conflict/rollback semantics stay truthful.
+      findUnique: async (args: { where: { id: string } }) => emails.get(args.where.id) ?? null,
+      updateMany: async (args: { where: { id?: string; version?: number }; data: Row }) => {
+        let count = 0;
+        for (const [id, row] of emails) {
+          if (args.where.id !== undefined && id !== args.where.id) continue;
+          if (args.where.version !== undefined && (row['version'] ?? 0) !== args.where.version)
+            continue;
+          const data: Row = { ...args.data };
+          const bump = data['version'] as { increment?: number } | undefined;
+          if (bump && typeof bump === 'object' && typeof bump.increment === 'number') {
+            data['version'] = ((row['version'] as number) ?? 0) + bump.increment;
+          }
+          Object.assign(row, data);
+          count++;
+        }
+        return { count };
+      },
     },
     outboxEvent: {
       create: async (args: { data: Row }) => {
