@@ -195,8 +195,12 @@ export default function ComposePage() {
       // a list left marked fresh would paint without the message that was just sent.
       invalidateMailLists(queryClient);
 
+      // QM-UIUX-025: this toast lives for exactly the 10s recall window
+      // (`delayMs: 10000` above) — the message has NOT been sent yet while
+      // it is on screen, so it must not claim "Message sent". Say what is
+      // true: it is sending, and there are 10s to undo.
       showToast({
-        text: 'Message sent',
+        text: 'Sending… (10s to undo)',
         type: 'success',
         duration: 10000,
         countdown: 10,
