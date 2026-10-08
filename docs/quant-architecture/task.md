@@ -1486,13 +1486,15 @@ Scope: apps/quantmail drive page + files API.
 Dependencies: QM-M39-009.
 
 ## QM-M39-008 — Drive: activity/history view (screen 25)
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: Muse
 Branch: fix/qm-m39-008-activity-view
+PR: #669 (open, unmerged; commit a30b016e — backend event log + FileActivityModal + honest empty state + 31 tests)
 Finding: M39 screen 25 (activity/history) missing — no per-file event log surface exists.
 Required: backend event log for file actions (upload, rename, move, share change, version restore); UI timeline per file; honest empty state; no fake activity entries.
 Scope: apps/quantmail drive backend + drive page.
 Dependencies: none.
+Validation: 18/18 backend route tests pass (upload/rename/move/share add-update-revoke/version-restore events recorded with real payloads; no event for unchanged rename or no-op move; unowned files not logged; event-write failure never breaks the action; GET newest-first, honest empty list, 401/404/403, missing-migration degradation, limit cap 200); 13/13 frontend tests pass (truthful descriptions, honest empty state, timeline render); existing drive backend (61) + frontend (61) suites pass; ESLint 0 errors; tsc clean on changed files. Migration 0087_drive_file_activity_events ships in the PR — run at deploy time (code degrades gracefully without it).
 
 ## QM-M39-009 — Drive: security/scanning state surface (screen 29)
 Status: [~] IN_PROGRESS
