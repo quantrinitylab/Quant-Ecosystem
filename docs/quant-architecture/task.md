@@ -631,3 +631,31 @@ Status: [ ] TODO
 Finding: QuantGit UI constructs clone URLs and developer-facing identity from local username state, while the audited page contains seeded workspace sessions and product/tool names that resemble live infrastructure. The UI must not imply a repository, CI, MCP server, agent, deployment or model is available merely because a local state object names it.
 Required: backend-authoritative capability discovery, repository existence checks, signed/authorized clone endpoint generation, explicit unavailable states, and provenance for operational cards. Cross-app creator links must use typed resource references and reauthorization.
 Dependencies: QM-SCREEN-013; ecosystem resource/context contract.
+
+## QM-SCREEN-023 — QuantCalendar web reminders and contextual subviews must be source-of-truth backed
+Status: [ ] TODO
+Finding: the QuantMail Calendar UI contains a hard-coded reminder entry (for example, a static `rem-4` Booking Links task) inside `apps/quantmail/src/components/CalendarSubViews.tsx`. That violates the Calendar contract that events/tasks/reminders are durable domain state and risks presenting invented activity as the user's real schedule.
+Required: remove seeded production reminder/activity records; render loading/empty/error states from the canonical Calendar API; preserve reminder/task CRUD, pagination/range loading and optimistic/reconciliation behavior without hard-coded user entries. Test that an empty account renders empty state and that returned API records alone determine visible activity.
+Scope: apps/quantmail/src/components/CalendarSubViews.tsx; calendar hooks/API; Calendar tests.
+Dependencies: QM-SCREEN-008/009; QM-WORK-007.
+
+## QM-SCREEN-024 — QuantCalendar/QuantMeet handoff must use a real meeting resource contract
+Status: [ ] TODO
+Finding: the Calendar QuantMeet view exposes an `activeInstantMeeting` state and displays a constructed `https://quantmail.in/meet/{code}` URL. The screen must not imply a live meeting room merely because a local code exists. Calendar/QuantMeet ownership requires a real meeting resource, authorization, expiry and destination reauthorization.
+Required: replace local-only room generation with the canonical QuantMeet create/join capability; return a typed resource reference/deep link, verify meeting existence and permissions before displaying Join/Active state, handle expired/revoked rooms, and preserve Calendar↔QuantMeet event linkage.
+Scope: apps/quantmail/src/app/calendar/components/CalendarQuantMeetView.tsx; QuantMeet handoff/capability contracts; Calendar integration tests.
+Dependencies: QuantChat QuantMeet architecture; QM-SCREEN-019; QM-AUTH-009.
+
+## QM-SCREEN-025 — QuantMail Calendar platform parity must distinguish embedded Calendar from standalone QuantCalendar
+Status: [ ] TODO
+Finding: the repository contains both the QuantMail Flutter super-app surface and a standalone `flutter_apps/apps/quant_calendar` application. The web Calendar is substantially richer than the Flutter QuantMail surface, while the standalone Calendar has its own models/screens and tests. This creates a risk of two competing Calendar domain/presentation contracts.
+Required: define one Calendar domain/API/event contract and explicitly classify standalone QuantCalendar as a destination/embedded module; map each M08/M09 capability across Web, Tauri, Capacitor and Flutter QuantMail. Platform-specific UI is allowed, duplicated business rules are not. Record unsupported capabilities honestly rather than silently diverging.
+Scope: flutter_apps/apps/quant_mail; flutter_apps/apps/quant_calendar; apps/quantmail Calendar; Calendar architecture docs.
+Dependencies: QM-PLAT-006; QM-SCREEN-008/009; Calendar architecture.
+
+## QM-SCREEN-026 — QuantMail Calendar UI must eliminate misleading search-performance claims
+Status: [ ] TODO
+Finding: the shared QuantMail pillar header advertises `Search events, meetings, attendees… <5ms`, but the audited architecture requires authorization-aware retrieval and source hydration; no evidence establishes a universal sub-5ms SLA for Calendar search.
+Required: remove the absolute performance claim or replace it with an evidence-backed product promise. Search UX must expose loading/degraded states and server-authoritative results, with performance budgets measured separately from marketing copy.
+Scope: apps/quantmail/src/components/QuantPillarTopBar.tsx; Calendar search implementation/tests.
+Dependencies: QM-SCREEN-007/008; search architecture.
