@@ -1350,3 +1350,17 @@ Finding: QM-UIUX-057 deleted 3 dead realtime paths but `providers/RealtimeProvid
 Required: migrate all 6 consumers to the working `chat-socket` singleton, then delete RealtimeProvider. Do not break notification/presence/banner behavior.
 Scope: `apps/quantchat/src/`.
 Dependencies: QM-UIUX-057 (PR #654) merged first.
+
+## QM-UIUX-061 — Contacts: "AI Duplicate Contact Cleaner" wizard is theater
+Status: [ ] TODO
+Finding: `DedupWizardSubView` shows hardcoded "Detected Collision: Sundar Pichai" + fake "98% Match Confidence". Merge/Rescan buttons only flip local state — zero API calls. The real `ContactsDedupeModal` (real getContactDuplicates/merge APIs) exists but is bypassed. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/contacts-audit.md`.
+Required: delete the fake wizard and route the dedup tab to the real ContactsDedupeModal, or wire the wizard to real APIs.
+Scope: Contacts views.
+Dependencies: none.
+
+## QM-UIUX-062 — Contacts: "Enterprise Circles" hardcoded
+Status: [ ] TODO
+Finding: `CirclesSubView` renders 3 fake circles with hardcoded counts (4/8/3) and fake member names ('Core 1', 'Core 2', 'Astra AI'); broadcast falls back to fake exec_board@quantrinity.in. Shown when user has no real groups. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/contacts-audit.md`.
+Required: remove fake circles; show honest empty state when user has no real groups.
+Scope: Contacts views.
+Dependencies: none.
