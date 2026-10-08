@@ -2,7 +2,6 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import type { PrismaClient, Prisma } from '@quant/database';
 import { createAppError, enableIdempotency } from '@quant/server-core';
-import { CrossAppDispatcher } from '@quant/notifications';
 import { EmailService, toMessageKind, toPriority } from '../services/email.service';
 import type { EmailSearchFilters } from '../services/email.service';
 import type { LearnedInboxCategoryStore } from '../services/learned-inbox-category.service';
@@ -34,7 +33,9 @@ import { LifecycleEvents } from '../lib/lifecycle-events';
 import { recordDeletionBlocked } from '../services/data-lifecycle.service';
 import type { LifecycleDb } from '../services/data-lifecycle.service';
 
-const notifier = new CrossAppDispatcher('quantmail');
+// QM-UIUX-052: the CrossAppDispatcher instantiated here was never called and its
+// fanout() never persists anything — calling it would be theater. New-mail
+// notifications are created directly in inbound-webhook.ts (prisma.notification).
 
 const inboxCategorySchema = z.enum(['primary', 'social', 'promotions', 'updates', 'forums']);
 
