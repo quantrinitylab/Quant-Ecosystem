@@ -720,3 +720,28 @@ Required: classify Quanty chat history explicitly as ephemeral session state, go
 Scope: apps/quantmail/src/components/QuantyCopilotDrawer.tsx; Quanty session/history APIs; memory/data lifecycle contracts.
 Dependencies: QM-QUANTY-001/002; QM-BACK-006; Quanty memory architecture.
 Validation: source audit confirmed `STORAGE_KEY = 'quantmail_quanty_chats_v1'` and localStorage persistence of chat history; no remediation implementation claim yet.
+
+## QM-SCREEN-029 — QuantMail Inbox footer must not claim unverified transport/security state
+Status: [ ] TODO
+Finding: `apps/quantmail/src/app/page.tsx` renders the fixed footer text "Ecosystem connected · SES/DKIM active". The audited UI does not establish that this is a per-account authoritative runtime state; SES/DKIM are infrastructure/configuration concerns and a static claim can misrepresent delivery posture.
+Required: replace static infrastructure/security claims with authoritative delivery/security status only when returned by a trusted backend status contract. Otherwise remove the claim or expose a neutral product status surface with explicit scope and timestamp.
+Scope: apps/quantmail/src/app/page.tsx; mail delivery/health contract; admin/observability status.
+Dependencies: QM-BACK-008; QM-PLAT-007.
+Acceptance: empty/healthy/degraded/unavailable states are truthful; no hard-coded SES/DKIM status reaches production UI.
+
+## QM-SCREEN-030 — QuantMail booking security copy must match the actual cryptographic contract
+Status: [ ] TODO
+Finding: the booking route contains "End-to-End Encrypted Scheduling" copy, while the current QuantMail architecture does not establish end-to-end encryption for booking/scheduling data. This is a trust-boundary mismatch similar to the login security-copy finding.
+Required: remove or replace the claim with evidence-backed transport/storage/security language unless a separately reviewed booking E2EE/key-management contract exists and is actually enforced.
+Scope: apps/quantmail/src/app/calendar/booking/[slug]/page.tsx; booking API; security/privacy documentation.
+Dependencies: QM-AUTH-003; QM-SCREEN-009.
+Acceptance: product copy is derived from the implemented security contract; tests/inspection prevent regression to unsupported E2EE claims.
+
+## QM-SCREEN-031 — QuantMail Inbox mock/derived-state audit must separate server truth from UI projections
+Status: [ ] TODO
+Finding: M01 now contains substantial real interactions (cursor pagination, virtualization, filters, swipe actions, selection, optimistic mutations and contacts joins), but it also derives views from client-held fields and retains compatibility lenses whose server semantics are not fully established (for example category keys whose writer is absent). The screen contract must distinguish authoritative mailbox state, derived client projection and unsupported/disabled capabilities.
+Required: inventory every Inbox-visible count, lens, category, pinned/archived state, "turn" classification, contact join and footer/status indicator; map each to an API field/query or explicitly mark it derived/UI-only. Remove or disable labels whose backing domain semantics are absent, and add regression tests for empty, partial, stale and permission-revoked datasets.
+Scope: apps/quantmail/src/app/page.tsx; inbox hooks; mail API schemas; Prisma mail domain; tests.
+Dependencies: QM-WORK-003; QM-SCREEN-029; search/mail backend contracts.
+Acceptance: no user-visible Inbox claim exists without an identified source-of-truth or documented deterministic derivation.
+
