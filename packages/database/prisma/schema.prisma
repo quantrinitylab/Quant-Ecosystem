@@ -4161,6 +4161,33 @@ model FileVersion {
   @@map("drive_file_versions")
 }
 
+// QM-M39-008: per-file activity/history event log (M39 screen 25).
+// Written by the drive backend on REAL file actions only — upload, rename,
+// move, share change, version restore. Never backfilled: files that predate
+// this table simply have no events, and the activity UI renders an honest
+// empty state for them. Written and read through raw SQL so the table is
+// optional at runtime (a DB without migration 0087 degrades to an empty list,
+// never a 500).
+model FileActivityEvent {
+  id          String   @id @default(cuid())
+  fileId      String
+  // File owner's userId — events are scoped to the owning account.
+  userId      String
+  // Who performed the action (may be the owner or an accepted collaborator).
+  actorUserId String
+  actorName   String?
+  actorEmail  String?
+  // upload | rename | move | share_added | share_updated | share_revoked | version_restored
+  action      String
+  // Action-specific payload, e.g. {fromName,toName}, {fromFolderId,toFolderId},
+  // {email,permission}, {versionNumber}.
+  details     Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  @@index([fileId, createdAt])
+  @@map("drive_file_activity_events")
+}
+
 model FileIndex {
   id        String   @id @default(cuid())
   fileId    String

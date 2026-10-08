@@ -41,6 +41,7 @@ import {
   IconUpload,
 } from '../../components/icons';
 import { FileVersionHistoryModal } from '../../components/drive/FileVersionHistoryModal';
+import { FileActivityModal } from '../../components/drive/FileActivityModal';
 import { FileAISummaryDrawer } from '../../components/drive/FileAISummaryDrawer';
 import { AIDuplicateCleanerModal } from '../../components/drive/AIDuplicateCleanerModal';
 import { StorageQuotaBar } from '../../components/drive/StorageQuotaBar';
@@ -506,6 +507,8 @@ function DrivePageContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [versionHistoryFile, setVersionHistoryFile] = useState<DriveItem | null>(null);
+  // QM-M39-008: per-file activity/history view (M39 screen 25).
+  const [activityFile, setActivityFile] = useState<DriveItem | null>(null);
   const [aiSummaryFile, setAiSummaryFile] = useState<DriveItem | null>(null);
   const [isDuplicateCleanerOpen, setIsDuplicateCleanerOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
@@ -1944,6 +1947,14 @@ function DrivePageContent() {
                   <Button
                     variant="secondary"
                     onClick={() => {
+                      setActivityFile(previewItem);
+                    }}
+                  >
+                    Activity
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
                       setAiSummaryFile(previewItem);
                     }}
                   >
@@ -2061,6 +2072,14 @@ function DrivePageContent() {
           fileName={versionHistoryFile?.name ?? ''}
           onClose={() => setVersionHistoryFile(null)}
           onRestoreSuccess={() => fetchFiles(currentFolderId)}
+        />
+
+        {/* QM-M39-008: Drive File Activity/History Modal (M39 screen 25) */}
+        <FileActivityModal
+          isOpen={!!activityFile}
+          fileId={activityFile?.id ?? ''}
+          fileName={activityFile?.name ?? ''}
+          onClose={() => setActivityFile(null)}
         />
 
         {/* QuantDrive File AI Insights Drawer */}
