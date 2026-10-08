@@ -1,4 +1,4 @@
-import { QuantMailLogo } from '../QuantMailLogo';
+import { BubbleAvatar } from '@quant/shared-ui';
 import { BrandWordmark } from '../BrandWordmark';
 import { QuantAiLogo } from '../QuantAiLogo';
 import { quantMailAuthLockup } from './auth-brand-contract';
@@ -79,7 +79,7 @@ function BrandLockup({ compact = false }: { compact?: boolean }) {
       /*
        * `role="img"` because `aria-label` on a bare div is dropped — the generic
        * role does not take an author name. With the wordmark already
-       * `aria-hidden` and the logo an unlabelled canvas, the brand on the
+       * `aria-hidden` and the ghost avatar decorative here, the brand on the
        * signed-out screen had no accessible name at all. As an image, the
        * lockup announces once and its decorative parts stay silent.
        */
@@ -87,7 +87,16 @@ function BrandLockup({ compact = false }: { compact?: boolean }) {
       className="auth-brand-lockup flex items-center gap-3"
       aria-label={quantMailAuthLockup.accessibleName}
     >
-      <QuantMailLogo size={compact ? 32 : 40} showBadge={false} interactive={false} />
+      {/*
+        White Quanty ghost — the amber M-with-eyes canvas mark is retired from
+        the signed-out brand lockup per the mascot migration (white ghost
+        everywhere, amber must go). BubbleAvatar is DOM+CSS: it paints on first
+        paint, unlike the canvas mark. aria-hidden here: the parent role="img"
+        already carries the brand's accessible name.
+      */}
+      <span aria-hidden="true">
+        <BubbleAvatar size={compact ? 32 : 40} state="idle" />
+      </span>
       <div className="flex flex-col" aria-hidden="true">
         <BrandWordmark app="mail" size={compact ? 'text-lg' : 'text-xl'} />
         <span className="auth-byline">{quantMailAuthLockup.byline}</span>

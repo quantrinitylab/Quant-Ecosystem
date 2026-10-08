@@ -233,7 +233,7 @@ function LoginForm() {
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-zinc-400">
               {stage === 'credentials'
-                ? 'to continue to QuantMail'
+                ? 'Enter your email address and password.'
                 : codeMode === 'totp'
                   ? 'Open your authenticator app and enter the current 6-digit code.'
                   : 'Enter one of the recovery codes saved during two-factor setup.'}
@@ -519,7 +519,7 @@ function LoginFallback() {
             Sign in to QuantMail
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-            to continue to QuantMail
+            Enter your email address and password.
           </p>
         </div>
         <div aria-hidden="true" className="space-y-4">
