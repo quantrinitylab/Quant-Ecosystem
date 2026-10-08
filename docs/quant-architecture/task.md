@@ -1004,7 +1004,7 @@ Scope: `AIAssistant.tsx`; API fetch layer.
 Dependencies: none.
 
 ## QM-UIUX-037 — App switcher: single accent-color source of truth
-Status: [~] IN_PROGRESS — Owner: a5aee1ae-9aa5-4a6c-9d4f-3ae1e1e5a2b1; Branch: fix/qm-uiux-037-accents
+Status: [x] DONE — PR #638 merged 2026-10-08 (PILLAR_ACCENTS single source; rebased after #639; 34/34 tests)
 PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/638
 Note 2026-10-08: rebased onto main after #639 merged (DesktopPillarRail deleted); PILLAR_ACCENTS now wired into shared pillarTiles.tsx; 34/34 tests pass; CI re-running.
 Finding: mobile and desktop use DIFFERENT accent colors for the same apps (Drive: #34A853 green on mobile vs #F59E0B amber on desktop; all 5 apps differ). Two switchers, two color systems. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/appswitcher-audit.md`.
@@ -1048,7 +1048,7 @@ Scope: email HTML sanitizer (`lib/safe-html`, `sanitize.ts`).
 Dependencies: none.
 
 ## QM-UIUX-042 — HTML email: remote image consent (tracking pixels)
-Status: [~] IN_PROGRESS — Owner: 1b2c3d4e-5f6a-7b8c-9d0e-1f2a3b4c5d6e; Branch: fix/qm-uiux-042-img-consent
+Status: [x] DONE — PR #643 merged 2026-10-08 (remote images blocked by default; consent banner; per-sender allowlist; 13/13 tests)
 PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/643
 Finding: remote images load with no consent — no blocking, no "Show images" banner, no per-sender trust. Every `<img>` hits the sender's server on open (IP + timestamp = silent read receipt). Weaker than Gmail/Apple Mail. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/html-email-audit.md`.
 Required: default-block remote images; one-tap "Show images" banner; per-sender allowlist.
@@ -1063,7 +1063,7 @@ Scope: email sanitizer config.
 Dependencies: none.
 
 ## QM-UIUX-044 — App-switch blur: load-tied, drop full-main filter blur
-Status: [~] IN_PROGRESS — Owner: 2c3d4e5f-6a7b-8c9d-0e1f-2a3b4c5d6e7f; Branch: fix/qm-uiux-044-blur
+Status: [x] DONE — PR #644 merged 2026-10-08 (load-tied blur; transform+opacity only; 43/43 tests)
 PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/644
 Finding: (a) app-switch blur is a fixed 380ms timer (`AppShell.tsx:614`), not load-tied — route loads in 50ms → user stares at blur for 330ms for nothing; route takes 800ms → blur lifts mid-load; (b) `filter: blur(10px)` on full `<main>` (`AppShell.tsx:1000`) is NOT GPU-composited — repaints entire inbox list every frame, real jank risk on low-end mobile. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/motion-audit.md`.
 Required: tie `setIsSwitching(false)` to real route settle (380ms as max fallback); restrict blur to lightweight overlay or drop for transform+opacity only.
