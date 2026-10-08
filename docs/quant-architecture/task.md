@@ -1253,7 +1253,7 @@ Scope: `apps/quantchat/src/` realtime hooks.
 Dependencies: none.
 
 ## QM-UIUX-056 — QuantChat: failed sends vanish silently
-Status: [ ] TODO
+Status: [~] IN_PROGRESS — Owner: 8c9d0e1f-2a3b-4c5d-6e7f-8a9b0c1d2e3f; Branch: fix/qm-uiux-056-failedsend
 Finding: `handleSend` calls `sendMessage.mutate()` with no `onError` and no error UI. No optimistic message — on REST failure the user's text just disappears. No retry, no "failed" state. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantchat-realtime-audit.md`.
 Required: error UI + retry for failed sends; don't lose user text.
 Scope: QuantChat conversation page.
