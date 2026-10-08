@@ -755,7 +755,7 @@ Dependencies: none.
 Validation: mobile screenshot of the fixed page required before DONE.
 
 ## QM-UIUX-002 — QuantMax mobile must not render a blank white page
-Status: [ ] TODO
+Status: [x] DONE — PR #657 merged 2026-10-08 (feed payload normalization + bounded loading)
 Finding: `https://quantmax.quantrinity.in` on mobile renders a completely blank white viewport (screenshot: `~/workspace/audits/2026-10-08-uiux-deep/max-mobile.png`). Same failure class as QM-UIUX-001 — suggests a shared broken auth-gate/shell pattern across satellite frontends.
 Required: render a real state for anonymous users (login, loading with timeout, or honest empty). Audit whether QuantAI/QuantMax share the broken init path and fix the common root, not just the symptom.
 Scope: QuantMax frontend; shared auth-gate if applicable.
