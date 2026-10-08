@@ -9,7 +9,7 @@
 // active app refreshes (haptic + quant:refresh), matching the old left dock.
 //
 // Reuses DESKTOP_PILLAR_TILES (real approved app marks) from
-// DesktopPillarRail. Keyboard shortcuts (1..5 / Ctrl+1..5) live here now.
+// pillarTiles. Keyboard shortcuts (1..5 / Ctrl+1..5) live here now.
 // ============================================================================
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -19,7 +19,7 @@ import {
   DESKTOP_PILLAR_TILES,
   type DesktopPillarTile,
   type PillarId,
-} from './DesktopPillarRail';
+} from './pillarTiles';
 import { triggerHapticTap } from './QuantPillarTopBar';
 
 export interface DesktopAppRailProps {
