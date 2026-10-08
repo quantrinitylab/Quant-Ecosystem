@@ -1011,7 +1011,9 @@ Scope: app switcher components (mobile + desktop).
 Dependencies: none.
 
 ## QM-UIUX-038 — Delete dead DesktopPillarRail with banned glow
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: f2f8c3d4-1a2b-4c5d-8e9f-0a1b2c3d4e5f
+Branch: fix/qm-uiux-038-pillarrail
 Finding: `DesktopPillarRail.tsx` (400+ lines) still carries the glowing edge pill, tinted active background, and icon drop-shadow the user explicitly banned. Not rendered in production (AppShell uses `DesktopAppRail`, fixed by PR #624), but one rewire away from going live. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/appswitcher-audit.md`.
 Required: delete the component; keep tile definitions in a shared file if still needed.
 Scope: `apps/quantmail/src/components/DesktopPillarRail.tsx`.
