@@ -5,7 +5,9 @@
 // should land on when they tap a push notification.
 //
 //   MESSAGES -> /chat/{id}
-//   CALLS    -> /call
+//   CALLS    -> /notifications  (no call UI exists; the simulated /call route
+//              was removed — a tapped call notification lands in the real
+//              notification center instead of theater)
 //   STORIES  -> /stories/{id}
 //   REELS    -> /reels/{id}
 //   STREAKS  -> /chat/{id}    (a streak always relates to a conversation)
@@ -59,7 +61,9 @@ export function resolveDeepLink(
     case 'MESSAGES':
       return id ? `/chat/${id}` : '/chat';
     case 'CALLS':
-      return '/call';
+      // No call UI exists (the simulated /call route was removed as theater).
+      // Land in the real notification center instead of a dead route.
+      return '/notifications';
     case 'STORIES':
       return id ? `/stories/${id}` : '/stories';
     case 'REELS':
