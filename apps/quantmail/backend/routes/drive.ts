@@ -85,6 +85,42 @@ const DRIVE_SPREADSHEET_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ];
 
+// Filename-extension fallbacks for the DriveFilesSubView type-card filters.
+// They mirror the frontend classification (mime contains + extension match) so
+// the same filter yields the same result set whether applied client-side over
+// loaded pages or server-side over the full collection (QM-M39-014).
+const DRIVE_PDF_EXTENSIONS = ['.pdf'];
+const DRIVE_DOC_EXTENSIONS = [
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.ppt',
+  '.pptx',
+  '.txt',
+  '.md',
+  '.csv',
+];
+const DRIVE_CODE_EXTENSIONS = [
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.py',
+  '.rs',
+  '.go',
+  '.json',
+  '.yaml',
+  '.yml',
+  '.sql',
+  '.sh',
+];
+const DRIVE_ZIP_EXTENSIONS = ['.zip', '.tar', '.gz', '.rar', '.7z'];
+
+function extensionOrConditions(extensions: string[]): Array<{ name: { endsWith: string } }> {
+  return extensions.map((ext) => ({ name: { endsWith: ext } }));
+}
+
 type Owner = { name: string; email: string };
 type SharedWith = { email: string; permission: 'view' | 'edit' | 'admin' };
 type VersionDto = { id: string; version: number; size: number; date: Date };
@@ -609,6 +645,10 @@ export default async function driveRoutes(fastify: FastifyInstance) {
         | 'images'
         | 'spreadsheets'
         | 'media'
+        | 'pdf'
+        | 'doc'
+        | 'code'
+        | 'zip'
         | 'starred'
         | 'trash';
     };
@@ -657,6 +697,40 @@ export default async function driveRoutes(fastify: FastifyInstance) {
         isDeleted: false,
         mimeType: { in: DRIVE_SPREADSHEET_MIME_TYPES },
       };
+      if (folderId) fileWhere.folderId = folderId;
+    } else if (filter === 'pdf' || filter === 'doc' || filter === 'code' || filter === 'zip') {
+      // QM-M39-014: server-side equivalents of the DriveFilesSubView type-card
+      // filters, so filtering works over the full collection (not just the
+      // loaded pages) and the state is restorable via the `filter` param.
+      returnFolders = false;
+      const typeOr: any[] =
+        filter === 'pdf'
+          ? [{ mimeType: { contains: 'pdf' } }, ...extensionOrConditions(DRIVE_PDF_EXTENSIONS)]
+          : filter === 'doc'
+            ? [
+                { mimeType: { contains: 'doc' } },
+                { mimeType: { contains: 'word' } },
+                { mimeType: { contains: 'sheet' } },
+                { mimeType: { contains: 'excel' } },
+                { mimeType: { contains: 'presentation' } },
+                { mimeType: { startsWith: 'text/' } },
+                ...extensionOrConditions(DRIVE_DOC_EXTENSIONS),
+              ]
+            : filter === 'code'
+              ? [
+                  { mimeType: { contains: 'javascript' } },
+                  { mimeType: { contains: 'typescript' } },
+                  { mimeType: { contains: 'json' } },
+                  ...extensionOrConditions(DRIVE_CODE_EXTENSIONS),
+                ]
+              : [
+                  { mimeType: { contains: 'zip' } },
+                  { mimeType: { contains: 'tar' } },
+                  { mimeType: { contains: 'archive' } },
+                  { mimeType: { contains: 'gz' } },
+                  ...extensionOrConditions(DRIVE_ZIP_EXTENSIONS),
+                ];
+      fileWhere = { userId, isDeleted: false, OR: typeOr };
       if (folderId) fileWhere.folderId = folderId;
     } else if (filter === 'starred') {
       folderWhere = { userId, isStarred: true, isDeleted: false };

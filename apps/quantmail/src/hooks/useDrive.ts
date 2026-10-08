@@ -57,6 +57,12 @@ interface ShareParams {
   permission: 'view' | 'edit' | 'admin';
 }
 
+export type DriveSortKey = 'name' | 'updatedAt' | 'size';
+export type DriveSortDir = 'asc' | 'desc';
+
+/** Files per cursor page on GET /drive/files (QM-M39-014). */
+export const DRIVE_FILES_PAGE_SIZE = 100;
+
 export interface UseDriveReturn {
   files: DriveFile[];
   loading: boolean;
@@ -65,7 +71,19 @@ export interface UseDriveReturn {
   quota: StorageQuota;
   currentFolderId: string | null;
   breadcrumbs: { id: string | null; name: string }[];
+  /** Cursor pagination state (QM-M39-014) — real server-side pages. */
+  nextCursor: string | null;
+  hasMore: boolean;
+  /** Server-reported file count for the current filter, or null when unknown. */
+  totalCount: number | null;
+  loadingMore: boolean;
+  sortBy: DriveSortKey;
+  sortDir: DriveSortDir;
   fetchFiles: (folderId?: string | null, filter?: string | null) => Promise<void>;
+  /** Appends the next cursor page; no-op when no more pages or one is loading. */
+  fetchNextPage: () => Promise<void>;
+  /** Changes the server sort and reloads the first page. */
+  setDriveSort: (sortBy: DriveSortKey, sortDir: DriveSortDir) => Promise<void>;
   uploadFiles: (files: File[]) => Promise<void>;
   createFolder: (name: string, parentId?: string | null) => Promise<DriveFile>;
   deleteFiles: (fileIds: string[]) => Promise<void>;
@@ -125,37 +143,111 @@ export function useDrive(): UseDriveReturn {
   const abortControllers = useRef<Map<string, AbortController>>(new Map());
   const cancelledUploadIds = useRef<Set<string>>(new Set());
   const fetchSeqRef = useRef<number>(0);
+  // Cursor pagination state (QM-M39-014). The backend returns folders only on
+  // the first page, so appending file pages is always safe.
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [sortBy, setSortByState] = useState<DriveSortKey>('updatedAt');
+  const [sortDir, setSortDirState] = useState<DriveSortDir>('desc');
+  const lastQueryRef = useRef<{ folderId: string | null; filter: string | null }>({
+    folderId: null,
+    filter: null,
+  });
 
-  const fetchFiles = useCallback(
-    async (folderId?: string | null, filter?: string | null) => {
+  interface LoadPageOpts {
+    folderId?: string | null;
+    filter?: string | null;
+    cursor?: string | null;
+    append?: boolean;
+    sortBy?: DriveSortKey;
+    sortDir?: DriveSortDir;
+  }
+
+  const loadPage = useCallback(
+    async (opts: LoadPageOpts) => {
       const seq = ++fetchSeqRef.current;
-      setLoading(true);
-      setError(null);
-      const targetFolder = folderId !== undefined ? folderId : currentFolderId;
+      const { filter, cursor, append } = opts;
+      const targetFolder = opts.folderId !== undefined ? opts.folderId : currentFolderId;
+      const pageSortBy = opts.sortBy ?? sortBy;
+      const pageSortDir = opts.sortDir ?? sortDir;
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+        setError(null);
+      }
       try {
         const params = new URLSearchParams();
         if (targetFolder) params.set('folderId', targetFolder);
         if (filter && filter !== 'all') params.set('filter', filter);
+        params.set('limit', String(DRIVE_FILES_PAGE_SIZE));
+        params.set('sortBy', pageSortBy);
+        params.set('sortDir', pageSortDir);
+        if (cursor) params.set('cursor', cursor);
         const response = await apiRequest(`/api/drive/files?${params}`);
         if (!response.ok) throw new Error('Failed to fetch files');
         const data = await response.json();
         if (seq === fetchSeqRef.current) {
-          setFiles(data.files || []);
-          if (data.quota) setQuota(data.quota);
+          if (append) {
+            setFiles((prev) => [...prev, ...(data.files || [])]);
+          } else {
+            setFiles(data.files || []);
+          }
+          setNextCursor(data.nextCursor ?? null);
+          setHasMore(Boolean(data.hasMore));
+          setTotalCount(typeof data.totalCount === 'number' ? data.totalCount : null);
+          if (data.quota && !append) setQuota(data.quota);
+          lastQueryRef.current = { folderId: targetFolder, filter: filter ?? null };
         }
       } catch (err) {
         if (seq === fetchSeqRef.current) {
           setError(
-            getDriveErrorMessage(err, 'Drive is temporarily unavailable. Retry in a moment.'),
+            getDriveErrorMessage(
+              err,
+              append
+                ? 'Could not load more files. Your files are safe.'
+                : 'Drive is temporarily unavailable. Retry in a moment.',
+            ),
           );
         }
       } finally {
         if (seq === fetchSeqRef.current) {
           setLoading(false);
+          setLoadingMore(false);
         }
       }
     },
-    [currentFolderId],
+    [currentFolderId, sortBy, sortDir],
+  );
+
+  const fetchFiles = useCallback(
+    async (folderId?: string | null, filter?: string | null) => {
+      await loadPage({ folderId, filter });
+    },
+    [loadPage],
+  );
+
+  const fetchNextPage = useCallback(async () => {
+    if (!hasMore || !nextCursor || loadingMore || loading) return;
+    const q = lastQueryRef.current;
+    await loadPage({ folderId: q.folderId, filter: q.filter, cursor: nextCursor, append: true });
+  }, [hasMore, nextCursor, loadingMore, loading, loadPage]);
+
+  const setDriveSort = useCallback(
+    async (nextSortBy: DriveSortKey, nextSortDir: DriveSortDir) => {
+      setSortByState(nextSortBy);
+      setSortDirState(nextSortDir);
+      const q = lastQueryRef.current;
+      await loadPage({
+        folderId: q.folderId,
+        filter: q.filter,
+        sortBy: nextSortBy,
+        sortDir: nextSortDir,
+      });
+    },
+    [loadPage],
   );
 
   const uploadFiles = useCallback(
@@ -517,7 +609,12 @@ export function useDrive(): UseDriveReturn {
       const response = await apiRequest(`/api/drive/search?q=${encodeURIComponent(query)}`);
       if (!response.ok) throw new Error('Search failed');
       const data = await response.json();
-      setFiles(data.files || []);
+      const results = data.files || [];
+      setFiles(results);
+      // Search is a separate, non-paginated query: reset cursor state.
+      setNextCursor(null);
+      setHasMore(false);
+      setTotalCount(results.length);
     } catch (err) {
       setError(getDriveErrorMessage(err, 'Search is temporarily unavailable. Retry in a moment.'));
     } finally {
@@ -662,7 +759,15 @@ export function useDrive(): UseDriveReturn {
     quota,
     currentFolderId,
     breadcrumbs,
+    nextCursor,
+    hasMore,
+    totalCount,
+    loadingMore,
+    sortBy,
+    sortDir,
     fetchFiles,
+    fetchNextPage,
+    setDriveSort,
     uploadFiles,
     createFolder,
     deleteFiles,

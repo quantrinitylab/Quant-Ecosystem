@@ -95,7 +95,9 @@ describe('Drive operation promise contracts', () => {
   it('resolves an all-success upload and refreshes the file list', async () => {
     state.replies = [{ status: 201 }, { status: 201 }];
     await expect(useDrive().uploadFiles(files())).resolves.toBeUndefined();
-    expect(state.request).toHaveBeenCalledWith('/api/drive/files?');
+    expect(state.request).toHaveBeenCalledWith(
+      '/api/drive/files?limit=100&sortBy=updatedAt&sortDir=desc',
+    );
     expect(state.cells[3].value).toEqual([
       expect.objectContaining({ status: 'complete', progress: 100 }),
       expect.objectContaining({ status: 'complete', progress: 100 }),
@@ -110,7 +112,9 @@ describe('Drive operation promise contracts', () => {
     await expect(useDrive().uploadFiles(files())).rejects.toThrow(
       'Uploaded 1 of 2 files. 1 failed or cancelled. Quota exceeded',
     );
-    expect(state.request).toHaveBeenCalledWith('/api/drive/files?');
+    expect(state.request).toHaveBeenCalledWith(
+      '/api/drive/files?limit=100&sortBy=updatedAt&sortDir=desc',
+    );
     expect(state.cells[3].value).toEqual([
       expect.objectContaining({ status: 'complete' }),
       expect.objectContaining({ status: 'error', error: 'Quota exceeded' }),

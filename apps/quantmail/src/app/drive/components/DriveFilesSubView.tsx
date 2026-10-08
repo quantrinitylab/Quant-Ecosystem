@@ -1,8 +1,21 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { formatBytes } from '../../../lib/format-bytes';
 import { useStorageQuota } from '../../../hooks/useStorageQuota';
+import { useIsMobile } from '../../../hooks/useIsMobile';
+import {
+  useVirtualizedRows,
+  useMeasuredColumns,
+} from '../../../hooks/useVirtualizedRows';
+import {
+  DEFAULT_DRIVE_FILES_VIEW_STATE,
+  loadDriveFilesViewState,
+  saveDriveFilesViewState,
+  type DriveSortDir,
+  type DriveSortKey,
+  type DriveTypeFilter,
+} from './driveFilesViewState';
 import {
   FolderIcon,
   HardDriveIcon,
@@ -24,10 +37,43 @@ export interface DriveItem {
 }
 
 export interface DriveFilesSubViewProps {
+  /** File items loaded so far (pages appended by the parent in paginated mode). */
   files: DriveItem[];
   folders: DriveItem[];
+  /** First page is loading — renders honest skeleton rows, never fake content. */
   loading?: boolean;
+  /** A subsequent page is loading (append in progress). */
+  loadingMore?: boolean;
+  /** Load error for the current query; rendered with a retry affordance. */
+  error?: string | null;
+  onRetry?: () => void;
+  /**
+   * Server pagination state (QM-M39-014). When `totalCount` is provided the
+   * view runs in paginated mode: type cards filter server-side via
+   * `onFilterChange`, counts shown are exact (`!hasMore`) or hidden.
+   */
+  hasMore?: boolean;
+  /** Server-reported file count for the current filter (excludes folders). */
+  totalCount?: number | null;
+  /** Parent appends the next cursor page. Desktop: explicit button. Mobile: auto. */
+  onLoadMore?: () => void;
   viewMode?: 'grid' | 'list';
+  /** Scopes sort/filter state restoration (sessionStorage) per folder. */
+  folderId?: string | null;
+  /** Controlled sort/filter (parent owns state). Uncontrolled: restored + persisted. */
+  sortBy?: DriveSortKey;
+  sortDir?: DriveSortDir;
+  /** When provided, the sort control renders and changes refetch server-side. */
+  onSortChange?: (sortBy: DriveSortKey, sortDir: DriveSortDir) => void;
+  filter?: DriveTypeFilter;
+  /**
+   * When provided, type-card filters are server-side: the parent refetches
+   * with the `filter` query param. Without it, filtering applies to the
+   * loaded items (exact only when everything is loaded).
+   */
+  onFilterChange?: (filter: DriveTypeFilter) => void;
+  /** Max height of the scrollable file region (virtualization viewport). */
+  listMaxHeight?: string;
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string, e?: React.MouseEvent) => void;
   onPreviewItem?: (item: DriveItem) => void;
@@ -40,11 +86,46 @@ export interface DriveFilesSubViewProps {
   onNavigateToFolder?: (folderId: string | null, folderName?: string) => void;
 }
 
+// Fixed row geometry — virtualization requires every row to be exactly this
+// tall. Keep these in sync with the row components below.
+const LIST_ROW_HEIGHT = 64;
+const LIST_ROW_COMPACT_HEIGHT = 52;
+const LIST_ROW_GAP = 6;
+const GRID_TILE_HEIGHT = 184;
+const GRID_TILE_COMPACT_HEIGHT = 148;
+const GRID_TILE_GAP = 14;
+const GRID_MIN_TILE_WIDTH = 220;
+const GRID_MIN_TILE_WIDTH_COMPACT = 160;
+const SKELETON_ROWS = 6;
+
+const SORT_OPTIONS: { value: DriveSortKey; label: string }[] = [
+  { value: 'updatedAt', label: 'Date modified' },
+  { value: 'name', label: 'Name' },
+  { value: 'size', label: 'Size' },
+];
+
+function formatModified(modifiedAt: string): string {
+  return modifiedAt ? new Date(modifiedAt).toLocaleDateString() : 'Recent';
+}
+
 export function DriveFilesSubView({
   files,
   folders,
   loading = false,
+  loadingMore = false,
+  error = null,
+  onRetry,
+  hasMore = false,
+  totalCount = null,
+  onLoadMore,
   viewMode = 'grid',
+  folderId = null,
+  sortBy: controlledSortBy,
+  sortDir: controlledSortDir,
+  onSortChange,
+  filter: controlledFilter,
+  onFilterChange,
+  listMaxHeight = 'min(68vh, 860px)',
   selectedIds = new Set(),
   onToggleSelect,
   onPreviewItem,
@@ -56,16 +137,113 @@ export function DriveFilesSubView({
   onOpenAiSummary,
   onNavigateToFolder,
 }: DriveFilesSubViewProps) {
-  const [typeFilter, setTypeFilter] = useState<'all' | 'pdf' | 'doc' | 'code' | 'zip'>('all');
+  const isMobile = useIsMobile();
+  const compact = isMobile;
+  const serverFiltering = typeof onFilterChange === 'function';
+  const isFilterControlled = controlledFilter !== undefined;
+  const isSortControlled = controlledSortBy !== undefined && controlledSortDir !== undefined;
+  const paginated = typeof totalCount === 'number';
+
+  // --- Sort/filter state: controlled by parent, or restored + persisted ----
+  const [internalFilter, setInternalFilter] = useState<DriveTypeFilter>(
+    () =>
+      controlledFilter ??
+      loadDriveFilesViewState(folderId).typeFilter ??
+      DEFAULT_DRIVE_FILES_VIEW_STATE.typeFilter,
+  );
+  const [internalSortBy, setInternalSortBy] = useState<DriveSortKey>(
+    () =>
+      controlledSortBy ??
+      loadDriveFilesViewState(folderId).sortBy ??
+      DEFAULT_DRIVE_FILES_VIEW_STATE.sortBy,
+  );
+  const [internalSortDir, setInternalSortDir] = useState<DriveSortDir>(
+    () =>
+      controlledSortDir ??
+      loadDriveFilesViewState(folderId).sortDir ??
+      DEFAULT_DRIVE_FILES_VIEW_STATE.sortDir,
+  );
+
+  const effFilter = isFilterControlled ? (controlledFilter as DriveTypeFilter) : internalFilter;
+  const effSortBy = isSortControlled ? (controlledSortBy as DriveSortKey) : internalSortBy;
+  const effSortDir = isSortControlled ? (controlledSortDir as DriveSortDir) : internalSortDir;
+
+  // Re-restore when navigating between folders (uncontrolled mode only).
+  // A folder with no stored state resets to the defaults so one folder's
+  // filter never leaks into another.
+  useEffect(() => {
+    if (isFilterControlled && isSortControlled) return;
+    const restored = loadDriveFilesViewState(folderId);
+    if (!isFilterControlled) {
+      setInternalFilter(restored.typeFilter ?? DEFAULT_DRIVE_FILES_VIEW_STATE.typeFilter);
+    }
+    if (!isSortControlled) {
+      setInternalSortBy(restored.sortBy ?? DEFAULT_DRIVE_FILES_VIEW_STATE.sortBy);
+      setInternalSortDir(restored.sortDir ?? DEFAULT_DRIVE_FILES_VIEW_STATE.sortDir);
+    }
+  }, [folderId, isFilterControlled, isSortControlled]);
+
+  // Persist on every change (uncontrolled state only).
+  useEffect(() => {
+    if (isFilterControlled && isSortControlled) return;
+    saveDriveFilesViewState(folderId, {
+      sortBy: effSortBy,
+      sortDir: effSortDir,
+      typeFilter: effFilter,
+    });
+  }, [folderId, effSortBy, effSortDir, effFilter, isFilterControlled, isSortControlled]);
+
+  const onFilterChangeRef = useRef(onFilterChange);
+  onFilterChangeRef.current = onFilterChange;
+  const onSortChangeRef = useRef(onSortChange);
+  onSortChangeRef.current = onSortChange;
+  const initialStateRef = useRef({
+    filter: internalFilter,
+    sortBy: internalSortBy,
+    sortDir: internalSortDir,
+  });
+
+  // On mount, report restored (non-default) state so the parent refetches
+  // server-side with it. Without this, a restored filter would silently show
+  // the wrong (default) query results.
+  useEffect(() => {
+    const initial = initialStateRef.current;
+    if (!isFilterControlled && initial.filter !== DEFAULT_DRIVE_FILES_VIEW_STATE.typeFilter) {
+      onFilterChangeRef.current?.(initial.filter);
+    }
+    if (
+      !isSortControlled &&
+      (initial.sortBy !== DEFAULT_DRIVE_FILES_VIEW_STATE.sortBy ||
+        initial.sortDir !== DEFAULT_DRIVE_FILES_VIEW_STATE.sortDir)
+    ) {
+      onSortChangeRef.current?.(initial.sortBy, initial.sortDir);
+    }
+    // Mount-only: reports restored state to the parent once. Callbacks are
+    // read through refs so this never re-fires.
+  }, []);
+
+  const handleFilterChange = (next: DriveTypeFilter) => {
+    if (!isFilterControlled) setInternalFilter(next);
+    onFilterChange?.(next);
+  };
+
+  const handleSortChange = (nextBy: DriveSortKey, nextDir: DriveSortDir) => {
+    if (!isSortControlled) {
+      setInternalSortBy(nextBy);
+      setInternalSortDir(nextDir);
+    }
+    onSortChange?.(nextBy, nextDir);
+  };
 
   // Real quota from `GET /api/drive/quota` via the shared hook — the same
   // source the sidebar chip reads, so the two can never show conflicting
-  // numbers again. This used to hardcode 14.2 GB / 100 GB, a fabricated pair
-  // that disagreed with every other surface. While the quota is unknown the
-  // meter says "Calculating…" rather than inventing a number.
+  // numbers again. While the quota is unknown the meter says "Calculating…"
+  // rather than inventing a number.
   const { quota, known: quotaKnown, usedPct } = useStorageQuota();
 
-  // Type categorization calculations
+  // Type categorization over the LOADED files. In paginated mode these counts
+  // are only exact once every page is loaded (!hasMore); otherwise the cards
+  // render without counts rather than showing partial numbers as totals.
   const typeStats = useMemo(() => {
     let pdfCount = 0;
     let pdfSize = 0;
@@ -126,13 +304,18 @@ export function DriveFilesSubView({
     };
   }, [files]);
 
+  const statsExact = !paginated || !hasMore;
+
+  // Server mode: the parent already filtered via the `filter` query param.
+  // Legacy mode (no onFilterChange): filter the loaded items client-side —
+  // exact only when the full collection is loaded.
   const displayedFiles = useMemo(() => {
-    if (typeFilter === 'all') return files;
+    if (serverFiltering || effFilter === 'all') return files;
     return files.filter((f) => {
       const m = (f.mimeType || '').toLowerCase();
       const n = (f.name || '').toLowerCase();
-      if (typeFilter === 'pdf') return m.includes('pdf') || n.endsWith('.pdf');
-      if (typeFilter === 'doc') {
+      if (effFilter === 'pdf') return m.includes('pdf') || n.endsWith('.pdf');
+      if (effFilter === 'doc') {
         return (
           m.includes('doc') ||
           m.includes('word') ||
@@ -142,7 +325,7 @@ export function DriveFilesSubView({
           /\.(docx?|xlsx?|pptx?|txt|md|csv)$/i.test(n)
         );
       }
-      if (typeFilter === 'code') {
+      if (effFilter === 'code') {
         return (
           m.includes('javascript') ||
           m.includes('typescript') ||
@@ -150,7 +333,7 @@ export function DriveFilesSubView({
           /\.(ts|tsx|js|jsx|py|rs|go|json|yaml|yml|sql|sh)$/i.test(n)
         );
       }
-      if (typeFilter === 'zip') {
+      if (effFilter === 'zip') {
         return (
           m.includes('zip') ||
           m.includes('tar') ||
@@ -160,7 +343,381 @@ export function DriveFilesSubView({
       }
       return true;
     });
-  }, [files, typeFilter]);
+  }, [files, effFilter, serverFiltering]);
+
+  // --- Virtualization -------------------------------------------------------
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const listRowHeight = compact ? LIST_ROW_COMPACT_HEIGHT : LIST_ROW_HEIGHT;
+  const tileHeight = compact ? GRID_TILE_COMPACT_HEIGHT : GRID_TILE_HEIGHT;
+
+  const listVirt = useVirtualizedRows({
+    rowCount: displayedFiles.length,
+    rowHeight: listRowHeight,
+    rowGap: LIST_ROW_GAP,
+    virtualizeAfterRows: 60,
+    scrollRef,
+  });
+
+  const { columns: gridColumns } = useMeasuredColumns({
+    scrollRef,
+    minColumnWidth: compact ? GRID_MIN_TILE_WIDTH_COMPACT : GRID_MIN_TILE_WIDTH,
+    columnGap: GRID_TILE_GAP,
+    fallbackColumns: 4,
+  });
+  const gridRowCount = Math.ceil(displayedFiles.length / gridColumns);
+  const gridVirt = useVirtualizedRows({
+    rowCount: gridRowCount,
+    rowHeight: tileHeight,
+    rowGap: GRID_TILE_GAP,
+    virtualizeAfterRows: 10,
+    scrollRef,
+  });
+
+  // --- Mobile progressive loading: auto-fetch next page near the bottom ----
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const [ioAvailable, setIoAvailable] = useState(false);
+  useEffect(() => {
+    setIoAvailable(typeof IntersectionObserver !== 'undefined');
+  }, []);
+  const showLoadMore = !loading && !error && hasMore && typeof onLoadMore === 'function';
+  const autoLoadMore = showLoadMore && isMobile && ioAvailable && !loadingMore;
+
+  useEffect(() => {
+    if (!autoLoadMore) return;
+    const sentinel = sentinelRef.current;
+    const root = scrollRef.current;
+    if (!sentinel) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) onLoadMore?.();
+      },
+      { root, rootMargin: '400px' },
+    );
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, [autoLoadMore, onLoadMore, displayedFiles.length]);
+
+  const renderFileRow = (file: DriveItem, rowStyle?: React.CSSProperties) => {
+    const isSelected = selectedIds.has(file.id);
+    if (compact) {
+      return (
+        <div
+          key={file.id}
+          style={rowStyle}
+          onClick={() => onPreviewItem?.(file)}
+          className={`group flex items-center gap-2.5 px-3 rounded-xl border transition-all cursor-pointer ${
+            isSelected
+              ? 'bg-[#38BDF8]/15 border-[#38BDF8]/50'
+              : 'bg-[#12151E] border-[#232938] active:bg-[#161A26]'
+          }`}
+        >
+          <div className="size-7 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/25 flex items-center justify-center text-[#38BDF8] shrink-0">
+            <HardDriveIcon className="size-3.5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-[#F8FAFC] truncate">{file.name}</p>
+            <p className="text-[10px] text-[#64748B] truncate">
+              {formatBytes(file.size)} · {formatModified(file.modifiedAt)}
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-label={file.isStarred ? 'Unstar file' : 'Star file'}
+            onClick={(e) => onToggleStar?.(file, e)}
+            className="size-7 rounded grid place-items-center text-[#64748B] shrink-0"
+          >
+            {file.isStarred ? (
+              <StarFilledIcon className="size-3.5 text-[#F59E0B]" />
+            ) : (
+              <StarIcon className="size-3.5" />
+            )}
+          </button>
+        </div>
+      );
+    }
+    return (
+      <div
+        key={file.id}
+        style={rowStyle}
+        onClick={() => onPreviewItem?.(file)}
+        className={`group flex items-center justify-between px-3 rounded-xl border transition-all cursor-pointer ${
+          isSelected
+            ? 'bg-[#38BDF8]/15 border-[#38BDF8]/50 shadow-[0_0_12px_rgba(56,189,248,0.15)]'
+            : 'bg-[#12151E] border-[#232938] hover:border-[#38BDF8]/40 hover:bg-[#161A26]'
+        }`}
+      >
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="size-8 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/25 flex items-center justify-center text-[#38BDF8] shrink-0">
+            <HardDriveIcon className="size-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">
+                {file.name}
+              </p>
+              <span className="inline-flex items-center px-1.5 py-px rounded text-[var(--q-type-xs)] font-mono font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
+                FastCDC Deduped
+              </span>
+            </div>
+            <p className="text-[11px] text-[#94A3B8]">
+              {formatBytes(file.size)} · Modified {formatModified(file.modifiedAt)}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            aria-label={file.isStarred ? 'Unstar file' : 'Star file'}
+            onClick={(e) => onToggleStar?.(file, e)}
+            className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F59E0B] transition-colors"
+          >
+            {file.isStarred ? (
+              <StarFilledIcon className="size-3.5 text-[#F59E0B]" />
+            ) : (
+              <StarIcon className="size-3.5" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDownloadFile?.(file.id, file.name);
+            }}
+            className="px-2.5 py-1 rounded-lg bg-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium"
+          >
+            Download
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderFileTile = (file: DriveItem) => {
+    const isSelected = selectedIds.has(file.id);
+    if (compact) {
+      return (
+        <div
+          key={file.id}
+          onClick={() => onPreviewItem?.(file)}
+          style={{ height: tileHeight }}
+          className={`group relative flex flex-col justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+            isSelected
+              ? 'bg-[#38BDF8]/15 border-[#38BDF8]/50'
+              : 'bg-[#12151E] border-[#232938] active:bg-[#161A26]'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-1.5 mb-1.5">
+            <div className="size-8 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/25 flex items-center justify-center text-[#38BDF8] shrink-0">
+              <HardDriveIcon className="size-4" />
+            </div>
+            <button
+              type="button"
+              aria-label={file.isStarred ? 'Unstar file' : 'Star file'}
+              onClick={(e) => onToggleStar?.(file, e)}
+              className="size-6 rounded grid place-items-center text-[#64748B] shrink-0"
+            >
+              {file.isStarred ? (
+                <StarFilledIcon className="size-3 text-[#F59E0B]" />
+              ) : (
+                <StarIcon className="size-3" />
+              )}
+            </button>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-[#F8FAFC] truncate">{file.name}</p>
+            <p className="text-[10px] text-[#64748B] mt-0.5 truncate">
+              {formatBytes(file.size)} · {formatModified(file.modifiedAt)}
+            </p>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div
+        key={file.id}
+        onClick={() => onPreviewItem?.(file)}
+        style={{ height: tileHeight }}
+        className={`group relative flex flex-col justify-between p-3.5 rounded-xl border transition-all duration-150 cursor-pointer ${
+          isSelected
+            ? 'bg-[#38BDF8]/15 border-[#38BDF8]/50 shadow-[0_0_14px_rgba(56,189,248,0.18)]'
+            : 'bg-[#12151E] border-[#232938] hover:border-[#38BDF8]/40 hover:bg-[#161A26] shadow-[0_2px_12px_rgba(0,0,0,0.25)]'
+        }`}
+      >
+        <div>
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="size-9 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/25 flex items-center justify-center text-[#38BDF8] shrink-0">
+              <HardDriveIcon className="size-4" />
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[var(--q-type-xs)] font-mono font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
+                FastCDC Deduped
+              </span>
+              <button
+                type="button"
+                aria-label={file.isStarred ? 'Unstar file' : 'Star file'}
+                onClick={(e) => onToggleStar?.(file, e)}
+                className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F59E0B] transition-colors focus-visible:outline-none"
+              >
+                {file.isStarred ? (
+                  <StarFilledIcon className="size-3.5 text-[#F59E0B]" />
+                ) : (
+                  <StarIcon className="size-3.5" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">
+            {file.name}
+          </p>
+          <p className="text-[11px] text-[#94A3B8] mt-0.5">
+            {formatBytes(file.size)} · {formatModified(file.modifiedAt)}
+          </p>
+        </div>
+
+        <div className="mt-3 pt-2 border-t border-[#232938] flex items-center justify-between text-[11px]">
+          <span className="text-[#64748B] font-mono text-[10px]">CAS: 64KB</span>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownloadFile?.(file.id, file.name);
+              }}
+              className="px-2 py-0.5 rounded bg-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-[10px]"
+            >
+              Download
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteItem?.(file.id, file.name, e);
+              }}
+              className="px-1.5 py-0.5 rounded text-rose-400/80 hover:text-rose-300 hover:bg-rose-500/10 transition-colors text-[10px]"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderTypeCard = (
+    filterKey: DriveTypeFilter,
+    title: string,
+    shortLabel: string,
+    colorLabel: string,
+    classes: {
+      ring: string;
+      activeBg: string;
+      activeBorder: string;
+      hoverBorder: string;
+      hoverBg: string;
+      iconBg: string;
+      iconBorder: string;
+      iconText: string;
+      pillBg: string;
+      pillText: string;
+      pillBorder: string;
+    },
+    stat: { count: number; size: number },
+  ) => {
+    const active = effFilter === filterKey;
+    return (
+      <button
+        key={filterKey}
+        type="button"
+        onClick={() => handleFilterChange(active ? 'all' : filterKey)}
+        aria-pressed={active}
+        className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 ${classes.ring} ${
+          active
+            ? `${classes.activeBg} ${classes.activeBorder} shadow-[0_0_16px_rgba(0,0,0,0.2)]`
+            : `bg-[#12151E] border-[#232938] ${classes.hoverBorder} ${classes.hoverBg}`
+        }`}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <span
+            className={`size-8 rounded-lg ${classes.iconBg} ${classes.iconBorder} border flex items-center justify-center ${classes.iconText} font-bold text-xs`}
+          >
+            {shortLabel}
+          </span>
+          <span
+            className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${classes.pillBg} ${classes.pillText} border ${classes.pillBorder}`}
+          >
+            {colorLabel}
+          </span>
+        </div>
+        <div className="text-xs font-semibold text-[#F8FAFC]">{title}</div>
+        {statsExact && (
+          <div className="text-[11px] text-[#94A3B8] mt-0.5">
+            {stat.count} files · {formatBytes(stat.size)}
+          </div>
+        )}
+      </button>
+    );
+  };
+
+  const TYPE_CARD_CLASSES = {
+    pdf: {
+      ring: 'focus-visible:ring-[#EF4444]',
+      activeBg: 'bg-[#EF4444]/15',
+      activeBorder: 'border-[#EF4444]/60',
+      hoverBorder: 'hover:border-[#EF4444]/40',
+      hoverBg: 'hover:bg-[#EF4444]/5',
+      iconBg: 'bg-[#EF4444]/15',
+      iconBorder: 'border-[#EF4444]/30',
+      iconText: 'text-[#EF4444]',
+      pillBg: 'bg-[#EF4444]/10',
+      pillText: 'text-[#EF4444]',
+      pillBorder: 'border-[#EF4444]/25',
+    },
+    doc: {
+      ring: 'focus-visible:ring-[#3B82F6]',
+      activeBg: 'bg-[#3B82F6]/15',
+      activeBorder: 'border-[#3B82F6]/60',
+      hoverBorder: 'hover:border-[#3B82F6]/40',
+      hoverBg: 'hover:bg-[#3B82F6]/5',
+      iconBg: 'bg-[#3B82F6]/15',
+      iconBorder: 'border-[#3B82F6]/30',
+      iconText: 'text-[#3B82F6]',
+      pillBg: 'bg-[#3B82F6]/10',
+      pillText: 'text-[#3B82F6]',
+      pillBorder: 'border-[#3B82F6]/25',
+    },
+    code: {
+      ring: 'focus-visible:ring-[#10B981]',
+      activeBg: 'bg-[#10B981]/15',
+      activeBorder: 'border-[#10B981]/60',
+      hoverBorder: 'hover:border-[#10B981]/40',
+      hoverBg: 'hover:bg-[#10B981]/5',
+      iconBg: 'bg-[#10B981]/15',
+      iconBorder: 'border-[#10B981]/30',
+      iconText: 'text-[#10B981]',
+      pillBg: 'bg-[#10B981]/10',
+      pillText: 'text-[#10B981]',
+      pillBorder: 'border-[#10B981]/25',
+    },
+    zip: {
+      ring: 'focus-visible:ring-[#F59E0B]',
+      activeBg: 'bg-[#F59E0B]/15',
+      activeBorder: 'border-[#F59E0B]/60',
+      hoverBorder: 'hover:border-[#F59E0B]/40',
+      hoverBg: 'hover:bg-[#F59E0B]/5',
+      iconBg: 'bg-[#F59E0B]/15',
+      iconBorder: 'border-[#F59E0B]/30',
+      iconText: 'text-[#F59E0B]',
+      pillBg: 'bg-[#F59E0B]/10',
+      pillText: 'text-[#F59E0B]',
+      pillBorder: 'border-[#F59E0B]/25',
+    },
+  } as const;
+
+  const filesCountLabel = paginated
+    ? `Showing ${displayedFiles.length} of ${totalCount} files`
+    : `Files (${displayedFiles.length})`;
 
   return (
     <div
@@ -228,113 +785,30 @@ export function DriveFilesSubView({
         </div>
       </div>
 
-      {/* 2. Color-coded Type Cards (PDF red, DOC blue, CODE green, ZIP gold) */}
+      {/* 2. Type filter cards — server-side filters when onFilterChange is set */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* PDF Card (Red) */}
-        <button
-          type="button"
-          onClick={() => setTypeFilter(typeFilter === 'pdf' ? 'all' : 'pdf')}
-          className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#EF4444] ${
-            typeFilter === 'pdf'
-              ? 'bg-[#EF4444]/15 border-[#EF4444]/60 shadow-[0_0_16px_rgba(239,68,68,0.2)]'
-              : 'bg-[#12151E] border-[#232938] hover:border-[#EF4444]/40 hover:bg-[#EF4444]/5'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="size-8 rounded-lg bg-[#EF4444]/15 border border-[#EF4444]/30 flex items-center justify-center text-[#EF4444] font-bold text-xs">
-              PDF
-            </span>
-            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/25">
-              RED
-            </span>
-          </div>
-          <div className="text-xs font-semibold text-[#F8FAFC]">PDF Documents</div>
-          <div className="text-[11px] text-[#94A3B8] mt-0.5">
-            {typeStats.pdf.count} files · {formatBytes(typeStats.pdf.size)}
-          </div>
-        </button>
-
-        {/* DOC Card (Blue) */}
-        <button
-          type="button"
-          onClick={() => setTypeFilter(typeFilter === 'doc' ? 'all' : 'doc')}
-          className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] ${
-            typeFilter === 'doc'
-              ? 'bg-[#3B82F6]/15 border-[#3B82F6]/60 shadow-[0_0_16px_rgba(59,130,246,0.2)]'
-              : 'bg-[#12151E] border-[#232938] hover:border-[#3B82F6]/40 hover:bg-[#3B82F6]/5'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="size-8 rounded-lg bg-[#3B82F6]/15 border border-[#3B82F6]/30 flex items-center justify-center text-[#3B82F6] font-bold text-xs">
-              DOC
-            </span>
-            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/25">
-              BLUE
-            </span>
-          </div>
-          <div className="text-xs font-semibold text-[#F8FAFC]">Documents & Text</div>
-          <div className="text-[11px] text-[#94A3B8] mt-0.5">
-            {typeStats.doc.count} files · {formatBytes(typeStats.doc.size)}
-          </div>
-        </button>
-
-        {/* CODE Card (Green) */}
-        <button
-          type="button"
-          onClick={() => setTypeFilter(typeFilter === 'code' ? 'all' : 'code')}
-          className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#10B981] ${
-            typeFilter === 'code'
-              ? 'bg-[#10B981]/15 border-[#10B981]/60 shadow-[0_0_16px_rgba(16,185,129,0.2)]'
-              : 'bg-[#12151E] border-[#232938] hover:border-[#10B981]/40 hover:bg-[#10B981]/5'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="size-8 rounded-lg bg-[#10B981]/15 border border-[#10B981]/30 flex items-center justify-center text-[#10B981] font-bold text-xs">
-              CODE
-            </span>
-            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/25">
-              GREEN
-            </span>
-          </div>
-          <div className="text-xs font-semibold text-[#F8FAFC]">Code & Scripts</div>
-          <div className="text-[11px] text-[#94A3B8] mt-0.5">
-            {typeStats.code.count} files · {formatBytes(typeStats.code.size)}
-          </div>
-        </button>
-
-        {/* ZIP Card (Gold) */}
-        <button
-          type="button"
-          onClick={() => setTypeFilter(typeFilter === 'zip' ? 'all' : 'zip')}
-          className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F59E0B] ${
-            typeFilter === 'zip'
-              ? 'bg-[#F59E0B]/15 border-[#F59E0B]/60 shadow-[0_0_16px_rgba(245,158,11,0.2)]'
-              : 'bg-[#12151E] border-[#232938] hover:border-[#F59E0B]/40 hover:bg-[#F59E0B]/5'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="size-8 rounded-lg bg-[#F59E0B]/15 border border-[#F59E0B]/30 flex items-center justify-center text-[#F59E0B] font-bold text-xs">
-              ZIP
-            </span>
-            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/25">
-              GOLD
-            </span>
-          </div>
-          <div className="text-xs font-semibold text-[#F8FAFC]">Archives & Data</div>
-          <div className="text-[11px] text-[#94A3B8] mt-0.5">
-            {typeStats.zip.count} files · {formatBytes(typeStats.zip.size)}
-          </div>
-        </button>
+        {renderTypeCard('pdf', 'PDF Documents', 'PDF', 'RED', TYPE_CARD_CLASSES.pdf, typeStats.pdf)}
+        {renderTypeCard('doc', 'Documents & Text', 'DOC', 'BLUE', TYPE_CARD_CLASSES.doc, typeStats.doc)}
+        {renderTypeCard('code', 'Code & Scripts', 'CODE', 'GREEN', TYPE_CARD_CLASSES.code, typeStats.code)}
+        {renderTypeCard('zip', 'Archives & Data', 'ZIP', 'GOLD', TYPE_CARD_CLASSES.zip, typeStats.zip)}
       </div>
 
-      {typeFilter !== 'all' && (
+      {effFilter !== 'all' && (
         <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[#12151E] border border-[#232938] text-xs">
           <span className="text-[#94A3B8]">
-            Filtering by <strong className="text-[#38BDF8] uppercase">{typeFilter}</strong> ({displayedFiles.length} match{displayedFiles.length === 1 ? '' : 'es'})
+            Filtering by <strong className="text-[#38BDF8] uppercase">{effFilter}</strong>
+            {paginated ? (
+              <>
+                {' '}
+                — showing {displayedFiles.length} of {totalCount} files
+              </>
+            ) : (
+              <> ({displayedFiles.length} match{displayedFiles.length === 1 ? '' : 'es'})</>
+            )}
           </span>
           <button
             type="button"
-            onClick={() => setTypeFilter('all')}
+            onClick={() => handleFilterChange('all')}
             className="text-xs text-[#38BDF8] hover:underline font-medium"
           >
             Clear Filter
@@ -379,166 +853,208 @@ export function DriveFilesSubView({
         </div>
       )}
 
-      {/* 4. Files Section with FastCDC Deduplication Badges */}
+      {/* 4. Files Section — virtualized list/grid + cursor pagination */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <h4 className="text-xs font-bold uppercase tracking-wider text-[#94A3B8]">
-            Files ({displayedFiles.length})
+            {filesCountLabel}
           </h4>
-          <span className="text-[11px] text-[#64748B]">
-            All objects backed by FastCDC 64KB CAS
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] text-[#64748B] hidden sm:inline">
+              All objects backed by FastCDC 64KB CAS
+            </span>
+            {typeof onSortChange === 'function' && (
+              <div className="flex items-center gap-1.5">
+                <label
+                  htmlFor="drive-files-sort"
+                  className="text-[11px] text-[#64748B] font-medium"
+                >
+                  Sort by
+                </label>
+                <select
+                  id="drive-files-sort"
+                  value={effSortBy}
+                  onChange={(e) => handleSortChange(e.target.value as DriveSortKey, effSortDir)}
+                  className="text-[11px] font-medium rounded-lg bg-[#1E293B] border border-[#232938] text-[#F8FAFC] px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
+                >
+                  {SORT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleSortChange(effSortBy, effSortDir === 'asc' ? 'desc' : 'asc')
+                  }
+                  aria-label={effSortDir === 'asc' ? 'Sort descending' : 'Sort ascending'}
+                  title={effSortDir === 'asc' ? 'Ascending — switch to descending' : 'Descending — switch to ascending'}
+                  className="size-7 rounded-lg bg-[#1E293B] border border-[#232938] text-[#94A3B8] hover:text-[#F8FAFC] grid place-items-center text-sm leading-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
+                >
+                  <span aria-hidden="true">{effSortDir === 'asc' ? '↑' : '↓'}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
-        {displayedFiles.length === 0 ? (
-          <div className="text-center py-16 rounded-2xl border border-dashed border-[#232938] bg-[#12151E]/40 p-8 space-y-3">
-            <div className="flex justify-center text-[#64748B]">
-              <HardDriveIcon className="size-12" />
+        <div
+          ref={scrollRef}
+          className="overflow-y-auto rounded-2xl"
+          style={{ maxHeight: listMaxHeight }}
+          aria-busy={loading || undefined}
+        >
+          {loading ? (
+            <div role="status" aria-label="Loading files" className="space-y-1.5 py-1">
+              <span className="sr-only">Loading files…</span>
+              {Array.from({ length: SKELETON_ROWS }).map((_, i) => (
+                <div
+                  key={i}
+                  aria-hidden="true"
+                  className="animate-pulse rounded-xl bg-[#12151E] border border-[#232938]"
+                  style={{ height: viewMode === 'grid' ? tileHeight : listRowHeight }}
+                />
+              ))}
             </div>
-            <h5 className="text-base font-bold text-[#F8FAFC]">No files in this view</h5>
-            <p className="text-xs text-[#94A3B8] max-w-sm mx-auto">
-              Upload documents, images, or archives to store them in your sovereign QuantDrive.
-            </p>
-          </div>
-        ) : viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
-            {displayedFiles.map((file) => {
-              const isSelected = selectedIds.has(file.id);
-              return (
-                <div
-                  key={file.id}
-                  onClick={() => onPreviewItem?.(file)}
-                  className={`group relative flex flex-col justify-between p-3.5 rounded-xl border transition-all duration-150 cursor-pointer ${
-                    isSelected
-                      ? 'bg-[#38BDF8]/15 border-[#38BDF8]/50 shadow-[0_0_14px_rgba(56,189,248,0.18)]'
-                      : 'bg-[#12151E] border-[#232938] hover:border-[#38BDF8]/40 hover:bg-[#161A26] shadow-[0_2px_12px_rgba(0,0,0,0.25)]'
-                  }`}
+          ) : error ? (
+            <div
+              role="alert"
+              className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-6 text-center space-y-3"
+            >
+              <p className="text-sm font-semibold text-[#F8FAFC]">Couldn’t load files</p>
+              <p className="text-xs text-[#94A3B8] max-w-sm mx-auto">{error}</p>
+              {onRetry && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="px-4 py-1.5 rounded-lg bg-[#1E293B] text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium"
                 >
-                  <div>
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="size-9 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/25 flex items-center justify-center text-[#38BDF8] shrink-0">
-                        <HardDriveIcon className="size-4" />
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {/* FastCDC Deduplication Badge */}
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[var(--q-type-xs)] font-mono font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
-                          FastCDC Deduped
-                        </span>
-                        <button
-                          type="button"
-                          aria-label={file.isStarred ? 'Unstar file' : 'Star file'}
-                          onClick={(e) => onToggleStar?.(file, e)}
-                          className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F59E0B] transition-colors focus-visible:outline-none"
+                  Retry
+                </button>
+              )}
+            </div>
+          ) : displayedFiles.length === 0 ? (
+            <div className="text-center py-16 rounded-2xl border border-dashed border-[#232938] bg-[#12151E]/40 p-8 space-y-3">
+              <div className="flex justify-center text-[#64748B]">
+                <HardDriveIcon className="size-12" />
+              </div>
+              <h5 className="text-base font-bold text-[#F8FAFC]">No files in this view</h5>
+              <p className="text-xs text-[#94A3B8] max-w-sm mx-auto">
+                Upload documents, images, or archives to store them in your sovereign QuantDrive.
+              </p>
+            </div>
+          ) : viewMode === 'grid' ? (
+            gridVirt.virtualized ? (
+              <div style={{ height: gridVirt.totalHeight, position: 'relative' }}>
+                <div
+                  className="absolute top-0 left-0 right-0"
+                  style={{
+                    transform: `translateY(${gridVirt.startRow * (tileHeight + GRID_TILE_GAP)}px)`,
+                  }}
+                >
+                  {Array.from(
+                    { length: gridVirt.endRow - gridVirt.startRow },
+                    (_, ri) => {
+                      const rowIndex = gridVirt.startRow + ri;
+                      const rowFiles = displayedFiles.slice(
+                        rowIndex * gridColumns,
+                        rowIndex * gridColumns + gridColumns,
+                      );
+                      const isLast = rowIndex === gridRowCount - 1;
+                      return (
+                        <div
+                          key={rowIndex}
+                          className="grid"
+                          style={{
+                            gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
+                            gap: GRID_TILE_GAP,
+                            height: tileHeight,
+                            marginBottom: isLast ? 0 : GRID_TILE_GAP,
+                          }}
                         >
-                          {file.isStarred ? (
-                            <StarFilledIcon className="size-3.5 text-[#F59E0B]" />
-                          ) : (
-                            <StarIcon className="size-3.5" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">
-                      {file.name}
-                    </p>
-                    <p className="text-[11px] text-[#94A3B8] mt-0.5">
-                      {formatBytes(file.size)} · {file.modifiedAt ? new Date(file.modifiedAt).toLocaleDateString() : 'Recent'}
-                    </p>
-                  </div>
-
-                  <div className="mt-3 pt-2 border-t border-[#232938] flex items-center justify-between text-[11px]">
-                    <span className="text-[#64748B] font-mono text-[10px]">CAS: 64KB</span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDownloadFile?.(file.id, file.name);
-                        }}
-                        className="px-2 py-0.5 rounded bg-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-[10px]"
-                      >
-                        Download
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteItem?.(file.id, file.name, e);
-                        }}
-                        className="px-1.5 py-0.5 rounded text-rose-400/80 hover:text-rose-300 hover:bg-rose-500/10 transition-colors text-[10px]"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
+                          {rowFiles.map((file) => renderFileTile(file))}
+                        </div>
+                      );
+                    },
+                  )}
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          /* List View */
-          <div className="space-y-1.5">
-            {displayedFiles.map((file) => {
-              const isSelected = selectedIds.has(file.id);
-              return (
-                <div
-                  key={file.id}
-                  onClick={() => onPreviewItem?.(file)}
-                  className={`group flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
-                    isSelected
-                      ? 'bg-[#38BDF8]/15 border-[#38BDF8]/50 shadow-[0_0_12px_rgba(56,189,248,0.15)]'
-                      : 'bg-[#12151E] border-[#232938] hover:border-[#38BDF8]/40 hover:bg-[#161A26]'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="size-8 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/25 flex items-center justify-center text-[#38BDF8] shrink-0">
-                      <HardDriveIcon className="size-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">
-                          {file.name}
-                        </p>
-                        <span className="inline-flex items-center px-1.5 py-px rounded text-[var(--q-type-xs)] font-mono font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
-                          FastCDC Deduped
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-[#94A3B8]">
-                        {formatBytes(file.size)} · Modified {file.modifiedAt ? new Date(file.modifiedAt).toLocaleDateString() : 'Recent'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      aria-label={file.isStarred ? 'Unstar file' : 'Star file'}
-                      onClick={(e) => onToggleStar?.(file, e)}
-                      className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F59E0B] transition-colors"
-                    >
-                      {file.isStarred ? (
-                        <StarFilledIcon className="size-3.5 text-[#F59E0B]" />
-                      ) : (
-                        <StarIcon className="size-3.5" />
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDownloadFile?.(file.id, file.name);
+              </div>
+            ) : (
+              <div
+                className="grid"
+                style={{
+                  gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
+                  gap: GRID_TILE_GAP,
+                }}
+              >
+                {displayedFiles.map((file) => renderFileTile(file))}
+              </div>
+            )
+          ) : listVirt.virtualized ? (
+            <div style={{ height: listVirt.totalHeight, position: 'relative' }}>
+              <div
+                className="absolute top-0 left-0 right-0"
+                style={{
+                  transform: `translateY(${listVirt.startRow * (listRowHeight + LIST_ROW_GAP)}px)`,
+                }}
+              >
+                {displayedFiles
+                  .slice(listVirt.startRow, listVirt.endRow)
+                  .map((file, i, arr) => (
+                    <div
+                      key={file.id}
+                      style={{
+                        height: listRowHeight,
+                        marginBottom: i === arr.length - 1 ? 0 : LIST_ROW_GAP,
                       }}
-                      className="px-2.5 py-1 rounded-lg bg-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium"
                     >
-                      Download
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                      {renderFileRow(file, { height: '100%' })}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {displayedFiles.map((file) =>
+                renderFileRow(file, { height: listRowHeight }),
+              )}
+            </div>
+          )}
+
+          {/* Pagination footer — honest states only */}
+          {loadingMore && (
+            <div
+              role="status"
+              className="flex items-center justify-center gap-2 py-4 text-xs text-[#94A3B8]"
+            >
+              <span
+                aria-hidden="true"
+                className="size-4 rounded-full border-2 border-[#38BDF8]/30 border-t-[#38BDF8] animate-spin"
+              />
+              Loading more files…
+            </div>
+          )}
+          {showLoadMore && !loadingMore && autoLoadMore && (
+            <div ref={sentinelRef} aria-hidden="true" className="h-px" />
+          )}
+          {showLoadMore && !loadingMore && !autoLoadMore && (
+            <div className="flex flex-col items-center gap-1.5 py-4">
+              <button
+                type="button"
+                onClick={() => onLoadMore?.()}
+                className="px-5 py-2 rounded-xl bg-[#1E293B] border border-[#232938] text-[#F8FAFC] hover:bg-[#334155] hover:border-[#38BDF8]/40 transition-colors text-xs font-semibold"
+              >
+                Load more files
+              </button>
+              {paginated && (
+                <span className="text-[11px] text-[#64748B]">
+                  {displayedFiles.length} of {totalCount} files loaded
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
