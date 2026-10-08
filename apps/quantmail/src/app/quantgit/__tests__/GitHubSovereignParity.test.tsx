@@ -181,7 +181,7 @@ describe('QuantGit 159-Screen GitHub Sovereign Parity Components', () => {
   });
 
   describe('NotificationsInbox (Screens 22, 85–86, 145–146)', () => {
-    it('renders Inbox, Saved, and Done tabs with notifications', () => {
+    it('renders Inbox, Saved, and Done tabs with an honest empty state', () => {
       const html = renderToStaticMarkup(<NotificationsInbox />);
 
       expect(html).toContain('All notifications');
@@ -189,8 +189,12 @@ describe('QuantGit 159-Screen GitHub Sovereign Parity Components', () => {
       expect(html).toContain('Saved');
       expect(html).toContain('Done');
       expect(html).toContain('Unread');
-      expect(html).toContain('smart inbox categorization');
-      expect(html).toContain('quantrinitylab / Quant-Ecosystem');
+      // QM-UIUX-065: no fabricated sample notifications may render — the
+      // inbox has no real data source, so it must show its empty state.
+      expect(html).toContain('No notifications');
+      expect(html).not.toContain('smart inbox categorization');
+      expect(html).not.toContain('cubic-dev-ai[bot]');
+      expect(html).not.toContain('Phase 2: CodeHub (QuantGit)');
     });
   });
 
