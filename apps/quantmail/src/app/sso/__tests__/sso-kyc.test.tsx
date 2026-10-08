@@ -15,8 +15,8 @@ vi.mock('../../../services/browser-auth-session', () => ({
   },
 }));
 
-vi.mock('../../../components/QuantMailLogo', () => ({
-  QuantMailLogo: () => <div data-testid="quantmail-logo" />,
+vi.mock('@quant/shared-ui', () => ({
+  BubbleAvatar: () => <div data-testid="quanty-ghost" />,
 }));
 
 const mockLogin = vi.fn();
