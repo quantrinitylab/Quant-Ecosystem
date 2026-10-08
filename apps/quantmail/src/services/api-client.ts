@@ -45,6 +45,20 @@ import type {
 // Re-export shared types used by settings and other surfaces.
 export type { EmailLabel } from '../types';
 
+/** A synced mail folder from the backend `/folders` API. */
+export interface EmailFolder {
+  id: string;
+  userId: string;
+  name: string;
+  type: 'INBOX' | 'SENT' | 'DRAFTS' | 'SPAM' | 'TRASH' | 'ARCHIVE' | 'CUSTOM';
+  color: string | null;
+  icon: string | null;
+  emailCount: number;
+  unreadCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -667,6 +681,32 @@ export class QuantMailApiClient {
 
   async deleteLabel(id: string): Promise<ApiResponse<EmailLabel>> {
     return this.delete(`/labels/${id}`);
+  }
+
+  // --------------------------------------------------------------------------
+  // Folders API — synced cross-device via the backend `/folders` CRUD.
+  // --------------------------------------------------------------------------
+
+  async getFolders(): Promise<ApiResponse<EmailFolder[]>> {
+    return this.get('/folders');
+  }
+
+  async createFolder(input: {
+    name: string;
+    color?: string;
+  }): Promise<ApiResponse<EmailFolder>> {
+    return this.post('/folders', { name: input.name, type: 'CUSTOM', color: input.color });
+  }
+
+  async updateFolder(
+    id: string,
+    data: { name?: string; color?: string },
+  ): Promise<ApiResponse<EmailFolder>> {
+    return this.put(`/folders/${id}`, data);
+  }
+
+  async deleteFolder(id: string): Promise<ApiResponse<EmailFolder>> {
+    return this.delete(`/folders/${id}`);
   }
 
   async getEmailSignatures(): Promise<ApiResponse<EmailSignaturePreference[]>> {
