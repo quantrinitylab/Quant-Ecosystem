@@ -1247,6 +1247,7 @@ Validation: source audit on 2026-10-08 confirmed reserveQuota() calls checkQuota
 
 ## QM-UIUX-055 — QuantChat: fix typing indicators (protocol mismatch)
 Status: [~] IN_PROGRESS — Owner: 7b8c9d0e-1f2a-3b4c-5d6e-7f8a9b0c1d2e; Branch: fix/qm-uiux-055-typing
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/648
 Finding: `useRealtimeChat` publishes `{type:'typing:start'}` frames the backend silently ignores (backend only handles `type:'typing'`), and subscribes to `chat:<id>` channel the backend never sends to. `typingUsers` always empty — typing indicators never render. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantchat-realtime-audit.md`.
 Required: align frontend/backend typing protocol; verify indicators render.
 Scope: `apps/quantchat/src/` realtime hooks.
