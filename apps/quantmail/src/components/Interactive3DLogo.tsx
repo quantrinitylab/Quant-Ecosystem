@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { resolveCanvasColor } from '../lib/canvas-color';
 import { motion, AnimatePresence } from 'framer-motion';
 import { appDisplayName } from './BrandWordmark';
 
@@ -253,7 +254,7 @@ export function Interactive3DLogo({
         ctx.fill();
 
         // Binding Rings
-        ctx.fillStyle = 'var(--quant-primary)';
+        ctx.fillStyle = resolveCanvasColor('var(--quant-primary)');
         ctx.beginPath();
         ctx.arc(cx0 + 4.5, cy0 + 1, 1.2, 0, Math.PI * 2);
         ctx.arc(cx0 + cw - 4.5, cy0 + 1, 1.2, 0, Math.PI * 2);
@@ -327,7 +328,7 @@ export function Interactive3DLogo({
         ctx.font = 'bold 12px monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = 'var(--quant-primary)';
+        ctx.fillStyle = resolveCanvasColor('var(--quant-primary)');
         ctx.shadowColor = 'rgba(255, 140, 66, 0.8)';
         ctx.shadowBlur = 6;
         ctx.fillText('< / >', 0, 0.5);

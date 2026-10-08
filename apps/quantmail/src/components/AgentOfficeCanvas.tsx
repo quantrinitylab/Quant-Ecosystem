@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { resolveCanvasColor } from '../lib/canvas-color';
 
 export type OfficeAgent = {
   id: string;
@@ -260,7 +261,7 @@ function drawChaiCorner(
 
   fillRoundedRect(context, x, y, cornerWidth, cornerHeight, 12, '#2b1a11', '#5c3016');
 
-  context.fillStyle = 'var(--quant-primary)';
+  context.fillStyle = resolveCanvasColor('var(--quant-primary)');
   context.font = '800 12px ui-sans-serif, system-ui, sans-serif';
   context.textAlign = 'left';
   context.fillText('CHAI CORNER', x + 17, y + 23);

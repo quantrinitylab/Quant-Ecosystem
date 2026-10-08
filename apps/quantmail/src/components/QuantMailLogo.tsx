@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { resolveCanvasColor } from '../lib/canvas-color';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useLiveMark, type MarkFrame } from './marks/useLiveMark';
@@ -220,7 +221,7 @@ function paintBlush(ctx: CanvasRenderingContext2D, x: number, y: number): void {
   const g = ctx.createRadialGradient(x, y, 0.4, x, y, 6.2);
   g.addColorStop(0, 'rgba(255, 140, 66, 0.42)');
   g.addColorStop(0.6, 'rgba(255, 140, 66, 0.16)');
-  g.addColorStop(1, 'var(--quant-accent-faint)');
+  g.addColorStop(1, resolveCanvasColor('var(--quant-accent-faint)'));
   ctx.fillStyle = g;
   ctx.fillRect(x - 7, y - 7, 14, 14);
 }

@@ -11,6 +11,7 @@ import {
   strokeMarkBezel,
 } from '../../../lib/marks/canvas-mark';
 import { useLiveMark, type MarkFrame } from '../../../components/marks/useLiveMark';
+import { resolveCanvasColor } from '../../../lib/canvas-color';
 
 export interface DinosaurMarkCandidateProps {
   size?: number;
@@ -72,7 +73,7 @@ export function DinosaurMarkCandidate({
       dinosaurPath(ctx);
       ctx.shadowColor = 'rgba(255, 140, 66, 0.38)';
       ctx.shadowBlur = 7 + hover * 4;
-      ctx.fillStyle = MARK_COLORS.emberDeep;
+      ctx.fillStyle = resolveCanvasColor(MARK_COLORS.emberDeep);
       ctx.fill();
       ctx.restore();
 
@@ -82,7 +83,7 @@ export function DinosaurMarkCandidate({
       amber.addColorStop(0, '#FFF0DE');
       amber.addColorStop(0.35, MARK_COLORS.peach);
       amber.addColorStop(0.74, MARK_COLORS.emberHot);
-      amber.addColorStop(1, MARK_COLORS.emberDeep);
+      amber.addColorStop(1, resolveCanvasColor(MARK_COLORS.emberDeep));
       ctx.fillStyle = amber;
       ctx.fill();
 
