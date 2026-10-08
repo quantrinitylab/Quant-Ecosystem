@@ -79,7 +79,7 @@ export function DriveRecentSubView({
       className="space-y-6"
     >
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[#232938] bg-[#12151E] shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[#232938] bg-[var(--quant-surface)] shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
         <div className="flex items-center gap-3.5">
           <div className="size-11 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8] shrink-0">
             <ClockIcon className="size-5" />
@@ -105,11 +105,11 @@ export function DriveRecentSubView({
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className="p-4 rounded-xl border border-[#232938] bg-[#12151E] space-y-3 animate-pulse"
+              className="p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] space-y-3 animate-pulse"
             >
-              <div className="h-9 w-9 rounded-lg bg-[#1E293B]" />
-              <div className="h-3 w-3/4 rounded bg-[#1E293B]" />
-              <div className="h-2.5 w-1/2 rounded bg-[#1E293B]" />
+              <div className="h-9 w-9 rounded-lg bg-[var(--quant-surface-elevated)]" />
+              <div className="h-3 w-3/4 rounded bg-[var(--quant-surface-elevated)]" />
+              <div className="h-2.5 w-1/2 rounded bg-[var(--quant-surface-elevated)]" />
             </div>
           ))}
         </div>
@@ -117,7 +117,7 @@ export function DriveRecentSubView({
 
       {/* Error state — honest failure, never a fabricated list. */}
       {!loading && error && (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#232938] bg-[#12151E] px-6 py-12 text-center">
+        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#232938] bg-[var(--quant-surface)] px-6 py-12 text-center">
           <p className="text-sm font-semibold text-[#F8FAFC]">Couldn&apos;t load recent files</p>
           <p className="text-xs text-[#94A3B8]">{error}</p>
         </div>
@@ -126,8 +126,8 @@ export function DriveRecentSubView({
       {/* Honest empty state — shown only after the backend confirmed there is
           nothing to show. Never fabricates entries. */}
       {!loading && !error && items.length === 0 && (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#232938] bg-[#12151E] px-6 py-12 text-center">
-          <div className="size-10 rounded-xl bg-[#090A0E] border border-[#232938] flex items-center justify-center text-[#64748B]">
+        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#232938] bg-[var(--quant-surface)] px-6 py-12 text-center">
+          <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[#232938] flex items-center justify-center text-[#64748B]">
             <ClockIcon className="size-5" />
           </div>
           <p className="text-sm font-semibold text-[#F8FAFC]">No recent files</p>
@@ -156,7 +156,7 @@ export function DriveRecentSubView({
                 <div
                   key={item.id}
                   onClick={() => onPreviewItem?.(item)}
-                  className="group relative flex flex-col justify-between p-4 rounded-xl border border-[#232938] bg-[#12151E] hover:border-[#38BDF8]/40 hover:bg-[#161A26] transition-all cursor-pointer shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
+                  className="group relative flex flex-col justify-between p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[#38BDF8]/40 hover:bg-[var(--quant-surface-elevated)] transition-all cursor-pointer shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-2">
@@ -169,7 +169,7 @@ export function DriveRecentSubView({
                         aria-label={item.isStarred ? `Unstar ${item.name}` : `Star ${item.name}`}
                         onClick={(e) => onToggleStar?.(item, e)}
                         className={`size-7 rounded grid place-items-center transition-transform hover:scale-110 focus-visible:outline-none ${
-                          item.isStarred ? 'text-[#F59E0B]' : 'text-[#64748B] hover:text-[#F59E0B]'
+                          item.isStarred ? 'text-[var(--quant-warning)]' : 'text-[#64748B] hover:text-[var(--quant-warning)]'
                         }`}
                       >
                         {item.isStarred ? (
@@ -198,7 +198,7 @@ export function DriveRecentSubView({
                           e.stopPropagation();
                           onDownloadFile?.(item.id, item.name);
                         }}
-                        className="px-2.5 py-1 rounded-lg bg-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium"
+                        className="px-2.5 py-1 rounded-lg bg-[var(--quant-surface-elevated)] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium"
                       >
                         Download
                       </button>
@@ -224,7 +224,7 @@ export function DriveRecentSubView({
               <button
                 type="button"
                 onClick={onLoadMore}
-                className="px-4 py-2 rounded-xl border border-[#232938] bg-[#12151E] text-xs font-semibold text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[#38BDF8]/40 transition-colors"
+                className="px-4 py-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-xs font-semibold text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[#38BDF8]/40 transition-colors"
               >
                 Load more
               </button>

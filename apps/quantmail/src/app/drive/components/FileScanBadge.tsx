@@ -39,13 +39,13 @@ const EXPLANATIONS: Record<FileScanStatus, string> = {
 
 const STYLES: Record<FileScanStatus, string> = {
   pending:
-    'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/30',
+    'bg-[var(--quant-warning)]/10 text-[var(--quant-warning)] border-[var(--quant-warning)]/30',
   scanning:
     'bg-[#38BDF8]/10 text-[#38BDF8] border-[#38BDF8]/30 animate-pulse',
   clean:
     'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/30',
   quarantined:
-    'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/40',
+    'bg-[var(--quant-destructive)]/10 text-[var(--quant-destructive)] border-[var(--quant-destructive)]/40',
   unknown:
     'bg-[#64748B]/10 text-[#94A3B8] border-[#64748B]/30',
 };
@@ -72,11 +72,11 @@ export function FileScanBadge({ status, reason, className = '' }: FileScanBadgeP
           normalized === 'clean'
             ? 'bg-[#10B981]'
             : normalized === 'quarantined'
-              ? 'bg-[#EF4444]'
+              ? 'bg-[var(--quant-destructive)]'
               : normalized === 'unknown'
                 ? 'bg-[#64748B]'
                 : normalized === 'pending'
-                  ? 'bg-[#F59E0B]'
+                  ? 'bg-[var(--quant-warning)]'
                   : 'bg-[#38BDF8]'
         }`}
         aria-hidden="true"
