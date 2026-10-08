@@ -962,14 +962,14 @@ export default function SettingsPage() {
               <PhoneVerificationCard />
 
               <SettingsSection
-                title="Privacy, Data Safety & Account Deletion"
-                description="Review our Google Play Store transparent privacy disclosures, zero-third-party-advertising guarantee, and manage permanent account deletion."
+                title="Privacy &amp; Data Safety"
+                description="Review our Google Play Store transparent privacy disclosures and zero-third-party-advertising guarantee."
                 action={
                   <Link
                     href="/settings/account"
-                    className="rounded-md border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-[11px] font-semibold text-red-400 hover:bg-red-500/20 transition-colors"
+                    className="rounded-md border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-2.5 py-1 text-[11px] font-semibold text-[var(--quant-foreground)] hover:bg-[var(--quant-border)] transition-colors"
                   >
-                    Manage Account &amp; Deletion
+                    Manage Account
                   </Link>
                 }
               >

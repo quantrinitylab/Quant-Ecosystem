@@ -314,85 +314,11 @@ export default function PrivacyPolicyPage() {
             </ul>
           </section>
 
-          {/* Section 6: Account Deletion Instructions */}
-          <section className="space-y-4 rounded-2xl border border-red-500/30 bg-red-950/10 p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-base font-semibold text-red-400 flex items-center gap-2">
-                <span className="flex size-6 items-center justify-center rounded-full bg-red-500/20 text-xs font-bold text-red-400">
-                  6
-                </span>
-                Account &amp; Data Deletion Instructions
-              </h2>
-              <Link
-                href="/settings/account"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/40 bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500 transition-colors shadow-sm"
-              >
-                Go to Account Deletion (/settings/account) →
-              </Link>
-            </div>
-
-            <p className="text-xs text-[var(--quant-muted-foreground)] leading-relaxed">
-              In accordance with Google Play&apos;s Account Deletion Requirement, users have the
-              right to request complete eradication of their account and all associated data
-              directly from within the app and via the web:
-            </p>
-
-            <div className="rounded-xl border border-red-500/20 bg-[#090A0C] p-4 space-y-3">
-              <div className="text-xs font-semibold text-[var(--quant-foreground)]">
-                Step-by-Step Deletion Process:
-              </div>
-              <ol className="list-decimal pl-5 space-y-1.5 text-xs text-[var(--quant-muted-foreground)] leading-relaxed">
-                <li>
-                  Open the app and navigate to{' '}
-                  <strong className="text-[var(--quant-foreground)]">Settings</strong> via the
-                  navigation bar or visit{' '}
-                  <Link href="/settings/account" className="text-[var(--brand-primary)] underline">
-                    https://quantmail.in/settings/account
-                  </Link>
-                  .
-                </li>
-                <li>
-                  Select{' '}
-                  <strong className="text-[var(--quant-foreground)]">
-                    Security &amp; Encryption
-                  </strong>{' '}
-                  or click{' '}
-                  <strong className="text-[var(--quant-foreground)]">
-                    Manage Account &amp; Deletion
-                  </strong>
-                  .
-                </li>
-                <li>
-                  Review your data export options if you wish to download an encrypted backup of
-                  your messages before deletion.
-                </li>
-                <li>
-                  In the <strong className="text-red-400">Permanent Account Deletion</strong> card,
-                  type{' '}
-                  <code className="rounded bg-red-950/50 px-1.5 py-0.5 font-mono text-red-400 font-bold">
-                    DELETE
-                  </code>{' '}
-                  to confirm.
-                </li>
-                <li>
-                  Click <strong className="text-red-400">Permanently Delete My Account</strong>.
-                </li>
-              </ol>
-
-              <div className="pt-2 border-t border-[var(--quant-border-subtle)] text-[11px] text-[var(--quant-muted-foreground)]">
-                <strong className="text-[var(--quant-foreground)]">What happens next:</strong>{' '}
-                Within 60 seconds of submission, your user credentials, mailbox records, drafts,
-                folders, cryptographic keys, and contact records are queued for immediate
-                destruction. All offline tokens are invalidated.
-              </div>
-            </div>
-          </section>
-
-          {/* Section 7: Contact Info */}
+          {/* Section 6: Contact Info */}
           <section className="space-y-3 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-6">
             <h2 className="text-base font-semibold text-[var(--quant-foreground)] flex items-center gap-2">
               <span className="flex size-6 items-center justify-center rounded-full bg-[var(--brand-soft)] text-xs font-bold text-[var(--brand-primary)]">
-                7
+                6
               </span>
               Contact Information &amp; Data Protection Officer
             </h2>
