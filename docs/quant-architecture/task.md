@@ -298,8 +298,8 @@ Required: evidence links, context boundary, preview before mutation, cost/revers
 Dependencies: QM-QUANTY-001.
 
 Owner: Muse
-Branch: TBD (agent worktree, PR-only to main)
-Notes: claimed 2026-10-08; Quanty inline context surfaces; dep QM-QUANTY-001 met via #593
+Branch: feat/qm-quanty-002-inline-context
+Notes: claimed 2026-10-08; PR #612 OPEN (agent complete 2026-10-08): evidence refs (quant:// deep links + verbatim quotes ≤280ch), enforceContextBudget 32KB oldest-first + contextTruncated flag, prepareSendPreview + POST /emails/:id/send-preview (cost, reversibility, idempotency key), provenance (capability ID, model, producedBy); built ON #593 registry, 4 new capabilities registered; tests 99/99 registry + 33 quantmail green locally; main merged in (review_by fix); awaiting gate → merge
 ## QM-QUANTY-003 — Quanty voice-to-mail workflow
 Status: [ ] TODO
 Example: Quanty, Rahul ko email likho aur bhejo.
