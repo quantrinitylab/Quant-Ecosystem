@@ -588,3 +588,25 @@ J. Only then mark screen/product Definition-of-Done items DONE with implementati
 
 ## Current audit gate
 No CI-green claim is made from this audit. Architecture findings are evidence from source inspection/search; runtime health, deployment readiness, queue behavior, E2E, accessibility and visual acceptance still require execution evidence.
+
+
+## QM-PLAT-011 — QuantMail realtime WebSocket authentication must not use bearer tokens in query URLs
+Status: [ ] TODO
+Finding: `apps/quantmail/src/hooks/useThreadRealtime.ts` currently constructs `/api/ws/thread/:threadId?token=<access-token>`. Browser/WebSocket URLs can enter intermediary/proxy/access logs and diagnostics, so this violates the same credential-boundary principle as SSO token URLs.
+Required: authenticate the WebSocket handshake without putting a bearer credential in the URL. Preferred design is an HttpOnly session/cookie-bound handshake or a short-lived, single-use, audience/resource-bound WebSocket ticket exchanged immediately before connect. Ticket must be non-replayable and must not itself be a reusable access token.
+Acceptance: source + tests prove no access/refresh token is serialized into the WebSocket URL; expiry/replay/resource binding are tested; reconnect obtains a fresh bounded credential.
+Dependencies: QM-AUTH-014/016/017.
+
+## QM-PLAT-012 — QuantDrive collaboration WebSocket must share the canonical session boundary
+Status: [ ] TODO
+Finding: `apps/quantmail/src/app/drive/doc/[docId]/useCollabDoc.ts` currently appends the browser access token as `?token=` on the collaboration WebSocket URL. This creates a second authentication mechanism that can drift from QuantMail/QuantDrive session policy.
+Required: converge document collaboration on the same versioned session/bootstrap/auth contract; authorize the document resource server-side; use a bounded handshake credential rather than a bearer token in the URL; preserve reconnect and offline semantics without credential leakage.
+Acceptance: document-id/resource authorization, expiry, replay, reconnect, multi-device and offline tests; no bearer credential in URL/log/referrer surfaces.
+Dependencies: QM-PLAT-011; QM-AUTH-008; QM-PLAT-010.
+
+## QM-SCREEN-021 — QuantMail responsive breakpoint must be an explicit cross-platform contract
+Status: [ ] TODO
+Finding: web shell CSS and `useIsMobile` intentionally converge on a 900px breakpoint, but the acceptance matrix must prove behavior at 390/768/1024 and intermediate widths, orientation changes, keyboard, touch and reduced-motion states. A CSS/JS agreement alone is not visual acceptance.
+Required: encode the breakpoint as a screen contract: mobile single-pane inbox/thread navigation below 900px, desktop split-pane at/above 900px, with no hydration/layout drift and equivalent navigation semantics on Tauri/Capacitor/Flutter.
+Acceptance: screenshot/interaction matrix across required widths plus keyboard/screen-reader/touch/reduced-motion evidence; route and pane behavior must match.
+Dependencies: QM-SCREEN-004; QM-PLAT-006; QM-PLAT-002/003.
