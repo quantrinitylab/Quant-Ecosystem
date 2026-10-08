@@ -427,6 +427,18 @@ Status: [ ] TODO
 Finding: login reads arbitrary `success` query text and renders it as success UI. Replace with allowlisted internal result codes mapped to centralized copy.
 Dependencies: QM-AUTH-004.
 
+
+## QM-AUTH-013 — Auth security copy correction
+Status: [x] DONE
+Owner: Architecture/UI audit agent
+Branch: architecture/quant-company-system-v1
+Scope: apps/quantmail/src/components/auth/AuthBrandPanel.tsx
+Finding: auth brand panel previously claimed mailbox end-to-end encryption without a supporting mailbox E2EE contract.
+Implementation: replaced the unsupported claim with evidence-backed "Protected by Quant security" language and retained the accurate in-transit/at-rest statement.
+Validation: source re-fetch and exact copy verification required after commit.
+Commit SHA: d71c3148095946b378797b4992b45038a46bdf42
+Notes: this does not establish mailbox E2EE; cryptographic architecture remains governed by product/backend contracts.
+
 ## QM-PLAT-006 — QuantMail web/mobile implementation divergence audit
 Status: [ ] TODO
 Finding: repository contains a Next.js QuantMail surface and a separate Flutter QuantMail workspace. Their screen contracts must be reconciled before claiming all-platform completion.
