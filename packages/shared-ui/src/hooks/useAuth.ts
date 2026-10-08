@@ -248,12 +248,27 @@ export function useAuth(): UseAuthReturn {
 
 /**
  * Ask the backend userinfo endpoint to VERIFY the token and return the user.
- * Throws on any non-ok response so callers fail closed.
+ * Throws on any non-ok response so callers fail closed. The request has a
+ * hard timeout so a hanging network can never trap the UI on a loading state
+ * forever (P1: session spinner with no timeout).
  */
 async function fetchUserFromToken(token: string): Promise<AuthUser> {
-  const res = await fetch(endpoints.userInfoUrl, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  let res: Response;
+  try {
+    res = await fetch(endpoints.userInfoUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('userinfo timed out after 10s');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!res.ok) {
     throw new Error(`userinfo failed: ${res.status}`);
   }
