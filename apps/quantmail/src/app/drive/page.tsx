@@ -8,6 +8,7 @@ import {
   DriveFilesSubView,
   DriveSharedSubView,
   DriveRecentSubView,
+  DriveSharedByMeSubView,
   DriveVaultSubView,
   DriveStarredSubView,
   DriveCleanerSubView,
@@ -27,7 +28,7 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { QuantDriveLogo } from '../../components/QuantDriveLogo';
 import { useConfirm } from '../../hooks/useConfirm';
-import { useDrive, type ReceivedShare } from '../../hooks/useDrive';
+import { useDrive, type ReceivedShare, type SentShareItem } from '../../hooks/useDrive';
 import { formatBytes } from '../../lib/format-bytes';
 import { showToast } from '../../components/InboxToast';
 import { useScrollElement, useVirtualizer } from '../../lib/virtual/useVirtualizer';
@@ -361,6 +362,7 @@ function DrivePageContent() {
     fetchReceivedShares,
     fetchRecentFiles,
     recordFileOpen,
+    fetchSentShares,
     fetchTrashFiles,
     restoreFile,
     purgeFile,
@@ -502,6 +504,10 @@ function DrivePageContent() {
   const [renameValue, setRenameValue] = useState('');
   const [trashItems, setTrashItems] = useState<DriveItem[]>([]);
   const [receivedShares, setReceivedShares] = useState<ReceivedShare[]>([]);
+  // QM-M39-001 — "Shared by me": owned items the user has shared.
+  const [sentShares, setSentShares] = useState<SentShareItem[]>([]);
+  // Sub-filter inside the Shared tab: shares received vs shares given.
+  const [sharedMode, setSharedMode] = useState<'with-me' | 'by-me'>('with-me');
   const [loadingSpecial, setLoadingSpecial] = useState<boolean>(false);
   // QM-M39-002 — "Recent" view state. Items arrive in backend recency order
   // and are rendered untouched — no client re-sorting.
@@ -746,14 +752,34 @@ function DrivePageContent() {
       void loadRecent(false);
     }
   }, [activeTab, loadRecent]);
+  // QM-M39-001 — load owned items the user has shared ("Shared by me").
+  const loadSentShares = useCallback(async () => {
+    setLoadingSpecial(true);
+    try {
+      const list = await fetchSentShares();
+      setSentShares(list ?? []);
+    } catch {
+      showToast({ text: 'Failed to load shared-by-me items', type: 'error', subject: 'drive-shares-sent' });
+    } finally {
+      setLoadingSpecial(false);
+    }
+  }, [fetchSentShares]);
 
   useEffect(() => {
     if (activeFilter === 'trash') {
       loadTrash();
-    } else if (activeFilter === 'shared') {
-      loadShares();
     }
-  }, [activeFilter, loadTrash, loadShares]);
+  }, [activeFilter, loadTrash]);
+
+  // The Shared tab renders from activeTab (not the activeFilter pills, which
+  // never include 'shared') — so both share lists load when the tab opens.
+  // This also fixes the latent bug where "Shared with me" never loaded.
+  useEffect(() => {
+    if (activeTab === 'shared') {
+      loadShares();
+      loadSentShares();
+    }
+  }, [activeTab, loadShares, loadSentShares]);
 
   const items = (files ?? []) as unknown as DriveItem[];
 
@@ -1490,36 +1516,93 @@ function DrivePageContent() {
 
           {/* Contextual Sub-Views */}
           {activeTab === 'shared' && (
-            <DriveSharedSubView
-              shares={receivedShares.map((s) => ({
-                id: s.id,
-                name: s.file?.name ?? s.folder?.name ?? 'Shared item',
-                type: s.folder ? 'folder' : 'file',
-                mimeType: s.file?.mimeType ?? '',
-                size: s.file?.size ?? 0,
-                sharedDate: s.createdAt,
-                permission:
-                  s.permission === 'edit'
-                    ? 'Editor'
-                    : s.permission === 'admin'
-                    ? 'Admin'
-                    : 'Viewer',
-                owner: {
-                  name: s.owner?.name || s.owner?.email || 'Collaborator',
-                  email: s.owner?.email || '',
-                },
-                status: s.status as any,
-                // QM-M39-009: scan state for shared files.
-                scanStatus: s.file?.scanStatus ?? null,
-                scanReason: s.file?.scanReason ?? null,
-              }))}
-              loading={loadingSpecial}
-              onRefresh={loadShares}
-              onAcceptShare={handleAcceptShare}
-              onDeclineShare={handleDeclineShare}
-              onPreviewItem={(item) => handlePreviewItem(item as any)}
-              onDownloadFile={handleDownloadFile}
-            />
+<div className="space-y-4">
+              {/* QM-M39-001 — sub-filter inside the Shared tab: received vs given.
+                  Badges carry real backend counts; no badge when the count is 0. */}
+              <div
+                role="tablist"
+                aria-label="Shared direction"
+                className="inline-flex items-center gap-1 rounded-xl border border-[#232938] bg-[#12151E] p-1"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={sharedMode === 'with-me'}
+                  onClick={() => setSharedMode('with-me')}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] ${
+                    sharedMode === 'with-me'
+                      ? 'bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/35'
+                      : 'text-[#94A3B8] border border-transparent hover:text-[#F8FAFC]'
+                  }`}
+                >
+                  Shared with me
+                  {receivedShares.length > 0 && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#38BDF8]/20 text-[#38BDF8]">
+                      {receivedShares.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={sharedMode === 'by-me'}
+                  onClick={() => setSharedMode('by-me')}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] ${
+                    sharedMode === 'by-me'
+                      ? 'bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/35'
+                      : 'text-[#94A3B8] border border-transparent hover:text-[#F8FAFC]'
+                  }`}
+                >
+                  Shared by me
+                  {sentShares.length > 0 && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#38BDF8]/20 text-[#38BDF8]">
+                      {sentShares.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {sharedMode === 'with-me' ? (
+                <DriveSharedSubView
+                  shares={receivedShares.map((s) => ({
+                    id: s.id,
+                    name: s.file?.name ?? s.folder?.name ?? 'Shared item',
+                    type: s.folder ? 'folder' : 'file',
+                    mimeType: s.file?.mimeType ?? '',
+                    size: s.file?.size ?? 0,
+                    sharedDate: s.createdAt,
+                    permission:
+                      s.permission === 'edit'
+                        ? 'Editor'
+                        : s.permission === 'admin'
+                        ? 'Admin'
+                        : 'Viewer',
+                    owner: {
+                      name: s.owner?.name || s.owner?.email || 'Collaborator',
+                      email: s.owner?.email || '',
+                    },
+                    status: s.status as any,
+                    // QM-M39-009: scan state for shared files.
+                    scanStatus: s.file?.scanStatus ?? null,
+                    scanReason: s.file?.scanReason ?? null,
+                  }))}
+                  loading={loadingSpecial}
+                  onRefresh={loadShares}
+                  onAcceptShare={handleAcceptShare}
+                  onDeclineShare={handleDeclineShare}
+                  onPreviewItem={(item) => handlePreviewItem(item as any)}
+                  onDownloadFile={handleDownloadFile}
+                />
+              ) : (
+                <DriveSharedByMeSubView
+                  items={sentShares}
+                  loading={loadingSpecial}
+                  onRefresh={loadSentShares}
+                  onManageAccess={(item) => setShareTarget({ id: item.id, name: item.name })}
+                  onPreviewItem={(item) => setPreviewItem(item as any)}
+                />
+              )}
+            </div>
           )}
 
           {activeTab === 'vault' && <DriveVaultSubView />}

@@ -5,12 +5,14 @@ import {
   DriveContextTabsHeader,
   DriveFilesSubView,
   DriveSharedSubView,
+  DriveSharedByMeSubView,
   DriveVaultSubView,
   DriveStarredSubView,
   DriveCleanerSubView,
   type DriveSubTab,
   type DriveItem,
 } from '../app/drive/components';
+import type { SentShareItem } from '../hooks/useDrive';
 
 // The quota meter reads the real GET /api/drive/quota through this hook; the
 // suite pins it to a known value instead of letting the meter fetch.
@@ -326,6 +328,113 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
 
     it('contains strictly ZERO raw Unicode emojis in shared subview', () => {
       const html = renderToStaticMarkup(<DriveSharedSubView />);
+      assertZeroRawEmojis(html);
+    });
+  });
+
+  // ==========================================================================
+  // 3b. DriveSharedByMeSubView Tests (QM-M39-001 — M39 screen 5)
+  // ==========================================================================
+  describe('3b. DriveSharedByMeSubView Component', () => {
+    const sampleItems: SentShareItem[] = [
+      {
+        id: 'file-1',
+        name: 'Roadmap.pdf',
+        type: 'file',
+        mimeType: 'application/pdf',
+        size: 4096,
+        updatedAt: '2026-10-05T10:00:00Z',
+        sharedCount: 2,
+        sharedWith: [
+          {
+            name: 'Asha Rao',
+            email: 'asha@example.com',
+            permission: 'edit',
+            status: 'accepted',
+            sharedAt: '2026-10-06T10:00:00Z',
+          },
+          {
+            name: 'Ben Cole',
+            email: 'ben@example.com',
+            permission: 'view',
+            status: 'pending',
+            sharedAt: '2026-10-07T10:00:00Z',
+          },
+        ],
+        linkShare: { role: 'viewer', requiresPassword: false, expiresAt: null },
+      },
+      {
+        id: 'folder-1',
+        name: 'Design assets',
+        type: 'folder',
+        mimeType: '',
+        size: 0,
+        updatedAt: '2026-10-04T10:00:00Z',
+        sharedCount: 1,
+        sharedWith: [
+          {
+            name: 'Cara Diaz',
+            email: 'cara@example.com',
+            permission: 'admin',
+            status: 'accepted',
+            sharedAt: '2026-10-04T10:00:00Z',
+          },
+        ],
+        linkShare: null,
+      },
+    ];
+
+    it('renders the Shared by Me banner with the real item count', () => {
+      const html = renderToStaticMarkup(<DriveSharedByMeSubView items={sampleItems} />);
+
+      expect(html).toContain('Shared by Me');
+      expect(html).toContain('drive-panel-shared-by-me');
+      expect(html).toContain('2 Shared');
+    });
+
+    it('shows an honest empty state when the user has shared nothing', () => {
+      const html = renderToStaticMarkup(<DriveSharedByMeSubView items={[]} />);
+
+      expect(html).toContain('shared anything yet');
+      expect(html).not.toContain('Roadmap.pdf');
+      expect(html).not.toContain('Asha Rao');
+    });
+
+    it('renders per-item share summaries with real recipient counts', () => {
+      const html = renderToStaticMarkup(<DriveSharedByMeSubView items={sampleItems} />);
+
+      expect(html).toContain('Roadmap.pdf');
+      expect(html).toContain('Design assets');
+      expect(html).toContain('2 people');
+      expect(html).toContain('1 person');
+    });
+
+    it('renders the link-state chip only where a link is really on', () => {
+      const html = renderToStaticMarkup(<DriveSharedByMeSubView items={sampleItems} />);
+
+      // The file has an active link; the folder has linkShare: null — so the
+      // "Link on" chip must appear exactly once (no fake link states).
+      expect(html.match(/Link on/g)).toHaveLength(1);
+    });
+
+    it('exposes View access only for files (permissions-viewer entry point)', () => {
+      const html = renderToStaticMarkup(
+        <DriveSharedByMeSubView items={sampleItems} onManageAccess={() => {}} />,
+      );
+
+      // Files open the access modal; folders (no file-share surface) get none.
+      expect(html.match(/View access/g)).toHaveLength(1);
+    });
+
+    it('shows a loading skeleton instead of fake rows while loading', () => {
+      const html = renderToStaticMarkup(<DriveSharedByMeSubView items={[]} loading />);
+
+      expect(html).toContain('Loading shared items');
+      expect(html).not.toContain('Roadmap.pdf');
+    });
+
+    it('contains strictly ZERO raw Unicode emojis in shared-by-me subview', () => {
+      const html = renderToStaticMarkup(<DriveSharedByMeSubView items={sampleItems} />);
       assertZeroRawEmojis(html);
     });
   });
