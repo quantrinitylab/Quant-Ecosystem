@@ -763,7 +763,7 @@ Dependencies: QM-UIUX-001 (share root-cause findings).
 Validation: mobile screenshot of the fixed page required before DONE.
 
 ## QM-UIUX-003 — QuantWave sign-in must actually redirect or stop claiming it does
-Status: [ ] TODO
+Status: [~] IN_PROGRESS (Owner: Muse, Branch: fix/qm-uiux-003-wave-signin-redirect, PR: #627)
 Finding: `https://quantwave.quantrinity.in` shows "Sign in to QuantWave / Taking you to sign in with your Quant account. / Go to sign in" — the copy claims an automatic redirect ("Taking you to...") but the page is static; the user must click a plain text link. Screenshot: `~/workspace/audits/2026-10-08-uiux-deep/wave-mobile.png`. Copy must be an instruction or a provable truth.
 Required: either make the page actually auto-redirect to the SSO flow (preferred), or replace the copy with an honest CTA button ("Continue with Quant Account").
 Scope: QuantWave landing/auth entry.
