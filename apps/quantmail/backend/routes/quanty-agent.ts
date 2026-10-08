@@ -17,6 +17,7 @@ import type { FastifyInstance } from 'fastify';
 import type { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
+import { AIEngine } from '@quant/ai';
 import { EmailService } from '../services/email.service';
 import { ThreadService } from '../services/thread.service';
 import {
@@ -61,7 +62,8 @@ function toolAppOf(toolName: string): QuantyToolApp | undefined {
 function boot(fastify: FastifyInstance): void {
   if (booted) return;
   const prisma = (fastify as unknown as { prisma: PrismaClient }).prisma;
-  // REAL tools: mail + git handlers backed by the scoped backend services.
+  // REAL tools: mail + git handlers backed by the scoped backend services,
+  // drive handlers backed by the real Drive AI services (QM-M39-011).
   // No stubs — registerRealTools throws on duplicate registration, so this
   // runs exactly once per process.
   registerRealTools({
@@ -69,6 +71,7 @@ function boot(fastify: FastifyInstance): void {
     emailService: new EmailService(prisma),
     threadService: new ThreadService(prisma),
     summarizeService: null,
+    aiEngine: new AIEngine(),
   });
   store = new InMemoryTaskStore();
   executor = new QuantyExecutor({ store });

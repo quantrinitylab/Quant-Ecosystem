@@ -45,6 +45,7 @@ import { FileVersionHistoryModal } from '../../components/drive/FileVersionHisto
 import { FileActivityModal } from '../../components/drive/FileActivityModal';
 import { FileAISummaryDrawer } from '../../components/drive/FileAISummaryDrawer';
 import { AIDuplicateCleanerModal } from '../../components/drive/AIDuplicateCleanerModal';
+import { QuantyFileWorkspace } from '../../components/drive/QuantyFileWorkspace';
 import { StorageQuotaBar } from '../../components/drive/StorageQuotaBar';
 import { apiFetchRaw } from '@quant/api-client';
 
@@ -512,6 +513,9 @@ function DrivePageContent() {
   const [activityFile, setActivityFile] = useState<DriveItem | null>(null);
   const [aiSummaryFile, setAiSummaryFile] = useState<DriveItem | null>(null);
   const [isDuplicateCleanerOpen, setIsDuplicateCleanerOpen] = useState(false);
+  // QM-M39-011: Quanty file workspace (M39 screen 31).
+  const [isQuantyWorkspaceOpen, setIsQuantyWorkspaceOpen] = useState(false);
+  const [quantyWorkspaceFile, setQuantyWorkspaceFile] = useState<DriveItem | null>(null);
   const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
   // QM-M39-005: read-only access viewer target (separate from the share-change modal)
   const [accessTarget, setAccessTarget] = useState<{ id: string; name: string } | null>(null);
@@ -1223,6 +1227,31 @@ function DrivePageContent() {
             >
               <IconFolderPlus size={14} />
               <span className="hidden md:inline">New Folder</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setQuantyWorkspaceFile(null);
+                setIsQuantyWorkspaceOpen(true);
+              }}
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[#A1A4AC] border border-white/[0.08] transition-all hover:text-[#F5F5F5] hover:border-[#FF8C42]/40 hover:bg-white/[0.04] hover:shadow-[0_0_12px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] md:px-3"
+              aria-label="Open the Quanty file workspace"
+            >
+              <svg
+                className="size-3.5 text-[#FF8C42]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"
+                />
+              </svg>
+              <span className="hidden md:inline">Quanty</span>
             </button>
 
             <button
@@ -1984,6 +2013,15 @@ function DrivePageContent() {
                   >
                     AI Insights
                   </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setQuantyWorkspaceFile(previewItem);
+                      setIsQuantyWorkspaceOpen(true);
+                    }}
+                  >
+                    Quanty workspace
+                  </Button>
                 </>
               )}
               <Button variant="secondary" onClick={handleClosePreview}>
@@ -2136,6 +2174,26 @@ function DrivePageContent() {
           isOpen={isDuplicateCleanerOpen}
           onClose={() => setIsDuplicateCleanerOpen(false)}
           onCleanupComplete={() => fetchFiles(currentFolderId)}
+        />
+
+        {/* QM-M39-011: Quanty file workspace (M39 screen 31) */}
+        <QuantyFileWorkspace
+          isOpen={isQuantyWorkspaceOpen}
+          onClose={() => setIsQuantyWorkspaceOpen(false)}
+          file={
+            quantyWorkspaceFile
+              ? {
+                  id: quantyWorkspaceFile.id,
+                  name: quantyWorkspaceFile.name,
+                  mimeType: quantyWorkspaceFile.mimeType,
+                }
+              : null
+          }
+          onOpenDuplicateCleaner={() => {
+            setIsQuantyWorkspaceOpen(false);
+            setIsDuplicateCleanerOpen(true);
+          }}
+          onFilesChanged={() => fetchFiles(currentFolderId)}
         />
 
         {dialog}

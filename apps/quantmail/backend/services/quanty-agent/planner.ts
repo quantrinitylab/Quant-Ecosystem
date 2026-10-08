@@ -41,6 +41,34 @@ interface Rule {
   match: string[];
   summary: string;
   steps: PlannedStep[];
+  /**
+   * Optional: build the step args from the raw command (used by rules that
+   * carry a free-text argument, e.g. the drive search query or file name).
+   * Applied to every step of the rule when it fires.
+   */
+  argsFrom?: (command: string) => Record<string, unknown>;
+}
+
+/** Words that carry no meaning in a drive command; stripped before arg extraction. */
+const DRIVE_STOPWORDS = new Set([
+  'find', 'search', 'files', 'file', 'summarize', 'summary', 'organize', 'organise',
+  'where', 'should', 'does', 'go', 'move', 'my', 'me', 'for', 'the', 'a', 'an',
+  'about', 'named', 'called', 'to', 'its', 'their', 'folder', 'please',
+]);
+
+/** Everything left after removing trigger/stop words — the search query or file name. */
+function driveArgRemainder(command: string): string {
+  // NOTE: works on the raw command (not normalize()), because normalize()
+  // strips punctuation and would turn "notes.txt" into "notes txt".
+  const remainder = command
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter((w) => w && !DRIVE_STOPWORDS.has(w.replace(/[?!.,]+$/g, '')))
+    .join(' ')
+    .trim();
+  return remainder.replace(/[?!.,]+$/g, '');
 }
 
 /**
@@ -87,6 +115,46 @@ const RULES: Rule[] = [
     summary: 'List repositories',
     steps: [{ toolName: 'git.listRepos', label: 'Listing repositories', args: {} }],
   },
+  // Drive tools (QM-M39-011): Quanty file workspace commands. Each rule
+  // targets a REAL registered drive.* tool; the free-text remainder of the
+  // command becomes the query / file name. Empty remainders surface as honest
+  // tool errors, never guesses.
+  {
+    match: ['find', 'file'],
+    summary: 'Find files in Drive',
+    steps: [{ toolName: 'drive.searchFiles', label: 'Searching Drive files', args: {} }],
+    argsFrom: (command) => ({ query: driveArgRemainder(command) }),
+  },
+  {
+    match: ['search', 'file'],
+    summary: 'Search files in Drive',
+    steps: [{ toolName: 'drive.searchFiles', label: 'Searching Drive files', args: {} }],
+    argsFrom: (command) => ({ query: driveArgRemainder(command) }),
+  },
+  {
+    match: ['summarize', 'file'],
+    summary: 'Summarize a Drive file',
+    steps: [{ toolName: 'drive.summarizeFile', label: 'Summarizing file', args: {} }],
+    argsFrom: (command) => ({ fileName: driveArgRemainder(command) }),
+  },
+  {
+    match: ['where', 'should', 'go'],
+    summary: 'Suggest a destination folder',
+    steps: [{ toolName: 'drive.suggestDestination', label: 'Finding the best folder', args: {} }],
+    argsFrom: (command) => ({ fileName: driveArgRemainder(command) }),
+  },
+  {
+    match: ['organize', 'file'],
+    summary: 'Suggest a destination folder',
+    steps: [{ toolName: 'drive.suggestDestination', label: 'Finding the best folder', args: {} }],
+    argsFrom: (command) => ({ fileName: driveArgRemainder(command) }),
+  },
+  {
+    match: ['move', 'folder'],
+    summary: 'Move a file to its suggested folder (asks for confirmation first)',
+    steps: [{ toolName: 'drive.organizeFile', label: 'Moving file to suggested folder', args: {} }],
+    argsFrom: (command) => ({ fileName: driveArgRemainder(command) }),
+  },
 ];
 
 /**
@@ -101,11 +169,14 @@ export class RuleBasedPlanner implements QuantyPlanner {
     for (const rule of RULES) {
       const hits = rule.match.every((kw) => norm.includes(` ${kw}`));
       if (hits) {
-        return { summary: rule.summary, steps: rule.steps, unmatched: false };
+        const steps = rule.argsFrom
+          ? rule.steps.map((s) => ({ ...s, args: rule.argsFrom!(command) }))
+          : rule.steps;
+        return { summary: rule.summary, steps, unmatched: false };
       }
     }
     return {
-      summary: `I couldn't understand "${command}". Try: archive unread, mark all read, star important, summarize latest, clean inbox, delete spam, list repos.`,
+      summary: `I couldn't understand "${command}". Try: archive unread, mark all read, star important, summarize latest, clean inbox, delete spam, list repos, find files <query>, summarize file <name>, where should <name> go, organize file <name>, move <name> to its folder.`,
       steps: [],
       unmatched: true,
     };

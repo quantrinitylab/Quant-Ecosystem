@@ -12,6 +12,9 @@
 //                 ThreadService implementations) plus real composite tools
 //                 from `./tools/composite-mail-tools.ts`
 //     - git.*   — adapted from `./tools/git-tools.ts` (real Prisma/git-backed)
+//     - drive.* — from `./tools/drive-tools.ts` (real Drive AI services:
+//                 search, suggest-destination, summarize, organize)
+//                 registered when the caller provides an AIEngine
 //
 //   Every tool id is namespaced (`mail.searchEmails`, `git.listRepos`, ...).
 //   Every side-effect flows through the QuantMail backend's scoped services —
@@ -38,6 +41,7 @@ import type { QuantyMailTool, QuantyMailToolsDeps, MailAuditEntry } from './tool
 import { buildCompositeMailTools } from './tools/composite-mail-tools';
 import { GIT_TOOLS } from './tools/git-tools';
 import type { QuantyTool as GitQuantyTool, GitToolsPrisma } from './tools/git-tools';
+import { buildDriveTools, type DriveToolsPrisma } from './tools/drive-tools';
 import type {
   QuantyTool,
   QuantyToolApp,
@@ -209,18 +213,30 @@ function adaptGitTool(tool: GitQuantyTool): QuantyTool {
 // ---------------------------------------------------------------------------
 
 /**
- * Register the REAL mail + git tools into the engine registry.
+ * Register the REAL mail + git + drive tools into the engine registry.
  * Call once at backend boot (see routes/quanty-agent.ts). Throws on duplicate
  * registration — boot it exactly once per process.
  *
+ * Drive tools (drive.searchFiles, drive.suggestDestination, drive.summarizeFile,
+ * drive.organizeFile) are registered when deps.aiEngine is provided — without
+ * it they are skipped rather than stubbed.
+ *
  * After this call the planner's rules resolve to live implementations:
- * `mail.archiveUnread`, `mail.sendEmail`, `git.listRepos`, ...
+ * `mail.archiveUnread`, `mail.sendEmail`, `git.listRepos`, `drive.searchFiles`, ...
  */
 export function registerRealTools(deps: QuantyMailToolsDeps): void {
   const mailTools = buildQuantyMailTools(deps);
   registerTools(mailTools.map(adaptMailTool));
   registerTools(GIT_TOOLS.map(adaptGitTool));
   registerTools(buildCompositeMailTools(deps));
+  if (deps.aiEngine) {
+    registerTools(
+      buildDriveTools({
+        prisma: deps.prisma as unknown as DriveToolsPrisma,
+        aiEngine: deps.aiEngine,
+      }),
+    );
+  }
 }
 
 export type { QuantyMailToolsDeps, MailAuditEntry };

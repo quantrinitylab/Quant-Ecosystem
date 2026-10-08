@@ -9,3 +9,4 @@ export * from './schedule-registry';
 export * from './agent-state';
 export * from './undo';
 export * from './popup-data';
+export * from './tools/drive-tools';
