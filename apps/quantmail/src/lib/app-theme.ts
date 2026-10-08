@@ -10,7 +10,7 @@ export type AppThemeId = 'mail' | 'calendar' | 'drive' | 'contacts' | 'quantgit'
 
 export interface AppTheme {
   id: AppThemeId;
-  /** Primary accent color (hex) */
+  /** Primary accent color (hex or CSS var token, e.g. var(--quant-primary)) */
   accent: string;
   /** Accent with alpha for glows (rgba) */
   glow: string;
