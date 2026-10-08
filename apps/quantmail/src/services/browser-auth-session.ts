@@ -7,6 +7,13 @@
 // QUANTMAIL_BACKEND_URL and always fails closed with a JSON response.
 const AUTH_BASE_URL = (process.env.NEXT_PUBLIC_AUTH_URL ?? '').replace(/\/$/, '');
 
+/**
+ * Global ceiling for any single authenticated request (including one 401
+ * refresh retry). Mirrors the PR #621 auth-check pattern: a hung backend must
+ * surface as an error, never an infinite spinner.
+ */
+const FETCH_TIMEOUT_MS = 30_000;
+
 export const LEGACY_TOKEN_KEYS = [
   'quant_auth_tokens',
   'quant_access_token',
@@ -183,6 +190,13 @@ export const browserAuthSession = {
     return accessToken;
   },
 
+  /**
+   * Global request timeout for every authenticated fetch. A backend that
+   * accepts a connection and never responds must not leave spinners hanging
+   * forever — the timeout aborts the request so callers land on their honest
+   * error state + retry. The caller's own signal (e.g. React Query
+   * cancellation) is still honored: either abort source wins.
+   */
   async authenticatedFetch(
     input: RequestInfo | URL,
     init: RequestInit = {},
@@ -191,23 +205,42 @@ export const browserAuthSession = {
     const headers = new Headers(init.headers);
     if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
 
-    const response = await fetch(input, {
-      ...init,
-      headers,
-      credentials: 'include',
-    });
+    const controller = new AbortController();
+    const callerSignal = init.signal;
+    const onCallerAbort = () => controller.abort(callerSignal?.reason);
+    if (callerSignal) {
+      if (callerSignal.aborted) controller.abort(callerSignal.reason);
+      else callerSignal.addEventListener('abort', onCallerAbort, { once: true });
+    }
+    const timer = setTimeout(
+      () => controller.abort(new Error('Request timed out after 30 seconds')),
+      FETCH_TIMEOUT_MS,
+    );
 
-    if (response.status !== 401 || !allowRefreshRetry) return response;
+    try {
+      const response = await fetch(input, {
+        ...init,
+        headers,
+        credentials: 'include',
+        signal: controller.signal,
+      });
 
-    const refreshed = await refreshOnce();
-    if (!refreshed.success || !accessToken) return response;
+      if (response.status !== 401 || !allowRefreshRetry) return response;
 
-    const retryHeaders = new Headers(init.headers);
-    retryHeaders.set('Authorization', `Bearer ${accessToken}`);
-    return fetch(input, {
-      ...init,
-      headers: retryHeaders,
-      credentials: 'include',
-    });
+      const refreshed = await refreshOnce();
+      if (!refreshed.success || !accessToken) return response;
+
+      const retryHeaders = new Headers(init.headers);
+      retryHeaders.set('Authorization', `Bearer ${accessToken}`);
+      return fetch(input, {
+        ...init,
+        headers: retryHeaders,
+        credentials: 'include',
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+      callerSignal?.removeEventListener('abort', onCallerAbort);
+    }
   },
 };

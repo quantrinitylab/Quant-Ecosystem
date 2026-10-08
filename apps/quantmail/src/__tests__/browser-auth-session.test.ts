@@ -167,4 +167,49 @@ describe('browserAuthSession', () => {
       expect.objectContaining({ method: 'POST', credentials: 'include' }),
     );
   });
+
+  it('aborts a hung request after the global timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      // Never-resolving fetch: simulates a backend that hangs forever.
+      fetchMock.mockImplementation(
+        (_input: unknown, init?: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => {
+              reject(init.signal?.reason ?? new DOMException('Aborted', 'AbortError'));
+            });
+          }),
+      );
+
+      const promise = browserAuthSession.authenticatedFetch('/api/emails');
+      // Attach the rejection handler BEFORE advancing timers, so the abort
+      // rejection is never momentarily unhandled.
+      const assertion = expect(promise).rejects.toThrow(/timed out/i);
+      // Advance past the 30s timeout.
+      await vi.advanceTimersByTimeAsync(31_000);
+
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('honors the caller signal: caller abort wins without waiting for timeout', async () => {
+    const caller = new AbortController();
+    fetchMock.mockImplementation(
+      (_input: unknown, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(init.signal?.reason ?? new DOMException('Aborted', 'AbortError'));
+          });
+        }),
+    );
+
+    const promise = browserAuthSession.authenticatedFetch('/api/emails', {
+      signal: caller.signal,
+    });
+    caller.abort(new Error('cancelled by caller'));
+
+    await expect(promise).rejects.toThrow(/cancelled by caller/);
+  });
 });

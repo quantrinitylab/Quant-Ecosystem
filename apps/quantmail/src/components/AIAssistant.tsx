@@ -26,6 +26,42 @@ interface Message {
   action?: string;
 }
 
+/**
+ * Turn a caught AI exception into an honest, user-safe message.
+ * Surfaces the real failure class (network vs timeout vs quota vs auth) so the
+ * user can act on it, while stripping stack traces, file paths, and anything
+ * else that leaks internals. Never returns an empty string.
+ */
+function sanitizeAiError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return 'The AI service hit a snag. Please try again.';
+  }
+  // First line only (drops stack traces); strip anything resembling a file
+  // path; cap length so a verbose backend message can't flood the chat.
+  const cleaned = error.message
+    .split('\n')[0]
+    .replace(/\/[\w\-./]+\.(ts|tsx|js|jsx|py|go)/g, '[file]')
+    .replace(/[A-Za-z]:\\[\w\-.\\]+/g, '[file]')
+    .trim()
+    .slice(0, 200);
+  if (/timed?\s?out|abort/i.test(cleaned)) {
+    return 'The AI request timed out. Check your connection and try again.';
+  }
+  if (/network|fetch failed|econnrefused|enotfound|failed to fetch/i.test(cleaned)) {
+    return 'The AI service is unreachable. Check your connection and try again.';
+  }
+  if (/quota|rate.?limit|429|too many requests/i.test(cleaned)) {
+    return 'The AI service is busy right now (rate limit). Wait a moment and try again.';
+  }
+  if (/401|unauthorized|session/i.test(cleaned)) {
+    return 'Your session expired. Sign in again and retry.';
+  }
+  if (cleaned) {
+    return `The AI service hit a snag: ${cleaned}`;
+  }
+  return 'The AI service hit a snag. Please try again.';
+}
+
 export function AIAssistant(props: AIAssistantProps): React.ReactElement {
   const { isOpen, onClose, onCompose, onSummarize, onSuggestReplies, onAsk, currentContext } =
     props;
@@ -112,10 +148,7 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
       quantyReact('ai:answered');
     } catch (error) {
       quantyReact('ai:failed');
-      addMessage(
-        'assistant',
-        'Sorry, I encountered an error processing your request. Please try again.',
-      );
+      addMessage('assistant', sanitizeAiError(error));
     } finally {
       setIsProcessing(false);
     }
@@ -166,9 +199,9 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
           break;
       }
       quantyReact('ai:answered');
-    } catch {
+    } catch (error) {
       quantyReact('ai:failed');
-      addMessage('assistant', 'Something went wrong. Please try again.');
+      addMessage('assistant', sanitizeAiError(error));
     } finally {
       setIsProcessing(false);
     }
