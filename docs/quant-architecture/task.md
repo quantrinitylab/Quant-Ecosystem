@@ -256,7 +256,7 @@ Dependencies: QM-BACK-001; universal search.
 
 Owner: Muse
 Branch: feat/qm-back-006-data-lifecycle-events
-Notes: claimed 2026-10-08; PR #611 MERGED 2026-10-08 (orchestrator). Implementation verified by main agent: 10 versioned lifecycle events via K1 outbox spine, lifecycle_operations + projector_checkpoints verified completion, hold-guard 423, search-indexer invalidation (Meili+Qdrant), migration 0083; tests 12/12 + 7/7 green locally, gate green. Follow-up PR #615 MERGED 2026-10-08: fully unquoted type names in 0082 (lowercase-quoted "integer" still failed — pg has no type named integer); staging backend deploy pending fresh trigger.
+Notes: claimed 2026-10-08; PR #611 MERGED 2026-10-08 (orchestrator). Implementation verified by main agent: 10 versioned lifecycle events via K1 outbox spine, lifecycle_operations + projector_checkpoints verified completion, hold-guard 423, search-indexer invalidation (Meili+Qdrant), migration 0083; tests 12/12 + 7/7 green locally, gate green. Follow-up PR #615 MERGED 2026-10-08: fully unquoted type names in 0082. Staging backend deploy VERIFIED LIVE 2026-10-08 ~08:15 IST: run 37718753139 success, pod 1/1 Ready on new image, all 91 migrations applied (0082 fixed, 0083, 0084), /api/health 200.
 ## QM-BACK-007 — Dependency health / degraded modes
 Status: [x] DONE
 Required: dependency-level latency/error/timeout/circuit state; declared degraded behavior; mutations fail closed when authoritative state is unavailable.
