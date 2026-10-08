@@ -7,6 +7,7 @@
 // ============================================================================
 
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
+import { withDependencyTimeout } from '@quant/server-core';
 
 let client: SESv2Client | null = null;
 
@@ -65,7 +66,11 @@ export async function sendViaSes(opts: SesSendOptions): Promise<string> {
       },
     },
   });
-  const response = await ses.send(command);
+  // K13: SES transmits are remote calls — bound them with the central timeout
+  // policy so a hung SES endpoint fails fast with a typed RemoteCallTimeoutError
+  // (label 'ses') instead of stalling the delivery worker. The error message
+  // carries the label and is recorded in the delivery attempt log by callers.
+  const response = await withDependencyTimeout('ses', () => ses.send(command));
   return response.MessageId ?? 'unknown';
 }
 

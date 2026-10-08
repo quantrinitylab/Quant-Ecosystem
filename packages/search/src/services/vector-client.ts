@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { z } from 'zod';
+import { fetchWithTimeout } from '@quant/server-core';
 
 export const QdrantPointSchema = z.object({
   id: z.string(),
@@ -163,11 +164,18 @@ export class VectorClient {
       body.filter = options.filter;
     }
 
-    const response = await fetch(`${this.baseUrl}/collections/${collection}/points/search`, {
-      method: 'POST',
-      headers: this.getHeaders(true),
-      body: JSON.stringify(body),
-    });
+    // K13: Qdrant is a remote dependency — bound by the central timeout policy
+    // ('search', default 5s, QUANT_TIMEOUT_SEARCH-overridable); a hung Qdrant
+    // fails fast with a typed RemoteCallTimeoutError instead of hanging.
+    const response = await fetchWithTimeout(
+      `${this.baseUrl}/collections/${collection}/points/search`,
+      {
+        method: 'POST',
+        headers: this.getHeaders(true),
+        body: JSON.stringify(body),
+      },
+      'search',
+    );
 
     if (!response.ok) {
       const error = await response.text();

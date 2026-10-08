@@ -184,6 +184,9 @@ describe('VectorClient', () => {
             limit: 5,
             with_payload: true,
           }),
+          // K13: upstream search calls go through fetchWithTimeout, which
+          // attaches an abort signal for the central timeout policy.
+          signal: expect.any(AbortSignal),
         },
       );
 

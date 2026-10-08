@@ -20,6 +20,7 @@ import type { PrismaClient } from '@prisma/client';
 import { passwordService } from '@quant/auth';
 import type { OtpService } from '../lib/otp-service';
 import type { SessionTokenIssuer } from '../lib/session-tokens';
+import { fetchWithTimeout, getTimeoutMs } from '@quant/server-core';
 
 const loginSchema = z.object({
   identifier: z.string().min(1).max(255),
@@ -274,9 +275,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
     ).replace(/\/$/, '');
     let identity: { email: string; username?: string; displayName?: string };
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-      try {
+      {
+        // K13: upstream OIDC/userinfo verification runs under the central
+        // remote-call timeout policy ('sso' — default 8000ms, overridable via
+        // QUANT_TIMEOUT_SSO). A hung QuantMail fails fast with a typed
+        // RemoteCallTimeoutError instead of an untyped abort / silent hang.
         // QUANTMAIL_BACKEND_URL differs by environment: production points at
         // the internal k8s service (no /api prefix — that only exists on the
         // public Next.js proxy), while local/dev may point at the public
@@ -284,10 +287,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
         // fall back to the proxied path on 404.
         let res: Response | null = null;
         for (const userinfoPath of ['/oauth/userinfo', '/api/oauth/userinfo']) {
-          const attempt = await fetch(`${quantmailBase}${userinfoPath}`, {
-            headers: { Authorization: `Bearer ${ssoToken}` },
-            signal: controller.signal,
-          });
+          const attempt = await fetchWithTimeout(
+            `${quantmailBase}${userinfoPath}`,
+            { headers: { Authorization: `Bearer ${ssoToken}` } },
+            'sso',
+          );
           if (attempt.status === 404) continue; // path not served here — try next
           res = attempt;
           break;
@@ -331,10 +335,18 @@ export default async function authRoutes(fastify: FastifyInstance) {
           username: typeof data.username === 'string' ? data.username : undefined,
           displayName: typeof data.displayName === 'string' ? data.displayName : undefined,
         };
-      } finally {
-        clearTimeout(timeout);
       }
-    } catch {
+    } catch (err) {
+      // Labeled log: timeout vs. other upstream failures are distinguishable
+      // by `code` (REMOTE_CALL_TIMEOUT) for the health endpoint / metrics.
+      request.log.warn(
+        {
+          dependency: 'sso',
+          code: (err as { code?: string } | null)?.code ?? 'UNKNOWN',
+          timeoutMs: getTimeoutMs('sso'),
+        },
+        'sso userinfo upstream call failed',
+      );
       return reply.status(502).send({
         success: false,
         error: {
