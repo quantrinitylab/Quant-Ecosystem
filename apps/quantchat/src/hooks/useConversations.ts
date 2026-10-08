@@ -20,15 +20,24 @@ export function useConversations() {
         throw new Error(response.error?.message || 'Failed to load conversations');
       }
       const raw = response.data;
-      if (Array.isArray(raw)) return raw;
-      if (
+      let list: Conversation[];
+      if (Array.isArray(raw)) list = raw;
+      else if (
         raw &&
         typeof raw === 'object' &&
         Array.isArray((raw as unknown as { data?: Conversation[] }).data)
       ) {
-        return (raw as unknown as { data: Conversation[] }).data;
+        list = (raw as unknown as { data: Conversation[] }).data;
+      } else {
+        list = [];
       }
-      return [];
+      // QM-CHAT-001: the backend list endpoint does not always include the
+      // `participants` array (raw Prisma records). Normalize to [] so no
+      // consumer can crash on `undefined.find(...)`.
+      return list.map((c) => ({
+        ...c,
+        participants: Array.isArray(c.participants) ? c.participants : [],
+      }));
     },
   });
 

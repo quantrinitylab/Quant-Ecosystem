@@ -55,6 +55,63 @@ export interface UpdateConversationInput {
   isArchived?: boolean;
 }
 
+/**
+ * QM-CHAT-001: public participant shape consumed by the web client
+ * (apps/quantchat/src/types ConversationParticipant). The backend previously
+ * returned raw Prisma conversation records with NO participants array, which
+ * crashed the /chat/[id] page ("Cannot read properties of undefined
+ * (reading 'find')"). Both read paths now always include this array.
+ */
+export interface ConversationParticipantDto {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  role: 'admin' | 'moderator' | 'member';
+  joinedAt: Date;
+  lastReadAt?: Date | null;
+  nickname?: string | null;
+}
+
+export type ConversationWithParticipants = Conversation & {
+  participants: ConversationParticipantDto[];
+};
+
+type MemberWithUser = ConversationMember & {
+  user: { id: string; username: string; displayName: string; avatarUrl: string | null };
+};
+
+function toParticipantRole(role: ConversationRole): 'admin' | 'moderator' | 'member' {
+  switch (role) {
+    case ConversationRole.OWNER:
+    case ConversationRole.ADMIN:
+      return 'admin';
+    default:
+      return 'member';
+  }
+}
+
+function toParticipantDto(m: MemberWithUser): ConversationParticipantDto {
+  return {
+    userId: m.userId,
+    username: m.user.username,
+    displayName: m.user.displayName,
+    avatarUrl: m.user.avatarUrl,
+    role: toParticipantRole(m.role),
+    joinedAt: m.joinedAt,
+    lastReadAt: m.lastReadAt,
+    nickname: m.nickname,
+  };
+}
+
+/** Active members with the minimal user fields the client needs for names/avatars. */
+const activeMembersWithUser = {
+  where: { leftAt: null },
+  include: {
+    user: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
+  },
+} as const;
+
 export class ConversationService {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -103,16 +160,23 @@ export class ConversationService {
     return conversation;
   }
 
-  async getConversation(id: string): Promise<Conversation | null> {
-    return this.prisma.conversation.findUnique({
+  async getConversation(id: string): Promise<ConversationWithParticipants | null> {
+    const conv = await this.prisma.conversation.findUnique({
       where: { id },
+      include: { members: activeMembersWithUser },
     });
+    if (!conv) return null;
+    const { members, ...rest } = conv;
+    return {
+      ...rest,
+      participants: (members as MemberWithUser[]).map(toParticipantDto),
+    };
   }
 
   async getUserConversations(
     userId: string,
     options: PaginationOptions = {},
-  ): Promise<PaginatedResult<Conversation>> {
+  ): Promise<PaginatedResult<ConversationWithParticipants>> {
     const page = options.page ?? 1;
     const pageSize = options.pageSize ?? 20;
     const skip = (page - 1) * pageSize;
@@ -120,7 +184,11 @@ export class ConversationService {
     const [members, total] = await Promise.all([
       this.prisma.conversationMember.findMany({
         where: { userId, leftAt: null },
-        include: { conversation: true },
+        include: {
+          conversation: {
+            include: { members: activeMembersWithUser },
+          },
+        },
         orderBy: { conversation: { lastMessageAt: 'desc' } },
         skip,
         take: pageSize,
@@ -128,7 +196,15 @@ export class ConversationService {
       this.prisma.conversationMember.count({ where: { userId, leftAt: null } }),
     ]);
 
-    const data = members.map((m) => (m as unknown as { conversation: Conversation }).conversation);
+    const data: ConversationWithParticipants[] = members.map((m: unknown) => {
+      const conv = (
+        m as unknown as {
+          conversation: Conversation & { members: MemberWithUser[] };
+        }
+      ).conversation;
+      const { members: convMembers, ...rest } = conv;
+      return { ...rest, participants: convMembers.map(toParticipantDto) };
+    });
     const totalPages = Math.ceil(total / pageSize);
 
     return {
