@@ -366,9 +366,29 @@ Validation: repository search started; current repo contains both Next.js web an
 Notes: do not assume a web screen is automatically implemented on mobile; record platform parity explicitly.
 
 ## QM-SCREEN-001 — Splash / session bootstrap / signed-out boundary
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: Architecture/UI audit agent
+Branch: architecture/quant-company-system-v1
+Scope: apps/quantmail/src/app/layout.tsx; apps/quantmail/src/components/AuthGuard.tsx; apps/quantmail/src/providers/auth-provider.tsx; apps/quantmail/src/services/browser-auth-session.ts; Flutter QuantMail app bootstrap/router/auth-session surfaces.
+Audit findings: Web correctly keeps the refresh credential in an HttpOnly cookie and the access token in module memory, clears legacy browser token storage, and avoids a login-page flash while refresh/profile hydration is loading. Flutter deliberately defers secure-token hydration until after the first frame and holds the router while auth hydration is loading. However, neither platform currently has the required single authoritative workspace bootstrap contract for identity/account state/devices/permissions/product config/Quanty session, and the startup UX collapses materially different states (offline, auth service unavailable, timeout, invalid session) into a generic signed-out/error path. Flutter also has a separate auth/session contract and route set that must converge semantically with the web contract rather than merely sharing login code.
 Required: cold start, warm start, expired session, refresh, offline, degraded backend, account switch, deep-link return, Quanty bootstrap, loading ownership, secure token handling, platform-specific startup behavior.
-Acceptance: no flash of authenticated content; no fabricated workspace state; bootstrap is authoritative.
+Acceptance: no flash of authenticated content; no fabricated workspace state; bootstrap is authoritative; offline/degraded/expired states are distinguishable and recoverable; Web/Tauri/Capacitor/Flutter preserve the same domain bootstrap semantics.
+Validation: source audit completed across web AuthGuard/AuthProvider/browserAuthSession and Flutter AppBootstrap/LoginScreen/AppRouter; no runtime/visual/CI claim yet.
+Dependencies: QM-AUTH-008; QM-PLAT-006; QM-PLAT-010.
+
+## QM-SCREEN-028 — QuantMail web startup must consume one authoritative workspace bootstrap
+Status: [ ] TODO
+Finding: web startup currently refreshes the browser session and then calls `getUserInfo()`; the protected shell is considered authenticated from profile presence, but the screen contract requires one authoritative bootstrap covering identity, account state, active workspace, device/session summary, permissions/capabilities, product configuration and Quanty bootstrap. Treating profile hydration as the whole bootstrap can leave the shell without authoritative capability/config state and encourages route-by-route hydration drift.
+Required: add/version the canonical bootstrap response and make AuthProvider/AuthGuard transition from session-valid to workspace-ready only after authoritative bootstrap succeeds; preserve bounded loading and explicit degraded/offline states; do not synthesize workspace state.
+Scope: apps/quantmail/src/providers/auth-provider.tsx; apps/quantmail/src/components/AuthGuard.tsx; browser auth/session API; workspace bootstrap contract.
+Dependencies: QM-AUTH-008; QM-PLAT-010.
+
+## QM-SCREEN-029 — QuantMail Flutter startup must converge on the same bootstrap semantics
+Status: [ ] TODO
+Finding: Flutter AppBootstrap currently hydrates TokenManager, binds silent refresh/connectivity, and relies on `authSessionProvider`/router for authentication. The route contract is centered on `/login -> /inbox`, but no authoritative workspace bootstrap is established at startup and auth loading/error states do not distinguish offline, dependency-unavailable and invalid-session conditions. This is a platform implementation gap, not a reason to duplicate web UI.
+Required: consume the same versioned workspace/bootstrap domain contract as web; keep secure-storage/platform lifecycle differences in adapters only; expose explicit bootstrap states (loading, ready, offline/degraded, reauth required); prevent authenticated-looking UI before authoritative bootstrap.
+Scope: flutter_apps/workspaces/phase1/apps/quantmail/flutter/packages/quant_core; quant_app router/login/bootstrap.
+Dependencies: QM-AUTH-008; QM-PLAT-006; QM-PLAT-010.
 
 ## QM-SCREEN-002 — Login / registration / verification / recovery / 2FA
 Status: [ ] TODO
