@@ -455,21 +455,71 @@ export function CompaniesSubView({
 // 3. AI DEDUP SUB-VIEW (AI Duplicate Contact Cleaner Wizard View)
 // ============================================================================
 
+export interface DedupCollisionRecord {
+  id: string;
+  name: string;
+  sourceLabel: string;
+  company?: string | null;
+  email?: string | null;
+  phone?: string | null;
+}
+
+export interface DedupCollisionPair {
+  id: string;
+  recordA: DedupCollisionRecord;
+  recordB: DedupCollisionRecord;
+  /** 0-100. Rendered only when supplied by a real detection source — never invented. */
+  matchConfidence?: number;
+}
+
 export interface DedupWizardSubViewProps {
   isMerged: boolean;
-  onMerge: () => void;
-  onKeepSeparate: () => void;
-  onOpenFullModal: () => void;
+  /**
+   * Real duplicate candidates from an actual detection pass. When empty or
+   * undefined the honest clean state renders — this component never invents
+   * collisions, names, or match-confidence numbers.
+   */
+  collisions?: DedupCollisionPair[];
+  onMerge: (collisionId?: string) => void;
+  onKeepSeparate: (collisionId?: string) => void;
+  onOpenFullModal: (collisionId?: string) => void;
   onRescan: () => void;
 }
 
 export function DedupWizardSubView({
   isMerged,
+  collisions,
   onMerge,
   onKeepSeparate,
   onOpenFullModal,
   onRescan,
 }: DedupWizardSubViewProps) {
+  const activeCollisions = isMerged ? [] : (collisions ?? []);
+  const collision = activeCollisions[0];
+  const remaining = activeCollisions.length;
+
+  const renderCollisionRecord = (record: DedupCollisionRecord) => (
+    <div className="rounded-xl border border-[#1E2433] bg-[#10131B] p-3.5 space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold text-white">{record.name}</span>
+        <span className="rounded bg-[#1E293B] px-1.5 py-0.5 text-[10px] font-medium text-[#94A3B8]">
+          {record.sourceLabel}
+        </span>
+      </div>
+      <p className="text-xs text-[#D1D5DB]">
+        {record.name}
+        {record.company ? ` · ${record.company}` : ''}
+      </p>
+      <p className="text-[11px] text-[#94A3B8]">
+        {[
+          record.email ? `Email: ${record.email}` : null,
+          record.phone ? `Phone: ${record.phone}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ') || 'No contact details'}
+      </p>
+    </div>
+  );
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* AI Duplicate Cleaner Summary Hero Card */}
@@ -487,44 +537,38 @@ export function DedupWizardSubView({
               <h2 className="text-base font-bold text-white tracking-wide">AI Duplicate Contact Cleaner</h2>
               <span
                 className={`rounded-md border px-2.5 py-0.5 text-xs font-bold tracking-wider ${
-                  isMerged
+                  remaining === 0
                     ? 'border-[#10B981] bg-[#064E3B]/50 text-[#34D399]'
                     : 'border-[#38BDF8] bg-[#1E3A5F]/50 text-[#38BDF8]'
                 }`}
               >
-                {isMerged
-                  ? '0 Duplicates Remaining · 100% Synced'
-                  : '2 Potential Duplicates Detected · 98% Match Confidence'}
+                {remaining === 0
+                  ? 'No duplicates detected'
+                  : `${remaining} Potential Duplicate${remaining === 1 ? '' : 's'} Detected${
+                      collision?.matchConfidence != null ? ` · ${collision.matchConfidence}% Match Confidence` : ''
+                    }`}
               </span>
             </div>
             <p className="text-xs text-[#94A3B8] mt-2 leading-relaxed">
-              Quant Jaro-Winkler phonetic inference continuously scans CalDAV, Google Workspace, and local sovereign address books to prevent contact collisions.
+              Review possible duplicate contacts side by side and merge them into a single record.
             </p>
           </div>
         </div>
       </div>
 
       {/* Collision Comparison & Merge Wizard */}
-      {!isMerged ? (
+      {collision ? (
         <div className="rounded-2xl border border-[#262C3A] bg-[#141722] p-5 shadow-md space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-[#262C3A]">
-            <h3 className="text-sm font-bold text-white">Detected Collision: Sundar Pichai</h3>
-            <span className="rounded border border-[#F59E0B] bg-[#78350F]/40 px-2 py-0.5 text-[10px] font-bold text-[#FBBF24]">
-              98% Match
-            </span>
+            <h3 className="text-sm font-bold text-white">Detected Collision: {collision.recordA.name}</h3>
+            {collision.matchConfidence != null && (
+              <span className="rounded border border-[#F59E0B] bg-[#78350F]/40 px-2 py-0.5 text-[10px] font-bold text-[#FBBF24]">
+                {collision.matchConfidence}% Match
+              </span>
+            )}
           </div>
 
-          {/* Record A: Sundar Pichai (Google) */}
-          <div className="rounded-xl border border-[#1E2433] bg-[#10131B] p-3.5 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white">Sundar Pichai (Google)</span>
-              <span className="rounded bg-[#1E293B] px-1.5 py-0.5 text-[10px] font-medium text-[#94A3B8]">
-                Google Workspace Sync
-              </span>
-            </div>
-            <p className="text-xs text-[#D1D5DB]">Sundar Pichai · Alphabet Inc. · CEO</p>
-            <p className="text-[11px] text-[#94A3B8]">Email: sundar@google.com · Phone: +1 (650) 253-0000</p>
-          </div>
+          {renderCollisionRecord(collision.recordA)}
 
           {/* Conflict Resolution Preview Divider */}
           <div className="flex items-center gap-3">
@@ -535,30 +579,32 @@ export function DedupWizardSubView({
             <div className="flex-1 h-px bg-[#262C3A]" />
           </div>
 
-          {/* Record B: Sundar Pichai (Personal) */}
-          <div className="rounded-xl border border-[#1E2433] bg-[#10131B] p-3.5 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white">Sundar Pichai (Personal)</span>
-              <span className="rounded bg-[#1E293B] px-1.5 py-0.5 text-[10px] font-medium text-[#94A3B8]">
-                Local Device Sync
-              </span>
-            </div>
-            <p className="text-xs text-[#D1D5DB]">Sundar Pichai · Personal Address Book</p>
-            <p className="text-[11px] text-[#94A3B8]">Email: sundar.pichai@gmail.com · Phone: +1 (650) 253-0000</p>
-          </div>
+          {renderCollisionRecord(collision.recordB)}
 
-          {/* Proposed Sovereign Unified Record */}
+          {/* Proposed Unified Record */}
           <div className="rounded-xl border border-[#10B981]/40 bg-[#0F1B17] p-3.5 space-y-1.5">
             <div className="flex items-center gap-2 text-xs font-bold text-[#34D399]">
               <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="10" />
                 <path d="m9 12 2 2 4-4" />
               </svg>
-              <span>Proposed Sovereign Unified Record</span>
+              <span>Proposed Unified Record</span>
             </div>
             <p className="text-xs text-[#E2E8F0] leading-relaxed">
-              Sundar Pichai · Alphabet Inc. (CEO)<br />
-              <span className="text-[#94A3B8] text-[11px]">Primary: sundar@google.com · Secondary: sundar.pichai@gmail.com · Phone: +1 (650) 253-0000</span>
+              {collision.recordA.name}
+              {collision.recordA.company ? ` · ${collision.recordA.company}` : ''}
+              <br />
+              <span className="text-[#94A3B8] text-[11px]">
+                {[
+                  collision.recordA.email ? `Primary: ${collision.recordA.email}` : null,
+                  collision.recordB.email ? `Secondary: ${collision.recordB.email}` : null,
+                  collision.recordA.phone || collision.recordB.phone
+                    ? `Phone: ${collision.recordA.phone || collision.recordB.phone}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ') || 'No contact details to merge'}
+              </span>
             </p>
           </div>
 
@@ -566,7 +612,7 @@ export function DedupWizardSubView({
           <div className="pt-2 space-y-2">
             <button
               type="button"
-              onClick={onMerge}
+              onClick={() => onMerge(collision.id)}
               className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#10B981] py-2.5 text-xs font-bold text-black hover:bg-[#059669] transition-colors shadow-md shadow-[#10B981]/20"
             >
               <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -578,14 +624,14 @@ export function DedupWizardSubView({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={onKeepSeparate}
+                onClick={() => onKeepSeparate(collision.id)}
                 className="flex-1 rounded-xl border border-[#333D52] bg-[#16181D] py-2 text-xs font-medium text-[#94A3B8] hover:text-[#F5F5F5] hover:border-[#4B5563] transition-colors"
               >
                 Keep Both Records Separate
               </button>
               <button
                 type="button"
-                onClick={onOpenFullModal}
+                onClick={() => onOpenFullModal(collision.id)}
                 className="flex-1 rounded-xl border border-[#38BDF8]/40 bg-[#0E2C48] py-2 text-xs font-semibold text-[#38BDF8] hover:bg-[#133A5E] transition-colors"
               >
                 Open Advanced Wizard
@@ -594,7 +640,7 @@ export function DedupWizardSubView({
           </div>
         </div>
       ) : (
-        /* Merged Clean State Card */
+        /* Honest Clean State Card — rendered when no real collisions exist */
         <div className="rounded-2xl border border-[#10B981]/60 bg-[#0F1B17] p-8 text-center shadow-lg space-y-3">
           <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#064E3B]/60 border border-[#10B981] text-[#10B981]">
             <svg className="size-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -604,7 +650,7 @@ export function DedupWizardSubView({
           </div>
           <h3 className="text-base font-bold text-white">All Contacts Deduplicated &amp; Clean</h3>
           <p className="text-xs text-[#94A3B8] max-w-md mx-auto leading-relaxed">
-            0 duplicate collisions remaining · Sovereign directory is 100% synchronized across all connected accounts.
+            No duplicate collisions to review right now.
           </p>
           <div className="pt-2">
             <button
@@ -643,68 +689,58 @@ export interface EnterpriseCircleItem {
 
 export interface CirclesSubViewProps {
   contacts: (Contact | SovereignContact)[];
+  /**
+   * Real circles (e.g. mapped from the user's contact groups). When empty or
+   * undefined the honest empty state renders — this component never invents
+   * circles or member names.
+   */
+  circles?: EnterpriseCircleItem[];
   onBroadcast: (emails: string[]) => void;
   onViewCircle: (circle: EnterpriseCircleItem) => void;
 }
 
 export function CirclesSubView({
   contacts,
+  circles: circlesProp,
   onBroadcast,
   onViewCircle,
 }: CirclesSubViewProps) {
-  // Enterprise Circles specification:
-  // Executive Board (4), Core Engineers (8), Product Council (3)
-  const circles: EnterpriseCircleItem[] = React.useMemo(() => [
-    {
-      id: 'exec_board',
-      name: 'Executive Board',
-      memberCount: 4,
-      description: 'Sovereign governance & executive committee with emergency broadcast privilege',
-      themeColor: '#F59E0B',
-      badgeStyle: 'border-[#F59E0B]/50 bg-[#78350F]/40 text-[#FBBF24]',
-      memberNames: ['Sundar Pichai', 'Satya Nadella', 'Sam Altman', 'Astra Executive AI'],
-    },
-    {
-      id: 'core_eng',
-      name: 'Core Engineers',
-      memberCount: 8,
-      description: 'Systems architecture, kernel contributors, cryptography, and QA sentinel leads',
-      themeColor: '#10B981',
-      badgeStyle: 'border-[#10B981]/50 bg-[#064E3B]/40 text-[#34D399]',
-      memberNames: [
-        'Linus Torvalds',
-        'Dev Sentinel',
-        'Sarah Chen',
-        'Demis Hassabis',
-        'Astra AI',
-        'Alex Rivera',
-        'Core 1',
-        'Core 2',
-      ],
-    },
-    {
-      id: 'product_council',
-      name: 'Product Council',
-      memberCount: 3,
-      description: 'Product designers, developer experience advocates, and client advisory council',
-      themeColor: '#0EA5E9',
-      badgeStyle: 'border-[#0EA5E9]/50 bg-[#0C4A6E]/40 text-[#38BDF8]',
-      memberNames: ['Sarah Chen', 'Alex Rivera', 'Astra Executive AI'],
-    },
-  ], []);
+  // Only real, caller-supplied circles render. Previously this component
+  // hardcoded demo circles with fabricated member names (including real
+  // public figures) — those are deleted.
+  const circles: EnterpriseCircleItem[] = circlesProp ?? [];
 
   const handleBroadcastCircle = (circle: EnterpriseCircleItem) => {
-    // Resolve emails from contacts
+    // Resolve emails from the user's real contacts only. Never invent
+    // a fallback address — an empty list composes a blank message.
     const emails: string[] = [];
     circle.memberNames.forEach((name) => {
       const match = contacts.find((c) => c.name.toLowerCase().includes(name.toLowerCase()));
       if (match) emails.push(match.email);
     });
-    if (emails.length === 0) {
-      emails.push(`${circle.id}@quantrinity.in`);
-    }
     onBroadcast(emails);
   };
+
+  if (circles.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="rounded-2xl border border-[#262C3A] bg-[#141722] p-8 text-center shadow-md space-y-3">
+          <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#1E2433] border border-[#333D52] text-[#8B5CF6]">
+            <svg className="size-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <circle cx="12" cy="12" r="8" strokeDasharray="3 3" />
+              <circle cx="19" cy="8" r="1.5" fill="currentColor" />
+              <circle cx="5" cy="16" r="1.5" fill="currentColor" />
+            </svg>
+          </div>
+          <h3 className="text-base font-bold text-white">No circles yet</h3>
+          <p className="text-xs text-[#94A3B8] max-w-md mx-auto leading-relaxed">
+            Create a contact group to start a circle for one-tap broadcasts.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -759,7 +795,7 @@ export function CirclesSubView({
                   <div>
                     <h3 className="text-sm font-bold text-white">{circle.name}</h3>
                     <p className="text-[11px] font-semibold" style={{ color: circle.themeColor }}>
-                      {circle.memberCount} Verified Members
+                      {circle.memberCount} Member{circle.memberCount === 1 ? '' : 's'}
                     </p>
                   </div>
                 </div>
@@ -843,6 +879,14 @@ export function CirclesSubView({
 // 5. CONTACT DETAIL SHEET (Apple / Google Contacts Right-Pane & Mobile Sheet)
 // ============================================================================
 
+export interface SharedCalendarMeeting {
+  id: string;
+  title: string;
+  time: string;
+  duration?: string;
+  room?: string;
+}
+
 export interface ContactDetailSheetProps {
   contact: Contact | SovereignContact | null;
   onClose?: () => void;
@@ -850,6 +894,11 @@ export interface ContactDetailSheetProps {
   onDelete?: (id: string, name?: string) => void;
   onToggleFavorite?: (contact: any) => void;
   recentMail?: Array<any>;
+  /**
+   * Real shared meetings with this contact. When empty or undefined the honest
+   * empty state renders — meetings are never invented.
+   */
+  meetings?: SharedCalendarMeeting[];
   onCall?: (phone?: string) => void;
   onEmail?: (email: string) => void;
   onMessage?: (contact: any) => void;
@@ -864,6 +913,7 @@ export function ContactDetailSheet({
   onDelete,
   onToggleFavorite,
   recentMail = [],
+  meetings,
   onCall,
   onEmail,
   onMessage,
@@ -904,26 +954,10 @@ export function ContactDetailSheet({
     return list.slice(0, 5);
   }, [recentMail, contactEmailLower]);
 
-  // Shared meetings for this contact
-  const sharedMeetings = React.useMemo(() => {
-    const list = [
-      {
-        id: 'meet-1',
-        title: `Product Sync with ${contact?.name || 'Contact'}`,
-        time: 'Tomorrow at 10:30 AM',
-        duration: '30 mins',
-        room: 'QuantMeet Sovereign Stage',
-      },
-      {
-        id: 'meet-2',
-        title: `Architecture Review & Planning`,
-        time: 'Thursday at 2:00 PM',
-        duration: '45 mins',
-        room: 'Virtual Room #8',
-      },
-    ];
-    return list;
-  }, [contact?.name]);
+  // Shared meetings for this contact — only real, caller-supplied meetings.
+  // The previously hardcoded "Product Sync / Architecture Review" entries
+  // (fabricated times and rooms for every contact) are deleted.
+  const sharedMeetings: SharedCalendarMeeting[] = meetings ?? [];
 
   // If no contact is selected
   if (!contact) {
@@ -1338,8 +1372,9 @@ export function ContactDetailSheet({
           </button>
         </div>
 
-        <div className="space-y-2">
-          {sharedMeetings.map((meet) => (
+        {sharedMeetings.length > 0 ? (
+          <div className="space-y-2">
+            {sharedMeetings.map((meet) => (
             <div
               key={meet.id}
               className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[#0E1119]"
@@ -1374,7 +1409,12 @@ export function ContactDetailSheet({
               </button>
             </div>
           ))}
-        </div>
+          </div>
+        ) : (
+          <div className="text-center py-5 border border-dashed border-[#1E2536] rounded-xl text-xs text-[#6B7280]">
+            No shared meetings found with this contact yet. Click &ldquo;+ Schedule Meeting&rdquo; above to create one.
+          </div>
+        )}
       </div>
     </div>
   );
