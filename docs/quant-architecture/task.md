@@ -1343,3 +1343,10 @@ Required: remove password query parameters from the public-share contract. Requi
 Scope: apps/quantmail/backend/routes/drive.ts; public-share Web/Flutter download clients; request logging/tracing/redaction middleware; Drive public-share API docs and tests.
 Dependencies: QM-SCREEN-039; QM-SCREEN-044; security/logging architecture.
 Validation: source audit on 2026-10-08 reproduced the public download handler reading x-share-password first and falling back to request.query.password; existing deep parity tests use the header form. No remediation implementation claim yet.
+
+## QM-UIUX-060 — QuantChat: migrate RealtimeProvider consumers to chat-socket singleton
+Status: [ ] TODO
+Finding: QM-UIUX-057 deleted 3 dead realtime paths but `providers/RealtimeProvider.tsx` could NOT be deleted — it has 6 live consumers (ConnectionStatusBanner, usePresence, NotificationBadge, useChatThemeSync, app/map/page.tsx, useRealtimeChat). The audit's "dead protocol" claim was only true for the chat-typing path. Evidence: PR #654 notes.
+Required: migrate all 6 consumers to the working `chat-socket` singleton, then delete RealtimeProvider. Do not break notification/presence/banner behavior.
+Scope: `apps/quantchat/src/`.
+Dependencies: QM-UIUX-057 (PR #654) merged first.
