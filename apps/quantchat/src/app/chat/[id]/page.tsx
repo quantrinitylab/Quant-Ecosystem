@@ -81,10 +81,13 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     const conversation = conversations.find((c) => c.id === id);
     if (!conversation) return 'Chat';
     if (conversation.name?.trim()) return conversation.name.trim();
-    const other = conversation.participants.find(
+    // QM-CHAT-001: the conversations list API may omit `participants` (backend
+    // returns raw records); a missing array must never crash the page.
+    const participants = conversation.participants ?? [];
+    const other = participants.find(
       (p) => p.userId !== me?.id && p.username !== me?.username,
     );
-    const candidate = other ?? conversation.participants[0];
+    const candidate = other ?? participants[0];
     const name =
       candidate?.nickname?.trim() ||
       candidate?.displayName?.trim() ||

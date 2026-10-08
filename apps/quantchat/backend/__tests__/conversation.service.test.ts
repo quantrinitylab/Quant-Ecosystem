@@ -1,6 +1,26 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConversationService } from '../services/conversation.service';
 
+// The service only needs the Prisma enum *values* at runtime; the client
+// itself is fully mocked below, so stub the enums instead of requiring a
+// generated @prisma/client (values match packages/database/prisma/schema.prisma).
+vi.mock('@prisma/client', () => ({
+  Prisma: {},
+  ConversationType: { DIRECT: 'DIRECT', GROUP: 'GROUP', CHANNEL: 'CHANNEL' },
+  ConversationRole: { OWNER: 'OWNER', ADMIN: 'ADMIN', MEMBER: 'MEMBER' },
+}));
+
+// createAppError is a pure factory (returns the error; the service throws it).
+// Stub it faithfully so the test doesn't drag in the whole server-core graph.
+vi.mock('@quant/server-core', () => ({
+  createAppError: (message: string, statusCode: number, code: string) => {
+    const err = new Error(message) as Error & { statusCode: number; code: string };
+    err.statusCode = statusCode;
+    err.code = code;
+    return err;
+  },
+}));
+
 function createMockPrisma() {
   const txConversation = {
     create: vi.fn(),
@@ -223,8 +243,8 @@ describe('ConversationService', () => {
   describe('getUserConversations', () => {
     it('returns paginated conversations sorted by lastMessageAt', async () => {
       const mockMembers = [
-        { conversation: { id: 'conv-1', lastMessageAt: new Date() } },
-        { conversation: { id: 'conv-2', lastMessageAt: new Date() } },
+        { conversation: { id: 'conv-1', lastMessageAt: new Date(), members: [] } },
+        { conversation: { id: 'conv-2', lastMessageAt: new Date(), members: [] } },
       ];
       prisma.conversationMember.findMany.mockResolvedValue(mockMembers);
       prisma.conversationMember.count.mockResolvedValue(5);
@@ -236,10 +256,127 @@ describe('ConversationService', () => {
       expect(result.page).toBe(1);
       expect(prisma.conversationMember.findMany).toHaveBeenCalledWith({
         where: { userId: 'user-1', leftAt: null },
-        include: { conversation: true },
+        include: {
+          conversation: {
+            include: {
+              members: {
+                where: { leftAt: null },
+                include: {
+                  user: {
+                    select: { id: true, username: true, displayName: true, avatarUrl: true },
+                  },
+                },
+              },
+            },
+          },
+        },
         orderBy: { conversation: { lastMessageAt: 'desc' } },
         skip: 0,
         take: 10,
+      });
+    });
+
+    it('QM-CHAT-001: maps active members to the participants array', async () => {
+      const mockMembers = [
+        {
+          conversation: {
+            id: 'conv-1',
+            lastMessageAt: new Date(),
+            members: [
+              {
+                userId: 'user-1',
+                role: 'OWNER',
+                nickname: null,
+                joinedAt: new Date('2026-01-01T00:00:00Z'),
+                lastReadAt: null,
+                user: {
+                  id: 'user-1',
+                  username: 'kundan',
+                  displayName: 'kundan',
+                  avatarUrl: null,
+                },
+              },
+              {
+                userId: 'user-2',
+                role: 'MEMBER',
+                nickname: 'Tester',
+                joinedAt: new Date('2026-01-02T00:00:00Z'),
+                lastReadAt: new Date('2026-01-03T00:00:00Z'),
+                user: {
+                  id: 'user-2',
+                  username: 'museqatest',
+                  displayName: 'Muse QA',
+                  avatarUrl: 'https://example.com/a.png',
+                },
+              },
+            ],
+          },
+        },
+      ];
+      prisma.conversationMember.findMany.mockResolvedValue(mockMembers);
+      prisma.conversationMember.count.mockResolvedValue(1);
+
+      const result = await service.getUserConversations('user-1', { page: 1, pageSize: 10 });
+
+      expect(result.data).toHaveLength(1);
+      const conv = result.data[0];
+      expect(conv.participants).toHaveLength(2);
+      expect(conv.participants[0]).toMatchObject({
+        userId: 'user-1',
+        username: 'kundan',
+        displayName: 'kundan',
+        role: 'admin',
+      });
+      expect(conv.participants[1]).toMatchObject({
+        userId: 'user-2',
+        username: 'museqatest',
+        displayName: 'Muse QA',
+        role: 'member',
+        nickname: 'Tester',
+        avatarUrl: 'https://example.com/a.png',
+      });
+      // The raw `members` relation must not leak into the response.
+      expect(conv).not.toHaveProperty('members');
+    });
+  });
+
+  describe('getConversation', () => {
+    it('QM-CHAT-001: returns null for a missing conversation', async () => {
+      prisma.conversation.findUnique.mockResolvedValue(null);
+
+      await expect(service.getConversation('missing')).resolves.toBeNull();
+    });
+
+    it('QM-CHAT-001: includes participants mapped from active members', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({
+        id: 'conv-9',
+        members: [
+          {
+            userId: 'user-1',
+            role: 'MEMBER',
+            nickname: null,
+            joinedAt: new Date(),
+            lastReadAt: null,
+            user: { id: 'user-1', username: 'kundan', displayName: 'kundan', avatarUrl: null },
+          },
+        ],
+      });
+
+      const result = await service.getConversation('conv-9');
+
+      expect(result).not.toBeNull();
+      expect(result!.participants).toHaveLength(1);
+      expect(result!.participants[0]).toMatchObject({ userId: 'user-1', username: 'kundan' });
+      expect(prisma.conversation.findUnique).toHaveBeenCalledWith({
+        where: { id: 'conv-9' },
+        include: {
+          members: {
+            where: { leftAt: null },
+            include: {
+              user: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
+            },
+          },
+        },
       });
     });
   });
