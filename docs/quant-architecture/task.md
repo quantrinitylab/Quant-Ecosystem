@@ -1420,3 +1420,12 @@ Finding: `/api/search/parse` proxy route exists but is unused by the frontend �
 Required: remove the dead route or wire it up.
 Scope: QuantMail search API routes.
 Dependencies: none.
+
+## QM-CHAT-001 — P0: /chat/[id] crashes universally ("Cannot read properties of undefined (reading 'find')")
+Status: [~] IN_PROGRESS
+Owner: muse-fix-agent
+Branch: fix/qm-chat-001-chat-page-crash
+Finding: Opening ANY conversation on quantchat.quantrinity.in crashes the app — messaging 100% unusable. Root cause: backend `GET /conversations` (and `GET /conversations/:id`) returns raw Prisma records with NO `participants` array, but frontend `apps/quantchat/src/app/chat/[id]/page.tsx` calls `conversation.participants.find(...)` unguarded (line 84). TypeScript type declares `participants` required, runtime omits it. Evidence: customer audit 2026-10-08 (`~/workspace/goals/quantecosystem-competitors-se-behtar-ai-super-apps/hidden_files/customer-audits/2026-10-08-chat-power-user.md`).
+Required: (1) fail-closed frontend guard so a missing `participants` can never crash the page; (2) backend includes active members (with user) mapped to the participant DTO shape so the chat header resolves the real contact name.
+Scope: apps/quantchat frontend chat page + useConversations; apps/quantchat/backend/services/conversation.service.ts.
+Dependencies: none.
