@@ -923,3 +923,45 @@ Finding: (a) `quantyReact('mail:noRecipients')` fires for missing subject/body t
 Required: distinct `mail:noSubject`/`mail:noBody` reactions; honest toast copy; `inset-x-4 w-auto` on mobile for the modal branch.
 Scope: `apps/quantmail/src/components/EmailComposer.tsx`.
 Dependencies: QM-UIUX-024 (same file; fix together).
+
+## QM-UIUX-026 — Delete fake contacts with real public figures' names
+Status: [ ] TODO
+Finding: `ContactsSubViews.tsx:18` hardcodes `SOVEREIGN_DEFAULT_CONTACTS` — 10 fake contacts including REAL public figures (Sundar Pichai, Satya Nadella, Sam Altman, Linus Torvalds, Demis Hassabis) with FABRICATED phone numbers, injected into every user's list at two points (`:199-201` "Ensure sovereign VIPs are present", `:360-361` CompaniesSubView). The fake numbers are wired to `tel:` links — tapping "call" dials a stranger. Using real people's names with fake numbers is a reputational/legal risk. The "3 EXECUTIVES" badge derives from these fakes. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/contacts-audit.md`.
+Required: delete `SOVEREIGN_DEFAULT_CONTACTS` and both injection points; the honest empty state already exists — make it reachable; remove the fake "3 EXECUTIVES" badge (or wire to a real count).
+Scope: `apps/quantmail/src/components/ContactsSubViews.tsx`.
+Dependencies: none.
+
+## QM-UIUX-027 — Account deletion and data export must be real or removed
+Status: [ ] TODO
+Finding: `account/page.tsx` "Permanently Delete My Account" uses `setTimeout` to toast "scheduled for immediate purge" — NO API call, NO backend endpoint exists. The user types DELETE and believes their account is erased; it is not. Same pattern for "Request Archive" (data export): `setTimeout` toasts "encrypted export will be delivered to your inbox" with no backend. Deletion copy invents specifics ("Erased within 60 seconds... pruned from backups within 30 days"). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/settings-audit.md`.
+Required: either wire to real backend endpoints (deletion + export with honest timelines), or remove the controls entirely. Never show a fake destructive action.
+Scope: `apps/quantmail/src/app/account/page.tsx`.
+Dependencies: QM-BACK-006 (data lifecycle) for the real deletion path.
+
+## QM-UIUX-028 — QuantGit: stop fabricating repo metadata, fix fake MCP count
+Status: [ ] TODO
+Finding: (a) `page.tsx:560-580` — when the API omits fields, the UI invents them: hardcoded SHA `'948e3612'`, `checksStatus: 'passing'` (always), `branchCount: 4`, `commitCount: 2118`, fake topics. A repo with no data shows "Initial commit / passing checks". (b) Fake MCP count "288"/"288+" while the catalog has 7 entries. (c) "Zero-mock" hero copy contradicts the fabrication in the same view. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
+Required: render "unknown"/"—" for missing API fields, never invent; show the real MCP catalog count (7) or remove the badge; fix hero copy to be truthful.
+Scope: `apps/quantmail/src/app/quantgit/page.tsx`.
+Dependencies: none.
+
+## QM-UIUX-029 — Purge "<5ms" search-performance claims (QM-SCREEN-026 not actually done)
+Status: [ ] TODO
+Finding: QM-SCREEN-026 required removing the absolute "<5ms" search claim, but it is still live: 5 placeholders in `QuantPillarTopBar.tsx` (including the exact cited string `'Search events, meetings, attendees… <5ms'`), a visible `<5ms LIVE` badge with pulsing dot, `QuantMailSuperAppHeader.tsx` placeholder, "Sub-5ms Performance" lines in booking and QuantGit. The `SearchBar` latency pill measures only the local FTS5 query while results come from the server — misleading. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/search-audit.md`.
+Required: purge all `<5ms`/`Sub-5ms` from user-visible copy; re-mark QM-SCREEN-026 as not done; latency pill must measure end-to-end or be removed.
+Scope: `QuantPillarTopBar.tsx`, `QuantMailSuperAppHeader.tsx`, booking, QuantGit.
+Dependencies: QM-SCREEN-026 (reopen).
+
+## QM-UIUX-030 — Search text must not persist across app tabs
+Status: [ ] TODO
+Finding: `QuantPillarTopBar` holds `internalSearch` via one-time `useState`; the topbar lives in layout-level `AppShell`, so switching Mail → Calendar → Drive leaves stale query text while the page's own `searchQuery` is empty. Known P1 from the customer audit, still present. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/search-audit.md`.
+Required: key the search input by route or clear on tab switch.
+Scope: `QuantPillarTopBar.tsx`, `AppShell`.
+Dependencies: none.
+
+## QM-UIUX-031 — Contacts/QuantGit/Settings P1s: touch targets, copy, pills
+Status: [ ] TODO
+Finding: (a) Contacts "+ New" add button ~24px tall (below 44px minimum) and the ONLY add path on mobile — add a proper FAB or enlarge; (b) "Sovereign" marketing fluff across Contacts/QuantGit/Settings copy ("instant sovereign dial", "verified sovereign tenants", "Quant Sovereign privacy guarantees"); (c) QuantGit meaningless "Cloud OS" pill; (d) Settings inconsistent crypto claims ("TLS 1.3" on account page vs "TLS 1.2+" on Security tab); (e) Search input 12px on mobile (iOS auto-zoom) — use `text-base`; (f) Voice search silent failure when `SpeechRecognition` unavailable — honest disabled state. Evidence: contacts/quantgit/settings/search audit reports.
+Required: fix each per the finding; no invented copy.
+Scope: Contacts, QuantGit, Settings, Search components.
+Dependencies: QM-UIUX-005 (type scale covers e).
