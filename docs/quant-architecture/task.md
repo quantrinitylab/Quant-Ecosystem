@@ -1463,7 +1463,9 @@ Scope: apps/quantmail DriveFilePreview + doc editor.
 Dependencies: QM-M39-009.
 
 ## QM-M39-005 — Drive: permissions/access viewer (screen 21)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: Muse
+Branch: fix/qm-m39-005-permissions-viewer
 Finding: M39 screen 21 (permissions/access viewer) is missing — FileShareModal covers share changes but there is no read view of current access. Sharing principle: UI must separate CURRENT access from PROPOSED changes.
 Required: read-only access viewer showing current collaborators, roles, link scope/audience/expiry; distinct from the share-change flow; real backend data only.
 Scope: apps/quantmail drive shares API + FileShareModal/page.
@@ -1484,7 +1486,9 @@ Scope: apps/quantmail drive page + files API.
 Dependencies: QM-M39-009.
 
 ## QM-M39-008 — Drive: activity/history view (screen 25)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: Muse
+Branch: fix/qm-m39-008-activity-view
 Finding: M39 screen 25 (activity/history) missing — no per-file event log surface exists.
 Required: backend event log for file actions (upload, rename, move, share change, version restore); UI timeline per file; honest empty state; no fake activity entries.
 Scope: apps/quantmail drive backend + drive page.
