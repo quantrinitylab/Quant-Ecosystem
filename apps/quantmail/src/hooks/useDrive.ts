@@ -18,6 +18,9 @@ export interface DriveFile {
   path: string;
   parentId: string | null;
   modifiedAt: string;
+  // QM-M39-002: last explicit open (preview/download/open). Null when the file
+  // was never opened — clients fall back to modifiedAt for recency display.
+  lastOpenedAt?: string | null;
   owner: { name: string; email: string };
   sharedWith: { email: string; permission: 'view' | 'edit' | 'admin' }[];
   isStarred: boolean;
@@ -41,6 +44,16 @@ export interface ReceivedShare {
   owner: { name: string; email: string };
   file: { id: string; name: string; mimeType: string; size: number; updatedAt: string; scanStatus?: string | null; scanReason?: string | null } | null;
   folder: { id: string; name: string; path: string; updatedAt: string } | null;
+}
+
+// QM-M39-002 — "Recent" view: one page of the server-side recency-ordered
+// file list from GET /api/drive/recent. Ordering is computed by the backend
+// (max(lastOpenedAt, updatedAt)); the client must not re-sort.
+export interface RecentFilesPage {
+  files: DriveFile[];
+  totalCount: number;
+  nextCursor: string | null;
+  hasMore: boolean;
 }
 
 interface UploadProgress {
@@ -92,6 +105,8 @@ export interface UseDriveReturn {
   acceptShare: (shareId: string) => Promise<{ success: boolean; share: any }>;
   declineShare: (shareId: string) => Promise<{ success: boolean; share: any }>;
   fetchReceivedShares: () => Promise<ReceivedShare[]>;
+  fetchRecentFiles: (cursor?: string | null) => Promise<RecentFilesPage>;
+  recordFileOpen: (fileId: string) => Promise<void>;
   fetchTrashFiles: () => Promise<DriveFile[]>;
   restoreFile: (fileId: string) => Promise<void>;
   purgeFile: (fileId: string) => Promise<void>;
@@ -635,6 +650,49 @@ export function useDrive(): UseDriveReturn {
     }
   }, []);
 
+  // QM-M39-002 — "Recent" view: fetch one server-side recency-ordered page.
+  // The backend computes the order; this function returns it untouched.
+  const fetchRecentFiles = useCallback(
+    async (cursor?: string | null): Promise<RecentFilesPage> => {
+      setLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        if (cursor) params.set('cursor', cursor);
+        const qs = params.toString();
+        const response = await apiRequest(`/api/drive/recent${qs ? `?${qs}` : ''}`);
+        if (!response.ok) throw new Error('Failed to fetch recent files');
+        const data = await response.json();
+        return {
+          files: data.files || [],
+          totalCount: typeof data.totalCount === 'number' ? data.totalCount : 0,
+          nextCursor: data.nextCursor ?? null,
+          hasMore: Boolean(data.hasMore),
+        };
+      } catch (err) {
+        setError(getDriveErrorMessage(err, 'Failed to load recent files'));
+        return { files: [], totalCount: 0, nextCursor: null, hasMore: false };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
+  // QM-M39-002 — record an explicit file open (preview opened by the user).
+  // Best-effort: tracking must never surface an error to the user, so failures
+  // are swallowed after logging.
+  const recordFileOpen = useCallback(async (fileId: string): Promise<void> => {
+    if (!fileId) return;
+    try {
+      await apiRequest(`/api/drive/files/${encodeURIComponent(fileId)}/open`, {
+        method: 'POST',
+      });
+    } catch (err) {
+      logger.warn('recordFileOpen failed', { fileId, error: err instanceof Error ? err.message : err });
+    }
+  }, []);
+
   const fetchTrashFiles = useCallback(async (): Promise<DriveFile[]> => {
     setLoading(true);
     setError(null);
@@ -709,6 +767,8 @@ export function useDrive(): UseDriveReturn {
     acceptShare,
     declineShare,
     fetchReceivedShares,
+    fetchRecentFiles,
+    recordFileOpen,
     fetchTrashFiles,
     restoreFile,
     purgeFile,

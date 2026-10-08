@@ -10,6 +10,7 @@ import {
   SharedUsersIcon,
   StarIcon,
   CleanerSparkleIcon,
+  ClockIcon,
 } from './DriveIcons';
 import type { DriveSubTab } from './DriveContextTabsHeader';
 
@@ -49,6 +50,8 @@ export function DriveMobileTabStrip({
 }: DriveMobileTabStripProps) {
   const tabs: MobileTabDef[] = [
     { id: 'home', label: 'Home', icon: FolderIcon, ariaLabel: 'Drive Home' },
+    // QM-M39-002 — "Recent" (M39 screen 6): server-side recency-ordered file view.
+    { id: 'recent', label: 'Recent', icon: ClockIcon, ariaLabel: 'Recently opened or modified files' },
     { id: 'feed', label: 'Feed', icon: DriveFeedIcon, ariaLabel: 'Media feed' },
     {
       id: 'aimemory',
