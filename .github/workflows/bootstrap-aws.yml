@@ -358,11 +358,21 @@ jobs:
           kubectl create configmap quant-staging-config -n "$NS" \
             --from-literal=NODE_ENV=production \
             --from-literal=PORT=3011 \
+            --from-literal=AWS_REGION="$AWS_REGION" \
             --from-literal=QUANTMAIL_BACKEND_URL=http://quant-quantmail-backend:3011 \
             --from-literal=AI_PROVIDER=custom \
             --from-literal=AI_BASE_URL=https://quantmail-ai.quantrinity.workers.dev/v1 \
             --from-literal=AI_MODEL=@cf/meta/llama-3.1-8b-instruct \
+            --from-literal=INBOUND_S3_BUCKET=quantmail-inbound-emails-178313340246 \
+            --from-literal=INBOUND_SNS_TOPIC_ARNS=arn:aws:sns:us-east-1:178313340246:quantmail-inbound \
+            --from-literal=SES_CONFIGURATION_SET=quantmail-sending \
             --dry-run=client -o yaml | kubectl apply -f -
+
+          # ServiceAccount binding IRSA role quant-quantmail-ses-sender
+          # (ses:SendEmail scoped to *@quantmail.in + S3 read of the
+          # inbound-mail bucket). Kept in sync with
+          # infra/k8s/quantmail-backend-serviceaccount.yaml.
+          kubectl apply -n "$NS" -f infra/k8s/quantmail-backend-serviceaccount.yaml
 
           # Secret for sensitive env vars. The backend picks these up through
           # `envFrom: secretRef`, so a key added here needs no deployment change.
@@ -486,6 +496,11 @@ jobs:
                 labels:
                   app: quant-quantmail-backend
               spec:
+                # IRSA: binds the quant-quantmail-ses-sender IAM role
+                # (ses:SendEmail for *@quantmail.in + S3 read of the
+                # inbound-mail bucket). Patched onto the live deployment by
+                # deploy-staging.yml; declared here so fresh bootstraps match.
+                serviceAccountName: quantmail-backend
                 containers:
                   - name: quantmail-backend
                     image: $BE

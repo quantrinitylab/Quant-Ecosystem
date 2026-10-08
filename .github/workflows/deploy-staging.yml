@@ -447,6 +447,28 @@ jobs:
           fi
           kubectl logs "job/$job" -n "$K8S_NAMESPACE" --tail=30
 
+      - name: Apply staging platform manifests (QM-BACK-009)
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
+          # Idempotent: the ConfigMap is the repo-owned source of truth for
+          # non-sensitive backend env (incl. INBOUND_S3_BUCKET /
+          # INBOUND_SNS_TOPIC_ARNS). kubectl apply never prunes keys that
+          # bootstrap-aws.yml seeded, because the manifest carries the full set.
+          kubectl apply -n "$K8S_NAMESPACE" -f infra/k8s/quant-staging-config.yaml
+          kubectl apply -n "$K8S_NAMESPACE" -f infra/k8s/quantmail-backend-serviceaccount.yaml
+          if [ "$TARGET" = 'quantmail-backend' ]; then
+            # Bind IRSA (quant-quantmail-ses-sender) so the pod can call
+            # ses:SendEmail and read the inbound-mail bucket. A pod-template
+            # change, so the rollout below picks it up.
+            kubectl patch deployment quant-quantmail-backend -n "$K8S_NAMESPACE" \
+              --type=strategic \
+              -p '{"spec":{"template":{"spec":{"serviceAccountName":"quantmail-backend"}}}}'
+          fi
+
       - name: Deploy digest with automatic rollback
         shell: bash
         env:

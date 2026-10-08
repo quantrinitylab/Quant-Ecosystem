@@ -1,0 +1,37 @@
+# quant-staging-config — non-sensitive env for the staging QuantMail backend.
+#
+# Source of truth for `quant-quantmail-backend` (envFrom: configMapRef).
+# Applied by .github/workflows/deploy-staging.yml on every deploy (idempotent
+# `kubectl apply`) and by .github/workflows/bootstrap-aws.yml on fresh
+# bootstraps — keep the two in sync.
+#
+# RULE: nothing here may be a credential. Secrets live in
+# `quant-staging-secrets` (see external-secrets.yaml / deploy-staging.yml).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: quant-staging-config
+  namespace: quant-staging
+  labels:
+    app.kubernetes.io/part-of: quant-platform
+    app.kubernetes.io/managed-by: deploy-staging
+data:
+  NODE_ENV: "production"
+  PORT: "3011"
+  AWS_REGION: "us-east-1"
+  QUANTMAIL_BACKEND_URL: "http://quant-quantmail-backend:3011"
+  AI_PROVIDER: "custom"
+  AI_BASE_URL: "https://quantmail-ai.quantrinity.workers.dev/v1"
+  AI_MODEL: "@cf/meta/llama-3.1-8b-instruct"
+  # --- Inbound mail pipeline (QM-BACK-009) ---------------------------------
+  # SES receipt rule set `quantmail-inbound-rules` (us-east-1, ACTIVE) stores
+  # raw mail in this bucket and notifies the SNS topic; the Fastify backend
+  # serves POST /webhook/inbound (public path quantmail.in/api/webhook/inbound)
+  # which verifies the SNS signature, fetches the object and ingests it.
+  INBOUND_S3_BUCKET: "quantmail-inbound-emails-178313340246"
+  INBOUND_SNS_TOPIC_ARNS: "arn:aws:sns:us-east-1:178313340246:quantmail-inbound"
+  # --- Outbound mail (QM-BACK-009) ------------------------------------------
+  # SES configuration set carrying bounce/complaint/delivery event destinations
+  # (SNS -> quantmail-inbound topic). The backend's /webhook/inbound turns
+  # those into suppression-list entries; without the set, bounces are silent.
+  SES_CONFIGURATION_SET: "quantmail-sending"
