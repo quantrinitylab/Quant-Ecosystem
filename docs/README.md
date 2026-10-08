@@ -6,7 +6,7 @@ status: active
 owner: platform-architecture
 last_verified: 2026-09-07
 verified_at_commit: 09a0a22e9aa5fe288d22987b90a6119a70f7c467
-review_by: 2026-10-07
+review_by: 2026-11-07
 supersedes: []
 superseded_by: []
 canonical_scope: repository-authority
