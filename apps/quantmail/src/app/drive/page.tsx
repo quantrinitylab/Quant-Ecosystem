@@ -14,6 +14,7 @@ import {
   DriveFeedSubView,
   DriveAiMemorySubView,
   FileShareModal,
+  FileScanDetail,
   type DriveSubTab,
   type AiMemoryItem,
 } from './components';
@@ -53,6 +54,9 @@ type DriveItem = {
   isStarred?: boolean;
   sharedWith?: { email: string; permission: string }[];
   deletedAt?: string;
+  // QM-M39-009: security scan state from the backend (never rendered as safe).
+  scanStatus?: string | null;
+  scanReason?: string | null;
 };
 
 type DriveFilter = 'all' | 'folders' | 'documents' | 'images' | 'starred' | 'trash' | 'shared';
@@ -499,7 +503,13 @@ function DrivePageContent() {
   const [copiedTextPreview, setCopiedTextPreview] = useState(false);
 
   useEffect(() => {
-    if (!previewItem || !isTextOrCodeFile(previewItem.mimeType, previewItem.name)) {
+    // QM-M39-009: never fetch bytes for a quarantined file — preview is
+    // blocked with an instruction, not attempted.
+    if (
+      !previewItem ||
+      previewItem.scanStatus === 'quarantined' ||
+      !isTextOrCodeFile(previewItem.mimeType, previewItem.name)
+    ) {
       setTextPreviewContent(null);
       setIsLoadingTextPreview(false);
       setTextPreviewError(null);
@@ -1343,6 +1353,9 @@ function DrivePageContent() {
                   email: s.owner?.email || '',
                 },
                 status: s.status as any,
+                // QM-M39-009: scan state for shared files.
+                scanStatus: s.file?.scanStatus ?? null,
+                scanReason: s.file?.scanReason ?? null,
               }))}
               loading={loadingSpecial}
               onRefresh={loadShares}
@@ -1586,7 +1599,44 @@ function DrivePageContent() {
           title={previewItem?.name || 'File Preview'}
         >
           <div className="p-4 space-y-4 text-center">
-            {previewItem && previewItem.mimeType.startsWith('image/') ? (
+            {/* QM-M39-009: security scan state — details context. 'unknown'
+                renders as "Not scanned", never as safe. */}
+            {previewItem && (
+              <div className="text-left rounded-xl bg-[#111318] px-4 py-3 shadow-[inset_0_0_0_1px_#282C35]">
+                <FileScanDetail status={previewItem.scanStatus} reason={previewItem.scanReason} />
+              </div>
+            )}
+            {previewItem && previewItem.scanStatus === 'quarantined' ? (
+              /* QM-M39-009: quarantine blocks preview honestly — an
+                 instruction, not a generic error and not a broken viewer. */
+              <div
+                className="flex flex-col items-center justify-center rounded-xl bg-[#1A0E10] p-8 border border-[#EF4444]/40"
+                role="alert"
+              >
+                <span className="mb-3 text-[#EF4444]">
+                  <svg className="w-14 h-14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                    />
+                  </svg>
+                </span>
+                <h4 className="text-sm font-bold text-[#F5F5F5]">This file is quarantined</h4>
+                <p className="text-xs text-[#A1A4AC] mt-2 max-w-md">
+                  Preview and download are disabled for this file. It was flagged by a security
+                  scan as potentially harmful.
+                  {previewItem.scanReason ? (
+                    <span className="block mt-1 text-[#D1D5DB]">Reason: {previewItem.scanReason}</span>
+                  ) : null}
+                </p>
+                <p className="text-xs text-[#A1A4AC] mt-2 max-w-md">
+                  Contact your workspace administrator to request a security review — do not share
+                  this file.
+                </p>
+              </div>
+            ) : previewItem && previewItem.mimeType.startsWith('image/') ? (
               <div className="rounded-xl bg-[#111318] p-4 shadow-[inset_0_0_0_1px_#282C35]">
                 <img
                   src={getDownloadUrl(previewItem.id)}
@@ -1790,7 +1840,9 @@ function DrivePageContent() {
               <Button variant="secondary" onClick={() => setPreviewItem(null)}>
                 Close
               </Button>
-              {previewItem && (
+              {/* QM-M39-009: no download offered for quarantined files — the
+                  quarantine panel above carries the instruction instead. */}
+              {previewItem && previewItem.scanStatus !== 'quarantined' && (
                 <Button
                   variant="primary"
                   onClick={() => {

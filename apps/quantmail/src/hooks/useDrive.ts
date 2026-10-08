@@ -24,6 +24,11 @@ export interface DriveFile {
   versions: { id: string; version: number; size: number; date: string }[];
   thumbnailUrl?: string;
   deletedAt?: string;
+  // QM-M39-009: security scan state from the backend. 'unknown' is honest for
+  // unscanned files — the UI must never render it as safe.
+  scanStatus?: string | null;
+  scanReason?: string | null;
+  scannedAt?: string | null;
 }
 
 export interface ReceivedShare {
@@ -34,7 +39,7 @@ export interface ReceivedShare {
   status: string;
   createdAt: string;
   owner: { name: string; email: string };
-  file: { id: string; name: string; mimeType: string; size: number; updatedAt: string } | null;
+  file: { id: string; name: string; mimeType: string; size: number; updatedAt: string; scanStatus?: string | null; scanReason?: string | null } | null;
   folder: { id: string; name: string; path: string; updatedAt: string } | null;
 }
 
@@ -110,6 +115,21 @@ const getDriveErrorMessage = (err: unknown, fallback: string): string => {
   }
 
   return message || fallback;
+};
+
+// QM-M39-009: read the backend's error instruction (e.g. FILE_QUARANTINED)
+// so quarantine blocks surface an instruction, never a generic error.
+// Returns null when the body carries no usable message.
+const readErrorInstruction = async (response: Response): Promise<string | null> => {
+  try {
+    const contentType = response.headers.get('Content-Type') || '';
+    if (!contentType.includes('application/json')) return null;
+    const data = await response.clone().json();
+    const message = data?.error?.message;
+    return typeof message === 'string' && message.trim() ? message : null;
+  } catch {
+    return null;
+  }
 };
 
 export function useDrive(): UseDriveReturn {
@@ -533,11 +553,16 @@ export function useDrive(): UseDriveReturn {
   // Authenticated download: navigating the browser straight to the download
   // URL sends no Authorization header and lands on raw 401 JSON. Fetch the
   // bytes with the session attached, then hand the user a real file.
+  // QM-M39-009: a quarantined file answers 403 FILE_QUARANTINED. Surface the
+  // backend's instruction verbatim — never a generic "download failed".
   const downloadFile = useCallback(async (fileId: string, fileName?: string) => {
     setError(null);
     try {
       const response = await apiRequest(`/api/drive/files/${fileId}/download`);
-      if (!response.ok) throw new Error(`Download failed with status ${response.status}`);
+      if (!response.ok) {
+        const instruction = await readErrorInstruction(response);
+        throw new Error(instruction || `Download failed with status ${response.status}`);
+      }
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement('a');

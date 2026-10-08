@@ -24,6 +24,11 @@ import { AISummarizeFileService } from '../services/ai-summarize-file.service';
 import { AISearchContentService } from '../services/ai-search-content.service';
 import { AIDuplicateService } from '../services/ai-duplicate.service';
 import { AIOrganizeService } from '../services/ai-organize.service';
+import {
+  isQuarantined,
+  normalizeScanStatus,
+  quarantineBlockedMessage,
+} from '../services/file-scan.service';
 import { StorageClient, resolveStorageConfigFromEnv } from '@quant/storage';
 
 const MEMORY_SCAN_LIMIT = 2000;
@@ -106,6 +111,10 @@ type FileRow = {
   contentHash: string;
   userId: string;
   updatedAt: Date;
+  // QM-M39-009: security scan state (pending | scanning | clean | quarantined | unknown)
+  scanStatus: string | null;
+  scanReason: string | null;
+  scannedAt: Date | null;
 };
 type FolderRow = {
   id: string;
@@ -202,6 +211,11 @@ function fileDto(file: FileRow, owner: Owner, decorations?: Decorations) {
     isStarred: file.isStarred,
     versions: decorations?.versions.get(file.id) ?? [],
     thumbnailUrl: `/api/drive/files/${file.id}/thumbnail`,
+    // QM-M39-009: scan state. 'unknown' is the honest state for unscanned
+    // files — never rendered as safe by the UI.
+    scanStatus: normalizeScanStatus(file.scanStatus),
+    scanReason: file.scanReason ?? null,
+    scannedAt: file.scannedAt ?? null,
   };
 }
 function folderDto(folder: FolderRow, owner: Owner, decorations?: Decorations) {
@@ -1018,7 +1032,16 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     const files = fileIds.length
       ? await prisma.file.findMany({
           where: { id: { in: fileIds }, isDeleted: false },
-          select: { id: true, name: true, mimeType: true, size: true, updatedAt: true },
+          // QM-M39-009: shared-file rows carry scan state too.
+          select: {
+            id: true,
+            name: true,
+            mimeType: true,
+            size: true,
+            updatedAt: true,
+            scanStatus: true,
+            scanReason: true,
+          },
         })
       : [];
     const fileMap = new Map(files.map((f: any) => [f.id, f]));
@@ -1287,6 +1310,11 @@ export default async function driveRoutes(fastify: FastifyInstance) {
               contentHash: envelope.contentHash,
               size: bytes.length,
               mimeType: parsed.data.mimeType ?? file.mimeType,
+              // QM-M39-009: new content means the old scan verdict no longer
+              // applies — back to the honest 'unknown' until a scanner runs.
+              scanStatus: 'unknown',
+              scanReason: null,
+              scannedAt: null,
             },
           });
           return created;
@@ -1500,6 +1528,11 @@ export default async function driveRoutes(fastify: FastifyInstance) {
         encryptionAuthTag: envelope.authTag,
         encryptionKey: envelope.wrappedKey,
         contentHash: envelope.contentHash,
+        // QM-M39-009: no scanner runs on upload yet — 'unknown' is honest.
+        // Never default to 'clean'.
+        scanStatus: 'unknown',
+        scanReason: null,
+        scannedAt: null,
       },
     });
     const key = versionKey(userId, file.id, 1, envelope.contentHash);
@@ -1732,6 +1765,15 @@ export default async function driveRoutes(fastify: FastifyInstance) {
 
   fastify.get<{ Params: { id: string } }>('/drive/files/:id/download', async (request, reply) => {
     const file = await fileAccess(prisma, request.params.id, requireUserId(request));
+    // QM-M39-009: quarantined files must not leave quarantine. Block with an
+    // instruction, not a generic error.
+    if (isQuarantined(file.scanStatus)) {
+      throw createAppError(quarantineBlockedMessage('download'), 403, 'FILE_QUARANTINED', {
+        fileId: file.id,
+        scanStatus: 'quarantined',
+        scanReason: file.scanReason ?? null,
+      });
+    }
     requireStorage();
     const plaintext = await checkedPlaintext(file);
     return reply
@@ -1898,6 +1940,16 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     const userId = requireUserId(request);
     const file = await fileAccess(prisma, request.params.id, userId);
 
+    // QM-M39-009: a quarantined file's content must not render anywhere —
+    // not even as a thumbnail.
+    if (isQuarantined(file.scanStatus)) {
+      throw createAppError(quarantineBlockedMessage('preview'), 403, 'FILE_QUARANTINED', {
+        fileId: file.id,
+        scanStatus: 'quarantined',
+        scanReason: file.scanReason ?? null,
+      });
+    }
+
     const mime = (file.mimeType || '').split(';', 1)[0].trim().toLowerCase();
     if (THUMBNAIL_IMAGE_MIME_TYPES.has(mime) && driveStorageReady() && file.encryptedContent) {
       try {
@@ -2028,6 +2080,15 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       const userId = requireUserId(request);
       requireStorage();
       const source = await fileAccess(prisma, request.params.id, userId);
+      // QM-M39-009: copying is another path for quarantined bytes to leave
+      // quarantine — block it with the same instruction as download.
+      if (isQuarantined(source.scanStatus)) {
+        throw createAppError(quarantineBlockedMessage('copy'), 403, 'FILE_QUARANTINED', {
+          fileId: source.id,
+          scanStatus: 'quarantined',
+          scanReason: source.scanReason ?? null,
+        });
+      }
       const plaintext = await checkedPlaintext(source);
       await quotaService.checkQuota(userId, plaintext.length);
       const envelope = encryptForDrive(plaintext);
@@ -2043,6 +2104,12 @@ export default async function driveRoutes(fastify: FastifyInstance) {
           encryptionAuthTag: envelope.authTag,
           encryptionKey: envelope.wrappedKey,
           contentHash: envelope.contentHash,
+          // QM-M39-009: a copy carries the same bytes — inherit the source's
+          // scan state so a quarantined file can never be laundered into a
+          // clean-looking copy (quarantined copies are blocked above).
+          scanStatus: normalizeScanStatus(source.scanStatus),
+          scanReason: source.scanReason ?? null,
+          scannedAt: source.scannedAt ?? null,
         },
       });
       const key = versionKey(userId, file.id, 1, envelope.contentHash);

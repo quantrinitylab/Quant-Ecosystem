@@ -4073,6 +4073,15 @@ model File {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
+  // QM-M39-009: per-file security scan state (M39 screen 29).
+  // pending | scanning | clean | quarantined | unknown.
+  // No malware scanner is wired into the ecosystem yet, so 'unknown' is the
+  // honest state — it must never be rendered as safe. A real scanner plugs in
+  // through backend/services/file-scan.service.ts.
+  scanStatus        String    @default("unknown")
+  scanReason        String?
+  scannedAt         DateTime?
+
   @@index([userId, isDeleted])
   @@index([folderId])
   @@map("drive_files")
