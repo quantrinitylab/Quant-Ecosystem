@@ -1156,3 +1156,20 @@ Required: replace the production singleton dataset with the canonical QuantDrive
 Scope: `flutter_apps/apps/quant_drive/lib/data/drive_data_source.dart`; `flutter_apps/apps/quant_drive/lib/main.dart`; `flutter_apps/apps/quant_drive/lib/screens/drive_explorer_screen.dart`; `shared_files_screen.dart`; `starred_files_screen.dart`; `fastcdc_cleaner_screen.dart`; `cryptographic_vault_screen.dart`; `file_preview_lightbox.dart`; QuantDrive API/auth/sync contracts; tests.
 Dependencies: QM-SCREEN-027; QM-SCREEN-033; QM-PLAT-006; QuantDrive architecture.
 Validation: source audit on 2026-10-08 reproduced hardcoded quota/telemetry in `DriveDataSource` and direct `DriveDataSource.instance` consumption across the listed production screens; no remediation implementation claim yet. Test file values matching the same baseline do not make the production singleton authoritative.
+
+
+## QM-SCREEN-039 — QuantDrive public-link role must match the capabilities actually exposed
+Status: [ ] TODO
+Finding: `POST /drive/shares/link` lets an owner create a public link with role `viewer` or `editor`, and the UI presents the latter as “Can edit”. The unauthenticated public-link surface currently exposes metadata and a download endpoint only; `GET /drive/public/share/:token/download` streams the file and there is no corresponding public-link mutation endpoint that authorizes editor writes. This makes an `editor` public link claim a capability the public contract does not actually provide and risks confusing users about what possession of the link permits.
+Required: either remove the public `editor` option until a complete, separately authorized public-edit contract exists, or implement the full capability deliberately: authenticated/anonymous write authorization bound to the link, safe mutation scope, versioning/concurrency, abuse/rate limits, revocation/expiry enforcement and audit trail. UI role labels must be generated from the same capability contract as the public API. Never advertise editor access when the link is download-only.
+Scope: `apps/quantmail/backend/routes/drive.ts`; `apps/quantmail/src/app/drive/components/FileShareModal.tsx`; public Drive share contract/tests.
+Dependencies: QM-SCREEN-027; QuantDrive sharing/security architecture.
+Validation: source audit on 2026-10-08 confirmed `role: viewer|editor` in link creation and only metadata/download handlers for the token; no public editor mutation endpoint was found. No remediation implementation claim yet.
+
+## QM-SCREEN-040 — QuantDrive share notifications must report actual delivery state
+Status: [ ] TODO
+Finding: `POST /drive/files/:id/share` creates an inbox email record directly and sets `deliveryStatus: 'delivered'` without invoking the mail delivery/outbox pipeline. If the Prisma email write fails, the code catches the error, leaves `notificationSent = false`, but still returns `notificationSent: true` both inside the share DTO and at the top level. The result can therefore tell the owner that a notification was delivered when no notification was created, and even when created the record is marked delivered without delivery evidence.
+Required: route share invitations through the canonical transactional-outbox/mail-delivery contract; distinguish persisted/in-queue/sent/delivered/bounced/failed states; return the actual state rather than hard-coded success. Share creation must remain successful if notification delivery is asynchronous, but the UI must say “Invitation queued” (or equivalent) until delivery is authoritative. Add tests for email-service unavailable, outbox retry, duplicate invitation/idempotency and eventual delivery status.
+Scope: `apps/quantmail/backend/routes/drive.ts`; mail outbox/delivery service; Drive share UI; notification tests.
+Dependencies: QM-BACK-001; QM-SCREEN-027; mail delivery architecture.
+Validation: source audit on 2026-10-08 reproduced `deliveryStatus: 'delivered'`, best-effort catch behavior and unconditional `notificationSent: true` in the Drive share response. No remediation implementation claim yet.
