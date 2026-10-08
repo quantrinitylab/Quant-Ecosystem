@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { showToast } from './InboxToast';
 import { IconChevronDown, IconDownload, IconPaperclip, MimeTypeIcon } from './icons';
 import { repairMojibake, useSafeEmailHtml } from '../lib/safe-html';
+import { useEmailImageConsent } from '../lib/email-image-consent';
 import { htmlToPlainText } from '../lib/email-body';
 import {
   isPlainWrapperHtml,
@@ -25,6 +26,10 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
   // DOMPurify runs last inside this hook and yields '' when nothing safe is left,
   // in which case the plain-text body below is rendered instead.
   const safeHtml = useSafeEmailHtml(email.bodyHtml);
+
+  // QM-UIUX-042: remote images are tracking pixels — blocked until the reader
+  // consents per message ("Show images") or trusts the sender's domain.
+  const imgConsent = useEmailImageConsent(safeHtml, email.from?.email);
 
   const rawBody = repairMojibake(email.bodyText || email.snippet || '');
 
@@ -84,6 +89,35 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
 
   return (
     <div className={`relative ${className}`}>
+      {/* QM-UIUX-042: remote-image consent banner (only when images were blocked) */}
+      {imgConsent.showBanner && (
+        <div
+          className="safety-banner safety-banner-info mb-3"
+          role="region"
+          aria-label="Blocked images"
+        >
+          <div className="safety-banner-content">
+            <strong>Images are blocked to protect your privacy.</strong>
+          </div>
+          <button
+            type="button"
+            className="safety-banner-unsubscribe"
+            onClick={imgConsent.revealImages}
+          >
+            Show images
+          </button>
+          {imgConsent.senderDomain && (
+            <button
+              type="button"
+              className="safety-banner-unsubscribe"
+              onClick={imgConsent.trustSender}
+            >
+              Always show images from {imgConsent.senderDomain}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Email Body */}
       <div className="text-sm leading-7 text-[#F5F5F5] sm:text-[15px]">
         {mainMarkdownHtml ? (
@@ -94,7 +128,7 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
         ) : safeHtml ? (
           <div
             className="email-html-content prose prose-invert max-w-none break-words font-sans font-normal leading-7 text-[#F5F5F5]"
-            dangerouslySetInnerHTML={{ __html: safeHtml }}
+            dangerouslySetInnerHTML={{ __html: imgConsent.html }}
           />
         ) : (
           <div className="space-y-3 whitespace-pre-wrap font-sans font-normal leading-7 text-[#F5F5F5]">

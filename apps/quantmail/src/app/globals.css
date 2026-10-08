@@ -2213,6 +2213,21 @@ body {
 }
 
 /* ==========================================================================
+   Blocked remote image placeholder (QM-UIUX-042)
+   Remote <img> tags are rewritten to this inert span until the reader
+   consents — no network request, no sender-controlled content.
+   ========================================================================== */
+.email-html-content .qm-blocked-remote-image {
+  display: inline-block;
+  width: 64px;
+  height: 64px;
+  border: 1px dashed var(--quant-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  vertical-align: middle;
+}
+
+/* ==========================================================================
    Sent Page — delivery trail design
    ========================================================================== */
 .sent-header {
