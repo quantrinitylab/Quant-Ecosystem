@@ -1364,3 +1364,45 @@ Finding: `CirclesSubView` renders 3 fake circles with hardcoded counts (4/8/3) a
 Required: remove fake circles; show honest empty state when user has no real groups.
 Scope: Contacts views.
 Dependencies: none.
+
+## QM-UIUX-063 — QuantGit: sidebar shows fabricated stats
+Status: [ ] TODO
+Finding: `CodeTab.tsx:2502-2520` — `starsCount={selectedRepo.stars || 111000}` — a repo with 0 stars renders "111,000 stars". Also hardcoded releasesCount={28144}, usedByCount="110K", latestReleaseTag="v1.0.5", fake language breakdown. Always shown. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
+Required: show real counts or honest unknown states; remove fabricated fallbacks.
+Scope: QuantGit CodeTab.
+Dependencies: none.
+
+## QM-UIUX-064 — QuantGit: ActionsTab fabricates CI runs
+Status: [ ] TODO
+Finding: `ActionsTab.tsx:51-96` — when backend returns zero runs, renders 3 fake workflow runs with fake actors, fake SHAs, fake timestamps, fabricated build logs. Header claims "Real GitHub Actions CI Pipeline". Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
+Required: show honest empty state when no runs; remove fabricated runs/logs and false header claim.
+Scope: QuantGit ActionsTab.
+Dependencies: none.
+
+## QM-UIUX-065 — QuantGit: NotificationsInbox is 100% fake
+Status: [ ] TODO
+Finding: `NotificationsInbox.tsx` — SAMPLE_NOTIFICATIONS hardcoded as initial state, zero API calls. Fabricated notifications about merged PRs and test suites. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
+Required: wire to real notification API or remove the inbox.
+Scope: QuantGit NotificationsInbox.
+Dependencies: none.
+
+## QM-UIUX-066 — QuantGit: InsightsTab hardcoded
+Status: [ ] TODO
+Finding: Entire 39-line file: "48 Commits", "100% CI Health", "11 GitHub Actions workflows green", fake bar chart. Takes zero props. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
+Required: compute from real data or remove the tab.
+Scope: QuantGit InsightsTab.
+Dependencies: none.
+
+## QM-UIUX-067 — QuantGit: no git server (clone/push/pull theater)
+Status: [ ] TODO
+Finding: No git-upload-pack/git-receive-pack//info/refs handler anywhere in backend. Clone menu copies https://quantmail.in/quantgit/<repo>.git URLs that `git clone` cannot use. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
+Required: implement smart-HTTP git server OR remove/honestly label the clone menu.
+Scope: QuantGit backend + UI.
+Dependencies: none.
+
+## QM-UIUX-068 — QuantGit: seed engagement + MCP fake counts
+Status: [ ] TODO
+Finding: Backend seeds fake engagement (starCount 342/128/95/76); MCP Registry shows fake install counts (186715 etc.) with "Install" button that only toggles local state. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
+Required: seed with zero counts (real starring is Prisma-backed) or honest unknown; wire MCP install to real API or remove button.
+Scope: QuantGit backend seeds + MCP Registry.
+Dependencies: none.
