@@ -1163,7 +1163,7 @@ Scope: `apps/quantmail/src/app/compose/page.tsx`.
 Dependencies: none.
 
 ## QM-UIUX-051 — Draft autosave (no autosave today; comment lies)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS — Owner: 5f6a7b8c-9d0e-1f2a-3b4c-5d6e7f8a9b0c; Branch: fix/qm-uiux-051-autosave
 Finding: zero `setInterval` in EmailComposer/DockedComposer — draft saving is manual-only. But `handleSaveDraft`'s comment claims "A draft save happens on a timer". False. Work is lost if user navigates away without pressing Save. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/drafts-schedule-audit.md`.
 Required: real autosave on a timer + honest save-state indicator; fix/remove the lying comment.
 Scope: `EmailComposer.tsx`, `DockedComposer.tsx`.
