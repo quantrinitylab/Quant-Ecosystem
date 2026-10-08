@@ -1685,3 +1685,24 @@ Scope: `apps/quantmail/backend/routes/drive.ts` folder rename handler; Drive fol
 Dependencies: QM-SCREEN-046; QM-SCREEN-050; QM-SCREEN-051; existing Drive folder/path contract.
 
 Validation: source audit on 2026-10-08 against `main` verified the rename handler updates the root folder first, then finds descendants by `path.startsWith(`${oldPath}/`)`, then performs one `folder.update()` per descendant outside a transaction, and finally returns `{ ok: true }`. No transaction or durable rewrite state surrounds the full root+descendant path mutation.
+
+
+## QM-SCREEN-059 — QuantDrive trash subtree expansion must not silently truncate at 30 levels
+
+Status: [ ] TODO
+
+Finding: the live Drive trash endpoint uses the shared `folderTree()` helper to expand a folder before soft-deleting its descendants. That helper hard-caps traversal at `MAX_DEPTH = 30` and then returns the visited IDs without signalling that the frontier was truncated. `POST /drive/files/trash` therefore treats a folder with descendants deeper than 30 levels as fully trashed even though the traversal can stop before reaching the deepest folders. The transaction then marks only the returned folder IDs and their files as deleted, while deeper descendants can remain active. The API still returns `{ ok: true }`, so the client has no indication that the requested subtree was only partially moved to Trash.
+
+This is separate from QM-SCREEN-046: that task covers move/cycle validation and atomic folder moves; this task covers the correctness of the Trash operation itself. The same depth cap may be useful as a safety guard elsewhere, but a hard traversal limit must never silently change the semantics of a user-visible recursive delete/trash operation.
+
+Required: make recursive trash use an authoritative hierarchy traversal that cannot silently truncate. Prefer parentId-based iterative/BFS expansion until the frontier is empty, with cycle detection and an explicit maximum node/work budget that fails the operation before mutation if the budget is exceeded. If a bounded asynchronous deletion architecture is required for very large trees, persist a durable trash operation with complete progress, expose a pending state, and continue until every descendant is handled; do not return success as though the whole subtree were trashed. Validate the root belongs to the authenticated user and is active before starting. Snapshot the complete target set before mutation and apply the soft-delete/trashRootId changes atomically for a synchronous operation. Define behavior for concurrent child creation/move during trash, nested selected roots, already-deleted descendants, and retry/idempotency.
+
+The invariant must be explicit: after successful folder trash, every owned descendant reachable through parentId from the selected root at the operation snapshot is deleted and carries the same trashRootId; no reachable descendant may remain active. Restore and purge must operate on exactly the same authoritative trash root, and no active descendant may be accidentally restored or purged from another operation.
+
+Tests: construct trees at depths 29, 30, 31, 100 and beyond; assert every descendant is trashed; inject traversal/database failures and assert no false success; cycle/corrupt-parent fixtures; concurrent child creation/move; nested folder selections; repeated trash requests; restore after deep trash; and purge after deep trash. Add a regression test proving the previous 30-level cap cannot silently leave an active descendant.
+
+Scope: `apps/quantmail/backend/routes/drive.ts` `folderTree()` and `POST /drive/files/trash`; Drive folder hierarchy service; trash/restore operation state if asynchronous; Prisma folder/file transactions; backend integration tests; Web/Flutter trash UI state for pending/failure outcomes.
+
+Dependencies: QM-SCREEN-046; QM-SCREEN-048; existing Drive trash/restore contract.
+
+Validation: source audit on 2026-10-08 against `main` verified `folderTree()` stops when `depth < MAX_DEPTH` with `MAX_DEPTH = 30`, returns the visited IDs without a truncation/error signal, and `POST /drive/files/trash` uses that result directly for its soft-delete transaction before returning `{ ok: true }`.
