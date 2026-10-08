@@ -44,8 +44,14 @@ export interface SesSendOptions {
  */
 export async function sendViaSes(opts: SesSendOptions): Promise<string> {
   const ses = getClient();
+  // QM-BACK-009: route sends through the `quantmail-sending` configuration set
+  // so SES publishes bounce/complaint/delivery events to SNS, which the
+  // backend's /webhook/inbound turns into suppression-list entries. Without
+  // the set, a bounce is silent and the UI can never learn the truth.
+  const configurationSet = process.env['SES_CONFIGURATION_SET'] ?? 'quantmail-sending';
   const command = new SendEmailCommand({
     FromEmailAddress: opts.from,
+    ConfigurationSetName: configurationSet,
     Destination: {
       ToAddresses: opts.to,
       CcAddresses: opts.cc ?? [],
