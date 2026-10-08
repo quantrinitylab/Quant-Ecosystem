@@ -4136,6 +4136,12 @@ model DriveShare {
   role        String    @default("viewer")
   password    String?
   expiresAt   DateTime?
+  // QM-M39-006 (screen 22): link scope. 'anyone' = anyone holding the URL
+  // (the only behavior before this task). 'org' = signed-in members of an
+  // organization the owner belongs to. 'specific' = only the user IDs in
+  // `audience` (JSON array). Expiry is enforced on resolve/download.
+  scope       String    @default("anyone")
+  audience    String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
