@@ -1354,16 +1354,7 @@ function DrivePageContent() {
             />
           )}
 
-          {activeTab === 'vault' && (
-            <DriveVaultSubView
-              onDecryptItem={(item) =>
-                showToast({
-                  text: `Unlocked "${item.name}" via WebCrypto SubtleCrypto L3`,
-                  type: 'success',
-                })
-              }
-            />
-          )}
+          {activeTab === 'vault' && <DriveVaultSubView />}
 
           {activeTab === 'starred' && (
             <DriveStarredSubView
