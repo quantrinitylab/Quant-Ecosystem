@@ -228,8 +228,9 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
           />,
         );
 
-        expect(html).toContain('Prev Week');
-        expect(html).toContain('Next Week');
+        // Week stepper is icon-only now (month navigation deduplicated into the page header)
+        expect(html).toContain('aria-label="Previous week"');
+        expect(html).toContain('aria-label="Next week"');
         expect(html).toContain('Selected Date Inspector');
         expect(html).toContain('Mon');
         expect(html).toContain('Sun');
@@ -240,7 +241,7 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
     // Sub-View 3: Events & Trackers Hub (CalendarTrackersSubView)
     // ------------------------------------------------------------------------
     describe('Sub-View 3: Events & Trackers Hub (CalendarTrackersSubView)', () => {
-      it('renders Period Tracker card with cycle prediction, fertile window, and discrete toggle', () => {
+      it('renders Period Tracker card with honest empty state (no fabricated cycle data)', () => {
         const html = renderToStaticMarkup(
           <CalendarTrackersSubView
             events={mockEvents}
@@ -251,8 +252,10 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
         expect(html).toContain('Period');
         expect(html).toContain('Cycle');
         expect(html).toContain('Discreet');
-        expect(html).toContain('Fertile Window');
-        expect(html).toContain('Log Cycle Symptoms');
+        // No fabricated predictions: honest empty state + setup CTA instead
+        expect(html).toContain('No cycle data connected');
+        expect(html).toContain('Set Up Private Cycle Tracker');
+        expect(html).not.toContain('Fertile Window');
       });
 
       it('renders Health Tracker card with sleep, water quick-log, and vitals', () => {
@@ -281,8 +284,9 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
 
         expect(html).toContain('Life Event Trackers');
         expect(html).toContain('+ Add Tracker');
-        expect(html).toContain('Annual Full Body Health Checkup');
-        expect(html).toContain('Passport');
+        // No fabricated demo trackers: honest empty state until the user adds one
+        expect(html).toContain('No life trackers yet');
+        expect(html).not.toContain('Annual Full Body Health Checkup');
       });
     });
 
@@ -396,7 +400,7 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
     // Regression: nav unification + drag-to-create + upcoming events
     // ------------------------------------------------------------------------
     describe('Calendar nav unification & drag-to-create (fix-calendar-nav-drag)', () => {
-      it('month toolbar follows the controlled viewDate (single source of truth)', () => {
+      it('month grid follows the controlled viewDate (single source of truth)', () => {
         const controlled = new Date(2026, 10, 1); // November 2026
         const html = renderToStaticMarkup(
           <CalendarMonthSubView
@@ -411,9 +415,11 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
             onGoToday={vi.fn()}
           />,
         );
-        // Toolbar title must reflect the controlled month, not selectedDate's month
-        expect(html).toContain('November');
-        expect(html).toContain('2026');
+        // The month toolbar lives in the page header now (nav unification);
+        // the sub-view grid must render the controlled month's days,
+        // not selectedDate's month.
+        expect(html).toContain('data-day-key="2026-11-15"');
+        expect(html).toContain('Selected Date Inspector');
       });
 
       it('falls back to internal month state when uncontrolled (back-compat)', () => {
