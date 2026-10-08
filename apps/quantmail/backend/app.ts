@@ -62,6 +62,7 @@ import deliverabilityRoutes from './routes/deliverability';
 import auditLogsRoutes from './routes/audit-logs';
 import adminRoutes from './routes/admin';
 import retentionRoutes from './routes/retention';
+import dataLifecycleRoutes from './routes/data-lifecycle';
 import enterpriseDomainsRoutes from './routes/enterprise-domains';
 import davRoutes from './routes/dav';
 import wellKnownRoutes from './routes/well-known';
@@ -453,6 +454,8 @@ export async function buildApp(config?: AppConfig) {
   await app.register(adminRoutes, { prefix: '/api/admin' });
   await app.register(retentionRoutes, { prefix: '/retention' });
   await app.register(retentionRoutes, { prefix: '/api/retention' });
+  await app.register(dataLifecycleRoutes, { prefix: '/data-lifecycle' });
+  await app.register(dataLifecycleRoutes, { prefix: '/api/data-lifecycle' });
   await app.register(enterpriseDomainsRoutes, { prefix: '/domains' });
   await app.register(enterpriseDomainsRoutes, { prefix: '/api/domains' });
   await app.register(wellKnownRoutes);
