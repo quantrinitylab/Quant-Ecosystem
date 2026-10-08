@@ -263,7 +263,7 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
   };
 
   return (
-    <div className="p-4 rounded-xl border border-[#30363D] bg-[#161B22] space-y-3">
+    <div className="p-4 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] space-y-3">
       <div className="flex items-center gap-2.5">
         <div className="w-8 h-8 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8]">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

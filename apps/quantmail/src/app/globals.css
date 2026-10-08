@@ -3812,7 +3812,7 @@ body {
   font-weight: 600;
   color: #E8E9EA;
   background: #1B1E24;
-  border: 1px solid #282C35;
+  border: 1px solid var(--quant-surface-elevated);
   border-radius: 0.4rem;
   padding: 0.35rem 0.5rem;
   cursor: pointer;
@@ -3854,14 +3854,14 @@ body {
   font-weight: 600;
   color: #E8E9EA;
   background: transparent;
-  border: 1px solid #282C35;
+  border: 1px solid var(--quant-surface-elevated);
   border-radius: 0.4rem;
   padding: 0.3rem 0.5rem;
   cursor: pointer;
 }
 .attachment-save-result-btn:hover {
   border-color: #3A404D;
-  background: #16181D;
+  background: var(--quant-surface-elevated);
 }
 .attachment-lightbox {
   position: fixed;

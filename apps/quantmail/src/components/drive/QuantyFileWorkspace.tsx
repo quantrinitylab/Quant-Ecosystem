@@ -606,7 +606,7 @@ function ErrorLine({ message }: { message: string | null }) {
 function BusyLine({ label }: { label: string }) {
   return (
     <p className="mt-2 flex items-center gap-2 text-xs text-[#A1A4AC]" aria-live="polite">
-      <span className="inline-block size-3 animate-spin rounded-full border-2 border-[#FF8C42]/30 border-t-[#FF8C42]" />
+      <span className="inline-block size-3 animate-spin rounded-full border-2 border-[var(--quant-primary)]/30 border-t-[var(--quant-primary)]" />
       {label}
     </p>
   );
@@ -614,7 +614,7 @@ function BusyLine({ label }: { label: string }) {
 
 const STEP_DOT: Record<QuantyTaskStepStatus, string> = {
   pending: 'bg-[#3A3D45]',
-  running: 'bg-[#FF8C42] animate-pulse',
+  running: 'bg-[var(--quant-primary)] animate-pulse',
   done: 'bg-[#4ADE80]',
   error: 'bg-[#FF6B6B]',
   'waiting-confirm': 'bg-[#FACC15]',
@@ -732,7 +732,7 @@ export function QuantyFileWorkspace({
             type="button"
             onClick={onClose}
             aria-label="Close Quanty file workspace"
-            className="rounded-lg p-2 text-[#8A8D96] hover:bg-white/[0.06] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+            className="rounded-lg p-2 text-[#8A8D96] hover:bg-white/[0.06] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           >
             <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -759,12 +759,12 @@ export function QuantyFileWorkspace({
                 placeholder='Try "find files quarterly report"'
                 aria-label="Ask Quanty to do something with your files"
                 disabled={taskRunning}
-                className="h-10 min-w-0 flex-1 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 text-sm text-[#F5F5F5] placeholder:text-[#5A5D66] focus:border-[#FF8C42]/60 focus:outline-none disabled:opacity-60"
+                className="h-10 min-w-0 flex-1 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 text-sm text-[#F5F5F5] placeholder:text-[#5A5D66] focus:border-[var(--quant-primary)]/60 focus:outline-none disabled:opacity-60"
               />
               <button
                 type="submit"
                 disabled={taskRunning || !ask.command.trim()}
-                className="h-10 shrink-0 rounded-lg bg-[#FF8C42] px-4 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-40"
+                className="h-10 shrink-0 rounded-lg bg-[var(--quant-primary)] px-4 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-40"
               >
                 Ask
               </button>
@@ -779,7 +779,7 @@ export function QuantyFileWorkspace({
                     manager.setCommand(cmd);
                     commandInputRef.current?.focus();
                   }}
-                  className="rounded-full border border-white/[0.1] px-2.5 py-1 text-[11px] text-[#A1A4AC] hover:border-[#FF8C42]/40 hover:text-[#F5F5F5] disabled:opacity-50"
+                  className="rounded-full border border-white/[0.1] px-2.5 py-1 text-[11px] text-[#A1A4AC] hover:border-[var(--quant-primary)]/40 hover:text-[#F5F5F5] disabled:opacity-50"
                 >
                   {cmd}
                 </button>
@@ -822,7 +822,7 @@ export function QuantyFileWorkspace({
                     <button
                       type="button"
                       onClick={() => void manager.confirmTask(true)}
-                      className="h-9 flex-1 rounded-lg bg-[#FF8C42] text-xs font-semibold text-black hover:opacity-90"
+                      className="h-9 flex-1 rounded-lg bg-[var(--quant-primary)] text-xs font-semibold text-black hover:opacity-90"
                     >
                       Yes, do it
                     </button>
@@ -880,7 +880,7 @@ export function QuantyFileWorkspace({
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search file names and contents"
                 aria-label="Search your Drive files"
-                className="h-10 min-w-0 flex-1 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 text-sm text-[#F5F5F5] placeholder:text-[#5A5D66] focus:border-[#FF8C42]/60 focus:outline-none"
+                className="h-10 min-w-0 flex-1 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 text-sm text-[#F5F5F5] placeholder:text-[#5A5D66] focus:border-[var(--quant-primary)]/60 focus:outline-none"
               />
               <button
                 type="submit"
@@ -903,9 +903,9 @@ export function QuantyFileWorkspace({
                     <button
                       type="button"
                       onClick={() => pickSearchResult(result)}
-                      className={`flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left hover:border-[#FF8C42]/40 ${
+                      className={`flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left hover:border-[var(--quant-primary)]/40 ${
                         currentFile?.id === result.fileId
-                          ? 'border-[#FF8C42]/50 bg-[#FF8C42]/[0.06]'
+                          ? 'border-[var(--quant-primary)]/50 bg-[var(--quant-primary)]/[0.06]'
                           : 'border-white/[0.08] bg-white/[0.02]'
                       }`}
                     >
@@ -939,7 +939,7 @@ export function QuantyFileWorkspace({
                   <button
                     type="button"
                     onClick={() => void manager.suggestDestination()}
-                    className="mt-2 h-9 w-full rounded-lg bg-[#FF8C42] text-xs font-semibold text-black hover:opacity-90"
+                    className="mt-2 h-9 w-full rounded-lg bg-[var(--quant-primary)] text-xs font-semibold text-black hover:opacity-90"
                   >
                     Suggest a destination
                   </button>
@@ -963,7 +963,7 @@ export function QuantyFileWorkspace({
                         <button
                           type="button"
                           onClick={() => void manager.applyMove()}
-                          className="h-9 flex-1 rounded-lg bg-[#FF8C42] text-xs font-semibold text-black hover:opacity-90"
+                          className="h-9 flex-1 rounded-lg bg-[var(--quant-primary)] text-xs font-semibold text-black hover:opacity-90"
                         >
                           Move here
                         </button>

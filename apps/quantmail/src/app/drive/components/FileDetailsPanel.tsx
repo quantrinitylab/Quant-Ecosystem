@@ -240,7 +240,7 @@ export function FileDetailsView({
       {/* Security — QM-M39-009 scan-state model. Folders have no scan state. */}
       {details.scan && (
         <section aria-label="Security">
-          <div className="rounded-xl bg-[#111318] px-4 py-3 shadow-[inset_0_0_0_1px_#282C35]">
+          <div className="rounded-xl bg-[var(--quant-surface)] px-4 py-3 shadow-[inset_0_0_0_1px_var(--quant-surface-elevated)]">
             <FileScanDetail status={details.scan.status} reason={details.scan.reason} />
             {details.scan.scannedAt && (
               <p className="text-[11px] text-[#64748B] mt-1.5">
@@ -269,7 +269,7 @@ export function FileDetailsView({
               <button
                 type="button"
                 onClick={() => onOpenVersionHistory(details.id, details.name)}
-                className="px-3 py-1.5 rounded-lg bg-[#1E293B] text-xs font-medium text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors shrink-0"
+                className="px-3 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] text-xs font-medium text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors shrink-0"
               >
                 View history
               </button>
@@ -289,7 +289,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-2 border-b border-[#1E293B] last:border-0">
+    <div className="flex items-start justify-between gap-4 py-2 border-b border-[var(--quant-surface-elevated)] last:border-0">
       <span className="text-xs text-[#94A3B8] shrink-0">{label}</span>
       <span className="text-xs text-[#F1F5F9] text-right break-all min-w-0">{children}</span>
     </div>
@@ -360,7 +360,7 @@ export function FileDetailsPanel({
       className="fixed inset-0 z-[110]"
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
-      <aside className="absolute right-0 top-0 h-full w-full max-w-sm bg-[#0E1017] border-l border-[#232938] shadow-2xl flex flex-col animate-slide-in-right">
+      <aside className="absolute right-0 top-0 h-full w-full max-w-sm bg-[var(--quant-surface-subtle)] border-l border-[#232938] shadow-2xl flex flex-col animate-slide-in-right">
         {/* Header */}
         <div className="flex items-start gap-3 px-5 py-4 border-b border-[#232938] shrink-0">
           <div className="min-w-0 flex-1">
@@ -380,7 +380,7 @@ export function FileDetailsPanel({
             type="button"
             onClick={onClose}
             aria-label="Close details panel"
-            className="p-2 rounded-lg text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#1E293B] transition-colors shrink-0"
+            className="p-2 rounded-lg text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[var(--quant-surface-elevated)] transition-colors shrink-0"
           >
             <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
               <path d="M18 6 6 18M6 6l12 12" />
@@ -393,7 +393,7 @@ export function FileDetailsPanel({
           {loading && (
             <div className="space-y-3" aria-label="Loading file details">
               {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="h-8 rounded-lg bg-[#1E293B]/60 animate-pulse" />
+                <div key={i} className="h-8 rounded-lg bg-[var(--quant-surface-elevated)]/60 animate-pulse" />
               ))}
             </div>
           )}
@@ -405,7 +405,7 @@ export function FileDetailsPanel({
               <button
                 type="button"
                 onClick={onClose}
-                className="mt-3 px-3 py-1.5 rounded-lg bg-[#1E293B] text-xs text-[#94A3B8] hover:text-[#F8FAFC] transition-colors"
+                className="mt-3 px-3 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] text-xs text-[#94A3B8] hover:text-[#F8FAFC] transition-colors"
               >
                 Close
               </button>

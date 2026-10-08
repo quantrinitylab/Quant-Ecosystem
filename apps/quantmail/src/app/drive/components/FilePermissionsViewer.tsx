@@ -95,11 +95,11 @@ function LinkRow({ link }: { link: FileLinkEntry }) {
             Expired
           </span>
         ) : link.expiresAt ? (
-          <span className="text-[11px] px-2 py-0.5 rounded font-medium border border-[#30363D] bg-[#161B22] text-[#8B949E]">
+          <span className="text-[11px] px-2 py-0.5 rounded font-medium border border-[#30363D] bg-[var(--quant-surface-elevated)] text-[#8B949E]">
             Expires {formatDate(link.expiresAt)}
           </span>
         ) : (
-          <span className="text-[11px] px-2 py-0.5 rounded font-medium border border-[#30363D] bg-[#161B22] text-[#8B949E]">
+          <span className="text-[11px] px-2 py-0.5 rounded font-medium border border-[#30363D] bg-[var(--quant-surface-elevated)] text-[#8B949E]">
             No expiry set
           </span>
         )}

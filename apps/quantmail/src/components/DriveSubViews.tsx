@@ -1731,7 +1731,7 @@ export function DriveFeedSubView({
                 <button
                   type="button"
                   onClick={() => onViewAccessItem?.(lightboxItem)}
-                  className="p-2 rounded-xl border border-[#232938] bg-[#12151E] text-[#94A3B8] hover:text-white hover:border-[#38BDF8]"
+                  className="p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface-elevated)] text-[#94A3B8] hover:text-white hover:border-[#38BDF8]"
                   title="View who has access"
                 >
                   <EyeIcon className="size-4" />

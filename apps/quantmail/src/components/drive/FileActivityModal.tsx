@@ -289,11 +289,11 @@ export function FileActivityModal({
         role="dialog"
         aria-modal="true"
         aria-label={`Activity for ${fileName}`}
-        className="bg-[#16181D] border border-[#282C35] rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col text-[#F5F5F5] overflow-hidden"
+        className="bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col text-[#F5F5F5] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-[#282C35] flex items-center justify-between gap-3 bg-[#16181D]">
+        <div className="px-5 py-4 border-b border-[var(--quant-surface-elevated)] flex items-center justify-between gap-3 bg-[var(--quant-surface-elevated)]">
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-[#F5F5F5] flex items-center gap-2">
               <span>Activity</span>
@@ -310,7 +310,7 @@ export function FileActivityModal({
             aria-label="Close dialog"
             data-testid="close-activity-btn"
             onClick={onClose}
-            className="p-1.5 rounded-md text-[#9E9E9E] hover:text-[#F5F5F5] hover:bg-[#282C35] transition-colors"
+            className="p-1.5 rounded-md text-[#9E9E9E] hover:text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)] transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -346,7 +346,7 @@ export function FileActivityModal({
               data-testid="activity-loading"
               className="py-12 flex flex-col items-center justify-center text-center gap-2 text-[#9E9E9E]"
             >
-              <div className="w-6 h-6 border-2 border-[#FF8C42] border-t-transparent rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-[var(--quant-primary)] border-t-transparent rounded-full animate-spin" />
               <span className="text-xs">Loading activity...</span>
             </div>
           ) : events.length === 0 ? (
@@ -354,7 +354,7 @@ export function FileActivityModal({
               data-testid="activity-empty"
               className="py-12 flex flex-col items-center justify-center text-center gap-2"
             >
-              <span className="w-10 h-10 rounded-full bg-[#282C35] flex items-center justify-center text-[#9E9E9E]">
+              <span className="w-10 h-10 rounded-full bg-[var(--quant-surface-elevated)] flex items-center justify-center text-[#9E9E9E]">
                 <svg
                   className="w-5 h-5"
                   fill="none"
@@ -379,14 +379,14 @@ export function FileActivityModal({
               </p>
             </div>
           ) : (
-            <ol data-testid="activity-timeline" className="relative ml-2 border-l border-[#282C35] pl-0">
+            <ol data-testid="activity-timeline" className="relative ml-2 border-l border-[var(--quant-surface-elevated)] pl-0">
               {events.map((event) => (
                 <li
                   key={event.id}
                   data-testid={`activity-event-${event.action}`}
                   className="relative pl-8 pb-5 last:pb-0"
                 >
-                  <span className="absolute -left-[13px] top-0 w-6 h-6 rounded-full bg-[#282C35] text-[#FF8C42] flex items-center justify-center border border-[#383E4A]">
+                  <span className="absolute -left-[13px] top-0 w-6 h-6 rounded-full bg-[var(--quant-surface-elevated)] text-[var(--quant-primary)] flex items-center justify-center border border-[#383E4A]">
                     <ActionIcon action={event.action} />
                   </span>
                   <p className="text-sm text-[#F5F5F5] leading-snug">{describeActivity(event)}</p>
