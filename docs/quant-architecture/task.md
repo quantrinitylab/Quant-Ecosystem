@@ -1517,13 +1517,15 @@ Scope: apps/quantmail drive page + backend.
 Dependencies: none.
 
 ## QM-M39-013 — Drive: fake-data purge across all drive surfaces
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: Muse
 Branch: fix/qm-m39-013-drive-fake-purge
+PR: #662 (open, not merged; commit d94db9923)
 Finding: Standing user rule — no fake stats/counts/collaborators/activity. Drive surfaces (StorageQuotaBar, shared counts, starred counts, AI memory vault, cleaner) must be audited: every number/person/activity must be backend-provable or removed.
 Required: audit + remove all fabricated drive data; quota from real usage; counts real or absent; zero fake collaborators/activity; evidence per surface.
 Scope: all apps/quantmail drive components and API routes.
 Dependencies: none.
+Validation: 2 fakes removed — (1) hardcoded '4.8 GB duplicate storage reclaimed via FastCDC 64KB CAS' toast in drive/page.tsx cleaner tab (dead onReclaimComplete; prop also removed from DriveCleanerSubView interface); (2) invented 0.95 AI-search score default in DriveAISearchBar (score now number|null; '% Match' badge hidden when backend reports none). Verified real: StorageQuotaBar (DB-aggregated quota, 'Calculating…' until loaded), shared/starred counts (real receivedShares/starred items), FileShareModal (no fake collaborators), AI memory vault (no demo records, real /api/drive/memory), feed (real media or empty), upload toasts (real counts), search (real APIs), doc collab (real socket, empty default), version history + AI summary (real APIs). All 9 drive vitest suites pass: 152/152 incl. new null-score test. tsc unavailable in this env (repo typechecks via CI); edited files transform cleanly under vitest.
 
 ## QM-M39-014 — Drive: large-collection performance (virtualization + pagination)
 Status: [ ] TODO
