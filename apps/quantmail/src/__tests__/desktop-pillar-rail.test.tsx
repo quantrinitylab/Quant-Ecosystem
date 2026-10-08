@@ -159,7 +159,9 @@ describe('DesktopPillarRail Component', () => {
     // DesktopAppRail (slim 5-app switcher) is mounted on the right
     expect(html).toContain('data-testid="desktop-app-rail"');
     expect(html).toContain('data-testid="desktop-app-rail-tile-drive"');
-    expect(html).toContain('data-testid="desktop-app-rail-active-drive"');
+    // Active app = clean logo only: aria-selected on the tile, no glow/edge/tint markup
+    expect(html).toContain('aria-selected="true"');
+    expect(html).not.toContain('desktop-app-rail-active-drive');
 
     // Folder sidebar is rendered
     expect(html).toContain('id="sidebar-test"');

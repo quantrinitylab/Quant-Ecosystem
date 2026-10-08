@@ -1026,6 +1026,18 @@ body {
 .mail-row { border-bottom-color: rgba(255,255,255,0.055); }
 .mail-row:hover { border-color: #2d2d30; background: #111318; }
 /*
+ * Desktop (md+, 768px): deep black, no divider lines (explicit user requirement).
+ * Row separation comes from list spacing, not hairlines. Unread/active keep a
+ * near-black lift so their functional signals survive on the black surface.
+ */
+@media (min-width: 768px) {
+  .mail-row { background: #000; border-bottom-color: transparent; }
+  .mail-row:hover { background: #0A0B0D; border-color: transparent; }
+  .mail-row.is-unread { background: #0A0B0D; border-bottom-color: transparent; }
+  .mail-row.is-unread:hover { background: #0D0E11; border-color: transparent; }
+  .mail-row.is-active { background: #0D0E12; border-color: transparent; }
+}
+/*
  * The pane the row slides off. It fills the shell rather than sizing itself to the
  * travel, so the label holds still while the row moves — the row reads as leaving,
  * which is the honest picture of what is about to happen. `is-trailing` is the
