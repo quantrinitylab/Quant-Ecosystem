@@ -25,6 +25,7 @@ import { suppressionService } from '../services/suppression.service';
 import { emitOutbox, MailOutboxEvents } from '../lib/outbox-events';
 import { LifecycleEvents } from '../lib/lifecycle-events';
 import { recordDeletionBlocked } from '../services/data-lifecycle.service';
+import type { LifecycleDb } from '../services/data-lifecycle.service';
 
 const notifier = new CrossAppDispatcher('quantmail');
 
@@ -1372,8 +1373,11 @@ export default async function emailsRoutes(
         // own transaction (the refused mutation never ran, so there is no
         // domain tx to join). Best-effort: a logging failure must not mask
         // the 423, so errors here are swallowed after logging.
+        // NOTE: the cast matches the `(prisma as any)?.legalHold` convention
+        // above — the backend typecheck resolves a stale PrismaClient view,
+        // but the runtime client has the lifecycle delegates.
         try {
-          await recordDeletionBlocked(prisma, {
+          await recordDeletionBlocked(prisma as unknown as LifecycleDb, {
             targetId: request.params.id,
             targetKind: 'Email',
             actor: userId,
