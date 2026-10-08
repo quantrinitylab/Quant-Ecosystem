@@ -1442,7 +1442,7 @@ Scope: apps/quantmail drive API + drive page.
 Dependencies: none.
 
 ## QM-M39-002 — Drive: "Recent" view (screen 6)
-Status: [~] IN_PROGRESS — Owner: Muse, Branch: fix/qm-m39-002-drive-recent
+Status: [x] DONE — PR #665 (drive recent view, tests green, unmerged)
 Finding: M39 screen 6 ("Recent") has no dedicated honest view (only a media "Feed" tab and scattered mentions). Must be a real recency-ordered view from backend data, not client-sorted theater.
 Required: backend query for recently modified/opened files across the user's drive; UI view; empty state honest ("No recent files").
 Scope: apps/quantmail drive API + drive page.
