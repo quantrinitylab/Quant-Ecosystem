@@ -399,7 +399,7 @@ export function QuantMailShortcutDock({
         data-testid="dock-minimize-button"
         aria-label="Minimize dock"
         onClick={() => setCollapsed(true)}
-        className="ml-1 p-1 text-gray-400 hover:text-white rounded-full hover:bg-white/10 transition-colors focus:outline-none"
+        className="ml-1 p-1 text-gray-400 hover:text-white rounded-full hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
       >
         <svg
           className="size-3.5"

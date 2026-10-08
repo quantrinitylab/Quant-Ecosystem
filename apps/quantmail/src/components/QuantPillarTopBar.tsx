@@ -1270,7 +1270,7 @@ export function QuantPillarTopBar({
             onKeyDown={handleSearchKeyDown}
             placeholder={searchPlaceholder || activeTile.searchPlaceholder}
             aria-label={searchPlaceholder || activeTile.searchPlaceholder}
-            className="w-full bg-transparent text-xs text-white placeholder-[#64748B] focus:outline-none"
+            className="w-full bg-transparent text-xs text-white placeholder-[#64748B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded"
           />
 
           {internalSearch.length > 0 && (

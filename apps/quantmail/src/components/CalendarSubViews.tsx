@@ -1460,9 +1460,9 @@ export function CalendarTrackersSubView({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-[#A1A4AC] block mb-1">Category</label>
+                  <label htmlFor="tracker-category" className="text-xs text-[#A1A4AC] block mb-1">Category</label>
                   <select
-                    value={newTrackerCategory}
+                    id="tracker-category" value={newTrackerCategory}
                     onChange={(e) => setNewTrackerCategory(e.target.value as any)}
                     className="w-full bg-[#0B0D13] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#F59E0B]"
                   >
@@ -1474,8 +1474,9 @@ export function CalendarTrackersSubView({
                 </div>
 
                 <div>
-                  <label className="text-xs text-[#A1A4AC] block mb-1">Target Date</label>
+                  <label htmlFor="tracker-target-date" className="text-xs text-[#A1A4AC] block mb-1">Target Date</label>
                   <input
+                    id="tracker-target-date"
                     type="date"
                     required
                     value={newTrackerDate}
@@ -1907,6 +1908,7 @@ export function CalendarScheduleSubView({
               />
 
               <select
+                aria-label="Priority"
                 value={newPriority}
                 onChange={(e) => setNewPriority(e.target.value as any)}
                 className="bg-[#0B0D13] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#F59E0B]"

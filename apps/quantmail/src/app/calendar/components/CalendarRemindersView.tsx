@@ -243,7 +243,7 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
           />
 
           <select
-            value={newPriority}
+            aria-label="Reminder priority" value={newPriority}
             onChange={(e) => setNewPriority(e.target.value as any)}
             className="bg-[#090A0E] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#F59E0B] cursor-pointer"
           >

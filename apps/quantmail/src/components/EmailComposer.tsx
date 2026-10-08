@@ -1289,7 +1289,7 @@ export function EmailComposer({
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="Subject of the email"
-                className="flex-1 min-w-0 min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm font-semibold text-white placeholder-[#A1A4AC] focus:outline-none"
+                className="flex-1 min-w-0 min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm font-semibold text-white placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded"
               />
             </div>
 
@@ -1340,7 +1340,7 @@ export function EmailComposer({
                     value={greeting}
                     onChange={(e) => setGreeting(e.target.value)}
                     placeholder="Dear Sir/Madam,"
-                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none"
+                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   />
                 </div>
 
@@ -1358,7 +1358,7 @@ export function EmailComposer({
                     value={opening}
                     onChange={(e) => setOpening(e.target.value)}
                     placeholder="Reason for writing / brief opening statement..."
-                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none"
+                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   />
                 </div>
               </div>
@@ -1525,7 +1525,7 @@ export function EmailComposer({
                     value={closing}
                     onChange={(e) => setClosing(e.target.value)}
                     placeholder="Thank you for your time."
-                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none"
+                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   />
                 </div>
 
@@ -1558,7 +1558,7 @@ export function EmailComposer({
                         value={signoff}
                         onChange={(e) => setSignoff(e.target.value)}
                         placeholder="Best regards,"
-                        className="w-28 sm:w-36 shrink-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[#282C35] pb-0.5"
+                        className="w-28 sm:w-36 shrink-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[#282C35] pb-0.5 focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       />
                       <input
                         id="composer-sender-name"
@@ -1567,7 +1567,7 @@ export function EmailComposer({
                         value={senderName}
                         onChange={(e) => setSenderName(e.target.value)}
                         placeholder="Your Name"
-                        className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[#282C35] pb-0.5"
+                        className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[#282C35] pb-0.5 focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       />
                     </div>
                   </div>
@@ -1585,7 +1585,7 @@ export function EmailComposer({
                         value={detail}
                         onChange={(e) => handleUpdateDetail(idx, e.target.value)}
                         placeholder="Designation / Company / Contact..."
-                        className="flex-1 min-w-0 bg-transparent text-xs text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[#282C35]/80 pb-0.5"
+                        className="flex-1 min-w-0 bg-transparent text-xs text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[#282C35]/80 pb-0.5 focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       />
                       <button
                         type="button"

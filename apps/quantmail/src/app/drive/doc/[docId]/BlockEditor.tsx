@@ -689,7 +689,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                             prev.map((b) => (b.id === block.id ? { ...b, language: lang } : b)),
                           );
                         }}
-                        className="bg-transparent border-none text-xs text-[#8B949E] focus:outline-none cursor-pointer"
+                        className="bg-transparent border-none text-xs text-[#8B949E] focus:outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       >
                         <option value="typescript">TypeScript</option>
                         <option value="javascript">JavaScript</option>
@@ -722,7 +722,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                         onCursorMove?.(block.id);
                       }}
                       onBlur={() => onCursorMove?.(undefined)}
-                      className="w-full bg-[#0D1117] p-3 text-xs font-mono text-[#58A6FF] placeholder-[#484F58] focus:outline-none leading-relaxed resize-y border-none"
+                      className="w-full bg-[#0D1117] p-3 text-xs font-mono text-[#58A6FF] placeholder-[#484F58] focus:outline-none leading-relaxed resize-y border-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     />
                   </div>
                 )}
@@ -765,7 +765,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                                       }),
                                     );
                                   }}
-                                  className="w-full bg-transparent border-none text-xs text-[#C9D1D9] focus:outline-none"
+                                  className="w-full bg-transparent border-none text-xs text-[#C9D1D9] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                                 />
                               </td>
                             ))}

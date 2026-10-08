@@ -260,10 +260,10 @@ export const FileShareModal: React.FC<FileShareModalProps> = ({
             <div className="space-y-2 pt-1">
               <div className="flex items-center gap-2">
                 <input
-                  type="text"
+                  aria-label="Public share URL" type="text"
                   readOnly
                   value={publicShareUrl}
-                  className="flex-1 bg-[#0D1117] border border-[#238636]/50 rounded-xl px-3 py-2 text-xs font-mono text-[#3FB950] select-all focus:outline-none"
+                  className="flex-1 bg-[#0D1117] border border-[#238636]/50 rounded-xl px-3 py-2 text-xs font-mono text-[#3FB950] select-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 />
                 <Button
                   variant="primary"

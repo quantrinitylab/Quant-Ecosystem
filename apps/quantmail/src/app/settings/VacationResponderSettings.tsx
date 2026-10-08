@@ -230,8 +230,9 @@ export function VacationResponderSettings() {
             />
           </FormField>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField label="Starts (optional)">
+            <FormField label="Starts (optional)" htmlFor="vacation-start">
               <input
+                id="vacation-start"
                 type="datetime-local"
                 className="h-11 sm:h-9 w-full rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm text-[var(--quant-foreground)]"
                 value={draft.startAt}
@@ -241,8 +242,9 @@ export function VacationResponderSettings() {
                 }
               />
             </FormField>
-            <FormField label="Ends (optional)">
+            <FormField label="Ends (optional)" htmlFor="vacation-end">
               <input
+                id="vacation-end"
                 type="datetime-local"
                 className="h-11 sm:h-9 w-full rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm text-[var(--quant-foreground)]"
                 value={draft.endAt}
@@ -264,8 +266,9 @@ export function VacationResponderSettings() {
               />
               Reply only to known contacts
             </label>
-            <FormField label="Reply interval (days)">
+            <FormField label="Reply interval (days)" htmlFor="vacation-interval">
               <input
+                id="vacation-interval"
                 type="number"
                 min="0"
                 step="1"

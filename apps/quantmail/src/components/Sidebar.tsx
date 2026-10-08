@@ -208,7 +208,7 @@ export function Sidebar(props: SidebarProps): React.ReactElement {
                 autoFocus
               />
               <input
-                type="color"
+                aria-label="New label color" type="color"
                 value={newLabelColor}
                 onChange={(e) => setNewLabelColor(e.target.value)}
               />

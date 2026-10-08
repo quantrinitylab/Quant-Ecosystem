@@ -423,7 +423,7 @@ function Inspector({
                   onChange={(e) => setContactNameInput(e.target.value)}
                   placeholder="Enter friendly name"
                   autoFocus
-                  className="min-h-[36px] rounded-lg border border-[#FF8C42] bg-[#090A0C] px-2.5 text-sm font-semibold text-white focus:outline-none"
+                  className="min-h-[36px] rounded-lg border border-[#FF8C42] bg-[#090A0C] px-2.5 text-sm font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 />
                 <button
                   type="submit"

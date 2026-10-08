@@ -223,6 +223,7 @@ export default function WorkspaceDetailPage() {
                   </div>
                   {can(role, 'manageMembers') && !member.isYou && member.role !== 'OWNER' ? (
                     <select
+                      aria-label={`Role for ${member.email || 'member'}`}
                       value={member.role}
                       onChange={(event) =>
                         void run(() =>
@@ -305,15 +306,17 @@ export default function WorkspaceDetailPage() {
               {can(role, 'editWorkspace') && (
                 <Card padding="none" className="space-y-4 p-4">
                   <h2 className="text-sm font-semibold">Workspace details</h2>
-                  <FormField label="Name">
+                  <FormField label="Name" htmlFor="workspace-name">
                     <Input
+                      id="workspace-name"
                       value={nameDraft ?? workspace.name}
                       onChange={(event) => setNameDraft(event.target.value)}
                       fullWidth
                     />
                   </FormField>
-                  <FormField label="Description">
+                  <FormField label="Description" htmlFor="workspace-desc">
                     <Input
+                      id="workspace-desc"
                       value={descriptionDraft ?? workspace.description ?? ''}
                       onChange={(event) => setDescriptionDraft(event.target.value)}
                       fullWidth

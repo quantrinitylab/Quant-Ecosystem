@@ -353,6 +353,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         <div className="toolbar-divider"></div>
         <div className="toolbar-group">
           <select
+            aria-label="Heading style"
             value={formatState.heading}
             onChange={(e) => execCommand('formatBlock', e.target.value)}
             className="heading-select"
@@ -572,7 +573,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         <span className="char-count">{charCount} characters</span>
       </div>
 
-      <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleFileUpload} />
+      <input ref={fileInputRef} type="file" accept="image/*" hidden aria-label="Insert image" onChange={handleFileUpload} />
 
       {linkDialog.isOpen && (
         <div className="editor-dialog link-dialog">

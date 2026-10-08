@@ -502,8 +502,9 @@ export function MailFiltersSettings() {
               </label>
             </div>
             <div className="mt-3">
-              <FormField label="Apply label">
+              <FormField label="Apply label" htmlFor="filter-apply-label">
                 <select
+                  id="filter-apply-label"
                   value={applyLabelId}
                   onChange={(e) => setApplyLabelId(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"

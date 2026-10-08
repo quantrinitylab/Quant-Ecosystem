@@ -136,6 +136,7 @@ export function SmartFilter({ onCreateFilter }: SmartFilterProps) {
                 <div key={idx} className="sf-condition-row">
                   <select
                     className="sf-select"
+                    aria-label="Filter condition field"
                     value={cond.field}
                     onChange={(e) => updateCondition(idx, { field: e.target.value as FilterCondition['field'] })}
                   >
@@ -166,6 +167,7 @@ export function SmartFilter({ onCreateFilter }: SmartFilterProps) {
                 <div key={idx} className="sf-condition-row">
                   <select
                     className="sf-select"
+                    aria-label="Filter action type"
                     value={action.type}
                     onChange={(e) => updateAction(idx, { type: e.target.value as FilterAction['type'] })}
                   >
