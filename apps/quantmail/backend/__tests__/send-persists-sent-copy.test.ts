@@ -87,11 +87,26 @@ function prismaValidationError(value: unknown): Error {
 function makePrisma() {
   const updates: Array<{ where: unknown; data: Record<string, unknown> }> = [];
   const findManyWheres: unknown[] = [];
+  // QM-BACK-002: versionedUpdate re-reads the row after the conditional
+  // updateMany, so the fake keeps real row state — the re-read sees the flip.
+  const rows = new Map<string, Record<string, unknown>>([['e1', { ...DRAFT_ROW }]]);
+  const applyData = (row: Record<string, unknown>, data: Record<string, unknown>) => {
+    const next = { ...row };
+    for (const [k, v] of Object.entries(data)) {
+      if (k === 'version' && typeof v === 'object' && v !== null && 'increment' in v) {
+        next['version'] = ((row['version'] as number) ?? 0) + (v as { increment: number }).increment;
+      } else {
+        next[k] = v;
+      }
+    }
+    return next;
+  };
   const prisma = {
     email: {
-      findUnique: vi.fn(async ({ where }: any) =>
-        where?.id === 'e1' ? { ...DRAFT_ROW } : null,
-      ),
+      findUnique: vi.fn(async ({ where }: any) => {
+        const row = where?.id ? rows.get(where.id) : undefined;
+        return row ? { ...row } : null;
+      }),
       update: vi.fn(async ({ where, data }: any) => {
         if (
           data.deliveryStatus !== undefined &&
@@ -101,6 +116,25 @@ function makePrisma() {
         }
         updates.push({ where, data });
         return { ...DRAFT_ROW, ...data };
+      }),
+      // QM-BACK-002: versionedUpdate runs a conditional updateMany inside the
+      // tx; the fake honours the version predicate and the increment marker.
+      updateMany: vi.fn(async ({ where, data }: any) => {
+        if (
+          data.deliveryStatus !== undefined &&
+          !VALID_DELIVERY_STATUSES.has(data.deliveryStatus)
+        ) {
+          throw prismaValidationError(data.deliveryStatus);
+        }
+        const id = where?.id as string | undefined;
+        const row = (id ? rows.get(id) : undefined) ?? { ...DRAFT_ROW };
+        if (where?.version !== undefined && (row['version'] ?? 0) !== where.version) {
+          return { count: 0 };
+        }
+        const next = applyData(row, data);
+        if (id) rows.set(id, next);
+        updates.push({ where, data });
+        return { count: 1 };
       }),
       findMany: vi.fn(async ({ where }: any) => {
         findManyWheres.push(where);

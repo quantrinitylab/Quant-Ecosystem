@@ -117,7 +117,8 @@ export class AIEmailService {
     // Store summary on the email
     await this.prisma.email.update({
       where: { id: emailId },
-      data: { aiSummary: result.content },
+      // QM-BACK-002: keep the version column truthful on system writes.
+      data: { aiSummary: result.content, version: { increment: 1 } },
     });
 
     const evidence = [
