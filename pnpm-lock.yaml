@@ -1705,9 +1705,18 @@ importers:
 
   services/quanty-orchestrator:
     dependencies:
+      '@quant/quanty-client':
+        specifier: workspace:*
+        version: link:../../packages/quanty-client
       '@quant/quanty-contracts':
         specifier: workspace:*
         version: link:../../packages/quanty-contracts
+      '@quant/quanty-memory':
+        specifier: workspace:*
+        version: link:../../packages/quanty-memory
+      '@quant/quanty-platform':
+        specifier: workspace:*
+        version: link:../../packages/quanty-platform
     devDependencies:
       typescript:
         specifier: ~5.5.0
