@@ -1456,7 +1456,7 @@ Scope: apps/quantmail drive upload route + drive page.
 Dependencies: QM-M39-009 (scan state backend).
 
 ## QM-M39-004 — Drive: capability-aware preview system (screens 9–14)
-Status: [~] IN_PROGRESS — Owner: muse-m39-wave3, Branch: fix/qm-m39-004-drive-preview (takeover 2026-10-08: stale muse-coordinator claim, no branch/PR/agent existed)
+Status: [x] DONE — PR #667 (drive capability-aware preview, tests green, unmerged)
 Finding: M39 preview principle: preview is progressive and capability-aware — a file can exist while preview, download, or scan is unavailable; never collapse into one generic loading state. DriveFilePreview exists but capability separation (image/video/PDF-audio/document/unsupported-file distinct states) is unverified.
 Required: explicit per-type preview states; unsupported-file honest state (screen 14); separate indicators for preview-unavailable vs download-unavailable vs scan-pending; no fake "loading" masks.
 Scope: apps/quantmail DriveFilePreview + doc editor.
