@@ -104,6 +104,27 @@ export interface ComposerMessageData {
   attachments?: Attachment[];
 }
 
+/**
+ * Send-readiness validation for the composer (QM-UIUX-024).
+ *
+ * SINGLE SOURCE OF TRUTH: both the Send button's `disabled` attribute and
+ * `handleSend`'s error toasts derive from this, so the button can never look
+ * tappable while tapping it would just toast an error.
+ *
+ * Returns the exact error message shown to the user, or `null` when the
+ * composer is send-ready. Validation is intentionally strict — To, subject
+ * AND body are all required, exactly as `handleSend` enforced before this
+ * fix. Weakening validation is not allowed; if a field ever becomes
+ * optional (e.g. subject behind a confirm dialog), that decision lives
+ * here, in one place, and the disabled state follows it automatically.
+ */
+export function getSendBlockReason(to: string, subject: string, body: string): string | null {
+  if (!to.trim()) return 'Please specify at least one recipient (To:)';
+  if (!subject.trim()) return 'Please enter an email subject';
+  if (!body.trim()) return 'Please enter your message body';
+  return null;
+}
+
 export interface EmailComposerProps {
   initialTo?: string | Array<{ email: string; name?: string }>;
   initialSubject?: string;
@@ -644,6 +665,10 @@ export function EmailComposer({
    */
   const buildOutgoingBodies = () => composeMessageBodies(buildFinalMessage(), activeSignatureHtml);
 
+  // QM-UIUX-024: the Send button's disabled state mirrors this exactly, so a
+  // tap can never reach handleSend while validation would reject it.
+  const sendBlockReason = getSendBlockReason(to, subject, body);
+
   // Send Handler
   //
   // Every exit announces itself to Quanty as well as to the toast rail, and the two are not
@@ -652,19 +677,9 @@ export function EmailComposer({
   // unfinished draft is `worried`, not `error`, because the user has not done anything wrong yet.
   // Send Handler with 10s Recall Window & Undo-Send Integration
   const handleSend = async (scheduledAt?: string) => {
-    if (!to.trim()) {
+    if (sendBlockReason) {
       quantyReact('mail:noRecipients');
-      showToast({ text: 'Please specify at least one recipient (To:)', type: 'error' });
-      return;
-    }
-    if (!subject.trim()) {
-      quantyReact('mail:noRecipients');
-      showToast({ text: 'Please enter an email subject', type: 'error' });
-      return;
-    }
-    if (!body.trim()) {
-      quantyReact('mail:noRecipients');
-      showToast({ text: 'Please enter your message body', type: 'error' });
+      showToast({ text: sendBlockReason, type: 'error' });
       return;
     }
 
@@ -2136,7 +2151,9 @@ export function EmailComposer({
                 <button
                   type="button"
                   onClick={() => handleSend()}
-                  disabled={busy || !to.trim()}
+                  disabled={busy || sendBlockReason !== null}
+                  aria-disabled={busy || sendBlockReason !== null}
+                  title={sendBlockReason ?? undefined}
                   className="flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 min-h-[44px] sm:min-h-0 text-[#111111] text-xs sm:text-sm font-semibold hover:brightness-105 active:scale-95 disabled:opacity-40 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#111111]"
                 >
                   {isSending ? (
