@@ -215,12 +215,21 @@ export default tseslint.config(
     },
   },
   // QM-UIUX-005: ban text below the 10px type floor, going forward.
-  // QM-UIUX-004: ban raw surface-hex literals, going forward.
   {
     files: ['src/**/*.{ts,tsx}', 'backend/**/*.ts', '*.{ts,tsx}'],
-    plugins: { 'type-scale': typeScalePlugin, 'surface-hex': surfaceHexPlugin },
+    plugins: { 'type-scale': typeScalePlugin },
     rules: {
       'type-scale/no-sub-10px-type': 'error',
+    },
+  },
+  // QM-UIUX-004: ban raw surface-hex literals, going forward.
+  // Scoped to the web UI (src/): backend hexes are email templates (inline
+  // styles — email clients do not support CSS custom properties), inline SVG
+  // badges, and DB-seeded color values, so --quant-* tokens cannot apply there.
+  {
+    files: ['src/**/*.{ts,tsx}', '*.{ts,tsx}'],
+    plugins: { 'surface-hex': surfaceHexPlugin },
+    rules: {
       'surface-hex/no-raw-surface-hex': 'error',
     },
   },
