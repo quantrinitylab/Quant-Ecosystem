@@ -105,11 +105,18 @@ Scope: login/auth/booking security copy.
 Dependencies: QM-AUTH-003.
 
 ## QM-TRUST-002 — Remove or wire fabricated Teams/Agents surfaces
-Status: [ ] TODO
+Status: [x] DONE
 Scope: MailTeamsCollaborationPanel.tsx; MailSwarmAgentAccessPanel.tsx; teams/agents tabs.
 Finding: audit identifies fabricated teammates/PRs/deploys and fabricated agent fleet/heartbeats/kubectl output.
 Required: wire to real backend contracts with honest loading/empty/error states, or remove; no theatrical operational data.
 
+Owner: Muse
+Branch: fix/fake-f1-mail-teams-agents
+PR: #578
+Scope: MailTeamsCollaborationPanel.tsx removed; MailSwarmAgentAccessPanel.tsx removed; fabricated Teams/Agents tabs removed
+Validation: CI gate green; zero live refs to removed panels verified; merged to main
+Commit SHA: 884dcbee
+Notes: Staging deploy verification pending next deploy cycle.
 ---
 # P0 — QuantMail Workspace UX
 
@@ -186,41 +193,82 @@ Dependencies: security/audit backend contracts.
 # P1 — QuantMail Backend Integrity
 
 ## QM-BACK-001 — Mail outbox/event emission
-Status: [ ] TODO
+Status: [x] DONE
 Finding: mail backend currently writes zero outbox rows although outbox infrastructure exists.
 Required: domain mutation + outbox in one transaction; versioned mail events; idempotent consumers; replay/DLQ observability.
 Dependencies: ecosystem event-spine contract.
 
+Owner: Muse
+Branch: fix/k1-mail-outbox-writes
+PR: #597
+Scope: apps/quantmail/backend mail mutations; outbox_events table; event consumers
+Validation: CI gate green; 2,687 tests green incl. outbox emission tests; merged to main
+Commit SHA: 80dbc55e
+Notes: Staging deploy verification pending next deploy cycle.
 ## QM-BACK-002 — Optimistic concurrency + request IDs
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
 Required: expectedVersion on thread/mail mutations, VERSION_CONFLICT errors, requestId/correlation propagation.
 Dependencies: QM-BACK-001.
 
+Owner: Muse
+Branch: TBD (agent worktree, PR-only to main)
+Notes: claimed 2026-10-08; Optimistic concurrency + request IDs; dep QM-BACK-001 met via #597
 ## QM-BACK-003 — Global idempotency middleware
-Status: [ ] TODO
+Status: [x] DONE
 Required: Idempotency-Key for mutation routes, durable result replay, bounded retention, scope by actor/tenant/route.
 Dependencies: server-core.
 
+Owner: Muse
+Branch: fix/k4-idempotency-middleware
+PR: #582
+Scope: global Idempotency-Key middleware; 8 route files; durable result replay
+Validation: CI gate green; idempotency contract tests green; merged to main
+Commit SHA: f7f297bb
+Notes: Staging deploy verification pending next deploy cycle.
 ## QM-BACK-004 — Server-side audit integrity
-Status: [ ] TODO
+Status: [x] DONE
 Required: authoritative audit writes from sensitive mutations; remove/close client-writable audit-log paths; redact secrets and private content.
 Dependencies: QM-BACK-001/002.
 
+Owner: Muse
+Branch: fix/k9-admin-domains-dlp-audit
+PR: #600
+Scope: M19 Admin Domains + M20 DLP/Audit screens; audit writes server-side-only
+Validation: CI gate green; audit-integrity tests green; merged to main
+Commit SHA: eba5a2d8
+Notes: Staging deploy verification pending next deploy cycle.
 ## QM-BACK-005 — Step-up authentication
-Status: [ ] TODO
+Status: [x] DONE
 Required: recent-auth/step-up challenge for security, destructive, financial and admin actions; explicit expiry and audit.
 Dependencies: QM-AUTH-007.
 
+Owner: Muse
+Branch: fix/k6-step-up-authentication
+PR: #587
+Scope: requireStepUp guard; 15-min recent-auth window; 23 new tests
+Validation: CI gate green; step-up contract tests green; merged to main
+Commit SHA: 98c781a7
+Notes: Broader 2FA state-machine hardening (QM-AUTH-007) remains open for auth-flow integration; staging deploy verification pending.
 ## QM-BACK-006 — Data lifecycle events
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
 Required: export/deletion/retention/legal-hold events; derived-index invalidation; verified completion.
 Dependencies: QM-BACK-001; universal search.
 
+Owner: Muse
+Branch: TBD (agent worktree, PR-only to main)
+Notes: claimed 2026-10-08; Data lifecycle events; dep QM-BACK-001 met via #597
 ## QM-BACK-007 — Dependency health / degraded modes
-Status: [ ] TODO
+Status: [x] DONE
 Required: dependency-level latency/error/timeout/circuit state; declared degraded behavior; mutations fail closed when authoritative state is unavailable.
 Dependencies: reliability architecture.
 
+Owner: Muse
+Branch: fix/k12-slos-circuit-breakers
+PR: #601
+Scope: per-dependency health; circuit breakers; 5 SLOs with burn-rate alerts
+Validation: CI gate green; 12/12 dep-health checks green; merged to main
+Commit SHA: 52c6d91e
+Notes: Staging deploy verification pending next deploy cycle.
 ## QM-BACK-008 — Delivery worker deployment contract
 Status: [ ] TODO
 Finding: outbound delivery worker exists but inspected deployment manifests do not reference it.
@@ -231,16 +279,26 @@ Dependencies: infra owner.
 # P1 — Quanty Integration into QuantMail
 
 ## QM-QUANTY-001 — Quanty Mail capability registry
-Status: [ ] TODO
+Status: [x] DONE
 Required tools: summarizeThread, draftReply, rewriteDraft, translateMail, createCalendarEvent, saveToDrive, searchMail, searchPeople, createFollowUp.
 Each tool needs version, owner, input/output schema, capability, resource scope, risk tier, approval, timeout, retry, idempotency, verification, undo/compensation, audit and credit policy.
 Dependencies: capability registry/resource contracts.
 
+Owner: Muse
+Branch: feat/k16-capability-registry
+PR: #593
+Scope: packages/app-registry: versioned capability descriptors, risk tiers 0-4, 100+ capabilities, Quanty tool projection
+Validation: CI gate green; 48/48 tests green; merged to main
+Commit SHA: 5326be05
+Notes: Staging deploy verification pending next deploy cycle.
 ## QM-QUANTY-002 — Quanty inline context surfaces
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
 Required: evidence links, context boundary, preview before mutation, cost/reversibility, provenance.
 Dependencies: QM-QUANTY-001.
 
+Owner: Muse
+Branch: TBD (agent worktree, PR-only to main)
+Notes: claimed 2026-10-08; Quanty inline context surfaces; dep QM-QUANTY-001 met via #593
 ## QM-QUANTY-003 — Quanty voice-to-mail workflow
 Status: [ ] TODO
 Example: Quanty, Rahul ko email likho aur bhejo.
