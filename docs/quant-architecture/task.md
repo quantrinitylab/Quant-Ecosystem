@@ -1147,3 +1147,45 @@ Scope: `apps/quantmail/src/components/DriveSubViews.tsx`; Drive feed tests/fixtu
 Dependencies: QM-SCREEN-033; Drive data-source consolidation.
 Validation: source inspection on 2026-10-08 found the dataset still present at the component level; repository implementation-status documentation also flags the same dataset for removal. It is currently non-rendered, so this is a cleanup/integrity task rather than a claim that users currently see these files.
 
+
+## QM-UIUX-049 — QuantMax feed desktop adaptation
+Status: [ ] TODO
+Finding: QuantMax feed has zero desktop adaptation (`quantmax/src/pages/index.tsx`) — touch-only swipe, no keyboard arrows/space, no wheel handler, no `md:`/`lg:` breakpoints. Full-bleed `h-screen w-full` video stretched across wide screens instead of centered phone-like column (TikTok web pattern). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/satellite-desktop-audit.md`.
+Required: `md:max-w-[420px]` centered column + arrow-key/wheel nav (~30 lines).
+Scope: `apps/quantmax/src/pages/index.tsx`.
+Dependencies: none.
+
+## QM-UIUX-050 — Schedule-send broken on full-page /compose
+Status: [ ] TODO
+Finding: `app/compose/page.tsx` `handleSend` does `if (data.scheduledAt) return;` — saves draft, never calls `sendEmail`. Toast says "Email scheduled" but draft sits in Drafts forever, never delivered. Root cause: frontend sends `scheduledAt`, backend compose schema only accepts `sendAt` (zod silently strips it). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/drafts-schedule-audit.md`.
+Required: one-line fix — `apiClient.sendEmail(draft.id, { sendAt: data.scheduledAt })`.
+Scope: `apps/quantmail/src/app/compose/page.tsx`.
+Dependencies: none.
+
+## QM-UIUX-051 — Draft autosave (no autosave today; comment lies)
+Status: [ ] TODO
+Finding: zero `setInterval` in EmailComposer/DockedComposer — draft saving is manual-only. But `handleSaveDraft`'s comment claims "A draft save happens on a timer". False. Work is lost if user navigates away without pressing Save. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/drafts-schedule-audit.md`.
+Required: real autosave on a timer + honest save-state indicator; fix/remove the lying comment.
+Scope: `EmailComposer.tsx`, `DockedComposer.tsx`.
+Dependencies: none.
+
+## QM-UIUX-052 — New email must create a notification (bell never fires)
+Status: [ ] TODO
+Finding: `apps/quantmail/backend/routes/inbound-webhook.ts` stores inbound mail but never creates a `prisma.notification` record. `emails.ts:37` instantiates `CrossAppDispatcher` and never calls it (0 usages). The bell can never fire for real mail. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/notif-backend-audit.md`.
+Required: wire new-mail arrival → notification creation.
+Scope: `apps/quantmail/backend/routes/inbound-webhook.ts`, `emails.ts`.
+Dependencies: none.
+
+## QM-UIUX-053 — Push notifications unwired (no delivery path)
+Status: [ ] TODO
+Finding: `PushService` (real FCM/APNs code) is never instantiated. No device-token registration, no service worker, no VAPID, no `PushSubscription` writes from QuantMail. No delivery path from server to device exists. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/notif-backend-audit.md`.
+Required: wire the push delivery path (device registration → subscription → PushService invocation).
+Scope: QuantMail backend + frontend.
+Dependencies: QM-UIUX-052 (notifications must exist first).
+
+## QM-UIUX-054 — Notification engine facade: wire or delete
+Status: [ ] TODO
+Finding: `NotificationFanout.fanout()` only returns routing decisions — never persists or sends. `InAppNotificationService` has zero instantiations. `server-core` notifications plugin wires singletons nothing invokes. ws-gateway `'notifications'` channel has zero publishers. ~15 files of dead infrastructure. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/notif-backend-audit.md`.
+Required: wire the engine into the real path (QM-UIUX-052) or delete the dead files.
+Scope: notification engine files.
+Dependencies: QM-UIUX-052.
