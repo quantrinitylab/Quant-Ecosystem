@@ -745,3 +745,132 @@ Scope: apps/quantmail/src/app/page.tsx; inbox hooks; mail API schemas; Prisma ma
 Dependencies: QM-WORK-003; QM-SCREEN-029; search/mail backend contracts.
 Acceptance: no user-visible Inbox claim exists without an identified source-of-truth or documented deterministic derivation.
 
+
+## QM-UIUX-001 — QuantAI mobile must not render a blank white page
+Status: [~] IN_PROGRESS (Owner: Muse fix agent, Branch: fix/quantai-blank-white-page)
+Finding: `https://quantai.quantrinity.in` on mobile (iPhone 14, 390x844) renders a blank white viewport with only a hamburger button visible. No chat UI, no login prompt, no branding, no loading state. Screenshot evidence: `~/workspace/audits/2026-10-08-uiux-deep/ai-mobile.png`. A blank page violates the no-dead-surfaces rule; an earlier QA run reported it rendering, so this is a regression or intermittent JS init failure.
+Required: anonymous users must see a real state — login prompt, chat UI, honest loading state with timeout, or honest error. Never a blank viewport. Investigate JS console errors / broken auth-gate first.
+Scope: QuantAI frontend; auth-gate/init path.
+Dependencies: none.
+Validation: mobile screenshot of the fixed page required before DONE.
+
+## QM-UIUX-002 — QuantMax mobile must not render a blank white page
+Status: [ ] TODO
+Finding: `https://quantmax.quantrinity.in` on mobile renders a completely blank white viewport (screenshot: `~/workspace/audits/2026-10-08-uiux-deep/max-mobile.png`). Same failure class as QM-UIUX-001 — suggests a shared broken auth-gate/shell pattern across satellite frontends.
+Required: render a real state for anonymous users (login, loading with timeout, or honest empty). Audit whether QuantAI/QuantMax share the broken init path and fix the common root, not just the symptom.
+Scope: QuantMax frontend; shared auth-gate if applicable.
+Dependencies: QM-UIUX-001 (share root-cause findings).
+Validation: mobile screenshot of the fixed page required before DONE.
+
+## QM-UIUX-003 — QuantWave sign-in must actually redirect or stop claiming it does
+Status: [ ] TODO
+Finding: `https://quantwave.quantrinity.in` shows "Sign in to QuantWave / Taking you to sign in with your Quant account. / Go to sign in" — the copy claims an automatic redirect ("Taking you to...") but the page is static; the user must click a plain text link. Screenshot: `~/workspace/audits/2026-10-08-uiux-deep/wave-mobile.png`. Copy must be an instruction or a provable truth.
+Required: either make the page actually auto-redirect to the SSO flow (preferred), or replace the copy with an honest CTA button ("Continue with Quant Account").
+Scope: QuantWave landing/auth entry.
+Dependencies: none.
+
+## QM-UIUX-004 — Design-system color chaos: codemod dark surfaces to --quant-* tokens
+Status: [ ] TODO
+Finding: 10 competing dark background hexes in active use across QuantMail: `#090A0C`, `#090A0E`, `#0D1117`, `#0D0F12`, `#111318`, `#12151E`, `#16181D`, `#161B22`, `#21262D`, `#282C35`, `#30363D`. A `--quant-*` token system exists in `globals.css` but only 44 of 391 components use it; 212 hardcode hex. Adjacent panels render visibly different blacks, breaking the user's "deep black" direction. Full evidence: `~/workspace/audits/2026-10-08-uiux-deep/design-system-audit.md`.
+Required: codemod dark-surface hexes to the canonical `--quant-*` tokens; define the missing tokens if the scale is incomplete; add a lint rule banning raw hex for surface backgrounds. Visual diff review of adjacent panels (inbox rows vs sidebar vs header) before DONE.
+Scope: `apps/quantmail/src/**`; `globals.css` tokens; eslint config.
+Dependencies: none.
+
+## QM-UIUX-005 — Remove sub-minimum typography (<10px text)
+Status: [ ] TODO
+Finding: 45 instances of 6-9px text across QuantMail (`text-[6px]` through `text-[9px]`), below WCAG readability minimums. The working scale is `text-[10px]` (459x) and `text-[11px]` (481x) but there is no defined type scale. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/design-system-audit.md`.
+Required: define a 5-step type scale (minimum 10px for UI text); replace or remove all <10px instances; add a lint rule banning arbitrary sub-10px sizes.
+Scope: `apps/quantmail/src/**`; Tailwind/eslint config.
+Dependencies: QM-UIUX-004 (token/lint infrastructure can be shared).
+
+## QM-UIUX-006 — Old amber mascot still on QuantMail sign-in header
+Status: [~] IN_PROGRESS (Owner: Muse fix agent)
+Finding: the sign-in header still shows the old amber/yellow mascot, contradicting the user's standing order (white ghost mascot everywhere, amber must go). Branch `feat/quanty-ghost-mascot` exists with the white ghost implementation. Screenshot: `~/workspace/audits/2026-10-08-uiux-deep/m1-inbox-mobile.png`.
+Required: merge or port the ghost mascot to the sign-in header; delete amber mascot assets; screenshot-verify the sign-in page shows the white ghost.
+Scope: sign-in header; mascot assets.
+Dependencies: none.
+Validation: mobile screenshot of sign-in with white ghost required before DONE.
+
+## QM-UIUX-007 — Splash loader shows an empty logo box on first paint
+Status: [~] IN_PROGRESS (Owner: Muse fix agent)
+Finding: `QuantMailLogo` is a 531-line canvas-painted mark that paints nothing on first paint — the splash/sign-in shows an empty rounded square (visible in audit screenshots). Per the Fogg credibility principle, a missing logo at first paint reads as broken.
+Required: use a static inline SVG for non-interactive placements (sign-in header, splash); keep the canvas only where animation is actually used.
+Scope: `QuantMailLogo` component; sign-in/splash placements.
+Dependencies: QM-UIUX-006 (same header area; coordinate to avoid conflicts).
+
+## QM-UIUX-008 — Desktop app rail active tile must drop the orange edge/glow
+Status: [~] IN_PROGRESS (Owner: Muse fix agent, Branch: fix/desktop-f1f4-rail-rows)
+Finding: the desktop app rail active tile still has the accent edge bar with glow (`boxShadow: 0 0 10px`), colored rectangular background tint, and icon drop-shadow. The user explicitly ordered: no active orange edge/glow, no colored rectangular backgrounds, no invented animation. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/desktop-audit.md` (F1).
+Required: active app shows clean logo only; inactive apps dimmed. Remove edge bar, glow, tint, drop-shadow.
+Scope: `DesktopAppRail` component.
+Dependencies: none.
+
+## QM-UIUX-009 — Desktop inbox rows must be deep black with no divider lines
+Status: [~] IN_PROGRESS (Owner: Muse fix agent, Branch: fix/desktop-f1f4-rail-rows)
+Finding: desktop inbox rows are `bg-[#111318]` with `border-b border-[#282C35]` on every row. The user ordered: deep black, no divider lines. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/desktop-audit.md` (F4). The thread view already does `md:border-b-0` correctly — follow that pattern.
+Required: black rows, no borders on desktop, spacing for separation.
+Scope: inbox row components (desktop breakpoint).
+Dependencies: QM-UIUX-004 (color tokens); QM-UIUX-008 (same agent/branch, coordinate).
+
+## QM-UIUX-010 — QuantChat session check must time out instead of spinning forever
+Status: [~] IN_PROGRESS (Owner: Muse fix agent, Branch: fix/uiux-p1-spinner-signin-layout, PR: #621)
+Finding: first load can stick on "Verifying your session..." with no timeout or fallback. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/satellite-audit.md`.
+Required: timeout (10s) then an honest error/retry state — never an infinite spinner. Fix at the source (`useAuth`/`fetchUserFromToken`) so `isLoading` cannot hang.
+Scope: `apps/quantchat/src/providers/auth-gate.tsx`; `packages/shared-ui/src/hooks/useAuth.ts`.
+Dependencies: none.
+
+## QM-UIUX-011 — Sign-in redundant copy must be an instruction or be removed
+Status: [~] IN_PROGRESS (Owner: Muse fix agent)
+Finding: "Sign in to QuantMail / to continue to QuantMail" — the subtitle repeats the heading verbatim. The user's rule: every word must be an instruction or a provable truth. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/mobile-audit.md`.
+Required: delete the subtitle or replace it with a genuine instruction.
+Scope: sign-in page copy.
+Dependencies: QM-UIUX-006/007 (same page; coordinate).
+
+## QM-UIUX-012 — Sign-in page layout: dead black space and stray hairline
+Status: [~] IN_PROGRESS (Owner: Muse fix agent, Branch: fix/uiux-p1-spinner-signin-layout, PR: #621)
+Finding: ~40% of the mobile viewport is empty black below the footer after scrolling; a stray hairline with an unexplained green segment sits under the sign-in header (progress-bar remnant). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/mobile-audit.md`.
+Required: `min-h-dvh` flex layout with footer pinned via `mt-auto`; remove or scope the hairline to actual loading states. Desktop layout untouched.
+Scope: sign-in page CSS (mobile breakpoint).
+Dependencies: none.
+
+## QM-UIUX-013 — Consolidate 6 competing text grays
+Status: [ ] TODO
+Finding: 6 competing text grays in use (`#A1A4AC` 696x, `#7D8590`, `#8D96A0`, etc.). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/design-system-audit.md`.
+Required: reduce to a 3-step gray text scale on tokens; codemod usages; lint-ban raw gray hex for text.
+Scope: `apps/quantmail/src/**`; `globals.css` tokens.
+Dependencies: QM-UIUX-004 (same codemod/lint approach; do together or sequence).
+
+## QM-UIUX-014 — Restrict amber #F59E0B to warning semantics
+Status: [ ] TODO
+Finding: amber `#F59E0B` used 280x as decorative accent, competing with brand orange `#FF8C42` (1231x, correctly dominant). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/design-system-audit.md`.
+Required: amber reserved for warning/semantic use only; replace decorative amber with brand orange or neutral tokens.
+Scope: `apps/quantmail/src/**`.
+Dependencies: QM-UIUX-004.
+
+## QM-UIUX-015 — QuantGram: stray mic button on the welcome page
+Status: [ ] TODO
+Finding: a blue mic FAB sits bottom-right on the QuantGram welcome page before sign-in; its purpose is unclear to an anonymous user. Screenshot: `~/workspace/audits/2026-10-08-uiux-deep/gram-mobile.png`.
+Required: hide until authenticated or remove; do not show unexplained controls to anonymous users.
+Scope: QuantGram welcome page.
+Dependencies: none.
+
+## QM-UIUX-016 — QuantCooks: duplicate/confusing sign-in CTAs
+Status: [ ] TODO
+Finding: the QuantCooks sign-in shows both "Continue with Quant Account" (gradient) and "Continue with Quant SSO" (outline) — near-identical actions competing as primaries. Screenshot: `~/workspace/audits/2026-10-08-uiux-deep/cooks-mobile.png`.
+Required: one primary CTA; demote or remove the duplicate.
+Scope: QuantCooks sign-in.
+Dependencies: none.
+
+## QM-UIUX-017 — QuantCooks: "OR" divider text overlaps the divider line
+Status: [ ] TODO
+Finding: the "OR" divider label sits awkwardly on top of the divider line (visual glitch). Screenshot: `~/workspace/audits/2026-10-08-uiux-deep/cooks-mobile.png`.
+Required: proper divider with background-masked label or spaced layout.
+Scope: QuantCooks sign-in.
+Dependencies: QM-UIUX-016 (same page; fix together).
+
+## QM-UIUX-018 — QuanTube: category pill cut off with no scroll affordance
+Status: [ ] TODO
+Finding: the "Sport" category pill is cut off at the right edge with no visible scroll affordance. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/satellite-audit.md`.
+Required: edge fade or scroll hint on the pill row.
+Scope: QuanTube mobile feed.
+Dependencies: none.
