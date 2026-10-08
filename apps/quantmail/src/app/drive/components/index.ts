@@ -11,6 +11,7 @@ export * from './FileShareModal';
 export * from './FilePermissionsViewer';
 export * from './file-access-api';
 export * from './FileScanBadge';
+export * from './FileDetailsPanel';
 export {
   DriveHomeSubView,
   DriveFeedSubView,

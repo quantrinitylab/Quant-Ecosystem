@@ -1445,6 +1445,163 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     });
     return reply.send({ versions: versions.map(versionDto) });
   });
+  // ============================================================================
+  // QM-M39-007: file details panel (M39 screen 24). One honest aggregation
+  // endpoint behind the details panel: every field comes from the database,
+  // nothing is invented. Deleted rows are never shown (same 404 contract as
+  // fileAccess). Works for files and folders; people-share emails and link
+  // metadata are owner-visible only — recipients get counts, not addresses.
+  // ============================================================================
+  fastify.get<{ Params: { id: string } }>('/drive/files/:id/details', async (request, reply) => {
+    const userId = requireUserId(request);
+    const id = request.params.id;
+
+    // Resolve as a file (owner or accepted share recipient) or a folder
+    // (owner or accepted folder-share recipient).
+    let type: 'file' | 'folder';
+    let row: any;
+    let isOwner = false;
+    const file = await prisma.file.findUnique({ where: { id } });
+    if (file && !file.isDeleted) {
+      if (file.userId === userId) {
+        isOwner = true;
+      } else {
+        const share = await prisma.share.findFirst({
+          where: { fileId: id, sharedWithUserId: userId, status: 'accepted' },
+        });
+        if (!share) throw createAppError('Not authorized to access this file', 403, 'FORBIDDEN');
+      }
+      type = 'file';
+      row = file;
+    } else {
+      const folder = await prisma.folder.findFirst({ where: { id, isDeleted: false } });
+      if (!folder) throw createAppError('Drive item not found', 404, 'NOT_FOUND');
+      if (folder.userId === userId) {
+        isOwner = true;
+      } else {
+        const share = await prisma.share.findFirst({
+          where: { folderId: id, sharedWithUserId: userId, status: 'accepted' },
+        });
+        if (!share) throw createAppError('Not authorized to access this folder', 403, 'FORBIDDEN');
+      }
+      type = 'folder';
+      row = folder;
+    }
+
+    const owner = await ownerInfo(prisma, row.userId);
+
+    // Location breadcrumb: walk the folderId/parentId chain up to the root.
+    // Bounded at 30 levels like folderTree; stale links are tolerated by
+    // stopping the walk rather than 500ing.
+    const location: { id: string; name: string }[] = [];
+    let cursorId: string | null = type === 'file' ? row.folderId : row.parentId;
+    const seen = new Set<string>();
+    for (let depth = 0; depth < 30 && cursorId && !seen.has(cursorId); depth++) {
+      seen.add(cursorId);
+      const ancestor = await prisma.folder.findFirst({
+        where: { id: cursorId, userId: row.userId, isDeleted: false },
+        select: { id: true, name: true, parentId: true },
+      });
+      if (!ancestor) break;
+      location.unshift({ id: ancestor.id, name: ancestor.name });
+      cursorId = ancestor.parentId;
+    }
+
+    // Sharing summary. People shares = non-revoked rows targeting this item.
+    // Email addresses are owner-visible only; everyone else gets the count.
+    const shareWhere: Record<string, unknown> =
+      type === 'file' ? { fileId: id } : { folderId: id };
+    const peopleShares = await prisma.share.findMany({
+      where: { ...shareWhere, status: { not: 'revoked' } },
+      orderBy: { createdAt: 'desc' },
+    });
+    let people: { email: string; permission: string }[] | null = null;
+    if (isOwner && peopleShares.length) {
+      const recipients = await prisma.user.findMany({
+        where: { id: { in: peopleShares.map((s: any) => s.sharedWithUserId) } },
+        select: { id: true, email: true },
+      });
+      const emails = new Map(recipients.map((u: any) => [u.id, u.email]));
+      people = peopleShares.map((s: any) => ({
+        email: emails.get(s.sharedWithUserId) ?? '',
+        permission: frontendPermission(s.permission),
+      }));
+    }
+    // Active public links: created-by-anyone on this file, not expired.
+    // (Link sharing is file-only in QM-M39-006.)
+    const now = new Date();
+    const linkShares =
+      type === 'file'
+        ? await prisma.driveShare.findMany({
+            where: { fileId: id },
+            orderBy: { createdAt: 'desc' },
+          })
+        : [];
+    const activeLinks = linkShares.filter(
+      (l: any) => !l.expiresAt || new Date(l.expiresAt).getTime() > now.getTime(),
+    );
+    const links = isOwner
+      ? activeLinks.map((l: any) => ({
+          role: l.role,
+          expiresAt: l.expiresAt,
+          createdAt: l.createdAt,
+        }))
+      : null;
+
+    // Versions (files only). Count is real; the latest row carries context.
+    let versions: { count: number; latest: { version: number; size: number; date: Date } | null } | null =
+      null;
+    if (type === 'file') {
+      const [versionCount, latestVersion] = await Promise.all([
+        prisma.fileVersion.count({ where: { fileId: id } }),
+        prisma.fileVersion.findFirst({
+          where: { fileId: id },
+          orderBy: { versionNumber: 'desc' },
+        }),
+      ]);
+      versions = {
+        count: versionCount,
+        latest: latestVersion
+          ? {
+              version: latestVersion.versionNumber,
+              size: latestVersion.size,
+              date: latestVersion.createdAt,
+            }
+          : null,
+      };
+    }
+
+    return reply.send({
+      id: row.id,
+      name: row.name,
+      type,
+      mimeType: type === 'file' ? row.mimeType : 'application/vnd.quant.folder',
+      size: type === 'file' ? row.size : 0,
+      owner,
+      isOwner,
+      modifiedAt: row.updatedAt,
+      createdAt: type === 'file' ? (row.createdAt ?? null) : null,
+      lastOpenedAt: type === 'file' ? (row.lastOpenedAt ?? null) : null,
+      location,
+      sharing: {
+        people,
+        peopleCount: peopleShares.length,
+        linkCount: activeLinks.length,
+        links,
+      },
+      // QM-M39-009: scan state wired straight through the shared model —
+      // 'unknown' is the honest state for unscanned files, never safe.
+      scan:
+        type === 'file'
+          ? {
+              status: normalizeScanStatus(row.scanStatus),
+              reason: row.scanReason ?? null,
+              scannedAt: row.scannedAt ?? null,
+            }
+          : null,
+      versions,
+    });
+  });
   fastify.post<{ Params: { id: string } }>(
     '/drive/files/:id/versions',
     { bodyLimit: DRIVE_MAX_BODY_BYTES },
