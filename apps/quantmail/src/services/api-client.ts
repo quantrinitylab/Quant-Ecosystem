@@ -1657,11 +1657,19 @@ export class QuantMailApiClient {
 
       return (await response.json()) as ApiResponse<T>;
     } catch (error) {
+      // A timed-out request (see FETCH_TIMEOUT_MS in browser-auth-session)
+      // rejects with our Error reason; a caller-cancelled one rejects with a
+      // DOMException. Surface timeouts distinctly so UIs can say "timed out"
+      // instead of a generic network error.
+      const message = error instanceof Error ? error.message : 'Network request failed';
+      const timedOut =
+        error instanceof Error &&
+        (/timed out/i.test(error.message) || error.name === 'TimeoutError');
       return {
         success: false,
         error: {
-          code: 'NETWORK_ERROR',
-          message: error instanceof Error ? error.message : 'Network request failed',
+          code: timedOut ? 'TIMEOUT' : 'NETWORK_ERROR',
+          message: timedOut ? 'Request timed out. Please try again.' : message,
           statusCode: 0,
         },
       };
