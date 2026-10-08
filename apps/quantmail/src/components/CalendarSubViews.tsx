@@ -1479,7 +1479,6 @@ export function CalendarTrackersSubView({
                     type="date"
                     required
                     value={newTrackerDate}
-                    required
                     onChange={(e) => setNewTrackerDate(e.target.value)}
                     className="w-full bg-[#0B0D13] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#F59E0B]"
                   >
