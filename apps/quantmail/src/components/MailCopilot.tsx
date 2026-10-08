@@ -58,7 +58,7 @@ const ERROR_BUTTON_STYLE = {
   padding: '.25rem .6rem',
   background: 'rgba(248,113,113,.12)',
   color: '#ffd0d0',
-  fontSize: '.62rem',
+  fontSize: '0.625rem',
   fontWeight: 620,
 } as const;
 

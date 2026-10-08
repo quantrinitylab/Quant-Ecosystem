@@ -139,7 +139,7 @@ export function DesktopAppRail({
                 {badgeCount !== undefined && badgeCount > 0 && (
                   <span
                     data-testid={`desktop-app-rail-badge-${tile.id}`}
-                    className="absolute -top-1 -left-1 min-w-[16px] h-[16px] px-1 flex items-center justify-center rounded-full text-[9px] font-bold leading-none text-black shadow-md"
+                    className="absolute -top-1 -left-1 min-w-[16px] h-[16px] px-1 flex items-center justify-center rounded-full text-[var(--q-type-xs)] font-bold leading-none text-black shadow-md"
                     style={{ backgroundColor: tile.accentColor }}
                     aria-label={`${badgeCount} unread`}
                   >

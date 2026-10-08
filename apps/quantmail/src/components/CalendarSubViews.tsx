@@ -926,7 +926,7 @@ export function CalendarMonthSubView({
                         </div>
                       ))}
                       {totalItems > 3 && (
-                        <span className="text-[9px] text-[#A1A4AC] block text-right font-mono">
+                        <span className="text-[var(--q-type-xs)] text-[#A1A4AC] block text-right font-mono">
                           +{totalItems - 3} more
                         </span>
                       )}
@@ -1982,7 +1982,7 @@ export function CalendarScheduleSubView({
                       <span className="font-mono">{r.dueTime}</span>
                       <span>·</span>
                       <span
-                        className={`px-1.5 py-px rounded text-[9px] uppercase font-bold ${
+                        className={`px-1.5 py-px rounded text-[var(--q-type-xs)] uppercase font-bold ${
                           r.priority === 'urgent'
                             ? 'bg-rose-900/40 text-rose-300'
                             : r.priority === 'medium'

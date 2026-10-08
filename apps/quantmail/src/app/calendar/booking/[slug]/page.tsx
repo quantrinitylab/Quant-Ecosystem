@@ -590,7 +590,7 @@ export default function PublicBookingPage(props: PageProps) {
                   <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#A1A4AC] flex items-center">
                     <IconGlobe size={13} />
                   </span>
-                  <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-[#A1A4AC]">
+                  <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--q-type-xs)] text-[#A1A4AC]">
                     ▼
                   </span>
                 </div>

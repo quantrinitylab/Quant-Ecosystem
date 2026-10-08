@@ -70,7 +70,7 @@ export function QuantyPopupTabs({ active, onChange, badges, className = '' }: Qu
               {badge > 0 && (
                 <span
                   aria-hidden="true"
-                  className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white"
+                  className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[var(--q-type-xs)] font-bold text-white"
                 >
                   {badge > 9 ? '9+' : badge}
                 </span>

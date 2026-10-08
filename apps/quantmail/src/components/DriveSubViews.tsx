@@ -2018,7 +2018,7 @@ export function DriveAiMemorySubView({
                     <ul className="space-y-1 text-xs text-[#E2E8F0]">
                       {mem.extractedFacts.map((fact, idx) => (
                         <li key={idx} className="flex items-start gap-2">
-                          <span className="text-[#38BDF8] mt-1 text-[8px]">&bull;</span>
+                          <span className="text-[#38BDF8] mt-1 text-[var(--q-type-xs)]">&bull;</span>
                           <span className="flex-1">{fact}</span>
                         </li>
                       ))}

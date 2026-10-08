@@ -3343,7 +3343,7 @@ export default function InboxPage() {
                                     .toUpperCase()}
                                 </span>
 
-                                <span className="absolute -bottom-1 -right-1 flex min-w-5 items-center justify-center rounded-full border-2 border-[#111318] bg-[#282C35] px-1 text-[9px] font-bold text-[#F5F5F5]">
+                                <span className="absolute -bottom-1 -right-1 flex min-w-5 items-center justify-center rounded-full border-2 border-[#111318] bg-[#282C35] px-1 text-[var(--q-type-xs)] font-bold text-[#F5F5F5]">
                                   {memberCount}
                                 </span>
                               </span>

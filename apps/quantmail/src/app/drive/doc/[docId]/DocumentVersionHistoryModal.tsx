@@ -180,7 +180,7 @@ export function DocumentVersionHistoryModal({
                           {ver.title || 'Snapshot'}
                         </span>
                         {index === 0 && (
-                          <span className="rounded bg-[#FF8C42]/20 border border-[#FF8C42]/30 px-1.5 py-px text-[9px] font-bold text-[#FF8C42]">
+                          <span className="rounded bg-[#FF8C42]/20 border border-[#FF8C42]/30 px-1.5 py-px text-[var(--q-type-xs)] font-bold text-[#FF8C42]">
                             LATEST
                           </span>
                         )}

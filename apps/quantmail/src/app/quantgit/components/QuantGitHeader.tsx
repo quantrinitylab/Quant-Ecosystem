@@ -196,7 +196,7 @@ export function QuantGitHeader({
                     </span>
                   </>
                 )}
-                <span className="ml-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider border border-[#30363D] text-[#7D8590] shrink-0">
+                <span className="ml-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[var(--q-type-xs)] sm:text-[10px] font-semibold uppercase tracking-wider border border-[#30363D] text-[#7D8590] shrink-0">
                   {selectedRepo.visibility}
                 </span>
               </div>

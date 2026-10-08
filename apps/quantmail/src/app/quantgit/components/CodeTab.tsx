@@ -2435,7 +2435,7 @@ pnpm install && pnpm dev
                       className="w-4 h-4 flex items-center justify-center text-[#7D8590] hover:text-white transition-colors"
                       title={isExpanded ? 'Collapse folder' : 'Expand folder'}
                     >
-                      <span className="text-[9px] transform transition-transform duration-150 inline-block">
+                      <span className="text-[var(--q-type-xs)] transform transition-transform duration-150 inline-block">
                         {isExpanded ? '▼' : '▶'}
                       </span>
                     </button>

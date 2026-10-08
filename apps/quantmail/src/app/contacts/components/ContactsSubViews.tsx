@@ -161,7 +161,7 @@ export function VipContactsSubView({
                       <h3 className="text-sm font-bold text-white truncate group-hover:text-[#FBBF24] transition-colors">
                         {contact.name}
                       </h3>
-                      <span className="rounded border border-[#F59E0B]/60 bg-[#78350F]/40 px-1.5 py-px text-[9px] font-bold text-[#FBBF24]">
+                      <span className="rounded border border-[#F59E0B]/60 bg-[#78350F]/40 px-1.5 py-px text-[var(--q-type-xs)] font-bold text-[#FBBF24]">
                         VIP Executive
                       </span>
                     </div>
@@ -529,7 +529,7 @@ export function DedupWizardSubView({
           {/* Conflict Resolution Preview Divider */}
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-[#262C3A]" />
-            <span className="rounded-md border border-[#333D52] bg-[#1E2433] px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-[#94A3B8]">
+            <span className="rounded-md border border-[#333D52] bg-[#1E2433] px-2.5 py-0.5 text-[var(--q-type-xs)] font-extrabold uppercase tracking-wider text-[#94A3B8]">
               CONFLICT RESOLUTION PREVIEW
             </span>
             <div className="flex-1 h-px bg-[#262C3A]" />

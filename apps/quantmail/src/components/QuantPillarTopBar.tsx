@@ -1156,7 +1156,7 @@ export function QuantPillarTopBar({
 
                 {badgeCount !== undefined && badgeCount > 0 && (
                   <span
-                    className="absolute top-0.5 right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full text-[9px] font-bold leading-none text-black shadow"
+                    className="absolute top-0.5 right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full text-[var(--q-type-xs)] font-bold leading-none text-black shadow"
                     style={{ backgroundColor: tile.accentColor }}
                   >
                     {badgeCount > 99 ? '99+' : badgeCount}
@@ -1422,7 +1422,7 @@ export function QuantPillarTopBar({
               <span>{lens.label}</span>
               {lensBadge !== undefined && (
                 <span
-                  className="px-1 py-px rounded-full text-[9px] font-bold leading-none font-mono"
+                  className="px-1 py-px rounded-full text-[var(--q-type-xs)] font-bold leading-none font-mono"
                   style={
                     isSelected
                       ? {

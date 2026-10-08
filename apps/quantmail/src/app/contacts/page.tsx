@@ -773,7 +773,7 @@ export default function ContactsPage() {
                             style={{ backgroundColor: grp.color || '#FF8C42' }}
                           />
                           <span className="truncate max-w-[90px]">{grp.name}</span>
-                          <span className="text-[9px] text-[#6B7280]">({(grp.emails || []).length})</span>
+                          <span className="text-[var(--q-type-xs)] text-[#6B7280]">({(grp.emails || []).length})</span>
                         </button>
                       );
                     })}
@@ -963,7 +963,7 @@ export default function ContactsPage() {
                           }}
                           aria-current={active ? 'true' : undefined}
                           aria-label={`Jump to ${letter === '#' ? 'other' : letter}`}
-                          className={`flex flex-1 items-center justify-center rounded text-[9px] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#FF8C42] ${
+                          className={`flex flex-1 items-center justify-center rounded text-[var(--q-type-xs)] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#FF8C42] ${
                             active
                               ? 'text-[#FF8C42]'
                               : exists
