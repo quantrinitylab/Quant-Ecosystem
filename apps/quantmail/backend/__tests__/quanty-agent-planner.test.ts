@@ -29,6 +29,8 @@ function mockDeps(): QuantyMailToolsDeps {
       snoozeThread: vi.fn(),
     } as any,
     summarizeService: null,
+    // QM-M39-011: registers the real drive.* tools so drive rules materialize.
+    aiEngine: { infer: vi.fn() } as any,
   };
 }
 
@@ -46,6 +48,13 @@ describe('quanty-agent planner', () => {
     ['clean up my inbox', ['mail.archiveUnread', 'mail.markAllRead']],
     ['delete all spam', ['mail.deleteSpam']],
     ['list my repos', ['git.listRepos']],
+    // QM-M39-011: drive file-workspace commands.
+    ['find files quarterly report', ['drive.searchFiles']],
+    ['search my files for invoices', ['drive.searchFiles']],
+    ['summarize file notes.txt', ['drive.summarizeFile']],
+    ['where should invoice.pdf go', ['drive.suggestDestination']],
+    ['organize file budget.xlsx', ['drive.suggestDestination']],
+    ['move budget.xlsx to its folder', ['drive.organizeFile']],
   ];
 
   it.each(cases)('plans "%s"', (command, expectedTools) => {
@@ -80,6 +89,30 @@ describe('quanty-agent planner', () => {
       expect(plan.unmatched).toBe(true);
     }
     expect(listToolNames().some((n) => n.startsWith('calendar.') || n.startsWith('contacts.'))).toBe(false);
+  });
+
+  it('extracts the free-text argument for drive commands', () => {
+    const planner = new RuleBasedPlanner();
+    expect(planner.plan('find files quarterly report').steps[0].args).toEqual({
+      query: 'quarterly report',
+    });
+    expect(planner.plan('summarize file notes.txt').steps[0].args).toEqual({
+      fileName: 'notes.txt',
+    });
+    expect(planner.plan('where should invoice.pdf go').steps[0].args).toEqual({
+      fileName: 'invoice.pdf',
+    });
+    expect(planner.plan('move budget.xlsx to its folder').steps[0].args).toEqual({
+      fileName: 'budget.xlsx',
+    });
+  });
+
+  it('drive organize materializes as a destructive (confirmation-gated) step', () => {
+    const steps = materializeSteps(new RuleBasedPlanner().plan('move budget.xlsx to its folder'));
+    expect(steps).toHaveLength(1);
+    expect(steps[0].toolName).toBe('drive.organizeFile');
+    expect(steps[0].destructive).toBe(true);
+    expect(getTool('drive.organizeFile')?.destructive).toBe(true);
   });
 
   it('LlmPlanner implements the same interface (delegates for now)', () => {

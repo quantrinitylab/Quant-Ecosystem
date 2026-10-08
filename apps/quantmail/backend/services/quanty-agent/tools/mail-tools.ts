@@ -27,7 +27,7 @@
 //     errors / extractive fallbacks, never invented content.
 
 import type { PrismaClient } from '@prisma/client';
-import type { AITool, AIToolResult, AssistantContext } from '@quant/ai';
+import type { AITool, AIToolResult, AssistantContext, AIEngine } from '@quant/ai';
 import { EmailService } from '../../email.service';
 import { ThreadService } from '../../thread.service';
 
@@ -73,6 +73,12 @@ export interface QuantyMailToolsDeps {
   summarizeService?: SummarizePort | null;
   /** Optional — defaults to structured console logging. */
   audit?: (entry: MailAuditEntry) => void | Promise<void>;
+  /**
+   * Optional — when provided, the real Drive tools (drive.searchFiles,
+   * drive.suggestDestination, drive.summarizeFile, drive.organizeFile) are
+   * registered too. Without it they are skipped rather than stubbed.
+   */
+  aiEngine?: AIEngine | null;
 }
 
 // ---------------------------------------------------------------------------

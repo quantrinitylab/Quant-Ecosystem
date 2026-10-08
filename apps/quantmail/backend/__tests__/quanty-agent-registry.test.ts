@@ -106,9 +106,33 @@ describe('quanty-agent tool-registry', () => {
     ]) {
       expect(names, `expected real tool ${n}`).toContain(n);
     }
-    // Nothing from the old stub era: calendar/drive/contacts have no tools yet.
-    expect(names.some((n) => n.startsWith('calendar.') || n.startsWith('drive.') || n.startsWith('contacts.'))).toBe(false);
+    // Nothing from the old stub era: calendar/contacts have no tools yet.
+    expect(names.some((n) => n.startsWith('calendar.') || n.startsWith('contacts.'))).toBe(false);
+    // Drive tools register only when an AIEngine is provided (QM-M39-011);
+    // mockDeps() omits it, so none are registered here.
+    expect(names.some((n) => n.startsWith('drive.'))).toBe(false);
     expect(listTools()).toHaveLength(12 + 5 + 11);
+  });
+
+  it('registerRealTools registers the REAL drive tools when an AIEngine is provided (QM-M39-011)', () => {
+    registerRealTools({ ...mockDeps(), aiEngine: { infer: vi.fn() } as any });
+    const names = listToolNames();
+    for (const n of [
+      'drive.searchFiles',
+      'drive.suggestDestination',
+      'drive.summarizeFile',
+      'drive.organizeFile',
+    ]) {
+      expect(names, `expected real tool ${n}`).toContain(n);
+    }
+    expect(listToolsByApp('drive')).toHaveLength(4);
+    expect(listTools()).toHaveLength(12 + 5 + 11 + 4);
+    // The move tool is destructive: the agent layer must confirm first.
+    expect(getTool('drive.organizeFile')?.destructive).toBe(true);
+    // Read-only drive tools run without a prompt.
+    expect(getTool('drive.searchFiles')?.destructive).toBe(false);
+    expect(getTool('drive.suggestDestination')?.destructive).toBe(false);
+    expect(getTool('drive.summarizeFile')?.destructive).toBe(false);
   });
 
   it('marks confirmation-gated tools destructive (real consent, no auto-resolve)', () => {
