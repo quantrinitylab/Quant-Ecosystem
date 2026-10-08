@@ -997,8 +997,7 @@ Dependencies: none.
 
 ## QM-UIUX-035 — Accessibility P1s: reduced-motion, icon labels, contrast
 Status: [ ] TODO
-Finding: (a) 127 animations ignore `prefers-reduced-motion` (WCAG 2.3.3) — add a global CSS kill-switch for `animate-*`; (b) 56 icon-only buttons without accessible names (WCAG 4.1.2) — add `aria-label`; (c) `#6B6E76` text fails WCAG AA at 76 usages (3.64-4.12:1, needs 4.5:1) — replace with `#8D96A0`. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/accessibility-audit.md`.Required: fix each per the finding.
-Scope: `apps/quantmail/src/**`; global CSS.
+Finding: (a) 127 animations ignore `prefers-reduced-motion` (WCAG 2.3.3) — add a global CSS kill-switch for `animate-*`; (b) 56 icon-only buttons without accessible names (WCAG 4.1.2) — add `aria-label`; (c) `#6B6E76` text fails WCAG AA at 76 usages (3.64-4.12:1, needs 4.5:1) — replace with `#8D96A0`. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/accessibility-audit.md`.Required: fix each per the finding.Scope: `apps/quantmail/src/**`; global CSS.
 Dependencies: QM-UIUX-013 (gray consolidation covers c); QM-UIUX-034 (same area).
 
 ## QM-UIUX-036 — AI error honesty + global fetch timeout
@@ -1747,3 +1746,21 @@ Scope: `flutter_apps/apps/quant_mail/lib/models/composer_models.dart`; `flutter_
 Dependencies: QM-SCREEN-061; QM-SCREEN-062; canonical QuantMail draft/mail contract.
 
 Validation: source audit on 2026-10-08 verified `DraftLocalStorage` contains only the private in-memory field `EmailDraft? _savedDraft` and no durable storage dependency. The composer reads/writes this singleton as its autosave path, while the repository test explicitly describes it as an "In-Memory singleton".
+
+## QM-SCREEN-064 — QuantMail Flutter SuperApp composer must call the real send contract instead of reporting success from a local toast
+
+Status: [ ] TODO
+
+Finding: the production Flutter SuperApp compose path wires `EmailComposerModal.show(... onSendQueued: ...)` into `UndoSendManager.enqueueDraft`, but its `onFinalSend` callback does not call a mail API, repository, transport or outbox. In `flutter_apps/apps/quant_mail/lib/screens/superapp/superapp_home_screen.dart`, `onFinalSend: (d) async { ... }` only invokes `ScaffoldMessenger.of(context).showSnackBar(...)` with `Email sent to ...`. It completes normally, so `UndoSendManager._flushSend()` transitions the message to `sent` and displays its own successful-delivery toast even though no send operation is performed by this path. This is a direct production-flow gap, not a test fixture.
+
+Required: connect the Flutter composer to the canonical QuantMail send command/API/outbox contract. The send command must submit the complete authoritative draft (recipients, subject/body, attachments from QM-SCREEN-061, draft ID/revision and an idempotency/send operation key), authenticate and authorize the mailbox, validate recipients/content/attachment state server-side, persist the outbound message transactionally, enqueue delivery work, and return an authoritative accepted/queued result. The Flutter manager must map that result to explicit states such as queued/accepted/delivered/failed/ambiguous rather than equating a locally completed callback with network delivery. The UI copy must say "queued/scheduled" when only accepted by the outbox and must reserve "sent/delivered" for the corresponding authoritative status.
+
+Do not duplicate sends on retry or app restart: the server operation must be idempotent and the client must retain the operation ID until reconciliation. Handle offline, timeout, authentication expiry, rate limits, invalid recipients, attachment upload failure, server rejection and ambiguous network responses without falsely marking the message sent. Persist/reconcile the draft and send operation according to QM-SCREEN-062/063. Ensure Web and Flutter use the same canonical send DTO and delivery-state vocabulary.
+
+Tests: inspect the final-send callback and assert a real transport/repository invocation; mock successful API acceptance and verify one outbound message/outbox operation; mock rejection/timeout and verify no success state; retry the same operation ID and verify exactly one message; verify attachments are referenced by durable IDs; offline send queues or fails explicitly according to policy; app restart reconciles pending send; delivery-state UI never claims delivery from a local snackbar alone; cross-device mailbox state reflects the authoritative outbound row.
+
+Scope: `flutter_apps/apps/quant_mail/lib/screens/superapp/superapp_home_screen.dart`; `flutter_apps/apps/quant_mail/lib/screens/composer/undo_send_manager.dart`; Flutter QuantMail API/repository/client; backend email send route/service/outbox; attachment contract; draft/send operation persistence; Web/Flutter parity tests.
+
+Dependencies: QM-SCREEN-061; QM-SCREEN-062; QM-SCREEN-063; canonical QuantMail send/delivery contract.
+
+Validation: source audit on 2026-10-08 fetched the live `_openEmailComposer()` implementation and verified its `onFinalSend` body contains only `ScaffoldMessenger.of(context).showSnackBar(... 'Email sent to ...')`; no network/API/send-service invocation occurs in that callback. Because the callback completes normally, the existing UndoSendManager then marks the draft `sent`.
