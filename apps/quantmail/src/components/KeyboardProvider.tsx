@@ -447,7 +447,7 @@ function SequenceHint() {
           {chordToLabelParts(chord).join(' ')}
         </kbd>
       ))}
-      <span className="text-[11px] text-[#A1A4AC]">waiting for next key…</span>
+      <span className="text-[11px] text-[var(--quant-muted-foreground)]">waiting for next key…</span>
     </div>
   );
 }

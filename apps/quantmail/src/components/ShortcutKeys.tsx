@@ -33,13 +33,13 @@ export function ShortcutKeys({ keys, aliases = false }: ShortcutKeysProps) {
       {shown.map((binding, bindingIndex) => (
         <span key={`${binding}-${bindingIndex}`} className="inline-flex items-center gap-1">
           {bindingIndex > 0 && (
-            <span aria-hidden="true" className="px-0.5 text-[10px] text-[#6B6E76]">
+            <span aria-hidden="true" className="px-0.5 text-[10px] text-[var(--quant-text-muted)]">
               /
             </span>
           )}
           {parseSequence(binding).map((chord, chordIndex) => (
             <span key={`${chord}-${chordIndex}`} className="inline-flex items-center gap-1">
-              {chordIndex > 0 && <span className="px-0.5 text-[10px] text-[#A1A4AC]">then</span>}
+              {chordIndex > 0 && <span className="px-0.5 text-[10px] text-[var(--quant-muted-foreground)]">then</span>}
               {chordToLabelParts(chord).map((part, partIndex) => (
                 <kbd key={`${part}-${partIndex}`}>{part}</kbd>
               ))}

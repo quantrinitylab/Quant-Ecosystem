@@ -56,7 +56,7 @@ export function CalendarModals({
       >
         <div className="space-y-4 text-xs text-white">
           <div>
-            <label htmlFor="cal-period-length" className="block text-[#A1A4AC] mb-1 font-semibold">
+            <label htmlFor="cal-period-length" className="block text-[var(--quant-muted-foreground)] mb-1 font-semibold">
               Period Length ({formState.periodDays} days)
             </label>
             <input
@@ -73,7 +73,7 @@ export function CalendarModals({
           </div>
 
           <div>
-            <label htmlFor="cal-cycle-length" className="block text-[#A1A4AC] mb-1 font-semibold">
+            <label htmlFor="cal-cycle-length" className="block text-[var(--quant-muted-foreground)] mb-1 font-semibold">
               Cycle Length ({formState.cycleLength} days)
             </label>
             <input
@@ -90,7 +90,7 @@ export function CalendarModals({
           </div>
 
           <div>
-            <label htmlFor="cal-cycle-day" className="block text-[#A1A4AC] mb-1 font-semibold">
+            <label htmlFor="cal-cycle-day" className="block text-[var(--quant-muted-foreground)] mb-1 font-semibold">
               Current Cycle Day ({formState.currentCycleDay})
             </label>
             <input
@@ -132,7 +132,7 @@ export function CalendarModals({
               className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)] ${
                 formState.timezone === tz.value
                   ? 'bg-[var(--quant-primary)] text-black font-black'
-                  : 'text-[#A1A4AC] hover:bg-[var(--quant-surface-elevated)]'
+                  : 'text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
               }`}
               aria-pressed={formState.timezone === tz.value}
             >
@@ -161,7 +161,7 @@ export function CalendarModals({
               className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)] ${
                 formState.recurrence === rec
                   ? 'bg-[var(--quant-primary)] text-black font-black'
-                  : 'text-[#A1A4AC] hover:bg-[var(--quant-surface-elevated)]'
+                  : 'text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
               }`}
               aria-pressed={formState.recurrence === rec}
             >
@@ -196,7 +196,7 @@ export function CalendarModals({
             className="w-full accent-[var(--quant-primary)]"
           />
 
-          <div className="flex items-center justify-between text-[10px] text-[#A1A4AC]">
+          <div className="flex items-center justify-between text-[10px] text-[var(--quant-muted-foreground)]">
             <span>5m</span>
             <span>1h</span>
             <span>1d</span>
@@ -227,7 +227,7 @@ export function CalendarModals({
           onClose={() => setSelectedEvent(null)}
           title={selectedEvent.title}
         >
-          <div className="space-y-3 text-xs text-[#A1A4AC]">
+          <div className="space-y-3 text-xs text-[var(--quant-muted-foreground)]">
             <div className="flex items-center gap-2 text-white font-semibold">
               <IconClock className="size-4 text-[var(--quant-primary)]" />
               <span>
@@ -244,7 +244,7 @@ export function CalendarModals({
                     selectedEvent.type === 'period'
                       ? 'bg-rose-500/20 text-rose-300'
                       : selectedEvent.type === 'task'
-                        ? 'bg-[var(--quant-primary)]/20 text-[#FFB875]'
+                        ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)]'
                         : selectedEvent.type === 'birthday'
                           ? 'bg-emerald-500/20 text-emerald-300'
                           : 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)]'
@@ -281,7 +281,7 @@ export function CalendarModals({
             )}
 
             {selectedEvent.description && (
-              <div className="pt-2 border-t border-[var(--quant-surface-elevated)] text-[#A1A4AC]">
+              <div className="pt-2 border-t border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)]">
                 {selectedEvent.description}
               </div>
             )}

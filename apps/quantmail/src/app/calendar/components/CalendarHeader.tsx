@@ -228,7 +228,7 @@ function NewEntrySplitButton({
                 setIsOpen(false);
                 openDedicatedSheet(item.id);
               }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)]/60 focus-visible:bg-[var(--quant-surface-elevated)]/60 focus-visible:outline-none"
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)]/60 focus-visible:bg-[var(--quant-surface-elevated)]/60 focus-visible:outline-none"
             >
               {item.icon}
               <span>{item.label}</span>
@@ -313,7 +313,7 @@ export function CalendarHeader({
               type="button"
               onClick={() => goMonth(-1)}
               aria-label="Previous month"
-              className="size-8 grid place-items-center rounded-xl border border-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="size-8 grid place-items-center rounded-xl border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               <ChevronLeftIcon className="size-4" />
             </button>
@@ -321,21 +321,21 @@ export function CalendarHeader({
               type="button"
               onClick={() => goMonth(1)}
               aria-label="Next month"
-              className="size-8 grid place-items-center rounded-xl border border-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="size-8 grid place-items-center rounded-xl border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               <ChevronRightIcon className="size-4" />
             </button>
           </div>
 
-          <h2 className="text-xl font-bold tracking-tight text-[#F5F5F5] flex items-center gap-2">
+          <h2 className="text-xl font-bold tracking-tight text-[var(--quant-foreground)] flex items-center gap-2">
             <span>{activeMonthName}</span>
-            <span className="text-[#A1A4AC] font-normal">{activeYear}</span>
+            <span className="text-[var(--quant-muted-foreground)] font-normal">{activeYear}</span>
           </h2>
 
           <button
             type="button"
             onClick={goToday}
-            className="px-2.5 py-1 text-xs font-medium rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-[#F5F5F5] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+            className="px-2.5 py-1 text-xs font-medium rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           >
             Today
           </button>
@@ -350,12 +350,12 @@ export function CalendarHeader({
           >
             <HeaderGlobeIcon className="size-3 text-[var(--quant-warning)]" />
             <span className="font-semibold text-white">IST</span>
-            <span className="text-[#F5F5F5]">{istTime}</span>
+            <span className="text-[var(--quant-foreground)]">{istTime}</span>
             <span className="text-[#3A404D]" aria-hidden="true">
               /
             </span>
-            <span className="font-semibold text-[#A1A4AC]">{pacificCode}</span>
-            <span className="text-[#A1A4AC]">{pstTime}</span>
+            <span className="font-semibold text-[var(--quant-muted-foreground)]">{pacificCode}</span>
+            <span className="text-[var(--quant-muted-foreground)]">{pstTime}</span>
           </div>
 
           {onOpenBookingLinks && (
@@ -363,7 +363,7 @@ export function CalendarHeader({
               type="button"
               onClick={onOpenBookingLinks}
               aria-label="Booking Links"
-              className="px-3 py-1.5 rounded-lg font-medium text-xs text-[#F5F5F5] bg-[var(--quant-surface-elevated)] hover:bg-[#20232B] border border-[var(--quant-surface-elevated)] flex items-center gap-1.5 shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="px-3 py-1.5 rounded-lg font-medium text-xs text-[var(--quant-foreground)] bg-[var(--quant-surface-elevated)] hover:bg-[#20232B] border border-[var(--quant-surface-elevated)] flex items-center gap-1.5 shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
               title="Share Booking Links"
             >
               <HeaderLinkIcon className="size-3.5 text-[var(--quant-primary)]" />
@@ -384,9 +384,9 @@ export function CalendarHeader({
         {/* Row 1: Month Title & Navigation + Sleek Single + New Event Button */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <h2 className="flex min-w-0 items-baseline gap-1.5 truncate text-base font-bold tracking-tight text-[#F5F5F5]">
+            <h2 className="flex min-w-0 items-baseline gap-1.5 truncate text-base font-bold tracking-tight text-[var(--quant-foreground)]">
               <span className="truncate">{activeMonthName}</span>
-              <span className="font-normal text-xs text-[#A1A4AC]">{activeYear}</span>
+              <span className="font-normal text-xs text-[var(--quant-muted-foreground)]">{activeYear}</span>
             </h2>
 
             <div className="flex shrink-0 items-center gap-1">
@@ -394,7 +394,7 @@ export function CalendarHeader({
                 type="button"
                 onClick={() => goMonth(-1)}
                 aria-label="Previous month"
-                className="size-8 grid place-items-center rounded-lg border border-[var(--quant-surface-elevated)] text-[#A1A4AC] transition-colors hover:bg-[var(--quant-surface-elevated)]/80 hover:text-white"
+                className="size-8 grid place-items-center rounded-lg border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)]/80 hover:text-white"
               >
                 <ChevronLeftIcon className="size-3.5" />
               </button>
@@ -402,14 +402,14 @@ export function CalendarHeader({
                 type="button"
                 onClick={() => goMonth(1)}
                 aria-label="Next month"
-                className="size-8 grid place-items-center rounded-lg border border-[var(--quant-surface-elevated)] text-[#A1A4AC] transition-colors hover:bg-[var(--quant-surface-elevated)]/80 hover:text-white"
+                className="size-8 grid place-items-center rounded-lg border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)]/80 hover:text-white"
               >
                 <ChevronRightIcon className="size-3.5" />
               </button>
               <button
                 type="button"
                 onClick={goToday}
-                className="h-8 rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-2.5 text-[11px] font-medium text-[#F5F5F5] transition-colors hover:bg-[var(--quant-surface-elevated)]"
+                className="h-8 rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-2.5 text-[11px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)]"
               >
                 Today
               </button>
@@ -429,10 +429,10 @@ export function CalendarHeader({
           >
             <HeaderGlobeIcon className="size-3 text-[var(--quant-warning)]" />
             <span className="font-semibold text-white">IST</span>
-            <span className="text-[#F5F5F5]">{istTime}</span>
+            <span className="text-[var(--quant-foreground)]">{istTime}</span>
             <span className="text-[#3A404D]">/</span>
-            <span className="font-semibold text-[#A1A4AC]">{pacificCode}</span>
-            <span className="text-[#A1A4AC]">{pstTime}</span>
+            <span className="font-semibold text-[var(--quant-muted-foreground)]">{pacificCode}</span>
+            <span className="text-[var(--quant-muted-foreground)]">{pstTime}</span>
           </div>
 
           {onOpenBookingLinks && (
@@ -440,7 +440,7 @@ export function CalendarHeader({
               type="button"
               onClick={onOpenBookingLinks}
               aria-label="Booking Links"
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium text-[11px] text-[#A1A4AC] hover:text-[#F5F5F5] bg-[var(--quant-surface-elevated)] hover:bg-[#20232B] border border-[var(--quant-surface-elevated)] transition-all"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium text-[11px] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] bg-[var(--quant-surface-elevated)] hover:bg-[#20232B] border border-[var(--quant-surface-elevated)] transition-all"
               title="Share Booking Links"
             >
               <HeaderLinkIcon className="size-3 text-[var(--quant-primary)]" />

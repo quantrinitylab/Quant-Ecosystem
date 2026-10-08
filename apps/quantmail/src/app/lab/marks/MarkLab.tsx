@@ -184,8 +184,8 @@ function format(value: number): string {
 function Panel({ label, note, children }: { label: string; note: string; children: ReactNode }) {
   return (
     <div className="rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] p-5">
-      <p className="text-[11px] uppercase tracking-[0.12em] text-[#A1A4AC]">{label}</p>
-      <p className="mt-1 text-[11px] text-[#6B6E76]">{note}</p>
+      <p className="text-[11px] uppercase tracking-[0.12em] text-[var(--quant-muted-foreground)]">{label}</p>
+      <p className="mt-1 text-[11px] text-[var(--quant-text-muted)]">{note}</p>
       <div className="no-scrollbar mt-4 flex items-end gap-5 overflow-x-auto pb-1">{children}</div>
     </div>
   );
@@ -217,7 +217,7 @@ function FaceSheet() {
             <Quanty expression={name} size={40} />
             <Quanty expression={name} size={26} />
           </div>
-          <code className="text-[11px] text-[#A1A4AC]">{name}</code>
+          <code className="text-[11px] text-[var(--quant-muted-foreground)]">{name}</code>
         </div>
       ))}
     </div>
@@ -236,7 +236,7 @@ function ReactionBench() {
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
       <div className="flex shrink-0 flex-col items-center gap-2">
         <Quanty expression={mood} size={104} bob />
-        <code className="text-[11px] text-[#A1A4AC]">{mood}</code>
+        <code className="text-[11px] text-[var(--quant-muted-foreground)]">{mood}</code>
       </div>
       <div className="flex flex-wrap gap-1.5">
         {events.map((event) => (
@@ -244,7 +244,7 @@ function ReactionBench() {
             key={event}
             type="button"
             onClick={() => quantyReact(event)}
-            className="min-h-11 rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-2.5 text-[11px] text-[#A1A4AC] transition-colors hover:border-[#5C3016] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+            className="min-h-11 rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-2.5 text-[11px] text-[var(--quant-muted-foreground)] transition-colors hover:border-[#5C3016] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           >
             {event}
           </button>
@@ -297,13 +297,13 @@ export function MarkLab() {
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--quant-background)] px-4 py-8 sm:px-8">
       <div className="mx-auto max-w-[1180px]">
         <header>
-          <p className="text-[11px] uppercase tracking-[0.14em] text-[#6B6E76]">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--quant-text-muted)]">
             Internal · not a product route
           </p>
-          <h1 className="mt-1 text-[22px] font-semibold leading-tight text-[#F5F5F5]">
+          <h1 className="mt-1 text-[22px] font-semibold leading-tight text-[var(--quant-foreground)]">
             Mark material lab
           </h1>
-          <p className="mt-2 max-w-[68ch] text-[13px] leading-relaxed text-[#A1A4AC]">
+          <p className="mt-2 max-w-[68ch] text-[13px] leading-relaxed text-[var(--quant-muted-foreground)]">
             One material for all six marks: a graphite body under raking light, with the accent
             arriving as heat from the floor of a milled channel rather than as paint on top. Pick a
             candidate below — that pick locks the family, and Calendar, Contacts, Drive, Mail and
@@ -320,17 +320,17 @@ export function MarkLab() {
             <p className="text-[13px] font-medium text-[var(--quant-primary)]">
               No WebGL tier — every mark below is the SVG twin
             </p>
-            <pre className="no-scrollbar mt-2 overflow-x-auto whitespace-pre-wrap text-[11px] leading-relaxed text-[#A1A4AC]">
+            <pre className="no-scrollbar mt-2 overflow-x-auto whitespace-pre-wrap text-[11px] leading-relaxed text-[var(--quant-muted-foreground)]">
               {shaderError}
             </pre>
           </div>
         )}
 
         <section className="mt-8" aria-labelledby="candidates">
-          <h2 id="candidates" className="text-[13px] font-medium text-[#F5F5F5]">
+          <h2 id="candidates" className="text-[13px] font-medium text-[var(--quant-foreground)]">
             Four candidates
           </h2>
-          <p className="mt-1 text-[11px] text-[#6B6E76]">
+          <p className="mt-1 text-[11px] text-[var(--quant-text-muted)]">
             Each differs from “Instrument” along exactly one axis, so the comparison means
             something.
           </p>
@@ -356,12 +356,12 @@ export function MarkLab() {
                   className="self-center"
                 />
                 <span className="mt-3 flex items-baseline justify-between gap-2">
-                  <span className="text-[13px] font-medium text-[#F5F5F5]">{variant.name}</span>
-                  <span className="text-[11px] tabular-nums text-[#6B6E76]">
+                  <span className="text-[13px] font-medium text-[var(--quant-foreground)]">{variant.name}</span>
+                  <span className="text-[11px] tabular-nums text-[var(--quant-text-muted)]">
                     {Math.round(variant.dials.uEmber * 100)}% ember
                   </span>
                 </span>
-                <span className="mt-1 text-[11px] leading-snug text-[#6B6E76]">{variant.note}</span>
+                <span className="mt-1 text-[11px] leading-snug text-[var(--quant-text-muted)]">{variant.note}</span>
               </button>
             ))}
           </div>
@@ -379,15 +379,15 @@ export function MarkLab() {
               fallback={<QuantGitGraphiteMark size={252} />}
               onFailure={reportFailure}
             />
-            <p className="text-[11px] text-[#6B6E76]">
+            <p className="text-[11px] text-[var(--quant-text-muted)]">
               Hover it: the ember lifts on the 120 / 380 ms curve.
             </p>
           </div>
           <div>
-            <h2 id="tuner" className="text-[13px] font-medium text-[#F5F5F5]">
+            <h2 id="tuner" className="text-[13px] font-medium text-[var(--quant-foreground)]">
               Dials
             </h2>
-            <p className="mt-1 text-[11px] text-[#6B6E76]">
+            <p className="mt-1 text-[11px] text-[var(--quant-text-muted)]">
               Ember ratio widens and deepens the milled channel, so more ember is more cut metal —
               not just a brighter light.
             </p>
@@ -398,10 +398,10 @@ export function MarkLab() {
                   className="block border-t border-[var(--quant-surface-elevated)] py-1 first:border-t-0"
                 >
                   <span className="flex items-baseline justify-between gap-3">
-                    <span className="text-[11px] uppercase tracking-[0.12em] text-[#A1A4AC]">
+                    <span className="text-[11px] uppercase tracking-[0.12em] text-[var(--quant-muted-foreground)]">
                       {dial.label}
                     </span>
-                    <span className="text-[11px] tabular-nums text-[#6B6E76]">
+                    <span className="text-[11px] tabular-nums text-[var(--quant-text-muted)]">
                       {format(dials[dial.key])} · {dial.hint}
                     </span>
                   </span>
@@ -420,17 +420,17 @@ export function MarkLab() {
           </div>
         </section>
         <section className="mt-10" aria-labelledby="scale">
-          <h2 id="scale" className="text-[13px] font-medium text-[#F5F5F5]">
+          <h2 id="scale" className="text-[13px] font-medium text-[var(--quant-foreground)]">
             The part that actually decides it
           </h2>
-          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[#6B6E76]">
+          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[var(--quant-text-muted)]">
             A material that only works at 250px is wallpaper. 96px is the WebGL tier’s floor — 48
             and 32 are shown{' '}
-            <em className="not-italic text-[#A1A4AC]">to prove why the twin exists</em>: a
+            <em className="not-italic text-[var(--quant-muted-foreground)]">to prove why the twin exists</em>: a
             raymarcher gets about one sample per pixel, so at 32px the ember filament is 0.9px and
             the dark ring around it is thinner still — the cut stops reading as a cut. Everything
             below 44px — favicon, tab, email, print, and anything under
-            <code className="px-1 text-[#A1A4AC]">prefers-reduced-motion</code> — is the SVG twin,
+            <code className="px-1 text-[var(--quant-muted-foreground)]">prefers-reduced-motion</code> — is the SVG twin,
             same six tokens, same five points, optically sized in three tiers.
           </p>
           <div className="mt-4 grid gap-4 lg:grid-cols-3">
@@ -462,10 +462,10 @@ export function MarkLab() {
         </section>
 
         <section className="mt-10" aria-labelledby="faces">
-          <h2 id="faces" className="text-[13px] font-medium text-[#F5F5F5]">
+          <h2 id="faces" className="text-[13px] font-medium text-[var(--quant-foreground)]">
             Quanty — the whole sheet, at three sizes
           </h2>
-          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[#6B6E76]">
+          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[var(--quant-text-muted)]">
             Thirty-five faces, one painter. Read the 26px column, not the 104px one: that is the
             sidebar, the launcher and the send button, and a face that needs 104px to be legible is
             a face the product never actually shows.
@@ -476,23 +476,23 @@ export function MarkLab() {
         </section>
 
         <section className="mt-10" aria-labelledby="ring">
-          <h2 id="ring" className="text-[13px] font-medium text-[#F5F5F5]">
+          <h2 id="ring" className="text-[13px] font-medium text-[var(--quant-foreground)]">
             The ring, at every size the product actually mounts
           </h2>
-          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[#6B6E76]">
+          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[var(--quant-text-muted)]">
             The sheet above proves the faces are distinguishable; this row exists because the ring
             was not, and for a reason no single-size view can show. A stroke is measured in buffer
             units and the buffer is fitted to the CSS box, so one unit buys{' '}
-            <code className="px-1 text-[#A1A4AC]">dpr × size / 100</code> device pixels — the 2.3
+            <code className="px-1 text-[var(--quant-muted-foreground)]">dpr × size / 100</code> device pixels — the 2.3
             units that read as a rainbow at 104px are three quarters of one pixel at 22px.{' '}
-            <code className="px-1 text-[#A1A4AC]">ringWidthForSize</code> holds the weight, widening
+            <code className="px-1 text-[var(--quant-muted-foreground)]">ringWidthForSize</code> holds the weight, widening
             the unit stroke as the box shrinks so it never falls under two device pixels, and caps
-            at 4.6. <code className="px-1 text-[#A1A4AC]">ringVividness</code> is what changed: it
-            takes the finish, and <code className="px-1 text-[#A1A4AC]">spectral</code> now returns
+            at 4.6. <code className="px-1 text-[var(--quant-muted-foreground)]">ringVividness</code> is what changed: it
+            takes the finish, and <code className="px-1 text-[var(--quant-muted-foreground)]">spectral</code> now returns
             1 at every size, because a hero that paid for a rainbow was getting a pastel one. Only
             the inward bloom still tapers with the box. Quanty above, QuantGit below: the two share
             the primitive, so both have to be read, and 20 through 36 is where every product mount
-            lives. Quanty is pinned to <code className="px-1 text-[#A1A4AC]">badge</code> here so
+            lives. Quanty is pinned to <code className="px-1 text-[var(--quant-muted-foreground)]">badge</code> here so
             the two rings are compared at the same radius — a full figure strokes its ring on a head
             scaled to 0.578 and asks for the width of a 0.578× box to compensate, which is the
             family row&apos;s business, not this one&apos;s.
@@ -502,34 +502,34 @@ export function MarkLab() {
               <div key={size} className="flex flex-col items-center gap-2">
                 <Quanty size={size} figure="badge" title={`Quanty at ${size}px`} />
                 <QuantGitLogo size={size} title={`QuantGit at ${size}px`} />
-                <code className="text-[10px] text-[#6B6E76]">{size}px</code>
+                <code className="text-[10px] text-[var(--quant-text-muted)]">{size}px</code>
               </div>
             ))}
           </div>
         </section>
 
         <section className="mt-10" aria-labelledby="family">
-          <h2 id="family" className="text-[13px] font-medium text-[#F5F5F5]">
+          <h2 id="family" className="text-[13px] font-medium text-[var(--quant-foreground)]">
             The whole family, at the sizes that decide it
           </h2>
-          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[#6B6E76]">
+          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[var(--quant-text-muted)]">
             Six marks, one silhouette, one light rig — and the row is the point. Judging a mark on
             its own hero shot is how the calendar shipped value-inverted from its reference: the
             grey sheet under it looked like depth at 104px and like a smudge at 36. Read the{' '}
-            <code className="px-1 text-[#A1A4AC]">36px</code> column first, because
-            <code className="px-1 text-[#A1A4AC]">AppShell</code> mounts every one of these there,
+            <code className="px-1 text-[var(--quant-muted-foreground)]">36px</code> column first, because
+            <code className="px-1 text-[var(--quant-muted-foreground)]">AppShell</code> mounts every one of these there,
             then scan down it — a suite reads as a suite when the whole column shares a light
             direction and a material, not when each mark is separately pretty.
           </p>
-          <p className="mt-2 max-w-[68ch] text-[11px] leading-snug text-[#6B6E76]">
+          <p className="mt-2 max-w-[68ch] text-[11px] leading-snug text-[var(--quant-text-muted)]">
             Quanty&apos;s row breaks the column on purpose, and this is the only place to see it: it
             is a head at 20/24/32/36 and a whole robot at 64/104, because{' '}
-            <code className="px-1 text-[#A1A4AC]">figure=&quot;auto&quot;</code> resolves to{' '}
-            <code className="px-1 text-[#A1A4AC]">full</code> at 56px and up. Arms, legs and ear
+            <code className="px-1 text-[var(--quant-muted-foreground)]">figure=&quot;auto&quot;</code> resolves to{' '}
+            <code className="px-1 text-[var(--quant-muted-foreground)]">full</code> at 56px and up. Arms, legs and ear
             pods need buffer the small mounts do not have — the head alone already fills 5..95 there
             — so the choice was a robot nobody can resolve at 20px or a head that grows into one.
             Every live mount under 56px runs the identity transform and is unchanged byte for byte;
-            the one live surface over it is <code className="px-1 text-[#A1A4AC]">codehub</code>
+            the one live surface over it is <code className="px-1 text-[var(--quant-muted-foreground)]">codehub</code>
             &apos;s 64px mascot.
           </p>
           <div className="mt-4 overflow-x-auto no-scrollbar rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] p-5">
@@ -545,7 +545,7 @@ export function MarkLab() {
                 {APP_MARK_SIZES.map((size) => (
                   <span
                     key={size}
-                    className="w-[104px] shrink-0 text-center text-[10px] text-[#6B6E76]"
+                    className="w-[104px] shrink-0 text-center text-[10px] text-[var(--quant-text-muted)]"
                   >
                     {size}px
                   </span>
@@ -553,7 +553,7 @@ export function MarkLab() {
               </div>
               {APP_MARKS.map((mark) => (
                 <div key={mark.key} className="mt-4 flex items-center gap-6">
-                  <span className="w-[72px] shrink-0 text-[11px] text-[#A1A4AC]">{mark.label}</span>
+                  <span className="w-[72px] shrink-0 text-[11px] text-[var(--quant-muted-foreground)]">{mark.label}</span>
                   {APP_MARK_SIZES.map((size) => (
                     <span
                       key={size}
@@ -569,10 +569,10 @@ export function MarkLab() {
         </section>
 
         <section className="mt-10" aria-labelledby="dinosaur-candidate">
-          <h2 id="dinosaur-candidate" className="text-[13px] font-medium text-[#F5F5F5]">
+          <h2 id="dinosaur-candidate" className="text-[13px] font-medium text-[var(--quant-foreground)]">
             Dinosaur candidate — isolated experiment
           </h2>
-          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[#6B6E76]">
+          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[var(--quant-text-muted)]">
             One uninterrupted theropod profile, because eyes and mascot expressions disappear before
             the product&apos;s 20px floor. The silhouette carries the idea; an obsidian plate, a
             warm cast-metal face and one travelling highlight carry the family material. This
@@ -582,24 +582,24 @@ export function MarkLab() {
             {DINOSAUR_MARK_SIZES.map((size) => (
               <div key={size} className="flex min-w-[104px] flex-col items-center gap-2">
                 <DinosaurMarkCandidate size={size} title={`Dinosaur candidate at ${size}px`} />
-                <code className="text-[10px] text-[#6B6E76]">{size}px</code>
+                <code className="text-[10px] text-[var(--quant-text-muted)]">{size}px</code>
               </div>
             ))}
           </div>
         </section>
 
         <section className="mt-10" aria-labelledby="unread">
-          <h2 id="unread" className="text-[13px] font-medium text-[#F5F5F5]">
+          <h2 id="unread" className="text-[13px] font-medium text-[var(--quant-foreground)]">
             The mail mark carrying a count
           </h2>
-          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[#6B6E76]">
+          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[var(--quant-text-muted)]">
             Three states, because unread is the one thing this mark says beyond its own name and all
             three used to be wrong. The old mark spent it on{' '}
-            <code className="px-1 text-[#A1A4AC]">0.7</code> of a unit of extra pupil radius, which
+            <code className="px-1 text-[var(--quant-muted-foreground)]">0.7</code> of a unit of extra pupil radius, which
             no eye resolves at 20px; it is now warm light inside the envelope, under the flap.{' '}
-            <code className="px-1 text-[#A1A4AC]">AppShell</code> mounts the middle case — a real
+            <code className="px-1 text-[var(--quant-muted-foreground)]">AppShell</code> mounts the middle case — a real
             count on a decorative mark — and until now painted the pill inside an{' '}
-            <code className="px-1 text-[#A1A4AC]">aria-hidden</code> wrapper, so the number was on
+            <code className="px-1 text-[var(--quant-muted-foreground)]">aria-hidden</code> wrapper, so the number was on
             screen and announced nowhere. Read each cell&apos;s screen-reader text below it.
           </p>
           <div className="mt-4 flex flex-wrap gap-6">
@@ -610,7 +610,7 @@ export function MarkLab() {
               >
                 <div className="flex items-end gap-4">{unread.render(36)}</div>
                 {unread.render(20)}
-                <code className="text-center text-[11px] leading-snug text-[#A1A4AC]">
+                <code className="text-center text-[11px] leading-snug text-[var(--quant-muted-foreground)]">
                   {unread.label}
                 </code>
               </div>
@@ -619,11 +619,11 @@ export function MarkLab() {
         </section>
 
         <section className="mt-10" aria-labelledby="reactions">
-          <h2 id="reactions" className="text-[13px] font-medium text-[#F5F5F5]">
+          <h2 id="reactions" className="text-[13px] font-medium text-[var(--quant-foreground)]">
             …and what makes one arrive
           </h2>
-          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[#6B6E76]">
-            One <code className="px-1 text-[#A1A4AC]">useQuantyMood()</code> listening to every
+          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[var(--quant-text-muted)]">
+            One <code className="px-1 text-[var(--quant-muted-foreground)]">useQuantyMood()</code> listening to every
             channel. Press two in a row to watch priority work: a hard failure outranks a background
             index, and a pulse decays back to <code className="px-1">idle</code> on its own while a
             latch waits to be replaced.
@@ -639,10 +639,10 @@ export function MarkLab() {
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 id="values" className="text-[13px] font-medium text-[#F5F5F5]">
+              <h2 id="values" className="text-[13px] font-medium text-[var(--quant-foreground)]">
                 Locked values
               </h2>
-              <p className="mt-1 text-[11px] text-[#6B6E76]">
+              <p className="mt-1 text-[11px] text-[var(--quant-text-muted)]">
                 {selected === 'custom'
                   ? 'Custom — not one of the four.'
                   : `Candidate: ${VARIANTS.find((v) => v.id === selected)?.name ?? '—'}`}
@@ -656,7 +656,7 @@ export function MarkLab() {
               {copied ? 'Copied' : 'Copy JSON'}
             </button>
           </div>
-          <pre className="no-scrollbar mt-3 overflow-x-auto text-[11px] leading-relaxed text-[#A1A4AC]">
+          <pre className="no-scrollbar mt-3 overflow-x-auto text-[11px] leading-relaxed text-[var(--quant-muted-foreground)]">
             {json}
           </pre>
         </section>

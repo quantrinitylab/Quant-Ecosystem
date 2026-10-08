@@ -725,7 +725,7 @@ export function DockedComposer({
               setIsMinimized(false);
             }}
             aria-label="Restore composer"
-            className="p-1 text-[#A1A4AC] hover:text-white rounded-lg transition-colors"
+            className="p-1 text-[var(--quant-muted-foreground)] hover:text-white rounded-lg transition-colors"
           >
             <IconMaximize className="size-3.5" />
           </button>
@@ -736,7 +736,7 @@ export function DockedComposer({
               onClose();
             }}
             aria-label="Close composer"
-            className="p-1 text-[#A1A4AC] hover:text-red-400 rounded-lg transition-colors"
+            className="p-1 text-[var(--quant-muted-foreground)] hover:text-red-400 rounded-lg transition-colors"
           >
             <IconClose className="size-3.5" />
           </button>
@@ -813,7 +813,7 @@ export function DockedComposer({
                   ? 'text-[#FF6B6B]'
                   : draftSaveState === 'saved'
                     ? 'text-[#4ADE80]'
-                    : 'text-[#A1A4AC]'
+                    : 'text-[var(--quant-muted-foreground)]'
               }`}
             >
               {draftSaveLabel}
@@ -827,7 +827,7 @@ export function DockedComposer({
             type="button"
             onClick={() => setIsMinimized(true)}
             aria-label="Minimize composer"
-            className="p-1.5 text-[#A1A4AC] hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+            className="p-1.5 text-[var(--quant-muted-foreground)] hover:text-white rounded-lg hover:bg-white/5 transition-colors"
             title="Minimize"
           >
             <IconMinus className="size-3.5" />
@@ -838,7 +838,7 @@ export function DockedComposer({
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
             aria-label={isExpanded ? 'Restore window' : 'Expand to fullscreen'}
-            className="p-1.5 text-[#A1A4AC] hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+            className="p-1.5 text-[var(--quant-muted-foreground)] hover:text-white rounded-lg hover:bg-white/5 transition-colors"
             title={isExpanded ? 'Restore size' : 'Full screen'}
           >
             {isExpanded ? (
@@ -853,7 +853,7 @@ export function DockedComposer({
             type="button"
             onClick={onClose}
             aria-label="Close composer"
-            className="p-1.5 text-[#A1A4AC] hover:text-red-400 rounded-lg hover:bg-white/5 transition-colors"
+            className="p-1.5 text-[var(--quant-muted-foreground)] hover:text-red-400 rounded-lg hover:bg-white/5 transition-colors"
             title="Close"
           >
             <IconClose className="size-3.5" />
@@ -884,7 +884,7 @@ export function DockedComposer({
             <button
               type="button"
               onClick={() => setShowCcBcc(true)}
-              className="text-[11px] text-[#A1A4AC] hover:text-[var(--quant-primary)] font-semibold transition-colors px-1.5 py-0.5 rounded"
+              className="text-[11px] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] font-semibold transition-colors px-1.5 py-0.5 rounded"
             >
               Cc / Bcc
             </button>
@@ -959,7 +959,7 @@ export function DockedComposer({
             <button
               type="button"
               onClick={() => applyFormatting('b')}
-              className="p-1.5 rounded text-[#A1A4AC] hover:text-white hover:bg-white/10 transition-colors"
+              className="p-1.5 rounded text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
               title="Bold"
             >
               <IconBold />
@@ -967,7 +967,7 @@ export function DockedComposer({
             <button
               type="button"
               onClick={() => applyFormatting('i')}
-              className="p-1.5 rounded text-[#A1A4AC] hover:text-white hover:bg-white/10 transition-colors"
+              className="p-1.5 rounded text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
               title="Italic"
             >
               <IconItalic />
@@ -975,7 +975,7 @@ export function DockedComposer({
             <button
               type="button"
               onClick={() => applyFormatting('u')}
-              className="p-1.5 rounded text-[#A1A4AC] hover:text-white hover:bg-white/10 transition-colors"
+              className="p-1.5 rounded text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
               title="Underline"
             >
               <IconUnderline />
@@ -984,7 +984,7 @@ export function DockedComposer({
             <button
               type="button"
               onClick={() => applyFormatting('list')}
-              className="p-1.5 rounded text-[#A1A4AC] hover:text-white hover:bg-white/10 transition-colors"
+              className="p-1.5 rounded text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
               title="Bulleted list"
             >
               <IconList />
@@ -1026,7 +1026,7 @@ export function DockedComposer({
                   <button
                     type="button"
                     onClick={() => handleRemoveAttachment(att.id)}
-                    className="ml-1 text-[#A1A4AC] hover:text-red-400"
+                    className="ml-1 text-[var(--quant-muted-foreground)] hover:text-red-400"
                     title="Remove attachment"
                   >
                     <IconClose className="size-3" />
@@ -1062,7 +1062,7 @@ export function DockedComposer({
             className={`p-2 rounded-xl border transition-colors ${
               showFormatting
                 ? 'border-[var(--quant-primary)]/50 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)]'
-                : 'border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:text-white'
+                : 'border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white'
             }`}
             title="Formatting options"
           >
@@ -1073,7 +1073,7 @@ export function DockedComposer({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:text-[var(--quant-primary)] hover:border-[var(--quant-primary)]/40 transition-colors relative"
+            className="p-2 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] hover:border-[var(--quant-primary)]/40 transition-colors relative"
             title="Attach files (25MB limit)"
           >
             <IconPaperclip className="size-4" />

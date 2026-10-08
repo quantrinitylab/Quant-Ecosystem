@@ -81,7 +81,7 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
               <strong className="text-sm font-bold text-white truncate max-w-xs sm:max-w-md">
                 {senderName}
               </strong>
-              <span className="text-xs text-[#A1A4AC]">
+              <span className="text-xs text-[var(--quant-muted-foreground)]">
                 {dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
               </span>
             </div>
@@ -90,7 +90,7 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
             <button
               type="button"
               onClick={() => setIsDetailsOpen(!isDetailsOpen)}
-              className="flex items-center gap-1 text-xs text-[#A1A4AC] hover:text-[#F5F5F5] text-left mt-0.5 group"
+              className="flex items-center gap-1 text-xs text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] text-left mt-0.5 group"
             >
               <span>to {recipientName}</span>
               <svg
@@ -120,7 +120,7 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
             <button
               type="button"
               onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
-              className="p-2 rounded-xl text-[#A1A4AC] hover:text-[#FFB875] hover:bg-[var(--quant-surface-elevated)]/80 transition-colors"
+              className="p-2 rounded-xl text-[var(--quant-muted-foreground)] hover:text-[var(--brand-accent)] hover:bg-[var(--quant-surface-elevated)]/80 transition-colors"
               title="Add reaction"
             >
               <svg
@@ -155,7 +155,7 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
           <button
             type="button"
             onClick={onQuickReply}
-            className="p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors"
+            className="p-2 rounded-xl text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors"
             title="Reply"
           >
             <svg
@@ -175,7 +175,7 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
             <button
               type="button"
               onClick={() => setIsSenderMenuOpen(!isSenderMenuOpen)}
-              className="p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors"
+              className="p-2 rounded-xl text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors"
               title="More sender options"
             >
               <svg
@@ -192,7 +192,7 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
             </button>
 
             {isSenderMenuOpen && (
-              <div className="absolute right-0 mt-2 w-52 rounded-2xl border border-[var(--quant-surface-elevated)] bg-[#161a24] backdrop-blur-xl shadow-2xl p-1.5 z-50 text-xs text-[#F5F5F5]">
+              <div className="absolute right-0 mt-2 w-52 rounded-2xl border border-[var(--quant-surface-elevated)] bg-[#161a24] backdrop-blur-xl shadow-2xl p-1.5 z-50 text-xs text-[var(--quant-foreground)]">
                 <button
                   type="button"
                   onClick={() => {
@@ -223,12 +223,12 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
 
       {/* Accordion Details Table (when "to me ⌵" is tapped) */}
       {isDetailsOpen && (
-        <div className="mt-2 p-3.5 rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-background)]/80 text-xs space-y-2 text-[#A1A4AC] font-mono">
+        <div className="mt-2 p-3.5 rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-background)]/80 text-xs space-y-2 text-[var(--quant-muted-foreground)] font-mono">
           <div className="grid grid-cols-12 gap-2">
-            <span className="col-span-3 text-[#A1A4AC] font-medium">From:</span>
+            <span className="col-span-3 text-[var(--quant-muted-foreground)] font-medium">From:</span>
             <div className="col-span-9 flex items-center gap-1.5 flex-wrap">
               <span className="text-white font-semibold">{senderName}</span>
-              <span className="text-[#A1A4AC]">&lt;{senderEmail}&gt;</span>
+              <span className="text-[var(--quant-muted-foreground)]">&lt;{senderEmail}&gt;</span>
               <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-sans">
                 <IconCheck size={11} />
                 SPF/DKIM Pass
@@ -237,27 +237,27 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
           </div>
 
           <div className="grid grid-cols-12 gap-2">
-            <span className="col-span-3 text-[#A1A4AC] font-medium">To:</span>
-            <div className="col-span-9 text-[#A1A4AC]">
+            <span className="col-span-3 text-[var(--quant-muted-foreground)] font-medium">To:</span>
+            <div className="col-span-9 text-[var(--quant-muted-foreground)]">
               {email.to?.map((r) => (r.name ? `${r.name} <${r.email}>` : r.email)).join(', ') ||
                 'me'}
             </div>
           </div>
 
           <div className="grid grid-cols-12 gap-2">
-            <span className="col-span-3 text-[#A1A4AC] font-medium">Date:</span>
-            <div className="col-span-9 text-[#A1A4AC]">{dateFormatted}</div>
+            <span className="col-span-3 text-[var(--quant-muted-foreground)] font-medium">Date:</span>
+            <div className="col-span-9 text-[var(--quant-muted-foreground)]">{dateFormatted}</div>
           </div>
 
           <div className="grid grid-cols-12 gap-2">
-            <span className="col-span-3 text-[#A1A4AC] font-medium">Subject:</span>
-            <div className="col-span-9 text-[#F5F5F5] font-sans font-semibold">
+            <span className="col-span-3 text-[var(--quant-muted-foreground)] font-medium">Subject:</span>
+            <div className="col-span-9 text-[var(--quant-foreground)] font-sans font-semibold">
               {email.subject || '(No Subject)'}
             </div>
           </div>
 
           <div className="grid grid-cols-12 gap-2 pt-1 border-t border-[var(--quant-surface-elevated)]/80">
-            <span className="col-span-3 text-[#A1A4AC] font-medium">Security:</span>
+            <span className="col-span-3 text-[var(--quant-muted-foreground)] font-medium">Security:</span>
             <div className="col-span-9 flex items-center gap-1.5 text-cyan-400 text-[11px] font-sans">
               <IconLock size={13} className="shrink-0" />
               <span>QuantMail Quantum-Resistant E2EE (TLS 1.3 · 256-bit AES)</span>

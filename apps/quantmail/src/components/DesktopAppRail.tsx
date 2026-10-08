@@ -154,7 +154,7 @@ export function DesktopAppRail({
                 className="pointer-events-none absolute right-[52px] top-1/2 -translate-y-1/2 z-50 hidden group-hover:flex items-center gap-2 rounded-xl border border-[#282F42] bg-[#0C0F17]/95 px-3 py-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.85)] backdrop-blur-xl whitespace-nowrap"
               >
                 <span className="text-xs font-semibold text-white tracking-wide">{tile.label}</span>
-                <kbd className="rounded border border-[#30384C] bg-[var(--quant-surface-elevated)] px-1.5 py-0.5 font-mono text-[10px] text-[#A1A4AC]">
+                <kbd className="rounded border border-[#30384C] bg-[var(--quant-surface-elevated)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--quant-muted-foreground)]">
                   {isMac ? `⌘${tile.shortcutNumber}` : `Ctrl+${tile.shortcutNumber}`}
                 </kbd>
               </div>

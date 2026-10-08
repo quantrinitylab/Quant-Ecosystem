@@ -88,7 +88,7 @@ export function KeyboardShortcutsHelp() {
                 type="button"
                 onClick={closeHelp}
                 aria-label="Close keyboard shortcuts"
-                className="grid h-11 w-11 place-items-center rounded-lg text-[#A1A4AC] transition-colors hover:bg-[var(--quant-surface-elevated)] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                className="grid h-11 w-11 place-items-center rounded-lg text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
               >
                 <IconX size={16} strokeWidth={1.8} />
               </button>

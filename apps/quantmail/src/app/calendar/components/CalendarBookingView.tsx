@@ -146,7 +146,7 @@ export function CalendarBookingView({
       id="subview-booking"
       role="tabpanel"
       aria-labelledby="tab-booking"
-      className={`flex-1 flex flex-col overflow-y-auto bg-[var(--quant-background)] text-[#F5F5F5] p-4 sm:p-6 space-y-6 ${className}`}
+      className={`flex-1 flex flex-col overflow-y-auto bg-[var(--quant-background)] text-[var(--quant-foreground)] p-4 sm:p-6 space-y-6 ${className}`}
     >
       {/* Sovereign Public Booking Header Card */}
       <div className="bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-5 shadow-sm space-y-4">
@@ -160,10 +160,10 @@ export function CalendarBookingView({
                 Calendly-Class
               </span>
             </div>
-            <h2 className="text-lg sm:text-xl font-bold text-[#F5F5F5] mt-1">
+            <h2 className="text-lg sm:text-xl font-bold text-[var(--quant-foreground)] mt-1">
               One-Click Instant Availability & Booking
             </h2>
-            <p className="text-xs text-[#A1A4AC] mt-0.5">
+            <p className="text-xs text-[var(--quant-muted-foreground)] mt-0.5">
               Share your sovereign scheduling URL for frictionless, zero-coordination calendar reservations.
             </p>
           </div>
@@ -209,7 +209,7 @@ export function CalendarBookingView({
               href={`/calendar/booking/${bookingSlug}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--quant-surface-elevated)] hover:bg-[#1f2230] border border-[#232938] text-xs font-medium text-[#A1A4AC] hover:text-[#F5F5F5] transition-all"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--quant-surface-elevated)] hover:bg-[#1f2230] border border-[#232938] text-xs font-medium text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] transition-all"
             >
               <ExternalLinkIcon className="size-3.5 text-current" />
               <span>Preview</span>
@@ -221,11 +221,11 @@ export function CalendarBookingView({
       {/* Meeting Duration Selector Chips */}
       <div className="bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-5 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
-          <label className="text-sm font-bold text-[#F5F5F5] flex items-center gap-2">
+          <label className="text-sm font-bold text-[var(--quant-foreground)] flex items-center gap-2">
             <ClockIcon className="size-4 text-[var(--quant-warning)]" />
             <span>Meeting Duration</span>
           </label>
-          <span className="text-xs text-[#A1A4AC]">Select duration chip for public slots</span>
+          <span className="text-xs text-[var(--quant-muted-foreground)]">Select duration chip for public slots</span>
         </div>
 
         <div className="flex flex-wrap gap-2.5 pt-1">
@@ -239,7 +239,7 @@ export function CalendarBookingView({
                 className={`px-4 py-2 rounded-xl text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)] ${
                   isSelected
                     ? 'bg-[var(--quant-warning)] text-black shadow-[0_0_16px_rgba(245,158,11,0.3)] scale-105'
-                    : 'bg-[var(--quant-background)] text-[#A1A4AC] hover:text-[#F5F5F5] border border-[#232938] hover:border-[var(--quant-warning)]/40'
+                    : 'bg-[var(--quant-background)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] border border-[#232938] hover:border-[var(--quant-warning)]/40'
                 }`}
               >
                 {duration}
@@ -253,8 +253,8 @@ export function CalendarBookingView({
       <div className="bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-5 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-bold text-[#F5F5F5]">Available Time Slots (Today)</h3>
-            <p className="text-xs text-[#A1A4AC] mt-0.5">
+            <h3 className="text-sm font-bold text-[var(--quant-foreground)]">Available Time Slots (Today)</h3>
+            <p className="text-xs text-[var(--quant-muted-foreground)] mt-0.5">
               Live CalDAV free/busy calculations · Instant double-booking prevention
             </p>
           </div>
@@ -281,7 +281,7 @@ export function CalendarBookingView({
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-base font-bold text-[#F5F5F5]">{time}</span>
+                  <span className="font-mono text-base font-bold text-[var(--quant-foreground)]">{time}</span>
                   <span
                     className={`size-2 rounded-full ${
                       isBooked ? 'bg-zinc-600' : 'bg-emerald-400 animate-pulse'
@@ -289,7 +289,7 @@ export function CalendarBookingView({
                   />
                 </div>
 
-                <div className="text-xs text-[#A1A4AC]">
+                <div className="text-xs text-[var(--quant-muted-foreground)]">
                   {isBooked ? (
                     <span className="text-zinc-500 font-medium">Booked & Confirmed</span>
                   ) : (

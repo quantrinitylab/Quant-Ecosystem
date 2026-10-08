@@ -56,7 +56,7 @@ export function BrandWordmark({
     <span
       className={`inline-flex items-center gap-1.5 whitespace-nowrap select-none font-semibold tracking-tight ${chosenSize} ${className}`}
     >
-      <span className="text-[#F5F5F5] font-bold tracking-tight">{item.brand}</span>
+      <span className="text-[var(--quant-foreground)] font-bold tracking-tight">{item.brand}</span>
       <span className="text-[var(--quant-primary)] font-semibold tracking-tight">{item.name}</span>
     </span>
   );

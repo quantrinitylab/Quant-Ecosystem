@@ -61,7 +61,7 @@ export const HoverActions = memo(function HoverActions({
           className={`hover-action-btn ${
             isPinned
               ? 'text-[var(--quant-primary)] bg-[var(--quant-primary)]/12 shadow-sm'
-              : 'text-[#A1A4AC] hover:text-[#EDEDED]'
+              : 'text-[var(--quant-muted-foreground)] hover:text-[#EDEDED]'
           }`}
           onClick={(e) => {
             e.stopPropagation();
@@ -89,7 +89,7 @@ export const HoverActions = memo(function HoverActions({
           className={`hover-action-btn ${
             isStarred
               ? 'text-[#FFC531] bg-[#FFC531]/12 shadow-sm'
-              : 'text-[#A1A4AC] hover:text-[#EDEDED]'
+              : 'text-[var(--quant-muted-foreground)] hover:text-[#EDEDED]'
           }`}
           onClick={(e) => {
             e.stopPropagation();

@@ -66,7 +66,7 @@ export default function ThreadPage() {
     return (
       <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
         <div className="workspace-page thread-workspace flex flex-col h-full bg-black">
-          <div className="flex-1 flex items-center justify-center p-6 text-[#A1A4AC]" role="status">
+          <div className="flex-1 flex items-center justify-center p-6 text-[var(--quant-muted-foreground)]" role="status">
             Returning to inbox…
           </div>
         </div>

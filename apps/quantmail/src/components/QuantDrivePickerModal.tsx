@@ -111,7 +111,7 @@ export function QuantDrivePickerModal({
               <span className="grid size-7 place-items-center rounded-lg bg-[var(--quant-primary)]/12 border border-[var(--quant-primary)]/30 text-[var(--quant-primary)] shadow-[0_0_10px_rgba(255,140,66,0.12)]">
                 <IconFolder size={15} />
               </span>
-              <h3 className="text-sm font-semibold tracking-[-0.01em] text-[#F5F5F5]">
+              <h3 className="text-sm font-semibold tracking-[-0.01em] text-[var(--quant-foreground)]">
                 Insert files using QuantDrive
               </h3>
             </div>
@@ -119,7 +119,7 @@ export function QuantDrivePickerModal({
               type="button"
               onClick={onClose}
               aria-label="Close file picker"
-              className="grid size-11 place-items-center rounded-lg text-[#A1A4AC] transition-colors hover:text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="grid size-11 place-items-center rounded-lg text-[var(--quant-muted-foreground)] transition-colors hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               <IconX size={16} />
             </button>
@@ -129,7 +129,7 @@ export function QuantDrivePickerModal({
           <div className="px-5 pt-3 pb-2 border-b border-[var(--quant-surface-elevated)]/60 space-y-3">
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#6B6E76]">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--quant-text-muted)]">
                   <IconSearch size={14} />
                 </span>
                 <input
@@ -137,7 +137,7 @@ export function QuantDrivePickerModal({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search in QuantDrive…"
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-xs text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus:border-[var(--quant-primary)]"
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus:border-[var(--quant-primary)]"
                 />
               </div>
 
@@ -149,8 +149,8 @@ export function QuantDrivePickerModal({
                   aria-pressed={viewMode === 'grid'}
                   className={`grid size-9 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                     viewMode === 'grid'
-                      ? 'bg-[var(--quant-surface-elevated)] text-[#F5F5F5]'
-                      : 'text-[#6B6E76] hover:text-[#A1A4AC]'
+                      ? 'bg-[var(--quant-surface-elevated)] text-[var(--quant-foreground)]'
+                      : 'text-[var(--quant-text-muted)] hover:text-[var(--quant-muted-foreground)]'
                   }`}
                   title="Grid view"
                 >
@@ -162,8 +162,8 @@ export function QuantDrivePickerModal({
                   aria-pressed={viewMode === 'list'}
                   className={`grid size-9 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                     viewMode === 'list'
-                      ? 'bg-[var(--quant-surface-elevated)] text-[#F5F5F5]'
-                      : 'text-[#6B6E76] hover:text-[#A1A4AC]'
+                      ? 'bg-[var(--quant-surface-elevated)] text-[var(--quant-foreground)]'
+                      : 'text-[var(--quant-text-muted)] hover:text-[var(--quant-muted-foreground)]'
                   }`}
                   title="List view"
                 >
@@ -188,7 +188,7 @@ export function QuantDrivePickerModal({
                   className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                     activeTab === tab.id
                       ? 'bg-[var(--quant-primary)]/12 text-[var(--quant-primary)] border border-[var(--quant-primary)]/35 shadow-[0_0_12px_rgba(255,140,66,0.12)] font-semibold'
-                      : 'text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-white/[0.04]'
+                      : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-white/[0.04]'
                   }`}
                 >
                   {tab.label}
@@ -200,12 +200,12 @@ export function QuantDrivePickerModal({
           {/* Files List/Grid Body */}
           <div className="flex-1 overflow-y-auto p-4 min-h-[220px]">
             {loading ? (
-              <div className="flex flex-col items-center justify-center h-48 text-[#A1A4AC] text-xs gap-2">
+              <div className="flex flex-col items-center justify-center h-48 text-[var(--quant-muted-foreground)] text-xs gap-2">
                 <div className="size-5 border-2 border-[var(--quant-primary)] border-t-transparent rounded-full animate-spin" />
                 <span>Loading QuantDrive files…</span>
               </div>
             ) : filteredFiles.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 text-[#A1A4AC] text-xs gap-2">
+              <div className="flex flex-col items-center justify-center h-48 text-[var(--quant-muted-foreground)] text-xs gap-2">
                 <IconFolder size={32} />
                 <span>No files found in QuantDrive</span>
               </div>
@@ -233,10 +233,10 @@ export function QuantDrivePickerModal({
                           </span>
                         )}
                       </div>
-                      <span className="text-xs font-semibold text-[#F5F5F5] truncate w-full mb-0.5">
+                      <span className="text-xs font-semibold text-[var(--quant-foreground)] truncate w-full mb-0.5">
                         {file.name}
                       </span>
-                      <span className="text-[10px] text-[#A1A4AC]">{formatBytes(file.size)}</span>
+                      <span className="text-[10px] text-[var(--quant-muted-foreground)]">{formatBytes(file.size)}</span>
                     </button>
                   );
                 })}
@@ -254,7 +254,7 @@ export function QuantDrivePickerModal({
                       className={`flex min-h-touch items-center justify-between w-full px-3.5 py-2 text-xs text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)] ${
                         isSelected
                           ? 'bg-[var(--quant-primary)]/12 text-[var(--quant-primary)] font-semibold'
-                          : 'text-[#F5F5F5] hover:bg-white/[0.04]'
+                          : 'text-[var(--quant-foreground)] hover:bg-white/[0.04]'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 truncate">
@@ -262,7 +262,7 @@ export function QuantDrivePickerModal({
                         <span className="font-medium truncate">{file.name}</span>
                       </div>
                       <div className="flex items-center gap-3 shrink-0 ml-2">
-                        <span className="text-[10px] text-[#A1A4AC]">{formatBytes(file.size)}</span>
+                        <span className="text-[10px] text-[var(--quant-muted-foreground)]">{formatBytes(file.size)}</span>
                         {isSelected ? (
                           <span className="grid size-4 place-items-center rounded-full bg-[var(--quant-primary)] text-[#111111]">
                             <IconCheck size={11} strokeWidth={2.6} />
@@ -280,7 +280,7 @@ export function QuantDrivePickerModal({
 
           {/* Footer Actions */}
           <div className="flex items-center justify-between gap-3 px-5 py-2.5 border-t border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)]">
-            <span className="text-xs text-[#A1A4AC]">
+            <span className="text-xs text-[var(--quant-muted-foreground)]">
               {selectedFileIds.length > 0 ? (
                 <span className="text-[var(--quant-primary)] font-semibold">
                   {selectedFileIds.length} file{selectedFileIds.length > 1 ? 's' : ''} selected
@@ -294,7 +294,7 @@ export function QuantDrivePickerModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="min-h-touch rounded-xl px-3 text-xs font-medium text-[#A1A4AC] transition-colors hover:text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                className="min-h-touch rounded-xl px-3 text-xs font-medium text-[var(--quant-muted-foreground)] transition-colors hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
               >
                 Cancel
               </button>

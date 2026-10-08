@@ -98,7 +98,7 @@ export function QuantyTrigger({ onOpen, isOpen }: { onOpen: () => void; isOpen: 
        * padding around a 22px mark, so the tap target is the button, not the
        * artwork.
        */
-      className="inline-flex size-11 sm:size-9 items-center justify-center rounded-xl text-[var(--quant-primary)] transition-colors hover:bg-[var(--quant-surface-elevated)] hover:text-[#FFB875] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+      className="inline-flex size-11 sm:size-9 items-center justify-center rounded-xl text-[var(--quant-primary)] transition-colors hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--brand-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
       title="Ask Quanty"
       aria-label="Ask Quanty"
       aria-expanded={isOpen}

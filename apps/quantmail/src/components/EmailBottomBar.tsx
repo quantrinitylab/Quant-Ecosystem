@@ -31,7 +31,7 @@ export function EmailBottomBar({ onReply, onForward, onEmoji }: EmailBottomBarPr
         <button
           type="button"
           onClick={onForward}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--quant-surface-elevated)] hover:bg-[#3A404D] text-[#F5F5F5] hover:text-white font-semibold text-xs border border-[#3A404D] transition-all active:scale-95"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--quant-surface-elevated)] hover:bg-[#3A404D] text-[var(--quant-foreground)] hover:text-white font-semibold text-xs border border-[#3A404D] transition-all active:scale-95"
         >
           <svg
             className="size-4"

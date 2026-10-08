@@ -956,9 +956,9 @@ body {
 .sidebar-compose kbd { margin-left: auto; border: 1px solid rgba(23, 15, 7, 0.16); border-radius: 0.3rem; padding: 0.08rem 0.35rem; background: rgba(255, 255, 255, 0.26); font-size: 0.625rem; }
 .sidebar-scroll { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0.4rem 0.65rem 0.8rem; scrollbar-width: thin; scrollbar-color: #353538 transparent; }
 .sidebar-group { margin-top: 0.65rem; }
-.sidebar-group h2, .sidebar-section-trigger { padding: 0 0.6rem 0.45rem; color: #A1A4AC; font-size: 0.625rem; font-weight: 750; letter-spacing: 0.17em; text-transform: uppercase; }
+.sidebar-group h2, .sidebar-section-trigger { padding: 0 0.6rem 0.45rem; color: var(--quant-muted-foreground); font-size: 0.625rem; font-weight: 750; letter-spacing: 0.17em; text-transform: uppercase; }
 .sidebar-group ul { display: grid; gap: 0.18rem; }
-.sidebar-nav-item, .sidebar-label-item { position: relative; display: flex; width: 100%; min-height: 2.75rem; align-items: center; gap: 0.68rem; border-radius: 0.62rem; padding: 0 0.68rem; color: #A1A4AC; font-size: 0.78rem; font-weight: 520; transition: color 140ms ease, background 140ms ease, transform 140ms ease; }
+.sidebar-nav-item, .sidebar-label-item { position: relative; display: flex; width: 100%; min-height: 2.75rem; align-items: center; gap: 0.68rem; border-radius: 0.62rem; padding: 0 0.68rem; color: var(--quant-muted-foreground); font-size: 0.78rem; font-weight: 520; transition: color 140ms ease, background 140ms ease, transform 140ms ease; }
 .sidebar-nav-item:hover, .sidebar-label-item:hover { background: rgba(255, 255, 255, 0.045); color: #f3f3ef; }
 .sidebar-nav-item.is-active { background: linear-gradient(90deg, rgba(255, 140, 66, 0.14), var(--quant-accent-faint)); color: #FFB875; box-shadow: inset 2px 0 var(--quant-primary); }
 .sidebar-nav-item svg { flex: none; }

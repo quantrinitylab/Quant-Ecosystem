@@ -122,7 +122,7 @@ export function ContactGroupModal({
 
         {/* Group Name */}
         <div>
-          <label className="block text-xs font-medium text-[#A1A4AC] mb-1.5">
+          <label className="block text-xs font-medium text-[var(--quant-muted-foreground)] mb-1.5">
             Group Name <span className="text-[var(--quant-primary)]">*</span>
           </label>
           <input
@@ -132,13 +132,13 @@ export function ContactGroupModal({
             placeholder="e.g. Core Engineering, VIP Clients, Investors"
             maxLength={60}
             required
-            className="w-full rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3.5 py-2.5 text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:border-[var(--quant-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--quant-primary)]"
+            className="w-full rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3.5 py-2.5 text-sm text-[var(--quant-foreground)] placeholder-[var(--quant-text-muted)] focus:border-[var(--quant-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--quant-primary)]"
           />
         </div>
 
         {/* Color Picker */}
         <div>
-          <label className="block text-xs font-medium text-[#A1A4AC] mb-1.5">Badge Color</label>
+          <label className="block text-xs font-medium text-[var(--quant-muted-foreground)] mb-1.5">Badge Color</label>
           <div className="flex items-center gap-2.5">
             {PRESET_COLORS.map((c) => (
               <button
@@ -157,7 +157,7 @@ export function ContactGroupModal({
 
         {/* Member Emails */}
         <div>
-          <label className="block text-xs font-medium text-[#A1A4AC] mb-1.5">
+          <label className="block text-xs font-medium text-[var(--quant-muted-foreground)] mb-1.5">
             Members ({emails.length})
           </label>
           <div className="flex gap-2 mb-2">
@@ -167,7 +167,7 @@ export function ContactGroupModal({
               onChange={(e) => setEmailInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Add email address..."
-              className="flex-1 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3.5 py-2 text-xs text-[#F5F5F5] placeholder-[#6B6E76] focus:border-[var(--quant-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--quant-primary)]"
+              className="flex-1 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3.5 py-2 text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-text-muted)] focus:border-[var(--quant-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--quant-primary)]"
             />
             <Button
               type="button"
@@ -195,7 +195,7 @@ export function ContactGroupModal({
                   <button
                     type="button"
                     onClick={() => handleRemoveEmail(email)}
-                    className="ml-0.5 text-[#6B6E76] hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="ml-0.5 text-[var(--quant-text-muted)] hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     title="Remove email"
                   >
                     ×
@@ -204,7 +204,7 @@ export function ContactGroupModal({
               ))}
             </div>
           ) : (
-            <p className="text-xs text-[#6B6E76] italic">
+            <p className="text-xs text-[var(--quant-text-muted)] italic">
               No members added yet. Type an email address above and click Add or press Enter.
             </p>
           )}

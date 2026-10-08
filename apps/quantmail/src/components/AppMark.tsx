@@ -66,12 +66,12 @@ export function AppMark({ size = 32, className = '', title = 'Quant', children }
       >
         <defs>
           <linearGradient id={plateId} x1="4" y1="2" x2="28" y2="30" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#FFB875" />
+            <stop stopColor="var(--brand-accent)" />
             <stop offset="0.52" stopColor="var(--quant-primary)" />
             <stop offset="1" stopColor="var(--brand-primary-pressed)" />
           </linearGradient>
           <linearGradient id={brandId} x1="8" y1="8" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#FFB875" />
+            <stop stopColor="var(--brand-accent)" />
             <stop offset="1" stopColor="var(--quant-primary)" />
           </linearGradient>
           <linearGradient

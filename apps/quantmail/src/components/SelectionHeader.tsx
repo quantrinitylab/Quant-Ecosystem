@@ -47,7 +47,7 @@ const INBOX_CATEGORY_COMMANDS: Array<{ value: InboxCategory; label: string }> = 
  * semantics, so there is no dependence on which rule Tailwind emits last.
  */
 const ACTION_BUTTON =
-  'inline-flex size-9 shrink-0 items-center justify-center rounded-xl text-[#A1A4AC] transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11';
+  'inline-flex size-9 shrink-0 items-center justify-center rounded-xl text-[var(--quant-muted-foreground)] transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11';
 
 export interface SelectionHeaderProps {
   /** Conversations selected. The bar is only mounted when this is > 0. */
@@ -90,7 +90,7 @@ export function SelectionHeader({
         <button
           type="button"
           onClick={onDeselectAll}
-          className={`${ACTION_BUTTON} hover:bg-[var(--quant-surface-elevated)] hover:text-[#F5F5F5]`}
+          className={`${ACTION_BUTTON} hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-foreground)]`}
           aria-label="Clear selection"
           title="Clear selection (Esc)"
         >
@@ -99,7 +99,7 @@ export function SelectionHeader({
         {/* Announced, because the count changes under the keyboard as well as the
             pointer and nothing else on screen reports it. */}
         <span
-          className="truncate text-[13px] font-semibold text-[#F5F5F5]"
+          className="truncate text-[13px] font-semibold text-[var(--quant-foreground)]"
           aria-live="polite"
           aria-atomic="true"
         >
@@ -134,7 +134,7 @@ export function SelectionHeader({
         <AnchoredMenu
           icon={<MailIcon name="more" className="size-5" />}
           triggerLabel="More actions"
-          triggerClassName={`${ACTION_BUTTON} hover:bg-[var(--quant-surface-elevated)] hover:text-[#F5F5F5]`}
+          triggerClassName={`${ACTION_BUTTON} hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-foreground)]`}
           menuLabel="More selection actions"
           menuClassName="snooze-menu"
           scope="selection-more"

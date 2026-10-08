@@ -56,7 +56,7 @@ export function PostcardPicker({
                 <h2 className="text-base font-serif font-bold text-white">
                   Select Postcard Stationery
                 </h2>
-                <p className="text-xs text-[#A1A4AC]">
+                <p className="text-xs text-[var(--quant-muted-foreground)]">
                   Pick a handcrafted vintage postcard template or standard mail format
                 </p>
               </div>
@@ -66,7 +66,7 @@ export function PostcardPicker({
               type="button"
               onClick={onClose}
               aria-label="Close postcard picker"
-              className="size-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 shrink-0 rounded-lg flex items-center justify-center text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="size-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 shrink-0 rounded-lg flex items-center justify-center text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               <IconX size={15} />
             </button>
@@ -87,12 +87,12 @@ export function PostcardPicker({
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className="size-10 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#3A404D] flex items-center justify-center text-[#A1A4AC]">
+                <div className="size-10 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#3A404D] flex items-center justify-center text-[var(--quant-muted-foreground)]">
                   <IconMail size={18} />
                 </div>
                 <div>
                   <h4 className="text-xs sm:text-sm font-semibold text-white">Standard Email</h4>
-                  <p className="text-[11px] text-[#A1A4AC]">
+                  <p className="text-[11px] text-[var(--quant-muted-foreground)]">
                     Clean, traditional rich-text email layout without postcard styling
                   </p>
                 </div>
@@ -126,7 +126,7 @@ export function PostcardPicker({
                       <div className="flex items-center justify-between text-xs font-mono text-[var(--quant-primary)] mb-1.5">
                         <span className="uppercase">{template.category}</span>
                         {template.isCustom && (
-                          <span className="px-1.5 py-px text-[10px] rounded bg-[var(--quant-primary)]/20 text-[#FFB875] font-bold">
+                          <span className="px-1.5 py-px text-[10px] rounded bg-[var(--quant-primary)]/20 text-[var(--brand-accent)] font-bold">
                             CUSTOM
                           </span>
                         )}
@@ -135,13 +135,13 @@ export function PostcardPicker({
                       <h4 className="text-sm font-serif font-bold text-white mb-1">
                         {template.name}
                       </h4>
-                      <p className="text-[11px] text-[#A1A4AC] line-clamp-2 leading-relaxed">
+                      <p className="text-[11px] text-[var(--quant-muted-foreground)] line-clamp-2 leading-relaxed">
                         {template.description}
                       </p>
                     </div>
 
                     <div className="mt-3 pt-2.5 border-t border-[var(--quant-surface-elevated)]/80 flex items-center justify-between text-[11px]">
-                      <span className="text-[#A1A4AC] font-mono">
+                      <span className="text-[var(--quant-muted-foreground)] font-mono">
                         {template.paperTexture.replace('-', ' ')}
                       </span>
                       <span className="text-[var(--quant-primary)] font-semibold font-mono">

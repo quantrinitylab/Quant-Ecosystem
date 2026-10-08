@@ -70,20 +70,20 @@ export function BrandLoader({
         </div>
 
         {/* Crisp Modern Loading Subtitle */}
-        <p className="mt-8 text-[13px] font-medium text-[#A1A4AC] tracking-wide font-sans">
+        <p className="mt-8 text-[13px] font-medium text-[var(--quant-muted-foreground)] tracking-wide font-sans">
           {message}
         </p>
         {hint ? (
-          <div className="text-center text-xs text-[#A1A4AC] mt-1 font-sans">{hint}</div>
+          <div className="text-center text-xs text-[var(--quant-muted-foreground)] mt-1 font-sans">{hint}</div>
         ) : null}
       </div>
 
       {/* Minimalist Tech Hierarchy (Apple/Google style) */}
       <div className="flex flex-col items-center gap-1 pb-4 text-center">
-        <span className="text-sm font-semibold tracking-wider text-[#F5F5F5] font-sans">
+        <span className="text-sm font-semibold tracking-wider text-[var(--quant-foreground)] font-sans">
           QUANTMAIL
         </span>
-        <div className="flex items-center gap-1.5 text-[10px] font-mono tracking-[0.25em] text-[#A1A4AC] uppercase">
+        <div className="flex items-center gap-1.5 text-[10px] font-mono tracking-[0.25em] text-[var(--quant-muted-foreground)] uppercase">
           <span>BY</span>
           <span className="font-bold text-[var(--quant-primary)] tracking-[0.3em]">QUANTRINITY</span>
         </div>

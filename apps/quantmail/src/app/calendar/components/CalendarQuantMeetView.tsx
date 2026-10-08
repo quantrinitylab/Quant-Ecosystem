@@ -152,7 +152,7 @@ export function CalendarQuantMeetView({ className = '' }: CalendarQuantMeetViewP
       id="subview-quantmeet"
       role="tabpanel"
       aria-labelledby="tab-quantmeet"
-      className={`flex-1 flex flex-col overflow-y-auto bg-[var(--quant-background)] text-[#F5F5F5] p-4 sm:p-6 space-y-6 ${className}`}
+      className={`flex-1 flex flex-col overflow-y-auto bg-[var(--quant-background)] text-[var(--quant-foreground)] p-4 sm:p-6 space-y-6 ${className}`}
     >
       {/* Top Action Card: QuantMeet HD Video Meeting Launcher */}
       <div className="bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
@@ -166,24 +166,24 @@ export function CalendarQuantMeetView({ className = '' }: CalendarQuantMeetViewP
                 WebRTC 4K P2P
               </span>
             </div>
-            <h2 className="text-lg sm:text-xl font-bold text-[#F5F5F5] mt-1">
+            <h2 className="text-lg sm:text-xl font-bold text-[var(--quant-foreground)] mt-1">
               Zero-Latency Encrypted Video Conferencing
             </h2>
-            <p className="text-xs text-[#A1A4AC] mt-0.5">
+            <p className="text-xs text-[var(--quant-muted-foreground)] mt-0.5">
               Launch instant peer-to-peer HD video meetings or connect to scheduled company calls.
             </p>
           </div>
 
           {/* WebRTC Status Indicator Bar */}
           <div
-            className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-[var(--quant-background)] border border-[#232938] text-xs text-[#A1A4AC] shadow-inner"
+            className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-[var(--quant-background)] border border-[#232938] text-xs text-[var(--quant-muted-foreground)] shadow-inner"
             title="Real-time WebRTC Audio/Video Readiness"
           >
             <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
               <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
               <MicIcon className="size-3.5" />
             </span>
-            <span className="text-[#F5F5F5] font-mono text-xs">
+            <span className="text-[var(--quant-foreground)] font-mono text-xs">
               Mic: Ready · Camera: Ready
             </span>
           </div>
@@ -207,7 +207,7 @@ export function CalendarQuantMeetView({ className = '' }: CalendarQuantMeetViewP
               value={meetingCode}
               onChange={(e) => setMeetingCode(e.target.value)}
               placeholder="Enter meeting link or code…"
-              className="flex-1 bg-[var(--quant-background)] border border-[#232938] rounded-xl px-3.5 py-2.5 text-xs text-[#F5F5F5] placeholder-[#A1A4AC]/60 focus:outline-none focus:border-[var(--quant-warning)] transition-colors"
+              className="flex-1 bg-[var(--quant-background)] border border-[#232938] rounded-xl px-3.5 py-2.5 text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)]/60 focus:outline-none focus:border-[var(--quant-warning)] transition-colors"
             />
             <button
               type="button"
@@ -250,8 +250,8 @@ export function CalendarQuantMeetView({ className = '' }: CalendarQuantMeetViewP
       <div className="bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-5 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-[#232938] pb-3">
           <div>
-            <h3 className="text-sm font-bold text-[#F5F5F5]">Upcoming Video Calls</h3>
-            <p className="text-xs text-[#A1A4AC] mt-0.5">
+            <h3 className="text-sm font-bold text-[var(--quant-foreground)]">Upcoming Video Calls</h3>
+            <p className="text-xs text-[var(--quant-muted-foreground)] mt-0.5">
               Synced with your calendar schedule and video room bindings
             </p>
           </div>
@@ -268,13 +268,13 @@ export function CalendarQuantMeetView({ className = '' }: CalendarQuantMeetViewP
             >
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="text-sm font-semibold text-[#F5F5F5]">{call.title}</h4>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--quant-surface-elevated)] text-[#A1A4AC] border border-[#232938]">
+                  <h4 className="text-sm font-semibold text-[var(--quant-foreground)]">{call.title}</h4>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] border border-[#232938]">
                     #{call.roomCode}
                   </span>
                 </div>
 
-                <div className="flex items-center gap-4 text-xs text-[#A1A4AC] flex-wrap">
+                <div className="flex items-center gap-4 text-xs text-[var(--quant-muted-foreground)] flex-wrap">
                   <span className="inline-flex items-center gap-1.5 text-[var(--quant-warning)]">
                     <ClockIcon className="size-3.5 text-[var(--quant-warning)]" />
                     <span>{call.time}</span>

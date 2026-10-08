@@ -121,7 +121,7 @@ export function VipContactsSubView({
       {vipList.length === 0 ? (
         <div className="text-center py-12 px-4 space-y-2 rounded-2xl border border-[#232938] bg-[var(--quant-surface-elevated)]">
           <p className="text-xs font-bold text-white">No VIP contacts yet</p>
-          <p className="text-[11px] text-[#A1A4AC]">
+          <p className="text-[11px] text-[var(--quant-muted-foreground)]">
             Star a contact or tag them VIP to feature them here.
           </p>
         </div>
@@ -171,7 +171,7 @@ export function VipContactsSubView({
                     </p>
                     <p className="text-[11px] text-[#9CA3AF] truncate">{contact.email}</p>
                     {contact.phone && (
-                      <p className="text-[11px] text-[#A1A4AC] font-mono mt-0.5">{contact.phone}</p>
+                      <p className="text-[11px] text-[var(--quant-muted-foreground)] font-mono mt-0.5">{contact.phone}</p>
                     )}
                   </div>
 
@@ -625,7 +625,7 @@ export function DedupWizardSubView({
               <button
                 type="button"
                 onClick={() => onKeepSeparate(collision.id)}
-                className="flex-1 rounded-xl border border-[#333D52] bg-[var(--quant-surface-elevated)] py-2 text-xs font-medium text-[#94A3B8] hover:text-[#F5F5F5] hover:border-[#4B5563] transition-colors"
+                className="flex-1 rounded-xl border border-[#333D52] bg-[var(--quant-surface-elevated)] py-2 text-xs font-medium text-[#94A3B8] hover:text-[var(--quant-foreground)] hover:border-[#4B5563] transition-colors"
               >
                 Keep Both Records Separate
               </button>
@@ -1072,7 +1072,7 @@ export function ContactDetailSheet({
           <button
             type="button"
             onClick={() => onEdit?.(contact)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-xs font-semibold text-[#A1A4AC] hover:text-white hover:border-[#3A404D] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-xs font-semibold text-[var(--quant-muted-foreground)] hover:text-white hover:border-[#3A404D] transition-colors"
             title="Edit contact"
           >
             <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1099,7 +1099,7 @@ export function ContactDetailSheet({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:text-white transition-colors"
+              className="p-1.5 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white transition-colors"
               title="Close details"
               aria-label="Close details"
             >
@@ -1126,7 +1126,7 @@ export function ContactDetailSheet({
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
             </svg>
           </div>
-          <span className="text-[11px] font-semibold text-[#A1A4AC] group-hover:text-[#38BDF8] transition-colors">Call</span>
+          <span className="text-[11px] font-semibold text-[var(--quant-muted-foreground)] group-hover:text-[#38BDF8] transition-colors">Call</span>
         </button>
 
         {/* Action 2: Email */}
@@ -1141,7 +1141,7 @@ export function ContactDetailSheet({
               <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
             </svg>
           </div>
-          <span className="text-[11px] font-semibold text-[#A1A4AC] group-hover:text-[var(--quant-primary)] transition-colors">Email</span>
+          <span className="text-[11px] font-semibold text-[var(--quant-muted-foreground)] group-hover:text-[var(--quant-primary)] transition-colors">Email</span>
         </button>
 
         {/* Action 3: Message */}
@@ -1155,7 +1155,7 @@ export function ContactDetailSheet({
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
           </div>
-          <span className="text-[11px] font-semibold text-[#A1A4AC] group-hover:text-[#34D399] transition-colors">Message</span>
+          <span className="text-[11px] font-semibold text-[var(--quant-muted-foreground)] group-hover:text-[#34D399] transition-colors">Message</span>
         </button>
 
         {/* Action 4: Share */}
@@ -1179,7 +1179,7 @@ export function ContactDetailSheet({
               <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
             </svg>
           </div>
-          <span className="text-[11px] font-semibold text-[#A1A4AC] group-hover:text-[#C084FC] transition-colors">
+          <span className="text-[11px] font-semibold text-[var(--quant-muted-foreground)] group-hover:text-[#C084FC] transition-colors">
             {copiedField === 'share' ? 'Copied!' : 'Share'}
           </span>
         </button>
@@ -1212,7 +1212,7 @@ export function ContactDetailSheet({
             <button
               type="button"
               onClick={() => handleCopy(contact.email, 'email')}
-              className="p-1.5 rounded-lg border border-[var(--quant-surface-elevated)] bg-[#161A24] text-[#A1A4AC] hover:text-white transition-colors"
+              className="p-1.5 rounded-lg border border-[var(--quant-surface-elevated)] bg-[#161A24] text-[var(--quant-muted-foreground)] hover:text-white transition-colors"
               title="Copy email"
             >
               {copiedField === 'email' ? (
@@ -1248,7 +1248,7 @@ export function ContactDetailSheet({
               <button
                 type="button"
                 onClick={() => handleCopy(contact.phone!, 'phone')}
-                className="p-1.5 rounded-lg border border-[var(--quant-surface-elevated)] bg-[#161A24] text-[#A1A4AC] hover:text-white transition-colors"
+                className="p-1.5 rounded-lg border border-[var(--quant-surface-elevated)] bg-[#161A24] text-[var(--quant-muted-foreground)] hover:text-white transition-colors"
                 title="Copy phone"
               >
                 {copiedField === 'phone' ? (
@@ -1294,7 +1294,7 @@ export function ContactDetailSheet({
             <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--quant-primary)]">
               Mail Conversations
             </h3>
-            <span className="rounded-full bg-[#1E2536] px-2 py-0.5 text-[10px] font-bold text-[#A1A4AC]">
+            <span className="rounded-full bg-[#1E2536] px-2 py-0.5 text-[10px] font-bold text-[var(--quant-muted-foreground)]">
               {contactThreads.length}
             </span>
           </div>
@@ -1358,7 +1358,7 @@ export function ContactDetailSheet({
             <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--quant-warning)]">
               Shared Calendar Meetings
             </h3>
-            <span className="rounded-full bg-[#1E2536] px-2 py-0.5 text-[10px] font-bold text-[#A1A4AC]">
+            <span className="rounded-full bg-[#1E2536] px-2 py-0.5 text-[10px] font-bold text-[var(--quant-muted-foreground)]">
               {sharedMeetings.length}
             </span>
           </div>

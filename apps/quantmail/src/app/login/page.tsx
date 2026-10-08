@@ -241,7 +241,7 @@ function LoginForm() {
           </div>
 
           {stage === 'credentials' && contextNotice ? (
-            <div className="mb-5 rounded-xl border border-[var(--quant-primary)]/30 bg-[var(--quant-primary)]/10 shadow-[0_0_16px_rgba(255,140,66,0.1),inset_0_1px_0_0_rgba(255,255,255,0.06)] px-4 py-3 text-sm text-[#FFB875]">
+            <div className="mb-5 rounded-xl border border-[var(--quant-primary)]/30 bg-[var(--quant-primary)]/10 shadow-[0_0_16px_rgba(255,140,66,0.1),inset_0_1px_0_0_rgba(255,255,255,0.06)] px-4 py-3 text-sm text-[var(--brand-accent)]">
               {contextNotice}
             </div>
           ) : null}

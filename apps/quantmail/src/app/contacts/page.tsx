@@ -713,7 +713,7 @@ export default function ContactsPage() {
                       className={`flex-1 flex items-center justify-center py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         activeTab === 'all' && !selectedGroupId
                           ? 'bg-[var(--quant-primary)] text-black font-bold shadow-sm'
-                          : 'text-[#A1A4AC] hover:text-white'
+                          : 'text-[var(--quant-muted-foreground)] hover:text-white'
                       }`}
                     >
                       All{activeTab === 'all' && pagination ? ` (${pagination.total})` : ''}
@@ -725,7 +725,7 @@ export default function ContactsPage() {
                       className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         activeTab === 'favorites'
                           ? 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] border border-[var(--quant-primary)]/40 shadow-sm'
-                          : 'text-[#A1A4AC] hover:text-white'
+                          : 'text-[var(--quant-muted-foreground)] hover:text-white'
                       }`}
                     >
                       <svg className="size-3" viewBox="0 0 24 24" fill={activeTab === 'favorites' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
@@ -742,7 +742,7 @@ export default function ContactsPage() {
                       setEditingGroup(null);
                       setShowGroupModal(true);
                     }}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-dashed border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-xs font-semibold text-[#A1A4AC] hover:text-[var(--quant-primary)] hover:border-[var(--quant-primary)]/40 transition-colors shrink-0"
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-dashed border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-xs font-semibold text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] hover:border-[var(--quant-primary)]/40 transition-colors shrink-0"
                     title="Add Folder / Group"
                   >
                     <span>+ Group</span>
@@ -765,7 +765,7 @@ export default function ContactsPage() {
                           className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-medium border transition-colors shrink-0 ${
                             isSelected
                               ? 'border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/15 text-[var(--quant-primary)] font-semibold'
-                              : 'border-white/[0.08] bg-white/[0.03] text-[#A1A4AC] hover:text-white'
+                              : 'border-white/[0.08] bg-white/[0.03] text-[var(--quant-muted-foreground)] hover:text-white'
                           }`}
                         >
                           <span
@@ -786,7 +786,7 @@ export default function ContactsPage() {
                     <button
                       type="button"
                       onClick={() => vcardInputRef.current?.click()}
-                      className="px-2 py-1 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-[11px] text-[#A1A4AC] hover:text-white transition-colors"
+                      className="px-2 py-1 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-[11px] text-[var(--quant-muted-foreground)] hover:text-white transition-colors"
                       title="Import vCard or CSV"
                     >
                       Import
@@ -794,7 +794,7 @@ export default function ContactsPage() {
                     <button
                       type="button"
                       onClick={handleExportVCard}
-                      className="px-2 py-1 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-[11px] text-[#A1A4AC] hover:text-white transition-colors disabled:opacity-40"
+                      className="px-2 py-1 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-[11px] text-[var(--quant-muted-foreground)] hover:text-white transition-colors disabled:opacity-40"
                       title="Export all contacts as vCard"
                     >
                       Export vCard
@@ -802,7 +802,7 @@ export default function ContactsPage() {
                     <button
                       type="button"
                       onClick={handleExportCsv}
-                      className="px-2 py-1 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-[11px] text-[#A1A4AC] hover:text-white transition-colors disabled:opacity-40"
+                      className="px-2 py-1 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-[11px] text-[var(--quant-muted-foreground)] hover:text-white transition-colors disabled:opacity-40"
                       title="Export all contacts as CSV"
                     >
                       Export CSV
@@ -810,7 +810,7 @@ export default function ContactsPage() {
                     <button
                       type="button"
                       onClick={() => setShowDedupeModal(true)}
-                      className="px-2 py-1 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-[11px] text-[#A1A4AC] hover:text-[var(--quant-primary)] transition-colors"
+                      className="px-2 py-1 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-[11px] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] transition-colors"
                       title="Merge duplicates"
                     >
                       Dedupe
@@ -869,7 +869,7 @@ export default function ContactsPage() {
                         </svg>
                       </div>
                       <p className="text-xs font-bold text-white">No contacts found</p>
-                      <p className="text-[11px] text-[#A1A4AC]">
+                      <p className="text-[11px] text-[var(--quant-muted-foreground)]">
                         {debouncedQuery ? 'Try adjusting your search query' : 'Add your first contact to begin'}
                       </p>
                       <Button variant="primary" size="sm" onClick={handleOpenCreate}>
@@ -918,12 +918,12 @@ export default function ContactsPage() {
                                           </svg>
                                         )}
                                       </div>
-                                      <p className="text-[11px] text-[#A1A4AC] truncate">{contact.email}</p>
+                                      <p className="text-[11px] text-[var(--quant-muted-foreground)] truncate">{contact.email}</p>
                                     </div>
                                   </div>
 
                                   {threads > 0 && (
-                                    <span className="shrink-0 text-[10px] font-mono px-1.5 py-px rounded bg-[#181E2B] text-[#A1A4AC] border border-[#283144]">
+                                    <span className="shrink-0 text-[10px] font-mono px-1.5 py-px rounded bg-[#181E2B] text-[var(--quant-muted-foreground)] border border-[#283144]">
                                       {threads}
                                     </span>
                                   )}
@@ -967,7 +967,7 @@ export default function ContactsPage() {
                             active
                               ? 'text-[var(--quant-primary)]'
                               : exists
-                                ? 'text-[#F5F5F5] hover:text-[var(--quant-primary)]'
+                                ? 'text-[var(--quant-foreground)] hover:text-[var(--quant-primary)]'
                                 : 'text-[#6B7280]'
                           }`}
                         >
@@ -1066,7 +1066,7 @@ export default function ContactsPage() {
             <div>
               <label
                 htmlFor="contact-name"
-                className="block text-xs font-semibold text-[#A1A4AC] mb-1"
+                className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
               >
                 Full Name *
               </label>
@@ -1077,7 +1077,7 @@ export default function ContactsPage() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="e.g. Sundar Pichai"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[var(--quant-primary)]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]"
                 autoFocus
                 data-autofocus
               />
@@ -1086,7 +1086,7 @@ export default function ContactsPage() {
             <div>
               <label
                 htmlFor="contact-email"
-                className="block text-xs font-semibold text-[#A1A4AC] mb-1"
+                className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
               >
                 Email Address *
               </label>
@@ -1097,7 +1097,7 @@ export default function ContactsPage() {
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="e.g. sundar@quantmail.in"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[var(--quant-primary)]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]"
               />
             </div>
 
@@ -1105,7 +1105,7 @@ export default function ContactsPage() {
               <div>
                 <label
                   htmlFor="contact-phone"
-                  className="block text-xs font-semibold text-[#A1A4AC] mb-1"
+                  className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
                 >
                   Phone
                 </label>
@@ -1116,13 +1116,13 @@ export default function ContactsPage() {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="+1 (650) 253-0000"
-                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[var(--quant-primary)]"
+                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]"
                 />
               </div>
               <div>
                 <label
                   htmlFor="contact-company"
-                  className="block text-xs font-semibold text-[#A1A4AC] mb-1"
+                  className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
                 >
                   Company
                 </label>
@@ -1133,7 +1133,7 @@ export default function ContactsPage() {
                   value={formData.company}
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                   placeholder="Alphabet Inc."
-                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[var(--quant-primary)]"
+                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]"
                 />
               </div>
             </div>
@@ -1141,7 +1141,7 @@ export default function ContactsPage() {
             <div>
               <label
                 htmlFor="contact-tags"
-                className="block text-xs font-semibold text-[#A1A4AC] mb-1"
+                className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
               >
                 Tags (comma-separated)
               </label>
@@ -1152,7 +1152,7 @@ export default function ContactsPage() {
                 value={formData.tags}
                 onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
                 placeholder="VIP, Executive, Engineering"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[var(--quant-primary)]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]"
               />
             </div>
 

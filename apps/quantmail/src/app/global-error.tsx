@@ -35,7 +35,7 @@ export default function GlobalError({
           justifyContent: 'center',
           padding: '24px',
           backgroundColor: 'var(--quant-background)',
-          color: '#F5F5F5',
+          color: 'var(--quant-foreground)',
           fontFamily:
             'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
         }}
@@ -79,7 +79,7 @@ export default function GlobalError({
           >
             QuantMail couldn&apos;t start
           </h1>
-          <p style={{ margin: '0 0 20px', fontSize: '14px', lineHeight: 1.6, color: '#A1A4AC' }}>
+          <p style={{ margin: '0 0 20px', fontSize: '14px', lineHeight: 1.6, color: 'var(--quant-muted-foreground)' }}>
             Something failed before the workspace could load. Reloading usually clears it.
           </p>
 
@@ -89,7 +89,7 @@ export default function GlobalError({
                 margin: '0 0 20px',
                 fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
                 fontSize: '11px',
-                color: '#6B6E76',
+                color: 'var(--quant-text-muted)',
               }}
             >
               Reference: {error.digest}
@@ -130,7 +130,7 @@ export default function GlobalError({
                 padding: '0 20px',
                 borderRadius: '10px',
                 border: '1px solid var(--quant-surface-elevated)',
-                color: '#A1A4AC',
+                color: 'var(--quant-muted-foreground)',
                 fontSize: '14px',
                 fontWeight: 500,
                 textDecoration: 'none',

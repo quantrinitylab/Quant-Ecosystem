@@ -129,17 +129,17 @@ export function GroupEditorModal({ group, onClose, onSave, onDelete }: GroupEdit
                 .toUpperCase()}
             </div>
             <div className="min-w-0">
-              <h2 id={`${baseId}-title`} className="text-lg font-bold text-[#F5F5F5]">
+              <h2 id={`${baseId}-title`} className="text-lg font-bold text-[var(--quant-foreground)]">
                 {editing ? 'Edit group' : 'New group'}
               </h2>
-              <p className="text-xs text-[#A1A4AC]">Name, avatar color, and members</p>
+              <p className="text-xs text-[var(--quant-muted-foreground)]">Name, avatar color, and members</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close group editor"
-            className="flex size-11 shrink-0 items-center justify-center rounded-xl text-[#A1A4AC] hover:bg-[var(--quant-surface-elevated)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+            className="flex size-11 shrink-0 items-center justify-center rounded-xl text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           >
             ✕
           </button>
@@ -149,7 +149,7 @@ export function GroupEditorModal({ group, onClose, onSave, onDelete }: GroupEdit
           <div>
             <label
               htmlFor={`${baseId}-name`}
-              className="mb-1.5 block text-xs font-semibold text-[#A1A4AC]"
+              className="mb-1.5 block text-xs font-semibold text-[var(--quant-muted-foreground)]"
             >
               Group name
             </label>
@@ -163,13 +163,13 @@ export function GroupEditorModal({ group, onClose, onSave, onDelete }: GroupEdit
                 setName(event.target.value);
                 setError('');
               }}
-              className="min-h-[44px] w-full rounded-xl border border-[#3A404D] bg-[var(--quant-background)] px-3 text-sm text-white placeholder-[#6B6E76] focus:border-[var(--quant-primary)] focus:outline-none"
+              className="min-h-[44px] w-full rounded-xl border border-[#3A404D] bg-[var(--quant-background)] px-3 text-sm text-white placeholder-[var(--quant-text-muted)] focus:border-[var(--quant-primary)] focus:outline-none"
               placeholder="Founders & Core Team"
             />
           </div>
 
           <fieldset>
-            <legend className="mb-2 text-xs font-semibold text-[#A1A4AC]">Avatar color</legend>
+            <legend className="mb-2 text-xs font-semibold text-[var(--quant-muted-foreground)]">Avatar color</legend>
             <div className="flex flex-wrap gap-2">
               {ACCENTS.map((accent) => (
                 <label
@@ -197,7 +197,7 @@ export function GroupEditorModal({ group, onClose, onSave, onDelete }: GroupEdit
           <div>
             <label
               htmlFor={`${baseId}-member`}
-              className="mb-1.5 block text-xs font-semibold text-[#A1A4AC]"
+              className="mb-1.5 block text-xs font-semibold text-[var(--quant-muted-foreground)]"
             >
               Members
             </label>
@@ -216,7 +216,7 @@ export function GroupEditorModal({ group, onClose, onSave, onDelete }: GroupEdit
                     addMember();
                   }
                 }}
-                className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-[#3A404D] bg-[var(--quant-background)] px-3 text-sm text-white placeholder-[#6B6E76] focus:border-[var(--quant-primary)] focus:outline-none"
+                className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-[#3A404D] bg-[var(--quant-background)] px-3 text-sm text-white placeholder-[var(--quant-text-muted)] focus:border-[var(--quant-primary)] focus:outline-none"
                 placeholder="person@example.com"
               />
               <button
@@ -239,14 +239,14 @@ export function GroupEditorModal({ group, onClose, onSave, onDelete }: GroupEdit
                   >
                     {email.slice(0, 2).toUpperCase()}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-xs text-[#F5F5F5]">{email}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-[var(--quant-foreground)]">{email}</span>
                   <button
                     type="button"
                     onClick={() =>
                       setMembers((current) => current.filter((member) => member !== email))
                     }
                     aria-label={`Remove ${email}`}
-                    className="flex size-11 shrink-0 items-center justify-center rounded-xl text-[#A1A4AC] hover:bg-rose-500/10 hover:text-rose-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                    className="flex size-11 shrink-0 items-center justify-center rounded-xl text-[var(--quant-muted-foreground)] hover:bg-rose-500/10 hover:text-rose-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                   >
                     ✕
                   </button>
@@ -263,14 +263,14 @@ export function GroupEditorModal({ group, onClose, onSave, onDelete }: GroupEdit
 
           {confirmDelete && group ? (
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--quant-surface-elevated)] pt-4">
-              <p className="text-xs text-[#A1A4AC]">
+              <p className="text-xs text-[var(--quant-muted-foreground)]">
                 Delete <strong className="text-white">{group.name}</strong>?
               </p>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setConfirmDelete(false)}
-                  className="min-h-[44px] rounded-xl border border-[var(--quant-surface-elevated)] px-4 text-xs font-semibold text-[#F5F5F5]"
+                  className="min-h-[44px] rounded-xl border border-[var(--quant-surface-elevated)] px-4 text-xs font-semibold text-[var(--quant-foreground)]"
                 >
                   Cancel
                 </button>
@@ -301,7 +301,7 @@ export function GroupEditorModal({ group, onClose, onSave, onDelete }: GroupEdit
                 <button
                   type="button"
                   onClick={onClose}
-                  className="min-h-[44px] rounded-xl border border-[var(--quant-surface-elevated)] px-4 text-xs font-semibold text-[#F5F5F5]"
+                  className="min-h-[44px] rounded-xl border border-[var(--quant-surface-elevated)] px-4 text-xs font-semibold text-[var(--quant-foreground)]"
                 >
                   Cancel
                 </button>
