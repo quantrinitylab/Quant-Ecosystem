@@ -47,7 +47,13 @@ function LoginForm() {
   const [deadline, setDeadline] = useState<number | null>(null);
   const codeInputRef = useRef<HTMLInputElement | null>(null);
 
-  const successMessage = searchParams?.get('success');
+  const successCode = searchParams?.get('success');
+  const successMessages: Record<string, string> = {
+    signed_out: 'You have been signed out.',
+    account_created: 'Your Quant account is ready. Sign in to continue.',
+    password_reset: 'Your password was updated. Sign in to continue.',
+  };
+  const successMessage = successCode ? successMessages[successCode] ?? null : null;
   const switchTo = searchParams?.get('switch_to') ?? null;
   const isAddingAccount = searchParams?.get('add_account') === 'true';
 
