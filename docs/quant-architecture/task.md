@@ -382,6 +382,16 @@ Required: add/version the canonical bootstrap response and make AuthProvider/Aut
 Scope: apps/quantmail/src/providers/auth-provider.tsx; apps/quantmail/src/components/AuthGuard.tsx; browser auth/session API; workspace bootstrap contract.
 Dependencies: QM-AUTH-008; QM-PLAT-010.
 
+
+## QM-SCREEN-030 — QuantMail shell must not fetch the full inbox to render unrelated product chrome
+Status: [ ] TODO
+Finding: `apps/quantmail/src/components/AppShell.tsx` calls `useInbox({ folderType: 'INBOX' })` at shell level and derives unread/lens counts from the loaded mail collection. Because AppShell wraps Calendar, Drive, Contacts and QuantGit routes, those products inherit a mailbox data dependency even when the active screen has no mail UI. A mailbox outage/slow query can therefore affect unrelated product chrome and the shell can perform unnecessary mail work on every route.
+Required: replace full-inbox hydration in the global shell with a lightweight authoritative workspace/notification summary contract (or route-local mail summary only where needed). Mail badges must remain source-of-truth backed without loading the inbox dataset into unrelated products. Define degraded behavior when the summary service is unavailable: unrelated products remain usable and only the mail badge becomes unavailable/stale according to policy.
+Acceptance: Calendar/Drive/Contacts/QuantGit navigation does not issue full inbox queries; badge counts come from a bounded summary endpoint/cache with explicit freshness; dependency failure does not block unrelated routes; Web/Tauri/Capacitor/Flutter expose equivalent semantics.
+Scope: apps/quantmail/src/components/AppShell.tsx; inbox hooks; workspace bootstrap/notification-summary contract; platform adapters.
+Dependencies: QM-AUTH-008; QM-SCREEN-003; QM-PLAT-007; QM-PLAT-010.
+
+
 ## QM-SCREEN-029 — QuantMail Flutter startup must converge on the same bootstrap semantics
 Status: [ ] TODO
 Finding: Flutter AppBootstrap currently hydrates TokenManager, binds silent refresh/connectivity, and relies on `authSessionProvider`/router for authentication. The route contract is centered on `/login -> /inbox`, but no authoritative workspace bootstrap is established at startup and auth loading/error states do not distinguish offline, dependency-unavailable and invalid-session conditions. This is a platform implementation gap, not a reason to duplicate web UI.
