@@ -328,7 +328,7 @@ export const PILLAR_TILES: PillarTile[] = [
     accentColor: '#FF6B35',
     borderColor: 'border-[#FF6B35]/50',
     glowColor: 'shadow-[0_0_12px_rgba(255,107,53,0.18)]',
-    searchPlaceholder: 'Search emails, senders, keywords… <5ms',
+    searchPlaceholder: 'Search emails, senders, keywords…',
     themeBg: 'linear-gradient(180deg, rgba(255,107,53,0.08) 0%, transparent 40%)',
     themeGlow: 'rgba(255,107,53,0.15)',
     icon: MailLogoIcon,
@@ -340,7 +340,7 @@ export const PILLAR_TILES: PillarTile[] = [
     accentColor: '#4285F4',
     borderColor: 'border-[#4285F4]/50',
     glowColor: 'shadow-[0_0_12px_rgba(66,133,244,0.18)]',
-    searchPlaceholder: 'Search events, meetings, attendees… <5ms',
+    searchPlaceholder: 'Search events, meetings, attendees…',
     themeBg: 'linear-gradient(180deg, rgba(66,133,244,0.08) 0%, transparent 40%)',
     themeGlow: 'rgba(66,133,244,0.15)',
     icon: CalendarLogoIcon,
@@ -352,7 +352,7 @@ export const PILLAR_TILES: PillarTile[] = [
     accentColor: '#34A853',
     borderColor: 'border-[#34A853]/50',
     glowColor: 'shadow-[0_0_12px_rgba(52,168,83,0.18)]',
-    searchPlaceholder: 'Search files, documents, FastCDC tags… <5ms',
+    searchPlaceholder: 'Search files, documents, FastCDC tags…',
     themeBg: 'linear-gradient(180deg, rgba(52,168,83,0.08) 0%, transparent 40%)',
     themeGlow: 'rgba(52,168,83,0.15)',
     icon: DriveLogoIcon,
@@ -364,7 +364,7 @@ export const PILLAR_TILES: PillarTile[] = [
     accentColor: '#8AB4F8',
     borderColor: 'border-[#8AB4F8]/50',
     glowColor: 'shadow-[0_0_12px_rgba(138,180,248,0.18)]',
-    searchPlaceholder: 'Search VIPs, contacts, companies… <5ms',
+    searchPlaceholder: 'Search VIPs, contacts, companies…',
     themeBg: 'linear-gradient(180deg, rgba(138,180,248,0.08) 0%, transparent 40%)',
     themeGlow: 'rgba(138,180,248,0.15)',
     icon: ContactsLogoIcon,
@@ -376,7 +376,7 @@ export const PILLAR_TILES: PillarTile[] = [
     accentColor: '#A855F7',
     borderColor: 'border-[#A855F7]/50',
     glowColor: 'shadow-[0_0_12px_rgba(168,85,247,0.18)]',
-    searchPlaceholder: 'Search repositories, pull requests, commits… <5ms',
+    searchPlaceholder: 'Search repositories, pull requests, commits…',
     themeBg: 'linear-gradient(180deg, rgba(168,85,247,0.08) 0%, transparent 40%)',
     themeGlow: 'rgba(168,85,247,0.15)',
     icon: QuantGitLogoIcon,
@@ -615,6 +615,18 @@ export function QuantPillarTopBar({
 
   const activeTile = PILLAR_TILES.find((t) => t.id === currentPillar) || PILLAR_TILES[0];
   const activeLenses = PILLAR_LENSES[currentPillar] || [];
+
+  // Clear stale search text when switching pillars (app tabs). This bar lives
+  // in layout-level AppShell and does not remount on tab switches, so without
+  // this the previous tab's query would linger in the input.
+  const prevPillarRef = useRef<PillarId | null>(null);
+  useEffect(() => {
+    if (prevPillarRef.current !== null && prevPillarRef.current !== currentPillar) {
+      setInternalSearch('');
+      onSearchChange?.('');
+    }
+    prevPillarRef.current = currentPillar;
+  }, [currentPillar, onSearchChange]);
 
   /*
    * The lens strip duplicates page-level filter rows on four of the five
@@ -1364,12 +1376,6 @@ export function QuantPillarTopBar({
         >
           <ClearSearchIcon className="size-3.5" />
         </button>
-
-        <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#12151E] border border-[#232938] text-[10px] font-mono text-emerald-400">
-          <LightningSpeedIcon className="size-2.5 text-emerald-400" />
-          <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span>&lt;5ms LIVE</span>
-        </div>
       </div>
     </div>
     )}

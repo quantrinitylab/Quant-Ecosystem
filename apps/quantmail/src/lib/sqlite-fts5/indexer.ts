@@ -6,7 +6,7 @@
  *   CREATE VIRTUAL TABLE IF NOT EXISTS emails_fts USING fts5(id UNINDEXED, threadId UNINDEXED, subject, snippet, bodyText, fromAddress, toAddress, receivedAt UNINDEXED, tokenize='porter unicode61');
  * - Methods:
  *   - indexEmails(emails: EmailItem[]): Batches indexing with INSERT OR REPLACE INTO emails_fts without blocking UI.
- *   - search(query: string, options?: { limit?: number; offset?: number }): Executes SELECT id, threadId, subject, snippet, snippet(emails_fts, 2, '<mark>', '</mark>', '...', 12) as matchSnippet, bm25(emails_fts) as rank FROM emails_fts WHERE emails_fts MATCH ? ORDER BY rank LIMIT ? OFFSET ? returning sub-5ms ranked results.
+ *   - search(query: string, options?: { limit?: number; offset?: number }): Executes SELECT id, threadId, subject, snippet, snippet(emails_fts, 2, '<mark>', '</mark>', '...', 12) as matchSnippet, bm25(emails_fts) as rank FROM emails_fts WHERE emails_fts MATCH ? ORDER BY rank LIMIT ? OFFSET ? returning ranked results from the local index.
  *   - Fuzzy / Prefix Match Fallback: If exact match yields 0 hits, retry query with prefix wildcard query* or tokenized OR matching.
  *   - Fast memory / indexed cache synchronization on inbox fetch.
  */
@@ -94,7 +94,7 @@ export class SqliteFts5Indexer {
   }
 
   /**
-   * Executes sub-5ms ranked search query.
+   * Executes ranked search query against the local index.
    * SELECT id, threadId, subject, snippet, snippet(emails_fts, 2, '<mark>', '</mark>', '...', 12) as matchSnippet, bm25(emails_fts) as rank FROM emails_fts WHERE emails_fts MATCH ? ORDER BY rank LIMIT ? OFFSET ?
    */
   public search(query: string, options?: Fts5SearchOptions): Fts5SearchResult[] {

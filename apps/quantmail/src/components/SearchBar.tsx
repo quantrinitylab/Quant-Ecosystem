@@ -1,14 +1,16 @@
 'use client';
 
 // ============================================================================
-// QuantMail — Superhuman Local-First SQLite FTS5 SearchBar (Task M15)
-// Sub-5ms instant local search with concurrent background server query
+// QuantMail — Local-First SQLite FTS5 SearchBar (Task M15)
+// Instant local search with concurrent background server query.
+// Note: the local index query time is NOT end-to-end search latency —
+// results are hydrated from the server. No latency figures are shown.
 // ============================================================================
 
 import React, { useState, useEffect, useRef, useTransition, useCallback } from 'react';
 import { getFts5Indexer, type Fts5SearchResult } from '../lib/sqlite-fts5';
 import { SearchClearButton } from './SearchClearButton';
-import { IconSearch, IconBolt } from './icons';
+import { IconSearch } from './icons';
 
 export interface SearchBarProps {
   value?: string;
@@ -29,7 +31,6 @@ export function SearchBar({
 }: SearchBarProps) {
   const [internalValue, setInternalValue] = useState(controlledValue || '');
   const [localResults, setLocalResults] = useState<Fts5SearchResult[]>([]);
-  const [searchLatency, setSearchLatency] = useState<number | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [, startTransition] = useTransition();
@@ -39,23 +40,21 @@ export function SearchBar({
 
   const query = controlledValue !== undefined ? controlledValue : internalValue;
 
-  // Execute instant sub-5ms local SQLite FTS5 search on keystroke
+  // Execute instant local SQLite FTS5 search on keystroke.
+  // The local index query is fast, but displayed results are hydrated from
+  // the server — so no latency figure is shown (it would mislead).
   const executeLocalSearch = useCallback((term: string) => {
     const trimmed = term.trim();
     if (!trimmed) {
       setLocalResults([]);
-      setSearchLatency(null);
       setIsOpen(false);
       return;
     }
 
-    const t0 = performance.now();
     const hits = getFts5Indexer().search(trimmed, { limit: 8 });
-    const duration = performance.now() - t0;
 
     startTransition(() => {
       setLocalResults(hits);
-      setSearchLatency(duration);
       setIsOpen(hits.length > 0);
       setSelectedIndex(0);
     });
@@ -76,7 +75,6 @@ export function SearchBar({
     }
     onChange?.('');
     setLocalResults([]);
-    setSearchLatency(null);
     setIsOpen(false);
     inputRef.current?.focus();
   };
@@ -150,31 +148,20 @@ export function SearchBar({
         />
 
         <div className="absolute right-2 flex items-center space-x-1">
-          {searchLatency !== null && query.trim().length > 0 && (
-            <span
-              className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 select-none flex items-center gap-1"
-              title="Superhuman Local SQLite FTS5 search execution time"
-            >
-              <IconBolt size={10} className="text-emerald-400" />
-              <span>{searchLatency.toFixed(1)}ms</span>
-            </span>
-          )}
-
           {query.length > 0 && <SearchClearButton onClear={handleClear} />}
         </div>
       </div>
 
-      {/* Sub-5ms Instant Results Dropdown */}
+      {/* Instant Results Dropdown */}
       {isOpen && localResults.length > 0 && (
         <div
           className="absolute z-50 left-0 right-0 mt-1 bg-neutral-900/95 backdrop-blur-md border border-neutral-700/80 rounded-lg shadow-2xl max-h-96 overflow-y-auto divide-y divide-neutral-800"
           role="listbox"
         >
           <div className="px-3 py-1.5 text-[11px] font-medium text-neutral-400 flex justify-between items-center bg-neutral-950/40">
-            <span>Instant Local FTS5 Matches</span>
-            <span className="text-[10px] text-emerald-400 font-mono">
-              {localResults.length} hit{localResults.length === 1 ? '' : 's'} in{' '}
-              {searchLatency?.toFixed(1)}ms
+            <span>Local FTS5 Matches</span>
+            <span className="text-[10px] text-neutral-400 font-mono">
+              {localResults.length} hit{localResults.length === 1 ? '' : 's'}
             </span>
           </div>
 

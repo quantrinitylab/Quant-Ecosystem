@@ -957,7 +957,7 @@ export default function PublicBookingPage(props: PageProps) {
 
       {/* Footer */}
       <footer className="py-4 text-center text-xs text-[#5E6472] border-t border-[#282C35]/60 bg-[#0c0c0f]">
-        QuantCalendar • Sovereign Scheduling Platform • Zero Ads • Sub-5ms Performance
+        QuantCalendar • Sovereign Scheduling Platform • Zero Ads
       </footer>
     </div>
   );

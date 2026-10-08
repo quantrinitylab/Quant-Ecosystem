@@ -381,21 +381,21 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
 
       expect(html).toContain('rounded-xl bg-[#16181F] border border-[#232938]');
-      expect(html).toContain('placeholder="Search emails, senders, keywords… &lt;5ms"');
+      expect(html).toContain('placeholder="Search emails, senders, keywords…"');
     });
 
     it('swaps contextual placeholder when active pillar changes to Calendar, Drive, Contacts, or QuantGit', () => {
       const calHtml = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="calendar" />);
-      expect(calHtml).toContain('placeholder="Search events, meetings, attendees… &lt;5ms"');
+      expect(calHtml).toContain('placeholder="Search events, meetings, attendees…"');
 
       const driveHtml = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="drive" />);
-      expect(driveHtml).toContain('placeholder="Search files, documents, FastCDC tags… &lt;5ms"');
+      expect(driveHtml).toContain('placeholder="Search files, documents, FastCDC tags…"');
 
       const contactsHtml = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" />);
-      expect(contactsHtml).toContain('placeholder="Search VIPs, contacts, companies… &lt;5ms"');
+      expect(contactsHtml).toContain('placeholder="Search VIPs, contacts, companies…"');
 
       const gitHtml = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="quantgit" />);
-      expect(gitHtml).toContain('placeholder="Search repositories, pull requests, commits… &lt;5ms"');
+      expect(gitHtml).toContain('placeholder="Search repositories, pull requests, commits…"');
     });
 
     it('renders dedicated microphone button for voice search', () => {

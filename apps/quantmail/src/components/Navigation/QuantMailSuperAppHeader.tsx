@@ -478,7 +478,7 @@ export function QuantMailSuperAppHeader({
   searchValue = '',
   onSearchChange,
   onSearchSubmit,
-  searchPlaceholder = 'Search across Mail, Calendar, Drive, Contacts, QuantGit… (<5ms FTS5)',
+  searchPlaceholder = 'Search across Mail, Calendar, Drive, Contacts, QuantGit…',
   unreadNotifications = 3,
   quantCredits = '1,250 QC',
   userInitials = 'QT',

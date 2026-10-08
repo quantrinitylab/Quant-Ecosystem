@@ -8,7 +8,8 @@
  * - Multi-term boolean search (AND, OR, NOT)
  * - Prefix query wildcard matching: repo* matching repository
  * - SQLite FTS5 snippet() generation: snippet(emails_fts, 2, '<mark>', '</mark>', '...', 12)
- * - Sub-5ms search execution latency across thousands of emails
+ * - Low-latency local search execution across thousands of emails
+ *   (local index only; not end-to-end latency)
  * - Automatic fuzzy / prefix fallback on zero hits
  */
 
@@ -257,7 +258,7 @@ export class Fts5Engine {
   }
 
   /**
-   * Executes sub-5ms ranked search query with exact phrase, prefix wildcard,
+   * Executes ranked search query with exact phrase, prefix wildcard,
    * boolean logic, and automatic fuzzy fallback.
    */
   public search(rawQuery: string, options: Fts5SearchOptions = {}): Fts5SearchResponse {

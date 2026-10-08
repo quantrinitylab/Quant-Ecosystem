@@ -65,11 +65,12 @@ describe('QuantMailSuperAppHeader — Amazon/Flipkart-Class Super-App Command He
     it('renders wide global search bar with Ctrl+K shortcut, voice, and scan lens buttons', () => {
       const html = renderToStaticMarkup(
         <QuantMailSuperAppHeader
-          searchPlaceholder="Search across Mail, Calendar, Drive, Contacts, QuantGit… (<5ms FTS5)"
+          searchPlaceholder="Search across Mail, Calendar, Drive, Contacts, QuantGit…"
         />
       );
 
-      expect(html).toContain('Search across Mail, Calendar, Drive, Contacts, QuantGit… (&lt;5ms FTS5)');
+      expect(html).toContain('Search across Mail, Calendar, Drive, Contacts, QuantGit…');
+      expect(html).not.toContain('5ms');
       expect(html).toContain('Ctrl+K');
       expect(html).toContain('aria-label="Voice Search"');
       expect(html).toContain('aria-label="Scan Document or QR"');
