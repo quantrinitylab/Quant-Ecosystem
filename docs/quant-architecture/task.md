@@ -1064,6 +1064,7 @@ Dependencies: none.
 
 ## QM-UIUX-044 — App-switch blur: load-tied, drop full-main filter blur
 Status: [~] IN_PROGRESS — Owner: 2c3d4e5f-6a7b-8c9d-0e1f-2a3b4c5d6e7f; Branch: fix/qm-uiux-044-blur
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/644
 Finding: (a) app-switch blur is a fixed 380ms timer (`AppShell.tsx:614`), not load-tied — route loads in 50ms → user stares at blur for 330ms for nothing; route takes 800ms → blur lifts mid-load; (b) `filter: blur(10px)` on full `<main>` (`AppShell.tsx:1000`) is NOT GPU-composited — repaints entire inbox list every frame, real jank risk on low-end mobile. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/motion-audit.md`.
 Required: tie `setIsSwitching(false)` to real route settle (380ms as max fallback); restrict blur to lightweight overlay or drop for transform+opacity only.
 Scope: `AppShell.tsx`.
