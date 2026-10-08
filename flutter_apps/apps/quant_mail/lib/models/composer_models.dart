@@ -52,39 +52,10 @@ class EmailRecipient {
   @override
   int get hashCode => email.toLowerCase().hashCode;
 
-  /// Default Ecosystem Contacts for High-Fidelity Autocomplete
-  static const List<EmailRecipient> sovereignContacts = [
-    EmailRecipient(
-      name: 'Sundar Pichai',
-      email: 'sundar@google.com',
-      isContact: true,
-    ),
-    EmailRecipient(
-      name: 'Dev Sentinel',
-      email: 'sentinel@quantrinity.lab',
-      isContact: true,
-    ),
-    EmailRecipient(
-      name: 'Satya Nadella',
-      email: 'satya@microsoft.com',
-      isContact: true,
-    ),
-    EmailRecipient(
-      name: 'Alex Mercer',
-      email: 'alex@trinity.lab',
-      isContact: true,
-    ),
-    EmailRecipient(
-      name: 'Jensen Huang',
-      email: 'jensen@nvidia.com',
-      isContact: true,
-    ),
-    EmailRecipient(
-      name: 'Demis Hassabis',
-      email: 'demis@deepmind.google.com',
-      isContact: true,
-    ),
-  ];
+  /// Default Ecosystem Contacts for autocomplete.
+  /// QM-UIUX-059: removed fake contacts using real public figures' names
+  /// (web PR #631 standard). Empty until wired to the real contacts API.
+  static const List<EmailRecipient> sovereignContacts = [];
 }
 
 /// [EmailAttachment] Entity with 25MB Guard Computations

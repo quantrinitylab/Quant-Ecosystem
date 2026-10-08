@@ -153,14 +153,18 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Quantum-Resistant Envelope Security',
+                          // QM-UIUX-059: neutral title, no unverified crypto claims
+                          'Message Security',
                           style: QuantTypography.titleMedium.copyWith(
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
                           ),
                         ),
                         Text(
-                          'Latency: ${sec.deliveryLatencyMs}ms · Protocol: Kyber-1024',
+                          // QM-UIUX-059: honest latency/protocol display
+                          sec.deliveryLatencyMs >= 0
+                              ? 'Latency: ${sec.deliveryLatencyMs}ms'
+                              : 'Security details unavailable',
                           style: QuantTypography.labelSpeed.copyWith(
                             color: QuantColors.textSecondary,
                           ),
@@ -170,11 +174,12 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen>
                   ],
                 ),
                 const SizedBox(height: 20),
-                _buildSecurityRow('SPF Verification', sec.spf, true),
-                _buildSecurityRow('DKIM Signature', sec.dkim, true),
-                _buildSecurityRow('DMARC Alignment', sec.dmarc, true),
-                _buildSecurityRow('End-to-End Encryption', sec.e2ee, true),
-                _buildSecurityRow('TLS Cipher Suite', sec.tlsCipher, true),
+                // QM-UIUX-059: verified only when backend reports a real PASS
+                _buildSecurityRow('SPF Verification', sec.spf, sec.spf == 'PASS'),
+                _buildSecurityRow('DKIM Signature', sec.dkim, sec.dkim == 'PASS'),
+                _buildSecurityRow('DMARC Alignment', sec.dmarc, sec.dmarc == 'PASS'),
+                _buildSecurityRow('End-to-End Encryption', sec.e2ee, sec.e2ee != 'unknown'),
+                _buildSecurityRow('TLS Cipher Suite', sec.tlsCipher, sec.tlsCipher != 'unknown'),
                 _buildSecurityRow('Envelope Source IP', sec.sourceIp, false),
                 _buildSecurityRow('Message-ID', sec.messageId, false),
                 const SizedBox(height: 16),

@@ -92,16 +92,8 @@ class AccountProfileSheet extends StatefulWidget {
 class _AccountProfileSheetState extends State<AccountProfileSheet>
     with SingleTickerProviderStateMixin {
   // Pre-configured Sovereign Demo Identities
+  // QM-UIUX-059: removed fake identity using a real person's name.
   static const List<QuantIdentity> _identities = [
-    QuantIdentity(
-      id: 'sp',
-      name: 'Sundar Pichai',
-      initials: 'SP',
-      email: 'sundar@quantmail.in',
-      role: 'Enterprise CEO',
-      accentColor: QuantColors.moltenAmber,
-      isHardwareKeyBacked: true,
-    ),
     QuantIdentity(
       id: 'ds',
       name: 'Dev Sentinel',
@@ -578,7 +570,8 @@ class _AccountProfileSheetState extends State<AccountProfileSheet>
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'EKS 20-Pod Mesh · Mumbai Staging · TLS 1.3 · Kyber-768 E2EE',
+                  // QM-UIUX-059: removed unverified infra/crypto claims
+                  'QuantMail',
                   style: TextStyle(
                     color: QuantColors.textMuted,
                     fontSize: 11,
