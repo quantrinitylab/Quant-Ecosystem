@@ -250,13 +250,13 @@ Validation: CI gate green; step-up contract tests green; merged to main
 Commit SHA: 98c781a7
 Notes: Broader 2FA state-machine hardening (QM-AUTH-007) remains open for auth-flow integration; staging deploy verification pending.
 ## QM-BACK-006 — Data lifecycle events
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Required: export/deletion/retention/legal-hold events; derived-index invalidation; verified completion.
 Dependencies: QM-BACK-001; universal search.
 
 Owner: Muse
 Branch: feat/qm-back-006-data-lifecycle-events
-Notes: claimed 2026-10-08; PR #611 OPEN (agent complete 2026-10-08): 10 versioned lifecycle events via K1 outbox spine, lifecycle_operations + projector_checkpoints verified completion, hold-guard 423, search-indexer invalidation (Meili+Qdrant), migration 0083; tests 12/12 + 7/7 green locally, CI typecheck green; main merged in (review_by fix); awaiting gate → merge
+Notes: claimed 2026-10-08; PR #611 MERGED 2026-10-08 (orchestrator). Implementation verified by main agent: 10 versioned lifecycle events via K1 outbox, lifecycle_operations + projector_checkpoints, hold-guard 423, search-indexer invalidation, migration 0083; tests 12/12 + 7/7 green locally, gate green. Staging deploy of backend re-triggered 06:5x IST after resolving failed 0082 migration (P3018); verification pending.: 10 versioned lifecycle events via K1 outbox spine, lifecycle_operations + projector_checkpoints verified completion, hold-guard 423, search-indexer invalidation (Meili+Qdrant), migration 0083; tests 12/12 + 7/7 green locally, CI typecheck green; main merged in (review_by fix); awaiting gate → merge
 Notes: claimed 2026-10-08; Data lifecycle events; dep QM-BACK-001 met via #597
 ## QM-BACK-007 — Dependency health / degraded modes
 Status: [x] DONE
