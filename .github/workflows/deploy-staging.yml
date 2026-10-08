@@ -168,6 +168,10 @@ jobs:
         run: |
           set -euo pipefail
           runs_migrations=false
+          # CUST-P0-1/2 (2026-10-08): EVERY backend target must run migrations.
+          # All backends share the staging RDS database and the same
+          # packages/database/prisma schema; a migration added for any app
+          # must land on deploy of any backend, or schema drift 500s recur.
           case "$TARGET" in
             quantmail)
               repository=quant-quantmail; dockerfile=apps/quantmail/Dockerfile
@@ -184,7 +188,7 @@ jobs:
             quantchat-backend)
               repository=quant-quantchat-backend; dockerfile=apps/quantchat/Dockerfile.backend
               deployment=quant-quantchat; container=quant-quantchat-backend
-              needs_cloudflare=false ;;
+              needs_cloudflare=false ; runs_migrations=true ;;
             quantai)
               repository=quant-quantai; dockerfile=apps/quantai/Dockerfile
               deployment=quant-quantai; container=quant-quantai
@@ -223,27 +227,27 @@ jobs:
             quantube-backend)
               repository=quant-quantube-backend; dockerfile=apps/quantube/Dockerfile.backend
               deployment=quant-quantube-backend; container=quantube-backend
-              needs_cloudflare=true ;;
+              needs_cloudflare=true ; runs_migrations=true ;;
             quantmax-backend)
               repository=quant-quantmax-backend; dockerfile=apps/quantmax/Dockerfile.backend
               deployment=quant-quantmax-backend; container=quantmax-backend
-              needs_cloudflare=true ;;
+              needs_cloudflare=true ; runs_migrations=true ;;
             quantneon-backend)
               repository=quant-quantneon-backend; dockerfile=apps/quantgram/Dockerfile.backend
               deployment=quant-quantneon-backend; container=quantneon-backend
-              needs_cloudflare=true ;;
+              needs_cloudflare=true ; runs_migrations=true ;;
             quantsync-backend)
               repository=quant-quantsync-backend; dockerfile=apps/quantwave/Dockerfile.backend
               deployment=quant-quantsync-backend; container=quantsync-backend
-              needs_cloudflare=true ;;
+              needs_cloudflare=true ; runs_migrations=true ;;
             quantedits-backend)
               repository=quant-quantedits-backend; dockerfile=apps/quantcooks/Dockerfile.backend
               deployment=quant-quantedits-backend; container=quantedits-backend
-              needs_cloudflare=true ;;
+              needs_cloudflare=true ; runs_migrations=true ;;
             quantads-backend)
               repository=quant-quantads-backend; dockerfile=apps/quantads/Dockerfile.backend
               deployment=quant-quantads-backend; container=quantads-backend
-              needs_cloudflare=true ;;
+              needs_cloudflare=true ; runs_migrations=true ;;
             cdc-relay)
               repository=quant-cdc-relay; dockerfile=services/cdc-relay/Dockerfile
               deployment=quant-cdc-relay; container=cdc-relay
@@ -346,6 +350,7 @@ jobs:
         shell: bash
         env:
           IMMUTABLE_IMAGE: ${{ steps.image.outputs.uri }}
+          TARGET: ${{ inputs.target }}
         run: |
           set -euo pipefail
           # CUST-P0 (2026-10-06/07): inbox "Something went wrong loading your
@@ -354,6 +359,14 @@ jobs:
           # signature of staging schema drift. Applying pending migrations
           # before the new image rolls out repairs the drift; a no-op when the
           # DB is already at HEAD.
+          #
+          # 2026-10-08: every *-backend target now runs this step, not just
+          # quantmail-backend. All backends share the staging RDS database and
+          # the same packages/database/prisma schema, so ANY backend deploy
+          # must repair drift, not just the mail one. `migrate deploy` is
+          # idempotent: concurrent backend deploys serialize on Prisma's
+          # advisory lock inside the database, and a no-op Job costs one
+          # finished Job (ttlSecondsAfterFinished GCs it).
           #
           # 2026-10-07: the migration used to run ON THE GITHUB RUNNER
           # (`npx prisma migrate deploy`), but the runner has no network path
@@ -381,7 +394,11 @@ jobs:
             }
           done
 
-          job="quantmail-migrate-${RELEASE_SHA:0:12}"
+          # The Job name is target-scoped: two backend deploys can dispatch the
+          # same release SHA concurrently (per-target concurrency groups), and
+          # a shared name would make them delete/recreate each other's Job.
+          # Target names come from the workflow's `choice` input (DNS-safe).
+          job="${TARGET}-migrate-${RELEASE_SHA:0:12}"
           work="$(mktemp -d)"
           trap 'rm -rf "$work"' EXIT
           cat > "$work/job.yaml" <<EOF
@@ -391,7 +408,7 @@ jobs:
             name: $job
             namespace: $K8S_NAMESPACE
             labels:
-              app.kubernetes.io/name: quantmail-migrate
+              app.kubernetes.io/name: $job
               app.kubernetes.io/part-of: quant-staging
           spec:
             # Migrations are idempotent: one retry absorbs a transient RDS
@@ -403,7 +420,7 @@ jobs:
             template:
               metadata:
                 labels:
-                  app.kubernetes.io/name: quantmail-migrate
+                  app.kubernetes.io/name: $job
               spec:
                 restartPolicy: Never
                 containers:
