@@ -1492,6 +1492,7 @@ Dependencies: none.
 Status: [~] IN_PROGRESS
 Owner: Muse
 Branch: fix/qm-m39-009-drive-scan-state
+PR: #663 (open, unmerged — backend scan states + UI badges + quarantine gates)
 Finding: M39 screen 29 (security/scanning state) missing. Files have no visible scan/availability state; preview principle depends on it.
 Required: backend scan-job states (pending/scanning/clean/quarantined/unknown); UI state indicators on files and in details; "unknown" must render as unknown, never as safe.
 Scope: apps/quantmail drive backend + UI.
