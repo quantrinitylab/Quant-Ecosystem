@@ -369,7 +369,11 @@ export class DeliveryWorker {
     const emailDelivery = email as unknown as EmailDeliveryFields;
     const messageId = emailDelivery.messageId ?? `<${randomUUID()}@${fromDomain}>`;
     if (!emailDelivery.messageId) {
-      await this.prisma.email.update({ where: { id: email.id }, data: { messageId } as never });
+      await this.prisma.email.update({
+        where: { id: email.id },
+        // QM-BACK-002: keep the version column truthful on system writes.
+        data: { messageId, version: { increment: 1 } } as never,
+      });
     }
 
     // When AWS SES is configured (production EKS with IRSA/IAM), transmit directly
@@ -580,7 +584,11 @@ export class DeliveryWorker {
       if (!deliveredAt) data['deliveredAt'] = this.now();
     }
 
-    await this.prisma.email.update({ where: { id: email.id }, data: data as never });
+    await this.prisma.email.update({
+      where: { id: email.id },
+      // QM-BACK-002: keep the version column truthful on system writes.
+      data: { ...(data as Record<string, unknown>), version: { increment: 1 } } as never,
+    });
     return next;
   }
 }

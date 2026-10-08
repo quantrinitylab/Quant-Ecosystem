@@ -3,12 +3,32 @@ import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { ThreadService } from '../services/thread.service';
 import { formatEmailRecord } from '../lib/format-email';
+import {
+  MutationOptions,
+  parseExpectedVersion,
+  resolveRequestId,
+} from '../lib/mutation-context';
 
 const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
   folderId: z.string().optional(),
 });
+
+/**
+ * QM-BACK-002: build the mutation options for a mutating route handler.
+ * `expectedVersion` comes from the request body (validated); `requestId` is
+ * the effective x-request-id the request-id plugin stamped (doc 23 correlationId).
+ */
+function mutationOpts(
+  request: { body?: unknown; headers?: Record<string, unknown> },
+  reply: { getHeader?: (name: string) => unknown },
+): MutationOptions {
+  return {
+    expectedVersion: parseExpectedVersion(request.body),
+    requestId: resolveRequestId(request, reply),
+  };
+}
 
 export default async function threadsRoutes(fastify: FastifyInstance) {
   // GET /threads
@@ -121,7 +141,8 @@ export default async function threadsRoutes(fastify: FastifyInstance) {
     }
     const prisma = (fastify as unknown as { prisma: any }).prisma;
     const service = new ThreadService(prisma as never);
-    const result = await service.muteThread(request.params.id, userId);
+    // QM-BACK-002: guard + correlation for the mute mutation.
+    const result = await service.muteThread(request.params.id, userId, mutationOpts(request, reply));
     return reply.send({ success: true, data: result });
   });
 
@@ -133,7 +154,8 @@ export default async function threadsRoutes(fastify: FastifyInstance) {
     }
     const prisma = (fastify as unknown as { prisma: any }).prisma;
     const service = new ThreadService(prisma as never);
-    const result = await service.unmuteThread(request.params.id, userId);
+    // QM-BACK-002: guard + correlation for the unmute mutation.
+    const result = await service.unmuteThread(request.params.id, userId, mutationOpts(request, reply));
     return reply.send({ success: true, data: result });
   });
 
@@ -148,7 +170,9 @@ export default async function threadsRoutes(fastify: FastifyInstance) {
     }
     const prisma = (fastify as unknown as { prisma: any }).prisma;
     const service = new ThreadService(prisma as never);
-    const result = await service.markThreadRead(request.params.id, userId);
+    // QM-BACK-002: correlation for the read pipeline; reads stay unguarded
+    // (they are idempotent reconciliations, not user writes).
+    const result = await service.markThreadRead(request.params.id, userId, mutationOpts(request, reply));
     return reply.send({ success: true, data: result });
   });
 }

@@ -23,6 +23,16 @@ import { retentionService } from './retention';
 import { RetentionService } from '../services/retention.service';
 import { suppressionService } from '../services/suppression.service';
 import { emitOutbox, MailOutboxEvents } from '../lib/outbox-events';
+import {
+  MutationOptions,
+  parseExpectedVersion,
+  parseExpectedVersions,
+  resolveRequestId,
+} from '../lib/mutation-context';
+import { versionedUpdate, VersionedTx } from '../lib/optimistic-update';
+import { LifecycleEvents } from '../lib/lifecycle-events';
+import { recordDeletionBlocked } from '../services/data-lifecycle.service';
+import type { LifecycleDb } from '../services/data-lifecycle.service';
 
 const notifier = new CrossAppDispatcher('quantmail');
 
@@ -35,6 +45,23 @@ export interface EmailsRouteOptions {
 
 function getPrisma(fastify: FastifyInstance): PrismaClient {
   return (fastify as unknown as { prisma: PrismaClient }).prisma;
+}
+
+/**
+ * QM-BACK-002: build the mutation options for a mutating route handler.
+ * `expectedVersion` comes from the request body (validated); `requestId` is
+ * the effective x-request-id the request-id plugin stamped (client-provided
+ * when valid, generated otherwise) so the whole mutation path — service,
+ * outbox events, logs — shares one correlation id (doc 23 correlationId).
+ */
+function mutationOpts(
+  request: { body?: unknown; headers?: Record<string, unknown> },
+  reply: { getHeader?: (name: string) => unknown },
+): MutationOptions {
+  return {
+    expectedVersion: parseExpectedVersion(request.body),
+    requestId: resolveRequestId(request, reply),
+  };
 }
 
 async function getOrCreateFolder(
@@ -275,6 +302,8 @@ export default async function emailsRoutes(
       attachments: d.attachments,
       messageKind: toMessageKind(d.messageKind),
       priority: d.priority,
+      // QM-BACK-002: correlate the draftCreated outbox event with this request.
+      requestId: mutationOpts(request, reply).requestId,
     });
 
     let delayMs: number | undefined;
@@ -305,6 +334,7 @@ export default async function emailsRoutes(
       const sent = await sendService.send(userId, email.id, sentFolderId!, {
         delayMs,
         sendAt: scheduledSendAt,
+        ...mutationOpts(request, reply),
       });
 
       if (!delayMs) {
@@ -375,10 +405,16 @@ export default async function emailsRoutes(
     const raw = (request.body ?? {}) as Record<string, unknown>;
     const provided = (key: string) => Object.prototype.hasOwnProperty.call(raw, key);
 
+    // QM-BACK-002: guard + correlation for draft edits (autosave races).
+    const draftOpts = mutationOpts(request, reply);
     // K1: draft update + outbox row in ONE transaction (doc 05).
     const email = await prisma.$transaction(async (tx) => {
-      const updated = await tx.email.update({
-        where: { id: request.params.id },
+      const updated = await versionedUpdate<Record<string, any>>(tx as unknown as VersionedTx, {
+        id: request.params.id,
+        resource: 'Email',
+        notFoundCode: 'EMAIL_NOT_FOUND',
+        notFoundMessage: 'Email not found',
+        expectedVersion: draftOpts.expectedVersion,
         data: {
           toAddresses: d.toAddresses,
           subject: d.subject,
@@ -407,6 +443,7 @@ export default async function emailsRoutes(
         payload: {
           userId,
           threadId: (updated as { threadId?: string | null }).threadId ?? null,
+          requestId: draftOpts.requestId,
         },
       });
       return updated;
@@ -450,6 +487,7 @@ export default async function emailsRoutes(
     const sent = await sendService.send(userId, email.id, sentFolder.id, {
       delayMs,
       sendAt: scheduledSendAt,
+      ...mutationOpts(request, reply),
     });
 
     const asArray = (value: unknown): string[] =>
@@ -479,12 +517,14 @@ export default async function emailsRoutes(
         });
         await prisma.email.update({
           where: { id: email.id },
-          data: { threadId: targetThreadId },
+          // QM-BACK-002: system link write keeps the version column truthful.
+          data: { threadId: targetThreadId, version: { increment: 1 } },
         });
       } else {
         await prisma.emailThread.update({
           where: { id: targetThreadId },
-          data: { lastEmailAt: new Date(), messageCount: { increment: 1 } },
+          // QM-BACK-002: counter write keeps the version column truthful.
+          data: { lastEmailAt: new Date(), messageCount: { increment: 1 }, version: { increment: 1 } },
         });
       }
     } catch (err) {
@@ -603,15 +643,21 @@ export default async function emailsRoutes(
       draftsFolder = await getOrCreateFolder(prisma, userId, 'Drafts', 'DRAFTS');
     }
 
-    await prisma.email.update({
-      where: { id: email.id },
+    // QM-BACK-002: guard the user-facing undo-send mutation.
+    const undoOpts = mutationOpts(request, reply);
+    await versionedUpdate<Record<string, any>>(prisma as unknown as VersionedTx, {
+      id: email.id,
+      resource: 'Email',
+      notFoundCode: 'EMAIL_NOT_FOUND',
+      notFoundMessage: 'Email not found',
+      expectedVersion: undoOpts.expectedVersion,
       data: {
         isDraft: true,
         isSent: false,
         sentAt: null,
         deliveryStatus: 'draft',
         folderId: draftsFolder?.id ?? null,
-      } as never,
+      },
     });
 
     return reply.send({
@@ -724,7 +770,8 @@ export default async function emailsRoutes(
         });
         await prisma.email.update({
           where: { id: original.id },
-          data: { threadId: targetThreadId },
+          // QM-BACK-002: system link write keeps the version column truthful.
+          data: { threadId: targetThreadId, version: { increment: 1 } },
         });
       } catch (err) {
         request.log.warn({ err, emailId: original.id }, 'reply thread stitching failed');
@@ -743,12 +790,16 @@ export default async function emailsRoutes(
       threadId: targetThreadId ?? undefined,
       inReplyTo: original.id,
       messageKind,
-    });
+          // QM-BACK-002: correlate the draftCreated outbox event with this request.
+      requestId: mutationOpts(request, reply).requestId,
+});
 
     let sent: any;
     try {
       const sentFolder = await getOrCreateFolder(prisma, userId, 'Sent', 'SENT');
-      sent = await sendService.send(userId, draft.id, sentFolder.id);
+      sent = await sendService.send(userId, draft.id, sentFolder.id, {
+        ...mutationOpts(request, reply),
+      });
     } catch (sendError) {
       // M-F05: Clean up orphan draft if sending fails
       await prisma.email.delete({ where: { id: draft.id } }).catch((delErr) => {
@@ -837,18 +888,29 @@ export default async function emailsRoutes(
     }
 
     const archiveFolder = await getOrCreateFolder(prisma, userId, 'Archive', 'ARCHIVE');
+    // QM-BACK-002: guard + correlation for the archive move.
+    const archiveOpts = mutationOpts(request, reply);
     // K1: archive move + outbox row in ONE transaction (doc 05).
     await prisma.$transaction(async (tx) => {
-      const archived = await tx.email.update({
-        where: { id: request.params.id },
+      const archived = await versionedUpdate<Record<string, any>>(tx as unknown as VersionedTx, {
+        id: request.params.id,
+        resource: 'Email',
+        notFoundCode: 'EMAIL_NOT_FOUND',
+        notFoundMessage: 'Email not found',
+        expectedVersion: archiveOpts.expectedVersion,
         data: { folderId: archiveFolder.id, isTrash: false, deletedAt: null },
       });
       await emitOutbox(tx, {
         event: MailOutboxEvents.threadArchived,
         aggregateType: 'EmailThread',
         aggregateId:
-          (archived as { threadId?: string | null }).threadId ?? archived.id,
-        payload: { userId, emailId: request.params.id, folderId: archiveFolder.id },
+          (archived as { threadId?: string | null }).threadId ?? (archived as { id: string }).id,
+        payload: {
+          userId,
+          emailId: request.params.id,
+          folderId: archiveFolder.id,
+          requestId: archiveOpts.requestId,
+        },
       });
     });
     return reply.send({ success: true, data: { message: 'Email archived' } });
@@ -863,18 +925,25 @@ export default async function emailsRoutes(
     if (!email || email.userId !== userId) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
     }
+    // QM-BACK-002: guard + correlation for the unarchive move.
+    const unarchiveOpts = mutationOpts(request, reply);
     // K1: unarchive move + outbox row in ONE transaction (doc 05).
     await prisma.$transaction(async (tx) => {
-      const restored = await tx.email.update({
-        where: { id: request.params.id },
+      const restored = await versionedUpdate<Record<string, any>>(tx as unknown as VersionedTx, {
+        id: request.params.id,
+        resource: 'Email',
+        notFoundCode: 'EMAIL_NOT_FOUND',
+        notFoundMessage: 'Email not found',
+        expectedVersion: unarchiveOpts.expectedVersion,
         data: { folderId: null, isTrash: false, deletedAt: null },
       });
       await emitOutbox(tx, {
         event: MailOutboxEvents.threadRestored,
         aggregateType: 'EmailThread',
         aggregateId:
-          (restored as { threadId?: string | null }).threadId ?? restored.id,
-        payload: { userId, emailId: request.params.id },
+          (restored as { threadId?: string | null }).threadId ??
+          (restored as { id: string }).id,
+        payload: { userId, emailId: request.params.id, requestId: unarchiveOpts.requestId },
       });
     });
     return reply.send({ success: true, data: { message: 'Email moved to inbox' } });
@@ -892,18 +961,25 @@ export default async function emailsRoutes(
     if (email.deletedAt) {
       throw createAppError('Permanently deleted email cannot be restored', 409, 'EMAIL_DELETED');
     }
+    // QM-BACK-002: guard + correlation for the restore.
+    const restoreOpts = mutationOpts(request, reply);
     // K1: trash restore + outbox row in ONE transaction (doc 05).
     await prisma.$transaction(async (tx) => {
-      const restored = await tx.email.update({
-        where: { id: request.params.id },
+      const restored = await versionedUpdate<Record<string, any>>(tx as unknown as VersionedTx, {
+        id: request.params.id,
+        resource: 'Email',
+        notFoundCode: 'EMAIL_NOT_FOUND',
+        notFoundMessage: 'Email not found',
+        expectedVersion: restoreOpts.expectedVersion,
         data: { folderId: null, isTrash: false, deletedAt: null },
       });
       await emitOutbox(tx, {
         event: MailOutboxEvents.threadRestored,
         aggregateType: 'EmailThread',
         aggregateId:
-          (restored as { threadId?: string | null }).threadId ?? restored.id,
-        payload: { userId, emailId: request.params.id },
+          (restored as { threadId?: string | null }).threadId ??
+          (restored as { id: string }).id,
+        payload: { userId, emailId: request.params.id, requestId: restoreOpts.requestId },
       });
     });
     return reply.send({ success: true, data: { message: 'Email restored to inbox' } });
@@ -949,12 +1025,19 @@ export default async function emailsRoutes(
       });
       await prisma.email.update({
         where: { id: request.params.id },
-        data: { threadId: thread.id },
+        // QM-BACK-002: system link write keeps the version column truthful.
+        data: { threadId: thread.id, version: { increment: 1 } },
       });
     }
 
-    await prisma.emailThread.update({
-      where: { id: thread.id },
+    // QM-BACK-002: guard the user-facing snooze mutation.
+    const snoozeOpts = mutationOpts(request, reply);
+    await versionedUpdate<Record<string, any>>(prisma as unknown as VersionedTx, {
+      id: thread.id,
+      resource: 'EmailThread',
+      notFoundCode: 'THREAD_NOT_FOUND',
+      notFoundMessage: 'Thread not found',
+      expectedVersion: snoozeOpts.expectedVersion,
       data: { snoozedUntil: snoozeUntil },
     });
     return reply.send({
@@ -975,8 +1058,14 @@ export default async function emailsRoutes(
     if (email.threadId) {
       const thread = await prisma.emailThread.findUnique({ where: { id: email.threadId } });
       if (thread && thread.userId === userId) {
-        await prisma.emailThread.update({
-          where: { id: thread.id },
+        // QM-BACK-002: guard the user-facing unsnooze mutation.
+        const unsnoozeOpts = mutationOpts(request, reply);
+        await versionedUpdate<Record<string, any>>(prisma as unknown as VersionedTx, {
+          id: thread.id,
+          resource: 'EmailThread',
+          notFoundCode: 'THREAD_NOT_FOUND',
+          notFoundMessage: 'Thread not found',
+          expectedVersion: unsnoozeOpts.expectedVersion,
           data: { snoozedUntil: null },
         });
       }
@@ -993,8 +1082,14 @@ export default async function emailsRoutes(
     if (!email || email.userId !== userId) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
     }
-    await prisma.email.update({
-      where: { id: request.params.id },
+    // QM-BACK-002: guard the user-facing not-spam mutation.
+    const notSpamOpts = mutationOpts(request, reply);
+    await versionedUpdate<Record<string, any>>(prisma as unknown as VersionedTx, {
+      id: request.params.id,
+      resource: 'Email',
+      notFoundCode: 'EMAIL_NOT_FOUND',
+      notFoundMessage: 'Email not found',
+      expectedVersion: notSpamOpts.expectedVersion,
       data: { isSpam: false, folderId: null, isTrash: false, deletedAt: null },
     });
     return reply.send({ success: true, data: { message: 'Moved to inbox' } });
@@ -1009,7 +1104,16 @@ export default async function emailsRoutes(
     if (!email || email.userId !== userId) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
     }
-    await prisma.email.update({ where: { id: request.params.id }, data: { isRead: false } });
+    // QM-BACK-002: guard the user-facing unread mutation.
+    const unreadOpts = mutationOpts(request, reply);
+    await versionedUpdate<Record<string, any>>(prisma as unknown as VersionedTx, {
+      id: request.params.id,
+      resource: 'Email',
+      notFoundCode: 'EMAIL_NOT_FOUND',
+      notFoundMessage: 'Email not found',
+      expectedVersion: unreadOpts.expectedVersion,
+      data: { isRead: false },
+    });
     return reply.send({ success: true, data: { message: 'Marked as unread' } });
   });
 
@@ -1069,8 +1173,14 @@ export default async function emailsRoutes(
     // Append 'UNSUBSCRIBED' label to email labels
     const currentLabels = Array.isArray(emailRecord.labels) ? (emailRecord.labels as string[]) : [];
     if (!currentLabels.includes('UNSUBSCRIBED')) {
-      await prisma.email.update({
-        where: { id: email.id },
+      // QM-BACK-002: guard the user-facing unsubscribe mutation.
+      const unsubOpts = mutationOpts(request, reply);
+      await versionedUpdate<Record<string, any>>(prisma as unknown as VersionedTx, {
+        id: email.id,
+        resource: 'Email',
+        notFoundCode: 'EMAIL_NOT_FOUND',
+        notFoundMessage: 'Email not found',
+        expectedVersion: unsubOpts.expectedVersion,
         data: {
           labels: [...currentLabels, 'UNSUBSCRIBED'],
         },
@@ -1127,7 +1237,11 @@ export default async function emailsRoutes(
       where.AND.push({ OR: [{ aiCategory: null }, { aiCategory: 'primary' }] });
     }
 
-    const result = await prisma.email.updateMany({ where, data: { isRead: true, updatedAt: new Date() } });
+    // QM-BACK-002: keep the version column truthful on bulk writes.
+    const result = await prisma.email.updateMany({
+      where,
+      data: { isRead: true, updatedAt: new Date(), version: { increment: 1 } },
+    });
     return reply.send({
       success: true,
       data: { message: 'All caught up', updated: result.count ?? 0 },
@@ -1354,7 +1468,8 @@ export default async function emailsRoutes(
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
     }
 
-    // Legal hold enforcement (Task X07 & W33-03)
+    // Legal hold enforcement (Task X07 & W33-03; QM-BACK-006: blocked deletions
+    // are recorded as versioned `data.deletion.blocked.v1` audit facts).
     const retention = (prisma as any)?.legalHold ? new RetentionService(prisma) : retentionService;
     const sender = email.fromAddress;
     const toList = Array.isArray(email.toAddresses) ? (email.toAddresses as string[]) : [];
@@ -1365,6 +1480,27 @@ export default async function emailsRoutes(
           { emailId: request.params.id, custodian: address, userId },
           'Email deletion blocked: custodian is subject to an active legal hold',
         );
+        // QM-BACK-006: the refusal itself is a lifecycle fact — recorded in its
+        // own transaction (the refused mutation never ran, so there is no
+        // domain tx to join). Best-effort: a logging failure must not mask
+        // the 423, so errors here are swallowed after logging.
+        // NOTE: the cast matches the `(prisma as any)?.legalHold` convention
+        // above — the backend typecheck resolves a stale PrismaClient view,
+        // but the runtime client has the lifecycle delegates.
+        try {
+          await recordDeletionBlocked(prisma as unknown as LifecycleDb, {
+            targetId: request.params.id,
+            targetKind: 'Email',
+            actor: userId,
+            blockCode: 'LOCKED_LEGAL_HOLD',
+            reason: `Participant ${address} is subject to an active legal hold`,
+          });
+        } catch (auditErr) {
+          request.log.error(
+            { err: auditErr, emailId: request.params.id },
+            'Failed to record data.deletion.blocked.v1 audit event',
+          );
+        }
         throw createAppError(
           `Cannot delete email: participant ${address} is subject to an active legal hold`,
           423,
@@ -1374,10 +1510,18 @@ export default async function emailsRoutes(
     }
 
     if (email.isTrash) {
+      // QM-BACK-002: guard + correlation for the permanent delete.
+      const delOpts = mutationOpts(request, reply);
       // K1: permanent delete + outbox row in ONE transaction (doc 05).
+      // QM-BACK-006: the lifecycle fact `data.deletion.completed.v1` and its
+      // verified-completion operation row join the same transaction.
       const deleted = await prisma.$transaction(async (tx) => {
-        const row = await tx.email.update({
-          where: { id: request.params.id },
+        const row = await versionedUpdate<Record<string, any>>(tx as unknown as VersionedTx, {
+          id: request.params.id,
+          resource: 'Email',
+          notFoundCode: 'EMAIL_NOT_FOUND',
+          notFoundMessage: 'Email not found',
+          expectedVersion: delOpts.expectedVersion,
           data: { deletedAt: new Date() },
         });
         await emitOutbox(tx, {
@@ -1386,8 +1530,32 @@ export default async function emailsRoutes(
           aggregateId: request.params.id,
           payload: {
             userId,
+            emailId: request.params.id,
             threadId: (email as { threadId?: string | null }).threadId ?? null,
             hard: true,
+            requestId: delOpts.requestId,
+          },
+        });
+        const operation = await (tx as any).lifecycleOperation.create({
+          data: {
+            operationType: 'deletion',
+            aggregateType: 'Email',
+            aggregateId: request.params.id,
+            status: 'completed',
+            requestedBy: userId,
+            completedAt: new Date(),
+          },
+        });
+        await emitOutbox(tx, {
+          event: LifecycleEvents.deletionCompleted,
+          aggregateType: 'Email',
+          aggregateId: request.params.id,
+          payload: {
+            actor: userId,
+            targetId: request.params.id,
+            targetKind: 'Email',
+            operationId: String(operation.id),
+            invalidatedIndexes: ['emails'],
           },
         });
         return row;
@@ -1396,10 +1564,16 @@ export default async function emailsRoutes(
     }
 
     const trashFolder = await getOrCreateFolder(prisma, userId, 'Trash', 'TRASH');
+    // QM-BACK-002: guard + correlation for the trash move.
+    const trashOpts = mutationOpts(request, reply);
     // K1: trash move + outbox row in ONE transaction (doc 05).
     const trashed = await prisma.$transaction(async (tx) => {
-      const row = await tx.email.update({
-        where: { id: request.params.id },
+      const row = await versionedUpdate<Record<string, any>>(tx as unknown as VersionedTx, {
+        id: request.params.id,
+        resource: 'Email',
+        notFoundCode: 'EMAIL_NOT_FOUND',
+        notFoundMessage: 'Email not found',
+        expectedVersion: trashOpts.expectedVersion,
         data: { folderId: trashFolder.id, isTrash: true, deletedAt: null },
       });
       await emitOutbox(tx, {
@@ -1408,8 +1582,10 @@ export default async function emailsRoutes(
         aggregateId: request.params.id,
         payload: {
           userId,
+          emailId: request.params.id,
           threadId: (email as { threadId?: string | null }).threadId ?? null,
           hard: false,
+          requestId: trashOpts.requestId,
         },
       });
       return row;
@@ -1426,7 +1602,8 @@ export default async function emailsRoutes(
 
     const prisma = getPrisma(fastify);
     const service = new EmailService(prisma);
-    const email = await service.markRead(request.params.id, userId);
+    // QM-BACK-002: guard + correlation for the mark-read mutation.
+    const email = await service.markRead(request.params.id, userId, mutationOpts(request, reply));
 
     return reply.send({ success: true, data: formatEmailRecord(email) });
   });
@@ -1440,7 +1617,8 @@ export default async function emailsRoutes(
 
     const prisma = getPrisma(fastify);
     const service = new EmailService(prisma);
-    const email = await service.markStarred(request.params.id, userId);
+    // QM-BACK-002: guard + correlation for the star mutation.
+    const email = await service.markStarred(request.params.id, userId, mutationOpts(request, reply));
 
     return reply.send({ success: true, data: formatEmailRecord(email) });
   });
@@ -1454,7 +1632,8 @@ export default async function emailsRoutes(
 
     const prisma = getPrisma(fastify);
     const service = new EmailService(prisma);
-    const email = await service.togglePin(request.params.id, userId);
+    // QM-BACK-002: guard + correlation for the pin mutation.
+    const email = await service.togglePin(request.params.id, userId, mutationOpts(request, reply));
 
     return reply.send({ success: true, data: formatEmailRecord(email) });
   });
@@ -1478,11 +1657,13 @@ export default async function emailsRoutes(
 
     const prisma = getPrisma(fastify);
     const service = new EmailService(prisma);
+    // QM-BACK-002: guard + correlation for the category move.
     const result = await service.setCategory(
       request.params.id,
       parsed.data.emailIds,
       userId,
       parsed.data.category,
+      mutationOpts(request, reply),
     );
 
     const externalSenders = Array.from(
@@ -1525,7 +1706,13 @@ export default async function emailsRoutes(
 
     const prisma = getPrisma(fastify);
     const service = new EmailService(prisma);
-    const email = await service.moveToFolder(request.params.id, parseResult.data.folderId, userId);
+    // QM-BACK-002: guard + correlation for the move mutation.
+    const email = await service.moveToFolder(
+      request.params.id,
+      parseResult.data.folderId,
+      userId,
+      mutationOpts(request, reply),
+    );
 
     return reply.send({ success: true, data: formatEmailRecord(email) });
   });
@@ -1535,6 +1722,8 @@ export default async function emailsRoutes(
     emailIds: z.array(z.string().min(1)).min(1).max(500),
     folderId: z.string().optional(),
     hard: z.boolean().optional(),
+    // QM-BACK-002: per-id expected versions for optimistic-concurrency guards.
+    expectedVersions: z.record(z.string(), z.number().int().min(0)).optional(),
   });
 
   // POST /emails/batch - single batch transaction for bulk email actions (Task QM-04)
@@ -1553,13 +1742,20 @@ export default async function emailsRoutes(
     const service = new EmailService(prisma);
     const { action, emailIds, folderId, hard } = parseResult.data;
 
+    // QM-BACK-002: batch mutations are guarded per-id when the client
+    // supplies expectedVersions, and share one correlation id.
+    const batchOpts = mutationOpts(request, reply);
+    const guarded: MutationOptions = {
+      expectedVersions: parseExpectedVersions(request.body),
+      requestId: batchOpts.requestId,
+    };
     let result: { count: number };
     switch (action) {
       case 'markRead':
-        result = await service.batchMarkRead(emailIds, userId, true);
+        result = await service.batchMarkRead(emailIds, userId, true, guarded);
         break;
       case 'markUnread':
-        result = await service.batchMarkRead(emailIds, userId, false);
+        result = await service.batchMarkRead(emailIds, userId, false, guarded);
         break;
       case 'archive': {
         let targetFolderId = folderId;
@@ -1567,17 +1763,17 @@ export default async function emailsRoutes(
           const archiveFolder = await getOrCreateFolder(prisma, userId, 'Archive', 'ARCHIVE');
           targetFolderId = archiveFolder.id;
         }
-        result = await service.batchArchive(emailIds, targetFolderId!, userId);
+        result = await service.batchArchive(emailIds, targetFolderId!, userId, guarded);
         break;
       }
       case 'delete':
-        result = await service.batchDelete(emailIds, userId, hard ?? false);
+        result = await service.batchDelete(emailIds, userId, hard ?? false, guarded);
         break;
       case 'star':
-        result = await service.batchStar(emailIds, userId, true);
+        result = await service.batchStar(emailIds, userId, true, guarded);
         break;
       case 'unstar':
-        result = await service.batchStar(emailIds, userId, false);
+        result = await service.batchStar(emailIds, userId, false, guarded);
         break;
     }
 

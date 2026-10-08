@@ -58,7 +58,12 @@ function makePrisma() {
         return { ...DRAFT_ROW, ...data };
       }),
       create: vi.fn(async ({ data }: any) => ({ id: 'new1', ...data })),
-      updateMany: vi.fn(async () => ({ count: 0 })),
+      // QM-BACK-002: versionedUpdate's conditional updateMany must match the
+      // row; record it like `update` so the sent-flip assertions keep working.
+      updateMany: vi.fn(async ({ where, data }: any) => {
+        updates.push({ where, data });
+        return { count: 1 };
+      }),
       count: vi.fn(async () => 0),
     },
     user: {

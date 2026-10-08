@@ -84,7 +84,8 @@ export class SmartInboxBackfillService {
     const writes = Array.from(idsByCategory.entries()).map(([category, ids]) =>
       this.prisma.email.updateMany({
         where: { ...eligibility, id: { in: ids } },
-        data: { aiCategory: category },
+        // QM-BACK-002: keep the version column truthful on system writes.
+        data: { aiCategory: category, version: { increment: 1 } },
       }),
     );
     const results =

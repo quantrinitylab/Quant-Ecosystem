@@ -401,7 +401,8 @@ export class InboundIngestAdapter {
         if (rawMessage.messageId) {
           await this.prisma.email.update({
             where: { id: email.id },
-            data: { messageId: rawMessage.messageId } as never,
+            // QM-BACK-002: keep the version column truthful on system writes.
+            data: { messageId: rawMessage.messageId, version: { increment: 1 } } as never,
           });
         }
 
@@ -577,7 +578,8 @@ export class InboundIngestAdapter {
 
     const updated = await this.prisma.email.update({
       where: { id: email.id },
-      data: data as never,
+      // QM-BACK-002: keep the version column truthful on system writes.
+      data: { ...(data as Record<string, unknown>), version: { increment: 1 } } as never,
     });
     return updated;
   }

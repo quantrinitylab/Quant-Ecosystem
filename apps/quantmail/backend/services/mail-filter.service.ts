@@ -366,7 +366,8 @@ export class MailFilterService {
       if (modified) {
         await this.prisma.email.update({
           where: { id: email.id },
-          data: updateData,
+          // QM-BACK-002: keep the version column truthful on system writes.
+          data: { ...updateData, version: { increment: 1 } },
         });
         affectedCount++;
       }

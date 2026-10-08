@@ -59,10 +59,22 @@ export const MailOutboxEvents = {
 export type MailOutboxEventName =
   (typeof MailOutboxEvents)[keyof typeof MailOutboxEvents];
 
+import type { LifecycleEventName } from './lifecycle-events';
+
 export interface OutboxEmit {
-  event: MailOutboxEventName;
-  /** Matches the cdc-relay stream naming (`outbox.Email`, `outbox.EmailThread`, …). */
-  aggregateType: 'Email' | 'EmailThread';
+  event: MailOutboxEventName | LifecycleEventName;
+  /**
+   * Matches the cdc-relay stream naming (`outbox.Email`, `outbox.EmailThread`, …).
+   * QM-BACK-006 widens the union with lifecycle aggregates — additive only.
+   */
+  aggregateType:
+    | 'Email'
+    | 'EmailThread'
+    | 'LegalHold'
+    | 'DataExportRequest'
+    | 'RetentionPolicyRecord'
+    | 'LifecycleOperation'
+    | 'User';
   aggregateId: string;
   /** Ids + actor scope only — never bodies or secrets. */
   payload: Record<string, unknown>;
