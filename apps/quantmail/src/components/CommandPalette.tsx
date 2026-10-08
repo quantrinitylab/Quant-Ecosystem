@@ -216,7 +216,6 @@ export function CommandPalette() {
                 aria-expanded="true"
                 aria-controls="command-palette-list"
                 aria-activedescendant={flatOrder[activeIndex]?.id}
-                aria-label="Search commands"
                 autoComplete="off"
                 spellCheck={false}
               />
