@@ -610,3 +610,24 @@ Finding: web shell CSS and `useIsMobile` intentionally converge on a 900px break
 Required: encode the breakpoint as a screen contract: mobile single-pane inbox/thread navigation below 900px, desktop split-pane at/above 900px, with no hydration/layout drift and equivalent navigation semantics on Tauri/Capacitor/Flutter.
 Acceptance: screenshot/interaction matrix across required widths plus keyboard/screen-reader/touch/reduced-motion evidence; route and pane behavior must match.
 Dependencies: QM-SCREEN-004; QM-PLAT-006; QM-PLAT-002/003.
+
+
+## QM-SCREEN-013 — QuantGit screen must eliminate static/theatrical operational state
+Status: [ ] TODO
+Finding: the current QuantGit page explicitly describes its data as "largely static/mock" and initializes chat sessions, Quanty/Notion-style settings, MCP servers, skills and related workspace state locally. The surface also exposes repositories/PR/issues/actions/agents/security/insights as if they are a live developer control plane. This conflicts with the QuantGit architecture and the creator/developer platform contract unless every displayed operational state is sourced from the authoritative Git domain.
+Required: classify every QuantGit field as Git-domain truth, derived projection, or UI-only draft; wire repositories, refs, commits, issues, PRs, CI runs, security findings, agents and developer identity to real contracts; show honest loading/empty/unavailable states; never present seeded sessions, fleet state, model/tool availability or deployment state as real user data. Quanty must invoke typed QuantGit capabilities rather than mutate local mock state.
+Scope: apps/quantmail/src/app/quantgit/page.tsx and child tabs/components; QuantGit backend/API; creator-platform contracts.
+Dependencies: QuantGit architecture; creator platform architecture.
+
+## QM-SCREEN-022 — QuantMail implementation-status documentation must reconcile with the live screen tree
+Status: [ ] TODO
+Finding: docs/quant-architecture/33-implementation-status.md still reports M15 Notifications as PARTIAL and M19/M20 as MISSING, while the current tree contains a dedicated notifications route and an admin page/API surface that advertises M19/M20 routes. This creates a documentation-versus-code ambiguity that can cause agents to duplicate completed work or skip missing route implementation.
+Required: re-audit each M01-M20 status against the current branch, record exact route/file evidence, distinguish route shell from production-complete screen, and update the implementation-status document only from verified source/tests. The admin page's M19/M20 links must be verified as actual routes, not merely navigation entries.
+Scope: docs/quant-architecture/33-implementation-status.md; apps/quantmail/src/app; apps/quantmail/backend/routes/admin.ts; screen matrix.
+Dependencies: QM-SCREEN-000; QM-SCREEN-015; QM-SCREEN-017.
+
+## QM-PLAT-013 — QuantGit/QuantMail developer identity must not claim unverified live infrastructure
+Status: [ ] TODO
+Finding: QuantGit UI constructs clone URLs and developer-facing identity from local username state, while the audited page contains seeded workspace sessions and product/tool names that resemble live infrastructure. The UI must not imply a repository, CI, MCP server, agent, deployment or model is available merely because a local state object names it.
+Required: backend-authoritative capability discovery, repository existence checks, signed/authorized clone endpoint generation, explicit unavailable states, and provenance for operational cards. Cross-app creator links must use typed resource references and reauthorization.
+Dependencies: QM-SCREEN-013; ecosystem resource/context contract.
