@@ -51,6 +51,26 @@ const PRELOAD_COUNT = 2;
 const SKIP_THRESHOLD_SECONDS = 3;
 const LIKE_DEBOUNCE_MS = 300;
 
+/**
+ * Normalize the For You feed payload into a video list.
+ *
+ * The Fastify backend answers `/feed/for-you` with an envelope
+ * `{ success: true, data: { videos: ShortVideo[], page, pageSize } }`
+ * (see `backend/routes/feed.ts`), while older surfaces returned the raw
+ * array. Treating the wrapper object as a video list put a single garbage
+ * object into the feed (breaking `getNextPageParam`'s length check into an
+ * infinite fetch loop and rendering a broken player instead of the honest
+ * empty state). Normalize both shapes here so the page can never render
+ * garbage again.
+ */
+export function normalizeFeedPayload(payload: unknown): ShortVideo[] {
+  if (Array.isArray(payload)) return payload as ShortVideo[];
+  if (payload && typeof payload === 'object' && Array.isArray((payload as { videos?: unknown }).videos)) {
+    return (payload as { videos: ShortVideo[] }).videos;
+  }
+  return [];
+}
+
 export function useFeed(): UseFeedReturn {
   const feedQuery = useInfiniteQuery({
     queryKey: ['max-feed'],
@@ -60,11 +80,15 @@ export function useFeed(): UseFeedReturn {
         throw new Error(response.error?.message || 'Failed to load feed');
       }
       return {
-        videos: response.data ?? [],
+        videos: normalizeFeedPayload(response.data),
         nextPage: pageParam + 1,
       };
     },
     initialPageParam: 0,
+    // Bound the skeleton: with the 15s client timeout in api-client, retry: 2
+    // means a dead backend reaches the branded error state (with retry) in
+    // ~35s instead of hanging on the skeleton forever (QM-UIUX-002).
+    retry: 2,
     getNextPageParam: (lastPage) => {
       if (lastPage.videos.length < 20) return undefined;
       return lastPage.nextPage;
