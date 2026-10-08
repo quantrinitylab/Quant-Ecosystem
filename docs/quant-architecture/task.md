@@ -1041,7 +1041,7 @@ Scope: inbox components and hooks.
 Dependencies: none.
 
 ## QM-UIUX-041 — HTML email: strip inline styles for dark mode
-Status: [ ] TODO
+Status: [~] IN_PROGRESS — Owner: 8a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d; Branch: fix/qm-uiux-041-email-darkmode
 Finding: `<div style="background:#ffffff">` and `<p style="color:#333">` survive DOMPurify sanitization — verified with real DOMPurify run using prod config. Result: white boxes in the black read view (violates "fully black" rule) and dark-gray-on-black unreadable text. Zero dark-mode CSS rewriting exists. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/html-email-audit.md`.
 Required: post-sanitize pass stripping `background*`/`color` from inline styles (~15 lines in `sanitize.ts`).
 Scope: email HTML sanitizer (`lib/safe-html`, `sanitize.ts`).
