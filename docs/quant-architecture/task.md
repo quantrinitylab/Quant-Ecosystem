@@ -1842,10 +1842,20 @@ Scope: apps/quantmail/backend/services/quanty-agent/planner.ts; apps/quantmail/b
 Dependencies: QM-QUANTY-001; QM-QUANTY-006; QM-QUANTY-010; connector permission model.
 
 ## QM-UIUX-071 — P0: canvas addColorStop crashes on raw CSS var() tokens (login page down)
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: canvas-crash-fix-agent
 Branch: fix/canvas-cssvar-crash
+Completed: 2026-10-09 — PR #679 merged + deployed (run 37827379215); /login + /signup render with no error boundary, live login verified with real account, inbox loads.
 Finding: The QM-UIUX-004 color-token codemod (PR #660) leaked raw `var(--quant-*)` strings into Canvas 2D calls. `addColorStop` cannot parse CSS variables — `SyntaxError: Failed to execute 'addColorStop' on 'CanvasGradient'` — which trips the error boundary and shows "QuantMail couldn't open this view" on /login. Offending sites in apps/quantmail/src: components/TitaniumGridCanvas.tsx (114-116), lib/marks/canvas-mark.ts (MARK_COLORS.ember/emberDeep + literal stops + RING_FINISHES mixHex path), components/QuantMailLogo.tsx (223), components/QuantGitLogo.tsx (121/150/151), components/QuantDriveLogo.tsx (96/127/179 + shadowColor 226), components/AgentOfficeCanvas.tsx (263), components/Interactive3DLogo.tsx (256/330), app/lab/marks/DinosaurMarkCandidate.tsx (75/85).
 Required: (1) new shared helper `apps/quantmail/src/lib/canvas-color.ts` `resolveCanvasColor()` — resolves `var(--token)` via `getComputedStyle(document.documentElement)` at draw time (theme-safe), with design-system literal fallbacks and a no-DOM path so SSR/tests never throw; (2) wrap EVERY canvas addColorStop/fillStyle/strokeStyle/shadowColor call site passing a var() string, plus harden `mixHex` against non-hex input; (3) login page renders with no error boundary.
 Scope: apps/quantmail/src/lib/canvas-color.ts (new); canvas call sites listed above.
 Dependencies: QM-UIUX-004.
+
+## QM-UIUX-072 — Pure-black background, zero divider lines (QuantMail first, then all apps)
+Status: [~] IN_PROGRESS
+Owner: pureblack-agent
+Branch: fix/qm-uiux-072-pureblack
+Finding: User reference (Gmail mobile dark, 2026-10-09): pure black #000000 backgrounds, no divider lines/borders/separators between rows and cards, no visual noise. Hierarchy must come from typography + spacing, never lines. Current QuantMail surfaces use dark-gray surfaces (#0a0a0a-ish) with visible borders/dividers between email rows, cards, and sections.
+Required: (1) QuantMail mobile + desktop: page backgrounds pure black; remove ALL hairline dividers, row separators, card borders on inbox list, thread view, drive, calendar, contacts, settings surfaces; keep hierarchy via type scale + spacing only. (2) No fake "elevation" via borders — depth only where it carries meaning. (3) Visual verification: mobile (390x844) + desktop screenshots of inbox, thread, drive, calendar before/after. (4) Do NOT invent marketing copy; every visible word stays instruction or provable truth.
+Scope: apps/quantmail/src (phase 1). Other apps (quantchat, quantai, quantube, quantgram, quantwave, quantmax, quantcooks, quantads) = phase 2 follow-up tasks.
+Dependencies: QM-UIUX-004 (color tokens), QM-UIUX-071.
