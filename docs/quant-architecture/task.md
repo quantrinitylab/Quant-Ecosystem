@@ -1473,7 +1473,7 @@ Dependencies: QM-M39-001.
 Completed: 2026-10-08 — PR #670 (fix/qm-m39-005-permissions-viewer). New owner-only GET /drive/files/:id/links backend route (link scope/audience/expiry, token+password-hash never exposed); GET proxy for /drive/files/:id/share; FilePermissionsViewer read-only modal wired to the drive feed lightbox with a 'Manage sharing' handoff to FileShareModal. Note: QM-M39-001/PR #664 not merged on main, so no GET /drive/shares/sent exists; viewer uses GET /drive/files/:id/share instead. Validation: 11 new frontend tests + 4 new backend route tests + 2 fail-closed reachability entries, all green; existing suites green (186 drive frontend, 12 parity, 24 reachability); eslint clean; frontend tsc clean.
 
 ## QM-M39-006 — Drive: link sharing with scope/audience/expiry + authoritative confirmation (screen 22)
-Status: [~] IN_PROGRESS (Owner: muse-m39-wave5, Branch: fix/qm-m39-006-link-sharing)
+Status: [x] DONE — PR #671 open (drive link sharing: scope anyone/org/specific, audience, expiry enforced server-side, authoritative confirmation dialog); backend 45/45 + frontend 14/14 tests green, tsc/eslint/build clean
 Finding: M39 screen 22 requires link sharing that exposes scope, audience, expiry, permission — and saving a share change requires authoritative confirmation. shares/link route exists; full scope/audience/expiry UI + confirmation is unverified.
 Required: link dialog with scope (anyone/org/specific), audience, expiry picker, permission; confirmation step before save; backend enforces expiry; honest states (never claim a link exists when it doesn't).
 Scope: apps/quantmail drive shares/link + UI.
