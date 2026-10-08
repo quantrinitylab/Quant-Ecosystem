@@ -71,13 +71,13 @@ import { CopilotFleetModeView } from './components/CopilotFleetModeView';
 import { DeveloperAppearanceSettings } from './components/DeveloperAppearanceSettings';
 import { NotificationsInbox } from './components/NotificationsInbox';
 import { RepoImportModal } from './components/RepoImportModal';
+import { formatCommitToast } from './components/formatCommitToast';
 import {
   QuantGitSubViews,
   type ContextSubViewTab,
 } from './components/QuantGitSubViews';
 
-function QuantGitContent() {
-  const router = useRouter();
+function QuantGitContent() {  const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams?.get('tab');
   const initialSubTab: ContextSubViewTab =
@@ -1878,8 +1878,7 @@ function QuantGitContent() {
         }
       });
 
-      const commitSha = String(payload?.data?.commitSha || '948e3612').slice(0, 8);
-      showToast(`Committed ${input.path} at ${commitSha}`);
+      showToast(formatCommitToast(input.path, payload?.data?.commitSha));
       closeBlobEditor();
       await fetchRepos();
 

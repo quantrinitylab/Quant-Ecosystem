@@ -11,7 +11,6 @@ export interface MCPServerEntry {
   name: string;
   author: string;
   description: string;
-  installs: number;
   icon: string;
   isInstalled?: boolean;
   category: 'devtools' | 'data' | 'automation' | 'creative' | 'integration';
@@ -23,7 +22,6 @@ export const OFFICIAL_MCP_CATALOG: MCPServerEntry[] = [
     name: 'Markitdown',
     author: 'microsoft',
     description: 'Convert various file formats (PDF, Word, Excel, images, audio) to Markdown.',
-    installs: 186715,
     icon: '📄',
     category: 'data',
   },
@@ -33,7 +31,6 @@ export const OFFICIAL_MCP_CATALOG: MCPServerEntry[] = [
     author: 'ChromeDevTools',
     description:
       'MCP server for Chrome DevTools: live DOM snapshots, accessibility tree inspection, clicks, navigation.',
-    installs: 52551,
     icon: '🌐',
     isInstalled: true,
     category: 'devtools',
@@ -44,7 +41,6 @@ export const OFFICIAL_MCP_CATALOG: MCPServerEntry[] = [
     author: 'microsoft',
     description:
       'Automate web browsers using accessibility trees for testing and robust data extraction.',
-    installs: 37530,
     icon: '🎭',
     category: 'automation',
   },
@@ -54,7 +50,6 @@ export const OFFICIAL_MCP_CATALOG: MCPServerEntry[] = [
     author: 'github',
     description:
       'Connect AI assistants to GitHub — manage repos, issues, PRs, and workflows through natural language.',
-    installs: 33166,
     icon: '🐙',
     isInstalled: true,
     category: 'integration',
@@ -64,7 +59,6 @@ export const OFFICIAL_MCP_CATALOG: MCPServerEntry[] = [
     name: 'Serena',
     author: 'oraios',
     description: 'Semantic code retrieval & AST-level editing tools for coding agents.',
-    installs: 29763,
     icon: '🔮',
     category: 'devtools',
   },
@@ -74,7 +68,6 @@ export const OFFICIAL_MCP_CATALOG: MCPServerEntry[] = [
     author: 'upstash',
     description:
       'Sub-millisecond Serverless Redis and Vector database operations for agent memory and caching.',
-    installs: 62381,
     icon: '⚡',
     category: 'data',
   },
@@ -83,7 +76,6 @@ export const OFFICIAL_MCP_CATALOG: MCPServerEntry[] = [
     name: 'Unity',
     author: 'Unity',
     description: 'Control the Unity Editor from MCP clients via a Unity Editor IPC bridge.',
-    installs: 14200,
     icon: '🎮',
     category: 'creative',
   },
@@ -255,12 +247,8 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = ({
                 </p>
               </div>
 
-              {/* Footer info: install count & stars */}
-              <div className="flex items-center justify-between pt-2 border-t border-[#21262D] text-[11px] text-[#8D96A0]">
-                <div className="flex items-center gap-1.5">
-                  <span>⭐</span>
-                  <span>{server.installs.toLocaleString()} installs</span>
-                </div>
+              {/* Footer info: category only — no fabricated install counts */}
+              <div className="flex items-center justify-end pt-2 border-t border-[#21262D] text-[11px] text-[#8D96A0]">
                 <span className="capitalize px-2 py-0.5 rounded-md bg-[#21262D] text-[10px]">
                   {server.category}
                 </span>
