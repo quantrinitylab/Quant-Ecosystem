@@ -1172,7 +1172,7 @@ Scope: `EmailComposer.tsx`, `DockedComposer.tsx`.
 Dependencies: none.
 
 ## QM-UIUX-052 — New email must create a notification (bell never fires)
-Status: [~] IN_PROGRESS — Owner: 6a7b8c9d-0e1f-2a3b-4c5d-6e7f8a9b0c1d; Branch: fix/qm-uiux-052-notif-wire
+Status: [x] DONE — PR #647 merged 2026-10-08 (notification created on new mail; spam skipped; idempotent; 53/53 tests)
 PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/647
 Finding: `apps/quantmail/backend/routes/inbound-webhook.ts` stores inbound mail but never creates a `prisma.notification` record. `emails.ts:37` instantiates `CrossAppDispatcher` and never calls it (0 usages). The bell can never fire for real mail. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/notif-backend-audit.md`.
 Required: wire new-mail arrival → notification creation.
