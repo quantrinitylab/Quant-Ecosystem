@@ -820,7 +820,7 @@ export function AppShell({
                       type="button"
                       // Hidden once the rail is pinned on a wide screen: the drawer it
                       // opens is `md:hidden` there, so the control had nothing to show.
-                      className={`inline-flex size-8 flex-none items-center justify-center rounded-lg outline-none hover:bg-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${isPinned ? 'md:hidden' : ''}`}
+                      className={`inline-flex size-8 flex-none items-center justify-center rounded-lg outline-none hover:bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${isPinned ? 'md:hidden' : ''}`}
                       aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
                       aria-expanded={isDrawerPresented}
                       aria-controls={drawerId}
@@ -867,7 +867,7 @@ export function AppShell({
                     {onSearchChange ? (
                       <div className="w-full flex h-[34px] items-center gap-2 px-3 rounded-lg bg-[var(--quant-surface)] border border-[#232938] focus-within:border-[var(--quant-primary)]/60 focus-within:ring-1 focus-within:ring-[var(--quant-primary)]/30 transition-all shadow-inner">
                         <svg
-                          className="size-3.5 text-[#A1A4AC] shrink-0"
+                          className="size-3.5 text-[var(--quant-muted-foreground)] shrink-0"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -897,7 +897,7 @@ export function AppShell({
                           className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#717888] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
                         />
                         {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
-                        <kbd className="hidden lg:inline px-1.5 py-0.5 rounded bg-[#181B22] text-[10px] font-mono text-[#6B6E76] border border-[#2B303C] shrink-0">
+                        <kbd className="hidden lg:inline px-1.5 py-0.5 rounded bg-[#181B22] text-[10px] font-mono text-[var(--quant-text-muted)] border border-[#2B303C] shrink-0">
                           /
                         </kbd>
                       </div>
@@ -939,7 +939,7 @@ export function AppShell({
                   <div className="flex items-center gap-2 border-b border-[var(--quant-surface-elevated)]/80 bg-[var(--quant-background)] px-3 py-2.5 sm:px-4">
                     <div className="flex min-h-touch flex-1 items-center gap-2 rounded-xl border border-[#3A404D]/80 bg-[var(--quant-surface)]/90 px-3 shadow-inner focus-within:border-[var(--quant-primary)]/60 focus-within:ring-1 focus-within:ring-[var(--quant-primary)]/30">
                       <svg
-                        className="size-4 shrink-0 text-[#A1A4AC]"
+                        className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
@@ -975,7 +975,7 @@ export function AppShell({
                             ? 'Search messages, contacts, keywords…'
                             : `Search in ${appDisplayName(currentApp)}…`)
                         }
-                        className="h-11 w-full bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
+                        className="h-11 w-full bg-transparent text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
                       />
                       {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
                     </div>
@@ -990,7 +990,7 @@ export function AppShell({
                         onSearchChange('');
                         setIsMobileSearchOpen(false);
                       }}
-                      className="inline-flex min-h-touch items-center justify-center rounded-lg px-3 text-xs font-medium text-[#A1A4AC] transition-colors hover:bg-[var(--quant-surface-elevated)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                      className="inline-flex min-h-touch items-center justify-center rounded-lg px-3 text-xs font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     >
                       Cancel
                     </button>

@@ -445,7 +445,7 @@ function ThreadBubbleMenu({
                 : 'text-[#EDEDED] hover:bg-white/[0.05] focus-visible:bg-white/[0.05]'
             }`}
           >
-            <Icon className={`size-4 ${danger ? 'text-rose-400' : 'text-[#A1A4AC]'}`} />
+            <Icon className={`size-4 ${danger ? 'text-rose-400' : 'text-[var(--quant-muted-foreground)]'}`} />
             <span>{label}</span>
           </button>
         ))}
@@ -560,7 +560,7 @@ export function ThreadBubbleShell({
               className="flex items-center gap-0.5 rounded-full border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-1.5 py-0.5 text-xs shadow-sm transition-transform hover:scale-105 active:scale-95"
             >
               <span aria-hidden="true">{emoji}</span>
-              <span className="text-[10px] font-semibold text-[#A1A4AC]">{count}</span>
+              <span className="text-[10px] font-semibold text-[var(--quant-muted-foreground)]">{count}</span>
             </button>
           ))}
         </div>
@@ -579,7 +579,7 @@ export function ThreadBubbleShell({
           onClick={doQuoteReply}
           title="Reply to this message"
           aria-label={`Reply to message from ${senderName}`}
-          className="flex size-8 items-center justify-center rounded-full text-[#A1A4AC] transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+          className="flex size-8 items-center justify-center rounded-full text-[var(--quant-muted-foreground)] transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
         >
           <ReplyArrowIcon className="size-4" />
         </button>
@@ -592,7 +592,7 @@ export function ThreadBubbleShell({
           }}
           title="React to this message"
           aria-label={`React to message from ${senderName}`}
-          className="flex size-8 items-center justify-center rounded-full text-[#A1A4AC] transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+          className="flex size-8 items-center justify-center rounded-full text-[var(--quant-muted-foreground)] transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
         >
           <SmileyIcon className="size-4" />
         </button>

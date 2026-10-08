@@ -123,7 +123,7 @@ export function AddFolderModal({
               <h2 id={titleId} className="text-sm font-bold text-white truncate">
                 Add Custom Folder
               </h2>
-              <p className="text-[11px] text-[#A1A4AC] truncate">
+              <p className="text-[11px] text-[var(--quant-muted-foreground)] truncate">
                 Create a custom mailbox lens or contact filter
               </p>
             </div>
@@ -132,7 +132,7 @@ export function AddFolderModal({
           <button
             type="button"
             onClick={onClose}
-            className="size-8 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+            className="size-8 rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             aria-label="Close dialog"
           >
             <svg
@@ -225,7 +225,7 @@ export function AddFolderModal({
                 className={`py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
                   filterType === 'contact'
                     ? 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] font-semibold border border-[var(--quant-primary)]/40'
-                    : 'text-[#A1A4AC] hover:text-white'
+                    : 'text-[var(--quant-muted-foreground)] hover:text-white'
                 }`}
               >
                 Contact Book
@@ -236,7 +236,7 @@ export function AddFolderModal({
                 className={`py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
                   filterType === 'keyword'
                     ? 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] font-semibold border border-[var(--quant-primary)]/40'
-                    : 'text-[#A1A4AC] hover:text-white'
+                    : 'text-[var(--quant-muted-foreground)] hover:text-white'
                 }`}
               >
                 Keyword
@@ -247,7 +247,7 @@ export function AddFolderModal({
                 className={`py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
                   filterType === 'standard'
                     ? 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] font-semibold border border-[var(--quant-primary)]/40'
-                    : 'text-[#A1A4AC] hover:text-white'
+                    : 'text-[var(--quant-muted-foreground)] hover:text-white'
                 }`}
               >
                 Standard
@@ -276,7 +276,7 @@ export function AddFolderModal({
                       key={ct.email}
                       type="button"
                       onClick={() => setFilterValue(ct.email)}
-                      className="px-2 py-0.5 rounded-full text-[10px] bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:text-white transition-colors"
+                      className="px-2 py-0.5 rounded-full text-[10px] bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white transition-colors"
                     >
                       {ct.name || ct.email}
                     </button>
@@ -307,7 +307,7 @@ export function AddFolderModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-medium text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="px-4 py-2 rounded-xl text-xs font-medium text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               Cancel
             </button>

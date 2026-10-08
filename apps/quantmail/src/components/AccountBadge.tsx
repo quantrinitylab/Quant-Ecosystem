@@ -347,7 +347,7 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
           <div role="none" className="p-2 border-b border-[var(--quant-surface-elevated)] space-y-1">
             <p
               aria-hidden="true"
-              className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]"
+              className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--quant-muted-foreground)]"
             >
               Accounts ({accounts.length})
             </p>
@@ -386,7 +386,7 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
                         <p className="text-xs font-semibold text-white truncate leading-tight">
                           {acc.displayName}
                         </p>
-                        <p className="text-[10px] text-[#A1A4AC] truncate leading-tight">
+                        <p className="text-[10px] text-[var(--quant-muted-foreground)] truncate leading-tight">
                           {acc.email}
                         </p>
                       </div>
@@ -437,10 +437,10 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
                 setOpen(false);
                 router.push('/settings');
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:text-white hover:bg-[var(--quant-surface-elevated)] rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[var(--quant-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               <svg
-                className="size-3.5 text-[#A1A4AC]"
+                className="size-3.5 text-[var(--quant-muted-foreground)]"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -462,10 +462,10 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
                 setOpen(false);
                 router.push('/security');
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:text-white hover:bg-[var(--quant-surface-elevated)] rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[var(--quant-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               <svg
-                className="size-3.5 text-[#A1A4AC]"
+                className="size-3.5 text-[var(--quant-muted-foreground)]"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"

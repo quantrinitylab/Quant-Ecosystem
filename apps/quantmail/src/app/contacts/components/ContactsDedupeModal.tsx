@@ -136,8 +136,8 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                 />
               </svg>
             </div>
-            <h4 className="mt-3 text-sm font-semibold text-[#F5F5F5]">No Duplicates Found</h4>
-            <p className="mt-1 text-xs text-[#A1A4AC]">
+            <h4 className="mt-3 text-sm font-semibold text-[var(--quant-foreground)]">No Duplicates Found</h4>
+            <p className="mt-1 text-xs text-[var(--quant-muted-foreground)]">
               Your address book is clean. All contacts have unique emails and names.
             </p>
             <div className="mt-5">
@@ -150,10 +150,10 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
           <>
             <div className="flex items-center justify-between rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] p-3">
               <div>
-                <span className="text-xs font-semibold text-[#F5F5F5]">
+                <span className="text-xs font-semibold text-[var(--quant-foreground)]">
                   {clusters.length} Duplicate Group{clusters.length === 1 ? '' : 's'} Detected
                 </span>
-                <p className="text-[11px] text-[#A1A4AC]">
+                <p className="text-[11px] text-[var(--quant-muted-foreground)]">
                   Choose which contact to keep as primary for each group, or auto-merge all.
                 </p>
               </div>
@@ -177,7 +177,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                         <span className="rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] border border-[var(--quant-primary)]/20">
                           {cluster.reason === 'email' ? 'Identical Email' : 'Identical Name'}
                         </span>
-                        <span className="text-xs text-[#A1A4AC]">
+                        <span className="text-xs text-[var(--quant-muted-foreground)]">
                           {cluster.reason === 'email'
                             ? cluster.primaryContact.email
                             : cluster.primaryContact.name}
@@ -215,7 +215,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                                 />
                                 <div>
                                   <div className="flex items-center gap-1.5">
-                                    <span className="text-xs font-semibold text-[#F5F5F5]">
+                                    <span className="text-xs font-semibold text-[var(--quant-foreground)]">
                                       {contact.name || 'Unnamed'}
                                     </span>
                                     {isSelectedPrimary && (
@@ -224,7 +224,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-[11px] text-[#A1A4AC] truncate max-w-[180px]">
+                                  <p className="text-[11px] text-[var(--quant-muted-foreground)] truncate max-w-[180px]">
                                     {contact.email}
                                   </p>
                                 </div>
@@ -239,16 +239,16 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                               />
                             </div>
 
-                            <div className="mt-2.5 space-y-1 text-[11px] text-[#6B6E76]">
+                            <div className="mt-2.5 space-y-1 text-[11px] text-[var(--quant-text-muted)]">
                               {contact.phone && (
                                 <p className="truncate flex items-center gap-1.5">
-                                  <IconPhone size={12} className="text-[#A1A4AC]" />
+                                  <IconPhone size={12} className="text-[var(--quant-muted-foreground)]" />
                                   <span>{contact.phone}</span>
                                 </p>
                               )}
                               {contact.company && (
                                 <p className="truncate flex items-center gap-1.5">
-                                  <IconBriefcase size={12} className="text-[#A1A4AC]" />
+                                  <IconBriefcase size={12} className="text-[var(--quant-muted-foreground)]" />
                                   <span>{contact.company}</span>
                                 </p>
                               )}
@@ -257,7 +257,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                                   {contact.tags.map((tag) => (
                                     <span
                                       key={tag}
-                                      className="rounded bg-[var(--quant-surface-elevated)] px-1.5 py-px text-[var(--q-type-xs)] text-[#A1A4AC]"
+                                      className="rounded bg-[var(--quant-surface-elevated)] px-1.5 py-px text-[var(--q-type-xs)] text-[var(--quant-muted-foreground)]"
                                     >
                                       {tag}
                                     </span>
@@ -265,7 +265,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                                 </div>
                               )}
                               {contact.frequency !== undefined && (
-                                <p className="text-[10px] text-[#A1A4AC] pt-0.5">
+                                <p className="text-[10px] text-[var(--quant-muted-foreground)] pt-0.5">
                                   {contact.frequency} interaction
                                   {contact.frequency === 1 ? '' : 's'}
                                 </p>

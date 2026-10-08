@@ -289,13 +289,13 @@ export function FileActivityModal({
         role="dialog"
         aria-modal="true"
         aria-label={`Activity for ${fileName}`}
-        className="bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col text-[#F5F5F5] overflow-hidden"
+        className="bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col text-[var(--quant-foreground)] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="px-5 py-4 border-b border-[var(--quant-surface-elevated)] flex items-center justify-between gap-3 bg-[var(--quant-surface-elevated)]">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-[#F5F5F5] flex items-center gap-2">
+            <h2 className="text-base font-semibold text-[var(--quant-foreground)] flex items-center gap-2">
               <span>Activity</span>
             </h2>
             <p
@@ -310,7 +310,7 @@ export function FileActivityModal({
             aria-label="Close dialog"
             data-testid="close-activity-btn"
             onClick={onClose}
-            className="p-1.5 rounded-md text-[#9E9E9E] hover:text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)] transition-colors"
+            className="p-1.5 rounded-md text-[#9E9E9E] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -370,7 +370,7 @@ export function FileActivityModal({
                   />
                 </svg>
               </span>
-              <p className="text-sm font-medium text-[#F5F5F5]">
+              <p className="text-sm font-medium text-[var(--quant-foreground)]">
                 No activity recorded for this file yet
               </p>
               <p className="text-xs text-[#9E9E9E] max-w-xs">
@@ -389,7 +389,7 @@ export function FileActivityModal({
                   <span className="absolute -left-[13px] top-0 w-6 h-6 rounded-full bg-[var(--quant-surface-elevated)] text-[var(--quant-primary)] flex items-center justify-center border border-[#383E4A]">
                     <ActionIcon action={event.action} />
                   </span>
-                  <p className="text-sm text-[#F5F5F5] leading-snug">{describeActivity(event)}</p>
+                  <p className="text-sm text-[var(--quant-foreground)] leading-snug">{describeActivity(event)}</p>
                   <p className="text-[11px] text-[#9E9E9E] mt-0.5">
                     {formatActivityDate(event.createdAt)}
                   </p>

@@ -33,7 +33,7 @@ export interface EmailReaderHeaderProps {
 const MENU_ITEM_CLASS =
   'flex items-center gap-3 w-full min-h-touch px-3 py-2 rounded-xl text-left transition-colors hover:bg-[var(--quant-surface-elevated)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]';
 
-const MENU_ICON_CLASS = 'size-4 flex-none text-[#A1A4AC]';
+const MENU_ICON_CLASS = 'size-4 flex-none text-[var(--quant-muted-foreground)]';
 
 /** Stroke geometry every menu icon shares. Spread, so the paths stay the only difference. */
 const MENU_ICON_PROPS = {
@@ -103,7 +103,7 @@ export function EmailReaderHeader({
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex min-h-touch min-w-touch -ml-2 flex-none items-center justify-center rounded-xl text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)] active:scale-95 transition-all outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+          className="inline-flex min-h-touch min-w-touch -ml-2 flex-none items-center justify-center rounded-xl text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] active:scale-95 transition-all outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           title="Back to Inbox"
           aria-label="Back to Inbox"
         >
@@ -121,7 +121,7 @@ export function EmailReaderHeader({
         {/* Truncated Subject & Sender Subtitle */}
         <div className="flex flex-col min-w-0 flex-1 pr-1">
           <div className="flex items-center gap-2 min-w-0">
-            <h1 className="text-xs sm:text-sm font-bold text-[#F5F5F5] truncate" title={subject}>
+            <h1 className="text-xs sm:text-sm font-bold text-[var(--quant-foreground)] truncate" title={subject}>
               {subject}
             </h1>
             {localImportant && (
@@ -137,12 +137,12 @@ export function EmailReaderHeader({
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 text-[11px] text-[#A1A4AC] font-mono truncate">
-            <span className="truncate text-[#F5F5F5] font-medium">
+          <div className="flex items-center gap-1.5 text-[11px] text-[var(--quant-muted-foreground)] font-mono truncate">
+            <span className="truncate text-[var(--quant-foreground)] font-medium">
               {senderName || senderEmail || 'QuantMail Conversation'}
             </span>
             {senderEmail && senderName && (
-              <span className="hidden lg:inline text-[#A1A4AC] truncate">
+              <span className="hidden lg:inline text-[var(--quant-muted-foreground)] truncate">
                 &lt;{senderEmail}&gt;
               </span>
             )}
@@ -173,7 +173,7 @@ export function EmailReaderHeader({
           className={`${ACTION_BUTTON_CLASS} ${
             isStarred
               ? 'text-[var(--quant-primary)] bg-[var(--quant-primary)]/10 shadow-sm'
-              : 'text-[#A1A4AC] hover:text-[var(--quant-primary-hover)] hover:bg-white/[0.04]'
+              : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary-hover)] hover:bg-white/[0.04]'
           }`}
           title={isStarred ? 'Unpin (S)' : 'Pin (S)'}
           aria-label="Pin"
@@ -194,7 +194,7 @@ export function EmailReaderHeader({
         <button
           type="button"
           onClick={onArchive}
-          className={`${ACTION_BUTTON_CLASS} text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)]`}
+          className={`${ACTION_BUTTON_CLASS} text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)]`}
           title="Archive (E)"
           aria-label="Archive"
         >
@@ -213,7 +213,7 @@ export function EmailReaderHeader({
         <button
           type="button"
           onClick={onDelete}
-          className={`${ACTION_BUTTON_CLASS} text-[#A1A4AC] hover:text-rose-400 hover:bg-rose-500/10`}
+          className={`${ACTION_BUTTON_CLASS} text-[var(--quant-muted-foreground)] hover:text-rose-400 hover:bg-rose-500/10`}
           title="Delete (#)"
           aria-label="Delete"
         >
@@ -233,7 +233,7 @@ export function EmailReaderHeader({
           <button
             type="button"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className={`${ACTION_BUTTON_CLASS} text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)]`}
+            className={`${ACTION_BUTTON_CLASS} text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)]`}
             title="More options"
             aria-label="More options"
             // Deliberately a disclosure, not `aria-haspopup="menu"`: the popup is a
@@ -256,7 +256,7 @@ export function EmailReaderHeader({
           </button>
 
           {isMenuOpen && (
-            <div className="absolute right-0 mt-2 w-56 sm:w-60 rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/98 backdrop-blur-xl shadow-[0_4px_16px_rgba(0,0,0,0.6)] p-1.5 z-50 text-xs text-[#F5F5F5]">
+            <div className="absolute right-0 mt-2 w-56 sm:w-60 rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/98 backdrop-blur-xl shadow-[0_4px_16px_rgba(0,0,0,0.6)] p-1.5 z-50 text-xs text-[var(--quant-foreground)]">
               {/* Mark as Important — the one destructive-adjacent item, so it keeps
                   its own rose treatment rather than the neutral row styling. */}
               <button

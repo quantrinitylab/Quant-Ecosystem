@@ -194,7 +194,7 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
       id="subview-reminders"
       role="tabpanel"
       aria-labelledby="tab-reminders"
-      className={`flex-1 flex flex-col overflow-y-auto bg-[var(--quant-background)] text-[#F5F5F5] p-4 sm:p-6 space-y-6 ${className}`}
+      className={`flex-1 flex flex-col overflow-y-auto bg-[var(--quant-background)] text-[var(--quant-foreground)] p-4 sm:p-6 space-y-6 ${className}`}
     >
       {/* Top Card: Stats & Quick Add */}
       <div className="bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
@@ -208,10 +208,10 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
                 Action Items
               </span>
             </div>
-            <h2 className="text-lg sm:text-xl font-bold text-[#F5F5F5] mt-1">
+            <h2 className="text-lg sm:text-xl font-bold text-[var(--quant-foreground)] mt-1">
               Time-Bound Tasks & Reminders
             </h2>
-            <p className="text-xs text-[#A1A4AC] mt-0.5">
+            <p className="text-xs text-[var(--quant-muted-foreground)] mt-0.5">
               Sync tasks with calendar deadlines and push alerts.
             </p>
           </div>
@@ -231,7 +231,7 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder="Add a new reminder…"
-            className="flex-1 bg-[var(--quant-background)] border border-[#232938] rounded-xl px-3.5 py-2.5 text-xs text-[#F5F5F5] placeholder-[#A1A4AC]/60 focus:outline-none focus:border-[var(--quant-warning)] transition-colors"
+            className="flex-1 bg-[var(--quant-background)] border border-[#232938] rounded-xl px-3.5 py-2.5 text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)]/60 focus:outline-none focus:border-[var(--quant-warning)] transition-colors"
           />
 
           <input
@@ -239,13 +239,13 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
             value={newDueTime}
             onChange={(e) => setNewDueTime(e.target.value)}
             placeholder="Due time (e.g. Today, 5:00 PM)"
-            className="w-full sm:w-44 bg-[var(--quant-background)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[var(--quant-warning)]"
+            className="w-full sm:w-44 bg-[var(--quant-background)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[var(--quant-foreground)] focus:outline-none focus:border-[var(--quant-warning)]"
           />
 
           <select
             aria-label="Reminder priority" value={newPriority}
             onChange={(e) => setNewPriority(e.target.value as any)}
-            className="bg-[var(--quant-background)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[var(--quant-warning)] cursor-pointer"
+            className="bg-[var(--quant-background)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[var(--quant-foreground)] focus:outline-none focus:border-[var(--quant-warning)] cursor-pointer"
           >
             <option value="urgent" className="bg-[var(--quant-surface)]">
               Urgent
@@ -281,7 +281,7 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
                 className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition-all focus-visible:outline-none ${
                   filterMode === mode
                     ? 'bg-[var(--quant-warning)]/20 text-[var(--quant-warning)] border border-[var(--quant-warning)]/40 font-semibold'
-                    : 'text-[#A1A4AC] hover:text-[#F5F5F5] border border-transparent'
+                    : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] border border-transparent'
                 }`}
               >
                 {mode}
@@ -289,7 +289,7 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
             ))}
           </div>
 
-          <span className="text-xs text-[#A1A4AC] font-mono">
+          <span className="text-xs text-[var(--quant-muted-foreground)] font-mono">
             {filteredReminders.length} item{filteredReminders.length === 1 ? '' : 's'}
           </span>
         </div>
@@ -330,7 +330,7 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
                       {reminder.completed ? (
                         <CheckSquareIcon className="size-5 text-[var(--quant-warning)]" />
                       ) : (
-                        <SquareIcon className="size-5 text-[#A1A4AC] group-hover:text-[var(--quant-warning)]" />
+                        <SquareIcon className="size-5 text-[var(--quant-muted-foreground)] group-hover:text-[var(--quant-warning)]" />
                       )}
                     </button>
 
@@ -338,14 +338,14 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
                       <p
                         className={`text-sm font-semibold truncate transition-all ${
                           reminder.completed
-                            ? 'line-through text-[#A1A4AC]'
-                            : 'text-[#F5F5F5] group-hover:text-[var(--quant-warning)]'
+                            ? 'line-through text-[var(--quant-muted-foreground)]'
+                            : 'text-[var(--quant-foreground)] group-hover:text-[var(--quant-warning)]'
                         }`}
                       >
                         {reminder.title}
                       </p>
 
-                      <p className="text-xs text-[#A1A4AC] flex items-center gap-1.5 mt-0.5">
+                      <p className="text-xs text-[var(--quant-muted-foreground)] flex items-center gap-1.5 mt-0.5">
                         <ClockIcon className="size-3 text-[var(--quant-warning)]" />
                         <span>Due: {reminder.dueTime}</span>
                       </p>
@@ -364,7 +364,7 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
                       type="button"
                       aria-label="Delete reminder"
                       onClick={(e) => handleDeleteReminder(reminder.id, e)}
-                      className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-lg text-[#A1A4AC] hover:text-rose-400 hover:bg-rose-950/40 opacity-0 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-all focus-visible:opacity-100 focus-visible:outline-none"
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-lg text-[var(--quant-muted-foreground)] hover:text-rose-400 hover:bg-rose-950/40 opacity-0 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-all focus-visible:opacity-100 focus-visible:outline-none"
                     >
                       <TrashIcon className="size-3.5" />
                     </button>
@@ -374,7 +374,7 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
             })
           ) : (
             <div className="py-8 text-center rounded-xl bg-[var(--quant-background)]/50 border border-dashed border-[#232938]">
-              <p className="text-xs text-[#A1A4AC]">No reminders in this filter</p>
+              <p className="text-xs text-[var(--quant-muted-foreground)]">No reminders in this filter</p>
             </div>
           )}
         </div>

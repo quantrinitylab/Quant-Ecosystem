@@ -78,7 +78,7 @@ export function PostcardReader({ email, className = '' }: PostcardReaderProps) {
           <span className="text-xs font-serif font-bold text-[var(--quant-primary)] uppercase tracking-widest">
             {payload.template.name}
           </span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[var(--quant-primary)]/15 text-[#FFB875] border border-[var(--quant-primary)]/30">
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[var(--quant-primary)]/15 text-[var(--brand-accent)] border border-[var(--quant-primary)]/30">
             AUTHENTIC POSTCARD
           </span>
         </div>
@@ -91,7 +91,7 @@ export function PostcardReader({ email, className = '' }: PostcardReaderProps) {
             className={`px-3 py-1 rounded-md font-semibold transition-all ${
               viewMode === 'postcard'
                 ? 'bg-[var(--quant-primary)] text-black shadow-sm'
-                : 'text-[#A1A4AC] hover:text-white'
+                : 'text-[var(--quant-muted-foreground)] hover:text-white'
             }`}
           >
             Postcard View
@@ -102,7 +102,7 @@ export function PostcardReader({ email, className = '' }: PostcardReaderProps) {
             className={`px-3 py-1 rounded-md font-semibold transition-all ${
               viewMode === 'standard'
                 ? 'bg-[var(--quant-primary)] text-black shadow-sm'
-                : 'text-[#A1A4AC] hover:text-white'
+                : 'text-[var(--quant-muted-foreground)] hover:text-white'
             }`}
           >
             Standard View
@@ -128,7 +128,7 @@ export function PostcardReader({ email, className = '' }: PostcardReaderProps) {
           />
         </div>
       ) : (
-        <div className="w-full text-sm text-[#A1A4AC] leading-relaxed whitespace-pre-wrap font-sans">
+        <div className="w-full text-sm text-[var(--quant-muted-foreground)] leading-relaxed whitespace-pre-wrap font-sans">
           {safeHtml ? (
             <div dangerouslySetInnerHTML={{ __html: safeHtml }} />
           ) : (

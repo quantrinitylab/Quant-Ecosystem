@@ -71,7 +71,7 @@ export function InsertLinkModal({
               type="button"
               onClick={onClose}
               aria-label="Close insert link dialog"
-              className="inline-flex items-center justify-center size-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 -mr-1.5 sm:mr-0 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="inline-flex items-center justify-center size-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 -mr-1.5 sm:mr-0 rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               <IconX size={15} />
             </button>
@@ -79,7 +79,7 @@ export function InsertLinkModal({
 
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-[#A1A4AC] mb-1">
+              <label className="block text-xs font-medium text-[var(--quant-muted-foreground)] mb-1">
                 Text to display
               </label>
               <input
@@ -87,12 +87,12 @@ export function InsertLinkModal({
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="e.g. Project Deliverables Document"
-                className="w-full rounded-xl bg-[var(--quant-surface)]/90 border border-[var(--quant-surface-elevated)] px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[var(--quant-primary)]/50"
+                className="w-full rounded-xl bg-[var(--quant-surface)]/90 border border-[var(--quant-surface-elevated)] px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]/50"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-[#A1A4AC] mb-1">
+              <label className="block text-xs font-medium text-[var(--quant-muted-foreground)] mb-1">
                 Web address (URL) <span className="text-rose-500">*</span>
               </label>
               <input
@@ -101,7 +101,7 @@ export function InsertLinkModal({
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://example.com or mailto:user@domain.com"
                 required
-                className="w-full rounded-xl bg-[var(--quant-surface)]/90 border border-[var(--quant-surface-elevated)] px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[var(--quant-primary)]/50"
+                className="w-full rounded-xl bg-[var(--quant-surface)]/90 border border-[var(--quant-surface-elevated)] px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]/50"
               />
             </div>
 
@@ -109,7 +109,7 @@ export function InsertLinkModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all"
+                className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all"
               >
                 Cancel
               </button>

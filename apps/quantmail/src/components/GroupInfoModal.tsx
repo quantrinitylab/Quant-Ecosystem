@@ -181,11 +181,11 @@ function MembersTab({
       {management && (
         <div className="mb-2 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] p-3">
           <p className="text-xs font-bold text-white">Invite link</p>
-          <p className="mt-0.5 text-[11px] text-[#A1A4AC]">
+          <p className="mt-0.5 text-[11px] text-[var(--quant-muted-foreground)]">
             Anyone with the link can join this group.
           </p>
           {management.inviteLinkLoading ? (
-            <p className="mt-2 text-xs text-[#A1A4AC]">Loading invite link…</p>
+            <p className="mt-2 text-xs text-[var(--quant-muted-foreground)]">Loading invite link…</p>
           ) : management.inviteLink ? (
             <div className="mt-2 space-y-2">
               <p className="truncate rounded-lg bg-[var(--quant-background)] px-2.5 py-2 font-mono text-[11px] text-[var(--quant-primary)]">
@@ -203,7 +203,7 @@ function MembersTab({
                   type="button"
                   onClick={management.onCreateInviteLink}
                   disabled={management.inviteLinkBusy}
-                  className="min-h-[36px] rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3 text-xs font-semibold text-[#A1A4AC] hover:text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                  className="min-h-[36px] rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3 text-xs font-semibold text-[var(--quant-muted-foreground)] hover:text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 >
                   Regenerate
                 </button>
@@ -255,7 +255,7 @@ function MembersTab({
                   <strong className="block truncate text-sm text-white">
                     {isSelf ? 'You' : displayName(email)}
                   </strong>
-                  <span className="block truncate text-xs text-[#A1A4AC]">{email}</span>
+                  <span className="block truncate text-xs text-[var(--quant-muted-foreground)]">{email}</span>
                 </span>
                 <span
                   className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${
@@ -263,7 +263,7 @@ function MembersTab({
                       ? 'bg-[var(--quant-primary)]/15 text-[var(--quant-primary)]'
                       : isAdmin
                         ? 'bg-amber-500/15 text-amber-300'
-                        : 'bg-[var(--quant-surface-elevated)] text-[#A1A4AC]'
+                        : 'bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)]'
                   }`}
                 >
                   {isSelf ? 'Owner' : isAdmin ? 'Admin' : 'Member'}
@@ -390,7 +390,7 @@ function Inspector({
                       setContactNameInput(title);
                       setIsEditingContactName(true);
                     }}
-                    className="rounded p-1 text-[#A1A4AC] hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="rounded p-1 text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     title="Edit contact nickname"
                     aria-label="Edit contact nickname"
                   >
@@ -434,13 +434,13 @@ function Inspector({
                 <button
                   type="button"
                   onClick={() => setIsEditingContactName(false)}
-                  className="min-h-[36px] rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-2.5 text-xs text-[#A1A4AC] hover:text-white"
+                  className="min-h-[36px] rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-2.5 text-xs text-[var(--quant-muted-foreground)] hover:text-white"
                 >
                   Cancel
                 </button>
               </form>
             )}
-            <p className="truncate text-xs text-[#A1A4AC]">{subtitle}</p>
+            <p className="truncate text-xs text-[var(--quant-muted-foreground)]">{subtitle}</p>
             {onEdit && (
               <button
                 type="button"
@@ -455,7 +455,7 @@ function Inspector({
             type="button"
             onClick={onClose}
             aria-label="Close inspector"
-            className="flex size-11 items-center justify-center rounded-xl text-[#A1A4AC] hover:bg-[var(--quant-surface-elevated)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+            className="flex size-11 items-center justify-center rounded-xl text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           >
             ✕
           </button>
@@ -476,7 +476,7 @@ function Inspector({
               className={`min-h-[52px] border-b-2 px-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)] ${
                 tab === item.key
                   ? 'border-[var(--quant-primary)] text-[var(--quant-primary)]'
-                  : 'border-transparent text-[#A1A4AC] hover:text-white'
+                  : 'border-transparent text-[var(--quant-muted-foreground)] hover:text-white'
               }`}
             >
               {item.label} <span className="ml-1 text-[10px]">{item.count}</span>
@@ -527,7 +527,7 @@ function Inspector({
                     <p className="truncate px-2 pt-2 text-xs font-semibold text-white">
                       {attachment.filename}
                     </p>
-                    <p className="truncate px-2 pb-2 text-[10px] text-[#A1A4AC]">
+                    <p className="truncate px-2 pb-2 text-[10px] text-[var(--quant-muted-foreground)]">
                       {sender} · {dateLabel(date)}
                     </p>
                   </li>
@@ -553,7 +553,7 @@ function Inspector({
                         <strong className="block truncate text-sm text-white">
                           {attachment.filename}
                         </strong>
-                        <span className="block truncate text-xs text-[#A1A4AC]">
+                        <span className="block truncate text-xs text-[var(--quant-muted-foreground)]">
                           {bytes(attachment.size)} · {sender} · {dateLabel(date)}
                         </span>
                       </span>
@@ -576,7 +576,7 @@ function Inspector({
                     >
                       <span className="min-w-0 flex-1">
                         <strong className="block truncate text-sm text-white">{link.label}</strong>
-                        <span className="block truncate text-xs text-[#A1A4AC]">
+                        <span className="block truncate text-xs text-[var(--quant-muted-foreground)]">
                           {link.sender} · {dateLabel(link.date)}
                         </span>
                       </span>
@@ -596,7 +596,7 @@ function Inspector({
 
 function Empty({ text }: { text: string }) {
   return (
-    <div className="flex min-h-[260px] items-center justify-center rounded-2xl border border-dashed border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)]/50 text-sm text-[#A1A4AC]">
+    <div className="flex min-h-[260px] items-center justify-center rounded-2xl border border-dashed border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)]/50 text-sm text-[var(--quant-muted-foreground)]">
       {text}
     </div>
   );

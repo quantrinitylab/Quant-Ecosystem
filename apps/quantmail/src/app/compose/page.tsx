@@ -272,7 +272,7 @@ export default function ComposePage() {
 
   if (draftLoading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[var(--quant-surface-subtle)] text-[#A1A4AC] text-sm">
+      <div className="flex h-screen w-screen items-center justify-center bg-[var(--quant-surface-subtle)] text-[var(--quant-muted-foreground)] text-sm">
         <p>Loading draft…</p>
       </div>
     );

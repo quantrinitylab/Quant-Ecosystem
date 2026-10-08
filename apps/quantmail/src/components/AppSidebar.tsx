@@ -313,7 +313,7 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
             onClick={() => {
               window.dispatchEvent(new CustomEvent('quant:sidebar:close'));
             }}
-            className="size-11 sm:size-8 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+            className="size-11 sm:size-8 inline-flex items-center justify-center rounded-xl text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             title="Close navigation"
             aria-label="Close navigation menu"
           >
@@ -406,12 +406,12 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
           className="mt-4 px-2.5 py-3 border-t border-[var(--quant-border-subtle)]"
           aria-label="Storage status"
         >
-          <div className="flex items-center justify-between text-[11px] text-[#A1A4AC]">
+          <div className="flex items-center justify-between text-[11px] text-[var(--quant-muted-foreground)]">
             <span className="font-medium flex items-center gap-1.5">
               <span className="inline-block size-1.5 rounded-full bg-[var(--quant-primary)]" />
               Cloud Storage
             </span>
-            <span className="font-mono text-[10px] text-[#F5F5F5]">
+            <span className="font-mono text-[10px] text-[var(--quant-foreground)]">
               {quotaKnown && quota
                 ? `${formatBytes(quota.used)} / ${formatBytes(quota.total)}`
                 : 'Calculating…'}

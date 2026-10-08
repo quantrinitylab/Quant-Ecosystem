@@ -223,7 +223,7 @@ export function CalendarEventForm({
                 className={`w-14 h-1.5 rounded-full mx-auto mb-2 transition-all ${
                   isSheetDragging
                     ? 'bg-[var(--quant-primary)] scale-110 shadow-[0_0_0_3px_rgba(255,140,66,0.22)]'
-                    : 'bg-[#6B6E76] hover:bg-[#A1A4AC]'
+                    : 'bg-[var(--quant-text-muted)] hover:bg-[var(--quant-muted-foreground)]'
                 }`}
               />
 
@@ -233,7 +233,7 @@ export function CalendarEventForm({
                   <button
                     type="button"
                     onClick={closeSheet}
-                    className="size-9 min-h-[44px] min-w-[44px] rounded-full hover:bg-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:text-white flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="size-9 min-h-[44px] min-w-[44px] rounded-full hover:bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     aria-label="Close"
                   >
                     <IconX className="size-4" />
@@ -319,7 +319,7 @@ export function CalendarEventForm({
                       className={`flex min-h-11 items-center justify-center gap-1.5 border-b-2 px-3 pb-1 font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] sm:min-h-0 ${
                         periodSubTab === tab.key
                           ? 'border-rose-400 text-rose-300 font-bold'
-                          : 'border-transparent text-[#A1A4AC] hover:text-[#F5F5F5]'
+                          : 'border-transparent text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
                       }`}
                     >
                       <span>{tab.label}</span>
@@ -332,8 +332,8 @@ export function CalendarEventForm({
             {/* Form Content Body */}
             <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4 text-xs text-white pb-24">
               {/* Account Row */}
-              <div className="flex items-center justify-between py-1 border-b border-[var(--quant-surface-elevated)] text-[#A1A4AC]">
-                <span className="text-xs text-[#A1A4AC]">Account</span>
+              <div className="flex items-center justify-between py-1 border-b border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)]">
+                <span className="text-xs text-[var(--quant-muted-foreground)]">Account</span>
                 <span className="text-[11px] font-semibold text-[var(--quant-primary)] bg-[var(--quant-primary)]/12 px-2.5 py-0.5 rounded-full border border-[var(--quant-primary)]/35 shadow-[0_0_10px_rgba(255,140,66,0.12)] flex items-center gap-1.5">
                   <svg
                     className="w-3 h-3 text-[var(--quant-primary)]"
@@ -361,14 +361,14 @@ export function CalendarEventForm({
                       value={formState.title}
                       onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                       placeholder="Add event title"
-                      className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[var(--quant-primary)]"
+                      className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[var(--quant-muted-foreground)] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[var(--quant-primary)]"
                       autoFocus
                       data-autofocus
                     />
                   </div>
 
                   <div className="flex items-center justify-between py-2 border-b border-[var(--quant-surface-elevated)]/60">
-                    <div className="flex items-center gap-2.5 text-[#A1A4AC]">
+                    <div className="flex items-center gap-2.5 text-[var(--quant-muted-foreground)]">
                       <IconClock className="size-4 text-[var(--quant-primary)]" />
                       <span className="font-semibold">All-day</span>
                     </div>
@@ -435,7 +435,7 @@ export function CalendarEventForm({
                   <button
                     type="button"
                     onClick={() => setIsTimezoneModalOpen(true)}
-                    className="w-full min-h-[44px] sm:min-h-0 flex items-center justify-between text-left text-[#A1A4AC] hover:text-white py-2 border-b border-[var(--quant-surface-elevated)]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="w-full min-h-[44px] sm:min-h-0 flex items-center justify-between text-left text-[var(--quant-muted-foreground)] hover:text-white py-2 border-b border-[var(--quant-surface-elevated)]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                   >
                     <div className="flex items-center gap-2.5">
                       <IconGlobe className="size-4 text-cyan-400" />
@@ -444,23 +444,23 @@ export function CalendarEventForm({
                           'India Standard Time (IST)'}
                       </span>
                     </div>
-                    <span className="text-[#6B6E76] text-xs">›</span>
+                    <span className="text-[var(--quant-text-muted)] text-xs">›</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setIsRecurrenceModalOpen(true)}
-                    className="w-full min-h-[44px] sm:min-h-0 flex items-center justify-between text-left text-[#A1A4AC] hover:text-white py-2 border-b border-[var(--quant-surface-elevated)]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="w-full min-h-[44px] sm:min-h-0 flex items-center justify-between text-left text-[var(--quant-muted-foreground)] hover:text-white py-2 border-b border-[var(--quant-surface-elevated)]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                   >
                     <div className="flex items-center gap-2.5">
                       <IconRefresh className="size-4 text-[var(--quant-primary)]" />
                       <span>{formState.recurrence}</span>
                     </div>
-                    <span className="text-[#6B6E76] text-xs">›</span>
+                    <span className="text-[var(--quant-text-muted)] text-xs">›</span>
                   </button>
 
                   <div className="py-2 border-b border-[var(--quant-surface-elevated)]/60 space-y-2">
-                    <div className="flex items-center gap-2.5 text-[#A1A4AC]">
+                    <div className="flex items-center gap-2.5 text-[var(--quant-muted-foreground)]">
                       <IconUsers className="size-4 text-indigo-400" />
                       <input
                         type="email"
@@ -470,7 +470,7 @@ export function CalendarEventForm({
                           setFormState({ ...formState, attendeeInput: e.target.value })
                         }
                         onKeyDown={handleAddAttendee}
-                        className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                       />
                     </div>
                     {formState.attendees.length > 0 && (
@@ -478,13 +478,13 @@ export function CalendarEventForm({
                         {formState.attendees.map((email) => (
                           <span
                             key={email}
-                            className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[var(--quant-surface-elevated)] text-[#F5F5F5] text-[11px]"
+                            className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] text-[11px]"
                           >
                             <span>{email}</span>
                             <button
                               type="button"
                               onClick={() => removeAttendee(email)}
-                              className="relative inline-flex items-center justify-center size-4 rounded text-[#A1A4AC] hover:text-rose-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] after:absolute after:-inset-y-[14px] after:-inset-x-[10px] after:content-['']"
+                              className="relative inline-flex items-center justify-center size-4 rounded text-[var(--quant-muted-foreground)] hover:text-rose-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] after:absolute after:-inset-y-[14px] after:-inset-x-[10px] after:content-['']"
                               aria-label={`Remove attendee ${email}`}
                             >
                               <IconX size={11} />
@@ -496,14 +496,14 @@ export function CalendarEventForm({
                   </div>
 
                   <div className="py-2 border-b border-[var(--quant-surface-elevated)]/60 space-y-1.5">
-                    <div className="flex items-center gap-2.5 text-[#A1A4AC]">
+                    <div className="flex items-center gap-2.5 text-[var(--quant-muted-foreground)]">
                       <IconMapPin className="size-4 text-rose-400" />
                       <input
                         type="text"
                         placeholder="Add location or QuantChat room"
                         value={formState.location}
                         onChange={(e) => setFormState({ ...formState, location: e.target.value })}
-                        className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                       />
                     </div>
                     <div className="flex items-center gap-1.5 pl-7">
@@ -512,7 +512,7 @@ export function CalendarEventForm({
                           key={loc}
                           type="button"
                           onClick={() => setFormState({ ...formState, location: loc })}
-                          className="inline-flex min-h-11 items-center rounded-md bg-[var(--quant-surface-elevated)] px-2 py-0.5 text-[10px] text-[#A1A4AC] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] sm:min-h-0"
+                          className="inline-flex min-h-11 items-center rounded-md bg-[var(--quant-surface-elevated)] px-2 py-0.5 text-[10px] text-[var(--quant-muted-foreground)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] sm:min-h-0"
                         >
                           {loc}
                         </button>
@@ -521,7 +521,7 @@ export function CalendarEventForm({
                   </div>
 
                   <div className="py-2 border-b border-[var(--quant-surface-elevated)]/60 space-y-2">
-                    <div className="flex items-center justify-between text-[#A1A4AC]">
+                    <div className="flex items-center justify-between text-[var(--quant-muted-foreground)]">
                       <div className="flex items-center gap-2.5">
                         <IconBell className="size-4 text-[var(--quant-primary)]" />
                         <span className="font-semibold">Notifications</span>
@@ -538,13 +538,13 @@ export function CalendarEventForm({
                       {formState.notifications.map((notif, idx) => (
                         <div
                           key={idx}
-                          className="flex items-center justify-between text-[11px] text-[#A1A4AC]"
+                          className="flex items-center justify-between text-[11px] text-[var(--quant-muted-foreground)]"
                         >
                           <span>{notif}</span>
                           <button
                             type="button"
                             onClick={() => removeNotificationReminder(idx)}
-                            className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] -my-3 rounded text-[#6B6E76] hover:text-rose-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                            className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] -my-3 rounded text-[var(--quant-text-muted)] hover:text-rose-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                             aria-label={`Remove reminder ${notif}`}
                           >
                             <IconX size={12} />
@@ -554,26 +554,26 @@ export function CalendarEventForm({
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-2.5 py-2 border-b border-[var(--quant-surface-elevated)]/60 text-[#A1A4AC]">
+                  <div className="flex items-start gap-2.5 py-2 border-b border-[var(--quant-surface-elevated)]/60 text-[var(--quant-muted-foreground)]">
                     <span className="text-base mt-1">≡</span>
                     <textarea
                       rows={2}
                       placeholder="Add description, meeting agenda…"
                       value={formState.description}
                       onChange={(e) => setFormState({ ...formState, description: e.target.value })}
-                      className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                      className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     />
                   </div>
 
-                  <div className="py-2 space-y-1.5 text-[#A1A4AC]">
+                  <div className="py-2 space-y-1.5 text-[var(--quant-muted-foreground)]">
                     <div className="flex items-center gap-2.5">
-                      <IconPaperclip className="size-4 text-[#A1A4AC]" />
+                      <IconPaperclip className="size-4 text-[var(--quant-muted-foreground)]" />
                       <input
                         type="text"
                         placeholder="Attach QuantDrive file URL or link"
                         value={formState.driveLink}
                         onChange={(e) => setFormState({ ...formState, driveLink: e.target.value })}
-                        className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                       />
                     </div>
                   </div>
@@ -589,14 +589,14 @@ export function CalendarEventForm({
                       value={formState.title}
                       onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                       placeholder="Add task title"
-                      className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[var(--quant-primary)]"
+                      className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[var(--quant-muted-foreground)] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[var(--quant-primary)]"
                       autoFocus
                       data-autofocus
                     />
                   </div>
 
                   <div className="flex items-center justify-between py-2 border-b border-[var(--quant-surface-elevated)]/60">
-                    <span className="text-[#A1A4AC] font-semibold">Priority</span>
+                    <span className="text-[var(--quant-muted-foreground)] font-semibold">Priority</span>
                     <div className="flex items-center gap-1.5">
                       {(
                         [
@@ -625,7 +625,7 @@ export function CalendarEventForm({
                           className={`inline-flex min-h-11 items-center justify-center rounded-xl border px-3 py-1 text-[11px] font-black transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] sm:min-h-0 ${
                             formState.priority === p.key
                               ? `${p.color} ring-1 ring-white/20 scale-105 shadow-md`
-                              : 'bg-[var(--quant-surface)] border-[var(--quant-surface-elevated)] text-[#A1A4AC]'
+                              : 'bg-[var(--quant-surface)] border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)]'
                           }`}
                         >
                           {p.label}
@@ -635,7 +635,7 @@ export function CalendarEventForm({
                   </div>
 
                   <div className="flex items-center justify-between py-2 border-b border-[var(--quant-surface-elevated)]/60">
-                    <div className="flex items-center gap-2 text-[#A1A4AC]">
+                    <div className="flex items-center gap-2 text-[var(--quant-muted-foreground)]">
                       <IconCalendar className="size-4 text-[var(--quant-primary)]" />
                       <span className="font-semibold">Due Date</span>
                     </div>
@@ -649,14 +649,14 @@ export function CalendarEventForm({
                   </div>
 
                   <div className="space-y-2 p-3 rounded-2xl bg-[var(--quant-surface)]/60 border border-[var(--quant-surface-elevated)]">
-                    <span className="font-bold text-[#A1A4AC]">Checklist & Subtasks</span>
+                    <span className="font-bold text-[var(--quant-muted-foreground)]">Checklist & Subtasks</span>
                     <input
                       type="text"
                       placeholder="+ Add subtask (press Enter)"
                       value={formState.subtaskInput}
                       onChange={(e) => setFormState({ ...formState, subtaskInput: e.target.value })}
                       onKeyDown={handleAddSubtask}
-                      className="w-full min-h-[44px] sm:min-h-0 bg-[var(--quant-background)] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#A1A4AC]"
+                      className="w-full min-h-[44px] sm:min-h-0 bg-[var(--quant-background)] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[var(--quant-muted-foreground)]"
                     />
                     {formState.subtasks.map((st, idx) => (
                       <div
@@ -678,11 +678,11 @@ export function CalendarEventForm({
                               <polyline points="20 6 9 17 4 12" />
                             </svg>
                           ) : (
-                            <span className="size-3 rounded border border-[#6B6E76] inline-block" />
+                            <span className="size-3 rounded border border-[var(--quant-text-muted)] inline-block" />
                           )}
                         </span>
                         <span
-                          className={st.done ? 'line-through text-[#A1A4AC]' : 'text-[#F5F5F5]'}
+                          className={st.done ? 'line-through text-[var(--quant-muted-foreground)]' : 'text-[var(--quant-foreground)]'}
                         >
                           {st.text}
                         </span>
@@ -690,14 +690,14 @@ export function CalendarEventForm({
                     ))}
                   </div>
 
-                  <div className="flex items-start gap-2.5 py-2 border-b border-[var(--quant-surface-elevated)]/60 text-[#A1A4AC]">
+                  <div className="flex items-start gap-2.5 py-2 border-b border-[var(--quant-surface-elevated)]/60 text-[var(--quant-muted-foreground)]">
                     <span className="text-base mt-1">≡</span>
                     <textarea
                       rows={2}
                       placeholder="Add task notes or instructions…"
                       value={formState.description}
                       onChange={(e) => setFormState({ ...formState, description: e.target.value })}
-                      className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                      className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     />
                   </div>
                 </div>
@@ -712,14 +712,14 @@ export function CalendarEventForm({
                       value={formState.title}
                       onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                       placeholder="Add person's name (e.g. Rahul's Birthday)"
-                      className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-emerald-500"
+                      className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[var(--quant-muted-foreground)] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-emerald-500"
                       autoFocus
                       data-autofocus
                     />
                   </div>
 
                   <div className="flex items-center justify-between py-2 border-b border-[var(--quant-surface-elevated)]/60">
-                    <div className="flex items-center gap-2 text-[#A1A4AC]">
+                    <div className="flex items-center gap-2 text-[var(--quant-muted-foreground)]">
                       <IconCake className="size-4 text-emerald-400" />
                       <span className="font-semibold">Birthday Date</span>
                     </div>
@@ -733,7 +733,7 @@ export function CalendarEventForm({
                   </div>
 
                   <div className="flex items-center justify-between py-2 border-b border-[var(--quant-surface-elevated)]/60">
-                    <div className="flex items-center gap-2 text-[#A1A4AC]">
+                    <div className="flex items-center gap-2 text-[var(--quant-muted-foreground)]">
                       <IconCalendar className="size-4 text-emerald-400" />
                       <span className="font-semibold">Birth Year (Optional)</span>
                     </div>
@@ -747,7 +747,7 @@ export function CalendarEventForm({
                     />
                   </div>
 
-                  <div className="flex items-start gap-2.5 py-2 border-b border-[var(--quant-surface-elevated)]/60 text-[#A1A4AC]">
+                  <div className="flex items-start gap-2.5 py-2 border-b border-[var(--quant-surface-elevated)]/60 text-[var(--quant-muted-foreground)]">
                     <svg
                       className="size-4 text-emerald-400 mt-1 shrink-0"
                       viewBox="0 0 24 24"
@@ -768,7 +768,7 @@ export function CalendarEventForm({
                       placeholder="Gift ideas, party venue, wishlist notes…"
                       value={formState.description}
                       onChange={(e) => setFormState({ ...formState, description: e.target.value })}
-                      className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                      className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     />
                   </div>
                 </div>
@@ -782,7 +782,7 @@ export function CalendarEventForm({
                     <div className="space-y-6">
                       {/* Mini Week Bar with Highlighted Period */}
                       <div className="p-3 rounded-2xl bg-[var(--quant-surface)]/80 border border-[var(--quant-surface-elevated)] space-y-2">
-                        <div className="flex items-center justify-between text-xs text-[#A1A4AC]">
+                        <div className="flex items-center justify-between text-xs text-[var(--quant-muted-foreground)]">
                           <span className="font-semibold">Cycle Dates</span>
                           <button
                             type="button"
@@ -808,7 +808,7 @@ export function CalendarEventForm({
                               className={`py-1.5 rounded-xl flex flex-col items-center justify-center transition-all relative before:absolute before:inset-y-0 before:-inset-x-[2px] before:content-[''] ${
                                 formState.startDate === d.key
                                   ? 'border-2 border-rose-400 bg-rose-950/80 text-white font-black scale-105 shadow-[0_4px_16px_rgba(0,0,0,0.6)]'
-                                  : 'bg-[var(--quant-background)] text-[#A1A4AC] hover:bg-[var(--quant-surface-elevated)]'
+                                  : 'bg-[var(--quant-background)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
                               }`}
                             >
                               <span className="text-[10px]">{d.dayLetter}</span>
@@ -876,7 +876,7 @@ export function CalendarEventForm({
                               className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                                 formState.collectionMethod === cm.label
                                   ? 'bg-rose-600/40 border-rose-400 text-white font-black shadow'
-                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:text-[#F5F5F5]'
+                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
                               }`}
                             >
                               <cm.Icon className="size-4" />
@@ -908,7 +908,7 @@ export function CalendarEventForm({
                               className={`flex min-h-11 items-center justify-center gap-2 rounded-2xl border p-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                                 formState.spottingColor === sp.key
                                   ? 'bg-rose-600/30 border-rose-500 text-white font-black shadow'
-                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:text-[#F5F5F5]'
+                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
                               }`}
                             >
                               <IconDot size={11} tone={sp.tone} />
@@ -934,8 +934,8 @@ export function CalendarEventForm({
                                 aria-pressed={isSelected}
                                 className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                                   isSelected
-                                    ? 'bg-[var(--brand-primary-pressed)]/30 border-[var(--quant-primary)] text-[#FFD1A3] font-black shadow'
-                                    : 'bg-[#1e1e24] border-[var(--quant-primary)]/20 text-[#FFB875] hover:bg-[var(--quant-surface-elevated)]'
+                                    ? 'bg-[var(--brand-primary-pressed)]/30 border-[var(--quant-primary)] text-[var(--brand-accent-hover)] font-black shadow'
+                                    : 'bg-[#1e1e24] border-[var(--quant-primary)]/20 text-[var(--brand-accent)] hover:bg-[var(--quant-surface-elevated)]'
                                 }`}
                               >
                                 <f.Icon className="size-[18px]" />
@@ -966,7 +966,7 @@ export function CalendarEventForm({
                                 className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                                   isSelected
                                     ? 'bg-blue-600/30 border-blue-400 text-blue-200 font-black shadow'
-                                    : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:bg-[var(--quant-surface-elevated)]'
+                                    : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
                                 }`}
                               >
                                 <p.Icon className="size-[18px]" />
@@ -996,7 +996,7 @@ export function CalendarEventForm({
                               className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                                 formState.intimateHealth === intm.label
                                   ? 'bg-pink-600/30 border-pink-400 text-pink-200 font-black shadow'
-                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:bg-[var(--quant-surface-elevated)]'
+                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
                               }`}
                             >
                               <intm.Icon className="size-4" />
@@ -1024,7 +1024,7 @@ export function CalendarEventForm({
                               className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                                 formState.hotFlashes === hf.label
                                   ? 'bg-amber-600/30 border-amber-400 text-amber-200 font-black shadow'
-                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:bg-[var(--quant-surface-elevated)]'
+                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
                               }`}
                             >
                               <span className="flex items-center gap-px h-4" aria-hidden="true">
@@ -1059,7 +1059,7 @@ export function CalendarEventForm({
                               className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                                 formState.sleep === sl.label
                                   ? 'bg-indigo-600/30 border-indigo-400 text-indigo-200 font-black shadow'
-                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:bg-[var(--quant-surface-elevated)]'
+                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
                               }`}
                             >
                               <sl.Icon className="size-4" />
@@ -1086,7 +1086,7 @@ export function CalendarEventForm({
                               className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                                 formState.sexLife === sx.label
                                   ? 'bg-rose-600/30 border-rose-400 text-rose-200 font-black shadow'
-                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:bg-[var(--quant-surface-elevated)]'
+                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
                               }`}
                             >
                               <sx.Icon className="size-4" />
@@ -1112,8 +1112,8 @@ export function CalendarEventForm({
                               aria-pressed={formState.energy === en.label}
                               className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                                 formState.energy === en.label
-                                  ? 'bg-[var(--brand-primary-pressed)]/30 border-[var(--quant-primary)] text-[#FFB875] font-black shadow'
-                                  : 'bg-[#1e1e24] border-[var(--quant-primary)]/20 text-[#FFB875] hover:bg-[var(--quant-surface-elevated)]'
+                                  ? 'bg-[var(--brand-primary-pressed)]/30 border-[var(--quant-primary)] text-[var(--brand-accent)] font-black shadow'
+                                  : 'bg-[#1e1e24] border-[var(--quant-primary)]/20 text-[var(--brand-accent)] hover:bg-[var(--quant-surface-elevated)]'
                               }`}
                             >
                               <en.Icon className="size-4" />
@@ -1128,7 +1128,7 @@ export function CalendarEventForm({
                       {/* 11. BODY METRICS */}
                       <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-[#1e1e24] border border-[var(--quant-surface-elevated)]">
                         <div>
-                          <span className="flex items-center gap-1 text-[10px] text-[#A1A4AC] mb-1">
+                          <span className="flex items-center gap-1 text-[10px] text-[var(--quant-muted-foreground)] mb-1">
                             <IconThermometer size={11} /> Basal Body Temp
                           </span>
                           <input
@@ -1141,7 +1141,7 @@ export function CalendarEventForm({
                           />
                         </div>
                         <div>
-                          <span className="flex items-center gap-1 text-[10px] text-[#A1A4AC] mb-1">
+                          <span className="flex items-center gap-1 text-[10px] text-[var(--quant-muted-foreground)] mb-1">
                             <IconScale size={11} /> Weight
                           </span>
                           <input
@@ -1157,7 +1157,7 @@ export function CalendarEventForm({
 
                       {/* 12. MY CUSTOM TAGS */}
                       <div className="space-y-2">
-                        <span className="text-xs font-bold text-[#A1A4AC]">My tags</span>
+                        <span className="text-xs font-bold text-[var(--quant-muted-foreground)]">My tags</span>
                         <input
                           type="text"
                           placeholder="+ Create new tag (press Enter)"
@@ -1166,7 +1166,7 @@ export function CalendarEventForm({
                             setFormState({ ...formState, customTagInput: e.target.value })
                           }
                           onKeyDown={handleAddCustomTag}
-                          className="w-full min-h-[44px] sm:min-h-0 bg-[#1e1e24] border border-[var(--quant-surface-elevated)] rounded-2xl p-2.5 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                          className="w-full min-h-[44px] sm:min-h-0 bg-[#1e1e24] border border-[var(--quant-surface-elevated)] rounded-2xl p-2.5 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                         />
                         {formState.customTags.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 pt-1">
@@ -1179,7 +1179,7 @@ export function CalendarEventForm({
                                 <button
                                   type="button"
                                   onClick={() => removeCustomTag(tag)}
-                                  className="relative inline-flex items-center justify-center size-4 rounded text-[#A1A4AC] hover:text-rose-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] after:absolute after:-inset-y-[14px] after:-inset-x-[10px] after:content-['']"
+                                  className="relative inline-flex items-center justify-center size-4 rounded text-[var(--quant-muted-foreground)] hover:text-rose-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] after:absolute after:-inset-y-[14px] after:-inset-x-[10px] after:content-['']"
                                   aria-label={`Remove tag ${tag}`}
                                 >
                                   <IconX size={11} />
@@ -1192,7 +1192,7 @@ export function CalendarEventForm({
 
                       {/* 13. DAILY NOTE */}
                       <div className="space-y-2">
-                        <span className="text-xs font-bold text-[#A1A4AC]">Daily Note</span>
+                        <span className="text-xs font-bold text-[var(--quant-muted-foreground)]">Daily Note</span>
                         <textarea
                           rows={2}
                           placeholder="Any extra details to add today?…"
@@ -1200,7 +1200,7 @@ export function CalendarEventForm({
                           onChange={(e) =>
                             setFormState({ ...formState, description: e.target.value })
                           }
-                          className="w-full bg-[#1e1e24] border border-[var(--quant-surface-elevated)] rounded-2xl p-3 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-rose-500 resize-none"
+                          className="w-full bg-[#1e1e24] border border-[var(--quant-surface-elevated)] rounded-2xl p-3 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-rose-500 resize-none"
                         />
                       </div>
                     </div>
@@ -1222,14 +1222,14 @@ export function CalendarEventForm({
                                 ? `${formState.periodDays - formState.currentCycleDay + 1} more days of period`
                                 : 'Fertile Window Forecast'}
                             </h3>
-                            <p className="text-[10px] text-[#A1A4AC]">
+                            <p className="text-[10px] text-[var(--quant-muted-foreground)]">
                               Next cycle in ~{formState.cycleLength - formState.currentCycleDay}{' '}
                               days
                             </p>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3 mt-4 text-[10px] text-[#A1A4AC]">
+                        <div className="flex items-center gap-3 mt-4 text-[10px] text-[var(--quant-muted-foreground)]">
                           <span className="flex items-center gap-1">
                             <span className="size-2 rounded-full bg-rose-500" /> Period
                           </span>
@@ -1244,7 +1244,7 @@ export function CalendarEventForm({
 
                       <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-[#1e1e24] border border-[var(--quant-surface-elevated)] text-[11px]">
                         <div>
-                          <label htmlFor="evt-period-length" className="block text-[#A1A4AC] mb-1">
+                          <label htmlFor="evt-period-length" className="block text-[var(--quant-muted-foreground)] mb-1">
                             Period Length ({formState.periodDays}d)
                           </label>
                           <input
@@ -1263,7 +1263,7 @@ export function CalendarEventForm({
                           />
                         </div>
                         <div>
-                          <label htmlFor="evt-cycle-length" className="block text-[#A1A4AC] mb-1">
+                          <label htmlFor="evt-cycle-length" className="block text-[var(--quant-muted-foreground)] mb-1">
                             Cycle Length ({formState.cycleLength}d)
                           </label>
                           <input
@@ -1290,14 +1290,14 @@ export function CalendarEventForm({
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <span className="text-xs font-bold text-white">Cycle statistics</span>
-                        <p className="text-[10px] text-[#A1A4AC]">
+                        <p className="text-[10px] text-[var(--quant-muted-foreground)]">
                           Averages are based on your cycle inputs.
                         </p>
 
                         <div className="grid grid-cols-2 gap-2">
                           <div className="p-3 rounded-2xl bg-[#1e1e24] border border-[var(--quant-surface-elevated)] flex items-center justify-between">
                             <div>
-                              <span className="text-[10px] text-[#A1A4AC]">Cycle length</span>
+                              <span className="text-[10px] text-[var(--quant-muted-foreground)]">Cycle length</span>
                               <h4 className="text-base font-extrabold text-rose-400">
                                 {formState.cycleLength} days
                               </h4>
@@ -1307,10 +1307,10 @@ export function CalendarEventForm({
 
                           <div className="p-3 rounded-2xl bg-[#1e1e24] border border-[var(--quant-surface-elevated)] flex items-center justify-between">
                             <div>
-                              <span className="text-[10px] text-[#A1A4AC]">Cycle variation</span>
-                              <h4 className="text-base font-extrabold text-[#A1A4AC]">±1 day</h4>
+                              <span className="text-[10px] text-[var(--quant-muted-foreground)]">Cycle variation</span>
+                              <h4 className="text-base font-extrabold text-[var(--quant-muted-foreground)]">±1 day</h4>
                             </div>
-                            <IconRefresh className="size-4 text-[#A1A4AC]" />
+                            <IconRefresh className="size-4 text-[var(--quant-muted-foreground)]" />
                           </div>
                         </div>
                       </div>
@@ -1338,7 +1338,7 @@ export function CalendarEventForm({
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between text-[10px] text-[#A1A4AC]">
+                        <div className="flex items-center justify-between text-[10px] text-[var(--quant-muted-foreground)]">
                           <span>Period (Day 1-{formState.periodDays})</span>
                           <span>Ovulation (~Day 14)</span>
                           <span>PMS (Day 24-28)</span>

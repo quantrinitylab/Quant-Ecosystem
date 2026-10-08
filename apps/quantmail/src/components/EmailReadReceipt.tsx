@@ -25,10 +25,10 @@ export function EmailReadReceipt({ status, readAt, deliveredAt }: EmailReadRecei
     EmailReadReceiptProps['status'],
     { Icon: ComponentType<IconProps>; color: string; label: string }
   > = {
-    sent: { Icon: IconCheck, color: '#6B6E76', label: 'Sent' },
+    sent: { Icon: IconCheck, color: 'var(--quant-text-muted)', label: 'Sent' },
     delivered: {
       Icon: IconCheckDouble,
-      color: '#A1A4AC',
+      color: 'var(--quant-muted-foreground)',
       label: `Delivered${deliveredAt ? ` at ${formatTime(deliveredAt)}` : ''}`,
     },
     read: {

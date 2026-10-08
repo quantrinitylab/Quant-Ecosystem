@@ -201,7 +201,7 @@ export function ContactAutocomplete({
           return (
             <span
               key={email}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--quant-primary)]/15 border border-[var(--quant-primary)]/30 text-[#FFB875] text-xs font-mono animate-in fade-in zoom-in-95 duration-100 shadow-sm"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--quant-primary)]/15 border border-[var(--quant-primary)]/30 text-[var(--brand-accent)] text-xs font-mono animate-in fade-in zoom-in-95 duration-100 shadow-sm"
             >
               <span className="font-medium text-white truncate max-w-[200px]">
                 {contact?.name ? `${contact.name} (${email})` : email}
@@ -225,7 +225,7 @@ export function ContactAutocomplete({
           ref={inputRef}
           id={id}
           type="text"
-          className="flex-1 min-w-[160px] bg-transparent text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded py-1 px-1 font-mono"
+          className="flex-1 min-w-[160px] bg-transparent text-xs sm:text-sm text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded py-1 px-1 font-mono"
           value={inputValue}
           onChange={(e) => {
             setInputValue(e.target.value);
@@ -262,7 +262,7 @@ export function ContactAutocomplete({
                 (s) => s.email.toLowerCase() === cleanEmail(inputValue).toLowerCase(),
               ) && (
                 <div
-                  className="flex items-center gap-2.5 p-2 rounded-xl text-xs hover:bg-[var(--quant-primary)]/15 cursor-pointer text-[#FFB875] font-mono transition-colors"
+                  className="flex items-center gap-2.5 p-2 rounded-xl text-xs hover:bg-[var(--quant-primary)]/15 cursor-pointer text-[var(--brand-accent)] font-mono transition-colors"
                   onMouseDown={(e) => {
                     e.preventDefault();
                     addChip(inputValue);
@@ -273,7 +273,7 @@ export function ContactAutocomplete({
                   </div>
                   <div className="flex flex-col">
                     <span className="font-bold text-white">Send to: {cleanEmail(inputValue)}</span>
-                    <span className="text-[10px] text-[#A1A4AC]">Press Enter or click to add</span>
+                    <span className="text-[10px] text-[var(--quant-muted-foreground)]">Press Enter or click to add</span>
                   </div>
                 </div>
               )}
@@ -285,7 +285,7 @@ export function ContactAutocomplete({
                 className={`flex items-center gap-2.5 p-2 rounded-xl text-xs cursor-pointer transition-colors ${
                   index === activeIndex
                     ? 'bg-[var(--quant-primary)]/20 text-white'
-                    : 'hover:bg-[var(--quant-surface-elevated)] text-[#A1A4AC]'
+                    : 'hover:bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)]'
                 }`}
                 onMouseDown={(e) => {
                   e.preventDefault();
@@ -298,7 +298,7 @@ export function ContactAutocomplete({
                   {suggestion.name && (
                     <span className="font-bold text-white truncate">{suggestion.name}</span>
                   )}
-                  <span className="text-[11px] text-[#A1A4AC] font-mono truncate">
+                  <span className="text-[11px] text-[var(--quant-muted-foreground)] font-mono truncate">
                     {suggestion.email}
                   </span>
                 </div>

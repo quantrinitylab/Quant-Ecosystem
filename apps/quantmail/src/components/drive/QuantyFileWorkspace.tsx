@@ -605,7 +605,7 @@ function ErrorLine({ message }: { message: string | null }) {
 
 function BusyLine({ label }: { label: string }) {
   return (
-    <p className="mt-2 flex items-center gap-2 text-xs text-[#A1A4AC]" aria-live="polite">
+    <p className="mt-2 flex items-center gap-2 text-xs text-[var(--quant-muted-foreground)]" aria-live="polite">
       <span className="inline-block size-3 animate-spin rounded-full border-2 border-[var(--quant-primary)]/30 border-t-[var(--quant-primary)]" />
       {label}
     </p>
@@ -722,7 +722,7 @@ export function QuantyFileWorkspace({
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b border-white/[0.08] px-5 py-4">
           <div>
-            <h2 className="text-base font-semibold text-[#F5F5F5]">Quanty file workspace</h2>
+            <h2 className="text-base font-semibold text-[var(--quant-foreground)]">Quanty file workspace</h2>
             <p className="mt-1 text-xs leading-relaxed text-[#8A8D96]">
               Quanty organizes your Drive with real tools. Every result below comes
               from a real operation — nothing here is simulated.
@@ -732,7 +732,7 @@ export function QuantyFileWorkspace({
             type="button"
             onClick={onClose}
             aria-label="Close Quanty file workspace"
-            className="rounded-lg p-2 text-[#8A8D96] hover:bg-white/[0.06] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+            className="rounded-lg p-2 text-[#8A8D96] hover:bg-white/[0.06] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           >
             <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -759,7 +759,7 @@ export function QuantyFileWorkspace({
                 placeholder='Try "find files quarterly report"'
                 aria-label="Ask Quanty to do something with your files"
                 disabled={taskRunning}
-                className="h-10 min-w-0 flex-1 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 text-sm text-[#F5F5F5] placeholder:text-[#5A5D66] focus:border-[var(--quant-primary)]/60 focus:outline-none disabled:opacity-60"
+                className="h-10 min-w-0 flex-1 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 text-sm text-[var(--quant-foreground)] placeholder:text-[#5A5D66] focus:border-[var(--quant-primary)]/60 focus:outline-none disabled:opacity-60"
               />
               <button
                 type="submit"
@@ -779,7 +779,7 @@ export function QuantyFileWorkspace({
                     manager.setCommand(cmd);
                     commandInputRef.current?.focus();
                   }}
-                  className="rounded-full border border-white/[0.1] px-2.5 py-1 text-[11px] text-[#A1A4AC] hover:border-[var(--quant-primary)]/40 hover:text-[#F5F5F5] disabled:opacity-50"
+                  className="rounded-full border border-white/[0.1] px-2.5 py-1 text-[11px] text-[var(--quant-muted-foreground)] hover:border-[var(--quant-primary)]/40 hover:text-[var(--quant-foreground)] disabled:opacity-50"
                 >
                   {cmd}
                 </button>
@@ -790,7 +790,7 @@ export function QuantyFileWorkspace({
             {task && (
               <div className="mt-3 rounded-lg border border-white/[0.08] bg-white/[0.02] p-3" aria-live="polite">
                 <p className="text-xs text-[#8A8D96]">
-                  Task: <span className="text-[#F5F5F5]">“{task.command}”</span>
+                  Task: <span className="text-[var(--quant-foreground)]">“{task.command}”</span>
                 </p>
                 <ul className="mt-2 space-y-1.5">
                   {task.steps.map((step) => (
@@ -839,7 +839,7 @@ export function QuantyFileWorkspace({
                   <button
                     type="button"
                     onClick={() => void manager.interruptTask()}
-                    className="mt-3 h-8 rounded-lg border border-white/[0.12] px-3 text-xs text-[#A1A4AC] hover:bg-white/[0.04]"
+                    className="mt-3 h-8 rounded-lg border border-white/[0.12] px-3 text-xs text-[var(--quant-muted-foreground)] hover:bg-white/[0.04]"
                   >
                     Stop task
                   </button>
@@ -854,7 +854,7 @@ export function QuantyFileWorkspace({
                   <button
                     type="button"
                     onClick={() => manager.resetAsk()}
-                    className="mt-2 text-xs text-[#8A8D96] underline-offset-2 hover:text-[#F5F5F5] hover:underline"
+                    className="mt-2 text-xs text-[#8A8D96] underline-offset-2 hover:text-[var(--quant-foreground)] hover:underline"
                   >
                     Start a new request
                   </button>
@@ -880,7 +880,7 @@ export function QuantyFileWorkspace({
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search file names and contents"
                 aria-label="Search your Drive files"
-                className="h-10 min-w-0 flex-1 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 text-sm text-[#F5F5F5] placeholder:text-[#5A5D66] focus:border-[var(--quant-primary)]/60 focus:outline-none"
+                className="h-10 min-w-0 flex-1 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 text-sm text-[var(--quant-foreground)] placeholder:text-[#5A5D66] focus:border-[var(--quant-primary)]/60 focus:outline-none"
               />
               <button
                 type="submit"
@@ -910,7 +910,7 @@ export function QuantyFileWorkspace({
                       }`}
                     >
                       <span className="min-w-0">
-                        <span className="block truncate text-xs font-medium text-[#F5F5F5]">
+                        <span className="block truncate text-xs font-medium text-[var(--quant-foreground)]">
                           {result.fileName || 'Untitled file'}
                         </span>
                         {result.snippet && (
@@ -932,7 +932,7 @@ export function QuantyFileWorkspace({
             <SectionTitle>Organize this file</SectionTitle>
             {currentFile ? (
               <div className="mt-2 rounded-lg border border-white/[0.08] bg-white/[0.02] p-3">
-                <p className="truncate text-xs font-medium text-[#F5F5F5]">
+                <p className="truncate text-xs font-medium text-[var(--quant-foreground)]">
                   {currentFile.name}
                 </p>
                 {!organize.suggestion && organize.status !== 'busy' && (
@@ -949,7 +949,7 @@ export function QuantyFileWorkspace({
                   <div className="mt-2 text-xs leading-relaxed text-[#D6D8DD]" aria-live="polite">
                     <p>
                       Suggested folder:{' '}
-                      <span className="font-semibold text-[#F5F5F5]">
+                      <span className="font-semibold text-[var(--quant-foreground)]">
                         {organize.suggestion.suggestedFolder || '—'}
                       </span>
                     </p>
@@ -1016,7 +1016,7 @@ export function QuantyFileWorkspace({
                       {summarize.data.summary || 'No summary was returned.'}
                     </p>
                     {summarize.data.keyPoints.length > 0 && (
-                      <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-relaxed text-[#A1A4AC]">
+                      <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
                         {summarize.data.keyPoints.map((point, i) => (
                           <li key={i}>{point}</li>
                         ))}
@@ -1025,7 +1025,7 @@ export function QuantyFileWorkspace({
                     <button
                       type="button"
                       onClick={() => void manager.summarizeCurrentFile()}
-                      className="mt-2 text-xs text-[#8A8D96] underline-offset-2 hover:text-[#F5F5F5] hover:underline"
+                      className="mt-2 text-xs text-[#8A8D96] underline-offset-2 hover:text-[var(--quant-foreground)] hover:underline"
                     >
                       Summarize again
                     </button>

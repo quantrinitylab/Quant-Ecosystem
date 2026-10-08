@@ -46,10 +46,10 @@ export default function NotFound() {
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--quant-primary)]">
             Error 404
           </p>
-          <h1 className="text-[26px] font-semibold tracking-[-0.03em] text-[#F5F5F5]">
+          <h1 className="text-[26px] font-semibold tracking-[-0.03em] text-[var(--quant-foreground)]">
             This page doesn&apos;t exist
           </h1>
-          <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#A1A4AC]">
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[var(--quant-muted-foreground)]">
             The link may be out of date, or the view may have moved. Here is where everything
             actually lives.
           </p>
@@ -63,16 +63,16 @@ export default function NotFound() {
               className="group flex min-h-touch items-center justify-between gap-3 rounded-xl bg-[var(--quant-surface)] px-4 py-3 border border-white/[0.08] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] transition-all hover:bg-white/[0.04] hover:border-[var(--quant-primary)]/40 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08),0_0_16px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] motion-reduce:transition-none"
             >
               <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold text-[#F5F5F5]">
+                <span className="block truncate text-sm font-semibold text-[var(--quant-foreground)]">
                   {destination.label}
                 </span>
-                <span className="block truncate text-[11px] text-[#6B6E76]">
+                <span className="block truncate text-[11px] text-[var(--quant-text-muted)]">
                   {destination.hint}
                 </span>
               </span>
               <svg
                 viewBox="0 0 24 24"
-                className="size-4 flex-none text-[#6B6E76] transition-colors group-hover:text-[var(--quant-primary)] motion-reduce:transition-none"
+                className="size-4 flex-none text-[var(--quant-text-muted)] transition-colors group-hover:text-[var(--quant-primary)] motion-reduce:transition-none"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"

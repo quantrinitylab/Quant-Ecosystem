@@ -49,7 +49,7 @@ export function LivePreview({ code, language, isVisible }: LivePreviewProps) {
 <html>
 <head>
   <style>
-    body { font-family: system-ui; padding: 1rem; background: var(--quant-background); color: #F5F5F5; }
+    body { font-family: system-ui; padding: 1rem; background: var(--quant-background); color: var(--quant-foreground); }
     * { box-sizing: border-box; }
   </style>
 </head>

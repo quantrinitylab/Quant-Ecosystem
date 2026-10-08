@@ -97,15 +97,15 @@ function VintagePostageStamp({
       {/* 2. REAL PERFORATED POSTAGE STAMP (Serrated Scalloped Teeth)  */}
       {/* ------------------------------------------------------------- */}
       <div
-        className="relative w-16 h-20 p-1 bg-white dark:bg-[var(--quant-surface-elevated)] shadow-md border border-[#A1A4AC]/60 dark:border-[var(--quant-primary)]/40 rounded-[2px]"
+        className="relative w-16 h-20 p-1 bg-white dark:bg-[var(--quant-surface-elevated)] shadow-md border border-[var(--quant-muted-foreground)]/60 dark:border-[var(--quant-primary)]/40 rounded-[2px]"
         style={{
           boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
         }}
       >
         {/* Scalloped teeth simulated borders */}
-        <div className="w-full h-full border border-dashed border-[#A1A4AC]/80 dark:border-[var(--quant-primary)]/50 p-1 flex flex-col justify-between items-center bg-[#FAF6F0] dark:bg-[var(--quant-surface)] overflow-hidden">
+        <div className="w-full h-full border border-dashed border-[var(--quant-muted-foreground)]/80 dark:border-[var(--quant-primary)]/50 p-1 flex flex-col justify-between items-center bg-[#FAF6F0] dark:bg-[var(--quant-surface)] overflow-hidden">
           {/* Stamp Top Kicker */}
-          <div className="w-full flex items-center justify-between text-[6.5px] font-black uppercase tracking-wider text-[#6B6E76] dark:text-[#FFB875]">
+          <div className="w-full flex items-center justify-between text-[6.5px] font-black uppercase tracking-wider text-[var(--quant-text-muted)] dark:text-[var(--brand-accent)]">
             <span>POST</span>
             <span>{stamp.value}</span>
           </div>
@@ -133,7 +133,7 @@ function VintagePostageStamp({
           </div>
 
           {/* Stamp Bottom Text */}
-          <span className="text-[var(--q-type-xs)] font-bold tracking-widest text-[#6B6E76] dark:text-[var(--quant-primary)]/80 uppercase">
+          <span className="text-[var(--q-type-xs)] font-bold tracking-widest text-[var(--quant-text-muted)] dark:text-[var(--quant-primary)]/80 uppercase">
             QUANT TRINITY
           </span>
         </div>
@@ -192,7 +192,7 @@ export function PostcardCanvas({
     'clean-ivory': {
       bg: 'bg-[#FCFAF7] shadow-[inset_0_0_40px_rgba(0,0,0,0.06)]',
       text: 'text-[#1F1D1A]',
-      border: 'border-[#A1A4AC]',
+      border: 'border-[var(--quant-muted-foreground)]',
       ink: '#1F1D1A',
     },
   };
@@ -279,13 +279,13 @@ export function PostcardCanvas({
                 >
                   Post Card
                 </span>
-                <span className="hidden sm:inline-block text-[var(--q-type-xs)] font-mono tracking-widest uppercase text-[#6B6E76] dark:text-[#A1A4AC]">
+                <span className="hidden sm:inline-block text-[var(--q-type-xs)] font-mono tracking-widest uppercase text-[var(--quant-text-muted)] dark:text-[var(--quant-muted-foreground)]">
                   · QuantMail Postal Transmission ·
                 </span>
               </div>
 
               {/* Date & Location Stamp Header */}
-              <div className="text-right text-[10px] font-mono text-[#6B6E76] dark:text-[#A1A4AC]">
+              <div className="text-right text-[10px] font-mono text-[var(--quant-text-muted)] dark:text-[var(--quant-muted-foreground)]">
                 <span>{locationString}</span>
                 <span className="mx-1.5">|</span>
                 <span className="font-bold">{dateString}</span>
@@ -452,23 +452,23 @@ export function PostcardCanvas({
                   >
                     Greetings from {locationString}
                   </span>
-                  <p className="text-[11px] font-mono tracking-wider opacity-90 text-[#FFB875]">
+                  <p className="text-[11px] font-mono tracking-wider opacity-90 text-[var(--brand-accent)]">
                     QuantMail Handcrafted Postal Edition
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="relative w-full h-full rounded-lg border-2 border-dashed border-[#A1A4AC]/70 dark:border-[#3A404D] flex flex-col items-center justify-center p-6 text-center">
-                <span className="mb-3 text-[#C75D1E] dark:text-[#FFB875]">
+              <div className="relative w-full h-full rounded-lg border-2 border-dashed border-[var(--quant-muted-foreground)]/70 dark:border-[#3A404D] flex flex-col items-center justify-center p-6 text-center">
+                <span className="mb-3 text-[#C75D1E] dark:text-[var(--brand-accent)]">
                   <IconMailHeart size={44} />
                 </span>
-                <h3 className="text-lg sm:text-xl font-serif font-bold text-[var(--quant-surface-elevated)] dark:text-[#F5F5F5]">
+                <h3 className="text-lg sm:text-xl font-serif font-bold text-[var(--quant-surface-elevated)] dark:text-[var(--quant-foreground)]">
                   {template.name}
                 </h3>
-                <p className="text-xs text-[#6B6E76] dark:text-[#A1A4AC] max-w-sm mt-1">
+                <p className="text-xs text-[var(--quant-text-muted)] dark:text-[var(--quant-muted-foreground)] max-w-sm mt-1">
                   {template.description}
                 </p>
-                <div className="mt-4 px-3 py-1 bg-[var(--quant-primary)]/15 border border-[var(--quant-primary)]/30 rounded-full text-xs font-mono text-[#C75D1E] dark:text-[#FFB875] font-semibold">
+                <div className="mt-4 px-3 py-1 bg-[var(--quant-primary)]/15 border border-[var(--quant-primary)]/30 rounded-full text-xs font-mono text-[#C75D1E] dark:text-[var(--brand-accent)] font-semibold">
                   Tap "Flip Card" below to write message
                 </div>
               </div>

@@ -368,7 +368,7 @@ export function AttachmentPreview({
     }
     return (
       <svg
-        className="size-5 text-[#A1A4AC]"
+        className="size-5 text-[var(--quant-muted-foreground)]"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -545,7 +545,7 @@ export function AttachmentPreview({
                     applyTransform(next, pan.x, pan.y);
                   }}
                   disabled={zoom <= MIN_ZOOM}
-                  className="grid min-h-[36px] min-w-[36px] place-items-center rounded-full text-lg text-[#F5F5F5] transition-colors hover:bg-[var(--quant-surface-elevated)] disabled:opacity-30"
+                  className="grid min-h-[36px] min-w-[36px] place-items-center rounded-full text-lg text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] disabled:opacity-30"
                   aria-label="Zoom out"
                 >
                   −
@@ -557,7 +557,7 @@ export function AttachmentPreview({
                     setPan({ x: 0, y: 0 });
                     applyTransform(1, 0, 0);
                   }}
-                  className="min-w-[44px] rounded-full px-1 text-[11px] font-semibold text-[#A1A4AC] transition-colors hover:text-white"
+                  className="min-w-[44px] rounded-full px-1 text-[11px] font-semibold text-[var(--quant-muted-foreground)] transition-colors hover:text-white"
                   aria-label="Reset zoom"
                 >
                   {Math.round(zoom * 100)}%
@@ -570,7 +570,7 @@ export function AttachmentPreview({
                     applyTransform(next, pan.x, pan.y);
                   }}
                   disabled={zoom >= MAX_ZOOM}
-                  className="grid min-h-[36px] min-w-[36px] place-items-center rounded-full text-lg text-[#F5F5F5] transition-colors hover:bg-[var(--quant-surface-elevated)] disabled:opacity-30"
+                  className="grid min-h-[36px] min-w-[36px] place-items-center rounded-full text-lg text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] disabled:opacity-30"
                   aria-label="Zoom in"
                 >
                   +

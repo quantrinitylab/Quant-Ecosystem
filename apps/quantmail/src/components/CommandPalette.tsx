@@ -206,7 +206,7 @@ export function CommandPalette() {
                 name="commandQuery"
                 ref={inputRef}
                 aria-label="Command palette search"
-                className="min-w-0 flex-1 bg-transparent text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
+                className="min-w-0 flex-1 bg-transparent text-sm text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
                 type="text"
                 placeholder="Type a command, or jump to a workspace…"
                 value={query}
@@ -219,7 +219,7 @@ export function CommandPalette() {
                 autoComplete="off"
                 spellCheck={false}
               />
-              <kbd className="shrink-0 rounded border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-1.5 py-0.5 font-mono text-[10px] text-[#A1A4AC]">
+              <kbd className="shrink-0 rounded border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--quant-muted-foreground)]">
                 Esc
               </kbd>
             </div>
@@ -232,7 +232,7 @@ export function CommandPalette() {
               aria-label="Commands"
             >
               {flatOrder.length === 0 && (
-                <p className="py-10 text-center text-xs text-[#A1A4AC]">
+                <p className="py-10 text-center text-xs text-[var(--quant-muted-foreground)]">
                   No commands match &ldquo;{query}&rdquo;
                 </p>
               )}
@@ -251,7 +251,7 @@ export function CommandPalette() {
                   <div
                     id={`command-palette-group-${group.replace(/\s+/g, '-').toLowerCase()}`}
                     role="presentation"
-                    className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]"
+                    className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--quant-muted-foreground)]"
                   >
                     {group}
                   </div>
@@ -293,7 +293,7 @@ export function CommandPalette() {
                                 ? 'text-[#E5484D]'
                                 : isActive
                                   ? 'text-[var(--quant-primary)]'
-                                  : 'text-[#6B6E76]'
+                                  : 'text-[var(--quant-text-muted)]'
                             }`}
                           >
                             <CommandIcon name={command.icon} />
@@ -301,13 +301,13 @@ export function CommandPalette() {
                           <span className="min-w-0">
                             <span
                               className={`block truncate text-xs font-semibold ${
-                                command.destructive ? 'text-[#E5484D]' : 'text-[#F5F5F5]'
+                                command.destructive ? 'text-[#E5484D]' : 'text-[var(--quant-foreground)]'
                               }`}
                             >
                               {command.label}
                             </span>
                             {command.description && (
-                              <span className="block truncate text-[11px] text-[#A1A4AC]">
+                              <span className="block truncate text-[11px] text-[var(--quant-muted-foreground)]">
                                 {command.description}
                               </span>
                             )}
@@ -319,7 +319,7 @@ export function CommandPalette() {
                             className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] ${
                               isActive
                                 ? 'border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/15 text-[var(--quant-primary)] shadow-[0_0_8px_rgba(255,140,66,0.15)] font-semibold'
-                                : 'border-white/[0.08] bg-white/[0.03] text-[#A1A4AC]'
+                                : 'border-white/[0.08] bg-white/[0.03] text-[var(--quant-muted-foreground)]'
                             }`}
                           >
                             {binding}
@@ -332,16 +332,16 @@ export function CommandPalette() {
               ))}
             </div>
 
-            <footer className="flex items-center justify-between border-t border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] px-4 py-2 text-[11px] text-[#A1A4AC]">
+            <footer className="flex items-center justify-between border-t border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] px-4 py-2 text-[11px] text-[var(--quant-muted-foreground)]">
               <span className="flex items-center gap-3">
                 <span>
-                  <kbd className="font-mono text-[#A1A4AC]">↑↓</kbd> navigate
+                  <kbd className="font-mono text-[var(--quant-muted-foreground)]">↑↓</kbd> navigate
                 </span>
                 <span>
-                  <kbd className="font-mono text-[#A1A4AC]">↵</kbd> run
+                  <kbd className="font-mono text-[var(--quant-muted-foreground)]">↵</kbd> run
                 </span>
                 <span className="hidden sm:inline">
-                  <kbd className="font-mono text-[#A1A4AC]">esc</kbd> close
+                  <kbd className="font-mono text-[var(--quant-muted-foreground)]">esc</kbd> close
                 </span>
               </span>
               <span className="text-[10px] font-medium text-[var(--quant-primary)]">

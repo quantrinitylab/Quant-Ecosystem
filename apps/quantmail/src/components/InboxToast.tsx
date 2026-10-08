@@ -132,7 +132,7 @@ function InboxToastItem({
           <ToastIcon type={toast.type} />
         )}
       </span>
-      <span className="inbox-toast-text text-[#F5F5F5]">{toast.text}</span>
+      <span className="inbox-toast-text text-[var(--quant-foreground)]">{toast.text}</span>
       {toast.undoAction && (
         <button
           type="button"
@@ -149,7 +149,7 @@ function InboxToastItem({
       )}
       <button
         type="button"
-        className="inbox-toast-dismiss text-[#6B6E76] hover:text-[#F5F5F5] transition-colors p-1"
+        className="inbox-toast-dismiss text-[var(--quant-text-muted)] hover:text-[var(--quant-foreground)] transition-colors p-1"
         onClick={() => onDismiss(toast.id)}
         aria-label="Dismiss"
       >

@@ -382,7 +382,7 @@ export default function SecurityPage() {
                   {status?.enabled &&
                   !passwordPrompt &&
                   status.backupCodesRemaining <= RECOVERY_CODES_LOW ? (
-                    <p className="rounded-xl border border-[var(--quant-primary)]/30 bg-[var(--quant-primary)]/10 shadow-[0_0_12px_rgba(255,140,66,0.1)] px-3.5 py-2.5 text-xs leading-5 text-[#FFB875]">
+                    <p className="rounded-xl border border-[var(--quant-primary)]/30 bg-[var(--quant-primary)]/10 shadow-[0_0_12px_rgba(255,140,66,0.1)] px-3.5 py-2.5 text-xs leading-5 text-[var(--brand-accent)]">
                       {status.backupCodesRemaining === 0
                         ? 'No recovery codes left. Generate a new set now — without one, losing your authenticator means losing the account.'
                         : 'Nearly out of recovery codes. Generate a new set while you still have a way in.'}
@@ -662,7 +662,7 @@ export default function SecurityPage() {
                   </div>
 
                   <div className="pt-5 text-center py-8">
-                    <div className="w-14 h-14 rounded-full bg-[var(--quant-muted)] flex items-center justify-center mx-auto mb-4 text-[#A1A4AC]">
+                    <div className="w-14 h-14 rounded-full bg-[var(--quant-muted)] flex items-center justify-center mx-auto mb-4 text-[var(--quant-muted-foreground)]">
                       <svg
                         className="size-6"
                         viewBox="0 0 24 24"
@@ -728,7 +728,7 @@ export default function SecurityPage() {
                 </p>
                 <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-6">
                   <div className="text-center py-8">
-                    <div className="w-14 h-14 rounded-full bg-[var(--quant-muted)] flex items-center justify-center mx-auto mb-4 text-[#A1A4AC]">
+                    <div className="w-14 h-14 rounded-full bg-[var(--quant-muted)] flex items-center justify-center mx-auto mb-4 text-[var(--quant-muted-foreground)]">
                       <svg
                         className="size-6"
                         viewBox="0 0 24 24"

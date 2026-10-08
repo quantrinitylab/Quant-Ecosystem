@@ -117,7 +117,7 @@ export function DriveMobileTabStrip({
               className={`inline-flex min-h-[44px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-xs font-medium transition-all duration-150 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] ${
                 isActive
                   ? 'bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/40 font-semibold'
-                  : 'border border-white/[0.08] bg-white/[0.03] text-[#A1A4AC] hover:text-[#F8FAFC] hover:bg-white/[0.06] hover:border-white/[0.14]'
+                  : 'border border-white/[0.08] bg-white/[0.03] text-[var(--quant-muted-foreground)] hover:text-[#F8FAFC] hover:bg-white/[0.06] hover:border-white/[0.14]'
               }`}
             >
               <Icon

@@ -309,13 +309,13 @@ export function FileVersionHistoryModal({
         role="dialog"
         aria-modal="true"
         aria-label={`Version history for ${fileName}`}
-        className="bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col text-[#F5F5F5] overflow-hidden"
+        className="bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col text-[var(--quant-foreground)] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="px-5 py-4 border-b border-[var(--quant-surface-elevated)] flex items-center justify-between gap-3 bg-[var(--quant-surface-elevated)]">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-[#F5F5F5] flex items-center gap-2">
+            <h2 className="text-base font-semibold text-[var(--quant-foreground)] flex items-center gap-2">
               <span>Version History</span>
             </h2>
             <p className="text-xs text-[#9E9E9E] truncate max-w-md mt-0.5" title={fileName}>
@@ -327,7 +327,7 @@ export function FileVersionHistoryModal({
             aria-label="Close dialog"
             data-testid="close-version-history-btn"
             onClick={onClose}
-            className="p-1.5 rounded-md text-[#9E9E9E] hover:text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)] transition-colors"
+            className="p-1.5 rounded-md text-[#9E9E9E] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -410,7 +410,7 @@ export function FileVersionHistoryModal({
                           Current
                         </span>
                       )}
-                      <span className="text-xs font-medium text-[#F5F5F5]">
+                      <span className="text-xs font-medium text-[var(--quant-foreground)]">
                         {formatBytes(version.size)}
                       </span>
                       {delta && (
@@ -436,7 +436,7 @@ export function FileVersionHistoryModal({
                       {version.author && (
                         <span
                           data-testid={`version-author-${version.versionNumber}`}
-                          className="text-[#A1A4AC]"
+                          className="text-[var(--quant-muted-foreground)]"
                         >
                           by {version.author.name || version.author.email}
                         </span>
@@ -485,7 +485,7 @@ export function FileVersionHistoryModal({
             type="button"
             data-testid="version-history-footer-close"
             onClick={onClose}
-            className="px-3 py-1.5 rounded-md text-xs font-medium bg-[var(--quant-surface-elevated)] hover:bg-[#383E4A] text-[#F5F5F5] transition-colors"
+            className="px-3 py-1.5 rounded-md text-xs font-medium bg-[var(--quant-surface-elevated)] hover:bg-[#383E4A] text-[var(--quant-foreground)] transition-colors"
           >
             Close
           </button>

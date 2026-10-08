@@ -72,7 +72,7 @@ export function ContactsLetterIndex({ groups, activeLetter, onJump }: ContactsLe
               className={`${CHIP} ${
                 active
                   ? 'bg-[var(--quant-primary)]/15 text-[var(--quant-primary)] shadow-[inset_0_0_0_1px_rgba(255,140,66,0.35),0_0_12px_rgba(255,140,66,0.15)] font-bold'
-                  : 'bg-white/[0.04] text-[#A1A4AC] hover:bg-white/[0.08] hover:text-[#F5F5F5] border border-white/[0.06]'
+                  : 'bg-white/[0.04] text-[var(--quant-muted-foreground)] hover:bg-white/[0.08] hover:text-[var(--quant-foreground)] border border-white/[0.06]'
               }`}
             >
               {group.letter}

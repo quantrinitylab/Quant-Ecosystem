@@ -137,8 +137,8 @@ export const DAY_MARKS: Array<{ key: keyof DayMarkFlags; color: string; label: s
   { key: 'hasHoliday', color: 'var(--quant-primary)', label: 'holiday' },
   { key: 'hasPeriod', color: '#FB7185', label: 'cycle entry' },
   { key: 'hasBirthday', color: '#34D399', label: 'birthday' },
-  { key: 'hasTask', color: '#FFB875', label: 'task' },
-  { key: 'hasPlainEvent', color: '#A1A4AC', label: 'event' },
+  { key: 'hasTask', color: 'var(--brand-accent)', label: 'task' },
+  { key: 'hasPlainEvent', color: 'var(--quant-muted-foreground)', label: 'event' },
 ];
 
 export function dayMarkLabel(flags: DayMarkFlags): string {

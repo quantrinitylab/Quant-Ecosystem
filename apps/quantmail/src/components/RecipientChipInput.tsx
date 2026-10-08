@@ -204,7 +204,7 @@ export function RecipientChipInput({
     >
       <label
         htmlFor={id}
-        className="text-xs font-semibold text-[#A1A4AC] w-12 sm:w-16 shrink-0 select-none flex items-center gap-0.5 pt-2"
+        className="text-xs font-semibold text-[var(--quant-muted-foreground)] w-12 sm:w-16 shrink-0 select-none flex items-center gap-0.5 pt-2"
       >
         <span>{label}</span>
         {required && <span className="text-rose-500">*</span>}:
@@ -218,7 +218,7 @@ export function RecipientChipInput({
         {recipients.map((recipient, idx) => (
           <span
             key={`${recipient.email}-${idx}`}
-            className="inline-flex max-w-full items-center gap-1.5 pl-1.5 pr-2 py-0.5 rounded-full bg-[var(--quant-surface-elevated)]/90 border border-[#3A404D]/80 text-xs text-[#F5F5F5] hover:border-[var(--quant-primary)]/50 hover:bg-[var(--quant-surface-elevated)] transition-all select-none shadow-sm group"
+            className="inline-flex max-w-full items-center gap-1.5 pl-1.5 pr-2 py-0.5 rounded-full bg-[var(--quant-surface-elevated)]/90 border border-[#3A404D]/80 text-xs text-[var(--quant-foreground)] hover:border-[var(--quant-primary)]/50 hover:bg-[var(--quant-surface-elevated)] transition-all select-none shadow-sm group"
           >
             <IdentityAvatar
               name={recipient.name || recipient.email}
@@ -234,7 +234,7 @@ export function RecipientChipInput({
                 e.stopPropagation();
                 removeRecipient(idx);
               }}
-              className="text-[#A1A4AC] group-hover:text-rose-400 p-0.5 hover:bg-[#3A404D]/60 rounded-full transition-colors shrink-0"
+              className="text-[var(--quant-muted-foreground)] group-hover:text-rose-400 p-0.5 hover:bg-[#3A404D]/60 rounded-full transition-colors shrink-0"
               title={`Remove ${recipient.name || recipient.email}`}
               aria-label={`Remove ${recipient.name || recipient.email}`}
             >
@@ -271,7 +271,7 @@ export function RecipientChipInput({
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={recipients.length === 0 ? placeholder : ''}
-          className="flex-1 min-w-[70px] sm:min-w-[120px] min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none py-1 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+          className="flex-1 min-w-[70px] sm:min-w-[120px] min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none py-1 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           autoComplete="off"
           spellCheck={false}
         />
@@ -285,7 +285,7 @@ export function RecipientChipInput({
           ref={dropdownRef}
           className="absolute left-14 sm:left-20 top-full mt-1 z-50 w-72 sm:w-80 bg-[var(--quant-background)]/95 border border-[var(--quant-surface-elevated)] rounded-2xl shadow-2xl overflow-hidden backdrop-blur-md max-h-56 overflow-y-auto"
         >
-          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC] border-b border-[var(--quant-surface-elevated)]/80 bg-[var(--quant-surface)]/60">
+          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--quant-muted-foreground)] border-b border-[var(--quant-surface-elevated)]/80 bg-[var(--quant-surface)]/60">
             Contacts & Suggestions
           </div>
           {suggestions.map((contact, idx) => (
@@ -303,8 +303,8 @@ export function RecipientChipInput({
               onMouseEnter={() => setHighlightedIndex(idx)}
               className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
                 highlightedIndex === idx
-                  ? 'bg-[var(--quant-primary)]/15 text-[#FFB875]'
-                  : 'hover:bg-[var(--quant-surface)] text-[#F5F5F5]'
+                  ? 'bg-[var(--quant-primary)]/15 text-[var(--brand-accent)]'
+                  : 'hover:bg-[var(--quant-surface)] text-[var(--quant-foreground)]'
               }`}
             >
               <IdentityAvatar name={contact.name || contact.email} size="sm" />
@@ -312,10 +312,10 @@ export function RecipientChipInput({
                 <span className="text-xs font-bold text-white truncate">
                   {contact.name || contact.email.split('@')[0]}
                 </span>
-                <span className="text-[11px] text-[#A1A4AC] truncate">{contact.email}</span>
+                <span className="text-[11px] text-[var(--quant-muted-foreground)] truncate">{contact.email}</span>
               </div>
               {contact.company && (
-                <span className="text-[10px] text-[#A1A4AC] px-1.5 py-0.5 rounded bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] shrink-0">
+                <span className="text-[10px] text-[var(--quant-muted-foreground)] px-1.5 py-0.5 rounded bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] shrink-0">
                   {contact.company}
                 </span>
               )}

@@ -309,10 +309,10 @@ export function CalendarContextSubTabs({
               className={`${tab.isLegacy ? 'hidden' : 'flex'} items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)] ${
                 isActive
                   ? 'bg-[var(--quant-warning)]/15 text-[var(--quant-warning)] border border-[var(--quant-warning)]/40 shadow-[0_0_12px_rgba(245,158,11,0.15)] font-semibold'
-                  : 'text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)] border border-transparent'
+                  : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] border border-transparent'
               }`}
             >
-              <IconComp className={`size-3.5 ${isActive ? 'text-[var(--quant-warning)]' : 'text-[#A1A4AC]'}`} />
+              <IconComp className={`size-3.5 ${isActive ? 'text-[var(--quant-warning)]' : 'text-[var(--quant-muted-foreground)]'}`} />
               <span>{tab.label}</span>
               {isActive && (
                 <span

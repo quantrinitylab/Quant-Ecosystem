@@ -154,7 +154,7 @@ export function AddMemberModal({
             <h2 id={`${id}-title`} className="truncate text-lg font-bold text-white">
               Add members
             </h2>
-            <p id={`${id}-description`} className="truncate text-xs text-[#A1A4AC]">
+            <p id={`${id}-description`} className="truncate text-xs text-[var(--quant-muted-foreground)]">
               Add people to {groupName}
             </p>
           </div>
@@ -162,7 +162,7 @@ export function AddMemberModal({
             type="button"
             onClick={onClose}
             aria-label="Close add-member drawer"
-            className="flex size-11 shrink-0 items-center justify-center rounded-xl text-[#A1A4AC] hover:bg-[var(--quant-surface-elevated)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+            className="flex size-11 shrink-0 items-center justify-center rounded-xl text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           >
             ✕
           </button>
@@ -172,7 +172,7 @@ export function AddMemberModal({
           <div>
             <label
               htmlFor={`${id}-email`}
-              className="mb-1.5 block text-xs font-semibold text-[#A1A4AC]"
+              className="mb-1.5 block text-xs font-semibold text-[var(--quant-muted-foreground)]"
             >
               Email address
             </label>
@@ -195,7 +195,7 @@ export function AddMemberModal({
                   }
                 }}
                 placeholder="person@example.com"
-                className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-[#3A404D] bg-[var(--quant-background)] px-3 text-sm text-white placeholder-[#6B6E76] focus:border-[var(--quant-primary)] focus:outline-none"
+                className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-[#3A404D] bg-[var(--quant-background)] px-3 text-sm text-white placeholder-[var(--quant-text-muted)] focus:border-[var(--quant-primary)] focus:outline-none"
               />
               <datalist id={`${id}-suggestions`}>
                 {availableSuggestions.map((item) => (
@@ -216,7 +216,7 @@ export function AddMemberModal({
 
           {availableSuggestions.length > 0 && (
             <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#6B6E76]">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--quant-text-muted)]">
                 Suggestions
               </p>
               <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto">
@@ -225,7 +225,7 @@ export function AddMemberModal({
                     key={item.email}
                     type="button"
                     onClick={() => addOne(item.email)}
-                    className="min-h-[40px] rounded-full border border-white/[0.08] bg-white/[0.03] px-3 text-xs text-[#A1A4AC] hover:border-[var(--quant-primary)]/40 hover:bg-[var(--quant-primary)]/10 hover:text-[var(--quant-primary)] hover:shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="min-h-[40px] rounded-full border border-white/[0.08] bg-white/[0.03] px-3 text-xs text-[var(--quant-muted-foreground)] hover:border-[var(--quant-primary)]/40 hover:bg-[var(--quant-primary)]/10 hover:text-[var(--quant-primary)] hover:shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                   >
                     {item.name || item.email}
                   </button>
@@ -248,7 +248,7 @@ export function AddMemberModal({
                       setPending((current) => current.filter((item) => item !== email))
                     }
                     aria-label={`Remove ${email}`}
-                    className="flex size-11 items-center justify-center rounded-xl text-[#A1A4AC] hover:bg-rose-500/10 hover:text-rose-300"
+                    className="flex size-11 items-center justify-center rounded-xl text-[var(--quant-muted-foreground)] hover:bg-rose-500/10 hover:text-rose-300"
                   >
                     ✕
                   </button>

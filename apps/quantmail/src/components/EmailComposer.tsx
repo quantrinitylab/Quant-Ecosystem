@@ -1109,7 +1109,7 @@ export function EmailComposer({
               <button
                 type="button"
                 onClick={handleBack}
-                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-xl text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 title="Back (1 page)"
               >
                 <svg
@@ -1124,7 +1124,7 @@ export function EmailComposer({
               </button>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-white tracking-wide">Compose</span>
-                <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-[var(--quant-surface-elevated)] border border-[#3A404D] text-[10px] text-[#A1A4AC] font-mono">
+                <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-[var(--quant-surface-elevated)] border border-[#3A404D] text-[10px] text-[var(--quant-muted-foreground)] font-mono">
                   C
                 </kbd>
                 {/* Honest autosave indicator: shows the real state of the last save attempt. */}
@@ -1136,12 +1136,12 @@ export function EmailComposer({
                         ? 'text-[#FF6B6B]'
                         : draftSaveState === 'saved'
                           ? 'text-[#4ADE80]'
-                          : 'text-[#A1A4AC]'
+                          : 'text-[var(--quant-muted-foreground)]'
                     }`}
                   >
                     {draftSaveState === 'saving' ? (
                       <span className="inline-flex items-center gap-1">
-                        <span className="size-2.5 rounded-full border-2 border-[#A1A4AC]/30 border-t-[#A1A4AC] animate-spin" aria-hidden="true" />
+                        <span className="size-2.5 rounded-full border-2 border-[var(--quant-muted-foreground)]/30 border-t-[var(--quant-muted-foreground)] animate-spin" aria-hidden="true" />
                         {draftSaveLabel}
                       </span>
                     ) : (
@@ -1158,7 +1158,7 @@ export function EmailComposer({
               <button
                 type="button"
                 onClick={() => setIsQuantyDrawerOpen(true)}
-                className="flex sm:hidden min-h-[44px] min-w-[44px] p-1.5 rounded-xl hover:bg-[var(--quant-surface-elevated)] text-[var(--quant-primary)] hover:text-[#FFB875] transition-all items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                className="flex sm:hidden min-h-[44px] min-w-[44px] p-1.5 rounded-xl hover:bg-[var(--quant-surface-elevated)] text-[var(--quant-primary)] hover:text-[var(--brand-accent)] transition-all items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 title="Open Quanty AI Copilot"
               >
                 <Quanty size={24} expression={quantyFace} bob={false} />
@@ -1183,7 +1183,7 @@ export function EmailComposer({
                   aria-expanded={showThreeDotsMenu}
                   aria-controls={showThreeDotsMenu ? 'composer-more-menu' : undefined}
                   aria-label="More composer options"
-                  className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                  className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-xl text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                   title="More options"
                 >
                   <svg
@@ -1223,7 +1223,7 @@ export function EmailComposer({
                           setShowFormattingBar((prev) => !prev);
                           setShowThreeDotsMenu(false);
                         }}
-                        className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)]"
+                        className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)]"
                       >
                         <span className="font-bold font-serif text-[var(--quant-primary)]">Aa</span>
                         <span>
@@ -1237,7 +1237,7 @@ export function EmailComposer({
                           setShowScheduleModal(true);
                           setShowThreeDotsMenu(false);
                         }}
-                        className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)]"
+                        className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)]"
                       >
                         <svg
                           className="size-3.5 text-[var(--quant-primary)]"
@@ -1260,10 +1260,10 @@ export function EmailComposer({
                             window.print();
                           }, 50);
                         }}
-                        className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)]"
+                        className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)]"
                       >
                         <svg
-                          className="size-3.5 text-[#A1A4AC]"
+                          className="size-3.5 text-[var(--quant-muted-foreground)]"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -1305,7 +1305,7 @@ export function EmailComposer({
               <button
                 type="button"
                 onClick={handleBack}
-                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-xl text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 title="Close"
                 aria-label="Close composer"
               >
@@ -1337,7 +1337,7 @@ export function EmailComposer({
                       <button
                         type="button"
                         onClick={() => setShowCc(true)}
-                        className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 text-[#A1A4AC] hover:text-[var(--quant-primary)] font-medium px-1.5 py-0.5 rounded hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] font-medium px-1.5 py-0.5 rounded hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                       >
                         Cc
                       </button>
@@ -1346,7 +1346,7 @@ export function EmailComposer({
                       <button
                         type="button"
                         onClick={() => setShowBcc(true)}
-                        className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 text-[#A1A4AC] hover:text-[var(--quant-primary)] font-medium px-1.5 py-0.5 rounded hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] font-medium px-1.5 py-0.5 rounded hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                       >
                         Bcc
                       </button>
@@ -1373,7 +1373,7 @@ export function EmailComposer({
                           setShowCc(false);
                           setCcRecipients([]);
                         }}
-                        className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-[#6B6E76] hover:text-rose-400 rounded hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-[var(--quant-text-muted)] hover:text-rose-400 rounded hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                         title="Remove Cc"
                         aria-label="Remove Cc field"
                       >
@@ -1402,7 +1402,7 @@ export function EmailComposer({
                           setShowBcc(false);
                           setBccRecipients([]);
                         }}
-                        className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-[#6B6E76] hover:text-rose-400 rounded hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-[var(--quant-text-muted)] hover:text-rose-400 rounded hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                         title="Remove Bcc"
                         aria-label="Remove Bcc field"
                       >
@@ -1418,7 +1418,7 @@ export function EmailComposer({
             <div className="flex items-center gap-2 sm:gap-3 border-b border-[var(--quant-surface-elevated)]/80 pb-2 w-full max-w-full">
               <label
                 htmlFor="composer-subject"
-                className="text-xs font-semibold text-[#A1A4AC] w-16 sm:w-16 shrink-0"
+                className="text-xs font-semibold text-[var(--quant-muted-foreground)] w-16 sm:w-16 shrink-0"
               >
                 Subject <span className="text-rose-500">*</span>:
               </label>
@@ -1429,7 +1429,7 @@ export function EmailComposer({
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="Subject of the email"
-                className="flex-1 min-w-0 min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm font-semibold text-white placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
+                className="flex-1 min-w-0 min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm font-semibold text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
               />
             </div>
 
@@ -1440,8 +1440,8 @@ export function EmailComposer({
                 onClick={() => setIsTemplateMode((prev) => !prev)}
                 className={`inline-flex items-center gap-1.5 px-3 py-1 min-h-[44px] sm:min-h-0 rounded-full text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                   isTemplateMode
-                    ? 'bg-[var(--quant-primary)]/20 text-[#FFB875] border border-[var(--quant-primary)]/40'
-                    : 'bg-[var(--quant-surface)] text-[#A1A4AC] hover:text-[#F5F5F5] border border-[var(--quant-surface-elevated)]'
+                    ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)] border border-[var(--quant-primary)]/40'
+                    : 'bg-[var(--quant-surface)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] border border-[var(--quant-surface-elevated)]'
                 }`}
                 aria-pressed={isTemplateMode}
               >
@@ -1450,7 +1450,7 @@ export function EmailComposer({
                   {isTemplateMode ? 'Guided Corporate Mode: ON' : 'Structured Template Mode'}
                 </span>
               </button>
-              <span className="text-[10px] text-[#A1A4AC] font-mono">
+              <span className="text-[10px] text-[var(--quant-muted-foreground)] font-mono">
                 {selectedFont.name} · {selectedSize.name}
               </span>
             </div>
@@ -1470,7 +1470,7 @@ export function EmailComposer({
                 <div className="flex items-center gap-2 sm:gap-3 border-b border-[var(--quant-surface-elevated)] pb-2 w-full max-w-full">
                   <label
                     htmlFor="composer-greeting"
-                    className="text-xs font-medium text-[#A1A4AC] w-14 sm:w-16 shrink-0"
+                    className="text-xs font-medium text-[var(--quant-muted-foreground)] w-14 sm:w-16 shrink-0"
                   >
                     Greeting:
                   </label>
@@ -1480,7 +1480,7 @@ export function EmailComposer({
                     value={greeting}
                     onChange={(e) => setGreeting(e.target.value)}
                     placeholder="Dear Sir/Madam,"
-                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                   />
                 </div>
 
@@ -1488,7 +1488,7 @@ export function EmailComposer({
                 <div className="flex items-center gap-2 sm:gap-3 border-b border-[var(--quant-surface-elevated)] pb-2 w-full max-w-full">
                   <label
                     htmlFor="composer-opening"
-                    className="text-xs font-medium text-[#A1A4AC] w-14 sm:w-16 shrink-0"
+                    className="text-xs font-medium text-[var(--quant-muted-foreground)] w-14 sm:w-16 shrink-0"
                   >
                     Opening:
                   </label>
@@ -1498,7 +1498,7 @@ export function EmailComposer({
                     value={opening}
                     onChange={(e) => setOpening(e.target.value)}
                     placeholder="Reason for writing / brief opening statement..."
-                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                   />
                 </div>
               </div>
@@ -1530,21 +1530,21 @@ export function EmailComposer({
                     `${isUnderline ? 'underline ' : ''}${isStrikethrough ? 'line-through' : ''}`.trim() ||
                     'none',
                 }}
-                className={`flex-1 w-full max-w-full box-border bg-[var(--quant-background)]/40 border border-[var(--quant-surface-elevated)]/80 rounded-2xl p-4 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-[#A1A4AC] focus:outline-none focus:border-[var(--quant-primary)]/50 resize-none leading-relaxed shadow-inner min-h-[200px]`}
+                className={`flex-1 w-full max-w-full box-border bg-[var(--quant-background)]/40 border border-[var(--quant-surface-elevated)]/80 rounded-2xl p-4 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]/50 resize-none leading-relaxed shadow-inner min-h-[200px]`}
               />
 
               {/* Smart Compose Predictive Autocomplete Chip */}
               {activePrediction && (
                 <div
                   onClick={acceptPrediction}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--quant-primary)]/10 border border-[var(--quant-primary)]/30 text-[#FFB875] text-xs shadow-md cursor-pointer hover:bg-[var(--quant-primary)]/20 transition-all select-none"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--quant-primary)]/10 border border-[var(--quant-primary)]/30 text-[var(--brand-accent)] text-xs shadow-md cursor-pointer hover:bg-[var(--quant-primary)]/20 transition-all select-none"
                 >
                   <span className="text-[10px] font-black uppercase text-[var(--quant-primary)] bg-[var(--quant-primary)]/20 border border-[var(--quant-primary)]/40 px-1.5 py-0.5 rounded-md">
                     Tab ⇥
                   </span>
-                  <span className="text-[#A1A4AC] text-xs">
+                  <span className="text-[var(--quant-muted-foreground)] text-xs">
                     Next word suggestion:{' '}
-                    <strong className="text-[#FFB875] font-semibold">{activePrediction}</strong>
+                    <strong className="text-[var(--brand-accent)] font-semibold">{activePrediction}</strong>
                   </span>
                   <span className="ml-auto text-[10px] text-[var(--quant-primary)] font-medium underline">
                     Tap to apply
@@ -1566,11 +1566,11 @@ export function EmailComposer({
             {(signatureHtml || signatureSuppressedByTemplate) && (
               <div className="w-full max-w-full box-border rounded-2xl border border-[var(--quant-surface-elevated)]/80 bg-[var(--quant-surface)]/40">
                 <div className="flex min-h-[44px] items-center justify-between gap-3 px-3.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-[#6B6E76]">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--quant-text-muted)]">
                     Signature
                   </span>
                   {signatureSuppressedByTemplate ? (
-                    <span className="text-[11px] text-[#A1A4AC]">
+                    <span className="text-[11px] text-[var(--quant-muted-foreground)]">
                       Not appended — the sign-off below is this message&rsquo;s signature
                     </span>
                   ) : (
@@ -1597,7 +1597,7 @@ export function EmailComposer({
                       // `min-h-touch`, not the 32px a text button wants to be: this is
                       // the only control in the card, and a 12px shortfall on the one
                       // thing a thumb has to hit is the whole 44px floor being missed.
-                      className="inline-flex min-h-touch items-center gap-2 rounded-lg px-2 text-xs font-medium text-[#A1A4AC] transition-colors hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                      className="inline-flex min-h-touch items-center gap-2 rounded-lg px-2 text-xs font-medium text-[var(--quant-muted-foreground)] transition-colors hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     >
                       <span
                         aria-hidden="true"
@@ -1632,14 +1632,14 @@ export function EmailComposer({
                   <div className="border-t border-[var(--quant-surface-elevated)]/80 px-3.5 py-3">
                     {safeSignatureHtml ? (
                       <div
-                        className="email-html-content prose prose-invert max-w-none break-words text-xs leading-6 text-[#A1A4AC]"
+                        className="email-html-content prose prose-invert max-w-none break-words text-xs leading-6 text-[var(--quant-muted-foreground)]"
                         dangerouslySetInnerHTML={{ __html: safeSignatureHtml }}
                       />
                     ) : (
                       // `useSafeEmailHtml` yields '' before the browser has a DOM, and
                       // a signature is text before it is markup — so show the text
                       // rather than an empty box that reads as "nothing will be sent".
-                      <div className="whitespace-pre-wrap break-words text-xs leading-6 text-[#A1A4AC]">
+                      <div className="whitespace-pre-wrap break-words text-xs leading-6 text-[var(--quant-muted-foreground)]">
                         {htmlToPlainText(signatureHtml)}
                       </div>
                     )}
@@ -1655,7 +1655,7 @@ export function EmailComposer({
                 <div className="flex items-center gap-2 sm:gap-3 border-b border-[var(--quant-surface-elevated)] pb-2 w-full max-w-full">
                   <label
                     htmlFor="composer-closing"
-                    className="text-xs font-medium text-[#A1A4AC] w-14 sm:w-16 shrink-0"
+                    className="text-xs font-medium text-[var(--quant-muted-foreground)] w-14 sm:w-16 shrink-0"
                   >
                     Closing:
                   </label>
@@ -1665,7 +1665,7 @@ export function EmailComposer({
                     value={closing}
                     onChange={(e) => setClosing(e.target.value)}
                     placeholder="Thank you for your time."
-                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                   />
                 </div>
 
@@ -1682,7 +1682,7 @@ export function EmailComposer({
                 */}
                     <span
                       id="composer-signoff-label"
-                      className="text-xs font-medium text-[#A1A4AC] w-14 sm:w-16 shrink-0"
+                      className="text-xs font-medium text-[var(--quant-muted-foreground)] w-14 sm:w-16 shrink-0"
                     >
                       Sign-off:
                     </span>
@@ -1698,7 +1698,7 @@ export function EmailComposer({
                         value={signoff}
                         onChange={(e) => setSignoff(e.target.value)}
                         placeholder="Best regards,"
-                        className="w-28 sm:w-36 shrink-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[var(--quant-surface-elevated)] pb-0.5 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="w-28 sm:w-36 shrink-0 bg-transparent text-xs sm:text-sm text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none border-b border-[var(--quant-surface-elevated)] pb-0.5 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                       />
                       <input
                         id="composer-sender-name"
@@ -1707,7 +1707,7 @@ export function EmailComposer({
                         value={senderName}
                         onChange={(e) => setSenderName(e.target.value)}
                         placeholder="Your Name"
-                        className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[var(--quant-surface-elevated)] pb-0.5 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none border-b border-[var(--quant-surface-elevated)] pb-0.5 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                       />
                     </div>
                   </div>
@@ -1725,12 +1725,12 @@ export function EmailComposer({
                         value={detail}
                         onChange={(e) => handleUpdateDetail(idx, e.target.value)}
                         placeholder="Designation / Company / Contact..."
-                        className="flex-1 min-w-0 bg-transparent text-xs text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[var(--quant-surface-elevated)]/80 pb-0.5 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="flex-1 min-w-0 bg-transparent text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none border-b border-[var(--quant-surface-elevated)]/80 pb-0.5 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                       />
                       <button
                         type="button"
                         onClick={() => handleRemoveDetail(idx)}
-                        className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 rounded text-[#6B6E76] hover:text-rose-400 hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 rounded text-[var(--quant-text-muted)] hover:text-rose-400 hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                         aria-label={`Remove detail line ${idx + 1}`}
                       >
                         <IconX size={12} />
@@ -1742,7 +1742,7 @@ export function EmailComposer({
                     <button
                       type="button"
                       onClick={handleAddDetail}
-                      className="inline-flex items-center gap-1 min-h-[44px] sm:min-h-0 text-[11px] font-semibold text-[var(--quant-primary)] hover:text-[#FFB875] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
+                      className="inline-flex items-center gap-1 min-h-[44px] sm:min-h-0 text-[11px] font-semibold text-[var(--quant-primary)] hover:text-[var(--brand-accent)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
                     >
                       <IconPlus size={12} />
                       <span>Add detail / line</span>
@@ -1835,7 +1835,7 @@ export function EmailComposer({
             {/* Attached Files List */}
             {attachments.length > 0 && (
               <div className="p-3 rounded-2xl border border-[var(--quant-surface-elevated)]/80 bg-[var(--quant-surface-elevated)] space-y-2 w-full max-w-full box-border">
-                <span className="text-xs font-semibold text-[#A1A4AC]">
+                <span className="text-xs font-semibold text-[var(--quant-muted-foreground)]">
                   Attached files ({attachments.length}):
                 </span>
                 <div className="flex flex-wrap gap-2">
@@ -1845,13 +1845,13 @@ export function EmailComposer({
                       className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-xs text-white shadow-sm"
                     >
                       <span className="truncate max-w-[140px]">{file.name}</span>
-                      <span className="text-[10px] text-[#A1A4AC]">({formatBytes(file.size)})</span>
+                      <span className="text-[10px] text-[var(--quant-muted-foreground)]">({formatBytes(file.size)})</span>
                       <button
                         type="button"
                         onClick={() =>
                           setAttachments((prev) => prev.filter((a) => a.id !== file.id))
                         }
-                        className="relative inline-flex items-center justify-center size-4 shrink-0 rounded text-[#6B6E76] hover:text-rose-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] after:absolute after:-inset-y-[13px] after:-inset-x-[10px] after:content-['']"
+                        className="relative inline-flex items-center justify-center size-4 shrink-0 rounded text-[var(--quant-text-muted)] hover:text-rose-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] after:absolute after:-inset-y-[13px] after:-inset-x-[10px] after:content-['']"
                         aria-label={`Remove attachment ${file.name}`}
                       >
                         <IconX size={11} />
@@ -1878,7 +1878,7 @@ export function EmailComposer({
                     type="button"
                     ref={fontTriggerRef}
                     onClick={() => setShowFontPicker((prev) => !prev)}
-                    className="flex items-center gap-1 px-2.5 py-1 min-h-[44px] sm:min-h-0 rounded-lg bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-[#F5F5F5] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="flex items-center gap-1 px-2.5 py-1 min-h-[44px] sm:min-h-0 rounded-lg bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     aria-expanded={showFontPicker}
                     aria-controls={showFontPicker ? 'composer-font-panel' : undefined}
                     aria-label={`Font family: ${selectedFont.name}`}
@@ -1909,7 +1909,7 @@ export function EmailComposer({
                             className={`flex items-center w-full px-3 py-1.5 min-h-[44px] text-left text-xs ${font.css} hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)] ${
                               selectedFont.id === font.id
                                 ? 'text-[var(--quant-primary)] font-bold'
-                                : 'text-[#A1A4AC]'
+                                : 'text-[var(--quant-muted-foreground)]'
                             }`}
                             aria-pressed={selectedFont.id === font.id}
                           >
@@ -1927,7 +1927,7 @@ export function EmailComposer({
                     type="button"
                     ref={sizeTriggerRef}
                     onClick={() => setShowSizePicker((prev) => !prev)}
-                    className="flex items-center gap-1 px-2 py-1 min-h-[44px] sm:min-h-0 rounded-lg bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-[#F5F5F5] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="flex items-center gap-1 px-2 py-1 min-h-[44px] sm:min-h-0 rounded-lg bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     aria-expanded={showSizePicker}
                     aria-controls={showSizePicker ? 'composer-size-panel' : undefined}
                     aria-label={`Font size: ${selectedSize.name}`}
@@ -1958,7 +1958,7 @@ export function EmailComposer({
                             className={`flex items-center w-full px-3 py-1.5 min-h-[44px] text-left text-xs hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)] ${
                               selectedSize.id === s.id
                                 ? 'text-[var(--quant-primary)] font-bold'
-                                : 'text-[#A1A4AC]'
+                                : 'text-[var(--quant-muted-foreground)]'
                             }`}
                             aria-pressed={selectedSize.id === s.id}
                           >
@@ -1989,8 +1989,8 @@ export function EmailComposer({
                   aria-label="Bold"
                   className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg font-bold text-xs ${
                     isBold
-                      ? 'bg-[var(--quant-primary)]/20 text-[#FFB875] border border-[var(--quant-primary)]/40'
-                      : 'text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface)]'
+                      ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)] border border-[var(--quant-primary)]/40'
+                      : 'text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)]'
                   }`}
                   title="Bold"
                 >
@@ -2005,8 +2005,8 @@ export function EmailComposer({
                   aria-label="Italic"
                   className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg italic text-xs font-serif ${
                     isItalic
-                      ? 'bg-[var(--quant-primary)]/20 text-[#FFB875] border border-[var(--quant-primary)]/40'
-                      : 'text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface)]'
+                      ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)] border border-[var(--quant-primary)]/40'
+                      : 'text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)]'
                   }`}
                   title="Italic"
                 >
@@ -2021,8 +2021,8 @@ export function EmailComposer({
                   aria-label="Underline"
                   className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg underline text-xs ${
                     isUnderline
-                      ? 'bg-[var(--quant-primary)]/20 text-[#FFB875] border border-[var(--quant-primary)]/40'
-                      : 'text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface)]'
+                      ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)] border border-[var(--quant-primary)]/40'
+                      : 'text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)]'
                   }`}
                   title="Underline"
                 >
@@ -2037,8 +2037,8 @@ export function EmailComposer({
                   aria-label="Strikethrough"
                   className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg line-through text-xs ${
                     isStrikethrough
-                      ? 'bg-[var(--quant-primary)]/20 text-[#FFB875] border border-[var(--quant-primary)]/40'
-                      : 'text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface)]'
+                      ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)] border border-[var(--quant-primary)]/40'
+                      : 'text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)]'
                   }`}
                   title="Strikethrough"
                 >
@@ -2054,7 +2054,7 @@ export function EmailComposer({
                     aria-expanded={showColorPicker}
                     aria-controls={showColorPicker ? 'composer-color-panel' : undefined}
                     aria-label={`Text colour: ${textColor.label}`}
-                    className="inline-flex items-center justify-center gap-1 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="inline-flex items-center justify-center gap-1 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     title="Text colour"
                   >
                     <span
@@ -2126,8 +2126,8 @@ export function EmailComposer({
                         onKeyDown={(event) => onAlignKeyDown(event, index)}
                         className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                           isOn
-                            ? 'bg-[var(--quant-primary)]/20 text-[#FFB875]'
-                            : 'text-[#A1A4AC] hover:text-white'
+                            ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)]'
+                            : 'text-[var(--quant-muted-foreground)] hover:text-white'
                         }`}
                         title={alignment.label}
                       >
@@ -2161,7 +2161,7 @@ export function EmailComposer({
                     setTextColor(TEXT_COLORS[0]);
                     setTextAlign('left');
                   }}
-                  className="ml-auto inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg text-[#A1A4AC] hover:text-[#F5F5F5] text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                  className="ml-auto inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                   title="Clear formatting"
                 >
                   T<span className="text-[10px]">x</span>
@@ -2251,7 +2251,7 @@ export function EmailComposer({
                           setShowScheduleModal(true);
                           setShowSendOptionsDropdown(false);
                         }}
-                        className="flex items-center gap-2.5 w-full px-3.5 py-2 min-h-[44px] text-left text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)]"
+                        className="flex items-center gap-2.5 w-full px-3.5 py-2 min-h-[44px] text-left text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)]"
                       >
                         <IconClock className="size-3.5 text-[var(--quant-primary)]" />
                         <span>Schedule send</span>
@@ -2262,9 +2262,9 @@ export function EmailComposer({
                         onClick={() => {
                           void handleSaveDraft();
                         }}
-                        className="flex items-center gap-2.5 w-full px-3.5 py-2 min-h-[44px] text-left text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)]"
+                        className="flex items-center gap-2.5 w-full px-3.5 py-2 min-h-[44px] text-left text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)]"
                       >
-                        <IconFileText className="size-3.5 text-[#A1A4AC]" />
+                        <IconFileText className="size-3.5 text-[var(--quant-muted-foreground)]" />
                         <span>{isSaving ? 'Saving draft…' : 'Save draft'}</span>
                       </button>
                       </div>
@@ -2279,8 +2279,8 @@ export function EmailComposer({
                 onClick={() => setShowFormattingBar((prev) => !prev)}
                 className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-xs font-serif font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                   showFormattingBar
-                    ? 'bg-[var(--quant-primary)]/20 text-[#FFB875] border border-[var(--quant-primary)]/40'
-                    : 'text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)]'
+                    ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)] border border-[var(--quant-primary)]/40'
+                    : 'text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)]'
                 }`}
                 title="Formatting options (Aa)"
                 aria-pressed={showFormattingBar}
@@ -2293,7 +2293,7 @@ export function EmailComposer({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 title="Attach files from device"
                 aria-label="Attach files from device"
               >
@@ -2304,7 +2304,7 @@ export function EmailComposer({
               <button
                 type="button"
                 onClick={() => setIsLinkModalOpen(true)}
-                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 title="Insert Link"
                 aria-label="Insert link"
               >
@@ -2315,7 +2315,7 @@ export function EmailComposer({
               <button
                 type="button"
                 onClick={() => setIsDrivePickerOpen(true)}
-                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[var(--quant-primary)] hover:text-[#FFB875] hover:bg-[var(--quant-primary)]/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[var(--quant-primary)] hover:text-[var(--brand-accent)] hover:bg-[var(--quant-primary)]/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 title="Insert files using QuantDrive"
                 aria-label="Insert files from QuantDrive"
               >
@@ -2326,7 +2326,7 @@ export function EmailComposer({
               <button
                 type="button"
                 onClick={handleBack}
-                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[#A1A4AC] hover:text-rose-400 hover:bg-[var(--quant-surface)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[var(--quant-muted-foreground)] hover:text-rose-400 hover:bg-[var(--quant-surface)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 title="Discard draft"
                 aria-label="Discard draft"
               >
@@ -2337,7 +2337,7 @@ export function EmailComposer({
               <button
                 type="button"
                 onClick={() => setIsQuantyDrawerOpen(true)}
-                className="hidden sm:flex p-2 rounded-xl text-[var(--quant-primary)] hover:text-[#FFB875] hover:bg-[var(--quant-primary)]/10 transition-all ml-0.5 items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                className="hidden sm:flex p-2 rounded-xl text-[var(--quant-primary)] hover:text-[var(--brand-accent)] hover:bg-[var(--quant-primary)]/10 transition-all ml-0.5 items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 title="Open Quanty AI Copilot"
                 aria-label="Open Quanty AI Copilot"
               >
@@ -2393,7 +2393,7 @@ export function EmailComposer({
             <div className="text-xl font-bold text-[var(--quant-surface)] mb-3">{subject || '(no subject)'}</div>
 
             {/* Meta Info Bar: Sender, Draft To, Date */}
-            <div className="flex items-start justify-between text-xs text-[#3A404D] border-b border-[#A1A4AC] pb-3 mb-6">
+            <div className="flex items-start justify-between text-xs text-[#3A404D] border-b border-[var(--quant-muted-foreground)] pb-3 mb-6">
               <div className="space-y-1">
                 <div>
                   <strong className="text-black">
@@ -2435,7 +2435,7 @@ export function EmailComposer({
 
             {/* Attachments Footer if any */}
             {attachments.length > 0 && (
-              <div className="mt-8 pt-4 border-t border-[#A1A4AC] text-xs text-[#3A404D]">
+              <div className="mt-8 pt-4 border-t border-[var(--quant-muted-foreground)] text-xs text-[#3A404D]">
                 <strong className="text-black">Attachments ({attachments.length}): </strong>
                 <span>{attachments.map((a) => a.name).join(', ')}</span>
               </div>

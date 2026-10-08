@@ -626,7 +626,7 @@ export function MimeTypeIcon({
 }: MimeTypeIconProps) {
   if (kind === 'folder') {
     const Folder = isExpanded ? IconFolderOpen : IconFolder;
-    return <Folder style={{ color: '#FFB875', ...style }} {...rest} />;
+    return <Folder style={{ color: 'var(--brand-accent)', ...style }} {...rest} />;
   }
 
   const m = (mimeType ?? '').toLowerCase();
@@ -684,7 +684,7 @@ export function FileTypeIcon({
 }: FileTypeIconProps) {
   if (isFolder) {
     const Folder = isExpanded ? IconFolderOpen : IconFolder;
-    return <Folder style={{ color: '#FFB875', ...style }} {...rest} />;
+    return <Folder style={{ color: 'var(--brand-accent)', ...style }} {...rest} />;
   }
 
   const entry = FILE_TYPES[fileExtension(name)];
