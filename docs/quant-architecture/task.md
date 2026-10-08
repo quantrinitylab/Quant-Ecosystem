@@ -1000,3 +1000,31 @@ Finding: (a) `AIAssistant.tsx:171` catches errors and shows generic "Something w
 Required: surface sanitized `err.message` in AI errors; add a global fetch timeout so hung requests land on the honest ErrorState + retry.
 Scope: `AIAssistant.tsx`; API fetch layer.
 Dependencies: none.
+
+## QM-UIUX-037 — App switcher: single accent-color source of truth
+Status: [ ] TODO
+Finding: mobile and desktop use DIFFERENT accent colors for the same apps (Drive: #34A853 green on mobile vs #F59E0B amber on desktop; all 5 apps differ). Two switchers, two color systems. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/appswitcher-audit.md`.
+Required: single `PILLAR_ACCENTS` source of truth used by both mobile and desktop switchers. (The final per-app color mapping still needs the user's confirmation — this task only unifies the two systems to whatever mapping is decided.)
+Scope: app switcher components (mobile + desktop).
+Dependencies: none.
+
+## QM-UIUX-038 — Delete dead DesktopPillarRail with banned glow
+Status: [ ] TODO
+Finding: `DesktopPillarRail.tsx` (400+ lines) still carries the glowing edge pill, tinted active background, and icon drop-shadow the user explicitly banned. Not rendered in production (AppShell uses `DesktopAppRail`, fixed by PR #624), but one rewire away from going live. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/appswitcher-audit.md`.
+Required: delete the component; keep tile definitions in a shared file if still needed.
+Scope: `apps/quantmail/src/components/DesktopPillarRail.tsx`.
+Dependencies: QM-UIUX-037 (same area).
+
+## QM-UIUX-039 — Performance: memoize EmailRow, lazy images, drop dead font
+Status: [ ] TODO
+Finding: (a) `EmailRow` not memoized in the virtualized inbox (`page.tsx:301`) — every parent state change re-renders all visible rows (only 1 `React.memo` in the whole codebase); (b) zero `next/image` usage — 13 raw `<img>`, 1 lazy; (c) Pacifico font loaded on every page but never used — dead network request; (d) yjs statically imported (~100KB+) before needed. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/performance-audit.md`.
+Required: wrap `EmailRow` in `React.memo`; migrate to `next/image` or add `loading="lazy"`; remove Pacifico until used; dynamic-import yjs.
+Scope: inbox page; `layout.tsx`; `useCollabDoc.ts`; image tags.
+Dependencies: none.
+
+## QM-UIUX-040 — Inbox P1s: swipe hint, cursor pagination, hook cleanup
+Status: [ ] TODO
+Finding: (a) swipe actions not discoverable — no hint for new users; (b) page-based pagination can drift when new mail arrives during scroll — cursor-based is correct; (c) `useInfiniteInbox` and `useInbox` both exist — verify which is live, delete the dead one. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/inbox-deep-audit.md`.
+Required: one-time dismissible swipe hint; cursor pagination; remove dead hook.
+Scope: inbox components and hooks.
+Dependencies: none.
