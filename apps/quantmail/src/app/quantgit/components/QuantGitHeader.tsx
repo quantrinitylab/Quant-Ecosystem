@@ -294,14 +294,13 @@ export function QuantGitHeader({
 
             <button
               type="button"
-              onClick={() => showToast('All notifications read')}
+              onClick={() => setActiveGitHubTab('notifications')}
               className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors relative"
               title="Notifications"
             >
               <svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor">
                 <path d="M8 16a2 2 0 0 0 1.985-1.75c.001-.014.004-.028.005-.042.005-.07.01-.14.01-.208H6a2 2 0 0 0 2 2Zm.636-14.708a.75.75 0 0 0-1.272 0A5.5 5.5 0 0 0 3 6.5v3.428l-.78 1.56a.75.75 0 0 0 .67 1.012h10.22a.75.75 0 0 0 .67-1.012L13 9.928V6.5a5.5 5.5 0 0 0-4.364-5.208Z" />
               </svg>
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#58A6FF]" />
             </button>
 
             <button
