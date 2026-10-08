@@ -1070,6 +1070,7 @@ Dependencies: none.
 
 ## QM-UIUX-045 — Delete fake AIInlineSummary
 Status: [~] IN_PROGRESS — Owner: 3d4e5f6a-7b8c-9d0e-1f2a-3b4c5d6e7f8a; Branch: fix/qm-uiux-045-fake-ai
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/641
 Finding: `AIInlineSummary` labeled "AI summary" (aria-label + sparkle icon) but is pure keyword matching (`includes('action required')` → "Action needed"). Its own comment admits "In production, this would call the AI backend" — the upgrade path doesn't exist. Zero usages (dead). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quanty-ai-audit.md`.
 Required: delete the component; if summarization is wanted, wire to the real `aiSummarize` backend (QM-UIUX-046).
 Scope: `AIInlineSummary` component.
