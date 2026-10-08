@@ -478,3 +478,55 @@ Finding: prior audit identified Teams/Agents surfaces with fabricated-looking te
 Dependencies: QM-TRUST-002.
 
 ---
+
+## QM-AUTH-017 — SSO compatibility tests must be migrated with the contract
+Status: [ ] TODO
+Finding: shared and app-level tests currently assert the legacy `__quant_sso_ticket`/token URL handoff as the expected behavior. This can preserve the insecure architecture even after the runtime is changed.
+Required: replace those assertions with one-time opaque/signed handoff exchange tests covering audience binding, expiry, nonce replay, tampering, return-target binding, URL scrubbing, destination reauthorization, and absence of bearer tokens in URLs/logs/referrers.
+Scope: packages/shared-ui/src/interconnection/__tests__; apps/* SSO tests; SSO contract tests.
+Dependencies: QM-AUTH-014; QM-AUTH-016.
+
+## QM-PLAT-009 — Flutter auth must not synthesize identity on missing session data
+Status: [ ] TODO
+Finding: the shared Flutter QuantAuthService falls back to a hard-coded `user@quantmail.in` / `Quant Operator` profile when cached profile data is absent or malformed. That can make an authenticated-looking workspace appear to exist without authoritative identity data.
+Required: remove synthetic authenticated identity; transition to an explicit bootstrap/error/reauth state and hydrate profile/workspace only from authoritative backend bootstrap.
+Scope: flutter_apps/packages/quant_core/lib/auth/quant_auth_service.dart and dependent workspace bootstrap flows.
+Dependencies: QM-AUTH-008; QM-SCREEN-001; QM-PLAT-006.
+
+## QM-PLAT-010 — Flutter/web session contract must converge on one bootstrap model
+Status: [ ] TODO
+Finding: web auth currently centers on browser session/HttpOnly refresh behavior while the shared Flutter service persists access + refresh credentials in platform secure storage and locally cached profile/workspace data. The platforms can be secure in isolation but currently do not share a single authoritative bootstrap contract.
+Required: define one versioned session/bootstrap contract: identity, account state, active workspace, devices/session summary, permissions/capabilities, product config and Quanty bootstrap. Platform adapters may differ in storage and lifecycle, but domain semantics must not drift.
+Scope: packages/auth; flutter_apps/packages/quant_core; QuantMail web bootstrap; ecosystem contracts 20/21/22.
+Dependencies: QM-AUTH-008; QM-PLAT-006.
+
+---
+
+# Deep Architecture Comparison / Execution Plan — 2026-10-08
+
+## QuantMail target-vs-repository comparison
+1. Identity/SSO: target = server-verifiable scoped handoff; repo = legacy bearer token in URL + client-decoded ticket. Priority P0.
+2. Session bootstrap: target = authoritative workspace bootstrap; repo = platform-specific cached/session paths. Priority P0.
+3. Mail source of truth: target = PostgreSQL/domain + transactional outbox; audit found outbox emission gap. Priority P1.
+4. Cross-app context: target = typed QuantResourceRef + governed QuantContextEnvelope + short-lived handoff capability; legacy SSO currently mixes authentication and navigation. Priority P0.
+5. Quanty: target = capability/risk/approval/verification governed runtime; QuantMail surfaces need to consume the same registry rather than direct product mutations. Priority P1.
+6. Search: target = authorization-aware federated retrieval + source hydration + deletion invalidation; screen implementation must not imply cross-app search until those contracts are real. Priority P1.
+7. UI: target = one QuantMail Design OS and one responsive shell across supported clients; repository currently has multiple presentation stacks. Priority P1.
+8. Trust: target = no theatrical/fabricated operational data and no unsupported security claims. Security copy is corrected; Teams/Agents still require re-audit. Priority P0.
+9. Reliability: target = dependency health, degraded modes, worker registration, queue drain/retry evidence; source presence is not runtime evidence. Priority P1.
+10. Completion: target = every screen has UI + data + API + event/sync + offline + security + Quanty + cross-app + accessibility + platform evidence. This ledger remains the execution gate.
+
+## Recommended execution order
+A. P0 security boundary: QM-AUTH-011/014/015/016/017.
+B. P0 session/bootstrap truth: QM-AUTH-008 + QM-SCREEN-001/002 + QM-PLAT-009/010.
+C. P0 trust cleanup: QM-TRUST-001/002 + QM-PLAT-008.
+D. Workspace shell: QM-WORK-001/002 + QM-SCREEN-003.
+E. Flagship mail loop: QM-SCREEN-004/005/006 and backend outbox/idempotency/concurrency.
+F. Calendar/Drive/Contacts/QuantGit completion: QM-SCREEN-008 through 013.
+G. Universal Search + Quanty: QM-SCREEN-007/014 + QM-QUANTY-001..004.
+H. Notifications/settings/admin: QM-SCREEN-015..018 + backend audit/step-up/lifecycle.
+I. Cross-app graph + all-platform acceptance: QM-SCREEN-019/020 + QM-PLAT-001..005.
+J. Only then mark screen/product Definition-of-Done items DONE with implementation and validation evidence.
+
+## Current audit gate
+No CI-green claim is made from this audit. Architecture findings are evidence from source inspection/search; runtime health, deployment readiness, queue behavior, E2E, accessibility and visual acceptance still require execution evidence.
