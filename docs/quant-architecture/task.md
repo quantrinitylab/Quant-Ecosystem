@@ -997,8 +997,7 @@ Dependencies: none.
 
 ## QM-UIUX-035 — Accessibility P1s: reduced-motion, icon labels, contrast
 Status: [ ] TODO
-Finding: (a) 127 animations ignore `prefers-reduced-motion` (WCAG 2.3.3) — add a global CSS kill-switch for `animate-*`; (b) 56 icon-only buttons without accessible names (WCAG 4.1.2) — add `aria-label`; (c) `#6B6E76` text fails WCAG AA at 76 usages (3.64-4.12:1, needs 4.5:1) — replace with `#8D96A0`. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/accessibility-audit.md`.
-Required: fix each per the finding.
+Finding: (a) 127 animations ignore `prefers-reduced-motion` (WCAG 2.3.3) — add a global CSS kill-switch for `animate-*`; (b) 56 icon-only buttons without accessible names (WCAG 4.1.2) — add `aria-label`; (c) `#6B6E76` text fails WCAG AA at 76 usages (3.64-4.12:1, needs 4.5:1) — replace with `#8D96A0`. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/accessibility-audit.md`.Required: fix each per the finding.
 Scope: `apps/quantmail/src/**`; global CSS.
 Dependencies: QM-UIUX-013 (gray consolidation covers c); QM-UIUX-034 (same area).
 
@@ -1716,3 +1715,35 @@ Scope: flutter_apps/apps/quant_mail/lib/screens/composer/email_composer_modal.da
 Dependencies: QM-WORK-005; QuantDrive canonical file contract; mail attachment/send contract.
 
 Validation: source audit on 2026-10-08 against main verified `_showAttachmentPicker()` renders four fixed file entries and `_attachmentOption.onTap` directly appends an `EmailAttachment` with generated `att-<timestamp>` ID, hardcoded `sizeBytes`, generated filename and MIME type. No device file picker, Drive file reference, file upload or attachment-byte source is used by this production picker. No remediation implementation claim yet.
+
+## QM-SCREEN-062 — QuantMail Flutter failed sends must not erase the recoverable autosaved draft
+
+Status: [ ] TODO
+
+Finding: the production Flutter Undo Send state machine clears the local autosaved draft in a `finally` block, even when the final send callback throws. In `flutter_apps/apps/quant_mail/lib/screens/composer/undo_send_manager.dart`, `_flushSend()` awaits `_onFinalSend!(draft)`; the `catch` reports `Delivery error: Failed to reach sovereign mail gateway.`, but the following `finally` always executes `DraftLocalStorage.instance.clearDraft()`. The inline comment says the draft should be cleared "after successful transmission", but the control flow also clears it after a failed transmission. This is production-reachable: `superapp_home_screen.dart` wires the composer `onSendQueued` callback into `_undoSendManager.enqueueDraft(... onFinalSend: ...)`.
+
+Required: make draft deletion conditional on authoritative successful send completion, never merely on leaving the send attempt. Preserve the exact draft until the mail gateway/API returns an accepted authoritative send result and the local state has been reconciled; on network failure, timeout, 4xx/5xx rejection, serialization/upload failure or ambiguous result, keep the recoverable draft and surface a retry/recovery state. If the server may have accepted an ambiguous request, use an idempotent client operation/send key and reconciliation before deciding whether the draft can be cleared, so retry cannot duplicate delivery. Define the state machine separately for recalled, queued, sending, accepted, failed-retryable, failed-terminal and ambiguous outcomes. A successful send should clear only the matching draft ID/version, not an unrelated newer autosave created while the request was in flight.
+
+Tests: final-send callback succeeds -> draft clears; callback throws -> draft remains; timeout/ambiguous response -> draft remains until reconciliation; 4xx terminal rejection -> draft remains for correction/retry; user edits/re-autosaves while send is in flight -> newer draft is preserved; double send/retry is idempotent; undo during countdown restores the same draft; app navigation/backgrounding does not accidentally clear it. Add regression coverage around the exact `try/catch/finally` path.
+
+Scope: `flutter_apps/apps/quant_mail/lib/screens/composer/undo_send_manager.dart`; `flutter_apps/apps/quant_mail/lib/screens/superapp/superapp_home_screen.dart`; draft persistence/recovery; mail send API operation/idempotency contract; Flutter tests.
+
+Dependencies: QM-SCREEN-061; mail send/delivery contract; durable draft contract.
+
+Validation: source audit on 2026-10-08 verified the live `_flushSend()` catches send failures but unconditionally executes `DraftLocalStorage.instance.clearDraft()` in `finally`. The same audit verified the production SuperApp composer enqueues the draft into this manager and supplies an `onFinalSend` callback.
+
+## QM-SCREEN-063 — QuantMail Flutter autosaved drafts must survive app restart and use durable account-scoped persistence
+
+Status: [ ] TODO
+
+Finding: the Flutter composer labels its local draft mechanism as autosave, but `DraftLocalStorage` in `flutter_apps/apps/quant_mail/lib/models/composer_models.dart` is only an in-memory singleton: it stores one `EmailDraft?` in the process field `_savedDraft`. `loadDraft()` returns that field and `saveDraft()` replaces it; there is no file/database/secure-storage persistence, account namespace, draft ID index, encryption-at-rest policy, or recovery after process termination. The composer calls `DraftLocalStorage.instance.loadDraft()` on initialization and periodically saves through this singleton, so a force-stop, OS process eviction, crash or app restart can silently lose what the UI describes as an autosaved draft.
+
+Required: define the authoritative Flutter draft persistence contract. Persist drafts durably per authenticated account/device, with stable draft IDs and revision/version metadata, timestamps, recipient/subject/body/attachment references and explicit dirty/saved/sync states. Do not persist raw attachment paths as if they were durable attachment ownership; use the attachment contract from QM-SCREEN-061. Protect sensitive draft contents with the platform-appropriate encrypted storage/database boundary and never log body/recipient data. Support multiple drafts rather than a single global singleton if the product contract exposes multiple compose windows/drafts. On account switch/logout, isolate or clear access to the previous account's drafts according to the server/device policy; never hydrate another account's draft. Define server synchronization if drafts are intended to appear cross-device, including conflict resolution, revision tokens and offline queueing. If the product intentionally promises device-local-only recovery, make that explicit in UX and still guarantee restart/crash durability on that device.
+
+Tests: save -> force process termination -> restart -> recover; crash during write; concurrent autosave revisions; account A logout/account B login isolation; multiple drafts; stale revision conflict; attachment reference becomes unavailable; storage full/corrupt database recovery; encryption-at-rest and no-sensitive-logging checks; draft clear after successful send only for the matching draft revision. Add migration coverage from the current in-memory representation without treating process memory as persisted truth.
+
+Scope: `flutter_apps/apps/quant_mail/lib/models/composer_models.dart`; `flutter_apps/apps/quant_mail/lib/screens/composer/email_composer_modal.dart`; draft repository/storage layer; authentication/account switching; mail draft API if cross-device sync is required; attachment persistence; Flutter integration tests.
+
+Dependencies: QM-SCREEN-061; QM-SCREEN-062; canonical QuantMail draft/mail contract.
+
+Validation: source audit on 2026-10-08 verified `DraftLocalStorage` contains only the private in-memory field `EmailDraft? _savedDraft` and no durable storage dependency. The composer reads/writes this singleton as its autosave path, while the repository test explicitly describes it as an "In-Memory singleton".
