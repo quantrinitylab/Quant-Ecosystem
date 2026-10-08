@@ -302,7 +302,7 @@ export function AttachmentPreview({ attachments }: AttachmentPreviewProps) {
           >
             <div className="attachment-preview-thumb">
               {isImage(att.mimeType) && att.url ? (
-                <img src={att.url} alt={att.filename} className="attachment-preview-img" />
+                <img src={att.url} alt={att.filename} className="attachment-preview-img" loading="lazy" decoding="async" />
               ) : (
                 <span className="attachment-preview-icon">
                   {renderAttachmentIcon(att.mimeType)}
@@ -344,6 +344,7 @@ export function AttachmentPreview({ attachments }: AttachmentPreviewProps) {
                 src={previewUrl}
                 alt="Attachment preview"
                 draggable={false}
+                decoding="async"
                 onDoubleClick={handleDoubleClick}
                 style={{
                   maxWidth: '100%',

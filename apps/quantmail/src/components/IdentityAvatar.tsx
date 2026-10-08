@@ -95,7 +95,7 @@ export function IdentityAvatar({
         } ${className}`}
         aria-hidden="true"
       >
-        <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+        <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
       </span>
     );
   }

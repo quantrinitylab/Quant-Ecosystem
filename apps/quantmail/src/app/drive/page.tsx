@@ -1592,6 +1592,8 @@ function DrivePageContent() {
                   src={getDownloadUrl(previewItem.id)}
                   alt={previewItem.name}
                   className="max-h-96 mx-auto rounded-lg object-contain"
+                  loading="lazy"
+                  decoding="async"
                 />
                 <h4 className="text-sm font-bold text-[#F5F5F5] mt-3">{previewItem.name}</h4>
                 <p className="text-xs text-[#A1A4AC] mt-1">

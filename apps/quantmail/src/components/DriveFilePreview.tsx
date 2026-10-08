@@ -69,7 +69,7 @@ export function DriveFilePreview({
       <div className="drive-preview-content">
         {isImage && file.url && (
           <div className="drive-preview-image">
-            <img src={file.url} alt={file.name} />
+            <img src={file.url} alt={file.name} loading="lazy" decoding="async" />
           </div>
         )}
         {isPDF && file.url && (

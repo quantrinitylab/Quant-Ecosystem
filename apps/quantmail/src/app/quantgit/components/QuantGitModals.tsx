@@ -1090,6 +1090,8 @@ export function QuantGitModals({
                           width={32}
                           height={32}
                           className="size-8 rounded-full border border-[#30363D] object-cover shrink-0"
+                          loading="lazy"
+                          decoding="async"
                         />
                       ) : (
                         <div
