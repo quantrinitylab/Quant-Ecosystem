@@ -1319,6 +1319,14 @@ export class QuantMailApiClient {
     return this.post(`/emails/${emailId}/summarize`, {});
   }
 
+  async aiSummarizeThread(
+    messages: Array<{ from: string; subject: string; body: string; date?: string }>,
+  ): Promise<
+    ApiResponse<{ summary: string; keyPoints: string[]; actionItems: string[]; messageCount: number }>
+  > {
+    return this.post('/ai/summarize-thread', { messages });
+  }
+
   async aiCategorize(
     emailIds: string[],
   ): Promise<ApiResponse<Array<{ emailId: string; category: string }>>> {

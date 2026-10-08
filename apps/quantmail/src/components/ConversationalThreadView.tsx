@@ -38,6 +38,7 @@ import {
 } from '../lib/threading';
 import { invalidateMailLists } from '../lib/offline/folders';
 import { plainTextToHtml } from '../lib/email-body';
+import { ThreadSummaryCard, messagesToSummaryPayload, type ThreadSummaryResult } from './ThreadSummaryCard';
 import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useInbox } from '../hooks/useInbox';
@@ -525,6 +526,27 @@ export function ConversationalThreadView({
       `/compose?to=${encodeURIComponent(recipient)}&subject=${encodeURIComponent(subj)}&replyTo=${primaryMessage?.id || threadId}`,
     );
   }, [primaryMessage, router, threadId, threadSubject]);
+
+  /**
+   * QM-UIUX-046: real thread-summarization entry point. Maps the loaded
+   * messages to the backend payload and calls the real AI service
+   * (`POST /api/ai/summarize-thread`). Throws on failure so the card shows
+   * its honest error state; never fabricates a summary.
+   */
+  const handleSummarizeThread = useCallback(async (): Promise<ThreadSummaryResult> => {
+    const payload = messagesToSummaryPayload(messages);
+    const res = await apiClient.aiSummarizeThread(payload);
+    const data = res.data;
+    if (!res.success || !data?.summary) {
+      throw new Error('Summarization failed');
+    }
+    return {
+      summary: data.summary,
+      keyPoints: data.keyPoints ?? [],
+      actionItems: data.actionItems ?? [],
+      messageCount: data.messageCount ?? payload.length,
+    };
+  }, [messages]);
 
   const openReplyAllComposer = useCallback(() => {
     const recipients = messages
@@ -1891,6 +1913,12 @@ export function ConversationalThreadView({
         onTouchCancel={handleSwipeTouchCancel}
         className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-4 max-w-4xl mx-auto w-full"
       >
+        {/* QM-UIUX-046: real AI thread-summarization entry point */}
+        {!isLoading && messages.length > 0 && (
+          <div className="flex justify-start">
+            <ThreadSummaryCard onSummarize={handleSummarizeThread} />
+          </div>
+        )}
         {/* Pull-to-load-older indicator */}
         {(pullDistance > 0 || isLoadingOlder) && (
           <div
