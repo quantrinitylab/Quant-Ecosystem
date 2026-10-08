@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from '
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { apiClient } from '../services/api-client';
+import { apiClient, type EmailFolder } from '../services/api-client';
 import {
   ErrorState,
   Skeleton,
@@ -108,6 +108,61 @@ export interface CustomFolder {
   filterType: 'contact' | 'keyword' | 'standard';
   filterValue?: string;
   createdAt?: number;
+}
+
+type FolderFilterMeta = Pick<CustomFolder, 'filterType' | 'filterValue'>;
+
+const FOLDERS_CACHE_KEY = 'quant_custom_folders';
+const FOLDER_FILTERS_KEY = 'quant_folder_filters';
+
+/**
+ * The backend `/folders` API stores name/color/type but has no fields for the
+ * client-side filter semantics (contact/keyword/standard + value). Those live
+ * in this device-local sidecar keyed by backend folder id, so a folder created
+ * here keeps its filter on this device while its name/color sync cross-device.
+ */
+function readFolderFilters(): Record<string, FolderFilterMeta> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const saved = localStorage.getItem(FOLDER_FILTERS_KEY);
+    if (saved) return JSON.parse(saved) as Record<string, FolderFilterMeta>;
+  } catch {
+    // ignore
+  }
+  return {};
+}
+
+function writeFolderFilters(filters: Record<string, FolderFilterMeta>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(FOLDER_FILTERS_KEY, JSON.stringify(filters));
+  } catch {
+    // ignore
+  }
+}
+
+function persistFoldersCache(folders: CustomFolder[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(FOLDERS_CACHE_KEY, JSON.stringify(folders));
+  } catch {
+    // ignore
+  }
+}
+
+/** Map a backend folder row onto the client CustomFolder shape. */
+function fromBackendFolder(
+  backend: EmailFolder,
+  filter?: FolderFilterMeta,
+): CustomFolder {
+  return {
+    id: backend.id,
+    name: backend.name,
+    color: backend.color || '#FF8C42',
+    filterType: filter?.filterType || 'standard',
+    filterValue: filter?.filterValue || '',
+    createdAt: backend.createdAt ? new Date(backend.createdAt).getTime() : Date.now(),
+  };
 }
 
 type InboxLens =
@@ -1277,10 +1332,15 @@ export default function InboxPage() {
   const selectedThreadId = selectedThread?.id || selectedEmail?.id || null;
 
   // Custom Folders & Filter Lenses
+  // Backend (`/api/folders`) is the source of truth so folders sync
+  // cross-device; localStorage stays as an offline cache plus the device-local
+  // filter sidecar (see `readFolderFilters`). The mount effect below replaces
+  // this cache with the backend list and migrates any legacy local-only
+  // folders up to the server.
   const [customFolders, setCustomFolders] = useState<CustomFolder[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('quant_custom_folders');
+        const saved = localStorage.getItem(FOLDERS_CACHE_KEY);
         if (saved) return JSON.parse(saved);
       } catch {
         // ignore
@@ -1290,9 +1350,91 @@ export default function InboxPage() {
   });
   const [isAddFolderModalOpen, setIsAddFolderModalOpen] = useState(false);
 
-  const handleCreateFolder = useCallback((draft: FolderDraft) => {
-    const newFolder: CustomFolder = {
-      id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+  /**
+   * Load folders from the backend on mount and migrate legacy device-local
+   * folders (`custom_*` ids, created before the backend sync existed) up to
+   * the server. Backend wins on name conflicts; anything that fails to migrate
+   * stays local so no user data is ever dropped.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let backendFolders: EmailFolder[];
+      try {
+        const res = await apiClient.getFolders();
+        if (!res.success || !res.data) return;
+        backendFolders = res.data.filter((f) => f.type === 'CUSTOM');
+      } catch {
+        return;
+      }
+      if (cancelled) return;
+
+      const filters = readFolderFilters();
+      let localCache: CustomFolder[] = [];
+      try {
+        const saved = localStorage.getItem(FOLDERS_CACHE_KEY);
+        if (saved) localCache = JSON.parse(saved);
+      } catch {
+        // ignore
+      }
+
+      // Migrate legacy local-only folders to the backend.
+      const legacy = localCache.filter((f) => f.id.startsWith('custom_'));
+      const migratedIds = new Set<string>();
+      for (const folder of legacy) {
+        if (cancelled) return;
+        if (
+          backendFolders.some((b) => b.name.toLowerCase() === folder.name.toLowerCase())
+        ) {
+          // Backend already has this name — adopt the backend row, keep the
+          // local filter metadata under the backend id.
+          const match = backendFolders.find(
+            (b) => b.name.toLowerCase() === folder.name.toLowerCase(),
+          )!;
+          filters[match.id] = {
+            filterType: folder.filterType,
+            filterValue: folder.filterValue,
+          };
+          migratedIds.add(folder.id);
+          continue;
+        }
+        try {
+          const created = await apiClient.createFolder({
+            name: folder.name,
+            color: folder.color,
+          });
+          if (created.success && created.data) {
+            backendFolders.push(created.data);
+            filters[created.data.id] = {
+              filterType: folder.filterType,
+              filterValue: folder.filterValue,
+            };
+            migratedIds.add(folder.id);
+          }
+        } catch {
+          // Keep it local; a later mount retries.
+        }
+      }
+      if (cancelled) return;
+
+      const merged = backendFolders.map((b) => fromBackendFolder(b, filters[b.id]));
+      // Preserve legacy folders that failed to migrate so nothing is lost.
+      for (const folder of legacy) {
+        if (!migratedIds.has(folder.id)) merged.push(folder);
+      }
+      writeFolderFilters(filters);
+      persistFoldersCache(merged);
+      setCustomFolders(merged);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleCreateFolder = useCallback(async (draft: FolderDraft) => {
+    const tempId = `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const optimistic: CustomFolder = {
+      id: tempId,
       name: draft.name.trim(),
       color: draft.color || '#FF8C42',
       filterType: draft.filterType,
@@ -1300,21 +1442,50 @@ export default function InboxPage() {
       createdAt: Date.now(),
     };
 
+    // Optimistic add so the UI feels instant.
     setCustomFolders((prev) => {
-      const next = [...prev, newFolder];
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('quant_custom_folders', JSON.stringify(next));
-        } catch {
-          // ignore
-        }
-      }
+      const next = [...prev, optimistic];
+      persistFoldersCache(next);
       return next;
     });
-
     setIsAddFolderModalOpen(false);
-    setActiveLens(`folder_${newFolder.id}`);
-    showToast({ text: `Folder "${newFolder.name}" created`, type: 'success' });
+    setActiveLens(`folder_${tempId}`);
+
+    try {
+      const res = await apiClient.createFolder({
+        name: optimistic.name,
+        color: optimistic.color,
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message || 'Could not save folder');
+      }
+      const saved = fromBackendFolder(res.data, {
+        filterType: optimistic.filterType,
+        filterValue: optimistic.filterValue,
+      });
+      const filters = readFolderFilters();
+      filters[saved.id] = {
+        filterType: optimistic.filterType,
+        filterValue: optimistic.filterValue,
+      };
+      writeFolderFilters(filters);
+      setCustomFolders((prev) => {
+        const next = prev.map((f) => (f.id === tempId ? saved : f));
+        persistFoldersCache(next);
+        return next;
+      });
+      setActiveLens(`folder_${saved.id}`);
+      showToast({ text: `Folder "${saved.name}" created`, type: 'success' });
+    } catch (error) {
+      // Roll back the optimistic add — the folder was never saved.
+      setCustomFolders((prev) => {
+        const next = prev.filter((f) => f.id !== tempId);
+        persistFoldersCache(next);
+        return next;
+      });
+      const message = error instanceof Error ? error.message : 'Could not save folder';
+      showToast({ text: `Couldn't create folder: ${message}`, type: 'error' });
+    }
   }, []);
 
   /** Conversation the next shift-click extends from. See `toggleSelect`. */
