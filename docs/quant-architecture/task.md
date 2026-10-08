@@ -1872,3 +1872,19 @@ Required: (1) Provision: S3 bucket quantmail-inbound-emails (SES write policy), 
 Scope: infra/ (SES/S3/SNS), apps/quantmail/backend/routes/inbound-webhook.ts, apps/quantmail/backend/services/inbound-ingest.service.ts, k8s deployment env.
 Dependencies: none.
 Progress 2026-10-09: AWS provisioned (us-east-1): S3 quantmail-inbound-emails-178313340246 (+SES write policy), SNS quantmail-inbound (+HTTPS sub to quantmail.in/api/webhook/inbound, pending confirm), SES receipt rule set quantmail-inbound-rules ACTIVE (S3+SNS), SES config set quantmail-sending (+SNS bounce/complaint/delivery events), IAM s3-read-inbound-mail on quant-quantmail-ses-sender. PR #684: ConfigMap manifest, IRSA ServiceAccount, deploy-staging.yml manifest-apply step, bootstrap sync, ses-sender.ts config-set. SES->S3 leg LIVE-VERIFIED (probe mail in bucket 2026-10-08 22:34 UTC). Remaining: merge+deploy backend (env), SNS confirm, inbox delivery check, outbound test. BLOCKER: SES sandbox (200/day) — production access must be requested from AWS console by user (Support API needs Premium Support).
+
+## QM-UIUX-073 — Mobile scroll/chrome behavior + header fixes (user-reported 2026-10-09, Drive screenshots)
+Status: [~] IN_PROGRESS
+Owner: mobile-chrome-fix-agent
+Branch: fix/qm-uiux-073-mobile-chrome
+Finding: User-reported mobile Chrome bugs (all mobile viewport):
+(1) Drive scroll: top app switcher hides on scroll but search bar + Quanty stay STATIC, leaving a blank gap at top. Expected: on scroll, switcher slides away and search+Quanty pin to top (no blank space).
+(2) QuantGit scroll: bottom tab bar hides on scroll but leaves its blank space behind (black gap). Expected: content expands into freed space, zero gap.
+(3) Quanty must ALWAYS sit next to the search bar on every screen; currently its visibility changes on scroll. Pin it permanently beside search.
+(4) Top nav/app tabs still render in a different (non-pure-black) black — unify with the pure-black law (QM-UIUX-072).
+(5) Tapping the user avatar (top-right) must open a SMALL menu: switch account, settings, logout, other options. Currently it opens Settings directly. Build the menu.
+(6) Remove the pill/tab container behind the app logo — logo alone, slightly larger, no background container.
+(7) QuantCalendar logo lost its background color — restore the per-app logo background.
+Required: fix all 7 with real-device-behavior verification via mobile Chrome emulation (390x844): before/after screenshots + scroll-behavior screen recordings or frame sequences proving (a) no blank gaps on scroll up/down, (b) Quanty pinned by search always, (c) avatar menu opens with all options working (logout actually logs out, settings opens settings), (d) pure-black header everywhere, (e) calendar logo background restored. No fake controls; every control must work.
+Scope: apps/quantmail/src (mobile header, app switcher, bottom nav, avatar menu, Drive/QuantGit scroll containers).
+Dependencies: QM-UIUX-072 (pure-black law).
