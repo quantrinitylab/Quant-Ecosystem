@@ -1152,7 +1152,7 @@ Validation: source inspection on 2026-10-08 found the dataset still present at t
 
 
 ## QM-UIUX-049 — QuantMax feed desktop adaptation
-Status: [~] IN_PROGRESS — Owner: b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e; Branch: fix/qm-uiux-049-quantmax-desktop
+Status: [x] DONE — PR #653 merged 2026-10-08 (QuantMax desktop: centered column + keyboard/wheel nav; 254/254 tests)
 PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/653
 Finding: QuantMax feed has zero desktop adaptation (`quantmax/src/pages/index.tsx`) — touch-only swipe, no keyboard arrows/space, no wheel handler, no `md:`/`lg:` breakpoints. Full-bleed `h-screen w-full` video stretched across wide screens instead of centered phone-like column (TikTok web pattern). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/satellite-desktop-audit.md`.
 Required: `md:max-w-[420px]` centered column + arrow-key/wheel nav (~30 lines).
@@ -1266,7 +1266,7 @@ Scope: QuantChat conversation page.
 Dependencies: none.
 
 ## QM-UIUX-057 — QuantChat: delete dead realtime implementations
-Status: [~] IN_PROGRESS — Owner: e5f6a7b8-9c0d-1e2f-3a4b-5c6d7e8f9a0b; Branch: fix/qm-uiux-057-dead-realtime
+Status: [x] DONE — PR #654 merged 2026-10-08 (~1000 lines dead realtime code deleted; 544/544 tests; RealtimeProvider kept — see QM-UIUX-060)
 PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/654
 Finding: FOUR competing realtime implementations (1,630 lines): `websocket-client.ts` (477 lines, zero usages), `useChat.ts` (284 lines, zero usages), `RealtimeProvider` (live socket, dead protocol), `chat-socket` singleton (only working path). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantchat-realtime-audit.md`.
 Required: delete the three dead paths; keep only the working singleton.
