@@ -3,7 +3,7 @@
 // ============================================================================
 
 import * as jose from 'jose';
-import { createHash } from 'node:crypto';
+import { createHash, webcrypto } from 'node:crypto';
 import type { AuthConfig, TokenPair, TokenPayload, RefreshTokenPayload } from '../types';
 import type { PermissionScope, QuantApp } from '@quant/common';
 import { generateId } from '../crypto/secure-random';
@@ -13,8 +13,8 @@ import { EnvConfigJwtKms } from '../lib/jwt-kms';
 import type { JwtKms, JwtKeyPurpose, JwtKeyVersion } from '../lib/jwt-kms';
 
 interface JWKSKeyPair {
-  privateKey: CryptoKey;
-  publicKey: CryptoKey;
+  privateKey: webcrypto.CryptoKey;
+  publicKey: webcrypto.CryptoKey;
 }
 
 const hashRefreshToken = (token: string): string =>
