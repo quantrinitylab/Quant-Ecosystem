@@ -1515,7 +1515,9 @@ Scope: apps/quantmail drive page + backend.
 Dependencies: none.
 
 ## QM-M39-013 — Drive: fake-data purge across all drive surfaces
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: Muse
+Branch: fix/qm-m39-013-drive-fake-purge
 Finding: Standing user rule — no fake stats/counts/collaborators/activity. Drive surfaces (StorageQuotaBar, shared counts, starred counts, AI memory vault, cleaner) must be audited: every number/person/activity must be backend-provable or removed.
 Required: audit + remove all fabricated drive data; quota from real usage; counts real or absent; zero fake collaborators/activity; evidence per surface.
 Scope: all apps/quantmail drive components and API routes.
