@@ -13,6 +13,8 @@
  * unit-tested by drawing into an offscreen canvas.
  */
 
+import { resolveCanvasColor } from '../canvas-color';
+
 /** Internal buffer edge, in px, before the device-pixel multiplier. */
 export const MARK_RES = 100;
 
@@ -107,7 +109,7 @@ export function paintEmberPlate(
   const base = ctx.createRadialGradient(fx, fy, 4, fx, fy, 82);
   base.addColorStop(0, '#FFC189');
   base.addColorStop(0.3, '#FF9450');
-  base.addColorStop(0.5, MARK_COLORS.ember);
+  base.addColorStop(0.5, resolveCanvasColor(MARK_COLORS.ember));
   base.addColorStop(0.74, '#C8520F');
   base.addColorStop(1, '#6E2606');
   ctx.fillStyle = base;
@@ -125,7 +127,7 @@ export function paintEmberPlate(
     const lx = cx + ox + Math.cos(time * rate) * amp + tiltX * tilt;
     const ly = cy + oy + Math.sin(time * rate * 0.84) * amp * 0.82 + tiltY * tilt;
     const g = ctx.createRadialGradient(lx, ly, 2, lx, ly, radius);
-    for (const [at, colour] of stops) g.addColorStop(at, colour);
+    for (const [at, colour] of stops) g.addColorStop(at, resolveCanvasColor(colour));
     ctx.fillStyle = g;
     ctx.fillRect(x0, y0, edge, edge);
   };
@@ -265,7 +267,7 @@ export function paintObsidianPlate(
   const warm = ctx.createRadialGradient(wx, wy, 2, wx, wy, 44);
   warm.addColorStop(0, 'rgba(255, 140, 66, 0.22)');
   warm.addColorStop(0.5, 'rgba(198, 88, 30, 0.09)');
-  warm.addColorStop(1, 'var(--quant-accent-faint)');
+  warm.addColorStop(1, resolveCanvasColor('var(--quant-accent-faint)'));
   ctx.fillStyle = warm;
   ctx.fillRect(cx - half, cy - half, half * 2, half * 2);
 }
@@ -453,6 +455,8 @@ function ringBloom(size: number): number {
  * axis where naive channel mixing does not visibly bend.
  */
 function mixHex(from: string, to: string, t: number): string {
+  const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+  if (!HEX_RE.test(from) || !HEX_RE.test(to)) return HEX_RE.test(to) ? to : from;
   if (t <= 0) return from;
   if (t >= 1) return to;
   const a = parseInt(from.slice(1), 16);
@@ -502,7 +506,8 @@ export function strokeIridescentBezel(
 
   const ring = ctx.createConicGradient(time * 0.3, cx, cy);
   for (const [at, calm, hot] of RING_FINISHES[finish]) {
-    ring.addColorStop(at, mixHex(calm, hot, vivid));
+    // `hot` may be a `var()` token — resolve before mixing or addColorStop throws.
+    ring.addColorStop(at, mixHex(calm, resolveCanvasColor(hot), vivid));
   }
 
   /*

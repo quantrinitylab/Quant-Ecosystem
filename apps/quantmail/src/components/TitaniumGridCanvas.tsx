@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { resolveCanvasColor } from '../lib/canvas-color';
 
 interface Particle {
   x: number;
@@ -111,9 +112,9 @@ export function TitaniumGridCanvas({
         height * 0.38,
         Math.min(width, height) * 0.65,
       );
-      amberGlow.addColorStop(0, 'var(--quant-accent-faint)');
-      amberGlow.addColorStop(0.5, 'var(--quant-accent-faint)');
-      amberGlow.addColorStop(1, 'var(--quant-accent-faint)');
+      amberGlow.addColorStop(0, resolveCanvasColor('var(--quant-accent-faint)'));
+      amberGlow.addColorStop(0.5, resolveCanvasColor('var(--quant-accent-faint)'));
+      amberGlow.addColorStop(1, resolveCanvasColor('var(--quant-accent-faint)'));
       ctx.fillStyle = amberGlow;
       ctx.fillRect(0, 0, width, height);
 

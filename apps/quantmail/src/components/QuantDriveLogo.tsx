@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
+import { resolveCanvasColor } from '../lib/canvas-color';
 import type { QuantLogoProps } from './AppMark';
 import { useLiveMark, type MarkFrame } from './marks/useLiveMark';
 import {
@@ -93,7 +94,7 @@ export function QuantDriveLogo({
       if (hover > 0.01) {
         const glow = ctx.createRadialGradient(cx, cy, 4, cx, cy, 42);
         glow.addColorStop(0, `rgba(255, 220, 180, ${0.28 * hover})`);
-        glow.addColorStop(1, 'var(--quant-accent-faint)');
+        glow.addColorStop(1, resolveCanvasColor('var(--quant-accent-faint)'));
         ctx.fillStyle = glow;
         ctx.fillRect(cx - 45, cy - 45, 90, 90);
       }
@@ -124,7 +125,7 @@ export function QuantDriveLogo({
       // 5. Platter 2: Middle Amber-Gold Storage Disc
       const p2Top = ctx.createLinearGradient(ox - 21, oy + 6, ox + 21, oy + 6);
       p2Top.addColorStop(0, '#7A360D');
-      p2Top.addColorStop(0.45, MARK_COLORS.ember);
+      p2Top.addColorStop(0.45, resolveCanvasColor(MARK_COLORS.ember));
       p2Top.addColorStop(1, '#4A1D06');
 
       const p2Side = ctx.createLinearGradient(ox, oy + 6, ox, oy + 10);
@@ -176,7 +177,7 @@ export function QuantDriveLogo({
       const coreGlow = ctx.createRadialGradient(ox, coreY, 0.5, ox, coreY, 8);
       coreGlow.addColorStop(0, 'rgba(255, 180, 80, 0.65)');
       coreGlow.addColorStop(0.5, 'rgba(255, 140, 66, 0.2)');
-      coreGlow.addColorStop(1, 'var(--quant-accent-faint)');
+      coreGlow.addColorStop(1, resolveCanvasColor('var(--quant-accent-faint)'));
       ctx.fillStyle = coreGlow;
       ctx.fillRect(ox - 8, coreY - 8, 16, 16);
 
@@ -223,7 +224,7 @@ export function QuantDriveLogo({
         ctx.beginPath();
         ctx.arc(dot.x, dot.y, dot.r, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(255, 235, 200, ${dot.a})`;
-        ctx.shadowColor = 'var(--quant-primary)';
+        ctx.shadowColor = resolveCanvasColor('var(--quant-primary)');
         ctx.shadowBlur = 3;
         ctx.fill();
       }

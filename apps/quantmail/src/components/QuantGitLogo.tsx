@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
+import { resolveCanvasColor } from '../lib/canvas-color';
 import type { QuantLogoProps } from './AppMark';
 import { useLiveMark, type MarkFrame } from './marks/useLiveMark';
 import {
@@ -118,7 +119,7 @@ export function QuantGitLogo({ size = 32, className = '', title = 'QuantGit' }: 
       if (hover > 0.01) {
         const glow = ctx.createRadialGradient(50, 52, 4, 50, 52, 44);
         glow.addColorStop(0, `rgba(255, 168, 96, ${0.3 * hover})`);
-        glow.addColorStop(1, 'var(--quant-accent-faint)');
+        glow.addColorStop(1, resolveCanvasColor('var(--quant-accent-faint)'));
         ctx.fillStyle = glow;
         ctx.fillRect(cx - 45, cy - 45, 90, 90);
       }
@@ -147,8 +148,8 @@ export function QuantGitLogo({ size = 32, className = '', title = 'QuantGit' }: 
       diamondPath(ctx);
       const tile = ctx.createLinearGradient(24, 24, 76, 76);
       tile.addColorStop(0, '#FFC493');
-      tile.addColorStop(0.42, 'var(--quant-primary)');
-      tile.addColorStop(0.76, 'var(--brand-primary-pressed)');
+      tile.addColorStop(0.42, resolveCanvasColor('var(--quant-primary)'));
+      tile.addColorStop(0.76, resolveCanvasColor('var(--brand-primary-pressed)'));
       tile.addColorStop(1, '#B9550F');
       ctx.fillStyle = tile;
       ctx.fill();
