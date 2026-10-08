@@ -211,8 +211,8 @@ Required: expectedVersion on thread/mail mutations, VERSION_CONFLICT errors, req
 Dependencies: QM-BACK-001.
 
 Owner: Muse
-Branch: TBD (agent worktree, PR-only to main)
-Notes: claimed 2026-10-08; Optimistic concurrency + request IDs; dep QM-BACK-001 met via #597
+Branch: feat/qm-back-002-optimistic-concurrency
+Notes: claimed 2026-10-08; PR #614 OPEN (agent complete 2026-10-08): expectedVersion on mail/thread mutations, atomic conditional updateMany + VERSION_CONFLICT 409 with recovery details, requestId from x-request-id through services into outbox payloads; migration 0084 (renamed from 0083 to avoid #611 collision); tests 16/16 green locally, verified by main agent; main merged in, CI re-running
 ## QM-BACK-003 — Global idempotency middleware
 Status: [x] DONE
 Required: Idempotency-Key for mutation routes, durable result replay, bounded retention, scope by actor/tenant/route.
