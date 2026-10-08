@@ -519,10 +519,37 @@ export function computeLineDiff(original: string, current: string): DiffLine[] {
   return backtrack.reverse();
 }
 
+// QM-UIUX-063: the branch/tag selector may only offer branches and tags that
+// are actually known for this repo. Never invent example branches
+// ('feat/speech-telemetry', 'feat/mcp-registry') or release tags ('v1.0.5',
+// 'v1.0.4', 'v1.0.0') when no real data was returned — the known-only list is
+// the honest state, and an empty tag list renders as "Tags (0)".
+export function resolveBranchSelectorLists(input: {
+  repoBranches?: string[];
+  repoBranchesFromRepo?: string[];
+  currentBranch: string;
+  defaultBranch?: string;
+  repoTags?: string[];
+}): { branches: string[]; tags: string[] } {
+  const knownBranches =
+    input.repoBranches && input.repoBranches.length > 0
+      ? input.repoBranches
+      : input.repoBranchesFromRepo && input.repoBranchesFromRepo.length > 0
+        ? input.repoBranchesFromRepo
+        : [input.currentBranch, input.defaultBranch].filter(
+            (b): b is string => typeof b === 'string' && b.length > 0,
+          );
+  return {
+    branches: Array.from(new Set(knownBranches)),
+    tags: input.repoTags ? Array.from(new Set(input.repoTags)) : [],
+  };
+}
+
 export interface CodeTabProps {
   selectedRepo: Repo;
   currentBranch: string;
   repoBranches?: string[];
+  repoTags?: string[];
   currentPath?: string;
   files: FileNode[];
   setModalState: (modal: any) => void;
@@ -612,6 +639,7 @@ export function CodeTab({
   selectedRepo,
   currentBranch,
   repoBranches,
+  repoTags,
   currentPath = '',
   files,
   setModalState,
@@ -705,6 +733,14 @@ export function CodeTab({
   const branchCount =
     repoBranches?.length || selectedRepo.branches?.length || selectedRepo.branchCount;
   const commitCount = selectedRepo.commitCount;
+  // QM-UIUX-063: selector lists come only from real repo data (see helper).
+  const branchSelectorLists = resolveBranchSelectorLists({
+    repoBranches,
+    repoBranchesFromRepo: selectedRepo.branches,
+    currentBranch,
+    defaultBranch: selectedRepo.defaultBranch,
+    repoTags,
+  });
 
   // Search occurrences in editingFile
   const searchMatches = useMemo(() => {
@@ -2235,12 +2271,8 @@ pnpm install && pnpm dev
           isOpen={isBranchModalOpen}
           onClose={() => setIsBranchModalOpen(false)}
           currentBranch={currentBranch}
-          branches={
-            repoBranches && repoBranches.length > 0
-              ? repoBranches
-              : [currentBranch, 'main', 'feat/speech-telemetry', 'feat/mcp-registry']
-          }
-          tags={['v1.0.5', 'v1.0.4', 'v1.0.0']}
+          branches={branchSelectorLists.branches}
+          tags={branchSelectorLists.tags}
           defaultBranch={selectedRepo.defaultBranch || 'main'}
           onSelectBranch={(branch) => {
             setIsBranchModalOpen(false);
