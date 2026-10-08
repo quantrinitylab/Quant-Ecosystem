@@ -3533,74 +3533,6 @@ body {
 .focus-banner-actions button:last-child:hover { color: #ccc; }
 
 /* ========================================================================== */
-/* AI Inbox Digest                                                            */
-/* ========================================================================== */
-.inbox-digest {
-  margin: 0.55rem 0.55rem 0;
-  padding: 0.7rem 1rem;
-  border-radius: 0.65rem;
-  background: linear-gradient(135deg, rgba(255, 140, 66, 0.04), rgba(99, 102, 241, 0.03));
-  border: 1px solid rgba(255, 140, 66, 0.1);
-}
-.digest-header {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.45rem;
-}
-.digest-icon {
-  color: #FF8C42;
-  font-size: 0.7rem;
-}
-.digest-header strong {
-  font-size: 0.7rem;
-  font-weight: 650;
-  color: #F5F5F5;
-}
-.digest-count {
-  margin-left: auto;
-  font-size: 0.625rem;
-  color: #888;
-}
-.digest-insights {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  margin-bottom: 0.4rem;
-}
-.digest-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 1rem;
-  font-size: 0.625rem;
-  font-weight: 550;
-  border: 1px solid transparent;
-}
-.digest-chip--urgent { background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.2); color: #f87171; }
-.digest-chip--action { background: rgba(251, 191, 36, 0.08); border-color: rgba(251, 191, 36, 0.2); color: #fbbf24; }
-.digest-chip--meeting { background: rgba(96, 165, 250, 0.08); border-color: rgba(96, 165, 250, 0.2); color: #60a5fa; }
-.digest-chip--attachment { background: rgba(74, 222, 128, 0.08); border-color: rgba(74, 222, 128, 0.2); color: #4ade80; }
-.digest-senders {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  flex-wrap: wrap;
-}
-.digest-senders-label {
-  font-size: 0.625rem;
-  color: #A1A4AC;
-}
-.digest-sender {
-  font-size: 0.625rem;
-  color: #999;
-  padding: 0.1rem 0.35rem;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 0.25rem;
-}
-
-/* ========================================================================== */
 /* AI Quick Action Bar                                                        */
 /* ========================================================================== */
 .quick-action-bar {
@@ -4710,18 +4642,6 @@ body {
 .ai-summary-result-header button { margin-left: auto; border: none; background: transparent; color: #A1A4AC; font-size: 1rem; cursor: pointer; }
 .ai-summary-text { font-size: 0.72rem; color: #bbb; line-height: 1.55; }
 
-/* ========================================================================== */
-/* Smart Nudge                                                                */
-/* ========================================================================== */
-.email-nudge { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.7rem; border-radius: 0.5rem; border: 1px solid; margin-bottom: 0.3rem; }
-.nudge-icon { display: inline-flex; align-items: center; flex-shrink: 0; }
-.nudge-message { font-size: 0.64rem; color: #bbb; flex: 1; }
-.nudge-action { display: inline-flex; align-items: center; min-height: 44px; border: none; background: transparent; font-size: 0.625rem; font-weight: 600; cursor: pointer; padding: 0.15rem 0.5rem; border-radius: 0.3rem; transition: opacity 80ms; }
-.nudge-action:hover { opacity: 0.8; }
-/* 44px of tap area on a 10px glyph: the nudge sits inline in a thread, so the
-   dismiss is the control a thumb reaches for most and the easiest to miss. */
-.nudge-dismiss { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; margin: -0.4rem -0.35rem -0.4rem 0; border: none; background: transparent; color: #6B6E76; cursor: pointer; flex-shrink: 0; transition: color 80ms; }
-.nudge-dismiss:hover { color: #F5F5F5; }
 
 /* Read Receipt */
 .read-receipt { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.7rem; font-weight: 600; letter-spacing: -0.05em; }
