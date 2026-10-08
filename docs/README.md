@@ -4,9 +4,9 @@ doc_type: authority-index
 authority: canonical
 status: active
 owner: platform-architecture
-last_verified: 2026-09-07
-verified_at_commit: 09a0a22e9aa5fe288d22987b90a6119a70f7c467
-review_by: 2026-10-07
+last_verified: 2026-10-08
+verified_at_commit: 80dbc55eef89d3affad5e1c8ce46123790707432
+review_by: 2026-11-08
 supersedes: []
 superseded_by: []
 canonical_scope: repository-authority
