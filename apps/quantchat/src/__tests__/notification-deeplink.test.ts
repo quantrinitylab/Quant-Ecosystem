@@ -6,9 +6,9 @@ describe('resolveDeepLink (Task 10.5)', () => {
     expect(resolveDeepLink('MESSAGES', 'conv123')).toBe('/chat/conv123');
   });
 
-  it('maps CALLS to /call regardless of id', () => {
-    expect(resolveDeepLink('CALLS', 'anything')).toBe('/call');
-    expect(resolveDeepLink('CALLS')).toBe('/call');
+  it('maps CALLS to /notifications (no call UI exists)', () => {
+    expect(resolveDeepLink('CALLS', 'anything')).toBe('/notifications');
+    expect(resolveDeepLink('CALLS')).toBe('/notifications');
   });
 
   it('maps STORIES to /stories/{id}', () => {
