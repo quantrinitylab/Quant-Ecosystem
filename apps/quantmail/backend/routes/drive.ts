@@ -325,6 +325,74 @@ async function recordFileOpened(prisma: any, fileId: string, log?: (msg: string)
     log?.(`recordFileOpened failed for ${fileId}: ${err instanceof Error ? err.message : err}`);
   }
 }
+// ============================================================================
+// QM-M39-008: per-file activity/history event log (M39 screen 25).
+//
+// The backend appends exactly one row per REAL file action — upload, rename,
+// move, share change, version restore. Nothing is ever backfilled or invented,
+// so a file may honestly have zero events. The write goes through raw SQL
+// with the same best-effort contract as recordFileOpened above: a DB that has
+// not applied the 0087 migration yet (or any transient DB failure) must never
+// break the action itself — failures are logged and swallowed.
+// ============================================================================
+// Details come back from node-pg as parsed JSONB, but some drivers return the
+// raw text. Parse defensively; a corrupt payload becomes an empty object,
+// never a 500.
+function safeParseJson(text: string): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return parsed !== null && typeof parsed === 'object'
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+type FileActivityAction =
+  | 'upload'
+  | 'rename'
+  | 'move'
+  | 'share_added'
+  | 'share_updated'
+  | 'share_revoked'
+  | 'version_restored';
+interface RecordFileActivityInput {
+  fileId: string;
+  ownerUserId: string;
+  actorUserId: string;
+  actorName: string | null;
+  actorEmail: string | null;
+  action: FileActivityAction;
+  details?: Record<string, unknown>;
+}
+async function recordFileActivity(
+  prisma: any,
+  input: RecordFileActivityInput,
+  log?: (msg: string) => void,
+): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(
+      'INSERT INTO "drive_file_activity_events" ' +
+        '("id","fileId","userId","actorUserId","actorName","actorEmail","action","details","createdAt") ' +
+        'VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)',
+      randomUUID(),
+      input.fileId,
+      input.ownerUserId,
+      input.actorUserId,
+      input.actorName,
+      input.actorEmail,
+      input.action,
+      JSON.stringify(input.details ?? {}),
+      new Date(),
+    );
+  } catch (err) {
+    log?.(
+      `recordFileActivity failed for ${input.fileId} (${input.action}): ${
+        err instanceof Error ? err.message : err
+      }`,
+    );
+  }
+}
 function versionKey(userId: string, fileId: string, version: number, hash: string): string {
   return driveObjectKey(userId, `${fileId}/versions/${version}-${randomUUID()}-${hash}`);
 }
@@ -805,7 +873,26 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       if (!name) throw createAppError('Name required', 400, 'VALIDATION_ERROR');
       const item = await ownedItem(prisma, request.params.id, userId);
       if (item.type === 'file') {
-        await prisma.file.update({ where: { id: item.row.id }, data: { name } });
+        const oldName = item.row.name as string;
+        // QM-M39-008: only a real name change is an event — recording one when
+        // the name is unchanged would be a fabricated entry.
+        if (oldName !== name) {
+          await prisma.file.update({ where: { id: item.row.id }, data: { name } });
+          const actor = await ownerInfo(prisma, userId);
+          await recordFileActivity(
+            prisma,
+            {
+              fileId: item.row.id,
+              ownerUserId: userId,
+              actorUserId: userId,
+              actorName: actor.name || null,
+              actorEmail: actor.email || null,
+              action: 'rename',
+              details: { fromName: oldName, toName: name },
+            },
+            (msg) => request.log.warn(msg),
+          );
+        }
       } else {
         const oldPath = item.row.path;
         let newPath = `/${name}`;
@@ -1007,6 +1094,21 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       }
     }
 
+    // QM-M39-008: log the real share change (new invite vs permission update).
+    await recordFileActivity(
+      prisma,
+      {
+        fileId: file.id,
+        ownerUserId: userId,
+        actorUserId: userId,
+        actorName: ownerDisplayName || null,
+        actorEmail: ownerEmail || null,
+        action: existing ? 'share_updated' : 'share_added',
+        details: { email: recipient.email, permission: parsed.data.permission },
+      },
+      (msg) => request.log.warn(msg),
+    );
+
     return reply.status(existing ? 200 : 201).send({
       share: {
         id: share.id,
@@ -1029,7 +1131,26 @@ export default async function driveRoutes(fastify: FastifyInstance) {
         where: { id: request.params.shareId, fileId: file.id, ownerUserId: userId },
       });
       if (!share) throw createAppError('Share not found', 404, 'SHARE_NOT_FOUND');
+      const recipient = await prisma.user.findUnique({
+        where: { id: share.sharedWithUserId },
+        select: { email: true, displayName: true },
+      });
       await prisma.share.update({ where: { id: share.id }, data: { status: 'revoked' } });
+      // QM-M39-008: log the real share revocation.
+      const actor = await ownerInfo(prisma, userId);
+      await recordFileActivity(
+        prisma,
+        {
+          fileId: file.id,
+          ownerUserId: userId,
+          actorUserId: userId,
+          actorName: actor.name || null,
+          actorEmail: actor.email || null,
+          action: 'share_revoked',
+          details: { email: recipient?.email ?? null },
+        },
+        (msg) => request.log.warn(msg),
+      );
       return reply.send({ ok: true });
     },
   );
@@ -1353,7 +1474,8 @@ export default async function driveRoutes(fastify: FastifyInstance) {
   fastify.post<{ Params: { id: string; versionId: string } }>(
     '/drive/files/:id/versions/:versionId/restore',
     async (request, reply) => {
-      const file = await fileAccess(prisma, request.params.id, requireUserId(request), true);
+      const userId = requireUserId(request);
+      const file = await fileAccess(prisma, request.params.id, userId, true);
       requireStorage();
       const version = await prisma.fileVersion.findFirst({
         where: { id: request.params.versionId, fileId: file.id },
@@ -1374,7 +1496,87 @@ export default async function driveRoutes(fastify: FastifyInstance) {
           size: version.size,
         },
       });
+      // QM-M39-008: log the real version restore.
+      const actor = await ownerInfo(prisma, userId);
+      await recordFileActivity(
+        prisma,
+        {
+          fileId: file.id,
+          ownerUserId: file.userId,
+          actorUserId: userId,
+          actorName: actor.name || null,
+          actorEmail: actor.email || null,
+          action: 'version_restored',
+          details: { versionNumber: version.versionNumber },
+        },
+        (msg) => request.log.warn(msg),
+      );
       return reply.send({ ok: true, restoredVersion: versionDto(version) });
+    },
+  );
+  // ==========================================================================
+  // GET /drive/files/:id/activity — per-file activity/history (QM-M39-008,
+  // M39 screen 25).
+  //
+  // Returns the backend-written event log for this file, newest first. Events
+  // exist only for actions that really happened after migration 0087
+  // (upload, rename, move, share change, version restore) — nothing is
+  // backfilled, so an empty list is an honest "no recorded activity" state.
+  // A DB without the 0087 migration returns the same empty list, never a 500.
+  // Authz matches download: the owner or an accepted share recipient.
+  // ==========================================================================
+  fastify.get<{ Params: { id: string }; Querystring: { limit?: string } }>(
+    '/drive/files/:id/activity',
+    async (request, reply) => {
+      const userId = requireUserId(request);
+      const file = await fileAccess(prisma, request.params.id, userId);
+      const parsedLimit = parseInt(request.query?.limit ?? '100', 10);
+      const limit = Math.min(Math.max(Number.isFinite(parsedLimit) ? parsedLimit : 100, 1), 200);
+      let rows: Array<{
+        id: string;
+        fileId: string;
+        actorUserId: string;
+        actorName: string | null;
+        actorEmail: string | null;
+        action: string;
+        details: unknown;
+        createdAt: Date | string;
+      }>;
+      try {
+        rows = await prisma.$queryRawUnsafe(
+          'SELECT "id","fileId","actorUserId","actorName","actorEmail","action","details","createdAt" ' +
+            'FROM "drive_file_activity_events" WHERE "fileId" = $1 ' +
+            'ORDER BY "createdAt" DESC, "id" DESC LIMIT $2',
+          file.id,
+          limit,
+        );
+      } catch (err) {
+        // Missing 0087 migration (or a transient DB error): the honest answer
+        // is "no recorded activity", never a 500.
+        request.log.warn(
+          `drive activity read failed for ${file.id}: ${err instanceof Error ? err.message : err}`,
+        );
+        return reply.send({ fileId: file.id, events: [] });
+      }
+      return reply.send({
+        fileId: file.id,
+        events: rows.map((row) => ({
+          id: row.id,
+          fileId: row.fileId,
+          action: row.action,
+          actor: {
+            userId: row.actorUserId,
+            name: row.actorName ?? null,
+            email: row.actorEmail ?? null,
+          },
+          details:
+            typeof row.details === 'string'
+              ? safeParseJson(row.details)
+              : (row.details ?? {}),
+          createdAt:
+            row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+        })),
+      });
     },
   );
   fastify.post<{ Body: { fileIds?: string[] } }>('/drive/files/trash', async (request, reply) => {
@@ -1582,8 +1784,23 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       throw error;
     }
     const quota = await quotaService.getQuota(userId);
+    const owner = await ownerInfo(prisma, userId);
+    // QM-M39-008: log the real upload event.
+    await recordFileActivity(
+      prisma,
+      {
+        fileId: file.id,
+        ownerUserId: userId,
+        actorUserId: userId,
+        actorName: owner.name || null,
+        actorEmail: owner.email || null,
+        action: 'upload',
+        details: { name: file.name, size: bytes.length },
+      },
+      (msg) => request.log.warn(msg),
+    );
     return reply.status(201).send({
-      file: fileDto({ ...file, folderId, encryptedContent: key }, await ownerInfo(prisma, userId)),
+      file: fileDto({ ...file, folderId, encryptedContent: key }, owner),
       quota: { used: quota.usedBytes, total: quota.limitBytes },
     });
   });
@@ -1631,6 +1848,20 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       const userId = requireUserId(request);
       const result = await chunkedUploadService.complete(userId, request.params.uploadId);
       const owner = await ownerInfo(prisma, userId);
+      // QM-M39-008: log the real upload event for chunked uploads.
+      await recordFileActivity(
+        prisma,
+        {
+          fileId: result.file.id,
+          ownerUserId: userId,
+          actorUserId: userId,
+          actorName: owner.name || null,
+          actorEmail: owner.email || null,
+          action: 'upload',
+          details: { name: result.file.name ?? null, size: result.file.size ?? null },
+        },
+        (msg) => request.log.warn(msg),
+      );
       return reply.status(201).send({
         file: fileDto(result.file, owner),
         quota: result.quota,
@@ -1761,6 +1992,20 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       quotaService.commitReservation(request.params.uploadId);
       const quota = await quotaService.getQuota(userId);
       const owner = await ownerInfo(prisma, userId);
+      // QM-M39-008: log the real upload event for multipart uploads.
+      await recordFileActivity(
+        prisma,
+        {
+          fileId: file.id,
+          ownerUserId: userId,
+          actorUserId: userId,
+          actorName: owner.name || null,
+          actorEmail: owner.email || null,
+          action: 'upload',
+          details: { name: file.name, size: file.size },
+        },
+        (msg) => request.log.warn(msg),
+      );
 
       return reply.status(201).send({
         file: fileDto(file, owner),
@@ -2147,10 +2392,61 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     }
 
     if (fileIds.length > 0) {
+      // QM-M39-008: read the files first so the activity log records only the
+      // files that genuinely moved (owned, not trashed), with real from/to
+      // folder references. Files already in the target folder are no-ops and
+      // are not logged as moves.
+      const filesToMove = await prisma.file.findMany({
+        where: { id: { in: fileIds }, userId, isDeleted: false },
+        select: { id: true, folderId: true },
+      });
+      // Snapshot the source folders BEFORE the update: the rows above must not
+      // be read after updateMany mutates them (ORM copy semantics differ).
+      const moves: Array<{ fileId: string; fromFolderId: string | null }> = filesToMove.map(
+        (f: { id: string; folderId: string | null }) => ({
+          fileId: f.id,
+          fromFolderId: f.folderId,
+        }),
+      );
       await prisma.file.updateMany({
         where: { id: { in: fileIds }, userId, isDeleted: false },
         data: { folderId: targetFolderId },
       });
+      const folderIdsForNames = [
+        ...new Set(moves.flatMap((m) => [m.fromFolderId, targetFolderId])),
+      ].filter((id): id is string => typeof id === 'string' && id.length > 0);
+      const nameByFolderId = new Map<string, string>();
+      if (folderIdsForNames.length) {
+        const folders = await prisma.folder.findMany({
+          where: { id: { in: folderIdsForNames }, userId },
+          select: { id: true, name: true },
+        });
+        for (const folder of folders) nameByFolderId.set(folder.id, folder.name);
+      }
+      const actor = await ownerInfo(prisma, userId);
+      for (const move of moves) {
+        if (move.fromFolderId === targetFolderId) continue;
+        await recordFileActivity(
+          prisma,
+          {
+            fileId: move.fileId,
+            ownerUserId: userId,
+            actorUserId: userId,
+            actorName: actor.name || null,
+            actorEmail: actor.email || null,
+            action: 'move',
+            details: {
+              fromFolderId: move.fromFolderId,
+              toFolderId: targetFolderId,
+              fromFolderName: move.fromFolderId
+                ? (nameByFolderId.get(move.fromFolderId) ?? null)
+                : null,
+              toFolderName: targetFolderId ? (nameByFolderId.get(targetFolderId) ?? null) : null,
+            },
+          },
+          (msg) => fastify.log.warn(msg),
+        );
+      }
     }
 
     for (const folderId of folderIds) {
