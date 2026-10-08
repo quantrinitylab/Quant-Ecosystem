@@ -66,7 +66,7 @@ import { InsightsTab } from './components/InsightsTab';
 import { SettingsTab } from './components/SettingsTab';
 import { QuantyCopilotView } from './components/QuantyCopilotView';
 import { QuantGitModals } from './components/QuantGitModals';
-import { MCPRegistryTab } from './components/MCPRegistryTab';
+import { MCPRegistryTab, OFFICIAL_MCP_CATALOG } from './components/MCPRegistryTab';
 import { CopilotFleetModeView } from './components/CopilotFleetModeView';
 import { DeveloperAppearanceSettings } from './components/DeveloperAppearanceSettings';
 import { NotificationsInbox } from './components/NotificationsInbox';
@@ -549,33 +549,32 @@ function QuantGitContent() {
             id: r.id || r.name,
             name: r.name,
             fullName: `${currentUsername}/${r.name}`,
-            description: r.description || 'Repository in QuantGit.',
+            description: r.description || '',
             visibility: (r.visibility?.toLowerCase() === 'public' ? 'public' : 'private') as
               | 'public'
               | 'private',
-            language: r.language || 'TypeScript',
+            language: r.language || '',
             stars: typeof r.stars === 'number' ? r.stars : (r.starCount ?? 0),
             forks: typeof r.forks === 'number' ? r.forks : (r.forkCount ?? 0),
-            watching: typeof r.watching === 'number' ? r.watching : 1,
+            watching: typeof r.watching === 'number' ? r.watching : 0,
             cloneUrl:
               r.cloneUrl || `https://quantmail.in/quantgit/${currentUsername}/${r.name}.git`,
             sshUrl: r.sshUrl || `git@quantmail.in:${currentUsername}/${r.name}.git`,
             defaultBranch: r.defaultBranch || 'main',
-            latestCommit: r.latestCommit || 'Initial commit',
-            latestCommitSha: r.latestCommitSha || '948e3612',
-            latestCommitTime: r.latestCommitTime || 'recently',
-            checksStatus: 'passing',
-            license: r.license || 'MIT License',
-            website: r.website || 'https://quantmail.in',
-            topics:
-              Array.isArray(r.topics) && r.topics.length > 0 ? r.topics : ['quant', 'workspace'],
+            latestCommit: r.latestCommit || '',
+            latestCommitSha: r.latestCommitSha || '',
+            latestCommitTime: r.latestCommitTime || '',
+            checksStatus: 'unknown',
+            license: r.license || '',
+            website: r.website || '',
+            topics: Array.isArray(r.topics) ? r.topics : [],
             branchCount:
               typeof r.branchCount === 'number'
                 ? r.branchCount
                 : Array.isArray(r.branches)
                   ? r.branches.length
-                  : 4,
-            commitCount: typeof r.commitCount === 'number' ? r.commitCount : 2118,
+                  : undefined,
+            commitCount: typeof r.commitCount === 'number' ? r.commitCount : undefined,
             branches: Array.isArray(r.branches)
               ? r.branches.map((b: any) => (typeof b === 'string' ? b : b.name))
               : undefined,
@@ -789,7 +788,7 @@ function QuantGitContent() {
               author: item.author || 'user',
               branchSource: item.branchSource || 'main',
               branchTarget: item.branchTarget || 'main',
-              checksStatus: 'passing',
+              checksStatus: item.checksStatus || 'unknown',
               commentsCount: item.commentsCount || 0,
               createdAt: item.createdAt || 'recently',
               body: item.body || '',
@@ -818,7 +817,7 @@ function QuantGitContent() {
             setDetailedBranches(
               json.data.map((b: any) => ({
                 name: b.name,
-                sha: b.sha || b.commitSha || 'c4e6121',
+                sha: b.sha || b.commitSha || '',
                 isDefault:
                   b.isDefault ?? (b.name === selectedRepo?.defaultBranch || b.name === 'main'),
                 isProtected: b.isProtected ?? false,
@@ -849,8 +848,8 @@ function QuantGitContent() {
           const json = await res.json();
           if (json.success && Array.isArray(json.data) && json.data.length > 0) {
             const mappedCommits: CommitItem[] = json.data.map((c: any) => ({
-              sha: c.sha || c.commitSha || 'c4e6121980a34b2f81907de415b3901a81234567',
-              shortSha: (c.sha || c.commitSha || 'c4e6121').slice(0, 7),
+              sha: c.sha || c.commitSha || '',
+              shortSha: (c.sha || c.commitSha || '').slice(0, 7),
               message: c.message || 'Commit update',
               body: c.body || '',
               author: {
@@ -1233,7 +1232,7 @@ function QuantGitContent() {
           author: currentUsername,
           branchSource,
           branchTarget: currentBranch || 'main',
-          checksStatus: 'passing',
+          checksStatus: 'unknown',
           commentsCount: 0,
           createdAt: 'just now',
           additions: item.additions || 12,
@@ -1300,7 +1299,7 @@ function QuantGitContent() {
             author: currentUsername,
             branchSource: params.sourceBranch,
             branchTarget: targetBranch,
-            checksStatus: 'passing',
+            checksStatus: 'unknown',
             commentsCount: 0,
             createdAt: 'just now',
             additions: item.additions || 12,
@@ -1355,20 +1354,20 @@ function QuantGitContent() {
           fullName: slug,
           description: r.description || desc,
           visibility,
-          language: r.language || 'TypeScript',
-          stars: typeof r.stars === 'number' ? r.stars : 1,
+          language: r.language || '',
+          stars: typeof r.stars === 'number' ? r.stars : 0,
           forks: typeof r.forks === 'number' ? r.forks : 0,
-          watching: 1,
+          watching: 0,
           cloneUrl: `https://quantmail.in/quantgit/${slug}.git`,
           sshUrl: `git@quantmail.in:${slug}.git`,
           defaultBranch: r.defaultBranch || 'main',
-          latestCommit: 'Initial commit with README.md',
-          latestCommitSha: '948e3612',
-          latestCommitTime: 'just now',
-          checksStatus: 'passing',
-          license: 'MIT License',
-          website: 'https://quantmail.in',
-          topics: ['quant', 'workspace'],
+          latestCommit: r.latestCommit || '',
+          latestCommitSha: r.latestCommitSha || '',
+          latestCommitTime: r.latestCommitTime || '',
+          checksStatus: 'unknown',
+          license: r.license || '',
+          website: r.website || '',
+          topics: Array.isArray(r.topics) ? r.topics : [],
         };
         setBaseRepos((prev) => [newRepo, ...prev.filter((p) => p.name !== name)]);
         setSelectedRepo(newRepo);
@@ -1536,7 +1535,7 @@ function QuantGitContent() {
       const res = await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/branches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: branchName, sha: selectedRepo.latestCommitSha || '948e3612' }),
+        body: JSON.stringify({ name: branchName, sha: selectedRepo.latestCommitSha || undefined }),
       });
       if (res.ok) {
         if (!repoBranches.includes(branchName)) {
@@ -1589,7 +1588,7 @@ function QuantGitContent() {
       initial: newAgentName.trim().charAt(0).toUpperCase(),
       color: '#FF8C42',
       steps: ['Loaded sovereign context', 'Mounted workspace volume'],
-      thoughts: 'Ready to execute zero-mock tasks.',
+      thoughts: 'Ready for local tasks.',
     };
     // Local-only workspace agent — no backend exists yet. Honest labeling.
     setAgents([...agents, newAg]);
@@ -1749,7 +1748,7 @@ function QuantGitContent() {
             },
             body: JSON.stringify({
               name: input.newBranch,
-              sha: selectedRepo.latestCommitSha || '948e3612',
+              sha: selectedRepo.latestCommitSha || undefined,
             }),
           });
         } catch {
@@ -2046,8 +2045,8 @@ function QuantGitContent() {
               },
               { id: 'issues', label: 'Issues', badge: openIssuesCount },
               { id: 'pulls', label: 'Pull requests', badge: openPullsCount },
-              { id: 'agents', label: 'Copilot Fleet', badge: 'Cloud OS' },
-              { id: 'mcp', label: 'MCP Registry', badge: '288+' },
+              { id: 'agents', label: 'Copilot Fleet', badge: null },
+              { id: 'mcp', label: 'MCP Registry', badge: OFFICIAL_MCP_CATALOG.length },
               { id: 'actions', label: 'Actions', badge: actions.length },
               { id: 'notifications', label: 'Notifications', badge: null },
               { id: 'discussions', label: 'Discussions', badge: discussions.length },
@@ -2174,14 +2173,14 @@ function QuantGitContent() {
                       ? detailedBranches
                       : repoBranches.map((b) => ({
                           name: b,
-                          sha: selectedRepo.latestCommitSha || 'c4e6121',
+                          sha: selectedRepo.latestCommitSha || '',
                           isDefault: b === selectedRepo.defaultBranch,
                           isProtected: b === selectedRepo.defaultBranch,
                           aheadBy: 0,
                           behindBy: 0,
                           lastCommitAuthor: currentUsername,
-                          lastCommitMessage: 'Update branch',
-                          lastCommitTime: 'recently',
+                          lastCommitMessage: selectedRepo.latestCommit || '',
+                          lastCommitTime: selectedRepo.latestCommitTime || '',
                         }))
                   }
                   currentBranch={currentBranch}
@@ -2195,7 +2194,7 @@ function QuantGitContent() {
                       ...prev,
                       {
                         name: newName,
-                        sha: selectedRepo.latestCommitSha || 'c4e6121',
+                        sha: selectedRepo.latestCommitSha || '',
                         isDefault: false,
                         isProtected: false,
                         aheadBy: 0,
@@ -2507,24 +2506,24 @@ function QuantGitContent() {
             id: imported.id,
             name: imported.name,
             fullName: imported.fullName || `${currentUsername}/${imported.name}`,
-            description: imported.description || `Imported repository ${imported.name}`,
+            description: imported.description || '',
             visibility: imported.visibility || 'public',
-            language: 'TypeScript',
-            stars: imported.starCount || 1,
-            forks: imported.forkCount || 0,
-            watching: 1,
+            language: imported.language || '',
+            stars: imported.starCount ?? 0,
+            forks: imported.forkCount ?? 0,
+            watching: 0,
             cloneUrl: imported.cloneUrl,
             sshUrl: imported.sshUrl,
             defaultBranch: imported.defaultBranch || 'main',
-            latestCommit: 'Imported repository commits',
-            latestCommitSha: 'c4e6121',
-            latestCommitTime: 'Just now',
-            checksStatus: 'passing',
-            license: 'MIT',
+            latestCommit: imported.latestCommit || '',
+            latestCommitSha: imported.latestCommitSha || '',
+            latestCommitTime: imported.latestCommitTime || '',
+            checksStatus: 'unknown',
+            license: imported.license || '',
             website: '',
-            topics: ['migrated', 'quantgit'],
+            topics: Array.isArray(imported.topics) ? imported.topics : [],
             branches: imported.branches || ['main'],
-            commitCount: imported.commitCount || 42,
+            commitCount: typeof imported.commitCount === 'number' ? imported.commitCount : undefined,
           };
           setBaseRepos((prev) => {
             if (prev.some((r) => r.id === repoFormatted.id || r.name === repoFormatted.name)) {

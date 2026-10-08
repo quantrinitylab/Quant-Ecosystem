@@ -36,7 +36,7 @@ export type Repo = {
   latestCommit: string;
   latestCommitSha: string;
   latestCommitTime: string;
-  checksStatus: 'passing' | 'pending' | 'failing';
+  checksStatus: 'passing' | 'pending' | 'failing' | 'unknown';
   license: string;
   website: string;
   topics: string[];
@@ -144,7 +144,7 @@ export type PRItem = {
   author: string;
   branchSource: string;
   branchTarget: string;
-  checksStatus: 'passing' | 'pending' | 'failing';
+  checksStatus: 'passing' | 'pending' | 'failing' | 'unknown';
   commentsCount: number;
   createdAt: string;
   body?: string;

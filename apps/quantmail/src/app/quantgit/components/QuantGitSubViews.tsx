@@ -276,7 +276,7 @@ export function QuantGitReposSubView({
                 </span>
               </div>
               <p className="text-xs text-[#8B949E] mt-0.5">
-                Zero-mock git smart HTTP repositories & sovereign microservices
+                Git repositories & microservices
               </p>
             </div>
           </div>

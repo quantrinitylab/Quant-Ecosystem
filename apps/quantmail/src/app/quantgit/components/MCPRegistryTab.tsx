@@ -17,7 +17,7 @@ export interface MCPServerEntry {
   category: 'devtools' | 'data' | 'automation' | 'creative' | 'integration';
 }
 
-const OFFICIAL_MCP_CATALOG: MCPServerEntry[] = [
+export const OFFICIAL_MCP_CATALOG: MCPServerEntry[] = [
   {
     id: 'markitdown',
     name: 'Markitdown',
@@ -169,7 +169,7 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = ({
         <div className="flex items-center gap-2">
           <span className="font-semibold text-sm text-[#E6EDF3]">All MCP servers</span>
           <span className="px-2 py-0.5 rounded-full bg-[#21262D] text-xs font-mono text-[#8D96A0]">
-            288
+            {OFFICIAL_MCP_CATALOG.length}
           </span>
         </div>
 
