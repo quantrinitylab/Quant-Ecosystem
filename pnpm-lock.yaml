@@ -1700,12 +1700,9 @@ importers:
         specifier: ~5.5.0
         version: 5.5.4
       vitest:
-        specifier: ^4
+        specifier: 4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(@vitest/coverage-v8@4.1.9(vitest@4.1.11))(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
 
-      '@quant/ecosystem-contracts':
-        specifier: workspace:*
-        version: link:../../packages/ecosystem-contracts
   services/quanty-orchestrator:
     dependencies:
       '@quant/quanty-contracts':
