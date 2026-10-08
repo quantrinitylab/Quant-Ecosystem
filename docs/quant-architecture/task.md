@@ -1156,7 +1156,7 @@ Scope: `apps/quantmax/src/pages/index.tsx`.
 Dependencies: none.
 
 ## QM-UIUX-050 — Schedule-send broken on full-page /compose
-Status: [ ] TODO
+Status: [~] IN_PROGRESS — Owner: 4e5f6a7b-8c9d-0e1f-2a3b-4c5d6e7f8a9b; Branch: fix/qm-uiux-050-schedule-send
 Finding: `app/compose/page.tsx` `handleSend` does `if (data.scheduledAt) return;` — saves draft, never calls `sendEmail`. Toast says "Email scheduled" but draft sits in Drafts forever, never delivered. Root cause: frontend sends `scheduledAt`, backend compose schema only accepts `sendAt` (zod silently strips it). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/drafts-schedule-audit.md`.
 Required: one-line fix — `apiClient.sendEmail(draft.id, { sendAt: data.scheduledAt })`.
 Scope: `apps/quantmail/src/app/compose/page.tsx`.
