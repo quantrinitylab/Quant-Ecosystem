@@ -2,6 +2,12 @@
 
 // ============================================================================
 // QuantGit — Notifications Center & Inbox (GitHub Screens 22, 85–86, 145–146)
+//
+// QM-UIUX-065 honesty contract: this inbox renders ONLY notifications it is
+// given via props. There is no seed/sample data anywhere in this file — the
+// backend never creates git notifications (the only notification producer is
+// the inbound-mail webhook), so with no real source wired in, the honest
+// state is an empty inbox, not fabricated rows about merged PRs or CI runs.
 // ============================================================================
 
 import React, { useState } from 'react';
@@ -20,54 +26,18 @@ export interface GitNotificationItem {
   category: 'assigned' | 'participating' | 'mentioned' | 'review_requested';
 }
 
-const SAMPLE_NOTIFICATIONS: GitNotificationItem[] = [
-  {
-    id: 'notif-1',
-    repo: 'quantrinitylab / Quant-Ecosystem',
-    number: 270,
-    type: 'pr',
-    status: 'merged',
-    title: 'feat(quantmail): smart inbox categorization with durable per-user learning',
-    author: 'cubic-dev-ai[bot]',
-    commentSnippet: 'Verified all 207 test suites and 2,409 tests green.',
-    timeAgo: '4d',
-    unread: true,
-    category: 'participating',
-  },
-  {
-    id: 'notif-2',
-    repo: 'quantrinitylab / Quant-Ecosystem',
-    number: 268,
-    type: 'pr',
-    status: 'merged',
-    title: 'fix(security): patch @ai-sdk/provider-utils DoS (GHSA-866g-f22w-33x8)',
-    author: 'cubic-dev-ai[bot]',
-    commentSnippet: 'Applied security hotfix to package dependency tree.',
-    timeAgo: '4d',
-    unread: true,
-    category: 'review_requested',
-  },
-  {
-    id: 'notif-3',
-    repo: 'quantrinitylab / Quant-Ecosystem',
-    number: 259,
-    type: 'issue',
-    status: 'open',
-    title: 'Phase 2: CodeHub (QuantGit) — Architecture Decision Records & Remediation',
-    author: 'quantrinitylab',
-    commentSnippet:
-      'Tracking issue for the CodeHub / QuantGit Smart HTTP daemon and repo inspection engine.',
-    timeAgo: '13d',
-    unread: false,
-    category: 'assigned',
-  },
-];
+export interface NotificationsInboxProps {
+  /** Real notifications only. Defaults to an empty, honest inbox. */
+  notifications?: GitNotificationItem[];
+}
 
-export const NotificationsInbox: React.FC = () => {
+export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
+  notifications: providedNotifications = [],
+}) => {
   const [activeMainTab, setActiveMainTab] = useState<'inbox' | 'saved' | 'done'>('inbox');
   const [filterRead, setFilterRead] = useState<'all' | 'unread'>('all');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
-  const [notifications, setNotifications] = useState<GitNotificationItem[]>(SAMPLE_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<GitNotificationItem[]>(providedNotifications);
 
   const filteredNotifs = notifications.filter((n) => {
     if (filterRead === 'unread' && !n.unread) return false;
@@ -244,9 +214,9 @@ export const NotificationsInbox: React.FC = () => {
               🧘
             </div>
             <div>
-              <h4 className="font-bold text-sm text-[#E6EDF3]">All caught up!</h4>
+              <h4 className="font-bold text-sm text-[#E6EDF3]">No notifications</h4>
               <p className="text-xs text-[#8D96A0] pt-1">
-                Take a break, write some code, do what you do best.
+                There are no notifications to show right now.
               </p>
             </div>
           </div>
