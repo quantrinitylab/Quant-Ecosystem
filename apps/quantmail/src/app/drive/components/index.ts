@@ -10,6 +10,8 @@ export * from './DriveCleanerSubView';
 export * from './FileShareModal';
 export * from './FilePermissionsViewer';
 export * from './file-access-api';
+export * from './LinkShareDialog';
+export * from './link-share-api';
 export * from './FileScanBadge';
 export * from './FileDetailsPanel';
 export {

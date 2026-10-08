@@ -706,7 +706,9 @@ describe('QuantDrive Parity & Integrity (Wave 5 Phase D)', () => {
 
       const active = body.links.find((l: any) => l.id === 'link-active');
       expect(active.role).toBe('viewer');
-      expect(active.audience).toBe('anyone_with_link');
+      // QM-M39-006 supersedes the links endpoint: `audience` is now the honest
+      // human-readable label (rendered verbatim by the access viewer).
+      expect(active.audience).toBe('Anyone with the link');
       expect(active.requiresPassword).toBe(false);
       expect(active.expired).toBe(false);
       expect(new Date(active.expiresAt).getTime()).toBeGreaterThan(Date.now());

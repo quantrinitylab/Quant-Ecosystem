@@ -48,10 +48,10 @@ describe('FileShareModal (real share, no lying toasts)', () => {
     );
   }
 
-  it('renders share-with-people and public-link sections', () => {
+  it('renders share-with-people and link-sharing sections', () => {
     const html = renderModal();
     expect(html).toContain('Share with people');
-    expect(html).toContain('Public Link');
+    expect(html).toContain('Link sharing');
     expect(html).toContain('teammate@example.com');
   });
 
@@ -68,11 +68,13 @@ describe('FileShareModal (real share, no lying toasts)', () => {
     expect(html).toContain('Share');
   });
 
-  it('renders public-link role and expiration controls', () => {
+  it('renders the link-sharing dialog with honest initial state', () => {
     const html = renderModal();
-    expect(html).toContain('Expires in 7 days');
-    expect(html).toContain('Never expires');
-    expect(html).toContain('+ Create Link');
+    // New link creation entry point (QM-M39-006)
+    expect(html).toContain('+ New link');
+    // Honest state: links are loaded from the server, not assumed
+    expect(html).toContain('Loading share links…');
+    expect(html).not.toContain('Active');
   });
 
   it('renders nothing when closed', () => {

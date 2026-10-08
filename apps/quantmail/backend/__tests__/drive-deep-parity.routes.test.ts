@@ -83,8 +83,16 @@ interface DriveShareRow {
   role: string;
   password: string | null;
   expiresAt: Date | null;
+  // QM-M39-006: optional in the fake because older fixtures predate scope.
+  scope?: string;
+  audience?: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+interface OrgMemberRow {
+  orgId: string;
+  userId: string;
 }
 
 interface ShareRow {
@@ -124,6 +132,8 @@ let folders: FolderRow[] = [];
 let driveShares: DriveShareRow[] = [];
 let shares: ShareRow[] = [];
 let emails: EmailRow[] = [];
+// QM-M39-006: org memberships for link scope='org' enforcement tests.
+let orgMembers: OrgMemberRow[] = [];
 
 function matches(record: any, where: any): boolean {
   if (!where) return true;
@@ -188,6 +198,11 @@ function createFakePrisma() {
         return users.filter((u) => matches(u, where));
       },
     },
+    // QM-M39-006: org memberships for scope='org' link enforcement.
+    organizationMember: {
+      findMany: async ({ where }: { where?: any }) =>
+        orgMembers.filter((m) => matches(m, where)),
+    },
     driveShare: {
       findUnique: async ({ where }: { where: { id?: string; token?: string } }) => {
         if (where.id) return driveShares.find((s) => s.id === where.id) ?? null;
@@ -206,10 +221,18 @@ function createFakePrisma() {
           role: data.role ?? 'viewer',
           password: data.password ?? null,
           expiresAt: data.expiresAt ?? null,
+          scope: data.scope ?? 'anyone',
+          audience: data.audience ?? null,
           createdAt: new Date(),
           updatedAt: new Date(),
         };
         driveShares.push(record);
+        return record;
+      },
+      update: async ({ where, data }: { where: { id: string }; data: any }) => {
+        const record = driveShares.find((s) => s.id === where.id);
+        if (!record) throw new Error('Record not found');
+        Object.assign(record, data, { updatedAt: new Date() });
         return record;
       },
       delete: async ({ where }: { where: { id: string } }) => {
@@ -441,6 +464,7 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
     driveShares = [];
     shares = [];
     emails = [];
+    orgMembers = [];
     app = await buildTestApp();
   });
 
@@ -637,6 +661,353 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
 
     expect(res.statusCode).toBe(200);
     expect(driveShares.find((s) => s.id === 'share_to_del')).toBeUndefined();
+  });
+
+  // ==========================================================================
+  // QM-M39-006 (M39 screen 22): link scope/audience/expiry + enforcement.
+  // ==========================================================================
+  describe('QM-M39-006 link sharing scope/audience/expiry', () => {
+    beforeEach(() => {
+      users.push({ id: 'user_carol', email: 'carol@quantmail.in', displayName: 'Carol' });
+    });
+
+    it('creates an org-scoped link and stores scope', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/drive/shares/link',
+        headers: { 'content-type': 'application/json' },
+        payload: { fileId: 'file_spec_1', role: 'viewer', scope: 'org' },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.share.scope).toBe('org');
+      expect(body.share.audience).toMatch(/organization/i);
+      expect(driveShares[0].scope).toBe('org');
+    });
+
+    it('creates a specific-people link resolving emails to user IDs', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/drive/shares/link',
+        headers: { 'content-type': 'application/json' },
+        payload: {
+          fileId: 'file_spec_1',
+          role: 'editor',
+          scope: 'specific',
+          audienceEmails: ['bob@quantmail.in'],
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.share.scope).toBe('specific');
+      expect(body.share.audienceEmails).toEqual(['bob@quantmail.in']);
+      expect(JSON.parse(driveShares[0].audience as string)).toEqual(['user_bob']);
+    });
+
+    it('rejects specific-people links with unknown emails (no silent shrink)', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/drive/shares/link',
+        headers: { 'content-type': 'application/json' },
+        payload: {
+          fileId: 'file_spec_1',
+          scope: 'specific',
+          audienceEmails: ['bob@quantmail.in', 'stranger@example.com'],
+        },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).error.code).toBe('AUDIENCE_UNKNOWN');
+      expect(driveShares.length).toBe(0);
+    });
+
+    it('rejects specific-people links with an empty audience', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/drive/shares/link',
+        headers: { 'content-type': 'application/json' },
+        payload: { fileId: 'file_spec_1', scope: 'specific', audienceEmails: [] },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).error.code).toBe('AUDIENCE_REQUIRED');
+    });
+
+    it('accepts an absolute expiry date and rejects a past one', async () => {
+      const future = new Date(Date.now() + 5 * 86_400_000).toISOString();
+      const ok = await app.inject({
+        method: 'POST',
+        url: '/drive/shares/link',
+        headers: { 'content-type': 'application/json' },
+        payload: { fileId: 'file_spec_1', expiresAt: future },
+      });
+      expect(ok.statusCode).toBe(201);
+      expect(new Date(JSON.parse(ok.body).share.expiresAt).getTime()).toBeGreaterThan(Date.now());
+
+      const past = await app.inject({
+        method: 'POST',
+        url: '/drive/shares/link',
+        headers: { 'content-type': 'application/json' },
+        payload: { fileId: 'file_spec_1', expiresAt: '2020-01-01' },
+      });
+      expect(past.statusCode).toBe(400);
+      expect(JSON.parse(past.body).error.code).toBe('EXPIRY_IN_PAST');
+    });
+
+    it('treats a bare YYYY-MM-DD expiry as end of that day', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/drive/shares/link',
+        headers: { 'content-type': 'application/json' },
+        payload: { fileId: 'file_spec_1', expiresAt: '2099-06-15' },
+      });
+      expect(res.statusCode).toBe(201);
+      const stored = driveShares[0].expiresAt as Date;
+      expect(stored.toISOString()).toBe('2099-06-15T23:59:59.999Z');
+    });
+
+    it('enforces org scope on resolve: member passes, outsider 403, anonymous 401', async () => {
+      orgMembers.push({ orgId: 'org_1', userId: 'user_alice' });
+      orgMembers.push({ orgId: 'org_1', userId: 'user_bob' });
+      const token = 'org_token_1234567890abcdef1234';
+      driveShares.push({
+        id: 'share_org',
+        fileId: 'file_spec_1',
+        createdById: 'user_alice',
+        token,
+        role: 'viewer',
+        password: null,
+        expiresAt: null,
+        scope: 'org',
+        audience: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const member = await app.inject({
+        method: 'GET',
+        url: `/drive/public/share/${token}`,
+        headers: { 'x-user-id': 'user_bob' },
+      });
+      expect(member.statusCode).toBe(200);
+
+      const outsider = await app.inject({
+        method: 'GET',
+        url: `/drive/public/share/${token}`,
+        headers: { 'x-user-id': 'user_carol' },
+      });
+      expect(outsider.statusCode).toBe(403);
+      expect(JSON.parse(outsider.body).error.code).toBe('LINK_ORG_FORBIDDEN');
+
+      const anon = await app.inject({
+        method: 'GET',
+        url: `/drive/public/share/${token}`,
+        headers: { 'x-user-id': '' },
+      });
+      expect(anon.statusCode).toBe(401);
+      expect(JSON.parse(anon.body).error.code).toBe('LINK_SIGNIN_REQUIRED');
+    });
+
+    it('enforces specific scope on resolve and download: listed person passes, others blocked', async () => {
+      const token = 'specific_token_1234567890abcdef';
+      driveShares.push({
+        id: 'share_specific',
+        fileId: 'file_spec_1',
+        createdById: 'user_alice',
+        token,
+        role: 'viewer',
+        password: null,
+        expiresAt: null,
+        scope: 'specific',
+        audience: JSON.stringify(['user_bob']),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const listed = await app.inject({
+        method: 'GET',
+        url: `/drive/public/share/${token}`,
+        headers: { 'x-user-id': 'user_bob' },
+      });
+      expect(listed.statusCode).toBe(200);
+      expect(JSON.parse(listed.body).file.requiresSignIn).toBe(true);
+
+      const other = await app.inject({
+        method: 'GET',
+        url: `/drive/public/share/${token}`,
+        headers: { 'x-user-id': 'user_carol' },
+      });
+      expect(other.statusCode).toBe(403);
+      expect(JSON.parse(other.body).error.code).toBe('LINK_AUDIENCE_FORBIDDEN');
+
+      const dlBlocked = await app.inject({
+        method: 'GET',
+        url: `/drive/public/share/${token}/download`,
+        headers: { 'x-user-id': 'user_carol' },
+      });
+      expect(dlBlocked.statusCode).toBe(403);
+
+      const dlOk = await app.inject({
+        method: 'GET',
+        url: `/drive/public/share/${token}/download`,
+        headers: { 'x-user-id': 'user_bob' },
+      });
+      expect(dlOk.statusCode).toBe(200);
+    });
+
+    it('reports 410 LINK_EXPIRED before scope checks on a restricted expired link', async () => {
+      const token = 'expired_scoped_token_1234567890';
+      driveShares.push({
+        id: 'share_exp_scoped',
+        fileId: 'file_spec_1',
+        createdById: 'user_alice',
+        token,
+        role: 'viewer',
+        password: null,
+        expiresAt: new Date(Date.now() - 10000),
+        scope: 'specific',
+        audience: JSON.stringify(['user_bob']),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      // Even the listed person gets 410, not 200: expiry is the honest state.
+      const res = await app.inject({
+        method: 'GET',
+        url: `/drive/public/share/${token}`,
+        headers: { 'x-user-id': 'user_bob' },
+      });
+      expect(res.statusCode).toBe(410);
+      expect(JSON.parse(res.body).error.code).toBe('LINK_EXPIRED');
+    });
+
+    it('lists links with honest scope/audience/expiry state for the owner', async () => {
+      driveShares.push(
+        {
+          id: 'share_list_1',
+          fileId: 'file_spec_1',
+          createdById: 'user_alice',
+          token: 'list_token_aaaaaaaaaaaaaaaaaaaa',
+          role: 'editor',
+          password: null,
+          expiresAt: new Date(Date.now() + 86_400_000),
+          scope: 'specific',
+          audience: JSON.stringify(['user_bob']),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: 'share_list_2',
+          fileId: 'file_spec_1',
+          createdById: 'user_alice',
+          token: 'list_token_bbbbbbbbbbbbbbbbbbbb',
+          role: 'viewer',
+          password: null,
+          expiresAt: new Date(Date.now() - 1000),
+          scope: 'anyone',
+          audience: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      );
+      const res = await app.inject({
+        method: 'GET',
+        url: '/drive/files/file_spec_1/links',
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.links).toHaveLength(2);
+      const specific = body.links.find((l: any) => l.id === 'share_list_1');
+      expect(specific.scope).toBe('specific');
+      expect(specific.audience).toContain('bob@quantmail.in');
+      expect(specific.audienceEmails).toEqual(['bob@quantmail.in']);
+      expect(specific.expired).toBe(false);
+      expect(specific.requiresPassword).toBe(false);
+      expect(specific.shareUrl).toBe('/drive/share/list_token_aaaaaaaaaaaaaaaaaaaa');
+      const expired = body.links.find((l: any) => l.id === 'share_list_2');
+      expect(expired.expired).toBe(true);
+      expect(expired.audience).toBe('Anyone with the link');
+
+      const forbidden = await app.inject({
+        method: 'GET',
+        url: '/drive/files/file_spec_1/links',
+        headers: { 'x-user-id': 'user_bob' },
+      });
+      expect(forbidden.statusCode).toBe(403);
+    });
+
+    it('updates a link scope/role/expiry via PATCH (owner only)', async () => {
+      driveShares.push({
+        id: 'share_patch',
+        fileId: 'file_spec_1',
+        createdById: 'user_alice',
+        token: 'patch_token_1234567890abcdef12',
+        role: 'viewer',
+        password: null,
+        expiresAt: null,
+        scope: 'anyone',
+        audience: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      const future = new Date(Date.now() + 3 * 86_400_000).toISOString();
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/drive/shares/link/share_patch',
+        headers: { 'content-type': 'application/json' },
+        payload: {
+          role: 'editor',
+          scope: 'specific',
+          audienceEmails: ['carol@quantmail.in'],
+          expiresAt: future,
+        },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.share.role).toBe('editor');
+      expect(body.share.scope).toBe('specific');
+      expect(body.share.audienceEmails).toEqual(['carol@quantmail.in']);
+      const stored = driveShares.find((s) => s.id === 'share_patch');
+      expect(stored?.role).toBe('editor');
+      expect(JSON.parse(stored?.audience as string)).toEqual(['user_carol']);
+
+      const forbidden = await app.inject({
+        method: 'PATCH',
+        url: '/drive/shares/link/share_patch',
+        headers: { 'content-type': 'application/json', 'x-user-id': 'user_bob' },
+        payload: { role: 'viewer' },
+      });
+      expect(forbidden.statusCode).toBe(403);
+
+      const missing = await app.inject({
+        method: 'PATCH',
+        url: '/drive/shares/link/nope',
+        headers: { 'content-type': 'application/json' },
+        payload: { role: 'viewer' },
+      });
+      expect(missing.statusCode).toBe(404);
+    });
+
+    it('clears expiry via PATCH when expiresAt is null', async () => {
+      driveShares.push({
+        id: 'share_patch_exp',
+        fileId: 'file_spec_1',
+        createdById: 'user_alice',
+        token: 'patch_exp_token_1234567890ab',
+        role: 'viewer',
+        password: null,
+        expiresAt: new Date(Date.now() + 86_400_000),
+        scope: 'anyone',
+        audience: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/drive/shares/link/share_patch_exp',
+        headers: { 'content-type': 'application/json' },
+        payload: { expiresAt: null },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).share.expiresAt).toBeNull();
+    });
   });
 
   it('executes trash retention auto-purge cleanup sweeper', async () => {

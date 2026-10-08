@@ -152,6 +152,171 @@ function requireUserId(request: unknown): string {
   if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
   return userId;
 }
+// ============================================================================
+// QM-M39-006 (screen 22): link-share scope/audience/expiry helpers.
+// ============================================================================
+type LinkScope = 'anyone' | 'org' | 'specific';
+
+/** Parse the dialog's expiry input. Bare YYYY-MM-DD dates mean end of that day (UTC). */
+function parseLinkExpiry(expiresAt?: string | null, expiresInDays?: number): Date | null {
+  if (expiresAt) {
+    const trimmed = expiresAt.trim();
+    const iso = /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? `${trimmed}T23:59:59.999Z` : trimmed;
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime()))
+      throw createAppError('Expiry date is not a valid date', 400, 'INVALID_EXPIRY');
+    if (date.getTime() <= Date.now())
+      throw createAppError('Expiry date must be in the future', 400, 'EXPIRY_IN_PAST');
+    return date;
+  }
+  if (expiresInDays) return new Date(Date.now() + expiresInDays * 86_400_000);
+  return null;
+}
+
+/**
+ * Resolve audience emails to user IDs for scope='specific'. Unknown emails
+ * are rejected outright: the link must never silently cover fewer people
+ * than the creator picked.
+ */
+async function resolveLinkAudience(prisma: any, scope: LinkScope, emails?: string[]): Promise<string[]> {
+  if (scope !== 'specific') return [];
+  const list = [...new Set((emails ?? []).map((e) => e.trim().toLowerCase()))].filter(Boolean);
+  if (list.length === 0)
+    throw createAppError(
+      'Specific-people links need at least one person',
+      400,
+      'AUDIENCE_REQUIRED',
+    );
+  const users = await prisma.user.findMany({
+    where: { email: { in: list } },
+    select: { id: true, email: true },
+  });
+  const found = new Set(users.map((u: any) => String(u.email).toLowerCase()));
+  const unknown = list.filter((e) => !found.has(e));
+  if (unknown.length > 0)
+    throw createAppError(
+      `No Quant account found for: ${unknown.join(', ')}`,
+      400,
+      'AUDIENCE_UNKNOWN',
+    );
+  return users.map((u: any) => u.id);
+}
+
+/** Org IDs the user belongs to (for scope='org' enforcement). */
+async function userOrgIds(prisma: any, userId: string): Promise<string[]> {
+  const memberships = await prisma.organizationMember.findMany({
+    where: { userId },
+    select: { orgId: true },
+  });
+  return memberships.map((m: any) => m.orgId);
+}
+
+/** Org names the user belongs to (for honest audience display). Display-only:
+ * degrades to [] when the delegate is unavailable rather than failing the
+ * whole listing. */
+async function userOrgNames(prisma: any, userId: string): Promise<string[]> {
+  const delegate = prisma.organizationMember;
+  if (!delegate || typeof delegate.findMany !== 'function') return [];
+  const memberships = await delegate.findMany({
+    where: { userId },
+    select: { org: { select: { name: true } } },
+  });
+  return memberships.map((m: any) => m.org?.name).filter(Boolean);
+}
+
+/** Best-effort optional auth for public link routes: verify a presented token, never require one. */
+async function optionalAuthUserId(fastify: FastifyInstance, request: unknown): Promise<string | null> {
+  const direct = (request as { auth?: { userId?: string } }).auth?.userId;
+  if (direct) return direct;
+  const optionalAuth = (fastify as { optionalAuth?: () => (req: unknown) => Promise<void> })
+    .optionalAuth;
+  if (typeof optionalAuth === 'function') {
+    await optionalAuth()(request);
+    return (request as { auth?: { userId?: string } }).auth?.userId ?? null;
+  }
+  return null;
+}
+
+/**
+ * Enforce a link's scope on resolve/download. 'anyone' passes. 'org' and
+ * 'specific' require a signed-in viewer who belongs: expiry is checked before
+ * this is called, so a scope rejection can never mask an expired link.
+ */
+async function enforceLinkScope(
+  fastify: FastifyInstance,
+  prisma: any,
+  request: unknown,
+  share: any,
+): Promise<void> {
+  const scope = (share.scope ?? 'anyone') as LinkScope;
+  if (scope === 'anyone') return;
+  const viewerId = await optionalAuthUserId(fastify, request);
+  if (!viewerId)
+    throw createAppError(
+      'This link is restricted — sign in to continue',
+      401,
+      'LINK_SIGNIN_REQUIRED',
+    );
+  if (scope === 'specific') {
+    const audience: string[] = share.audience ? JSON.parse(share.audience) : [];
+    if (!audience.includes(viewerId))
+      throw createAppError('This link was not shared with you', 403, 'LINK_AUDIENCE_FORBIDDEN');
+    return;
+  }
+  // scope === 'org': viewer must share at least one organization with the owner.
+  const ownerOrgs = new Set(await userOrgIds(prisma, share.createdById));
+  const viewerOrgs = await userOrgIds(prisma, viewerId);
+  if (!viewerOrgs.some((orgId) => ownerOrgs.has(orgId)))
+    throw createAppError(
+      'This link is only available to members of the owner\u2019s organization',
+      403,
+      'LINK_ORG_FORBIDDEN',
+    );
+}
+
+/** Honest audience label for list display: what the dialog shows is what the link reaches. */
+function linkAudienceLabel(scope: LinkScope, audienceEmails: string[], orgNames: string[]): string {
+  if (scope === 'specific')
+    return audienceEmails.length > 0
+      ? audienceEmails.join(', ')
+      : 'Specific people';
+  if (scope === 'org')
+    return orgNames.length > 0 ? `Members of ${orgNames.join(', ')}` : 'Organization members';
+  return 'Anyone with the link';
+}
+
+/** Resolve stored audience user IDs back to emails for display. */
+async function emailsForUserIds(prisma: any, userIds: string[]): Promise<string[]> {
+  if (userIds.length === 0) return [];
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: { email: true },
+  });
+  return users.map((u: any) => u.email).filter(Boolean);
+}
+
+/** Canonical link DTO: every surface reads the same honest state from the row. */
+function linkDto(
+  link: any,
+  audienceEmails: string[],
+  orgNames: string[],
+): Record<string, unknown> {
+  const scope = (link.scope ?? 'anyone') as LinkScope;
+  const expiresAt = link.expiresAt ? new Date(link.expiresAt) : null;
+  return {
+    id: link.id,
+    role: link.role,
+    scope,
+    audience: linkAudienceLabel(scope, audienceEmails, orgNames),
+    audienceEmails,
+    audienceOrgs: scope === 'org' ? orgNames : [],
+    requiresPassword: Boolean(link.password),
+    expiresAt: link.expiresAt,
+    expired: expiresAt ? expiresAt.getTime() < Date.now() : false,
+    createdAt: link.createdAt,
+    shareUrl: `/drive/share/${link.token}`,
+  };
+}
 function requireStorage(): void {
   if (!driveStorageReady())
     throw createAppError(driveStorageUnavailableReason(), 503, 'STORAGE_UNAVAILABLE');
@@ -552,10 +717,23 @@ const shareSchema = z.object({
   email: z.string().trim().email(),
   permission: z.enum(['view', 'edit', 'admin']),
 });
+const linkScopeSchema = z.enum(['anyone', 'org', 'specific']);
 const publicShareLinkSchema = z.object({
   fileId: z.string().min(1),
   role: z.enum(['viewer', 'editor']).optional().default('viewer'),
+  // QM-M39-006 (screen 22): link scope + audience. 'anyone' = anyone holding
+  // the URL. 'org' = signed-in members of an organization the owner belongs
+  // to (no orgId picks "every org I belong to"). 'specific' = only the given
+  // people. audienceEmails are resolved to user IDs server-side; unknown
+  // emails are rejected so the link never silently covers fewer people than
+  // the creator picked.
+  scope: linkScopeSchema.optional().default('anyone'),
+  audienceEmails: z.array(z.string().email().max(255)).max(50).optional(),
   expiresInDays: z.number().int().min(1).max(365).optional(),
+  // Absolute expiry from the dialog's date picker. Accepts a full ISO
+  // datetime or a bare YYYY-MM-DD date (treated as end of that day, UTC).
+  // Null/omitted = no expiry.
+  expiresAt: z.string().min(1).max(40).nullable().optional(),
   password: z.string().max(100).optional(),
 });
 const initiateChunkedSchema = z.object({
@@ -1026,36 +1204,11 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     });
   });
   // ============================================================================
-  // QM-M39-005: read-only access viewer — list a file's public share links.
-  // Owner-only (same gate as GET /drive/files/:id/share). Returns each link's
-  // scope (role + audience), password protection, and expiry state from real
-  // driveShare rows. The token and password hash are never exposed; only the
-  // share URL the owner was already given at creation time.
+  // NOTE (QM-M39-006): GET /drive/files/:id/links lives below with the
+  // link-share management routes — one canonical implementation returning
+  // real scope/audience (the earlier QM-M39-005 version hardcoded the
+  // audience and is superseded).
   // ============================================================================
-  fastify.get<{ Params: { id: string } }>('/drive/files/:id/links', async (request, reply) => {
-    const userId = requireUserId(request);
-    const file = await fileAccess(prisma, request.params.id, userId);
-    if (file.userId !== userId)
-      throw createAppError('Only the owner can manage sharing', 403, 'FORBIDDEN');
-    const links = await prisma.driveShare.findMany({
-      where: { fileId: file.id },
-      orderBy: { createdAt: 'desc' },
-    });
-    const now = Date.now();
-    return reply.send({
-      links: links.map((link: any) => ({
-        id: link.id,
-        role: link.role,
-        // Scope is fixed: the share URL grants access to anyone who holds it.
-        audience: 'anyone_with_link',
-        requiresPassword: Boolean(link.password),
-        expiresAt: link.expiresAt,
-        expired: link.expiresAt ? new Date(link.expiresAt).getTime() < now : false,
-        createdAt: link.createdAt,
-        shareUrl: `/drive/share/${link.token}`,
-      })),
-    });
-  });
   fastify.post<{ Params: { id: string } }>('/drive/files/:id/share', async (request, reply) => {
     const parsed = shareSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
@@ -1300,9 +1453,10 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     }
 
     const token = randomBytes(24).toString('hex');
-    const expiresAt = parsed.data.expiresInDays
-      ? new Date(Date.now() + parsed.data.expiresInDays * 86_400_000)
-      : null;
+    // QM-M39-006: absolute date-picker expiry wins over the legacy day count.
+    const expiresAt = parseLinkExpiry(parsed.data.expiresAt, parsed.data.expiresInDays);
+    const scope = parsed.data.scope ?? 'anyone';
+    const audienceIds = await resolveLinkAudience(prisma, scope, parsed.data.audienceEmails);
 
     // Store a one-way argon2 digest, never the plaintext. The download endpoint
     // verifies the supplied password against this hash; the column being set is
@@ -1317,9 +1471,15 @@ export default async function driveRoutes(fastify: FastifyInstance) {
         role: parsed.data.role ?? 'viewer',
         password: passwordHash,
         expiresAt,
+        scope,
+        audience: audienceIds.length > 0 ? JSON.stringify(audienceIds) : null,
       },
     });
 
+    const audienceEmails =
+      scope === 'specific' && parsed.data.audienceEmails
+        ? [...new Set(parsed.data.audienceEmails.map((e) => e.trim().toLowerCase()))]
+        : [];
     return reply.status(201).send({
       success: true,
       share: {
@@ -1328,6 +1488,9 @@ export default async function driveRoutes(fastify: FastifyInstance) {
         token: share.token,
         shareUrl: `/drive/share/${share.token}`,
         role: share.role,
+        scope,
+        audience: linkAudienceLabel(scope, audienceEmails, await userOrgNames(prisma, userId)),
+        audienceEmails,
         expiresAt: share.expiresAt,
       },
     });
@@ -1343,6 +1506,9 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       if (share.expiresAt && new Date(share.expiresAt).getTime() < Date.now()) {
         throw createAppError('This share link has expired', 410, 'LINK_EXPIRED');
       }
+      // QM-M39-006: scope is enforced AFTER expiry, so an expired restricted
+      // link still reports 410 (honest state), never a scope error.
+      await enforceLinkScope(fastify, prisma, request, share);
 
       const file = await prisma.file.findFirst({
         where: { id: share.fileId, isDeleted: false },
@@ -1354,6 +1520,7 @@ export default async function driveRoutes(fastify: FastifyInstance) {
         select: { displayName: true, email: true },
       });
 
+      const scope = (share.scope ?? 'anyone') as LinkScope;
       return reply.send({
         success: true,
         file: {
@@ -1366,6 +1533,8 @@ export default async function driveRoutes(fastify: FastifyInstance) {
           ownerName: owner?.displayName || owner?.email?.split('@')[0] || 'Unknown',
           requiresPassword: Boolean(share.password),
           expiresAt: share.expiresAt,
+          scope,
+          requiresSignIn: scope !== 'anyone',
         },
       });
     },
@@ -1381,6 +1550,9 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       if (share.expiresAt && new Date(share.expiresAt).getTime() < Date.now()) {
         throw createAppError('This share link has expired', 410, 'LINK_EXPIRED');
       }
+      // QM-M39-006: scope gate before the password gate — a viewer outside the
+      // audience learns nothing about the password.
+      await enforceLinkScope(fastify, prisma, request, share);
 
       // Enforce the password server-side before any bytes leave the box. The
       // metadata endpoint only advertises `requiresPassword`; the real gate is
@@ -1436,6 +1608,93 @@ export default async function driveRoutes(fastify: FastifyInstance) {
 
     await prisma.driveShare.delete({ where: { id: share.id } });
     return reply.send({ success: true });
+  });
+
+  // ==========================================================================
+  // QM-M39-006: link-share management — list a file's links (honest state) and
+  // update a link's scope/role/expiry/password. The dialog's confirmation step
+  // lives client-side; these routes apply the change only after the user
+  // confirms. Owner-only, like the rest of share management.
+  // ==========================================================================
+  const updateLinkSchema = z.object({
+    role: z.enum(['viewer', 'editor']).optional(),
+    scope: linkScopeSchema.optional(),
+    audienceEmails: z.array(z.string().email().max(255)).max(50).optional(),
+    // expiresAt: ISO datetime or YYYY-MM-DD (end of day UTC); null clears expiry.
+    expiresAt: z.string().min(1).max(40).nullable().optional(),
+    // password: null removes the password; undefined leaves it unchanged.
+    password: z.string().max(100).nullable().optional(),
+  });
+
+  fastify.patch<{ Params: { id: string } }>('/drive/shares/link/:id', async (request, reply) => {
+    const parsed = updateLinkSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+    const userId = requireUserId(request);
+    const share = await prisma.driveShare.findUnique({ where: { id: request.params.id } });
+    if (!share) throw createAppError('Share link not found', 404, 'SHARE_NOT_FOUND');
+    if (share.createdById !== userId) throw createAppError('Forbidden', 403, 'FORBIDDEN');
+
+    const nextScope = (parsed.data.scope ?? share.scope ?? 'anyone') as LinkScope;
+    // Resolve the audience for the resulting scope. When the scope stays
+    // 'specific' and no new emails are given, the existing audience is kept.
+    let audienceIds: string[] | null = null;
+    if (nextScope === 'specific') {
+      if (parsed.data.audienceEmails) {
+        audienceIds = await resolveLinkAudience(prisma, nextScope, parsed.data.audienceEmails);
+      } else if (share.audience) {
+        audienceIds = JSON.parse(share.audience) as string[];
+      } else {
+        throw createAppError(
+          'Specific-people links need at least one person',
+          400,
+          'AUDIENCE_REQUIRED',
+        );
+      }
+    }
+
+    const data: Record<string, unknown> = {};
+    if (parsed.data.role) data.role = parsed.data.role;
+    if (parsed.data.scope) data.scope = parsed.data.scope;
+    if (audienceIds !== null) data.audience = JSON.stringify(audienceIds);
+    if (nextScope !== 'specific' && parsed.data.scope) data.audience = null;
+    if (parsed.data.expiresAt !== undefined)
+      data.expiresAt = parsed.data.expiresAt === null ? null : parseLinkExpiry(parsed.data.expiresAt);
+    if (parsed.data.password !== undefined)
+      data.password = parsed.data.password === null ? null : await argon2.hash(parsed.data.password);
+
+    const updated = await prisma.driveShare.update({ where: { id: share.id }, data });
+    const finalScope = (updated.scope ?? 'anyone') as LinkScope;
+    const audienceEmails =
+      finalScope === 'specific' && updated.audience
+        ? await emailsForUserIds(prisma, JSON.parse(updated.audience) as string[])
+        : [];
+    return reply.send({
+      success: true,
+      share: linkDto(updated, audienceEmails, await userOrgNames(prisma, userId)),
+    });
+  });
+
+  fastify.get<{ Params: { id: string } }>('/drive/files/:id/links', async (request, reply) => {
+    const userId = requireUserId(request);
+    const file = await fileAccess(prisma, request.params.id, userId);
+    if (file.userId !== userId)
+      throw createAppError('Only the owner can manage sharing', 403, 'FORBIDDEN');
+    const links = await prisma.driveShare.findMany({
+      where: { fileId: file.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    const orgNames = await userOrgNames(prisma, userId);
+    const dtos = await Promise.all(
+      links.map(async (link: any) => {
+        const scope = (link.scope ?? 'anyone') as LinkScope;
+        const audienceEmails =
+          scope === 'specific' && link.audience
+            ? await emailsForUserIds(prisma, JSON.parse(link.audience) as string[])
+            : [];
+        return linkDto(link, audienceEmails, orgNames);
+      }),
+    );
+    return reply.send({ links: dtos });
   });
   fastify.get<{ Params: { id: string } }>('/drive/files/:id/versions', async (request, reply) => {
     const file = await fileAccess(prisma, request.params.id, requireUserId(request));
