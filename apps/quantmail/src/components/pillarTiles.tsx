@@ -8,9 +8,8 @@
 // and the real approved app marks. Shared by DesktopAppRail (live desktop
 // switcher) and any other surface that needs the tile list.
 //
-// NOTE: accent colors here are the desktop rail values. QM-UIUX-037 will unify
-// the mobile and desktop accent systems into one PILLAR_ACCENTS source; do not
-// hand-edit colors without that task.
+// NOTE: accent colors come from PILLAR_ACCENTS (QM-UIUX-037) — the single
+// source of truth shared with the mobile switcher. Do not hand-edit colors here.
 // ============================================================================
 
 import React from 'react';
@@ -19,6 +18,8 @@ import { QuantCalendarLogo } from './QuantCalendarLogo';
 import { QuantDriveLogo } from './QuantDriveLogo';
 import { QuantContactsLogo } from './QuantContactsLogo';
 import { QuantGitLogo } from './QuantGitLogo';
+// QM-UIUX-037: single accent-color source of truth (mobile values canonical).
+import { PILLAR_ACCENTS } from './pillar-accents';
 
 export type PillarId = 'mail' | 'calendar' | 'drive' | 'contacts' | 'quantgit';
 
@@ -37,7 +38,7 @@ export const DESKTOP_PILLAR_TILES: DesktopPillarTile[] = [
     label: 'Mail',
     path: '/',
     shortcutNumber: 1,
-    accentColor: '#FF8C42',
+    accentColor: PILLAR_ACCENTS.mail,
     renderIcon: () => <QuantMailLogo size={28} interactive={false} showBadge={false} />,
   },
   {
@@ -45,7 +46,7 @@ export const DESKTOP_PILLAR_TILES: DesktopPillarTile[] = [
     label: 'Calendar',
     path: '/calendar',
     shortcutNumber: 2,
-    accentColor: '#3B82F6',
+    accentColor: PILLAR_ACCENTS.calendar,
     renderIcon: () => <QuantCalendarLogo size={28} />,
   },
   {
@@ -53,7 +54,7 @@ export const DESKTOP_PILLAR_TILES: DesktopPillarTile[] = [
     label: 'Drive',
     path: '/drive',
     shortcutNumber: 3,
-    accentColor: '#F59E0B',
+    accentColor: PILLAR_ACCENTS.drive,
     renderIcon: () => <QuantDriveLogo size={28} />,
   },
   {
@@ -61,7 +62,7 @@ export const DESKTOP_PILLAR_TILES: DesktopPillarTile[] = [
     label: 'Contacts',
     path: '/contacts',
     shortcutNumber: 4,
-    accentColor: '#10B981',
+    accentColor: PILLAR_ACCENTS.contacts,
     renderIcon: () => <QuantContactsLogo size={28} />,
   },
   {
@@ -69,7 +70,7 @@ export const DESKTOP_PILLAR_TILES: DesktopPillarTile[] = [
     label: 'QuantGit',
     path: '/quantgit',
     shortcutNumber: 5,
-    accentColor: '#8B5CF6',
+    accentColor: PILLAR_ACCENTS.quantgit,
     renderIcon: () => <QuantGitLogo size={28} />,
   },
 ];
