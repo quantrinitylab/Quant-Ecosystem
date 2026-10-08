@@ -1270,7 +1270,7 @@ Scope: `apps/quantchat/src/`.
 Dependencies: QM-UIUX-055 (typing fix touches same area).
 
 ## QM-UIUX-058 — Custom folders: wire to backend API
-Status: [ ] TODO
+Status: [~] IN_PROGRESS — Owner: c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f; Branch: fix/qm-uiux-058-folders-api
 Finding: backend `/api/folders` CRUD exists and is tested, but UI creates folders with local IDs in `localStorage` only. No cross-device sync; lost on storage clear. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/labels-folders-audit.md`.
 Required: wire `handleCreateFolder` to POST `/api/folders`.
 Scope: `apps/quantmail/src/app/page.tsx:1269`.
