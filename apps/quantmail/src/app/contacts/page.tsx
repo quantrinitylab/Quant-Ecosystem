@@ -29,7 +29,6 @@ import {
   CompaniesSubView,
   DedupWizardSubView,
   CirclesSubView,
-  SOVEREIGN_DEFAULT_CONTACTS,
   contactDisplayName,
 } from './components/ContactsSubViews';
 import type { Contact, ContactGroup } from '../../types';
