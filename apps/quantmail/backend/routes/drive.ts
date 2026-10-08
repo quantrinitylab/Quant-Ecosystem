@@ -30,6 +30,11 @@ import {
   quarantineBlockedMessage,
 } from '../services/file-scan.service';
 import { StorageClient, resolveStorageConfigFromEnv } from '@quant/storage';
+import { AttachmentService } from '../services/attachment.service';
+import {
+  DefaultAttachmentScanner,
+  type AttachmentScannerPort,
+} from '../services/attachment-scanner.service';
 
 const MEMORY_SCAN_LIMIT = 2000;
 const MEMORY_APP_LABELS: Record<string, string> = {
@@ -783,7 +788,14 @@ const abortMultipartSchema = z.object({
   key: z.string().min(1),
 });
 
-export default async function driveRoutes(fastify: FastifyInstance) {
+export interface DriveRoutesOptions {
+  /** Injectable for tests; defaults to a real AttachmentService over the app Prisma client. */
+  attachmentService?: AttachmentService;
+  /** Injectable for tests; defaults to the real heuristic malware scanner. */
+  attachmentScanner?: AttachmentScannerPort;
+}
+
+export default async function driveRoutes(fastify: FastifyInstance, options?: DriveRoutesOptions) {
   // K4: Idempotency-Key support on Drive uploads (incl. chunked uploads).
   enableIdempotency(fastify);
 
@@ -2248,6 +2260,146 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     );
     return reply.status(201).send({
       file: fileDto({ ...file, folderId, encryptedContent: key }, owner),
+      quota: { used: quota.usedBytes, total: quota.limitBytes },
+    });
+  });
+
+  // ============================================================================
+  // QM-M39-010 — mail attachment → Drive handoff (M39 screen 30).
+  //
+  // POST /drive/files/save-attachment { attachmentId, messageId? }
+  //
+  // Drive owns file objects: "Save to Drive" on a mail attachment creates one
+  // canonical Drive File row. Dedupe is on the SHA-256 of the real bytes —
+  // saving the same content again returns the existing file with
+  // `deduplicated: true` instead of a second Drive row, and quota is not
+  // charged twice (quota is aggregate-derived from drive_files rows).
+  //
+  // Only attachments the backend can actually read are savable: the bytes are
+  // fetched server-side through AttachmentService (ownership re-checked), the
+  // same heuristic scan that gates the attachment download path runs before
+  // the bytes touch Drive storage, and the file lands through the same
+  // encrypt → put → transaction pipeline as /drive/upload. Unknown
+  // attachmentIds answer 404 — the UI only offers the button for resolvable
+  // ids, so a button that 404s is a bug, not a flow.
+  // ============================================================================
+  fastify.post('/drive/files/save-attachment', async (request, reply) => {
+    const parsed = z
+      .object({
+        attachmentId: z.string().min(1).max(128),
+        messageId: z.string().min(1).max(128).optional(),
+      })
+      .safeParse(request.body);
+    if (!parsed.success) throw createAppError('Invalid request', 400, 'VALIDATION_ERROR');
+    const userId = requireUserId(request);
+    const { attachmentId, messageId } = parsed.data;
+
+    const attachmentService =
+      options?.attachmentService ?? new AttachmentService({ db: prisma as never });
+    const scanner = options?.attachmentScanner ?? new DefaultAttachmentScanner();
+
+    // Real bytes, streamed out of R2/S3 with the ownership check server-side.
+    const { metadata, body } = await attachmentService.readAttachment(attachmentId, userId);
+    if (!body.length) throw createAppError('Attachment is empty', 400, 'VALIDATION_ERROR');
+
+    // Same malware bar as the attachment download path: infected bytes never
+    // become Drive files.
+    const scanResult = await scanner.scanBuffer(body, metadata.filename);
+    if (scanResult.isInfected) {
+      throw createAppError(
+        `Attachment blocked: malware detected (${scanResult.virusName || 'Infected'})`,
+        422,
+        'MALICIOUS_ATTACHMENT_DETECTED',
+      );
+    }
+
+    const contentHash = createHash('sha256').update(body).digest('hex');
+    const owner = await ownerInfo(prisma, userId);
+
+    // Content-hash dedupe: an existing non-trashed file with identical bytes
+    // is returned as-is — no second Drive row, no duplicate storage blob, no
+    // fabricated "upload" activity event.
+    const existing = await prisma.file.findFirst({
+      where: { userId, contentHash, isDeleted: false },
+    });
+    if (existing) {
+      return reply.status(200).send({
+        file: fileDto(existing, owner),
+        deduplicated: true,
+        message: 'Already in Drive — no duplicate was created.',
+      });
+    }
+
+    requireStorage();
+    await quotaService.checkQuota(userId, body.length);
+    const envelope = encryptForDrive(body);
+    const file = await prisma.file.create({
+      data: {
+        userId,
+        name: safeFileName(metadata.filename),
+        mimeType: metadata.contentType || 'application/octet-stream',
+        size: body.length,
+        folderId: null,
+        encryptedContent: '',
+        encryptionIV: envelope.iv,
+        encryptionAuthTag: envelope.authTag,
+        encryptionKey: envelope.wrappedKey,
+        contentHash: envelope.contentHash,
+        // QM-M39-009: no scanner runs on Drive ingest yet — 'unknown' is the
+        // honest state, never 'clean'.
+        scanStatus: 'unknown',
+        scanReason: null,
+        scannedAt: null,
+      },
+    });
+    const key = versionKey(userId, file.id, 1, envelope.contentHash);
+    try {
+      await putDriveObject(key, envelope.ciphertext);
+      await prisma.$transaction([
+        prisma.file.update({ where: { id: file.id }, data: { encryptedContent: key } }),
+        prisma.fileVersion.create({
+          data: {
+            fileId: file.id,
+            versionNumber: 1,
+            encryptedContent: key,
+            encryptionIV: envelope.iv,
+            encryptionAuthTag: envelope.authTag,
+            encryptionKey: envelope.wrappedKey,
+            size: body.length,
+          },
+        }),
+      ]);
+    } catch (error) {
+      await deleteDriveObject(key).catch(() => undefined);
+      await prisma.file.delete({ where: { id: file.id } }).catch(() => undefined);
+      throw error;
+    }
+    const quota = await quotaService.getQuota(userId);
+    // QM-M39-008: log the real save event. `source: 'mail-attachment'` keeps
+    // the handoff visible in file history alongside ordinary uploads.
+    await recordFileActivity(
+      prisma,
+      {
+        fileId: file.id,
+        ownerUserId: userId,
+        actorUserId: userId,
+        actorName: owner.name || null,
+        actorEmail: owner.email || null,
+        action: 'upload',
+        details: {
+          name: file.name,
+          size: body.length,
+          source: 'mail-attachment',
+          messageId: messageId ?? null,
+          attachmentId,
+        },
+      },
+      (msg) => request.log.warn(msg),
+    );
+    return reply.status(201).send({
+      file: fileDto({ ...file, folderId: null, encryptedContent: key }, owner),
+      deduplicated: false,
+      message: 'Saved to Drive.',
       quota: { used: quota.usedBytes, total: quota.limitBytes },
     });
   });

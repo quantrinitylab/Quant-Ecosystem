@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { browserApiRequest } from '../services/browser-api-request';
+import { DriveFilePreview } from './DriveFilePreview';
 
 interface Attachment {
   id: string;
@@ -9,10 +11,33 @@ interface Attachment {
   mimeType: string;
   size: number;
   url?: string;
+  /**
+   * QM-M39-010: the AttachmentService row id (e.g. "att_<uuid>") when the
+   * backend can actually read this attachment's bytes. Null for inbound
+   * metadata-only attachments — those are never offered a Save button.
+   */
+  attachmentId?: string | null;
 }
+
+interface SavedDriveFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  modifiedAt?: string;
+}
+
+type SaveState =
+  | { status: 'saving' }
+  | { status: 'saved'; file: SavedDriveFile; deduplicated: boolean }
+  | { status: 'error'; message: string };
 
 interface AttachmentPreviewProps {
   attachments: Attachment[];
+  /** Mail message id — passed through to the save endpoint for provenance. */
+  messageId?: string;
+  /** Returns the user to the mail context (scrolls the message into view). */
+  onBackToMail?: () => void;
 }
 
 /*
@@ -31,10 +56,18 @@ const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
  * Gmail shows attachment chips at the bottom of each email.
  * We show a visual gallery with type icons and preview capability.
  */
-export function AttachmentPreview({ attachments }: AttachmentPreviewProps) {
+export function AttachmentPreview({
+  attachments,
+  messageId,
+  onBackToMail,
+}: AttachmentPreviewProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  // QM-M39-010: per-attachment Drive save state, keyed by the rendered id.
+  const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({});
+  // QM-M39-010: the saved Drive file currently open in the Drive preview.
+  const [previewFile, setPreviewFile] = useState<SavedDriveFile | null>(null);
   /*
    * Refs (not state) for the in-progress gesture: updated dozens of times per
    * second during a pinch, and we don't want a re-render per touchmove — the
@@ -157,6 +190,87 @@ export function AttachmentPreview({ attachments }: AttachmentPreviewProps) {
     setPan({ x: 0, y: 0 });
     applyTransform(next, 0, 0);
   }, [zoom, applyTransform]);
+
+  /*
+   * QM-M39-010: "Save to Drive" on a mail attachment. The backend reads the
+   * real bytes server-side, hashes them, and either returns the existing
+   * Drive file (deduplicated — no second Drive row) or creates the canonical
+   * one. Errors are reported verbatim from the backend, never invented.
+   */
+  const handleSaveToDrive = useCallback(
+    async (att: Attachment) => {
+      if (!att.attachmentId) return;
+      setSaveStates((prev) => ({ ...prev, [att.id]: { status: 'saving' } }));
+      try {
+        const res = await browserApiRequest('/api/drive/save-attachment', {
+          method: 'POST',
+          body: JSON.stringify({ attachmentId: att.attachmentId, messageId }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          const message =
+            data?.error?.message || data?.message || `Save failed (status ${res.status})`;
+          setSaveStates((prev) => ({ ...prev, [att.id]: { status: 'error', message } }));
+          return;
+        }
+        setSaveStates((prev) => ({
+          ...prev,
+          [att.id]: { status: 'saved', file: data.file, deduplicated: Boolean(data.deduplicated) },
+        }));
+      } catch (err) {
+        setSaveStates((prev) => ({
+          ...prev,
+          [
+            att.id
+          ]: {
+            status: 'error',
+            message: err instanceof Error ? err.message : 'Save failed',
+          },
+        }));
+      }
+    },
+    [messageId],
+  );
+
+  const handleDriveDownload = useCallback(async (fileId: string, fileName?: string) => {
+    try {
+      const res = await browserApiRequest(`/api/drive/files/${fileId}/download`);
+      if (!res.ok) throw new Error(`Download failed (status ${res.status})`);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      if (fileName) anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+    } catch {
+      // The Drive page carries full download error UX; this modal is a
+      // preview surface, so a failure simply does nothing here rather than
+      // showing an invented error state.
+    }
+  }, []);
+
+  const handleDriveShare = useCallback(() => {
+    // Sharing UI lives on the Drive page — open it so the share action is
+    // real, not a stubbed dialog.
+    window.open('/drive', '_blank', 'noopener,noreferrer');
+  }, []);
+
+  const handleDriveDelete = useCallback(async (fileId: string) => {
+    const res = await browserApiRequest(`/api/drive/files/${fileId}`, { method: 'DELETE' });
+    if (!res.ok) return;
+    setPreviewFile(null);
+    setSaveStates((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        const state = next[key];
+        if (state.status === 'saved' && state.file.id === fileId) delete next[key];
+      }
+      return next;
+    });
+  }, []);
 
   if (!attachments || attachments.length === 0) return null;
 
@@ -292,29 +406,82 @@ export function AttachmentPreview({ attachments }: AttachmentPreviewProps) {
         </span>
       </p>
       <div className="attachment-preview-grid">
-        {attachments.map((att) => (
-          <button
-            key={att.id}
-            type="button"
-            className="attachment-preview-item"
-            onClick={() => att.url && setPreviewUrl(att.url)}
-            title={att.filename}
-          >
-            <div className="attachment-preview-thumb">
-              {isImage(att.mimeType) && att.url ? (
-                <img src={att.url} alt={att.filename} className="attachment-preview-img" loading="lazy" decoding="async" />
-              ) : (
-                <span className="attachment-preview-icon">
-                  {renderAttachmentIcon(att.mimeType)}
-                </span>
+        {attachments.map((att) => {
+          const saveState = saveStates[att.id];
+          // The button is offered only when the backend can actually read the
+          // attachment's bytes (AttachmentService row id). Inbound
+          // metadata-only attachments get no button — a button that could
+          // never work would be a fake control.
+          const canSaveToDrive = Boolean(att.attachmentId);
+          return (
+            <div key={att.id} className="attachment-preview-cell">
+              <button
+                type="button"
+                className="attachment-preview-item"
+                onClick={() => att.url && setPreviewUrl(att.url)}
+                title={att.filename}
+              >
+                <div className="attachment-preview-thumb">
+                  {isImage(att.mimeType) && att.url ? (
+                    <img src={att.url} alt={att.filename} className="attachment-preview-img" loading="lazy" decoding="async" />
+                  ) : (
+                    <span className="attachment-preview-icon">
+                      {renderAttachmentIcon(att.mimeType)}
+                    </span>
+                  )}
+                </div>
+                <div className="attachment-preview-info">
+                  <span className="attachment-preview-name">{att.filename}</span>
+                  <span className="attachment-preview-size">{formatSize(att.size)}</span>
+                </div>
+              </button>
+              {canSaveToDrive && saveState?.status !== 'saved' && (
+                <div className="attachment-save-row">
+                  <button
+                    type="button"
+                    className="attachment-save-btn"
+                    onClick={() => handleSaveToDrive(att)}
+                    disabled={saveState?.status === 'saving'}
+                  >
+                    {saveState?.status === 'saving' ? 'Saving…' : 'Save to Drive'}
+                  </button>
+                  {saveState?.status === 'error' && (
+                    <p className="attachment-save-error" role="alert">
+                      {saveState.message}
+                    </p>
+                  )}
+                </div>
+              )}
+              {saveState?.status === 'saved' && (
+                <div className="attachment-save-result">
+                  <p className="attachment-save-result-text">
+                    {saveState.deduplicated
+                      ? 'Already in Drive — no duplicate was created.'
+                      : 'Saved to Drive.'}
+                  </p>
+                  <div className="attachment-save-result-actions">
+                    <button
+                      type="button"
+                      className="attachment-save-result-btn"
+                      onClick={() => setPreviewFile(saveState.file)}
+                    >
+                      Preview
+                    </button>
+                    {onBackToMail && (
+                      <button
+                        type="button"
+                        className="attachment-save-result-btn"
+                        onClick={onBackToMail}
+                      >
+                        Back to email
+                      </button>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
-            <div className="attachment-preview-info">
-              <span className="attachment-preview-name">{att.filename}</span>
-              <span className="attachment-preview-size">{formatSize(att.size)}</span>
-            </div>
-          </button>
-        ))}
+          );
+        })}
       </div>
 
       {/* Full-size preview modal with pinch-to-zoom */}
@@ -414,6 +581,45 @@ export function AttachmentPreview({ attachments }: AttachmentPreviewProps) {
                   Drag to pan · double-tap to reset
                 </p>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* QM-M39-010: preview the saved file through the Drive preview system.
+          Uses the existing DriveFilePreview surface on main (QM-M39-004's
+          capability-aware preview is a separate, unmerged PR — this modal
+          picks it up automatically once that lands). */}
+      <AnimatePresence>
+        {previewFile && (
+          <motion.div
+            className="attachment-lightbox"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setPreviewFile(null)}
+          >
+            <motion.div
+              className="attachment-lightbox-content"
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <DriveFilePreview
+                file={{
+                  id: previewFile.id,
+                  name: previewFile.name,
+                  mimeType: previewFile.mimeType,
+                  size: previewFile.size,
+                  url: `/api/drive/files/${previewFile.id}/download`,
+                  modifiedAt: previewFile.modifiedAt,
+                }}
+                onClose={() => setPreviewFile(null)}
+                onDownload={(id) => handleDriveDownload(id, previewFile.name)}
+                onShare={handleDriveShare}
+                onDelete={handleDriveDelete}
+              />
             </motion.div>
           </motion.div>
         )}

@@ -2084,6 +2084,7 @@ export function ConversationalThreadView({
                 onDeleteMessage={onDelete ? deleteMessage : undefined}
               >
               <motion.div
+                id={message.id ? `mail-message-${message.id}` : undefined}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
@@ -2454,13 +2455,30 @@ export function ConversationalThreadView({
                     {hasAtt && (
                       <div className="px-4 pb-4 sm:px-5 sm:pb-5">
                         <AttachmentPreview
-                          attachments={(msgAttachments as any[]).map((a, i) => ({
-                            id: a.id ?? `att-${index}-${i}`,
-                            filename: a.filename ?? a.name ?? 'attachment',
-                            mimeType: a.mimeType ?? a.contentType ?? 'application/octet-stream',
-                            size: a.size ?? 0,
-                            url: a.url,
-                          }))}
+                          attachments={(msgAttachments as any[]).map((a, i) => {
+                            /*
+                             * QM-M39-010: the backend can only read bytes for
+                             * AttachmentService rows (id "att_<uuid>"). Inbound
+                             * attachments are metadata-only (partIndex) — pass
+                             * no attachmentId so no Save button is rendered.
+                             */
+                            const rawId = typeof a.id === 'string' ? a.id : null;
+                            return {
+                              id: a.id ?? `att-${index}-${i}`,
+                              filename: a.filename ?? a.name ?? 'attachment',
+                              mimeType: a.mimeType ?? a.contentType ?? 'application/octet-stream',
+                              size: a.size ?? 0,
+                              url: a.url,
+                              attachmentId: rawId && rawId.startsWith('att_') ? rawId : null,
+                            };
+                          })}
+                          messageId={message.id ?? undefined}
+                          onBackToMail={() => {
+                            const el = message.id
+                              ? document.getElementById(`mail-message-${message.id}`)
+                              : null;
+                            el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }}
                         />
                       </div>
                     )}
