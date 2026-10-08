@@ -1039,3 +1039,59 @@ Finding: (a) swipe actions not discoverable — no hint for new users; (b) page-
 Required: one-time dismissible swipe hint; cursor pagination; remove dead hook.
 Scope: inbox components and hooks.
 Dependencies: none.
+
+## QM-UIUX-041 — HTML email: strip inline styles for dark mode
+Status: [ ] TODO
+Finding: `<div style="background:#ffffff">` and `<p style="color:#333">` survive DOMPurify sanitization — verified with real DOMPurify run using prod config. Result: white boxes in the black read view (violates "fully black" rule) and dark-gray-on-black unreadable text. Zero dark-mode CSS rewriting exists. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/html-email-audit.md`.
+Required: post-sanitize pass stripping `background*`/`color` from inline styles (~15 lines in `sanitize.ts`).
+Scope: email HTML sanitizer (`lib/safe-html`, `sanitize.ts`).
+Dependencies: none.
+
+## QM-UIUX-042 — HTML email: remote image consent (tracking pixels)
+Status: [ ] TODO
+Finding: remote images load with no consent — no blocking, no "Show images" banner, no per-sender trust. Every `<img>` hits the sender's server on open (IP + timestamp = silent read receipt). Weaker than Gmail/Apple Mail. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/html-email-audit.md`.
+Required: default-block remote images; one-tap "Show images" banner; per-sender allowlist.
+Scope: email body renderer (`EmailLetterCard.tsx`, `useSafeEmailHtml`).
+Dependencies: none.
+
+## QM-UIUX-043 — HTML email: forbid class attribute
+Status: [ ] TODO
+Finding: email HTML renders inside the app DOM, so `class="bg-white text-black"` applies real Tailwind utilities to attacker-controlled markup — breaks the black UI. Not XSS, but visual breakage. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/html-email-audit.md`.
+Required: add `'class'` to `EMAIL_FORBID_ATTR` (one line).
+Scope: email sanitizer config.
+Dependencies: none.
+
+## QM-UIUX-044 — App-switch blur: load-tied, drop full-main filter blur
+Status: [ ] TODO
+Finding: (a) app-switch blur is a fixed 380ms timer (`AppShell.tsx:614`), not load-tied — route loads in 50ms → user stares at blur for 330ms for nothing; route takes 800ms → blur lifts mid-load; (b) `filter: blur(10px)` on full `<main>` (`AppShell.tsx:1000`) is NOT GPU-composited — repaints entire inbox list every frame, real jank risk on low-end mobile. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/motion-audit.md`.
+Required: tie `setIsSwitching(false)` to real route settle (380ms as max fallback); restrict blur to lightweight overlay or drop for transform+opacity only.
+Scope: `AppShell.tsx`.
+Dependencies: none.
+
+## QM-UIUX-045 — Delete fake AIInlineSummary
+Status: [ ] TODO
+Finding: `AIInlineSummary` labeled "AI summary" (aria-label + sparkle icon) but is pure keyword matching (`includes('action required')` → "Action needed"). Its own comment admits "In production, this would call the AI backend" — the upgrade path doesn't exist. Zero usages (dead). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quanty-ai-audit.md`.
+Required: delete the component; if summarization is wanted, wire to the real `aiSummarize` backend (QM-UIUX-046).
+Scope: `AIInlineSummary` component.
+Dependencies: none.
+
+## QM-UIUX-046 — Summarize: add UI entry point in thread view
+Status: [ ] TODO
+Finding: backend `POST /emails/:id/summarize`, `apiClient.aiSummarize`, and well-designed `AISummaryCard` all exist — but nothing mounts or calls them. No "Summarize" button in thread view. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quanty-ai-audit.md`.
+Required: add "Summarize" entry point in thread view wired to the real backend.
+Scope: thread view; `AISummaryCard`.
+Dependencies: QM-UIUX-045 (decide fake vs real first).
+
+## QM-UIUX-047 — AI Memory: mount the panel (no surface today)
+Status: [ ] TODO
+Finding: real CRUD on `/api/drive/memory` with delete-confirm, but `AIMemoryPanel` is never mounted. Users can't see or forget what Quanty remembers. No duplicate cards in inbox (verified gone). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quanty-ai-audit.md`.
+Required: mount `AIMemoryPanel` in an appropriate surface (settings or Quanty drawer); verify no duplicates.
+Scope: `AIMemoryPanel`; settings or drawer.
+Dependencies: none.
+
+## QM-UIUX-048 — Delete dead "AI-powered" components (Nudge, Digest)
+Status: [ ] TODO
+Finding: `EmailNudge.tsx` ("Smart Nudge — AI-powered contextual reminders") and `InboxDigest.tsx` ("AI-powered Inbox Digest") have no AI and no renderers. Dead components with fake claims. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quanty-ai-audit.md`.
+Required: delete both, or build honestly with real backend.
+Scope: `EmailNudge.tsx`, `InboxDigest.tsx`.
+Dependencies: none.
