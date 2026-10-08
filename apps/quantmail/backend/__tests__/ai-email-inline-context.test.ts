@@ -149,7 +149,8 @@ describe('AIEmailService QM-QUANTY-002 wiring', () => {
       // Existing behavior preserved: summary is cached on the email.
       expect(prisma.email.update).toHaveBeenCalledWith({
         where: { id: 'email-1' },
-        data: { aiSummary: 'Launch Friday.' },
+        // QM-BACK-002: system writes keep the version column truthful.
+        data: { aiSummary: 'Launch Friday.', version: { increment: 1 } },
       });
     });
   });
