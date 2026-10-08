@@ -79,7 +79,7 @@ type MockPrisma = ReturnType<typeof createMockPrisma>;
  */
 function createMockPrisma() {
   const rows: Row[] = [];
-  return {
+  const mock = {
     rows,
     user: { findUnique: vi.fn(async () => null) },
     emailFolder: {
@@ -120,7 +120,20 @@ function createMockPrisma() {
         return found ?? null;
       }),
     },
+    // K1: EmailService.receive runs inside `prisma.$transaction`; the double
+    // hands the callback the mock itself as the tx client.
+    outboxEvent: {
+      create: vi.fn(async (args: { data: Record<string, unknown> }) => ({
+        id: `outbox-${rows.length + 1}`,
+        publishedAt: null,
+        createdAt: new Date(),
+        ...args.data,
+      })),
+    },
+    $transaction: null as unknown as ReturnType<typeof vi.fn>,
   };
+  mock.$transaction = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mock));
+  return mock;
 }
 
 /** A spy indexer, so a redelivery re-indexing the same mail would be caught. */

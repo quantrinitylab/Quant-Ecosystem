@@ -73,7 +73,7 @@ function createMockPrisma() {
   };
   storedEmails.set('draft-1', storedDraft);
 
-  return {
+  const mock = {
     storedDraft,
     storedEmails,
     email: {
@@ -160,7 +160,22 @@ function createMockPrisma() {
         ...update,
       })),
     },
+    // K1: mail mutations run inside `prisma.$transaction`; the double hands the
+    // callback the mock itself as the tx client and records outbox writes.
+    outboxEvent: {
+      create: vi.fn().mockImplementation(async ({ data }: any) => ({
+        id: `outbox-${Date.now()}`,
+        publishedAt: null,
+        createdAt: new Date(),
+        ...data,
+      })),
+    },
+    $transaction: null as unknown as ReturnType<typeof vi.fn>,
   };
+  mock.$transaction = vi
+    .fn()
+    .mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(mock));
+  return mock;
 }
 
 async function buildTestFastifyApp(prisma: any, authenticatedUserId: string | null = 'user-1') {

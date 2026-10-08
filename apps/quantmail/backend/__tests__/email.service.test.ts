@@ -2,7 +2,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EmailService } from '../services/email.service';
 
 function createMockPrisma() {
-  return {
+  // K1: every mail mutation runs inside `prisma.$transaction`, so the double
+  // passes the callback the mock itself as the tx client and records outbox
+  // writes on `outboxEvent.create` — same-transaction semantics by construction.
+  const mock = {
     email: {
       create: vi.fn(),
       findUnique: vi.fn(),
@@ -24,7 +27,18 @@ function createMockPrisma() {
     label: {
       findMany: vi.fn(),
     },
+    outboxEvent: {
+      create: vi.fn(async (args: { data: Record<string, unknown> }) => ({
+        id: 'outbox-1',
+        publishedAt: null,
+        createdAt: new Date(),
+        ...args.data,
+      })),
+    },
+    $transaction: null as unknown as ReturnType<typeof vi.fn>,
   };
+  mock.$transaction = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mock));
+  return mock;
 }
 
 /**

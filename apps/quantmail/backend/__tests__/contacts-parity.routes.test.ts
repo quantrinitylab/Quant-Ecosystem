@@ -48,6 +48,7 @@ function createInMemoryPrisma() {
   const contacts = new Map<string, any>();
   const folders = new Map<string, any>();
   const filters = new Map<string, any>();
+  const outbox: any[] = [];
 
   // Default Sent and Drafts folders
   folders.set('folder-sent', { id: 'folder-sent', userId: 'user-1', name: 'Sent', type: 'SENT' });
@@ -58,7 +59,7 @@ function createInMemoryPrisma() {
     type: 'DRAFTS',
   });
 
-  return {
+  const db = {
     emails,
     contacts,
     folders,
@@ -281,7 +282,25 @@ function createInMemoryPrisma() {
       delete: vi.fn().mockResolvedValue({ id: 'sup-1' }),
       count: vi.fn().mockResolvedValue(0),
     },
+    // K1: mail mutations run inside `prisma.$transaction`; the double hands the
+    // callback the db itself as the tx client and records outbox writes.
+    outbox,
+    outboxEvent: {
+      create: vi.fn().mockImplementation(async ({ data }: any) => {
+        const row = {
+          id: `outbox-${outbox.length + 1}`,
+          publishedAt: null,
+          createdAt: new Date(),
+          ...data,
+        };
+        outbox.push(row);
+        return { ...row };
+      }),
+    },
+    $transaction: null as unknown as ReturnType<typeof vi.fn>,
   };
+  db.$transaction = vi.fn().mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(db));
+  return db;
 }
 
 async function buildFastifyApp(prisma: any, authenticatedUserId: string | null = 'user-1') {

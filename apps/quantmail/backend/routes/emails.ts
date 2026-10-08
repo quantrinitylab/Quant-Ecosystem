@@ -22,6 +22,7 @@ import { ImapImporterService } from '../services/imap-importer.service';
 import { retentionService } from './retention';
 import { RetentionService } from '../services/retention.service';
 import { suppressionService } from '../services/suppression.service';
+import { emitOutbox, MailOutboxEvents } from '../lib/outbox-events';
 
 const notifier = new CrossAppDispatcher('quantmail');
 
@@ -374,28 +375,41 @@ export default async function emailsRoutes(
     const raw = (request.body ?? {}) as Record<string, unknown>;
     const provided = (key: string) => Object.prototype.hasOwnProperty.call(raw, key);
 
-    const email = await prisma.email.update({
-      where: { id: request.params.id },
-      data: {
-        toAddresses: d.toAddresses,
-        subject: d.subject,
-        ...(provided('cc') || provided('ccAddresses') ? { ccAddresses: d.ccAddresses } : {}),
-        ...(provided('bcc') || provided('bccAddresses') ? { bccAddresses: d.bccAddresses } : {}),
-        ...(provided('bodyHtml') ? { bodyHtml: d.bodyHtml ? sanitizeHtml(d.bodyHtml) : '' } : {}),
-        ...(provided('bodyText') || provided('bodyPlain') ? { bodyPlain: d.bodyPlain ?? '' } : {}),
-        ...(provided('inReplyTo') ? { inReplyTo: d.inReplyTo ?? null } : {}),
-        ...(provided('threadId') ? { threadId: d.threadId ?? null } : {}),
-        ...(d.priority ? { priority: toPriority(d.priority) } : {}),
-        // Only rewrite the kind when the caller states one, so saving a draft from
-        // a composer that does not know about kinds cannot silently reclassify it.
-        ...(d.messageKind ? { messageKind: toMessageKind(d.messageKind) } : {}),
-        ...(d.attachments
-          ? {
-              attachments: d.attachments,
-              hasAttachments: d.attachments.length > 0,
-            }
-          : {}),
-      },
+    // K1: draft update + outbox row in ONE transaction (doc 05).
+    const email = await prisma.$transaction(async (tx) => {
+      const updated = await tx.email.update({
+        where: { id: request.params.id },
+        data: {
+          toAddresses: d.toAddresses,
+          subject: d.subject,
+          ...(provided('cc') || provided('ccAddresses') ? { ccAddresses: d.ccAddresses } : {}),
+          ...(provided('bcc') || provided('bccAddresses') ? { bccAddresses: d.bccAddresses } : {}),
+          ...(provided('bodyHtml') ? { bodyHtml: d.bodyHtml ? sanitizeHtml(d.bodyHtml) : '' } : {}),
+          ...(provided('bodyText') || provided('bodyPlain') ? { bodyPlain: d.bodyPlain ?? '' } : {}),
+          ...(provided('inReplyTo') ? { inReplyTo: d.inReplyTo ?? null } : {}),
+          ...(provided('threadId') ? { threadId: d.threadId ?? null } : {}),
+          ...(d.priority ? { priority: toPriority(d.priority) } : {}),
+          // Only rewrite the kind when the caller states one, so saving a draft from
+          // a composer that does not know about kinds cannot silently reclassify it.
+          ...(d.messageKind ? { messageKind: toMessageKind(d.messageKind) } : {}),
+          ...(d.attachments
+            ? {
+                attachments: d.attachments,
+                hasAttachments: d.attachments.length > 0,
+              }
+            : {}),
+        },
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.draftUpdated,
+        aggregateType: 'Email',
+        aggregateId: request.params.id,
+        payload: {
+          userId,
+          threadId: (updated as { threadId?: string | null }).threadId ?? null,
+        },
+      });
+      return updated;
     });
 
     return reply.send({ success: true, data: formatEmailRecord(email) });
@@ -823,9 +837,19 @@ export default async function emailsRoutes(
     }
 
     const archiveFolder = await getOrCreateFolder(prisma, userId, 'Archive', 'ARCHIVE');
-    await prisma.email.update({
-      where: { id: request.params.id },
-      data: { folderId: archiveFolder.id, isTrash: false, deletedAt: null },
+    // K1: archive move + outbox row in ONE transaction (doc 05).
+    await prisma.$transaction(async (tx) => {
+      const archived = await tx.email.update({
+        where: { id: request.params.id },
+        data: { folderId: archiveFolder.id, isTrash: false, deletedAt: null },
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.threadArchived,
+        aggregateType: 'EmailThread',
+        aggregateId:
+          (archived as { threadId?: string | null }).threadId ?? archived.id,
+        payload: { userId, emailId: request.params.id, folderId: archiveFolder.id },
+      });
     });
     return reply.send({ success: true, data: { message: 'Email archived' } });
   });
@@ -839,9 +863,19 @@ export default async function emailsRoutes(
     if (!email || email.userId !== userId) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
     }
-    await prisma.email.update({
-      where: { id: request.params.id },
-      data: { folderId: null, isTrash: false, deletedAt: null },
+    // K1: unarchive move + outbox row in ONE transaction (doc 05).
+    await prisma.$transaction(async (tx) => {
+      const restored = await tx.email.update({
+        where: { id: request.params.id },
+        data: { folderId: null, isTrash: false, deletedAt: null },
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.threadRestored,
+        aggregateType: 'EmailThread',
+        aggregateId:
+          (restored as { threadId?: string | null }).threadId ?? restored.id,
+        payload: { userId, emailId: request.params.id },
+      });
     });
     return reply.send({ success: true, data: { message: 'Email moved to inbox' } });
   });
@@ -858,9 +892,19 @@ export default async function emailsRoutes(
     if (email.deletedAt) {
       throw createAppError('Permanently deleted email cannot be restored', 409, 'EMAIL_DELETED');
     }
-    await prisma.email.update({
-      where: { id: request.params.id },
-      data: { folderId: null, isTrash: false, deletedAt: null },
+    // K1: trash restore + outbox row in ONE transaction (doc 05).
+    await prisma.$transaction(async (tx) => {
+      const restored = await tx.email.update({
+        where: { id: request.params.id },
+        data: { folderId: null, isTrash: false, deletedAt: null },
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.threadRestored,
+        aggregateType: 'EmailThread',
+        aggregateId:
+          (restored as { threadId?: string | null }).threadId ?? restored.id,
+        payload: { userId, emailId: request.params.id },
+      });
     });
     return reply.send({ success: true, data: { message: 'Email restored to inbox' } });
   });
@@ -1330,17 +1374,45 @@ export default async function emailsRoutes(
     }
 
     if (email.isTrash) {
-      const deleted = await prisma.email.update({
-        where: { id: request.params.id },
-        data: { deletedAt: new Date() },
+      // K1: permanent delete + outbox row in ONE transaction (doc 05).
+      const deleted = await prisma.$transaction(async (tx) => {
+        const row = await tx.email.update({
+          where: { id: request.params.id },
+          data: { deletedAt: new Date() },
+        });
+        await emitOutbox(tx, {
+          event: MailOutboxEvents.messageDeleted,
+          aggregateType: 'Email',
+          aggregateId: request.params.id,
+          payload: {
+            userId,
+            threadId: (email as { threadId?: string | null }).threadId ?? null,
+            hard: true,
+          },
+        });
+        return row;
       });
       return reply.send({ success: true, data: formatEmailRecord(deleted) });
     }
 
     const trashFolder = await getOrCreateFolder(prisma, userId, 'Trash', 'TRASH');
-    const trashed = await prisma.email.update({
-      where: { id: request.params.id },
-      data: { folderId: trashFolder.id, isTrash: true, deletedAt: null },
+    // K1: trash move + outbox row in ONE transaction (doc 05).
+    const trashed = await prisma.$transaction(async (tx) => {
+      const row = await tx.email.update({
+        where: { id: request.params.id },
+        data: { folderId: trashFolder.id, isTrash: true, deletedAt: null },
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.messageDeleted,
+        aggregateType: 'Email',
+        aggregateId: request.params.id,
+        payload: {
+          userId,
+          threadId: (email as { threadId?: string | null }).threadId ?? null,
+          hard: false,
+        },
+      });
+      return row;
     });
     return reply.send({ success: true, data: formatEmailRecord(trashed) });
   });
