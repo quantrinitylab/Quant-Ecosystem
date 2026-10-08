@@ -1153,6 +1153,7 @@ Validation: source inspection on 2026-10-08 found the dataset still present at t
 
 ## QM-UIUX-049 — QuantMax feed desktop adaptation
 Status: [~] IN_PROGRESS — Owner: b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e; Branch: fix/qm-uiux-049-quantmax-desktop
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/653
 Finding: QuantMax feed has zero desktop adaptation (`quantmax/src/pages/index.tsx`) — touch-only swipe, no keyboard arrows/space, no wheel handler, no `md:`/`lg:` breakpoints. Full-bleed `h-screen w-full` video stretched across wide screens instead of centered phone-like column (TikTok web pattern). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/satellite-desktop-audit.md`.
 Required: `md:max-w-[420px]` centered column + arrow-key/wheel nav (~30 lines).
 Scope: `apps/quantmax/src/pages/index.tsx`.
