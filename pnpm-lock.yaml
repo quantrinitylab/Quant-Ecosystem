@@ -2687,6 +2687,9 @@ importers:
       '@quant/common':
         specifier: workspace:*
         version: link:../../packages/common
+      '@quant/ecosystem-contracts':
+        specifier: workspace:*
+        version: link:../../packages/ecosystem-contracts
       '@quant/health-server':
         specifier: workspace:*
         version: link:../../packages/health-server
