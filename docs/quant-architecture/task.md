@@ -1407,16 +1407,19 @@ Scope: QuantGit ActionsTab.
 Dependencies: none.
 
 ## QM-UIUX-065 — QuantGit: NotificationsInbox is 100% fake
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: muse-main
 Branch: fix/qm-uiux-065-quantgit-fake-notifications
+Merged: PR #685 (merge commit b82d8783b3b8a20d7b859dcebc1d7d39caaec164, merged_at 2026-10-08T23:27:18Z, PR head 268dc7e09b).
 Finding: `NotificationsInbox.tsx` — SAMPLE_NOTIFICATIONS hardcoded as initial state, zero API calls. Fabricated notifications about merged PRs and test suites. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
 Required: wire to real notification API or remove the inbox.
 Scope: QuantGit NotificationsInbox.
 Dependencies: none.
 
 ## QM-UIUX-066 — QuantGit: InsightsTab hardcoded
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-066-quantgit-fake-insights
 Finding: Entire 39-line file: "48 Commits", "100% CI Health", "11 GitHub Actions workflows green", fake bar chart. Takes zero props. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
 Required: compute from real data or remove the tab.
 Scope: QuantGit InsightsTab.
