@@ -1442,21 +1442,21 @@ Scope: apps/quantmail drive API + drive page.
 Dependencies: none.
 
 ## QM-M39-002 — Drive: "Recent" view (screen 6)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS — Owner: Muse, Branch: fix/qm-m39-002-drive-recent
 Finding: M39 screen 6 ("Recent") has no dedicated honest view (only a media "Feed" tab and scattered mentions). Must be a real recency-ordered view from backend data, not client-sorted theater.
 Required: backend query for recently modified/opened files across the user's drive; UI view; empty state honest ("No recent files").
 Scope: apps/quantmail drive API + drive page.
 Dependencies: none.
 
 ## QM-M39-003 — Drive: Upload center with queue, progress, scan states (screen 15)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS — Owner: muse-coordinator, Branch: fix/qm-m39-003-drive-upload-center
 Finding: M39 screen 15 requires an upload center: queue → progress → scan → available. Upload route exists but there is no visible queue/progress/scan state machine; scan state is absent from drive surfaces.
 Required: real upload queue UI with per-file progress; distinct states for queued/uploading/scanning/available/failed; retry on failure; no fake progress values.
 Scope: apps/quantmail drive upload route + drive page.
 Dependencies: QM-M39-009 (scan state backend).
 
 ## QM-M39-004 — Drive: capability-aware preview system (screens 9–14)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS — Owner: muse-coordinator, Branch: fix/qm-m39-004-drive-preview
 Finding: M39 preview principle: preview is progressive and capability-aware — a file can exist while preview, download, or scan is unavailable; never collapse into one generic loading state. DriveFilePreview exists but capability separation (image/video/PDF-audio/document/unsupported-file distinct states) is unverified.
 Required: explicit per-type preview states; unsupported-file honest state (screen 14); separate indicators for preview-unavailable vs download-unavailable vs scan-pending; no fake "loading" masks.
 Scope: apps/quantmail DriveFilePreview + doc editor.
@@ -1533,7 +1533,7 @@ Dependencies: none.
 Validation: 2 fakes removed — (1) hardcoded '4.8 GB duplicate storage reclaimed via FastCDC 64KB CAS' toast in drive/page.tsx cleaner tab (dead onReclaimComplete; prop also removed from DriveCleanerSubView interface); (2) invented 0.95 AI-search score default in DriveAISearchBar (score now number|null; '% Match' badge hidden when backend reports none). Verified real: StorageQuotaBar (DB-aggregated quota, 'Calculating…' until loaded), shared/starred counts (real receivedShares/starred items), FileShareModal (no fake collaborators), AI memory vault (no demo records, real /api/drive/memory), feed (real media or empty), upload toasts (real counts), search (real APIs), doc collab (real socket, empty default), version history + AI summary (real APIs). All 9 drive vitest suites pass: 152/152 incl. new null-score test. tsc unavailable in this env (repo typechecks via CI); edited files transform cleanly under vitest.
 
 ## QM-M39-014 — Drive: large-collection performance (virtualization + pagination)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS — Owner: Muse, Branch: fix/qm-m39-014-drive-virtualization
 Finding: M39 requires desktop virtualized list/grid + cursor pagination, mobile progressive loading with compact metadata; sorting/filtering server-compatible and restorable. DriveFilesSubView (545 lines) implementation of this is unverified.
 Required: verify or implement virtualization for large folders; cursor pagination on files API; mobile progressive loading; restore sort/filter state; no client-only fake pagination.
 Scope: apps/quantmail drive files API + DriveFilesSubView.
