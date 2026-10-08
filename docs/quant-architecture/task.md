@@ -1078,8 +1078,9 @@ Required: delete the component; if summarization is wanted, wire to the real `ai
 Scope: `AIInlineSummary` component.
 Dependencies: none.
 
+
 ## QM-UIUX-046 — Summarize: add UI entry point in thread view
-Status: [ ] TODO
+Status: [~] IN_PROGRESS — Owner: d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f9a; Branch: fix/qm-uiux-046-summary-ui
 Finding: backend `POST /emails/:id/summarize`, `apiClient.aiSummarize`, and well-designed `AISummaryCard` all exist — but nothing mounts or calls them. No "Summarize" button in thread view. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quanty-ai-audit.md`.
 Required: add "Summarize" entry point in thread view wired to the real backend.
 Scope: thread view; `AISummaryCard`.
