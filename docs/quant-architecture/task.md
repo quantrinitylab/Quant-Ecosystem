@@ -1049,6 +1049,7 @@ Dependencies: none.
 
 ## QM-UIUX-042 — HTML email: remote image consent (tracking pixels)
 Status: [~] IN_PROGRESS — Owner: 1b2c3d4e-5f6a-7b8c-9d0e-1f2a3b4c5d6e; Branch: fix/qm-uiux-042-img-consent
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/643
 Finding: remote images load with no consent — no blocking, no "Show images" banner, no per-sender trust. Every `<img>` hits the sender's server on open (IP + timestamp = silent read receipt). Weaker than Gmail/Apple Mail. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/html-email-audit.md`.
 Required: default-block remote images; one-tap "Show images" banner; per-sender allowlist.
 Scope: email body renderer (`EmailLetterCard.tsx`, `useSafeEmailHtml`).
