@@ -19,6 +19,8 @@ interface Props {
   onSignIn: () => void;
   onQuantSSO: () => void;
   brandName: string;
+  /** Optional diagnostics hook — receives the caught error. Defaults to a no-op. */
+  onError?: (error: Error, info: React.ErrorInfo) => void;
 }
 
 interface State {
@@ -37,10 +39,9 @@ export class QuantAIPageErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    // Log for diagnostics; never surface raw stack to the user.
-    if (typeof console !== 'undefined' && console.error) {
-      console.error('[QuantAI] page render error caught by boundary:', error, info.componentStack);
-    }
+    // Report for diagnostics via the injected hook; never surface raw stack
+    // to the user. Defaults to a no-op (no console usage — repo forbids it).
+    this.props.onError?.(error, info);
   }
 
   private handleRetry = () => {

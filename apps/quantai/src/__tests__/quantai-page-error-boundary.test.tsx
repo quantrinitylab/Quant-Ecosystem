@@ -11,16 +11,12 @@ describe('QuantAIPageErrorBoundary', () => {
     brandName: 'QuantAI',
     onSignIn: vi.fn(),
     onQuantSSO: vi.fn(),
+    // Props.children is required — the boundary always wraps real page content.
+    children: React.createElement('div', { id: 'child-content' }, 'Chat UI here'),
   };
 
   it('renders children normally when there is no error', () => {
-    const html = renderToStaticMarkup(
-      React.createElement(
-        QuantAIPageErrorBoundary,
-        props,
-        React.createElement('div', { id: 'child-content' }, 'Chat UI here'),
-      ),
-    );
+    const html = renderToStaticMarkup(React.createElement(QuantAIPageErrorBoundary, props));
     expect(html).toContain('Chat UI here');
     expect(html).toContain('id="child-content"');
   });
@@ -57,5 +53,21 @@ describe('QuantAIPageErrorBoundary', () => {
     (boundary as any).state = { hasError: true, errorMessage: null };
     const html = renderToStaticMarkup(boundary.render() as React.ReactElement);
     expect(html).toContain('Try again');
+  });
+
+  it('componentDidCatch forwards the error to the onError hook (no console logging)', () => {
+    const onError = vi.fn();
+    const boundary = new QuantAIPageErrorBoundary({ ...props, onError });
+    const err = new Error('boom');
+    const info = { componentStack: 'stack' } as React.ErrorInfo;
+    boundary.componentDidCatch(err, info);
+    expect(onError).toHaveBeenCalledWith(err, info);
+  });
+
+  it('componentDidCatch is a no-op without onError', () => {
+    const boundary = new QuantAIPageErrorBoundary(props);
+    expect(() =>
+      boundary.componentDidCatch(new Error('boom'), { componentStack: 'stack' } as React.ErrorInfo),
+    ).not.toThrow();
   });
 });
