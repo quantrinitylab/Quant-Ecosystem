@@ -924,9 +924,10 @@ Scope: `apps/quantmail/src/components/EmailComposer.tsx`.
 Dependencies: none.
 
 ## QM-UIUX-025 — Compose P1s: wrong mascot reaction, lying toast, latent overflow
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: muse-main
 Branch: fix/qm-uiux-025-compose-p1s
+Merged: PR #680 (2026-10-08)
 Finding: (a) `quantyReact('mail:noRecipients')` fires for missing subject/body too — copy-paste bug, makes the AI feel fake; (b) "Message sent" toast claims sent while the 10s recall countdown runs — should say "Sending… (10s to undo)"; (c) modal compose branch `:984` is `fixed bottom-0 right-4 w-full` — latent 1rem horizontal overflow on mobile (no caller passes `modal={true}` today). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/compose-audit.md`.
 Required: distinct `mail:noSubject`/`mail:noBody` reactions; honest toast copy; `inset-x-4 w-auto` on mobile for the modal branch.
 Scope: `apps/quantmail/src/components/EmailComposer.tsx`.
@@ -1369,28 +1370,36 @@ Scope: `apps/quantchat/src/`.
 Dependencies: QM-UIUX-057 (PR #654) merged first.
 
 ## QM-UIUX-061 — Contacts: "AI Duplicate Contact Cleaner" wizard is theater
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-061-contacts-dedup-theater
 Finding: `DedupWizardSubView` shows hardcoded "Detected Collision: Sundar Pichai" + fake "98% Match Confidence". Merge/Rescan buttons only flip local state — zero API calls. The real `ContactsDedupeModal` (real getContactDuplicates/merge APIs) exists but is bypassed. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/contacts-audit.md`.
 Required: delete the fake wizard and route the dedup tab to the real ContactsDedupeModal, or wire the wizard to real APIs.
 Scope: Contacts views.
 Dependencies: none.
 
 ## QM-UIUX-062 — Contacts: "Enterprise Circles" hardcoded
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-062-contacts-fake-circles
 Finding: `CirclesSubView` renders 3 fake circles with hardcoded counts (4/8/3) and fake member names ('Core 1', 'Core 2', 'Astra AI'); broadcast falls back to fake exec_board@quantrinity.in. Shown when user has no real groups. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/contacts-audit.md`.
 Required: remove fake circles; show honest empty state when user has no real groups.
 Scope: Contacts views.
 Dependencies: none.
 
 ## QM-UIUX-063 — QuantGit: sidebar shows fabricated stats
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-063-quantgit-fabricated-stats
 Finding: `CodeTab.tsx:2502-2520` — `starsCount={selectedRepo.stars || 111000}` — a repo with 0 stars renders "111,000 stars". Also hardcoded releasesCount={28144}, usedByCount="110K", latestReleaseTag="v1.0.5", fake language breakdown. Always shown. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
 Required: show real counts or honest unknown states; remove fabricated fallbacks.
 Scope: QuantGit CodeTab.
 Dependencies: none.
 
 ## QM-UIUX-064 — QuantGit: ActionsTab fabricates CI runs
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-064-quantgit-fake-actions
 Finding: `ActionsTab.tsx:51-96` — when backend returns zero runs, renders 3 fake workflow runs with fake actors, fake SHAs, fake timestamps, fabricated build logs. Header claims "Real GitHub Actions CI Pipeline". Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
 Required: show honest empty state when no runs; remove fabricated runs/logs and false header claim.
 Scope: QuantGit ActionsTab.
