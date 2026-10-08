@@ -4,11 +4,17 @@
 // sound ticker, progress bar, loading/error/empty states
 // ============================================================================
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { spring } from '@quant/brand';
 import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
 import { useFeed } from '../hooks/useFeed';
+import { useIsDesktop } from '../hooks/useIsDesktop';
+import {
+  resolveFeedKeyAction,
+  resolveWheelDirection,
+  WHEEL_COOLDOWN_MS,
+} from '../lib/feed-navigation';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { CommentsSheet } from '../components/CommentsSheet';
 import { SignInRequired } from '../components/SignInRequired';
@@ -36,6 +42,69 @@ const ForYouFeedPage: React.FC = () => {
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const touchStartY = useRef<number>(0);
+  const isDesktop = useIsDesktop();
+
+  // Keyboard navigation (desktop): arrows / j / k to move between videos,
+  // Space to play/pause, m to mute. Ignored while typing in a field or while
+  // an overlay (comments/share) is open.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (showComments || showShareMenu) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      const action = resolveFeedKeyAction(e.key);
+      if (!action) return;
+      e.preventDefault();
+      switch (action) {
+        case 'next':
+          swipeToNext();
+          break;
+        case 'previous':
+          swipeToPrevious();
+          break;
+        case 'togglePlay':
+          togglePlay();
+          break;
+        case 'toggleMute':
+          toggleMute();
+          break;
+        default:
+          break;
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [swipeToNext, swipeToPrevious, togglePlay, toggleMute, showComments, showShareMenu]);
+
+  // Mouse-wheel navigation (desktop only): deliberate vertical scrolls advance
+  // the feed. Non-passive listener so the gesture never scrolls the page;
+  // 600ms cooldown + 24px threshold to avoid trackpad jitter double-firing.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !isDesktop) return;
+    let lastAdvance = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (showComments || showShareMenu) return;
+      const direction = resolveWheelDirection(e.deltaY);
+      if (!direction) return;
+      e.preventDefault();
+      const now = Date.now();
+      if (now - lastAdvance < WHEEL_COOLDOWN_MS) return;
+      lastAdvance = now;
+      if (direction === 'next') swipeToNext();
+      else swipeToPrevious();
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [isDesktop, swipeToNext, swipeToPrevious, showComments, showShareMenu]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
@@ -89,12 +158,17 @@ const ForYouFeedPage: React.FC = () => {
   }
 
   return (
-    <div
-      className="relative h-screen w-full overflow-hidden bg-[var(--surface)]"
-      ref={containerRef}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-    >
+    // Desktop shell: center the feed as a portrait video column instead of a
+    // full-bleed mobile layout. Mobile keeps the original full-screen feed.
+    <div className="h-screen w-full bg-[var(--surface)] lg:flex lg:items-center lg:justify-center lg:bg-black">
+      <div
+        className="relative h-screen w-full overflow-hidden bg-black lg:h-[min(94vh,900px)] lg:w-[min(440px,calc(100vw-2rem))] lg:rounded-2xl lg:shadow-2xl"
+        ref={containerRef}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        role="region"
+        aria-label="Video feed"
+      >
       {/* Mute Toggle - Top Right */}
       <button
         className="absolute right-4 top-12 z-30 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 backdrop-blur-sm"
@@ -378,6 +452,12 @@ const ForYouFeedPage: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Desktop-only keyboard hint (honest instruction, no fake claims) */}
+      <div className="pointer-events-none fixed bottom-4 left-4 hidden text-xs text-white/40 lg:block">
+        &#8593; &#8595; or J / K to browse &middot; Space to pause &middot; M to mute
+      </div>
+      </div>
     </div>
   );
 };
