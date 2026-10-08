@@ -770,21 +770,21 @@ Scope: QuantWave landing/auth entry.
 Dependencies: none.
 
 ## QM-UIUX-004 — Design-system color chaos: codemod dark surfaces to --quant-* tokens
-Status: [ ] TODO
+Status: [~] IN_PROGRESS (Owner: Muse fix agent, Branch: fix/qm-uiux-004-color-token-codemod; worktree in progress, ~123 files modified)
 Finding: 10 competing dark background hexes in active use across QuantMail: `#090A0C`, `#090A0E`, `#0D1117`, `#0D0F12`, `#111318`, `#12151E`, `#16181D`, `#161B22`, `#21262D`, `#282C35`, `#30363D`. A `--quant-*` token system exists in `globals.css` but only 44 of 391 components use it; 212 hardcode hex. Adjacent panels render visibly different blacks, breaking the user's "deep black" direction. Full evidence: `~/workspace/audits/2026-10-08-uiux-deep/design-system-audit.md`.
 Required: codemod dark-surface hexes to the canonical `--quant-*` tokens; define the missing tokens if the scale is incomplete; add a lint rule banning raw hex for surface backgrounds. Visual diff review of adjacent panels (inbox rows vs sidebar vs header) before DONE.
 Scope: `apps/quantmail/src/**`; `globals.css` tokens; eslint config.
 Dependencies: none.
 
 ## QM-UIUX-005 — Remove sub-minimum typography (<10px text)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS (Owner: Muse fix agent, Branch: fix/qm-uiux-005-type-scale; worktree in progress, ~33 files modified)
 Finding: 45 instances of 6-9px text across QuantMail (`text-[6px]` through `text-[9px]`), below WCAG readability minimums. The working scale is `text-[10px]` (459x) and `text-[11px]` (481x) but there is no defined type scale. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/design-system-audit.md`.
 Required: define a 5-step type scale (minimum 10px for UI text); replace or remove all <10px instances; add a lint rule banning arbitrary sub-10px sizes.
 Scope: `apps/quantmail/src/**`; Tailwind/eslint config.
 Dependencies: QM-UIUX-004 (token/lint infrastructure can be shared).
 
 ## QM-UIUX-006 — Old amber mascot still on QuantMail sign-in header
-Status: [~] IN_PROGRESS (Owner: Muse fix agent)
+Status: [x] CLOSED (2026-10-08, user decision): sign-in page keeps QuantMail's own original logo, NOT the white ghost — PR #622 ghost swap reverted, PR #626 restored original logo and merged, PR #658 closed without merge. Amber-ghost-square concern closed as "app logo stays as-is".
 Finding: the sign-in header still shows the old amber/yellow mascot, contradicting the user's standing order (white ghost mascot everywhere, amber must go). Branch `feat/quanty-ghost-mascot` exists with the white ghost implementation. Screenshot: `~/workspace/audits/2026-10-08-uiux-deep/m1-inbox-mobile.png`.
 Required: merge or port the ghost mascot to the sign-in header; delete amber mascot assets; screenshot-verify the sign-in page shows the white ghost.
 Scope: sign-in header; mascot assets.
