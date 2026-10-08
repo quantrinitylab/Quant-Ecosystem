@@ -981,7 +981,7 @@ Scope: `apps/quantchat/src/components/VideoCall.tsx`.
 Dependencies: QM-UIUX-032 (same area; do together).
 
 ## QM-UIUX-034 — Accessibility P0s: input labels and focus indicators
-Status: [~] IN_PROGRESS
+Status: [x] DONE — PR #637 merged 2026-10-08 (113 inputs labeled, 46 focus rings; duplicate aria-label fixed)
 Branch: fix/a11y-labels-focus-v2
 PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/637
 Finding: (a) 113 visible inputs with no accessible name (WCAG 1.3.1/3.3.2/4.1.2) — e.g. `EmailSendLater.tsx:65,72` date/time inputs, `DockedComposer.tsx` "To" field uses `<span>` instead of `<label>`; (b) 46 elements use `focus:outline-none` with no fallback (WCAG 2.4.7) — including the command-palette search input. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/accessibility-audit.md`.
@@ -1024,7 +1024,7 @@ Scope: `apps/quantmail/src/components/DesktopPillarRail.tsx`.
 Dependencies: QM-UIUX-037 (same area).
 
 ## QM-UIUX-039 — Performance: memoize EmailRow, lazy images, drop dead font
-Status: [~] IN_PROGRESS
+Status: [x] DONE — PR #640 merged 2026-10-08 (EmailRow memoized, 13 imgs lazy, Pacifico dropped, yjs lazy; 38/38 tests)
 PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/640
 Owner: f929fb66-0810-4dbd-88ed-c06a3a84fddd (uuid c7d9e1f2-3a4b-5c6d-7e8f-9a0b1c2d3e4f)
 Branch: fix/qm-uiux-039-perf
