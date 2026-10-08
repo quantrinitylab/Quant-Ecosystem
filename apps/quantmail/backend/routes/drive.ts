@@ -115,6 +115,9 @@ type FileRow = {
   scanStatus: string | null;
   scanReason: string | null;
   scannedAt: Date | null;
+  // QM-M39-002: nullable — NULL means the file was never explicitly opened;
+  // recency ordering falls back to updatedAt for those rows.
+  lastOpenedAt: Date | null;
 };
 type FolderRow = {
   id: string;
@@ -206,6 +209,9 @@ function fileDto(file: FileRow, owner: Owner, decorations?: Decorations) {
     path: '',
     parentId: file.folderId,
     modifiedAt: file.updatedAt,
+    // QM-M39-002: last explicit open (preview/download/open action). NULL when
+    // never opened; clients fall back to modifiedAt for recency display.
+    lastOpenedAt: file.lastOpenedAt ?? null,
     owner,
     sharedWith: decorations?.shares.get(`file:${file.id}`) ?? [],
     isStarred: file.isStarred,
@@ -300,6 +306,24 @@ async function fileAccess(prisma: any, id: string, userId: string, write = false
   if (!share || (write && !['write', 'admin'].includes(share.permission)))
     throw createAppError('Not authorized to access this file', 403, 'FORBIDDEN');
   return file;
+}
+// ============================================================================
+// QM-M39-002: honest "opened at" tracking for the Drive Recent view.
+// Records lastOpenedAt = NOW() for an explicit open/preview/download action.
+//
+// The write goes through a raw UPDATE that touches ONLY the lastOpenedAt
+// column: a prisma file.update would also bump @updatedAt, which would make
+// a mere open look like a content modification everywhere the file list is
+// sorted by modifiedAt. Best-effort: tracking must never break the open /
+// download itself (e.g. on a DB that has not applied the 0085 migration yet),
+// so failures are logged and swallowed.
+// ============================================================================
+async function recordFileOpened(prisma: any, fileId: string, log?: (msg: string) => void) {
+  try {
+    await prisma.$executeRawUnsafe('UPDATE "drive_files" SET "lastOpenedAt" = NOW() WHERE "id" = $1', fileId);
+  } catch (err) {
+    log?.(`recordFileOpened failed for ${fileId}: ${err instanceof Error ? err.message : err}`);
+  }
 }
 function versionKey(userId: string, fileId: string, version: number, hash: string): string {
   return driveObjectKey(userId, `${fileId}/versions/${version}-${randomUUID()}-${hash}`);
@@ -1774,6 +1798,10 @@ export default async function driveRoutes(fastify: FastifyInstance) {
         scanReason: file.scanReason ?? null,
       });
     }
+    // QM-M39-002: downloading (or previewing, which streams this endpoint) is an
+    // explicit open — record it for the Recent view. Best-effort; a tracking
+    // failure must never break the download itself.
+    await recordFileOpened(prisma, file.id, (msg) => request.log.warn(msg));
     requireStorage();
     const plaintext = await checkedPlaintext(file);
     return reply
@@ -1782,6 +1810,120 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       .header('Content-Disposition', `attachment; filename="${safeFileName(file.name)}"`)
       .header('X-Content-Type-Options', 'nosniff')
       .send(plaintext);
+  });
+
+  // ==========================================================================
+  // POST /drive/files/:id/open — record an explicit file open (QM-M39-002,
+  // M39 screen 6 "Recent").
+  //
+  // The frontend calls this when the user opens a file preview. Download and
+  // preview streams also record the open server-side in the download route
+  // above; this endpoint exists so the intent is explicit even when the bytes
+  // never stream (e.g. a preview that renders from cached metadata).
+  // Authorization is identical to download: owner or an accepted share
+  // recipient. Never fabricates — it only stamps the real action.
+  // ==========================================================================
+  fastify.post<{ Params: { id: string } }>('/drive/files/:id/open', async (request, reply) => {
+    const file = await fileAccess(prisma, request.params.id, requireUserId(request));
+    await recordFileOpened(prisma, file.id, (msg) => request.log.warn(msg));
+    const row = await prisma.file.findUnique({
+      where: { id: file.id },
+      select: { lastOpenedAt: true },
+    });
+    return reply.send({ ok: true, id: file.id, openedAt: row?.lastOpenedAt ?? null });
+  });
+
+  // ==========================================================================
+  // GET /drive/recent — the Drive "Recent" view (QM-M39-002, M39 screen 6).
+  //
+  // Recency is computed SERVER-side as the latest real interaction with each
+  // file: max(lastOpenedAt, updatedAt). Files never explicitly opened fall
+  // back to updatedAt (their last modification). Trashed files are excluded.
+  // Cursor pagination: pass ?cursor=<recencyEpochMs>:<id> from the previous
+  // page's nextCursor. The client must NOT re-sort; order comes from the DB.
+  // ==========================================================================
+  const RECENT_RECENCY_EXPR = 'GREATEST(COALESCE("lastOpenedAt", "updatedAt"), "updatedAt")';
+  const RECENT_COLUMNS = [
+    '"id"',
+    '"name"',
+    '"mimeType"',
+    '"size"',
+    '"folderId"',
+    '"isStarred"',
+    '"isDeleted"',
+    '"deletedAt"',
+    '"trashRootId"',
+    '"userId"',
+    '"createdAt"',
+    '"updatedAt"',
+    '"lastOpenedAt"',
+  ].join(', ');
+  fastify.get<{
+    Querystring: { cursor?: string; limit?: string | number };
+  }>('/drive/recent', async (request, reply) => {
+    const userId = requireUserId(request);
+    const limit = Math.min(200, Math.max(1, Number(request.query.limit) || 50));
+    const owner = await ownerInfo(prisma, userId);
+
+    // Cursor is "<recency epoch ms>:<file id>" from the previous nextCursor.
+    let cursorTs: Date | null = null;
+    let cursorId: string | null = null;
+    const rawCursor = (request.query.cursor || '').trim();
+    if (rawCursor) {
+      const sep = rawCursor.indexOf(':');
+      if (sep > 0) {
+        const epochMs = Number(rawCursor.slice(0, sep));
+        if (Number.isFinite(epochMs) && epochMs > 0) {
+          cursorTs = new Date(epochMs);
+          cursorId = rawCursor.slice(sep + 1) || null;
+        }
+      }
+    }
+
+    const params: unknown[] = [userId];
+    let cursorClause = '';
+    if (cursorTs && cursorId) {
+      params.push(cursorTs, cursorId);
+      cursorClause = `AND (
+        ${RECENT_RECENCY_EXPR} < $2::timestamptz
+        OR (${RECENT_RECENCY_EXPR} = $2::timestamptz AND "id" > $3)
+      )`;
+    }
+    params.push(limit + 1);
+    const limitParam = `$${params.length}`;
+
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT ${RECENT_COLUMNS}, ${RECENT_RECENCY_EXPR} AS "recency"
+       FROM "drive_files"
+       WHERE "userId" = $1 AND "isDeleted" = false
+       ${cursorClause}
+       ORDER BY ${RECENT_RECENCY_EXPR} DESC, "id" ASC
+       LIMIT ${limitParam}`,
+      ...params,
+    )) as Array<FileRow & { recency: Date }>;
+
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+    const last = items[items.length - 1];
+    const nextCursor =
+      hasMore && last ? `${new Date(last.recency).getTime()}:${last.id}` : null;
+
+    const totalCount = (await prisma.$queryRawUnsafe(
+      'SELECT COUNT(*)::int AS "count" FROM "drive_files" WHERE "userId" = $1 AND "isDeleted" = false',
+      userId,
+    )) as Array<{ count: number }>;
+
+    const decorations = await loadDecorations(
+      prisma,
+      items.map((file) => file.id),
+      [],
+    );
+    return reply.send({
+      files: items.map((file) => fileDto(file, owner, decorations)),
+      totalCount: totalCount[0]?.count ?? items.length,
+      nextCursor,
+      hasMore,
+    });
   });
 
   const THUMBNAIL_IMAGE_MIME_TYPES = new Set([

@@ -7,6 +7,7 @@ import {
   DriveMobileTabStrip,
   DriveFilesSubView,
   DriveSharedSubView,
+  DriveRecentSubView,
   DriveVaultSubView,
   DriveStarredSubView,
   DriveCleanerSubView,
@@ -16,6 +17,7 @@ import {
   FileShareModal,
   FileScanDetail,
   type DriveSubTab,
+  type RecentItem,
   type AiMemoryItem,
 } from './components';
 import { Button, Skeleton, Modal, ErrorState } from '@quant/shared-ui';
@@ -301,6 +303,7 @@ function DrivePageContent() {
     if (!t) return 'home';
     const lower = t.toLowerCase();
     if (lower === 'home' || lower === 'my_files' || lower === 'files') return 'home';
+    if (lower === 'recent') return 'recent';
     if (lower === 'feed') return 'feed';
     if (lower === 'aimemory' || lower === 'memory' || lower === 'ai_memory') return 'aimemory';
     if (lower === 'vault') return 'vault';
@@ -347,6 +350,8 @@ function DrivePageContent() {
     acceptShare,
     declineShare,
     fetchReceivedShares,
+    fetchRecentFiles,
+    recordFileOpen,
     fetchTrashFiles,
     restoreFile,
     purgeFile,
@@ -489,6 +494,13 @@ function DrivePageContent() {
   const [trashItems, setTrashItems] = useState<DriveItem[]>([]);
   const [receivedShares, setReceivedShares] = useState<ReceivedShare[]>([]);
   const [loadingSpecial, setLoadingSpecial] = useState<boolean>(false);
+  // QM-M39-002 — "Recent" view state. Items arrive in backend recency order
+  // and are rendered untouched — no client re-sorting.
+  const [recentItems, setRecentItems] = useState<RecentItem[]>([]);
+  const [recentLoading, setRecentLoading] = useState<boolean>(false);
+  const [recentError, setRecentError] = useState<string | null>(null);
+  const [recentHasMore, setRecentHasMore] = useState<boolean>(false);
+  const [recentTotal, setRecentTotal] = useState<number>(0);
   const [failedThumbnails, setFailedThumbnails] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -618,6 +630,72 @@ function DrivePageContent() {
       setLoadingSpecial(false);
     }
   }, [fetchReceivedShares]);
+
+  // QM-M39-002 — load the "Recent" view (M39 screen 6). When `append` is true
+  // the next cursor page is appended; otherwise the list is rebuilt from the
+  // first page. Order is the backend's recency order, rendered as-is.
+  // Pagination cursors live in refs so the loader identity stays stable and
+  // the tab-activation effect below cannot loop on its own state updates.
+  const recentCursorRef = useRef<string | null>(null);
+  const recentHasMoreRef = useRef<boolean>(false);
+  const loadRecent = useCallback(
+    async (append = false) => {
+      if (append && !recentHasMoreRef.current) return;
+      setRecentLoading(true);
+      setRecentError(null);
+      try {
+        const page = await fetchRecentFiles(append ? recentCursorRef.current : null);
+        const mapped: RecentItem[] = (page.files ?? []).map((f) => ({
+          id: f.id,
+          name: f.name,
+          type: 'file' as const,
+          mimeType: f.mimeType,
+          size: f.size,
+          modifiedAt: f.modifiedAt,
+          lastOpenedAt: f.lastOpenedAt ?? null,
+          isStarred: f.isStarred,
+        }));
+        setRecentItems((prev) => (append ? [...prev, ...mapped] : mapped));
+        recentCursorRef.current = page.nextCursor;
+        recentHasMoreRef.current = page.hasMore;
+        setRecentHasMore(page.hasMore);
+        setRecentTotal(page.totalCount);
+      } catch {
+        setRecentItems([]);
+        setRecentError('Recent files could not be loaded. Try again in a moment.');
+      } finally {
+        setRecentLoading(false);
+      }
+    },
+    [fetchRecentFiles],
+  );
+
+  // QM-M39-002 — one funnel for opening a file preview: shows the preview and
+  // records the explicit open so the Recent view stays honest. Best-effort.
+  const handlePreviewItem = useCallback(
+    (item: DriveItem | RecentItem | null) => {
+      setPreviewItem(item as DriveItem | null);
+      if (item && (item as DriveItem).type === 'file' && item.id) {
+        void recordFileOpen(item.id);
+      }
+    },
+    [recordFileOpen],
+  );
+
+  // QM-M39-002 — closing a preview may have changed recency (the open was just
+  // recorded); refresh the Recent list when it is the active view.
+  const handleClosePreview = useCallback(() => {
+    setPreviewItem(null);
+    if (activeTab === 'recent') {
+      void loadRecent(false);
+    }
+  }, [activeTab, loadRecent]);
+
+  useEffect(() => {
+    if (activeTab === 'recent') {
+      void loadRecent(false);
+    }
+  }, [activeTab, loadRecent]);
 
   useEffect(() => {
     if (activeFilter === 'trash') {
@@ -1361,7 +1439,7 @@ function DrivePageContent() {
               onRefresh={loadShares}
               onAcceptShare={handleAcceptShare}
               onDeclineShare={handleDeclineShare}
-              onPreviewItem={(item) => setPreviewItem(item as any)}
+              onPreviewItem={(item) => handlePreviewItem(item as any)}
               onDownloadFile={downloadFile}
             />
           )}
@@ -1373,7 +1451,7 @@ function DrivePageContent() {
               items={items.filter((i) => i.isStarred)}
               loading={loading}
               onToggleStar={handleToggleStar}
-              onPreviewItem={(item) => setPreviewItem(item as any)}
+              onPreviewItem={(item) => handlePreviewItem(item as any)}
               onDownloadFile={downloadFile}
               onDeleteItem={(id, name, e) => handleDeleteItem(id, name, e)}
             />
@@ -1481,7 +1559,7 @@ function DrivePageContent() {
               viewMode={viewMode}
               selectedIds={selectedIds}
               onToggleSelect={handleToggleSelect}
-              onPreviewItem={(item) => setPreviewItem(item as any)}
+              onPreviewItem={(item) => handlePreviewItem(item as any)}
               onDownloadFile={downloadFile}
               onToggleStar={handleToggleStar}
               onDeleteItem={(id, name, e) => handleDeleteItem(id, name, e)}
@@ -1503,6 +1581,32 @@ function DrivePageContent() {
             />
           )}
 
+          {/* QM-M39-002 — "Recent" view (M39 screen 6): server-side recency-ordered
+              file list. Items render in backend order, newest first; the empty
+              state is the honest "No recent files" — never fabricated. */}
+          {activeTab === 'recent' && (
+            <DriveRecentSubView
+              items={recentItems}
+              loading={recentLoading}
+              error={recentError}
+              totalCount={recentTotal}
+              hasMore={recentHasMore}
+              onLoadMore={() => void loadRecent(true)}
+              onToggleStar={async (item, e) => {
+                await handleToggleStar(item as any, e);
+                void loadRecent(false);
+              }}
+              onPreviewItem={(item) => handlePreviewItem(item as any)}
+              onDownloadFile={downloadFile}
+              onDeleteItem={async (id, name, e) => {
+                await handleDeleteItem(id, name, e);
+                // The trashed file must disappear from Recent immediately —
+                // /drive/recent already excludes isDeleted rows server-side.
+                void loadRecent(false);
+              }}
+            />
+          )}
+
           {activeTab === 'feed' && (
             <DriveFeedSubView
               files={regularFiles.map((f) => ({
@@ -1514,7 +1618,7 @@ function DrivePageContent() {
                 isStarred: f.isStarred,
               }))}
               onPreviewItem={(item) =>
-                setPreviewItem({
+                handlePreviewItem({
                   id: item.id,
                   name: item.name,
                   type: 'file',
@@ -1522,7 +1626,7 @@ function DrivePageContent() {
                   size: item.size,
                   modifiedAt: new Date().toISOString(),
                   isStarred: item.isStarred,
-                })
+                } as any)
               }
               onDownloadFile={downloadFile}
               onShareItem={(item) => setShareTarget({ id: item.id, name: item.name })}
@@ -1585,7 +1689,7 @@ function DrivePageContent() {
         {/* File Preview Lightbox Modal */}
         <Modal
           isOpen={!!previewItem}
-          onClose={() => setPreviewItem(null)}
+          onClose={handleClosePreview}
           title={previewItem?.name || 'File Preview'}
         >
           <div className="p-4 space-y-4 text-center">
@@ -1827,7 +1931,7 @@ function DrivePageContent() {
                   </Button>
                 </>
               )}
-              <Button variant="secondary" onClick={() => setPreviewItem(null)}>
+              <Button variant="secondary" onClick={handleClosePreview}>
                 Close
               </Button>
               {/* QM-M39-009: no download offered for quarantined files — the
@@ -1837,7 +1941,7 @@ function DrivePageContent() {
                   variant="primary"
                   onClick={() => {
                     downloadFile(previewItem.id, previewItem.name);
-                    setPreviewItem(null);
+                    handleClosePreview();
                   }}
                 >
                   Download File

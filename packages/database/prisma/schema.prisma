@@ -4070,6 +4070,11 @@ model File {
   trashRootId       String?
   isDeleted         Boolean   @default(false)
   deletedAt         DateTime?
+  // QM-M39-002: honest "opened at" tracking for the Drive Recent view
+  // (M39 screen 6). NULL = never opened; recency falls back to updatedAt.
+  // Written only by explicit open/preview/download actions via a raw UPDATE
+  // so @updatedAt (true content/metadata modification time) is never bumped.
+  lastOpenedAt      DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -4083,6 +4088,7 @@ model File {
   scannedAt         DateTime?
 
   @@index([userId, isDeleted])
+  @@index([userId, lastOpenedAt])
   @@index([folderId])
   @@map("drive_files")
 }

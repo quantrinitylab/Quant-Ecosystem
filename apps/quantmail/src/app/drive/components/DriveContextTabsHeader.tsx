@@ -6,10 +6,12 @@ import {
   PadlockIcon,
   DriveFeedIcon,
   AiMemoryBrainIcon,
+  ClockIcon,
 } from './DriveIcons';
 
 export type DriveSubTab =
   | 'home'
+  | 'recent'
   | 'feed'
   | 'aimemory'
   | 'vault'
@@ -48,6 +50,14 @@ export function DriveContextTabsHeader({
       shortLabel: 'Home',
       icon: FolderIcon,
       ariaLabel: 'QuantDrive Home view with 8 category cards and single storage gauge',
+    },
+    {
+      // QM-M39-002 — "Recent" (M39 screen 6): server-side recency-ordered file view.
+      id: 'recent',
+      label: 'Recent',
+      shortLabel: 'Recent',
+      icon: ClockIcon,
+      ariaLabel: 'Recently opened or modified files, newest first',
     },
     {
       id: 'feed',
