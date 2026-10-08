@@ -2,6 +2,10 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { RetentionService } from '../services/retention.service';
+import {
+  placeLegalHoldWithEvent,
+  releaseLegalHoldWithEvent,
+} from '../services/data-lifecycle.service';
 
 const retentionService = new RetentionService();
 
@@ -112,12 +116,24 @@ export default async function retentionRoutes(fastify: FastifyInstance) {
     }
 
     const service = getService(fastify);
-    const hold = await service.placeLegalHold({
-      custodianEmail: parsed.data.custodianEmail,
-      matterName: parsed.data.matterName,
-      reason: parsed.data.reason,
-      placedBy: callerId,
-    });
+    const prisma = getPrisma(fastify);
+    // QM-BACK-006: when a real database is present, place the hold AND emit
+    // `legalhold.placed.v1` in one transaction. The legacy in-memory path
+    // (no prisma) keeps the old behavior — events require the outbox table.
+    const hold =
+      prisma && typeof prisma.$transaction === 'function'
+        ? await placeLegalHoldWithEvent(prisma, {
+            custodianEmail: parsed.data.custodianEmail,
+            matterName: parsed.data.matterName,
+            reason: parsed.data.reason,
+            placedBy: callerId,
+          })
+        : await service.placeLegalHold({
+            custodianEmail: parsed.data.custodianEmail,
+            matterName: parsed.data.matterName,
+            reason: parsed.data.reason,
+            placedBy: callerId,
+          });
 
     return reply.status(201).send({
       success: true,
@@ -134,7 +150,13 @@ export default async function retentionRoutes(fastify: FastifyInstance) {
       : 'Legal hold released by administrator';
 
     const service = getService(fastify);
-    const released = await service.releaseLegalHold(request.params.id, releaseReason, callerId);
+    const prisma = getPrisma(fastify);
+    // QM-BACK-006: transactional release + `legalhold.released.v1` when a
+    // database is present; legacy path otherwise.
+    const released =
+      prisma && typeof prisma.$transaction === 'function'
+        ? await releaseLegalHoldWithEvent(prisma, request.params.id, releaseReason, callerId)
+        : await service.releaseLegalHold(request.params.id, releaseReason, callerId);
 
     return reply.send({
       success: true,

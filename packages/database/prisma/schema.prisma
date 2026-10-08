@@ -4659,6 +4659,98 @@ model LegalHold {
   @@map("legal_holds")
 }
 
+// ==================== DATA LIFECYCLE (QM-BACK-006) ====================
+/// Versioned domain events for export/deletion/retention/legal-hold are
+/// emitted transactionally via the outbox (doc 23). These tables track the
+/// lifecycle operations themselves so completion is VERIFIED (consumer acks /
+/// projector checkpoints), not assumed from event publication.
+
+enum DataExportStatus {
+  requested
+  completed
+  failed
+}
+
+enum RetentionAction {
+  ARCHIVE
+  PERMANENT_DELETE
+}
+
+enum LifecycleOpStatus {
+  requested
+  in_progress
+  completed
+  failed
+  blocked
+}
+
+/// A user's data-export request (M15 export center). The export artifact for
+/// v1 is a data-inventory manifest (what data exists, why retained) generated
+/// from live DB counts — never fabricated. `completed` is written only after
+/// the artifact is actually produced.
+model DataExportRequest {
+  id          String           @id @default(cuid())
+  userId      String
+  scope       String           @default("mailbox-inventory")
+  status      DataExportStatus @default(requested)
+  artifactRef String?
+  error       String?
+  requestedAt DateTime         @default(now()) @map("requested_at")
+  completedAt DateTime?        @map("completed_at")
+
+  @@index([userId, status])
+  @@map("data_export_requests")
+}
+
+/// Persisted retention policies (M15). The in-memory policy list in
+/// RetentionService is the legacy path; new policies are persisted here so the
+/// retention sweep can execute them.
+model RetentionPolicyRecord {
+  id           String          @id @default(cuid())
+  userId       String
+  name         String
+  durationDays Int             @map("duration_days")
+  targetFolders Json           @default("[]") @map("target_folders")
+  action       RetentionAction @default(ARCHIVE)
+  enabled      Boolean         @default(true)
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  @@index([enabled])
+  @@map("retention_policies")
+}
+
+/// Verified-completion tracking for lifecycle operations. A row is created in
+/// the SAME transaction as the request event; it reaches `completed` only
+/// when the operation's side effects are done. Consumers/projectors ack
+/// against this row — publication alone is not completion (doc 23, law 7/8).
+model LifecycleOperation {
+  id            String           @id @default(cuid())
+  operationType String           @map("operation_type")
+  aggregateType String           @map("aggregate_type")
+  aggregateId   String           @map("aggregate_id")
+  status        LifecycleOpStatus @default(requested)
+  requestedBy   String?          @map("requested_by")
+  requestedAt   DateTime         @default(now()) @map("requested_at")
+  completedAt   DateTime?        @map("completed_at")
+  error         String?
+
+  @@index([status])
+  @@index([aggregateType, aggregateId])
+  @@map("lifecycle_operations")
+}
+
+/// Projector checkpoints for derived-index consumers (e.g. search-indexer
+/// invalidation). A consumer records the last event it durably applied;
+/// replay after a crash resumes from the checkpoint — never from zero, never
+/// by skipping.
+model ProjectorCheckpoint {
+  consumerId  String   @id @map("consumer_id")
+  lastEventId String   @map("last_event_id")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("projector_checkpoints")
+}
+
 // ==================== QUANTY FEED (Q8) =============/// Per-user personalized feed: editable instruction prompt, generated posts,
 /// and like/dislike reactions. Provenance is explicit: posts are either
 /// 'agent_brief' (AI-generated from the user's instructions, clearly labeled)

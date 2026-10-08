@@ -23,6 +23,8 @@ import { retentionService } from './retention';
 import { RetentionService } from '../services/retention.service';
 import { suppressionService } from '../services/suppression.service';
 import { emitOutbox, MailOutboxEvents } from '../lib/outbox-events';
+import { LifecycleEvents } from '../lib/lifecycle-events';
+import { recordDeletionBlocked } from '../services/data-lifecycle.service';
 
 const notifier = new CrossAppDispatcher('quantmail');
 
@@ -1354,7 +1356,8 @@ export default async function emailsRoutes(
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
     }
 
-    // Legal hold enforcement (Task X07 & W33-03)
+    // Legal hold enforcement (Task X07 & W33-03; QM-BACK-006: blocked deletions
+    // are recorded as versioned `data.deletion.blocked.v1` audit facts).
     const retention = (prisma as any)?.legalHold ? new RetentionService(prisma) : retentionService;
     const sender = email.fromAddress;
     const toList = Array.isArray(email.toAddresses) ? (email.toAddresses as string[]) : [];
@@ -1365,6 +1368,24 @@ export default async function emailsRoutes(
           { emailId: request.params.id, custodian: address, userId },
           'Email deletion blocked: custodian is subject to an active legal hold',
         );
+        // QM-BACK-006: the refusal itself is a lifecycle fact — recorded in its
+        // own transaction (the refused mutation never ran, so there is no
+        // domain tx to join). Best-effort: a logging failure must not mask
+        // the 423, so errors here are swallowed after logging.
+        try {
+          await recordDeletionBlocked(prisma, {
+            targetId: request.params.id,
+            targetKind: 'Email',
+            actor: userId,
+            blockCode: 'LOCKED_LEGAL_HOLD',
+            reason: `Participant ${address} is subject to an active legal hold`,
+          });
+        } catch (auditErr) {
+          request.log.error(
+            { err: auditErr, emailId: request.params.id },
+            'Failed to record data.deletion.blocked.v1 audit event',
+          );
+        }
         throw createAppError(
           `Cannot delete email: participant ${address} is subject to an active legal hold`,
           423,
@@ -1375,6 +1396,8 @@ export default async function emailsRoutes(
 
     if (email.isTrash) {
       // K1: permanent delete + outbox row in ONE transaction (doc 05).
+      // QM-BACK-006: the lifecycle fact `data.deletion.completed.v1` and its
+      // verified-completion operation row join the same transaction.
       const deleted = await prisma.$transaction(async (tx) => {
         const row = await tx.email.update({
           where: { id: request.params.id },
@@ -1386,8 +1409,31 @@ export default async function emailsRoutes(
           aggregateId: request.params.id,
           payload: {
             userId,
+            emailId: request.params.id,
             threadId: (email as { threadId?: string | null }).threadId ?? null,
             hard: true,
+          },
+        });
+        const operation = await (tx as any).lifecycleOperation.create({
+          data: {
+            operationType: 'deletion',
+            aggregateType: 'Email',
+            aggregateId: request.params.id,
+            status: 'completed',
+            requestedBy: userId,
+            completedAt: new Date(),
+          },
+        });
+        await emitOutbox(tx, {
+          event: LifecycleEvents.deletionCompleted,
+          aggregateType: 'Email',
+          aggregateId: request.params.id,
+          payload: {
+            actor: userId,
+            targetId: request.params.id,
+            targetKind: 'Email',
+            operationId: String(operation.id),
+            invalidatedIndexes: ['emails'],
           },
         });
         return row;
@@ -1408,6 +1454,7 @@ export default async function emailsRoutes(
         aggregateId: request.params.id,
         payload: {
           userId,
+          emailId: request.params.id,
           threadId: (email as { threadId?: string | null }).threadId ?? null,
           hard: false,
         },

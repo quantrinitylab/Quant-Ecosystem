@@ -13,6 +13,10 @@ import { PostIndexHandler } from './handlers/post.handler';
 import { VideoIndexHandler } from './handlers/video.handler';
 import { FileIndexHandler } from './handlers/file.handler';
 import { UserIndexHandler } from './handlers/user.handler';
+import {
+  LifecycleInvalidationHandler,
+  type InvalidationEvent,
+} from './handlers/lifecycle.handler';
 import { registerReindexRoutes } from './api/reindex';
 
 const logger = pino({ name: 'search-indexer' });
@@ -20,6 +24,12 @@ const logger = pino({ name: 'search-indexer' });
 export interface EventPayload {
   type: string;
   payload: unknown;
+  // Full-envelope fields (present when the cdc-relay publishes the envelope
+  // from `toEnvelope`). Optional so older bare-payload messages keep working.
+  eventId?: string;
+  eventType?: string;
+  aggregateType?: string;
+  aggregateId?: string;
 }
 
 export interface IndexerDeps {
@@ -30,6 +40,37 @@ export interface IndexerDeps {
 }
 
 export type EventHandler = (payload: unknown) => Promise<void>;
+
+/** Handlers that need the full envelope (id, aggregate) — e.g. invalidation. */
+export type EnvelopeHandler = (event: EventPayload) => Promise<void>;
+
+function toInvalidationEvent(event: EventPayload): InvalidationEvent {
+  return {
+    id: event.eventId ?? `${event.eventType ?? event.type}:${event.aggregateId ?? 'unknown'}`,
+    eventType: event.eventType ?? event.type,
+    aggregateType: event.aggregateType ?? '',
+    aggregateId: event.aggregateId ?? '',
+    payload: event.payload,
+  };
+}
+
+/**
+ * Build the envelope-aware handler map (QM-BACK-006: derived-index
+ * invalidation on lifecycle transitions).
+ */
+export function buildEnvelopeHandlerMap(deps: IndexerDeps): Map<string, EnvelopeHandler> {
+  const { searchClient, vectorClient } = deps;
+  const lifecycle = new LifecycleInvalidationHandler(searchClient, vectorClient);
+  const map = new Map<string, EnvelopeHandler>();
+  const wrap: EnvelopeHandler = async (event) => {
+    await lifecycle.handleInvalidation(toInvalidationEvent(event));
+  };
+  // Hard email erasure purges the derived document; the lifecycle event is
+  // the compliance-level fact carrying the same target.
+  map.set('mail.message.deleted.v1', wrap);
+  map.set('data.deletion.completed.v1', wrap);
+  return map;
+}
 
 /**
  * Build the event type to handler mapping
@@ -65,10 +106,22 @@ export async function routeEvent(
   handlers: Map<string, EventHandler>,
   event: EventPayload,
   savedSearchService?: SavedSearchService,
+  envelopeHandlers?: Map<string, EnvelopeHandler>,
 ): Promise<void> {
-  const handler = handlers.get(event.type);
+  // The relay publishes `eventType`; older producers used `type`. Prefer the
+  // envelope name, fall back to the legacy field — strictly more compatible.
+  const eventType = event.eventType ?? event.type;
+
+  // QM-BACK-006: envelope-aware handlers (invalidation) run first.
+  const envelopeHandler = envelopeHandlers?.get(eventType);
+  if (envelopeHandler) {
+    await envelopeHandler(event);
+    return;
+  }
+
+  const handler = handlers.get(eventType);
   if (!handler) {
-    logger.warn({ type: event.type }, 'No handler registered for event type');
+    logger.warn({ type: eventType }, 'No handler registered for event type');
     return;
   }
   await handler(event.payload);
@@ -212,6 +265,8 @@ async function main(): Promise<void> {
     savedSearchService: new SavedSearchService(),
   };
   const handlers = buildHandlerMap(deps);
+  // QM-BACK-006: lifecycle invalidation (derived-index purge on erasure).
+  const envelopeHandlers = buildEnvelopeHandlerMap(deps);
 
   const kafka = new Kafka({ clientId, brokers });
   const consumer: Consumer = kafka.consumer({ groupId });
@@ -237,7 +292,7 @@ async function main(): Promise<void> {
 
         const event = JSON.parse(value) as EventPayload;
         await retryWithBackoff(
-          () => routeEvent(handlers, event, deps.savedSearchService),
+          () => routeEvent(handlers, event, deps.savedSearchService, envelopeHandlers),
           3,
           event,
           dlqProducer,
