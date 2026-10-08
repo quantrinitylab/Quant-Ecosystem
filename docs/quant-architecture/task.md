@@ -1244,3 +1244,38 @@ Required: move quota reservation state and the check/reserve invariant into an a
 Scope: apps/quantmail/backend/services/storage-quota.service.ts; Prisma schema/migration for durable reservations; upload/chunked/multipart lifecycle services and routes; quota API; deployment/runtime assumptions; quota/concurrency tests.
 Dependencies: QM-SCREEN-038; Drive upload/storage architecture; durable job/state infrastructure.
 Validation: source audit on 2026-10-08 confirmed reserveQuota() calls checkQuota() before StorageQuotaService.reservations.set(), while the reservations are a process-local static Map; the source comment explicitly claims atomic parallel-upload protection. No remediation implementation claim yet.
+
+## QM-UIUX-055 — QuantChat: fix typing indicators (protocol mismatch)
+Status: [ ] TODO
+Finding: `useRealtimeChat` publishes `{type:'typing:start'}` frames the backend silently ignores (backend only handles `type:'typing'`), and subscribes to `chat:<id>` channel the backend never sends to. `typingUsers` always empty — typing indicators never render. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantchat-realtime-audit.md`.
+Required: align frontend/backend typing protocol; verify indicators render.
+Scope: `apps/quantchat/src/` realtime hooks.
+Dependencies: none.
+
+## QM-UIUX-056 — QuantChat: failed sends vanish silently
+Status: [ ] TODO
+Finding: `handleSend` calls `sendMessage.mutate()` with no `onError` and no error UI. No optimistic message — on REST failure the user's text just disappears. No retry, no "failed" state. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantchat-realtime-audit.md`.
+Required: error UI + retry for failed sends; don't lose user text.
+Scope: QuantChat conversation page.
+Dependencies: none.
+
+## QM-UIUX-057 — QuantChat: delete dead realtime implementations
+Status: [ ] TODO
+Finding: FOUR competing realtime implementations (1,630 lines): `websocket-client.ts` (477 lines, zero usages), `useChat.ts` (284 lines, zero usages), `RealtimeProvider` (live socket, dead protocol), `chat-socket` singleton (only working path). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantchat-realtime-audit.md`.
+Required: delete the three dead paths; keep only the working singleton.
+Scope: `apps/quantchat/src/`.
+Dependencies: QM-UIUX-055 (typing fix touches same area).
+
+## QM-UIUX-058 — Custom folders: wire to backend API
+Status: [ ] TODO
+Finding: backend `/api/folders` CRUD exists and is tested, but UI creates folders with local IDs in `localStorage` only. No cross-device sync; lost on storage clear. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/labels-folders-audit.md`.
+Required: wire `handleCreateFolder` to POST `/api/folders`.
+Scope: `apps/quantmail/src/app/page.tsx:1269`.
+Dependencies: none.
+
+## QM-UIUX-059 — Flutter: purge fake data (contacts, stats, claims)
+Status: [ ] TODO
+Finding: Flutter QuantMail still ships fake contacts with real people's names (Demis Hassabis etc., `isVerified: true`), fake QuantGit stats ('14.8k stars'), `<5ms FTS5` claims, fake "Quanty AI" simulated streaming, `MailHeaderSecurity` defaulting every mail to 'Kyber-1024 + AES-256-GCM' with SPF/DKIM/DMARC 'PASS', hardcoded unread badges and infra claims. Web purged all of these; Flutter didn't. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/flutter-parity-audit.md`.
+Required: remove all fake data/claims from Flutter app (same purge standard as web).
+Scope: `flutter_apps/apps/quant_mail/`.
+Dependencies: none.
