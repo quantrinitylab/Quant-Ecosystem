@@ -47,57 +47,8 @@ export function ActionsTab({
     'Release',
   ];
 
-  // Enhanced actions listing if sample actions is small
-  const displayActions = useMemo<WorkflowRunItem[]>(() => {
-    if (actions.length > 0) return actions;
-    return [
-      {
-        id: 'run-36626',
-        name: 'feat: support telemetry for speech generation and streaming transcription',
-        workflow: 'CI',
-        status: 'success',
-        conclusion: 'success',
-        branch: 'main',
-        commitSha: '948e3612',
-        actor: 'ai-sdk-factory[bot]',
-        event: 'pull_request',
-        duration: '1s',
-        timeAgo: 'Today at 3:11 PM',
-        createdAt: 'Today at 3:11 PM',
-        jobs: [],
-      },
-      {
-        id: 'run-36625',
-        name: 'Slack Workflow Failure Notification #36625',
-        workflow: 'CI',
-        status: 'failed',
-        conclusion: 'failure',
-        branch: 'feat/speech-telemetry',
-        commitSha: '8910bcae',
-        actor: 'edward0127',
-        event: 'push',
-        duration: '9s',
-        timeAgo: 'Today at 3:07 PM',
-        createdAt: 'Today at 3:07 PM',
-        jobs: [],
-      },
-      {
-        id: 'run-36624',
-        name: 'Verify Changesets #29508: Pull request #21427 labeled by ai-sdk-factory',
-        workflow: 'CI',
-        status: 'success',
-        conclusion: 'success',
-        branch: 'main',
-        commitSha: '417b018e',
-        actor: 'ai-sdk-factory[bot]',
-        event: 'pull_request',
-        duration: '2s',
-        timeAgo: 'Today at 3:06 PM',
-        createdAt: 'Today at 3:06 PM',
-        jobs: [],
-      },
-    ];
-  }, [actions]);
+  // Honest listing: only real workflow runs from the API. Never invent runs.
+  const displayActions = useMemo<WorkflowRunItem[]>(() => actions, [actions]);
 
   const filteredRuns = useMemo(() => {
     return displayActions.filter((run) => {
@@ -138,7 +89,7 @@ export function ActionsTab({
           '2026-09-26T10:45:02.341Z Syncing repository: quantrinitylab/Quant-Ecosystem',
           '2026-09-26T10:45:03.119Z Getting Git version info',
           '2026-09-26T10:45:04.050Z Initialized empty Git repository in /home/runner/work/repo/.git/',
-          `2026-09-26T10:45:05.120Z ✓ Checked out commit ${activeRun.commitSha || '948e3612'} to refs/heads/${activeRun.branch || 'main'}`,
+          `2026-09-26T10:45:05.120Z ✓ Checked out commit ${activeRun.commitSha || 'unknown'} to refs/heads/${activeRun.branch || 'main'}`,
         ],
       },
       {
@@ -434,7 +385,8 @@ export function ActionsTab({
               <div>
                 <h3 className="font-bold text-sm text-[#E6EDF3]">{selectedWorkflow}</h3>
                 <p className="text-[11px] text-[#8D96A0]">
-                  Showing runs from {selectedWorkflow} (2,500+ workflow runs)
+                  Showing runs from {selectedWorkflow} ({filteredRuns.length}{' '}
+                  {filteredRuns.length === 1 ? 'run' : 'runs'})
                 </p>
               </div>
               <button
@@ -522,6 +474,21 @@ export function ActionsTab({
               data-testid="workflow-runs-list"
               className="border border-[#30363D] rounded-xl bg-[#0D1117] divide-y divide-[#21262D] overflow-hidden"
             >
+              {filteredRuns.length === 0 && (
+                <div
+                  data-testid="workflow-runs-empty"
+                  className="p-10 text-center"
+                >
+                  <p className="text-sm font-medium text-[#E6EDF3]">
+                    {actions.length === 0 ? 'No workflow runs yet' : 'No runs match your filters'}
+                  </p>
+                  <p className="mt-1 text-xs text-[#8D96A0]">
+                    {actions.length === 0
+                      ? 'Trigger a workflow to see runs appear here.'
+                      : 'Try clearing the search or status filter.'}
+                  </p>
+                </div>
+              )}
               {filteredRuns.map((run) => {
                 const isPassing = run.status === 'success' || run.status === 'completed';
                 const isFailing = run.status === 'failed';
@@ -560,7 +527,7 @@ export function ActionsTab({
                     <div className="flex items-center gap-3 shrink-0 text-[11px] text-[#8D96A0]">
                       <span>{run.createdAt}</span>
                       <span className="font-mono px-2 py-0.5 rounded bg-[#21262D]">
-                        {run.duration || '1s'}
+                        {run.duration || '—'}
                       </span>
                     </div>
                   </div>
