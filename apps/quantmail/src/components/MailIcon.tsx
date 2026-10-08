@@ -78,7 +78,7 @@ const PATHS: Record<MailIconName, ReactNode> = {
     <>
       <rect x="3" y="5" width="18" height="14" rx="2" />
       <path d="m3 7 9 6 9-6" />
-      <circle cx="18" cy="6" r="2.5" fill="#FF8C42" stroke="none" />
+      <circle cx="18" cy="6" r="2.5" fill="var(--quant-primary)" stroke="none" />
     </>
   ),
   more: (

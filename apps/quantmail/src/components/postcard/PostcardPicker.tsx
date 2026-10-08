@@ -44,12 +44,12 @@ export function PostcardPicker({
           initial={{ opacity: 0, scale: 0.95, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
-          className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-[#111318] border border-[#282C35] rounded-2xl shadow-2xl overflow-hidden"
+          className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] rounded-2xl shadow-2xl overflow-hidden"
         >
           {/* Header */}
-          <header className="p-5 border-b border-[#282C35] flex items-center justify-between">
+          <header className="p-5 border-b border-[var(--quant-surface-elevated)] flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <span className="text-[#FF8C42]">
+              <span className="text-[var(--quant-primary)]">
                 <IconMailHeart size={19} />
               </span>
               <div>
@@ -66,7 +66,7 @@ export function PostcardPicker({
               type="button"
               onClick={onClose}
               aria-label="Close postcard picker"
-              className="size-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 shrink-0 rounded-lg flex items-center justify-center text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="size-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 shrink-0 rounded-lg flex items-center justify-center text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               <IconX size={15} />
             </button>
@@ -82,12 +82,12 @@ export function PostcardPicker({
               }}
               className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-between ${
                 selectedTemplate === null
-                  ? 'border-[#FF8C42] bg-[#FF8C42]/10'
-                  : 'border-[#282C35] bg-[#090A0C]/50 hover:border-[#3A404D]'
+                  ? 'border-[var(--quant-primary)] bg-[var(--quant-primary)]/10'
+                  : 'border-[var(--quant-surface-elevated)] bg-[var(--quant-background)]/50 hover:border-[#3A404D]'
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className="size-10 rounded-lg bg-[#282C35] border border-[#3A404D] flex items-center justify-center text-[#A1A4AC]">
+                <div className="size-10 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#3A404D] flex items-center justify-center text-[#A1A4AC]">
                   <IconMail size={18} />
                 </div>
                 <div>
@@ -98,7 +98,7 @@ export function PostcardPicker({
                 </div>
               </div>
               {selectedTemplate === null && (
-                <span className="inline-flex items-center gap-1 text-xs font-bold text-[#FF8C42]">
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-[var(--quant-primary)]">
                   Selected
                   <IconCheck size={13} />
                 </span>
@@ -118,15 +118,15 @@ export function PostcardPicker({
                     }}
                     className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
                       isSelected
-                        ? 'border-[#FF8C42] bg-[#FF8C42]/10 shadow-[0_4px_16px_rgba(0,0,0,0.6)]'
-                        : 'border-[#282C35] bg-[#090A0C]/60 hover:border-[#FF8C42]/40'
+                        ? 'border-[var(--quant-primary)] bg-[var(--quant-primary)]/10 shadow-[0_4px_16px_rgba(0,0,0,0.6)]'
+                        : 'border-[var(--quant-surface-elevated)] bg-[var(--quant-background)]/60 hover:border-[var(--quant-primary)]/40'
                     }`}
                   >
                     <div>
-                      <div className="flex items-center justify-between text-xs font-mono text-[#FF8C42] mb-1.5">
+                      <div className="flex items-center justify-between text-xs font-mono text-[var(--quant-primary)] mb-1.5">
                         <span className="uppercase">{template.category}</span>
                         {template.isCustom && (
-                          <span className="px-1.5 py-px text-[10px] rounded bg-[#FF8C42]/20 text-[#FFB875] font-bold">
+                          <span className="px-1.5 py-px text-[10px] rounded bg-[var(--quant-primary)]/20 text-[#FFB875] font-bold">
                             CUSTOM
                           </span>
                         )}
@@ -140,11 +140,11 @@ export function PostcardPicker({
                       </p>
                     </div>
 
-                    <div className="mt-3 pt-2.5 border-t border-[#282C35]/80 flex items-center justify-between text-[11px]">
+                    <div className="mt-3 pt-2.5 border-t border-[var(--quant-surface-elevated)]/80 flex items-center justify-between text-[11px]">
                       <span className="text-[#A1A4AC] font-mono">
                         {template.paperTexture.replace('-', ' ')}
                       </span>
-                      <span className="text-[#FF8C42] font-semibold font-mono">
+                      <span className="text-[var(--quant-primary)] font-semibold font-mono">
                         {template.stamp.value}
                       </span>
                     </div>
@@ -155,10 +155,10 @@ export function PostcardPicker({
           </div>
 
           {/* Footer */}
-          <footer className="p-4 border-t border-[#282C35] bg-[#090A0C]/80 flex items-center justify-between">
+          <footer className="p-4 border-t border-[var(--quant-surface-elevated)] bg-[var(--quant-background)]/80 flex items-center justify-between">
             <a
               href="/postcards"
-              className="inline-flex items-center gap-1.5 min-h-[44px] sm:min-h-0 text-xs font-semibold text-[#FF8C42] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded"
+              className="inline-flex items-center gap-1.5 min-h-[44px] sm:min-h-0 text-xs font-semibold text-[var(--quant-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
             >
               <IconPalette size={14} />
               <span>Open Postcard Studio</span>
@@ -168,7 +168,7 @@ export function PostcardPicker({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 min-h-[44px] sm:min-h-0 rounded-lg text-xs font-semibold bg-[#282C35] hover:bg-[#3A404D] text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="px-4 py-1.5 min-h-[44px] sm:min-h-0 rounded-lg text-xs font-semibold bg-[var(--quant-surface-elevated)] hover:bg-[#3A404D] text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               Done
             </button>

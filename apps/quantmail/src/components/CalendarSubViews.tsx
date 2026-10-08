@@ -303,11 +303,11 @@ export function CalendarFeedSubView({
   }, [eventsByDay, holidaysByDay, searchFilter, filterType]);
 
   return (
-    <div className={`flex-1 flex flex-col overflow-y-auto bg-[#090A0E] text-[#F5F5F5] p-4 sm:p-6 pb-24 space-y-6 ${className}`}>
+    <div className={`flex-1 flex flex-col overflow-y-auto bg-[var(--quant-background)] text-[#F5F5F5] p-4 sm:p-6 pb-24 space-y-6 ${className}`}>
       {/* Feed Filters Strip */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#232938] pb-4">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[#F59E0B]">
+          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--quant-warning)]">
             Chronological Feed
           </span>
           <span className="text-xs text-[#A1A4AC]">·</span>
@@ -325,8 +325,8 @@ export function CalendarFeedSubView({
               onClick={() => setFilterType(mode)}
               className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
                 filterType === mode
-                  ? 'bg-[#F59E0B] text-black font-semibold shadow-sm'
-                  : 'bg-[#12151E] text-[#A1A4AC] hover:text-white border border-[#232938]'
+                  ? 'bg-[var(--quant-warning)] text-black font-semibold shadow-sm'
+                  : 'bg-[var(--quant-surface)] text-[#A1A4AC] hover:text-white border border-[#232938]'
               }`}
             >
               {mode.charAt(0).toUpperCase() + mode.slice(1)}
@@ -346,8 +346,8 @@ export function CalendarFeedSubView({
               onClick={() => onSelectDate(day.date)}
               className={`rounded-2xl border transition-all p-4 sm:p-5 ${
                 isSelected
-                  ? 'border-[#F59E0B]/50 bg-[#12151E] shadow-[0_0_20px_rgba(245,158,11,0.08)]'
-                  : 'border-[#232938] bg-[#12151E]/60 hover:bg-[#12151E]'
+                  ? 'border-[var(--quant-warning)]/50 bg-[var(--quant-surface)] shadow-[0_0_20px_rgba(245,158,11,0.08)]'
+                  : 'border-[#232938] bg-[var(--quant-surface)]/60 hover:bg-[var(--quant-surface)]'
               }`}
             >
               {/* Day Header Row */}
@@ -356,8 +356,8 @@ export function CalendarFeedSubView({
                   <div
                     className={`size-9 rounded-xl grid place-items-center text-sm font-bold ${
                       day.isToday
-                        ? 'bg-[#F59E0B] text-black shadow-sm'
-                        : 'bg-[#181C26] text-[#F5F5F5] border border-[#232938]'
+                        ? 'bg-[var(--quant-warning)] text-black shadow-sm'
+                        : 'bg-[var(--quant-surface-elevated)] text-[#F5F5F5] border border-[#232938]'
                     }`}
                   >
                     {day.date.getDate()}
@@ -379,9 +379,9 @@ export function CalendarFeedSubView({
                     e.stopPropagation();
                     openDedicatedSheet('event', day.date);
                   }}
-                  className="px-2.5 py-1 rounded-lg text-xs font-medium text-[#F59E0B] bg-[#F59E0B]/10 hover:bg-[#F59E0B]/20 border border-[#F59E0B]/30 flex items-center gap-1 transition-colors"
+                  className="px-2.5 py-1 rounded-lg text-xs font-medium text-[var(--quant-warning)] bg-[var(--quant-warning)]/10 hover:bg-[var(--quant-warning)]/20 border border-[var(--quant-warning)]/30 flex items-center gap-1 transition-colors"
                 >
-                  <SvgPlus className="size-3 text-[#F59E0B]" />
+                  <SvgPlus className="size-3 text-[var(--quant-warning)]" />
                   <span>Add</span>
                 </button>
               </div>
@@ -392,9 +392,9 @@ export function CalendarFeedSubView({
                 {day.holidays.map((h, hIdx) => (
                   <div
                     key={`${h.name}-${hIdx}`}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-[#F59E0B]/10 border border-[#F59E0B]/20 text-[#F59E0B] text-xs font-medium"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-[var(--quant-warning)]/10 border border-[var(--quant-warning)]/20 text-[var(--quant-warning)] text-xs font-medium"
                   >
-                    <SvgFlag className="size-3.5 text-[#F59E0B] shrink-0" />
+                    <SvgFlag className="size-3.5 text-[var(--quant-warning)] shrink-0" />
                     <span className="font-semibold">{h.name}</span>
                     <span className="text-[10px] text-[#A1A4AC]">National Holiday</span>
                   </div>
@@ -416,15 +416,15 @@ export function CalendarFeedSubView({
                         e.stopPropagation();
                         onSelectEvent(ev);
                       }}
-                      className="group flex items-start justify-between gap-3 p-3 rounded-xl bg-[#0B0D13] hover:bg-[#151922] border border-[#232938] hover:border-[#384156] transition-all cursor-pointer"
+                      className="group flex items-start justify-between gap-3 p-3 rounded-xl bg-[var(--quant-surface-subtle)] hover:bg-[#151922] border border-[#232938] hover:border-[#384156] transition-all cursor-pointer"
                     >
                       <div className="flex items-start gap-3 min-w-0">
                         {/* Event Category Icon Badge */}
                         <div
                           className="size-7 rounded-lg grid place-items-center mt-0.5 shrink-0"
                           style={{
-                            backgroundColor: `${ev.color || '#F59E0B'}20`,
-                            color: ev.color || '#F59E0B',
+                            backgroundColor: `${ev.color || 'var(--quant-warning)'}20`,
+                            color: ev.color || 'var(--quant-warning)',
                           }}
                         >
                           {isTask ? (
@@ -439,7 +439,7 @@ export function CalendarFeedSubView({
                         </div>
 
                         <div className="min-w-0">
-                          <h4 className="text-xs font-semibold text-[#F5F5F5] group-hover:text-[#F59E0B] transition-colors truncate">
+                          <h4 className="text-xs font-semibold text-[#F5F5F5] group-hover:text-[var(--quant-warning)] transition-colors truncate">
                             {ev.title}
                           </h4>
                           <div className="flex items-center gap-2 text-[11px] text-[#A1A4AC] mt-0.5">
@@ -468,7 +468,7 @@ export function CalendarFeedSubView({
                       {/* Attendee Badges / Action */}
                       <div className="flex items-center gap-1.5 shrink-0">
                         {Array.isArray(ev.attendees) && ev.attendees.length > 0 && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#181C26] text-[#A1A4AC] border border-[#232938]">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] bg-[var(--quant-surface-elevated)] text-[#A1A4AC] border border-[#232938]">
                             {ev.attendees.length} invited
                           </span>
                         )}
@@ -478,7 +478,7 @@ export function CalendarFeedSubView({
                 })}
 
                 {day.events.length === 0 && day.holidays.length === 0 && (
-                  <div className="py-4 text-center text-xs text-[#A1A4AC]/60 bg-[#0B0D13]/40 rounded-xl border border-dashed border-[#232938]/60">
+                  <div className="py-4 text-center text-xs text-[#A1A4AC]/60 bg-[var(--quant-surface-subtle)]/40 rounded-xl border border-dashed border-[#232938]/60">
                     No scheduled items · Free day
                   </div>
                 )}
@@ -795,18 +795,18 @@ export function CalendarMonthSubView({
   );
 
   return (
-    <div className={`flex-1 flex flex-col overflow-y-auto bg-[#090A0E] text-[#F5F5F5] p-4 sm:p-6 pb-24 space-y-6 ${className}`}>
+    <div className={`flex-1 flex flex-col overflow-y-auto bg-[var(--quant-background)] text-[#F5F5F5] p-4 sm:p-6 pb-24 space-y-6 ${className}`}>
       {/* Secondary week navigator. Month navigation lives in the shared page header. */}
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] text-[#64748B]">
           Select a date or drag across days to create a multi-day event.
         </p>
-        <div className="inline-flex items-center rounded-xl border border-[#232938] bg-[#12151E] p-1 shrink-0">
+        <div className="inline-flex items-center rounded-xl border border-[#232938] bg-[var(--quant-surface)] p-1 shrink-0">
           <button
             type="button"
             onClick={handlePrevWeek}
             aria-label="Previous week"
-            className="size-8 grid place-items-center rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#181C26] transition-colors"
+            className="size-8 grid place-items-center rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors"
           >
             <SvgChevronLeft className="size-4" />
           </button>
@@ -815,7 +815,7 @@ export function CalendarMonthSubView({
             type="button"
             onClick={handleNextWeek}
             aria-label="Next week"
-            className="size-8 grid place-items-center rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#181C26] transition-colors"
+            className="size-8 grid place-items-center rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors"
           >
             <SvgChevronRight className="size-4" />
           </button>
@@ -823,7 +823,7 @@ export function CalendarMonthSubView({
       </div>
 
       {/* Month Calendar Grid (Mon-Sun) */}
-      <div className="bg-[#12151E] border border-[#232938] rounded-2xl p-4 sm:p-5 shadow-sm space-y-2 min-w-0">
+      <div className="bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-4 sm:p-5 shadow-sm space-y-2 min-w-0">
         {/* Weekday Columns Header */}
         <div className="grid grid-cols-7 gap-1 text-center font-semibold text-xs text-[#A1A4AC] py-2 border-b border-[#232938]">
           {MON_SUN_WEEKDAYS.map((wd) => (
@@ -833,8 +833,8 @@ export function CalendarMonthSubView({
 
         {/* Drag-to-create hint */}
         {dragRangeLabel ? (
-          <div className="flex items-center justify-center gap-2 text-[11px] font-semibold text-[#F59E0B]">
-            <span className="px-2.5 py-1 rounded-full bg-[#F59E0B]/15 border border-[#F59E0B]/40">
+          <div className="flex items-center justify-center gap-2 text-[11px] font-semibold text-[var(--quant-warning)]">
+            <span className="px-2.5 py-1 rounded-full bg-[var(--quant-warning)]/15 border border-[var(--quant-warning)]/40">
               {dragRangeLabel} · release to create
             </span>
           </div>
@@ -871,13 +871,13 @@ export function CalendarMonthSubView({
                     onClick={handleDayClick(day.date)}
                     className={`min-h-16 sm:min-h-20 p-1.5 rounded-xl border flex flex-col justify-between text-left transition-all min-w-0 ${
                       inDragRange
-                        ? 'border-[#F59E0B] bg-[#F59E0B]/20 ring-2 ring-[#F59E0B]/40'
+                        ? 'border-[var(--quant-warning)] bg-[var(--quant-warning)]/20 ring-2 ring-[var(--quant-warning)]/40'
                         : day.isSelected
-                        ? 'border-[#F59E0B] bg-[#F59E0B]/10 ring-2 ring-[#F59E0B]/30'
+                        ? 'border-[var(--quant-warning)] bg-[var(--quant-warning)]/10 ring-2 ring-[var(--quant-warning)]/30'
                         : day.isToday
-                        ? 'border-[#384156] bg-[#181C26]'
+                        ? 'border-[#384156] bg-[var(--quant-surface-elevated)]'
                         : day.isCurrentMonth
-                        ? 'border-[#232938]/60 bg-[#0B0D13]/70 hover:bg-[#181C26]'
+                        ? 'border-[#232938]/60 bg-[var(--quant-surface-subtle)]/70 hover:bg-[var(--quant-surface-elevated)]'
                         : 'border-transparent bg-transparent opacity-35 hover:opacity-70'
                     }`}
                   >
@@ -885,9 +885,9 @@ export function CalendarMonthSubView({
                       <span
                         className={`size-6 rounded-lg text-xs font-bold grid place-items-center ${
                           day.isToday
-                            ? 'bg-[#F59E0B] text-black shadow-sm'
+                            ? 'bg-[var(--quant-warning)] text-black shadow-sm'
                             : day.isSelected
-                            ? 'text-[#F59E0B]'
+                            ? 'text-[var(--quant-warning)]'
                             : day.isCurrentMonth
                             ? 'text-[#F5F5F5]'
                             : 'text-[#A1A4AC]'
@@ -897,7 +897,7 @@ export function CalendarMonthSubView({
                       </span>
 
                       {totalItems > 0 && (
-                        <span className="size-2 rounded-full bg-[#F59E0B] animate-pulse" />
+                        <span className="size-2 rounded-full bg-[var(--quant-warning)] animate-pulse" />
                       )}
                     </div>
 
@@ -906,7 +906,7 @@ export function CalendarMonthSubView({
                       {day.holidays.slice(0, 1).map((h) => (
                         <div
                           key={h.name}
-                          className="truncate text-[10px] px-1 py-px rounded bg-[#F59E0B]/20 text-[#F59E0B] font-medium"
+                          className="truncate text-[10px] px-1 py-px rounded bg-[var(--quant-warning)]/20 text-[var(--quant-warning)] font-medium"
                           title={h.name}
                         >
                           {h.name}
@@ -917,8 +917,8 @@ export function CalendarMonthSubView({
                           key={ev.id}
                           className="truncate text-[10px] px-1 py-px rounded font-medium"
                           style={{
-                            backgroundColor: `${ev.color || '#F59E0B'}25`,
-                            color: ev.color || '#F59E0B',
+                            backgroundColor: `${ev.color || 'var(--quant-warning)'}25`,
+                            color: ev.color || 'var(--quant-warning)',
                           }}
                           title={ev.title}
                         >
@@ -940,10 +940,10 @@ export function CalendarMonthSubView({
       </div>
 
       {/* Selected Day Inspector */}
-      <div className="bg-[#12151E] border border-[#232938] rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+      <div className="bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#F59E0B]">
+            <span className="text-xs font-bold uppercase tracking-wider text-[var(--quant-warning)]">
               Selected Date Inspector
             </span>
             <span className="text-xs text-[#A1A4AC]">·</span>
@@ -955,7 +955,7 @@ export function CalendarMonthSubView({
           <button
             type="button"
             onClick={() => openDedicatedSheet('event', selectedDate)}
-            className="px-3 py-1 rounded-lg text-xs font-semibold text-black bg-[#F59E0B] hover:bg-[#D97706] shadow-sm flex items-center gap-1 transition-all"
+            className="px-3 py-1 rounded-lg text-xs font-semibold text-black bg-[var(--quant-warning)] hover:bg-[#D97706] shadow-sm flex items-center gap-1 transition-all"
           >
             <SvgPlus className="size-3 text-black" />
             <span>Add Event</span>
@@ -963,7 +963,7 @@ export function CalendarMonthSubView({
         </div>
 
         {selectedDayEvents.length === 0 && selectedDayHolidays.length === 0 ? (
-          <div className="py-6 text-center text-xs text-[#A1A4AC]/60 bg-[#0B0D13] rounded-xl border border-dashed border-[#232938]">
+          <div className="py-6 text-center text-xs text-[#A1A4AC]/60 bg-[var(--quant-surface-subtle)] rounded-xl border border-dashed border-[#232938]">
             No entries scheduled for this day
           </div>
         ) : (
@@ -971,7 +971,7 @@ export function CalendarMonthSubView({
             {selectedDayHolidays.map((h) => (
               <div
                 key={h.name}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#F59E0B]/10 border border-[#F59E0B]/20 text-[#F59E0B] text-xs font-medium"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--quant-warning)]/10 border border-[var(--quant-warning)]/20 text-[var(--quant-warning)] text-xs font-medium"
               >
                 <SvgFlag className="size-3.5" />
                 <span>{h.name} (Public Holiday)</span>
@@ -981,10 +981,10 @@ export function CalendarMonthSubView({
               <div
                 key={ev.id}
                 onClick={() => onSelectEvent(ev)}
-                className="flex items-center justify-between p-3 rounded-xl bg-[#0B0D13] border border-[#232938] hover:border-[#384156] transition-all cursor-pointer"
+                className="flex items-center justify-between p-3 rounded-xl bg-[var(--quant-surface-subtle)] border border-[#232938] hover:border-[#384156] transition-all cursor-pointer"
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="size-2 rounded-full" style={{ backgroundColor: ev.color || '#F59E0B' }} />
+                  <div className="size-2 rounded-full" style={{ backgroundColor: ev.color || 'var(--quant-warning)' }} />
                   <div>
                     <h4 className="text-xs font-semibold text-[#F5F5F5]">{ev.title}</h4>
                     <p className="text-[11px] text-[#A1A4AC]">
@@ -993,7 +993,7 @@ export function CalendarMonthSubView({
                     </p>
                   </div>
                 </div>
-                <span className="text-[11px] font-mono text-[#F59E0B]">View ›</span>
+                <span className="text-[11px] font-mono text-[var(--quant-warning)]">View ›</span>
               </div>
             ))}
           </div>
@@ -1146,15 +1146,15 @@ export function CalendarTrackersSubView({
   }, [events]);
 
   return (
-    <div className={`flex-1 flex flex-col overflow-y-auto bg-[#090A0E] text-[#F5F5F5] p-4 sm:p-6 pb-24 space-y-6 ${className}`}>
+    <div className={`flex-1 flex flex-col overflow-y-auto bg-[var(--quant-background)] text-[#F5F5F5] p-4 sm:p-6 pb-24 space-y-6 ${className}`}>
       {/* Top Banner */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#232938] pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#F59E0B]">
+            <span className="text-xs font-bold uppercase tracking-wider text-[var(--quant-warning)]">
               Trackers & Events Hub
             </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F59E0B]/20 text-[#F59E0B] border border-[#F59E0B]/40">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--quant-warning)]/20 text-[var(--quant-warning)] border border-[var(--quant-warning)]/40">
               Sovereign Biometrics & Milestones
             </span>
           </div>
@@ -1169,7 +1169,7 @@ export function CalendarTrackersSubView({
         <button
           type="button"
           onClick={() => setIsAddTrackerOpen(true)}
-          className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-black bg-[#F59E0B] hover:bg-[#D97706] shadow-sm flex items-center gap-1.5 transition-all"
+          className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-black bg-[var(--quant-warning)] hover:bg-[#D97706] shadow-sm flex items-center gap-1.5 transition-all"
         >
           <SvgPlus className="size-3.5 text-black" />
           <span>+ Add Tracker</span>
@@ -1185,7 +1185,7 @@ export function CalendarTrackersSubView({
           <span className="text-[10px] font-mono text-[#A1A4AC]">{upcomingEvents.length}</span>
         </div>
         {upcomingEvents.length === 0 ? (
-          <div className="py-4 text-center text-xs text-[#A1A4AC]/60 bg-[#12151E] rounded-xl border border-dashed border-[#232938]">
+          <div className="py-4 text-center text-xs text-[#A1A4AC]/60 bg-[var(--quant-surface)] rounded-xl border border-dashed border-[#232938]">
             No events in the next 7 days
           </div>
         ) : (
@@ -1197,11 +1197,11 @@ export function CalendarTrackersSubView({
                   key={ev.id}
                   type="button"
                   onClick={() => onSelectEvent?.(ev)}
-                  className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#12151E] border border-[#232938] hover:border-[#384156] transition-all text-left"
+                  className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[var(--quant-surface)] border border-[#232938] hover:border-[#384156] transition-all text-left"
                 >
                   <span
                     className="size-2 rounded-full shrink-0"
-                    style={{ backgroundColor: ev.color || '#F59E0B' }}
+                    style={{ backgroundColor: ev.color || 'var(--quant-warning)' }}
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-semibold text-[#F5F5F5]">
@@ -1212,7 +1212,7 @@ export function CalendarTrackersSubView({
                       {d.getDate()} · {ev.allDay ? 'All day' : hhmm(d)}
                     </span>
                   </span>
-                  <span className="text-[11px] font-mono text-[#F59E0B] shrink-0">›</span>
+                  <span className="text-[11px] font-mono text-[var(--quant-warning)] shrink-0">›</span>
                 </button>
               );
             })}
@@ -1225,7 +1225,7 @@ export function CalendarTrackersSubView({
         {/* ==================================================================
             CARD 1: Period Tracker Card
             ================================================================== */}
-        <div className="rounded-2xl border border-rose-900/40 bg-[#12151E] p-5 shadow-sm space-y-4">
+        <div className="rounded-2xl border border-rose-900/40 bg-[var(--quant-surface)] p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="size-8 rounded-xl bg-rose-950/60 border border-rose-800/60 grid place-items-center text-rose-400">
@@ -1252,7 +1252,7 @@ export function CalendarTrackersSubView({
               className={`p-1.5 rounded-lg border text-xs flex items-center gap-1 transition-colors ${
                 isDiscreetMode
                   ? 'bg-rose-950/80 border-rose-600 text-rose-300'
-                  : 'bg-[#181C26] border-[#232938] text-[#A1A4AC] hover:text-white'
+                  : 'bg-[var(--quant-surface-elevated)] border-[#232938] text-[#A1A4AC] hover:text-white'
               }`}
             >
               <SvgShieldEye className="size-3.5" />
@@ -1262,7 +1262,7 @@ export function CalendarTrackersSubView({
 
           {/* Card Body */}
           {isDiscreetMode ? (
-            <div className="p-4 rounded-xl bg-[#0B0D13] border border-rose-900/30 text-center space-y-2">
+            <div className="p-4 rounded-xl bg-[var(--quant-surface-subtle)] border border-rose-900/30 text-center space-y-2">
               <span className="text-xs font-bold text-rose-300 block">Cycle Protocol Alpha · Active</span>
               <p className="text-[11px] text-[#A1A4AC]">
                 Phase: Optimal energy window · Next milestone in 6 days
@@ -1274,7 +1274,7 @@ export function CalendarTrackersSubView({
           ) : (
             <div className="space-y-3">
               {/* Prediction Banner */}
-              <div className="p-4 rounded-xl bg-[#0B0D13] border border-rose-900/30 space-y-2">
+              <div className="p-4 rounded-xl bg-[var(--quant-surface-subtle)] border border-rose-900/30 space-y-2">
                 <div className="flex items-center gap-2">
                   <SvgShieldEye className="size-4 text-rose-300" />
                   <span className="text-xs font-semibold text-[#F5F5F5]">No cycle data connected</span>
@@ -1294,7 +1294,7 @@ export function CalendarTrackersSubView({
         {/* ==================================================================
             CARD 2: Health Tracker Card
             ================================================================== */}
-        <div className="rounded-2xl border border-emerald-900/40 bg-[#12151E] p-5 shadow-sm space-y-4">
+        <div className="rounded-2xl border border-emerald-900/40 bg-[var(--quant-surface)] p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="size-8 rounded-xl bg-emerald-950/60 border border-emerald-800/60 grid place-items-center text-emerald-400">
@@ -1306,14 +1306,14 @@ export function CalendarTrackersSubView({
               </div>
             </div>
 
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-[#181C26] text-[#94A3B8] border border-[#232938]">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-[var(--quant-surface-elevated)] text-[#94A3B8] border border-[#232938]">
               Not connected
             </span>
           </div>
 
           <div className="space-y-3">
             {/* Water Hydration Log */}
-            <div className="p-3 rounded-xl bg-[#0B0D13] border border-[#232938] space-y-2">
+            <div className="p-3 rounded-xl bg-[var(--quant-surface-subtle)] border border-[#232938] space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5 text-sky-400">
                   <SvgDroplet className="size-3.5" />
@@ -1323,7 +1323,7 @@ export function CalendarTrackersSubView({
                   {waterMl} / {waterTarget} ml ({Math.round((waterMl / waterTarget) * 100)}%)
                 </span>
               </div>
-              <div className="h-1.5 rounded-full bg-[#181C26] overflow-hidden">
+              <div className="h-1.5 rounded-full bg-[var(--quant-surface-elevated)] overflow-hidden">
                 <div
                   className="h-full bg-sky-500 rounded-full transition-all"
                   style={{ width: `${Math.min(100, (waterMl / waterTarget) * 100)}%` }}
@@ -1341,7 +1341,7 @@ export function CalendarTrackersSubView({
 
             {/* Sleep & Workout Grid */}
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="p-3 rounded-xl bg-[#0B0D13] border border-[#232938]">
+              <div className="p-3 rounded-xl bg-[var(--quant-surface-subtle)] border border-[#232938]">
                 <div className="flex items-center gap-1.5 text-indigo-400 mb-1">
                   <SvgMoon className="size-3.5" />
                   <span className="font-semibold">Sleep</span>
@@ -1350,7 +1350,7 @@ export function CalendarTrackersSubView({
                 <span className="text-[10px] text-[#64748B] block">No source connected</span>
               </div>
 
-              <div className="p-3 rounded-xl bg-[#0B0D13] border border-[#232938]">
+              <div className="p-3 rounded-xl bg-[var(--quant-surface-subtle)] border border-[#232938]">
                 <div className="flex items-center gap-1.5 text-emerald-400 mb-1">
                   <SvgHeart className="size-3.5" />
                   <span className="font-semibold">Resting HR</span>
@@ -1365,7 +1365,7 @@ export function CalendarTrackersSubView({
         {/* ==================================================================
             CARD 3: Custom Life Event Trackers Hub
             ================================================================== */}
-        <div className="rounded-2xl border border-sky-900/40 bg-[#12151E] p-5 shadow-sm space-y-4">
+        <div className="rounded-2xl border border-sky-900/40 bg-[var(--quant-surface)] p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="size-8 rounded-xl bg-sky-950/60 border border-sky-800/60 grid place-items-center text-sky-400">
@@ -1390,7 +1390,7 @@ export function CalendarTrackersSubView({
           {/* List of Custom Trackers */}
           <div className="space-y-2.5">
             {lifeTrackers.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-[#2B3444] bg-[#0B0D13] p-4 text-center">
+              <div className="rounded-xl border border-dashed border-[#2B3444] bg-[var(--quant-surface-subtle)] p-4 text-center">
                 <p className="text-xs font-semibold text-[#E2E8F0]">No life trackers yet</p>
                 <p className="mt-1 text-[11px] leading-relaxed text-[#64748B]">
                   Add a private countdown or recurring reminder. Nothing is pre-filled with personal data.
@@ -1403,7 +1403,7 @@ export function CalendarTrackersSubView({
               lifeTrackers.map((tracker) => {
                 const diffDays = Math.ceil((new Date(tracker.targetDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
                 return (
-                  <div key={tracker.id} className="p-3 rounded-xl bg-[#0B0D13] border border-[#232938] hover:border-sky-800/50 transition-all space-y-1.5">
+                  <div key={tracker.id} className="p-3 rounded-xl bg-[var(--quant-surface-subtle)] border border-[#232938] hover:border-sky-800/50 transition-all space-y-1.5">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <h4 className="text-xs font-semibold text-[#F5F5F5]">{tracker.title}</h4>
@@ -1430,10 +1430,10 @@ export function CalendarTrackersSubView({
       {/* Add Custom Tracker Inline Modal */}
       {isAddTrackerOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm grid place-items-center p-4">
-          <div className="w-full max-w-md bg-[#12151E] border border-[#232938] rounded-2xl p-6 shadow-2xl space-y-4">
+          <div className="w-full max-w-md bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-[#232938] pb-3">
               <h3 className="text-sm font-bold text-[#F5F5F5] flex items-center gap-2">
-                <SvgPlus className="size-4 text-[#F59E0B]" />
+                <SvgPlus className="size-4 text-[var(--quant-warning)]" />
                 <span>Add Custom Life Cycle Tracker</span>
               </h3>
               <button
@@ -1454,7 +1454,7 @@ export function CalendarTrackersSubView({
                   value={newTrackerTitle}
                   onChange={(e) => setNewTrackerTitle(e.target.value)}
                   placeholder="e.g. Car Insurance Renewal, Dentist Appointment…"
-                  className="w-full bg-[#0B0D13] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#F59E0B]"
+                  className="w-full bg-[var(--quant-surface-subtle)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[var(--quant-warning)]"
                 />
               </div>
 
@@ -1464,7 +1464,7 @@ export function CalendarTrackersSubView({
                   <select
                     id="tracker-category" value={newTrackerCategory}
                     onChange={(e) => setNewTrackerCategory(e.target.value as any)}
-                    className="w-full bg-[#0B0D13] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#F59E0B]"
+                    className="w-full bg-[var(--quant-surface-subtle)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[var(--quant-warning)]"
                   >
                     <option value="Countdown">Countdown</option>
                     <option value="Recurring Cycle">Recurring Cycle</option>
@@ -1481,7 +1481,7 @@ export function CalendarTrackersSubView({
                     required
                     value={newTrackerDate}
                     onChange={(e) => setNewTrackerDate(e.target.value)}
-                    className="w-full bg-[#0B0D13] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#F59E0B]"
+                    className="w-full bg-[var(--quant-surface-subtle)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[var(--quant-warning)]"
                   >
                   </input>
                 </div>
@@ -1494,7 +1494,7 @@ export function CalendarTrackersSubView({
                   value={newTrackerNotes}
                   onChange={(e) => setNewTrackerNotes(e.target.value)}
                   placeholder="Optional details, contact or policy number"
-                  className="w-full bg-[#0B0D13] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#F59E0B]"
+                  className="w-full bg-[var(--quant-surface-subtle)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[var(--quant-warning)]"
                 />
               </div>
 
@@ -1508,7 +1508,7 @@ export function CalendarTrackersSubView({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg text-xs font-semibold text-black bg-[#F59E0B] hover:bg-[#D97706] shadow-sm transition-all"
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold text-black bg-[var(--quant-warning)] hover:bg-[#D97706] shadow-sm transition-all"
                 >
                   Save Tracker
                 </button>
@@ -1738,12 +1738,12 @@ export function CalendarScheduleSubView({
   }, [events, selectedDate]);
 
   return (
-    <div className={`flex-1 flex flex-col overflow-y-auto bg-[#090A0E] text-[#F5F5F5] p-4 sm:p-6 pb-24 space-y-6 ${className}`}>
+    <div className={`flex-1 flex flex-col overflow-y-auto bg-[var(--quant-background)] text-[#F5F5F5] p-4 sm:p-6 pb-24 space-y-6 ${className}`}>
       {/* Top Header & Segmented Sub-Tab Switcher */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#232938] pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#F59E0B]">
+            <span className="text-xs font-bold uppercase tracking-wider text-[var(--quant-warning)]">
               Schedule & Reminders
             </span>
             <span className="text-xs text-[#A1A4AC]">·</span>
@@ -1755,13 +1755,13 @@ export function CalendarScheduleSubView({
         </div>
 
         {/* 2 Segmented Sub-Tabs */}
-        <div className="inline-flex rounded-xl border border-[#232938] bg-[#12151E] p-1 shadow-inner">
+        <div className="inline-flex rounded-xl border border-[#232938] bg-[var(--quant-surface)] p-1 shadow-inner">
           <button
             type="button"
             onClick={() => setSubTab('clock')}
             className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
               subTab === 'clock'
-                ? 'bg-[#F59E0B] text-black shadow-sm'
+                ? 'bg-[var(--quant-warning)] text-black shadow-sm'
                 : 'text-[#A1A4AC] hover:text-white'
             }`}
           >
@@ -1774,7 +1774,7 @@ export function CalendarScheduleSubView({
             onClick={() => setSubTab('reminders')}
             className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
               subTab === 'reminders'
-                ? 'bg-[#F59E0B] text-black shadow-sm'
+                ? 'bg-[var(--quant-warning)] text-black shadow-sm'
                 : 'text-[#A1A4AC] hover:text-white'
             }`}
           >
@@ -1796,10 +1796,10 @@ export function CalendarScheduleSubView({
               return (
                 <div
                   key={zone.tz}
-                  className="p-3.5 rounded-2xl bg-[#12151E] border border-[#232938] space-y-1 shadow-sm"
+                  className="p-3.5 rounded-2xl bg-[var(--quant-surface)] border border-[#232938] space-y-1 shadow-sm"
                 >
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-[#F59E0B] flex items-center gap-1.5">
+                    <span className="font-bold text-[var(--quant-warning)] flex items-center gap-1.5">
                       <SvgGlobe className="size-3" />
                       {info.code}
                     </span>
@@ -1815,7 +1815,7 @@ export function CalendarScheduleSubView({
           </div>
 
           {/* Time Blocking Schedule Matrix */}
-          <div className="bg-[#12151E] border border-[#232938] rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+          <div className="bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-[#F5F5F5]">
@@ -1829,7 +1829,7 @@ export function CalendarScheduleSubView({
               <button
                 type="button"
                 onClick={() => openDedicatedSheet?.('event', selectedDate)}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-black bg-[#F59E0B] hover:bg-[#D97706] shadow-sm flex items-center gap-1.5 transition-all"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-black bg-[var(--quant-warning)] hover:bg-[#D97706] shadow-sm flex items-center gap-1.5 transition-all"
               >
                 <SvgPlus className="size-3.5 text-black" />
                 <span>+ Block Slot</span>
@@ -1837,11 +1837,11 @@ export function CalendarScheduleSubView({
             </div>
 
             {/* Hourly Slot Rows */}
-            <div className="divide-y divide-[#232938]/60 border border-[#232938] rounded-xl overflow-hidden bg-[#0B0D13]">
+            <div className="divide-y divide-[#232938]/60 border border-[#232938] rounded-xl overflow-hidden bg-[var(--quant-surface-subtle)]">
               {timeSlots.map((slot) => (
                 <div
                   key={slot.hour}
-                  className="flex items-center justify-between p-2.5 sm:p-3 hover:bg-[#181C26]/40 transition-colors"
+                  className="flex items-center justify-between p-2.5 sm:p-3 hover:bg-[var(--quant-surface-elevated)]/40 transition-colors"
                 >
                   <div className="w-24 text-xs font-mono font-medium text-[#A1A4AC]">
                     {slot.timeLabel}
@@ -1853,8 +1853,8 @@ export function CalendarScheduleSubView({
                         onClick={() => onSelectEvent?.(slot.event!)}
                         className="p-2 rounded-lg border text-xs font-semibold cursor-pointer transition-all flex items-center justify-between"
                         style={{
-                          backgroundColor: `${slot.event.color || '#F59E0B'}20`,
-                          borderColor: `${slot.event.color || '#F59E0B'}50`,
+                          backgroundColor: `${slot.event.color || 'var(--quant-warning)'}20`,
+                          borderColor: `${slot.event.color || 'var(--quant-warning)'}50`,
                           color: '#F5F5F5',
                         }}
                       >
@@ -1869,7 +1869,7 @@ export function CalendarScheduleSubView({
                   <button
                     type="button"
                     onClick={() => openDedicatedSheet?.('event', selectedDate)}
-                    className="text-[11px] font-medium text-[#F59E0B] hover:underline px-2"
+                    className="text-[11px] font-medium text-[var(--quant-warning)] hover:underline px-2"
                   >
                     + Add
                   </button>
@@ -1884,8 +1884,8 @@ export function CalendarScheduleSubView({
       {subTab === 'reminders' && (
         <div className="space-y-6">
           {/* Quick Add Card */}
-          <div className="bg-[#12151E] border border-[#232938] rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[#F59E0B]">
+          <div className="bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--quant-warning)]">
               Add New Scheduled Reminder
             </h3>
 
@@ -1896,7 +1896,7 @@ export function CalendarScheduleSubView({
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 placeholder="What needs to get done?"
-                className="flex-1 bg-[#0B0D13] border border-[#232938] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] placeholder-[#A1A4AC]/60 focus:outline-none focus:border-[#F59E0B]"
+                className="flex-1 bg-[var(--quant-surface-subtle)] border border-[#232938] rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] placeholder-[#A1A4AC]/60 focus:outline-none focus:border-[var(--quant-warning)]"
               />
 
               <input
@@ -1904,14 +1904,14 @@ export function CalendarScheduleSubView({
                 value={newDueTime}
                 onChange={(e) => setNewDueTime(e.target.value)}
                 placeholder="Due time (e.g. Today, 6:00 PM)"
-                className="w-full sm:w-48 bg-[#0B0D13] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#F59E0B]"
+                className="w-full sm:w-48 bg-[var(--quant-surface-subtle)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[var(--quant-warning)]"
               />
 
               <select
                 aria-label="Priority"
                 value={newPriority}
                 onChange={(e) => setNewPriority(e.target.value as any)}
-                className="bg-[#0B0D13] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#F59E0B]"
+                className="bg-[var(--quant-surface-subtle)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[var(--quant-warning)]"
               >
                 <option value="urgent">Urgent</option>
                 <option value="medium">Medium</option>
@@ -1920,7 +1920,7 @@ export function CalendarScheduleSubView({
 
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-black bg-[#F59E0B] hover:bg-[#D97706] shadow-sm flex items-center justify-center gap-1 transition-all"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-black bg-[var(--quant-warning)] hover:bg-[#D97706] shadow-sm flex items-center justify-center gap-1 transition-all"
               >
                 <SvgPlus className="size-3.5 text-black" />
                 <span>Add</span>
@@ -1937,8 +1937,8 @@ export function CalendarScheduleSubView({
                 onClick={() => setReminderFilter(f)}
                 className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
                   reminderFilter === f
-                    ? 'bg-[#F59E0B] text-black font-semibold'
-                    : 'bg-[#12151E] text-[#A1A4AC] hover:text-white border border-[#232938]'
+                    ? 'bg-[var(--quant-warning)] text-black font-semibold'
+                    : 'bg-[var(--quant-surface)] text-[#A1A4AC] hover:text-white border border-[#232938]'
                 }`}
               >
                 {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -1953,15 +1953,15 @@ export function CalendarScheduleSubView({
                 key={r.id}
                 className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 transition-all ${
                   r.completed
-                    ? 'bg-[#12151E]/40 border-[#232938]/60 opacity-60'
-                    : 'bg-[#12151E] border-[#232938] hover:border-[#384156]'
+                    ? 'bg-[var(--quant-surface)]/40 border-[#232938]/60 opacity-60'
+                    : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[#384156]'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <button
                     type="button"
                     onClick={() => toggleReminder(r.id)}
-                    className="text-[#A1A4AC] hover:text-[#F59E0B] transition-colors"
+                    className="text-[#A1A4AC] hover:text-[var(--quant-warning)] transition-colors"
                   >
                     {r.completed ? (
                       <SvgCheckSquare className="size-4 text-emerald-400" />
@@ -2001,7 +2001,7 @@ export function CalendarScheduleSubView({
                     <button
                       type="button"
                       onClick={() => handleSnooze(r.id, 15)}
-                      className="px-2 py-1 rounded-lg text-[10px] font-medium text-[#A1A4AC] hover:text-white bg-[#0B0D13] border border-[#232938] flex items-center gap-1"
+                      className="px-2 py-1 rounded-lg text-[10px] font-medium text-[#A1A4AC] hover:text-white bg-[var(--quant-surface-subtle)] border border-[#232938] flex items-center gap-1"
                       title="Snooze 15 minutes"
                     >
                       <SvgSnooze className="size-3" />
@@ -2022,7 +2022,7 @@ export function CalendarScheduleSubView({
             ))}
 
             {filteredReminders.length === 0 && (
-              <div className="py-8 text-center text-xs text-[#A1A4AC]/60 bg-[#12151E] rounded-xl border border-dashed border-[#232938]">
+              <div className="py-8 text-center text-xs text-[#A1A4AC]/60 bg-[var(--quant-surface)] rounded-xl border border-dashed border-[#232938]">
                 No reminders in this category
               </div>
             )}

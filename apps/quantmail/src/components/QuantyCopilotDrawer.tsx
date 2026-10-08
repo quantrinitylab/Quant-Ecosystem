@@ -549,15 +549,15 @@ export function QuantyCopilotDrawer({
             drag="y"
             dragConstraints={{ top: 0 }}
             dragElastic={{ top: 0, bottom: 0.6 }}
-            className={`fixed bottom-0 left-0 right-0 z-50 w-full sm:max-w-xl sm:mx-auto rounded-t-2xl border-t border-x border-[#282C35] bg-[#111318] shadow-[0_-12px_45px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden transition-all duration-300 ${
+            className={`fixed bottom-0 left-0 right-0 z-50 w-full sm:max-w-xl sm:mx-auto rounded-t-2xl border-t border-x border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] shadow-[0_-12px_45px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden transition-all duration-300 ${
               hasConversation ? 'h-[580px] max-h-[82vh]' : 'h-auto max-h-[75vh]'
             }`}
           >
             <div className="flex justify-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing">
-              <div className="w-10 h-1 rounded-full bg-[#282C35]" />
+              <div className="w-10 h-1 rounded-full bg-[var(--quant-surface-elevated)]" />
             </div>
 
-            <div className="flex items-center justify-between px-4 sm:px-5 pt-1 pb-3 relative border-b border-[#282C35]">
+            <div className="flex items-center justify-between px-4 sm:px-5 pt-1 pb-3 relative border-b border-[var(--quant-surface-elevated)]">
               <div className="flex items-center gap-2.5">
                 <Quanty size={28} expression={quantyExpression} bob={false} />
                 <h3 className="text-sm font-semibold text-[#F5F5F5] tracking-tight">
@@ -586,9 +586,9 @@ export function QuantyCopilotDrawer({
                 <button
                   type="button"
                   onClick={() => setShowHistoryMenu(!showHistoryMenu)}
-                  className={`relative p-1.5 rounded-full transition-colors before:absolute before:-inset-[7px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                  className={`relative p-1.5 rounded-full transition-colors before:absolute before:-inset-[7px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                     showHistoryMenu
-                      ? 'text-[#FF8C42] bg-[#FF8C42]/12 shadow-sm'
+                      ? 'text-[var(--quant-primary)] bg-[var(--quant-primary)]/12 shadow-sm'
                       : 'text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-white/[0.04]'
                   }`}
                   title="Chat history"
@@ -614,7 +614,7 @@ export function QuantyCopilotDrawer({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="relative p-1.5 rounded-full text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#16181D] transition-colors before:absolute before:-inset-[7px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  className="relative p-1.5 rounded-full text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)] transition-colors before:absolute before:-inset-[7px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                   aria-label="Close Quanty"
                   title="Close Quanty"
                 >
@@ -638,9 +638,9 @@ export function QuantyCopilotDrawer({
                     initial={{ opacity: 0, scale: 0.95, y: -5 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                    className="absolute right-4 top-12 z-50 w-64 rounded-xl border border-[#282C35] bg-[#16181D] p-3 shadow-2xl space-y-2 text-xs"
+                    className="absolute right-4 top-12 z-50 w-64 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] p-3 shadow-2xl space-y-2 text-xs"
                   >
-                    <div className="flex items-center justify-between pb-1.5 border-b border-[#282C35]">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-[var(--quant-surface-elevated)]">
                       <span className="font-semibold text-[#F5F5F5]">Recent Chats</span>
                       {historyList.length > 0 && (
                         <button
@@ -662,7 +662,7 @@ export function QuantyCopilotDrawer({
                         {historyList.map((item) => (
                           <div
                             key={item.id}
-                            className="group flex items-center justify-between p-2 rounded-lg hover:bg-[#111318] cursor-pointer"
+                            className="group flex items-center justify-between p-2 rounded-lg hover:bg-[var(--quant-surface)] cursor-pointer"
                             onClick={() => loadChat(item)}
                           >
                             <div className="min-w-0 flex-1 pr-2">
@@ -672,7 +672,7 @@ export function QuantyCopilotDrawer({
                             <button
                               type="button"
                               onClick={(e) => deleteChat(item.id, e)}
-                              className="inline-flex items-center justify-center size-7 min-h-[44px] min-w-[44px] shrink-0 rounded-lg text-[#6B6E76] hover:text-rose-400 transition-opacity sm:min-h-0 sm:min-w-0 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                              className="inline-flex items-center justify-center size-7 min-h-[44px] min-w-[44px] shrink-0 rounded-lg text-[#6B6E76] hover:text-rose-400 transition-opacity sm:min-h-0 sm:min-w-0 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                               title="Delete chat"
                               aria-label="Delete chat"
                             >
@@ -696,11 +696,11 @@ export function QuantyCopilotDrawer({
                       onClick={() =>
                         void handleSend('Please summarize this email in 3 crisp bullet points.')
                       }
-                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-[#16181D] hover:bg-[#1C1F26] border border-[#282C35] text-left transition-all active:scale-[0.99] group shadow-sm"
+                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] text-left transition-all active:scale-[0.99] group shadow-sm"
                     >
-                      <div className="size-8 rounded-lg bg-[#FF8C42]/10 border border-[#FF8C42]/25 flex items-center justify-center text-[#FF8C42] text-sm shrink-0">
+                      <div className="size-8 rounded-lg bg-[var(--quant-primary)]/10 border border-[var(--quant-primary)]/25 flex items-center justify-center text-[var(--quant-primary)] text-sm shrink-0">
                         <svg
-                          className="size-4 text-[#FF8C42]"
+                          className="size-4 text-[var(--quant-primary)]"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -723,10 +723,10 @@ export function QuantyCopilotDrawer({
                             'Draft a polite, professional, and concise smart reply to this email.',
                           )
                         }
-                        className="flex-1 flex items-center gap-2 p-2.5 rounded-lg bg-[#16181D] hover:bg-[#1C1F26] border border-[#282C35] text-left transition-all text-xs text-[#A1A4AC] font-medium"
+                        className="flex-1 flex items-center gap-2 p-2.5 rounded-lg bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] text-left transition-all text-xs text-[#A1A4AC] font-medium"
                       >
                         <svg
-                          className="w-3.5 h-3.5 text-[#FF8C42]"
+                          className="w-3.5 h-3.5 text-[var(--quant-primary)]"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -748,10 +748,10 @@ export function QuantyCopilotDrawer({
                             'कृपया इस ईमेल का हिंदी में मुख्य सारांश (Summary) बताएं।',
                           )
                         }
-                        className="flex-1 flex items-center gap-2 p-2.5 rounded-lg bg-[#16181D] hover:bg-[#1C1F26] border border-[#282C35] text-left transition-all text-xs text-[#A1A4AC] font-medium"
+                        className="flex-1 flex items-center gap-2 p-2.5 rounded-lg bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] text-left transition-all text-xs text-[#A1A4AC] font-medium"
                       >
                         <svg
-                          className="w-3.5 h-3.5 text-[#FF8C42]"
+                          className="w-3.5 h-3.5 text-[var(--quant-primary)]"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -773,7 +773,7 @@ export function QuantyCopilotDrawer({
                     onClick={() =>
                       void handleSend('What can Quanty do to manage my emails and daily tasks?')
                     }
-                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-[#16181D] hover:bg-[#1C1F26] border border-[#282C35] text-left transition-all active:scale-[0.99] group shadow-sm"
+                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] text-left transition-all active:scale-[0.99] group shadow-sm"
                   >
                     {/*
                       `greeting`, not `happy` — this card only exists in the empty state, so
@@ -812,8 +812,8 @@ export function QuantyCopilotDrawer({
                     <div
                       className={`max-w-[86%] rounded-xl px-3.5 py-2.5 text-xs leading-relaxed ${
                         m.role === 'user'
-                          ? 'bg-[#FF8C42]/12 border border-[#FF8C42]/30 text-[#F5F5F5] rounded-br-none shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] font-medium'
-                          : 'bg-[#16181D] border border-white/[0.08] text-[#F5F5F5] rounded-bl-none shadow-sm'
+                          ? 'bg-[var(--quant-primary)]/12 border border-[var(--quant-primary)]/30 text-[#F5F5F5] rounded-br-none shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] font-medium'
+                          : 'bg-[var(--quant-surface-elevated)] border border-white/[0.08] text-[#F5F5F5] rounded-bl-none shadow-sm'
                       }`}
                     >
                       <p className="whitespace-pre-wrap">{m.text}</p>
@@ -847,10 +847,10 @@ export function QuantyCopilotDrawer({
                             onClose();
                             showToast({ text: 'Applied draft into composer', type: 'success' });
                           }}
-                          className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-[#FF8C42] bg-[#FF8C42]/10 hover:bg-[#FF8C42]/20 border border-[#FF8C42]/30 transition-all shadow-sm"
+                          className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-[var(--quant-primary)] bg-[var(--quant-primary)]/10 hover:bg-[var(--quant-primary)]/20 border border-[var(--quant-primary)]/30 transition-all shadow-sm"
                         >
                           <svg
-                            className="w-3 h-3 text-[#FF8C42]"
+                            className="w-3 h-3 text-[var(--quant-primary)]"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -884,10 +884,10 @@ export function QuantyCopilotDrawer({
                               onClose();
                               showToast({ text: 'Inserted draft into reply', type: 'success' });
                             }}
-                            className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-[#FF8C42] bg-[#FF8C42]/10 hover:bg-[#FF8C42]/20 border border-[#FF8C42]/30 transition-all shadow-sm"
+                            className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-[var(--quant-primary)] bg-[var(--quant-primary)]/10 hover:bg-[var(--quant-primary)]/20 border border-[var(--quant-primary)]/30 transition-all shadow-sm"
                           >
                             <svg
-                              className="w-3 h-3 text-[#FF8C42]"
+                              className="w-3 h-3 text-[var(--quant-primary)]"
                               fill="none"
                               stroke="currentColor"
                               viewBox="0 0 24 24"
@@ -911,10 +911,10 @@ export function QuantyCopilotDrawer({
                     <div className="shrink-0">
                       <Quanty size={22} expression="thinking" bob={false} />
                     </div>
-                    <div className="px-3.5 py-2 rounded-2xl bg-[#181c26] border border-[#FF8C42]/20 text-xs text-[#FF8C42] flex items-center gap-1.5">
-                      <span className="size-1.5 rounded-full bg-[#FF8C42] animate-bounce" />
-                      <span className="size-1.5 rounded-full bg-[#FF8C42] animate-bounce [animation-delay:0.15s]" />
-                      <span className="size-1.5 rounded-full bg-[#FF8C42] animate-bounce [animation-delay:0.3s]" />
+                    <div className="px-3.5 py-2 rounded-2xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-primary)]/20 text-xs text-[var(--quant-primary)] flex items-center gap-1.5">
+                      <span className="size-1.5 rounded-full bg-[var(--quant-primary)] animate-bounce" />
+                      <span className="size-1.5 rounded-full bg-[var(--quant-primary)] animate-bounce [animation-delay:0.15s]" />
+                      <span className="size-1.5 rounded-full bg-[var(--quant-primary)] animate-bounce [animation-delay:0.3s]" />
                       <span className="ml-1 text-[11px] text-[#A1A4AC]">Quanty is thinking…</span>
                     </div>
                   </div>
@@ -939,7 +939,7 @@ export function QuantyCopilotDrawer({
                     <div className="shrink-0 mt-0.5">
                       <Quanty size={22} expression="shock" bob={false} />
                     </div>
-                    <div className="max-w-[86%] rounded-xl rounded-bl-none border border-[#282C35] bg-[#16181D] px-3.5 py-2.5 shadow-sm">
+                    <div className="max-w-[86%] rounded-xl rounded-bl-none border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3.5 py-2.5 shadow-sm">
                       <p className="text-xs font-semibold text-rose-300">{failure.title}</p>
                       <p className="mt-0.5 text-[11px] leading-relaxed text-[#A1A4AC]">
                         {failure.detail}
@@ -948,7 +948,7 @@ export function QuantyCopilotDrawer({
                         <button
                           type="button"
                           onClick={retryLastTurn}
-                          className="mt-2 inline-flex min-h-touch items-center gap-1.5 rounded-lg border border-[#FF8C42]/30 bg-[#FF8C42]/10 px-2.5 text-xs font-semibold text-[#FF8C42] transition-colors hover:bg-[#FF8C42]/20 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                          className="mt-2 inline-flex min-h-touch items-center gap-1.5 rounded-lg border border-[var(--quant-primary)]/30 bg-[var(--quant-primary)]/10 px-2.5 text-xs font-semibold text-[var(--quant-primary)] transition-colors hover:bg-[var(--quant-primary)]/20 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                         >
                           <svg
                             className="size-3.5"
@@ -990,7 +990,7 @@ export function QuantyCopilotDrawer({
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   placeholder="Enter a prompt here"
-                  className="w-full rounded-full border border-[#3A404D]/80 bg-[#1a1f2c] pl-4 pr-11 py-3 text-xs sm:text-[13px] text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42]/40 transition-all shadow-inner font-sans"
+                  className="w-full rounded-full border border-[#3A404D]/80 bg-[#1a1f2c] pl-4 pr-11 py-3 text-xs sm:text-[13px] text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[var(--quant-primary)] focus:ring-1 focus:ring-[var(--quant-primary)]/40 transition-all shadow-inner font-sans"
                 />
 
                 {/*
@@ -1008,7 +1008,7 @@ export function QuantyCopilotDrawer({
                 <button
                   type="submit"
                   disabled={!inputValue.trim() || isLoading}
-                  className="absolute right-2 p-1.5 rounded-full text-[#FF8C42] hover:text-[#FFB875] disabled:opacity-30 transition-all active:scale-95 before:absolute before:-inset-y-[6px] before:-left-[4px] before:-right-[8px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  className="absolute right-2 p-1.5 rounded-full text-[var(--quant-primary)] hover:text-[#FFB875] disabled:opacity-30 transition-all active:scale-95 before:absolute before:-inset-y-[6px] before:-left-[4px] before:-right-[8px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                   title="Send"
                   aria-label="Send prompt to Quanty"
                 >

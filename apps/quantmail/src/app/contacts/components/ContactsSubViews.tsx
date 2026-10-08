@@ -96,9 +96,9 @@ export function VipContactsSubView({
   return (
     <div className="space-y-6">
       {/* VIP Header Hero */}
-      <div className="rounded-2xl border border-[#F59E0B]/50 bg-gradient-to-r from-[#18140E] to-[#12100C] p-5 shadow-lg">
+      <div className="rounded-2xl border border-[var(--quant-warning)]/50 bg-gradient-to-r from-[#18140E] to-[#12100C] p-5 shadow-lg">
         <div className="flex items-center gap-4">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F59E0B] to-[#D97706] text-black shadow-md shadow-[#F59E0B]/20">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--quant-warning)] to-[#D97706] text-black shadow-md shadow-[var(--quant-warning)]/20">
             <svg className="size-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
             </svg>
@@ -106,7 +106,7 @@ export function VipContactsSubView({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold text-white tracking-wide">Executive VIP Directory</h2>
-              <span className="rounded-md border border-[#F59E0B]/80 bg-[#78350F]/50 px-2 py-0.5 text-[10px] font-extrabold text-[#FBBF24] tracking-wider uppercase">
+              <span className="rounded-md border border-[var(--quant-warning)]/80 bg-[#78350F]/50 px-2 py-0.5 text-[10px] font-extrabold text-[#FBBF24] tracking-wider uppercase">
                 {vipList.length} EXECUTIVES
               </span>
             </div>
@@ -119,7 +119,7 @@ export function VipContactsSubView({
 
       {/* Grid of Prominent Gold Star Cards */}
       {vipList.length === 0 ? (
-        <div className="text-center py-12 px-4 space-y-2 rounded-2xl border border-[#232938] bg-[#141822]">
+        <div className="text-center py-12 px-4 space-y-2 rounded-2xl border border-[#232938] bg-[var(--quant-surface-elevated)]">
           <p className="text-xs font-bold text-white">No VIP contacts yet</p>
           <p className="text-[11px] text-[#A1A4AC]">
             Star a contact or tag them VIP to feature them here.
@@ -138,18 +138,18 @@ export function VipContactsSubView({
             <div
               key={contact.id || contact.email}
               onClick={() => onInspect(contact)}
-              className="group flex flex-col justify-between rounded-2xl border border-[#F59E0B]/40 bg-[#16140E] p-4.5 hover:border-[#F59E0B] hover:shadow-[0_0_20px_rgba(245,158,11,0.15)] transition-all cursor-pointer"
+              className="group flex flex-col justify-between rounded-2xl border border-[var(--quant-warning)]/40 bg-[#16140E] p-4.5 hover:border-[var(--quant-warning)] hover:shadow-[0_0_20px_rgba(245,158,11,0.15)] transition-all cursor-pointer"
             >
               <div>
                 <div className="flex items-start gap-3.5">
                   {/* Gold Ring Avatar with Verified Star Badge */}
                   <div className="relative shrink-0">
                     <div
-                      className={`flex size-12 items-center justify-center rounded-full bg-gradient-to-br ${gradient} text-sm font-bold text-white ring-2 ring-[#F59E0B] shadow-sm`}
+                      className={`flex size-12 items-center justify-center rounded-full bg-gradient-to-br ${gradient} text-sm font-bold text-white ring-2 ring-[var(--quant-warning)] shadow-sm`}
                     >
                       {initials}
                     </div>
-                    <div className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full bg-[#F59E0B] text-black ring-2 ring-[#16140E]">
+                    <div className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full bg-[var(--quant-warning)] text-black ring-2 ring-[#16140E]">
                       <svg className="size-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                       </svg>
@@ -161,7 +161,7 @@ export function VipContactsSubView({
                       <h3 className="text-sm font-bold text-white truncate group-hover:text-[#FBBF24] transition-colors">
                         {contact.name}
                       </h3>
-                      <span className="rounded border border-[#F59E0B]/60 bg-[#78350F]/40 px-1.5 py-px text-[var(--q-type-xs)] font-bold text-[#FBBF24]">
+                      <span className="rounded border border-[var(--quant-warning)]/60 bg-[#78350F]/40 px-1.5 py-px text-[var(--q-type-xs)] font-bold text-[#FBBF24]">
                         VIP Executive
                       </span>
                     </div>
@@ -182,7 +182,7 @@ export function VipContactsSubView({
                       e.stopPropagation();
                       onToggleStar?.(contact);
                     }}
-                    className="p-1 text-[#F59E0B] hover:text-[#FBBF24] transition-colors"
+                    className="p-1 text-[var(--quant-warning)] hover:text-[#FBBF24] transition-colors"
                     title="VIP Star"
                   >
                     <svg className="size-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -214,7 +214,7 @@ export function VipContactsSubView({
                     e.stopPropagation();
                     onEmail(contact.email);
                   }}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-[#FF8C42]/60 bg-[#431E0E] py-2 text-xs font-bold text-[#FF8C42] hover:bg-[#5A2813] hover:border-[#FF8C42] transition-colors"
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-[var(--quant-primary)]/60 bg-[#431E0E] py-2 text-xs font-bold text-[var(--quant-primary)] hover:bg-[#5A2813] hover:border-[var(--quant-primary)] transition-colors"
                 >
                   <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <rect width="20" height="16" x="2" y="4" rx="2" />
@@ -322,7 +322,7 @@ export function CompaniesSubView({
       {/* Companies Header Hero */}
       <div className="rounded-2xl border border-[#1F293D] bg-gradient-to-r from-[#111827] to-[#0D131F] p-5 shadow-lg">
         <div className="flex items-center gap-4">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#3B82F6] to-[#1D4ED8] text-white shadow-md shadow-[#3B82F6]/20">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--quant-info)] to-[#1D4ED8] text-white shadow-md shadow-[var(--quant-info)]/20">
             <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <rect width="16" height="20" x="4" y="2" rx="2" ry="2" />
               <path d="M9 22v-4h6v4" />
@@ -337,7 +337,7 @@ export function CompaniesSubView({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold text-white tracking-wide">Enterprise Organizations</h2>
-              <span className="rounded-md border border-[#3B82F6]/80 bg-[#1E3A8A]/50 px-2 py-0.5 text-[10px] font-bold text-[#93C5FD] tracking-wider uppercase">
+              <span className="rounded-md border border-[var(--quant-info)]/80 bg-[#1E3A8A]/50 px-2 py-0.5 text-[10px] font-bold text-[#93C5FD] tracking-wider uppercase">
                 {companyGroups.length} COMPANIES
               </span>
             </div>
@@ -353,7 +353,7 @@ export function CompaniesSubView({
         {companyGroups.map((group) => (
           <div
             key={group.name}
-            className="rounded-2xl border border-[#262C3A] bg-[#141722] p-5 shadow-md flex flex-col justify-between"
+            className="rounded-2xl border border-[#262C3A] bg-[var(--quant-surface-elevated)] p-5 shadow-md flex flex-col justify-between"
           >
             <div>
               {/* Company Header Row */}
@@ -371,7 +371,7 @@ export function CompaniesSubView({
                   </div>
                 </div>
 
-                <span className="rounded-full border border-[#334155] bg-[#1E293B] px-3 py-1 text-xs font-semibold text-[#E2E8F0]">
+                <span className="rounded-full border border-[#334155] bg-[var(--quant-surface-elevated)] px-3 py-1 text-xs font-semibold text-[#E2E8F0]">
                   {group.members.length} {group.members.length === 1 ? 'member' : 'members'}
                 </span>
               </div>
@@ -398,7 +398,7 @@ export function CompaniesSubView({
                           <div className="flex items-center gap-1.5">
                             <h4 className="text-xs font-bold text-white truncate">{member.name}</h4>
                             {member.isVip && (
-                              <svg className="size-3 text-[#F59E0B]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <svg className="size-3 text-[var(--quant-warning)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                               </svg>
                             )}
@@ -430,7 +430,7 @@ export function CompaniesSubView({
                             e.stopPropagation();
                             onEmail(member.email);
                           }}
-                          className="flex size-7 items-center justify-center rounded-lg border border-[#FF8C42]/40 bg-[#3F1E0E] text-[#FF8C42] hover:bg-[#522712] transition-colors"
+                          className="flex size-7 items-center justify-center rounded-lg border border-[var(--quant-primary)]/40 bg-[#3F1E0E] text-[var(--quant-primary)] hover:bg-[#522712] transition-colors"
                           title="Email"
                         >
                           <svg className="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -502,7 +502,7 @@ export function DedupWizardSubView({
     <div className="rounded-xl border border-[#1E2433] bg-[#10131B] p-3.5 space-y-1.5">
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold text-white">{record.name}</span>
-        <span className="rounded bg-[#1E293B] px-1.5 py-0.5 text-[10px] font-medium text-[#94A3B8]">
+        <span className="rounded bg-[var(--quant-surface-elevated)] px-1.5 py-0.5 text-[10px] font-medium text-[#94A3B8]">
           {record.sourceLabel}
         </span>
       </div>
@@ -558,11 +558,11 @@ export function DedupWizardSubView({
 
       {/* Collision Comparison & Merge Wizard */}
       {collision ? (
-        <div className="rounded-2xl border border-[#262C3A] bg-[#141722] p-5 shadow-md space-y-4">
+        <div className="rounded-2xl border border-[#262C3A] bg-[var(--quant-surface-elevated)] p-5 shadow-md space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-[#262C3A]">
             <h3 className="text-sm font-bold text-white">Detected Collision: {collision.recordA.name}</h3>
             {collision.matchConfidence != null && (
-              <span className="rounded border border-[#F59E0B] bg-[#78350F]/40 px-2 py-0.5 text-[10px] font-bold text-[#FBBF24]">
+              <span className="rounded border border-[var(--quant-warning)] bg-[#78350F]/40 px-2 py-0.5 text-[10px] font-bold text-[#FBBF24]">
                 {collision.matchConfidence}% Match
               </span>
             )}
@@ -625,7 +625,7 @@ export function DedupWizardSubView({
               <button
                 type="button"
                 onClick={() => onKeepSeparate(collision.id)}
-                className="flex-1 rounded-xl border border-[#333D52] bg-[#16181D] py-2 text-xs font-medium text-[#94A3B8] hover:text-[#F5F5F5] hover:border-[#4B5563] transition-colors"
+                className="flex-1 rounded-xl border border-[#333D52] bg-[var(--quant-surface-elevated)] py-2 text-xs font-medium text-[#94A3B8] hover:text-[#F5F5F5] hover:border-[#4B5563] transition-colors"
               >
                 Keep Both Records Separate
               </button>
@@ -724,7 +724,7 @@ export function CirclesSubView({
   if (circles.length === 0) {
     return (
       <div className="space-y-6">
-        <div className="rounded-2xl border border-[#262C3A] bg-[#141722] p-8 text-center shadow-md space-y-3">
+        <div className="rounded-2xl border border-[#262C3A] bg-[var(--quant-surface-elevated)] p-8 text-center shadow-md space-y-3">
           <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#1E2433] border border-[#333D52] text-[#8B5CF6]">
             <svg className="size-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="3" />
@@ -774,7 +774,7 @@ export function CirclesSubView({
         {circles.map((circle) => (
           <div
             key={circle.id}
-            className="rounded-2xl border border-[#262C3A] bg-[#141722] p-5 shadow-md flex flex-col justify-between hover:border-[#8B5CF6]/50 transition-all"
+            className="rounded-2xl border border-[#262C3A] bg-[var(--quant-surface-elevated)] p-5 shadow-md flex flex-col justify-between hover:border-[#8B5CF6]/50 transition-all"
           >
             <div>
               <div className="flex items-center justify-between pb-3 border-b border-[#262C3A]">
@@ -818,7 +818,7 @@ export function CirclesSubView({
                     return (
                       <div
                         key={name}
-                        className={`flex size-8 items-center justify-center rounded-full bg-gradient-to-br ${gradient} text-[10px] font-bold text-white ring-2 ring-[#141722]`}
+                        className={`flex size-8 items-center justify-center rounded-full bg-gradient-to-br ${gradient} text-[10px] font-bold text-white ring-2 ring-[var(--quant-surface-elevated)]`}
                         title={name}
                       >
                         {initials}
@@ -826,7 +826,7 @@ export function CirclesSubView({
                     );
                   })}
                   {circle.memberCount > 4 && (
-                    <div className="flex size-8 items-center justify-center rounded-full bg-[#262C3A] text-[10px] font-bold text-white ring-2 ring-[#141722]">
+                    <div className="flex size-8 items-center justify-center rounded-full bg-[#262C3A] text-[10px] font-bold text-white ring-2 ring-[var(--quant-surface-elevated)]">
                       +{circle.memberCount - 4}
                     </div>
                   )}
@@ -963,7 +963,7 @@ export function ContactDetailSheet({
   if (!contact) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-center p-8 select-none">
-        <div className="size-16 rounded-2xl bg-[#141822] border border-[#232938] flex items-center justify-center text-[#6B7280] mb-4 shadow-inner">
+        <div className="size-16 rounded-2xl bg-[var(--quant-surface-elevated)] border border-[#232938] flex items-center justify-center text-[#6B7280] mb-4 shadow-inner">
           <svg className="size-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M16 2v2M8 2v2" />
             <rect x="3" y="4" width="18" height="18" rx="2" />
@@ -1006,7 +1006,7 @@ export function ContactDetailSheet({
               {initials}
             </div>
             {isFavorite && (
-              <div className="absolute -bottom-1.5 -right-1.5 flex size-6 items-center justify-center rounded-full bg-[#FFB020] text-black shadow-md ring-2 ring-[#090A0C]">
+              <div className="absolute -bottom-1.5 -right-1.5 flex size-6 items-center justify-center rounded-full bg-[#FFB020] text-black shadow-md ring-2 ring-[var(--quant-background)]">
                 <svg className="size-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                 </svg>
@@ -1037,7 +1037,7 @@ export function ContactDetailSheet({
             </div>
 
             {roleSubtitle && (
-              <p className="text-xs sm:text-sm text-[#FF8C42] font-medium flex items-center gap-1.5 mt-0.5 truncate">
+              <p className="text-xs sm:text-sm text-[var(--quant-primary)] font-medium flex items-center gap-1.5 mt-0.5 truncate">
                 <svg className="size-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <rect x="4" y="2" width="16" height="20" rx="2" />
                   <line x1="9" y1="22" x2="9" y2="22.01" />
@@ -1057,7 +1057,7 @@ export function ContactDetailSheet({
                 {tags.map((tag) => (
                   <span
                     key={tag}
-                    className="px-2 py-0.5 rounded-md bg-[#FF8C42]/15 border border-[#FF8C42]/30 text-[10px] font-bold text-[#FF8C42]"
+                    className="px-2 py-0.5 rounded-md bg-[var(--quant-primary)]/15 border border-[var(--quant-primary)]/30 text-[10px] font-bold text-[var(--quant-primary)]"
                   >
                     {tag}
                   </span>
@@ -1072,7 +1072,7 @@ export function ContactDetailSheet({
           <button
             type="button"
             onClick={() => onEdit?.(contact)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#282C35] bg-[#141822] text-xs font-semibold text-[#A1A4AC] hover:text-white hover:border-[#3A404D] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-xs font-semibold text-[#A1A4AC] hover:text-white hover:border-[#3A404D] transition-colors"
             title="Edit contact"
           >
             <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1085,7 +1085,7 @@ export function ContactDetailSheet({
           <button
             type="button"
             onClick={() => onDelete?.(contact.id, contact.name)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#282C35] bg-[#141822] text-xs font-semibold text-[#6B7280] hover:text-red-400 hover:border-red-900/50 hover:bg-red-950/20 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-xs font-semibold text-[#6B7280] hover:text-red-400 hover:border-red-900/50 hover:bg-red-950/20 transition-colors"
             title="Delete contact"
           >
             <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1099,7 +1099,7 @@ export function ContactDetailSheet({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-xl border border-[#282C35] bg-[#141822] text-[#A1A4AC] hover:text-white transition-colors"
+              className="p-1.5 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:text-white transition-colors"
               title="Close details"
               aria-label="Close details"
             >
@@ -1135,13 +1135,13 @@ export function ContactDetailSheet({
           onClick={() => onEmail ? onEmail(contact.email) : (window.location.href = `/compose?to=${encodeURIComponent(contact.email)}`)}
           className="flex flex-col items-center gap-1.5 group cursor-pointer"
         >
-          <div className="size-12 rounded-full border border-[#FF8C42]/50 bg-[#3F1E0E] text-[#FF8C42] flex items-center justify-center group-hover:bg-[#522712] group-hover:scale-105 transition-all shadow-md shadow-[#FF8C42]/10">
+          <div className="size-12 rounded-full border border-[var(--quant-primary)]/50 bg-[#3F1E0E] text-[var(--quant-primary)] flex items-center justify-center group-hover:bg-[#522712] group-hover:scale-105 transition-all shadow-md shadow-[var(--quant-primary)]/10">
             <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <rect width="20" height="16" x="2" y="4" rx="2" />
               <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
             </svg>
           </div>
-          <span className="text-[11px] font-semibold text-[#A1A4AC] group-hover:text-[#FF8C42] transition-colors">Email</span>
+          <span className="text-[11px] font-semibold text-[#A1A4AC] group-hover:text-[var(--quant-primary)] transition-colors">Email</span>
         </button>
 
         {/* Action 3: Message */}
@@ -1186,16 +1186,16 @@ export function ContactDetailSheet({
       </div>
 
       {/* CONTACT DETAILS CARD */}
-      <div className="rounded-2xl border border-[#232938] bg-[#121622] p-5 shadow-md space-y-4">
-        <h3 className="text-xs font-extrabold uppercase tracking-widest text-[#FF8C42]">
+      <div className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-5 shadow-md space-y-4">
+        <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--quant-primary)]">
           Contact Details
         </h3>
 
         <div className="space-y-3">
           {/* Email Address */}
-          <div className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[#0E1119]">
+          <div className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[var(--quant-surface-subtle)]">
             <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-[#FF8C42]/10 text-[#FF8C42]">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-[var(--quant-primary)]/10 text-[var(--quant-primary)]">
                 <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <rect width="20" height="16" x="2" y="4" rx="2" />
                   <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
@@ -1203,7 +1203,7 @@ export function ContactDetailSheet({
               </div>
               <div className="min-w-0 flex-1">
                 <span className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider block">Email Address</span>
-                <a href={`mailto:${contact.email}`} className="text-xs font-mono font-semibold text-white hover:text-[#FF8C42] transition-colors truncate block">
+                <a href={`mailto:${contact.email}`} className="text-xs font-mono font-semibold text-white hover:text-[var(--quant-primary)] transition-colors truncate block">
                   {contact.email}
                 </a>
               </div>
@@ -1212,7 +1212,7 @@ export function ContactDetailSheet({
             <button
               type="button"
               onClick={() => handleCopy(contact.email, 'email')}
-              className="p-1.5 rounded-lg border border-[#282C35] bg-[#161A24] text-[#A1A4AC] hover:text-white transition-colors"
+              className="p-1.5 rounded-lg border border-[var(--quant-surface-elevated)] bg-[#161A24] text-[#A1A4AC] hover:text-white transition-colors"
               title="Copy email"
             >
               {copiedField === 'email' ? (
@@ -1230,7 +1230,7 @@ export function ContactDetailSheet({
 
           {/* Phone Number */}
           {contact.phone && (
-            <div className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[#0E1119]">
+            <div className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[var(--quant-surface-subtle)]">
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div className="flex size-8 items-center justify-center rounded-lg bg-[#38BDF8]/10 text-[#38BDF8]">
                   <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1248,7 +1248,7 @@ export function ContactDetailSheet({
               <button
                 type="button"
                 onClick={() => handleCopy(contact.phone!, 'phone')}
-                className="p-1.5 rounded-lg border border-[#282C35] bg-[#161A24] text-[#A1A4AC] hover:text-white transition-colors"
+                className="p-1.5 rounded-lg border border-[var(--quant-surface-elevated)] bg-[#161A24] text-[#A1A4AC] hover:text-white transition-colors"
                 title="Copy phone"
               >
                 {copiedField === 'phone' ? (
@@ -1267,7 +1267,7 @@ export function ContactDetailSheet({
 
           {/* Company / Organization */}
           {contact.company && (
-            <div className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[#0E1119]">
+            <div className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[var(--quant-surface-subtle)]">
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div className="flex size-8 items-center justify-center rounded-lg bg-[#A78BFA]/10 text-[#A78BFA]">
                   <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1288,10 +1288,10 @@ export function ContactDetailSheet({
       </div>
 
       {/* MAIL THREAD HISTORY WITH THIS CONTACT */}
-      <div className="rounded-2xl border border-[#232938] bg-[#121622] p-5 shadow-md space-y-3">
+      <div className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-5 shadow-md space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h3 className="text-xs font-extrabold uppercase tracking-widest text-[#FF8C42]">
+            <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--quant-primary)]">
               Mail Conversations
             </h3>
             <span className="rounded-full bg-[#1E2536] px-2 py-0.5 text-[10px] font-bold text-[#A1A4AC]">
@@ -1306,7 +1306,7 @@ export function ContactDetailSheet({
                 window.location.href = `/search?q=${encodeURIComponent(contact.email)}`;
               }
             }}
-            className="text-[11px] font-semibold text-[#FF8C42] hover:underline"
+            className="text-[11px] font-semibold text-[var(--quant-primary)] hover:underline"
           >
             View all in search &rarr;
           </button>
@@ -1322,12 +1322,12 @@ export function ContactDetailSheet({
                     window.location.href = `/?thread=${encodeURIComponent(mail.threadId || mail.id)}`;
                   }
                 }}
-                className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[#0E1119] hover:border-[#FF8C42]/40 hover:bg-[#141824] transition-all cursor-pointer"
+                className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[var(--quant-surface-subtle)] hover:border-[var(--quant-primary)]/40 hover:bg-[#141824] transition-all cursor-pointer"
               >
                 <div className="min-w-0 flex-1 pr-3">
                   <div className="flex items-center gap-2">
                     {!mail.isRead && (
-                      <span className="size-2 rounded-full bg-[#FF8C42] shrink-0" />
+                      <span className="size-2 rounded-full bg-[var(--quant-primary)] shrink-0" />
                     )}
                     <h4 className="text-xs font-bold text-white truncate">
                       {mail.subject || 'No Subject'}
@@ -1352,10 +1352,10 @@ export function ContactDetailSheet({
       </div>
 
       {/* SHARED CALENDAR MEETINGS */}
-      <div className="rounded-2xl border border-[#232938] bg-[#121622] p-5 shadow-md space-y-3">
+      <div className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-5 shadow-md space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h3 className="text-xs font-extrabold uppercase tracking-widest text-[#F59E0B]">
+            <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--quant-warning)]">
               Shared Calendar Meetings
             </h3>
             <span className="rounded-full bg-[#1E2536] px-2 py-0.5 text-[10px] font-bold text-[#A1A4AC]">
@@ -1366,7 +1366,7 @@ export function ContactDetailSheet({
           <button
             type="button"
             onClick={() => onScheduleMeeting ? onScheduleMeeting(contact.email) : (window.location.href = `/calendar?attendee=${encodeURIComponent(contact.email)}`)}
-            className="flex items-center gap-1 text-[11px] font-semibold text-[#F59E0B] hover:underline"
+            className="flex items-center gap-1 text-[11px] font-semibold text-[var(--quant-warning)] hover:underline"
           >
             <span>+ Schedule Meeting</span>
           </button>
@@ -1377,10 +1377,10 @@ export function ContactDetailSheet({
             {sharedMeetings.map((meet) => (
             <div
               key={meet.id}
-              className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[#0E1119]"
+              className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[var(--quant-surface-subtle)]"
             >
               <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className="flex size-8 items-center justify-center rounded-lg bg-[#F59E0B]/10 text-[#F59E0B]">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-[var(--quant-warning)]/10 text-[var(--quant-warning)]">
                   <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <rect x="3" y="4" width="18" height="18" rx="2" />
                     <line x1="16" y1="2" x2="16" y2="6" />
@@ -1403,7 +1403,7 @@ export function ContactDetailSheet({
                     window.location.href = `/calendar?attendee=${encodeURIComponent(contact.email)}`;
                   }
                 }}
-                className="px-2.5 py-1 rounded-lg border border-[#F59E0B]/30 bg-[#F59E0B]/10 text-[#F59E0B] text-xs font-semibold hover:bg-[#F59E0B]/20 transition-colors shrink-0"
+                className="px-2.5 py-1 rounded-lg border border-[var(--quant-warning)]/30 bg-[var(--quant-warning)]/10 text-[var(--quant-warning)] text-xs font-semibold hover:bg-[var(--quant-warning)]/20 transition-colors shrink-0"
               >
                 Join / View
               </button>

@@ -253,7 +253,7 @@ export function Interactive3DLogo({
         ctx.fill();
 
         // Binding Rings
-        ctx.fillStyle = '#FF8C42';
+        ctx.fillStyle = 'var(--quant-primary)';
         ctx.beginPath();
         ctx.arc(cx0 + 4.5, cy0 + 1, 1.2, 0, Math.PI * 2);
         ctx.arc(cx0 + cw - 4.5, cy0 + 1, 1.2, 0, Math.PI * 2);
@@ -327,7 +327,7 @@ export function Interactive3DLogo({
         ctx.font = 'bold 12px monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#FF8C42';
+        ctx.fillStyle = 'var(--quant-primary)';
         ctx.shadowColor = 'rgba(255, 140, 66, 0.8)';
         ctx.shadowBlur = 6;
         ctx.fillText('< / >', 0, 0.5);
@@ -410,7 +410,7 @@ export function Interactive3DLogo({
               animate={{ scale: 1.8, opacity: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.5, ease: 'easeOut' }}
-              className="absolute inset-0 rounded-2xl border-2 border-[#FF8C42] pointer-events-none"
+              className="absolute inset-0 rounded-2xl border-2 border-[var(--quant-primary)] pointer-events-none"
             />
           )}
         </AnimatePresence>
@@ -428,10 +428,10 @@ export function Interactive3DLogo({
               className="relative flex items-center justify-center"
             >
               {/* Outer Energy Pulse Ring */}
-              <span className="absolute size-[18px] rounded-full bg-[#FF8C42] opacity-40 animate-ping" />
+              <span className="absolute size-[18px] rounded-full bg-[var(--quant-primary)] opacity-40 animate-ping" />
 
               {/* Clean Badge */}
-              <span className="relative inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 text-[10px] font-bold text-[#111111] bg-[#FF8C42] rounded-full border border-[#090A0C] shadow-sm">
+              <span className="relative inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 text-[10px] font-bold text-[#111111] bg-[var(--quant-primary)] rounded-full border border-[var(--quant-background)] shadow-sm">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             </motion.div>

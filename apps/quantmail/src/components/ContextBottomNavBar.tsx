@@ -1101,7 +1101,7 @@ export function ContextBottomNavBar({
       }}
     >
     <nav
-      className="flex h-16 items-center justify-around border-t border-[#1F2430] bg-[#090A0E]/95 backdrop-blur-md px-2 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-8px_24px_rgba(0,0,0,0.45)]"
+      className="flex h-16 items-center justify-around border-t border-[var(--quant-surface-elevated)] bg-[var(--quant-background)]/95 backdrop-blur-md px-2 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-8px_24px_rgba(0,0,0,0.45)]"
       aria-label={`${pillarConfig.name} contextual navigation`}
     >
       {pillarConfig.tabs.map((tab) => {
@@ -1148,7 +1148,7 @@ export function ContextBottomNavBar({
                   className={`absolute -top-1.5 -right-3.5 flex min-w-[15px] h-[15px] items-center justify-center rounded-full px-1 text-[var(--q-type-xs)] font-bold leading-none shadow-sm transition-colors ${
                     isActive
                       ? pillarConfig.badgeStyle
-                      : 'bg-[#282C35] text-[#E2E8F0] border border-[#3A404D]'
+                      : 'bg-[var(--quant-surface-elevated)] text-[#E2E8F0] border border-[#3A404D]'
                   }`}
                 >
                   {currentBadgeCount > 99 ? '99+' : currentBadgeCount}

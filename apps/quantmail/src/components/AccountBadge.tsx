@@ -260,7 +260,7 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
         aria-controls={open ? 'account-badge-menu' : undefined}
         className={
           compact
-            ? 'flex size-8 items-center justify-center rounded-full border border-[#282C35] hover:border-[#FF8C42]/50 hover:bg-[#161922] transition-all outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]'
+            ? 'flex size-8 items-center justify-center rounded-full border border-[var(--quant-surface-elevated)] hover:border-[var(--quant-primary)]/50 hover:bg-[#161922] transition-all outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]'
             : 'flex w-full items-center gap-2.5 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-2.5 py-2 text-left transition-colors hover:bg-[var(--quant-muted)]'
         }
       >
@@ -334,7 +334,7 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
                 : { left: menuCoords.left, width: menuCoords.width }),
               zIndex: 99999,
             }}
-            className={`overflow-y-auto rounded-2xl border border-[#282C35] bg-[#16181D] shadow-2xl animate-scale-in max-h-[min(70vh,480px)] ${
+            className={`overflow-y-auto rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] shadow-2xl animate-scale-in max-h-[min(70vh,480px)] ${
               compact ? 'w-64' : ''
             }`}
           >
@@ -344,7 +344,7 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
             — so the two sections used to swallow every item and the menu read as
             empty. Presentational here, so the menu owns what is inside directly.
           */}
-          <div role="none" className="p-2 border-b border-[#282C35] space-y-1">
+          <div role="none" className="p-2 border-b border-[var(--quant-surface-elevated)] space-y-1">
             <p
               aria-hidden="true"
               className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]"
@@ -368,9 +368,9 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
                     aria-checked={isCurrent}
                     tabIndex={-1}
                     onClick={() => handleSwitchAccount(acc)}
-                    className={`w-full flex items-center justify-between gap-2.5 p-2 rounded-xl text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                    className={`w-full flex items-center justify-between gap-2.5 p-2 rounded-xl text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                       isCurrent
-                        ? 'bg-[#FF8C42]/10 border border-[#FF8C42]/30 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]'
+                        ? 'bg-[var(--quant-primary)]/10 border border-[var(--quant-primary)]/30 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]'
                         : 'hover:bg-white/[0.04] border border-transparent'
                     }`}
                   >
@@ -393,7 +393,7 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
                     </div>
                     {isCurrent && (
                       <svg
-                        className="size-3.5 text-[#FF8C42] shrink-0"
+                        className="size-3.5 text-[var(--quant-primary)] shrink-0"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
@@ -415,10 +415,10 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
               role="menuitem"
               tabIndex={-1}
               onClick={handleAddAccount}
-              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-semibold text-[#FF8C42] hover:bg-[#FF8C42]/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-semibold text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               <span
-                className="size-5 rounded-lg bg-[#FF8C42]/10 border border-[#FF8C42]/30 flex items-center justify-center font-bold"
+                className="size-5 rounded-lg bg-[var(--quant-primary)]/10 border border-[var(--quant-primary)]/30 flex items-center justify-center font-bold"
                 aria-hidden="true"
               >
                 +
@@ -437,7 +437,7 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
                 setOpen(false);
                 router.push('/settings');
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:text-white hover:bg-[#1C1F26] rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:text-white hover:bg-[var(--quant-surface-elevated)] rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               <svg
                 className="size-3.5 text-[#A1A4AC]"
@@ -462,7 +462,7 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
                 setOpen(false);
                 router.push('/security');
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:text-white hover:bg-[#1C1F26] rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:text-white hover:bg-[var(--quant-surface-elevated)] rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               <svg
                 className="size-3.5 text-[#A1A4AC]"
@@ -487,7 +487,7 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
                 await logout();
                 router.push('/login');
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               <svg
                 className="size-3.5 text-rose-400"

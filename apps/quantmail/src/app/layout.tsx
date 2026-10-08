@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     apple: '/quanty-ghost-apple.png',
   },
   manifest: '/manifest.json',
-  themeColor: '#0d1017',
+  themeColor: 'var(--quant-surface-subtle)',
 };
 
 const themeBootstrap = `

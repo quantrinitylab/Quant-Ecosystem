@@ -95,7 +95,7 @@ export function CommitsTab({
   return (
     <div data-testid="commits-tab" className="space-y-6">
       {/* 1. Header Toolbar: Branch Selector, Search, Stats */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#161B22] border border-[#30363D] rounded-lg p-3.5 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-lg p-3.5 text-xs">
         <div className="flex flex-wrap items-center gap-2">
           {/* Branch Picker */}
           <div className="flex items-center gap-1.5 bg-[#21262D] border border-[#30363D] rounded-md px-2.5 py-1 text-[#E6EDF3] font-medium">
@@ -110,10 +110,10 @@ export function CommitsTab({
                 onSelectBranch?.(e.target.value);
                 showToast(`Switched to branch: ${e.target.value}`);
               }}
-              className="bg-transparent border-none text-white font-semibold focus:outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="bg-transparent border-none text-white font-semibold focus:outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               {repoBranches.map((b) => (
-                <option key={b} value={b} className="bg-[#161B22] text-[#E6EDF3]">
+                <option key={b} value={b} className="bg-[var(--quant-surface-elevated)] text-[#E6EDF3]">
                   {b}
                 </option>
               ))}
@@ -153,7 +153,7 @@ export function CommitsTab({
       {activeCommit && (
         <div
           data-testid="commit-diff-view"
-          className="bg-[#161B22] border border-[#58A6FF]/40 rounded-lg overflow-hidden shadow-2xl space-y-4 p-4 animate-in fade-in duration-200"
+          className="bg-[var(--quant-surface-elevated)] border border-[#58A6FF]/40 rounded-lg overflow-hidden shadow-2xl space-y-4 p-4 animate-in fade-in duration-200"
         >
           <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-[#30363D]">
             <div>
@@ -276,7 +276,7 @@ export function CommitsTab({
                 >
                   <div
                     onClick={() => toggleFileExpansion(file.filename)}
-                    className="flex items-center justify-between px-3.5 py-2 bg-[#161B22] border-b border-[#21262D] cursor-pointer hover:bg-[#21262D]/60 transition-colors select-none text-xs"
+                    className="flex items-center justify-between px-3.5 py-2 bg-[var(--quant-surface-elevated)] border-b border-[#21262D] cursor-pointer hover:bg-[#21262D]/60 transition-colors select-none text-xs"
                   >
                     <div className="flex items-center gap-2 font-mono">
                       <span className="text-[#7D8590] text-[10px]">{isCollapsed ? '▶' : '▼'}</span>
@@ -313,7 +313,7 @@ export function CommitsTab({
                                   ? 'bg-[#238636]/15 text-[#3FB950]'
                                   : isDel
                                     ? 'bg-[#DA3633]/15 text-[#F85149]'
-                                    : 'text-[#E6EDF3] hover:bg-[#161B22]'
+                                    : 'text-[#E6EDF3] hover:bg-[var(--quant-surface-elevated)]'
                               }`}
                             >
                               <span className="w-10 text-right pr-3 select-none text-[#7D8590]/50 shrink-0">
@@ -348,7 +348,7 @@ export function CommitsTab({
       {/* 3. Commit History Timeline Grouped by Date */}
       <div data-testid="commits-timeline" className="space-y-6">
         {Object.keys(groupedCommits).length === 0 ? (
-          <div className="text-center py-12 border border-[#30363D] rounded-lg bg-[#161B22] p-8 text-[#7D8590]">
+          <div className="text-center py-12 border border-[#30363D] rounded-lg bg-[var(--quant-surface-elevated)] p-8 text-[#7D8590]">
             <p className="text-sm font-semibold text-white">No commits found</p>
             <p className="text-xs mt-1">Try adjusting your branch or search filter.</p>
           </div>
@@ -367,7 +367,7 @@ export function CommitsTab({
               </div>
 
               {/* Commits Container Box */}
-              <div className="rounded-lg border border-[#30363D] bg-[#161B22] divide-y divide-[#21262D] overflow-hidden text-xs">
+              <div className="rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] divide-y divide-[#21262D] overflow-hidden text-xs">
                 {items.map((commit) => {
                   const shortSha = commit.shortSha || commit.sha.slice(0, 7);
                   const isExpanded = expandedCommitSha === commit.sha;
@@ -418,7 +418,7 @@ export function CommitsTab({
                                 decoding="async"
                               />
                             ) : (
-                              <span className="w-4 h-4 rounded-full bg-[#FF8C42] text-black font-bold flex items-center justify-center text-[var(--q-type-xs)] shrink-0">
+                              <span className="w-4 h-4 rounded-full bg-[var(--quant-primary)] text-black font-bold flex items-center justify-center text-[var(--q-type-xs)] shrink-0">
                                 {authorInitial}
                               </span>
                             )}

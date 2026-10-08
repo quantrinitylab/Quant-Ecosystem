@@ -184,7 +184,7 @@ export function ActionsTab({
             className={`w-full text-left px-3 py-2 rounded-lg font-medium transition-colors cursor-pointer ${
               selectedWorkflow === wf
                 ? 'bg-[#21262D] text-[#E6EDF3] font-bold shadow-sm'
-                : 'text-[#8D96A0] hover:text-[#E6EDF3] hover:bg-[#161B22]'
+                : 'text-[#8D96A0] hover:text-[#E6EDF3] hover:bg-[var(--quant-surface-elevated)]'
             }`}
           >
             {wf}
@@ -198,7 +198,7 @@ export function ActionsTab({
           /* Step-by-Step Live Terminal Streaming Log Viewer (Task W39-GIT07) */
           <div className="space-y-4" data-testid="workflow-run-detail">
             {/* Header & Breadcrumb */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#161B22] p-4 rounded-xl border border-[#30363D]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[var(--quant-surface-elevated)] p-4 rounded-xl border border-[#30363D]">
               <div className="space-y-1.5">
                 <button
                   type="button"
@@ -296,7 +296,7 @@ export function ActionsTab({
                       type="button"
                       onClick={() => toggleStep(step.id)}
                       data-testid={`step-accordion-${step.id}`}
-                      className="w-full px-4 py-3 bg-[#161B22] hover:bg-[#21262D] transition-colors flex items-center justify-between gap-4 cursor-pointer text-left"
+                      className="w-full px-4 py-3 bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] transition-colors flex items-center justify-between gap-4 cursor-pointer text-left"
                     >
                       <div className="flex items-center gap-2.5">
                         <span
@@ -348,7 +348,7 @@ export function ActionsTab({
                               <div
                                 key={lineIdx}
                                 data-seq={lineIdx + 1}
-                                className="flex items-start gap-3 hover:bg-[#161B22]/50 px-1 py-0.5 rounded leading-relaxed"
+                                className="flex items-start gap-3 hover:bg-[var(--quant-surface-elevated)]/50 px-1 py-0.5 rounded leading-relaxed"
                               >
                                 <span className="select-none text-[#7D8590] w-6 text-right shrink-0 text-[10px]">
                                   {lineIdx + 1}
@@ -381,7 +381,7 @@ export function ActionsTab({
           /* Workflow Runs List Table (Screens 91–98) */
           <div className="space-y-4">
             {/* Header Toolbar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#161B22] p-3 rounded-xl border border-[#30363D]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[var(--quant-surface-elevated)] p-3 rounded-xl border border-[#30363D]">
               <div>
                 <h3 className="font-bold text-sm text-[#E6EDF3]">{selectedWorkflow}</h3>
                 <p className="text-[11px] text-[#8D96A0]">
@@ -408,7 +408,7 @@ export function ActionsTab({
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Filter workflow runs..."
                   data-testid="actions-search-input"
-                  className="w-full bg-[#161B22] border border-[#30363D] focus:border-[#58A6FF] rounded-lg px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
+                  className="w-full bg-[var(--quant-surface-elevated)] border border-[#30363D] focus:border-[#58A6FF] rounded-lg px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
                 />
               </div>
 
@@ -426,7 +426,7 @@ export function ActionsTab({
                       setActiveFilterModal(activeFilterModal === flt.id ? null : flt.id)
                     }
                     data-testid={`filter-${flt.id}`}
-                    className="px-2.5 py-1 rounded-md bg-[#161B22] hover:bg-[#21262D] border border-[#30363D] text-[#8D96A0] hover:text-[#E6EDF3] flex items-center gap-1 transition-colors whitespace-nowrap cursor-pointer"
+                    className="px-2.5 py-1 rounded-md bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] border border-[#30363D] text-[#8D96A0] hover:text-[#E6EDF3] flex items-center gap-1 transition-colors whitespace-nowrap cursor-pointer"
                   >
                     <span>{flt.label}</span>
                     <span className="text-[var(--q-type-xs)]">▼</span>
@@ -438,7 +438,7 @@ export function ActionsTab({
               {activeFilterModal === 'status' && (
                 <div
                   data-testid="status-filter-popover"
-                  className="p-3 rounded-xl bg-[#161B22] border border-[#30363D] shadow-2xl space-y-2 max-w-xs"
+                  className="p-3 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-2xl space-y-2 max-w-xs"
                 >
                   <span className="font-semibold text-xs text-[#E6EDF3] block">
                     Filter by Status
@@ -496,7 +496,7 @@ export function ActionsTab({
                   <div
                     key={run.id}
                     data-testid={`run-row-${run.id}`}
-                    className="p-3.5 hover:bg-[#161B22] transition-colors cursor-pointer flex items-center justify-between gap-4 group"
+                    className="p-3.5 hover:bg-[var(--quant-surface-elevated)] transition-colors cursor-pointer flex items-center justify-between gap-4 group"
                     onClick={() => {
                       setActiveRun(run);
                       setSelectedActionRun(run);

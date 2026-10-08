@@ -12,7 +12,7 @@ interface BrandLoaderProps {
 
 const inlineCss = `
 .qm-bl-inline{position:relative;display:inline-flex;width:20px;height:20px;}
-.qm-bl-ring{position:absolute;inset:0;border-radius:9999px;border:2px solid rgba(245,158,11,0.18);border-top-color:#FF8C42;animation:qm-bl-spin 0.75s cubic-bezier(0.4, 0, 0.2, 1) infinite;}
+.qm-bl-ring{position:absolute;inset:0;border-radius:9999px;border:2px solid rgba(245,158,11,0.18);border-top-color:var(--quant-primary);animation:qm-bl-spin 0.75s cubic-bezier(0.4, 0, 0.2, 1) infinite;}
 @keyframes qm-bl-spin{to{transform:rotate(360deg);}}
 @media (prefers-reduced-motion: reduce){.qm-bl-ring{animation:none;}}
 `;
@@ -52,19 +52,19 @@ export function BrandLoader({
       <div className="relative flex flex-col items-center justify-center">
         <div className="relative flex items-center justify-center size-24 sm:size-28">
           {/* Track Ring */}
-          <div className="absolute inset-0 rounded-full border border-[#282C35]/80" />
+          <div className="absolute inset-0 rounded-full border border-[var(--quant-surface-elevated)]/80" />
 
           {/*
             Smooth conic orbital spinner. The arc is the whole signal — it had a
             blurred amber blob behind it and a drop-shadow around it, which on the
             near-black canvas read as a neon bloom rather than as progress.
           */}
-          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#FF8C42] border-r-[#FF9B5A]/70 animate-[spin_1s_cubic-bezier(0.4,0,0.2,1)_infinite]" />
+          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[var(--quant-primary)] border-r-[var(--quant-primary-hover)]/70 animate-[spin_1s_cubic-bezier(0.4,0,0.2,1)_infinite]" />
 
           {/* Center logo — static inline SVG of the QuantMail mark. The canvas
               QuantMailLogo painted nothing until its first rAF frame, leaving
               an empty box on the splash; the static SVG paints instantly. */}
-          <div className="relative z-10 flex items-center justify-center size-14 sm:size-16 rounded-2xl bg-[#090A0C]/80 border border-[#282C35]/90 shadow-2xl">
+          <div className="relative z-10 flex items-center justify-center size-14 sm:size-16 rounded-2xl bg-[var(--quant-background)]/80 border border-[var(--quant-surface-elevated)]/90 shadow-2xl">
             <QuantMailLogoStatic size={42} />
           </div>
         </div>
@@ -85,7 +85,7 @@ export function BrandLoader({
         </span>
         <div className="flex items-center gap-1.5 text-[10px] font-mono tracking-[0.25em] text-[#A1A4AC] uppercase">
           <span>BY</span>
-          <span className="font-bold text-[#FF8C42] tracking-[0.3em]">QUANTRINITY</span>
+          <span className="font-bold text-[var(--quant-primary)] tracking-[0.3em]">QUANTRINITY</span>
         </div>
       </div>
 

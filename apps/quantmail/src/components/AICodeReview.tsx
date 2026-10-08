@@ -99,7 +99,7 @@ export function AICodeReview({ prId, prTitle, prDiff }: AICodeReviewProps) {
         <>
           <button type="button" className="ai-review-trigger" onClick={() => void requestReview()}>
             <span className="ai-review-icon flex items-center justify-center">
-              <svg className="size-5 text-[#FF8C42]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg className="size-5 text-[var(--quant-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2M20 14h2M15 13v2M9 13v2" />
               </svg>
             </span>
@@ -122,7 +122,7 @@ export function AICodeReview({ prId, prTitle, prDiff }: AICodeReviewProps) {
               <>
                 <header className="ai-review-header">
                   <button type="button" className="ai-review-score" onClick={() => setIsExpanded((value) => !value)} aria-expanded={isExpanded}>
-                    <div className="score-ring" style={{ background: `conic-gradient(${review.score >= 80 ? '#4ade80' : review.score >= 60 ? '#fbbf24' : '#f87171'} ${review.score * 3.6}deg, #282C35 0deg)` }}><span>{review.score}</span></div>
+                    <div className="score-ring" style={{ background: `conic-gradient(${review.score >= 80 ? '#4ade80' : review.score >= 60 ? '#fbbf24' : '#f87171'} ${review.score * 3.6}deg, var(--quant-surface-elevated) 0deg)` }}><span>{review.score}</span></div>
                     <div><strong>Code Quality Score</strong><span>{review.comments.length} review comments</span></div>
                   </button>
                   <button type="button" className="ai-review-toggle" onClick={() => setIsExpanded((value) => !value)} aria-label={isExpanded ? 'Collapse review' : 'Expand review'}>⌄</button>

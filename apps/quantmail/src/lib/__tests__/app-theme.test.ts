@@ -8,10 +8,10 @@ describe('app-theme', () => {
       const theme = APP_THEMES[id];
       expect(theme).toBeDefined();
       expect(theme.id).toBe(id);
-      expect(theme.accent).toMatch(/^#[0-9A-Fa-f]{6}$/);
+      expect(theme.accent).toMatch(/^(#[0-9A-Fa-f]{6}|var\(--quant-[\w-]+\))$/);
       expect(theme.glow).toContain('rgba');
       expect(theme.bgWash).toContain('linear-gradient');
-      expect(theme.ring).toMatch(/^#[0-9A-Fa-f]{6}$/);
+      expect(theme.ring).toMatch(/^(#[0-9A-Fa-f]{6}|var\(--quant-[\w-]+\))$/);
     }
   });
 
@@ -42,11 +42,11 @@ describe('app-theme', () => {
 
   it('uses user-sketch colors: mail=orange, calendar=blue, drive=green, quantgit=purple', () => {
     // Orange family for mail
-    expect(APP_THEMES.mail.accent).toMatch(/^#FF/i);
+    expect(APP_THEMES.mail.accent).toMatch(/^var\(--quant-primary\)|^#FF/i);
     // Blue family for calendar
-    expect(APP_THEMES.calendar.accent).toMatch(/^#3B82F6|^#4285F4/i);
+    expect(APP_THEMES.calendar.accent).toMatch(/^var\(--quant-info\)|^#4285F4/i);
     // Green family for drive
-    expect(APP_THEMES.drive.accent).toMatch(/^#22|^#34/i);
+    expect(APP_THEMES.drive.accent).toMatch(/^var\(--quant-success\)|^#22|^#34/i);
     // Purple family for quantgit
     expect(APP_THEMES.quantgit.accent).toMatch(/^#A/i);
   });

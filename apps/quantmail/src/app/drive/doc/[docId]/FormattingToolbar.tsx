@@ -30,7 +30,7 @@ const TYPE_LABELS: Record<BlockType, string> = {
 
 const COLOR_OPTIONS = [
   { name: 'Default', value: 'inherit' },
-  { name: 'Orange', value: '#FF8C42' },
+  { name: 'Orange', value: 'var(--quant-primary)' },
   { name: 'Green', value: '#3FB950' },
   { name: 'Blue', value: '#58A6FF' },
   { name: 'Purple', value: '#BC8CFF' },
@@ -47,7 +47,7 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
   const [showColorDropdown, setShowColorDropdown] = useState<boolean>(false);
 
   return (
-    <div className="flex items-center gap-1 rounded-xl border border-[#30363D] bg-[#161B22] p-1 shadow-xl backdrop-blur-md">
+    <div className="flex items-center gap-1 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] p-1 shadow-xl backdrop-blur-md">
       {/* Block type switcher */}
       <div className="relative">
         <button
@@ -70,7 +70,7 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
         </button>
 
         {showTypeDropdown && (
-          <div className="absolute top-full left-0 mt-1.5 w-44 rounded-xl border border-[#30363D] bg-[#161B22] p-1 shadow-2xl z-50">
+          <div className="absolute top-full left-0 mt-1.5 w-44 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] p-1 shadow-2xl z-50">
             {(
               [
                 'paragraph',
@@ -94,12 +94,12 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
                 }}
                 className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-left transition-colors ${
                   currentType === t
-                    ? 'bg-[#21262D] text-[#FF8C42] font-semibold'
+                    ? 'bg-[#21262D] text-[var(--quant-primary)] font-semibold'
                     : 'text-[#C9D1D9] hover:bg-[#21262D]/60 hover:text-[#F0F6FC]'
                 }`}
               >
                 <span>{TYPE_LABELS[t]}</span>
-                {currentType === t && <span className="text-[#FF8C42]">✓</span>}
+                {currentType === t && <span className="text-[var(--quant-primary)]">✓</span>}
               </button>
             ))}
           </div>
@@ -177,11 +177,11 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
             title="Highlight Color"
             className="w-7 h-7 rounded-lg flex items-center justify-center text-xs text-[#C9D1D9] hover:text-[#F0F6FC] hover:bg-[#21262D] transition-colors"
           >
-            <span className="w-3.5 h-3.5 rounded-full border border-[#30363D] bg-[#FF8C42]" />
+            <span className="w-3.5 h-3.5 rounded-full border border-[#30363D] bg-[var(--quant-primary)]" />
           </button>
 
           {showColorDropdown && (
-            <div className="absolute top-full right-0 mt-1.5 w-36 rounded-xl border border-[#30363D] bg-[#161B22] p-1.5 shadow-2xl z-50 space-y-1">
+            <div className="absolute top-full right-0 mt-1.5 w-36 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] p-1.5 shadow-2xl z-50 space-y-1">
               <div className="text-[10px] font-semibold text-[#8B949E] px-2 py-0.5 uppercase tracking-wider">
                 Highlight
               </div>

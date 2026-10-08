@@ -403,7 +403,7 @@ function ThreadBubbleMenu({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: -2 }}
         transition={{ duration: 0.14, ease: 'easeOut' }}
-        className="fixed z-[61] overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] py-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.65)]"
+        className="fixed z-[61] overflow-hidden rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] py-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.65)]"
         style={{ left: pos.left, top: pos.top, width: MENU_WIDTH_PX }}
       >
         {/* Reaction tray — WhatsApp's long-press headline. */}
@@ -415,13 +415,13 @@ function ThreadBubbleMenu({
               role="menuitem"
               aria-label={`React ${emoji}`}
               onClick={() => onToggleReaction(emoji)}
-              className="rounded-full p-1.5 text-xl leading-none transition-transform hover:scale-125 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="rounded-full p-1.5 text-xl leading-none transition-transform hover:scale-125 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               <span aria-hidden="true">{emoji}</span>
             </button>
           ))}
         </div>
-        <div className="mx-3 border-t border-[#282C35]" aria-hidden="true" />
+        <div className="mx-3 border-t border-[var(--quant-surface-elevated)]" aria-hidden="true" />
         {(
           [
             { label: 'Reply', Icon: ReplyArrowIcon, action: onQuoteReply, danger: false },
@@ -528,7 +528,7 @@ export function ThreadBubbleShell({
           style={{ opacity: progress }}
         >
           <span
-            className={`flex size-8 items-center justify-center rounded-full bg-[#FF8C42] text-[#111111] shadow-lg transition-transform ${
+            className={`flex size-8 items-center justify-center rounded-full bg-[var(--quant-primary)] text-[#111111] shadow-lg transition-transform ${
               progress >= 1 ? 'scale-110' : 'scale-90'
             }`}
           >
@@ -557,7 +557,7 @@ export function ThreadBubbleShell({
               type="button"
               onClick={() => toggleReaction(emoji)}
               aria-label={`Reaction ${emoji}, ${count}`}
-              className="flex items-center gap-0.5 rounded-full border border-[#282C35] bg-[#16181D] px-1.5 py-0.5 text-xs shadow-sm transition-transform hover:scale-105 active:scale-95"
+              className="flex items-center gap-0.5 rounded-full border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-1.5 py-0.5 text-xs shadow-sm transition-transform hover:scale-105 active:scale-95"
             >
               <span aria-hidden="true">{emoji}</span>
               <span className="text-[10px] font-semibold text-[#A1A4AC]">{count}</span>
@@ -570,7 +570,7 @@ export function ThreadBubbleShell({
           `group-hover/bubble` only — on coarse pointers the long-press menu
           is the path, so no tap-target conflict. */}
       <div
-        className={`absolute z-20 hidden [@media(hover:hover)]:flex items-center gap-1 rounded-full border border-[#282C35] bg-[#16181D]/95 p-1 opacity-0 shadow-[0_4px_16px_rgba(0,0,0,0.5)] backdrop-blur transition-opacity duration-150 group-hover/bubble:opacity-100 focus-within:opacity-100 ${
+        className={`absolute z-20 hidden [@media(hover:hover)]:flex items-center gap-1 rounded-full border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/95 p-1 opacity-0 shadow-[0_4px_16px_rgba(0,0,0,0.5)] backdrop-blur transition-opacity duration-150 group-hover/bubble:opacity-100 focus-within:opacity-100 ${
           isOutbound ? 'right-3' : 'left-3'
         } -top-3`}
       >
@@ -579,7 +579,7 @@ export function ThreadBubbleShell({
           onClick={doQuoteReply}
           title="Reply to this message"
           aria-label={`Reply to message from ${senderName}`}
-          className="flex size-8 items-center justify-center rounded-full text-[#A1A4AC] transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+          className="flex size-8 items-center justify-center rounded-full text-[#A1A4AC] transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
         >
           <ReplyArrowIcon className="size-4" />
         </button>
@@ -592,7 +592,7 @@ export function ThreadBubbleShell({
           }}
           title="React to this message"
           aria-label={`React to message from ${senderName}`}
-          className="flex size-8 items-center justify-center rounded-full text-[#A1A4AC] transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+          className="flex size-8 items-center justify-center rounded-full text-[#A1A4AC] transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
         >
           <SmileyIcon className="size-4" />
         </button>

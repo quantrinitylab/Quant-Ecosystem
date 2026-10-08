@@ -138,11 +138,11 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
 
         {/* Quoted Text Accordion */}
         {quotedText && (
-          <div className="mt-3 border-t border-[#282C35]/60 pt-3">
+          <div className="mt-3 border-t border-[var(--quant-surface-elevated)]/60 pt-3">
             <button
               type="button"
               onClick={() => setShowQuoted(!showQuoted)}
-              className="inline-flex items-center gap-1.5 rounded-md text-xs font-medium text-[#FF8C42] transition-colors hover:text-[#FF9B5A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="inline-flex items-center gap-1.5 rounded-md text-xs font-medium text-[var(--quant-primary)] transition-colors hover:text-[var(--quant-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
               aria-expanded={showQuoted}
             >
               <IconChevronDown
@@ -177,11 +177,11 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
 
       {/* Attachments Section */}
       {attachments.length > 0 && (
-        <div className="mt-5 border-t border-[#282C35]/80 pt-4">
+        <div className="mt-5 border-t border-[var(--quant-surface-elevated)]/80 pt-4">
           <h4 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#A1A4AC]">
             <IconPaperclip size={13} />
             <span>Attachments</span>
-            <span className="rounded-full bg-[#282C35] px-2 text-[10px] text-[#A1A4AC]">
+            <span className="rounded-full bg-[var(--quant-surface-elevated)] px-2 text-[10px] text-[#A1A4AC]">
               {attachments.length}
             </span>
           </h4>
@@ -210,9 +210,9 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
                   type="button"
                   onClick={handleDownload}
                   aria-label={`Download ${att.filename}`}
-                  className="group flex w-full min-h-touch items-center gap-3 rounded-xl bg-[#111318] p-3 text-left border border-white/[0.08] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] transition-all hover:bg-white/[0.04] hover:border-[#FF8C42]/40 hover:shadow-[0_0_16px_rgba(255,140,66,0.1),inset_0_1px_0_0_rgba(255,255,255,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  className="group flex w-full min-h-touch items-center gap-3 rounded-xl bg-[var(--quant-surface)] p-3 text-left border border-white/[0.08] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] transition-all hover:bg-white/[0.04] hover:border-[var(--quant-primary)]/40 hover:shadow-[0_0_16px_rgba(255,140,66,0.1),inset_0_1px_0_0_rgba(255,255,255,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 >
-                  <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#090A0C] text-[#A1A4AC]">
+                  <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[var(--quant-background)] text-[#A1A4AC]">
                     {isImg && att.url ? (
                       <img
                         src={att.url}
@@ -239,7 +239,7 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
                   </span>
 
                   <span
-                    className="grid size-9 shrink-0 place-items-center rounded-lg text-[#A1A4AC] transition-colors group-hover:text-[#FF8C42]"
+                    className="grid size-9 shrink-0 place-items-center rounded-lg text-[#A1A4AC] transition-colors group-hover:text-[var(--quant-primary)]"
                     aria-hidden="true"
                   >
                     <IconDownload size={16} />

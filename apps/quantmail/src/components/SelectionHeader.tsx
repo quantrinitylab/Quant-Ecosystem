@@ -47,7 +47,7 @@ const INBOX_CATEGORY_COMMANDS: Array<{ value: InboxCategory; label: string }> = 
  * semantics, so there is no dependence on which rule Tailwind emits last.
  */
 const ACTION_BUTTON =
-  'inline-flex size-9 shrink-0 items-center justify-center rounded-xl text-[#A1A4AC] transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11';
+  'inline-flex size-9 shrink-0 items-center justify-center rounded-xl text-[#A1A4AC] transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11';
 
 export interface SelectionHeaderProps {
   /** Conversations selected. The bar is only mounted when this is > 0. */
@@ -85,12 +85,12 @@ export function SelectionHeader({
   /** Batch delete asks first — no silent deletes, even in bulk. */
   const [confirmDelete, setConfirmDelete] = useState(false);
   return (
-    <header className="sticky top-0 z-50 flex min-h-14 flex-none select-none items-center justify-between gap-3 border-b border-[#282C35] bg-[#121622] px-3 shadow-xl sm:px-5">
+    <header className="sticky top-0 z-50 flex min-h-14 flex-none select-none items-center justify-between gap-3 border-b border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3 shadow-xl sm:px-5">
       <div className="flex min-w-0 items-center gap-2">
         <button
           type="button"
           onClick={onDeselectAll}
-          className={`${ACTION_BUTTON} hover:bg-[#282C35] hover:text-[#F5F5F5]`}
+          className={`${ACTION_BUTTON} hover:bg-[var(--quant-surface-elevated)] hover:text-[#F5F5F5]`}
           aria-label="Clear selection"
           title="Clear selection (Esc)"
         >
@@ -111,7 +111,7 @@ export function SelectionHeader({
         <button
           type="button"
           onClick={onArchive}
-          className={`${ACTION_BUTTON} hover:bg-[#282C35] hover:text-emerald-400`}
+          className={`${ACTION_BUTTON} hover:bg-[var(--quant-surface-elevated)] hover:text-emerald-400`}
           aria-label={`Archive ${count} selected`}
           title="Archive"
         >
@@ -120,7 +120,7 @@ export function SelectionHeader({
         <button
           type="button"
           onClick={() => setConfirmDelete(true)}
-          className={`${ACTION_BUTTON} hover:bg-[#282C35] hover:text-rose-400`}
+          className={`${ACTION_BUTTON} hover:bg-[var(--quant-surface-elevated)] hover:text-rose-400`}
           aria-label={`Delete ${count} selected`}
           title="Move to trash"
         >
@@ -128,13 +128,13 @@ export function SelectionHeader({
         </button>
         <EmailSnooze
           onSnooze={onSnooze}
-          triggerClassName={`${ACTION_BUTTON} hover:bg-[#282C35] hover:text-[#FF8C42]`}
+          triggerClassName={`${ACTION_BUTTON} hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-primary)]`}
           triggerLabel={`Snooze ${count} selected`}
         />
         <AnchoredMenu
           icon={<MailIcon name="more" className="size-5" />}
           triggerLabel="More actions"
-          triggerClassName={`${ACTION_BUTTON} hover:bg-[#282C35] hover:text-[#F5F5F5]`}
+          triggerClassName={`${ACTION_BUTTON} hover:bg-[var(--quant-surface-elevated)] hover:text-[#F5F5F5]`}
           menuLabel="More selection actions"
           menuClassName="snooze-menu"
           scope="selection-more"

@@ -313,7 +313,7 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
             onClick={() => {
               window.dispatchEvent(new CustomEvent('quant:sidebar:close'));
             }}
-            className="size-11 sm:size-8 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+            className="size-11 sm:size-8 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             title="Close navigation"
             aria-label="Close navigation menu"
           >
@@ -408,7 +408,7 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
         >
           <div className="flex items-center justify-between text-[11px] text-[#A1A4AC]">
             <span className="font-medium flex items-center gap-1.5">
-              <span className="inline-block size-1.5 rounded-full bg-[#FF8C42]" />
+              <span className="inline-block size-1.5 rounded-full bg-[var(--quant-primary)]" />
               Cloud Storage
             </span>
             <span className="font-mono text-[10px] text-[#F5F5F5]">
@@ -418,7 +418,7 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
             </span>
           </div>
           <div
-            className="mt-2 h-1.5 w-full rounded-full bg-[#16181D] border border-[#282C35] overflow-hidden"
+            className="mt-2 h-1.5 w-full rounded-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] overflow-hidden"
             role="progressbar"
             aria-label="Cloud storage used"
             aria-valuemin={0}
@@ -431,7 +431,7 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
             }
           >
             <div
-              className="h-full rounded-full bg-[#FF8C42] transition-all duration-300"
+              className="h-full rounded-full bg-[var(--quant-primary)] transition-all duration-300"
               style={{ width: `${usedPct}%` }}
             />
           </div>

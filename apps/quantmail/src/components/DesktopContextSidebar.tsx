@@ -115,9 +115,9 @@ export function DesktopContextSidebar({
             type="button"
             onClick={composeAction.onSelect}
             data-testid="desktop-context-compose"
-            className="group flex h-12 w-fit items-center gap-3 rounded-2xl bg-[#1A1E28] border border-[#2A3144] pl-4 pr-5 text-sm font-semibold text-white shadow-[0_2px_10px_rgba(0,0,0,0.45)] transition-all duration-200 hover:bg-[#232938] hover:border-[#3A4358] hover:shadow-[0_4px_16px_rgba(0,0,0,0.55)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+            className="group flex h-12 w-fit items-center gap-3 rounded-2xl bg-[#1A1E28] border border-[#2A3144] pl-4 pr-5 text-sm font-semibold text-white shadow-[0_2px_10px_rgba(0,0,0,0.45)] transition-all duration-200 hover:bg-[#232938] hover:border-[#3A4358] hover:shadow-[0_4px_16px_rgba(0,0,0,0.55)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           >
-            <ComposePencilIcon className="size-5 text-[#FF8C42] transition-transform duration-200 group-hover:-rotate-12" />
+            <ComposePencilIcon className="size-5 text-[var(--quant-primary)] transition-transform duration-200 group-hover:-rotate-12" />
             {composeAction.label}
           </button>
         </div>
@@ -155,8 +155,8 @@ export function DesktopContextSidebar({
               aria-current={isActive ? 'page' : undefined}
               aria-label={tab.ariaLabel || `${tab.label}${badge ? `, ${badge} unread` : ''}`}
               data-testid={`desktop-context-tab-${tab.id}`}
-              className={`group relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
-                isActive ? 'font-semibold border' : 'font-medium border border-transparent text-[#94A3B8] hover:text-white hover:bg-[#141722]'
+              className={`group relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
+                isActive ? 'font-semibold border' : 'font-medium border border-transparent text-[#94A3B8] hover:text-white hover:bg-[var(--quant-surface-elevated)]'
               }`}
               style={
                 isActive
@@ -185,7 +185,7 @@ export function DesktopContextSidebar({
               )}
               {tab.badgeText && (
                 <span
-                  className="flex h-[16px] items-center rounded border border-[#2A3144] bg-[#141722] px-1.5 text-[var(--q-type-xs)] font-extrabold uppercase tracking-tight text-[#94A3B8]"
+                  className="flex h-[16px] items-center rounded border border-[#2A3144] bg-[var(--quant-surface-elevated)] px-1.5 text-[var(--q-type-xs)] font-extrabold uppercase tracking-tight text-[#94A3B8]"
                   aria-hidden="true"
                 >
                   {tab.badgeText}

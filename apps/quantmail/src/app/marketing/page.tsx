@@ -85,7 +85,7 @@ export default function QuantMailMarketingPage() {
           </Link>
           <Link
             href="/register"
-            className="rounded-lg px-3 py-1.5 font-medium text-[#111318]"
+            className="rounded-lg px-3 py-1.5 font-medium text-[var(--quant-surface)]"
             style={{ backgroundColor: app.color }}
           >
             Get started
@@ -110,7 +110,7 @@ export default function QuantMailMarketingPage() {
         <div className="mt-8 flex flex-wrap items-center gap-3">
           <Link
             href="/register"
-            className="rounded-xl px-5 py-2.5 text-sm font-semibold text-[#111318]"
+            className="rounded-xl px-5 py-2.5 text-sm font-semibold text-[var(--quant-surface)]"
             style={{ backgroundColor: app.color }}
           >
             Create your account
@@ -147,7 +147,7 @@ export default function QuantMailMarketingPage() {
           </div>
           <Link
             href="/register"
-            className="shrink-0 rounded-xl px-5 py-2.5 text-sm font-semibold text-[#111318]"
+            className="shrink-0 rounded-xl px-5 py-2.5 text-sm font-semibold text-[var(--quant-surface)]"
             style={{ backgroundColor: app.color }}
           >
             Get started free

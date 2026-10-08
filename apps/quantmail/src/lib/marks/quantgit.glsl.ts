@@ -5,7 +5,7 @@
  * is not ours to put there: the Git logo is Jason Long's, licensed CC-BY 3.0,
  * which means attribution travels with every use — including our favicon and
  * our OG images. Neither GitHub nor GitLab embeds it in their own mark for
- * exactly that reason. Its `#F05033` also sits a few degrees off `#FF8C42`, so
+ * exactly that reason. Its `#F05033` also sits a few degrees off `var(--quant-primary)`, so
  * the two reds would fight in every place they appeared together.
  *
  * So the motif is the thing the logo *means* rather than the logo: a commit

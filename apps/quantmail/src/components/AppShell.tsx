@@ -820,7 +820,7 @@ export function AppShell({
                       type="button"
                       // Hidden once the rail is pinned on a wide screen: the drawer it
                       // opens is `md:hidden` there, so the control had nothing to show.
-                      className={`inline-flex size-8 flex-none items-center justify-center rounded-lg outline-none hover:bg-[#282C35] text-[#A1A4AC] hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${isPinned ? 'md:hidden' : ''}`}
+                      className={`inline-flex size-8 flex-none items-center justify-center rounded-lg outline-none hover:bg-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${isPinned ? 'md:hidden' : ''}`}
                       aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
                       aria-expanded={isDrawerPresented}
                       aria-controls={drawerId}
@@ -839,7 +839,7 @@ export function AppShell({
 
                     <button
                       type="button"
-                      className="flex min-h-touch items-center gap-2.5 select-none group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                      className="flex min-h-touch items-center gap-2.5 select-none group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                       onClick={handleLogoClick}
                       title={`${appDisplayName(currentApp)} — Click to refresh`}
                       aria-label={`${appDisplayName(currentApp)} — refresh`}
@@ -860,12 +860,12 @@ export function AppShell({
                     </button>
                   </div>
 
-                  {/* Center: Global search input (w-full max-w-lg, obsidian slate #111318, hairline border #232938, / shortcut) */}
+                  {/* Center: Global search input (w-full max-w-lg, obsidian slate var(--quant-surface), hairline border #232938, / shortcut) */}
                   <div
                     className={`flex-1 max-w-lg mx-3 ${onSearchChange ? 'hidden md:flex' : 'hidden'}`}
                   >
                     {onSearchChange ? (
-                      <div className="w-full flex h-[34px] items-center gap-2 px-3 rounded-lg bg-[#111318] border border-[#232938] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner">
+                      <div className="w-full flex h-[34px] items-center gap-2 px-3 rounded-lg bg-[var(--quant-surface)] border border-[#232938] focus-within:border-[var(--quant-primary)]/60 focus-within:ring-1 focus-within:ring-[var(--quant-primary)]/30 transition-all shadow-inner">
                         <svg
                           className="size-3.5 text-[#A1A4AC] shrink-0"
                           viewBox="0 0 24 24"
@@ -894,7 +894,7 @@ export function AppShell({
                               ? 'Search in QuantMail (sender, subject, keyword)…'
                               : `Search in ${appDisplayName(currentApp)}…`)
                           }
-                          className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#717888] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded"
+                          className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#717888] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
                         />
                         {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
                         <kbd className="hidden lg:inline px-1.5 py-0.5 rounded bg-[#181B22] text-[10px] font-mono text-[#6B6E76] border border-[#2B303C] shrink-0">
@@ -936,8 +936,8 @@ export function AppShell({
                 }`}
               >
                 <div className="min-h-0 overflow-hidden">
-                  <div className="flex items-center gap-2 border-b border-[#282C35]/80 bg-[#090A0C] px-3 py-2.5 sm:px-4">
-                    <div className="flex min-h-touch flex-1 items-center gap-2 rounded-xl border border-[#3A404D]/80 bg-[#111318]/90 px-3 shadow-inner focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30">
+                  <div className="flex items-center gap-2 border-b border-[var(--quant-surface-elevated)]/80 bg-[var(--quant-background)] px-3 py-2.5 sm:px-4">
+                    <div className="flex min-h-touch flex-1 items-center gap-2 rounded-xl border border-[#3A404D]/80 bg-[var(--quant-surface)]/90 px-3 shadow-inner focus-within:border-[var(--quant-primary)]/60 focus-within:ring-1 focus-within:ring-[var(--quant-primary)]/30">
                       <svg
                         className="size-4 shrink-0 text-[#A1A4AC]"
                         viewBox="0 0 24 24"
@@ -975,7 +975,7 @@ export function AppShell({
                             ? 'Search messages, contacts, keywords…'
                             : `Search in ${appDisplayName(currentApp)}…`)
                         }
-                        className="h-11 w-full bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded"
+                        className="h-11 w-full bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
                       />
                       {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
                     </div>
@@ -990,7 +990,7 @@ export function AppShell({
                         onSearchChange('');
                         setIsMobileSearchOpen(false);
                       }}
-                      className="inline-flex min-h-touch items-center justify-center rounded-lg px-3 text-xs font-medium text-[#A1A4AC] transition-colors hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                      className="inline-flex min-h-touch items-center justify-center rounded-lg px-3 text-xs font-medium text-[#A1A4AC] transition-colors hover:bg-[var(--quant-surface-elevated)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     >
                       Cancel
                     </button>

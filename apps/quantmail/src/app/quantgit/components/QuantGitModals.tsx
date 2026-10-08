@@ -172,7 +172,7 @@ export function QuantGitModals({
       {/* Branch Switcher Modal */}
       {modalState === 'branch-switcher' && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-[#161B22] border border-[#30363D] rounded-xl w-full max-w-md overflow-hidden shadow-2xl space-y-3 p-4 text-xs animate-in fade-in">
+          <div className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl w-full max-w-md overflow-hidden shadow-2xl space-y-3 p-4 text-xs animate-in fade-in">
             <div className="flex items-center justify-between border-b border-[#21262D] pb-3">
               <h3 className="font-bold text-white text-sm">Switch branches or tags</h3>
               <button
@@ -226,12 +226,12 @@ export function QuantGitModals({
                   >
                     <span
                       className={
-                        currentBranch === b ? 'text-[#FF8C42] font-bold' : 'text-[#E6EDF3]'
+                        currentBranch === b ? 'text-[var(--quant-primary)] font-bold' : 'text-[#E6EDF3]'
                       }
                     >
                       {b}
                     </span>
-                    {currentBranch === b && <span className="text-[#FF8C42]">✓</span>}
+                    {currentBranch === b && <span className="text-[var(--quant-primary)]">✓</span>}
                   </button>
                 ))}
             </div>
@@ -242,7 +242,7 @@ export function QuantGitModals({
       {/* File Finder Modal ('t') */}
       {modalState === 'file-finder' && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-[#161B22] border border-[#30363D] rounded-xl w-full max-w-lg overflow-hidden shadow-2xl p-4 text-xs space-y-3 animate-in fade-in">
+          <div className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl w-full max-w-lg overflow-hidden shadow-2xl p-4 text-xs space-y-3 animate-in fade-in">
             <div className="flex items-center justify-between border-b border-[#21262D] pb-2">
               <h3 className="font-bold text-white text-sm">Go to file</h3>
               <button
@@ -259,7 +259,7 @@ export function QuantGitModals({
               onChange={(e) => setFileSearchQuery(e.target.value)}
               placeholder="Type a filename..."
               autoFocus
-              className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-3 py-2 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-3 py-2 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             />
             <div className="divide-y divide-[#21262D] max-h-72 overflow-y-auto">
               {filteredFiles.map((file) => (
@@ -284,7 +284,7 @@ export function QuantGitModals({
       {/* Clone Drawer Modal */}
       {modalState === 'clone' && selectedRepo && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-[#161B22] border border-[#30363D] rounded-xl w-full max-w-md overflow-hidden shadow-2xl p-4 text-xs space-y-4 animate-in fade-in">
+          <div className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl w-full max-w-md overflow-hidden shadow-2xl p-4 text-xs space-y-4 animate-in fade-in">
             <div className="flex items-center justify-between border-b border-[#21262D] pb-2">
               <h3 className="font-bold text-white text-sm">Clone repository</h3>
               <button
@@ -444,7 +444,7 @@ export function QuantGitModals({
           aria-labelledby="agent-dossier-title"
           className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4"
         >
-          <section className="w-full max-w-lg overflow-hidden rounded-xl border border-[#30363D] bg-[#161B22] shadow-2xl">
+          <section className="w-full max-w-lg overflow-hidden rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] shadow-2xl">
             <header className="flex items-center justify-between border-b border-[#30363D] px-5 py-4">
               <div className="flex items-center gap-3">
                 <span
@@ -488,7 +488,7 @@ export function QuantGitModals({
               </div>
 
               <div className="rounded-lg border border-[#30363D] bg-[#0D1117] p-3">
-                <p className="font-bold text-[#FF8C42]">Current assignment</p>
+                <p className="font-bold text-[var(--quant-primary)]">Current assignment</p>
                 <p className="mt-2 leading-relaxed text-[#E6EDF3]">
                   {selectedOfficeAgent.currentTask}
                 </p>
@@ -521,7 +521,7 @@ export function QuantGitModals({
                   setSelectedOfficeAgent(null);
                   setModalState('deploy-agent');
                 }}
-                className="w-full rounded-md bg-[#FF8C42] px-4 py-2 font-bold text-black hover:bg-[#ff9b5a]"
+                className="w-full rounded-md bg-[var(--quant-primary)] px-4 py-2 font-bold text-black hover:bg-[var(--quant-primary-hover)]"
               >
                 Assign a task
               </button>
@@ -535,7 +535,7 @@ export function QuantGitModals({
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
           <form
             onSubmit={handleCreateIssue}
-            className="bg-[#161B22] border border-[#30363D] rounded-xl w-full max-w-lg p-5 text-xs space-y-4 shadow-2xl animate-in fade-in"
+            className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl w-full max-w-lg p-5 text-xs space-y-4 shadow-2xl animate-in fade-in"
           >
             <div className="flex items-center justify-between border-b border-[#21262D] pb-2">
               <h3 className="font-bold text-white text-sm">Create a new issue</h3>
@@ -595,7 +595,7 @@ export function QuantGitModals({
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
           <form
             onSubmit={handleCreatePR}
-            className="bg-[#161B22] border border-[#30363D] rounded-xl w-full max-w-lg p-5 text-xs space-y-4 shadow-2xl animate-in fade-in"
+            className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl w-full max-w-lg p-5 text-xs space-y-4 shadow-2xl animate-in fade-in"
           >
             <div className="flex items-center justify-between border-b border-[#21262D] pb-2">
               <h3 className="font-bold text-white text-sm">Open a pull request</h3>
@@ -649,7 +649,7 @@ export function QuantGitModals({
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
           <form
             onSubmit={handleCreateRepo}
-            className="bg-[#161B22] border border-[#30363D] rounded-xl w-full max-w-md p-5 text-xs space-y-4 shadow-2xl animate-in fade-in"
+            className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl w-full max-w-md p-5 text-xs space-y-4 shadow-2xl animate-in fade-in"
           >
             <div className="flex items-center justify-between border-b border-[#21262D] pb-2">
               <h3 className="font-bold text-white text-sm">Create a new repository</h3>
@@ -730,7 +730,7 @@ export function QuantGitModals({
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
           <form
             onSubmit={handleDeployAgent}
-            className="bg-[#161B22] border border-[#30363D] rounded-xl w-full max-w-md p-5 text-xs space-y-4 shadow-2xl animate-in fade-in"
+            className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl w-full max-w-md p-5 text-xs space-y-4 shadow-2xl animate-in fade-in"
           >
             <div className="flex items-center justify-between border-b border-[#21262D] pb-2">
               <h3 className="font-bold text-white text-sm">Deploy Specialized Agent</h3>
@@ -781,7 +781,7 @@ export function QuantGitModals({
             <div className="flex justify-end pt-2">
               <button
                 type="submit"
-                className="px-4 py-1.5 rounded bg-[#FF8C42] hover:bg-[#ff9b5a] text-black font-bold"
+                className="px-4 py-1.5 rounded bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-black font-bold"
               >
                 Deploy to Swarm
               </button>
@@ -808,7 +808,7 @@ export function QuantGitModals({
               </button>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#161B22] p-3 rounded border border-[#30363D]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[var(--quant-surface-elevated)] p-3 rounded border border-[#30363D]">
               <div>
                 <span className="text-[10px] text-[#7D8590]">Workflow</span>
                 <p className="font-bold text-white">{selectedActionRun.workflow}</p>
@@ -834,7 +834,7 @@ export function QuantGitModals({
                 {selectedActionRun.jobs.map((job) => (
                   <div
                     key={job.name}
-                    className="flex items-center justify-between p-3 rounded bg-[#161B22] border border-[#30363D]"
+                    className="flex items-center justify-between p-3 rounded bg-[var(--quant-surface-elevated)] border border-[#30363D]"
                   >
                     <div className="flex items-center gap-2 font-bold text-white">
                       <span className="text-[#3FB950]">✓</span>
@@ -892,11 +892,11 @@ export function QuantGitModals({
                   <span className="text-[11px] text-[#7D8590]">
                     <span className="text-white font-semibold">{selectedPr.author}</span> wants to
                     merge into{' '}
-                    <span className="px-1.5 py-0.5 rounded bg-[#161B22] text-[#58A6FF] font-mono">
+                    <span className="px-1.5 py-0.5 rounded bg-[var(--quant-surface-elevated)] text-[#58A6FF] font-mono">
                       {selectedPr.branchTarget || selectedRepo?.defaultBranch || 'main'}
                     </span>{' '}
                     from{' '}
-                    <span className="px-1.5 py-0.5 rounded bg-[#161B22] text-[#58A6FF] font-mono">
+                    <span className="px-1.5 py-0.5 rounded bg-[var(--quant-surface-elevated)] text-[#58A6FF] font-mono">
                       {selectedPr.branchSource}
                     </span>
                   </span>
@@ -912,7 +912,7 @@ export function QuantGitModals({
             </div>
 
             {/* PR Meta / Diff Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-[#161B22] p-3 rounded-md border border-[#30363D]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-[var(--quant-surface-elevated)] p-3 rounded-md border border-[#30363D]">
               <div>
                 <span className="text-[10px] text-[#7D8590]">Changes</span>
                 <p className="font-bold text-white">
@@ -939,7 +939,7 @@ export function QuantGitModals({
               <h4 className="font-bold text-[#7D8590] text-[11px] uppercase tracking-wider">
                 Description
               </h4>
-              <div className="p-3.5 rounded-md bg-[#161B22] border border-[#30363D] text-[#E6EDF3] leading-relaxed whitespace-pre-wrap">
+              <div className="p-3.5 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] text-[#E6EDF3] leading-relaxed whitespace-pre-wrap">
                 {selectedPr.body || 'No description provided.'}
               </div>
             </div>
@@ -947,7 +947,7 @@ export function QuantGitModals({
             {/* Merge Action Box */}
             <div className="pt-2">
               {selectedPr.state === 'open' ? (
-                <div className="bg-[#161B22] border border-[#238636]/50 rounded-lg p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-inner">
+                <div className="bg-[var(--quant-surface-elevated)] border border-[#238636]/50 rounded-lg p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-inner">
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-1.5 text-[#3FB950] font-bold">
                       <span>✓</span>
@@ -1044,7 +1044,7 @@ export function QuantGitModals({
               <h4 className="font-bold text-[#7D8590] text-[11px] uppercase tracking-wider">
                 Issue Description
               </h4>
-              <div className="p-3.5 rounded-md bg-[#161B22] border border-[#30363D] text-[#E6EDF3] leading-relaxed whitespace-pre-wrap">
+              <div className="p-3.5 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] text-[#E6EDF3] leading-relaxed whitespace-pre-wrap">
                 {selectedIssue.body || 'No description provided.'}
               </div>
             </div>
@@ -1062,7 +1062,7 @@ export function QuantGitModals({
               </div>
 
               {!isLoadingComments && issueComments.length === 0 && !commentError && (
-                <div className="rounded-md border border-[#30363D] bg-[#161B22] p-4 text-center text-[#7D8590]">
+                <div className="rounded-md border border-[#30363D] bg-[var(--quant-surface-elevated)] p-4 text-center text-[#7D8590]">
                   No comments yet. Start the conversation.
                 </div>
               )}
@@ -1104,8 +1104,8 @@ export function QuantGitModals({
                           {initials || '?'}
                         </div>
                       )}
-                      <article className="min-w-0 flex-1 overflow-hidden rounded-md border border-[#30363D] bg-[#161B22]">
-                        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[#30363D] bg-[#161B22] px-3 py-2">
+                      <article className="min-w-0 flex-1 overflow-hidden rounded-md border border-[#30363D] bg-[var(--quant-surface-elevated)]">
+                        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[#30363D] bg-[var(--quant-surface-elevated)] px-3 py-2">
                           <span className="font-semibold text-[#E6EDF3]">{authorName}</span>
                           <time dateTime={comment.createdAt} className="text-[10px] text-[#7D8590]">
                             {formattedTimestamp}
@@ -1188,7 +1188,7 @@ export function QuantGitModals({
       {/* Personalize Quanty AI Modal */}
       {isPersonalizeOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-[#161B22] border border-[#30363D] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl p-6 text-xs space-y-5 animate-in fade-in">
+          <div className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl p-6 text-xs space-y-5 animate-in fade-in">
             <div className="flex items-center justify-between border-b border-[#21262D] pb-3">
               <div className="flex items-center gap-2.5">
                 <span className="text-lg">🎨</span>
@@ -1309,7 +1309,7 @@ export function QuantGitModals({
                   setIsPersonalizeOpen(false);
                   showToast('Personalization preferences saved!');
                 }}
-                className="px-4 py-2 rounded-lg bg-[#FF8C42] hover:bg-[#ff9b5a] text-black font-bold shadow-md transition-colors"
+                className="px-4 py-2 rounded-lg bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-black font-bold shadow-md transition-colors"
               >
                 Save Preferences
               </button>

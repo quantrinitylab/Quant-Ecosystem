@@ -29,8 +29,8 @@ export function DiscussionsTab({
               onClick={() => setDiscussionCategory(cat)}
               className={`px-3 py-1 rounded-md border text-xs font-semibold ${
                 discussionCategory === cat
-                  ? 'bg-[#21262D] border-[#FF8C42] text-white'
-                  : 'bg-[#161B22] border-[#30363D] text-[#7D8590]'
+                  ? 'bg-[#21262D] border-[var(--quant-primary)] text-white'
+                  : 'bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#7D8590]'
               }`}
             >
               {cat === 'all' ? 'All Categories' : cat}
@@ -50,7 +50,7 @@ export function DiscussionsTab({
         {discussions.map((d) => (
           <div
             key={d.id}
-            className="p-4 hover:bg-[#161B22] transition-colors flex items-start justify-between gap-4"
+            className="p-4 hover:bg-[var(--quant-surface-elevated)] transition-colors flex items-start justify-between gap-4"
           >
             <div className="space-y-1">
               <div className="flex items-center gap-2">

@@ -383,7 +383,7 @@ describe('QuantDrive File Version History & 1-Click Rollback Test Suite', () => 
       expect(html).toContain('No previous versions recorded for this file.');
     });
 
-    it('renders Quant Studio token styles (#16181D, #282C35, #FF8C42, #F5F5F5)', () => {
+    it('renders Quant Studio token styles (var(--quant-surface-elevated), var(--quant-surface-elevated), var(--quant-primary), #F5F5F5)', () => {
       const html = renderToStaticMarkup(
         <FileVersionHistoryModal
           isOpen={true}
@@ -394,9 +394,9 @@ describe('QuantDrive File Version History & 1-Click Rollback Test Suite', () => 
         />,
       );
 
-      expect(html).toContain('#16181D');
-      expect(html).toContain('#282C35');
-      expect(html).toContain('#FF8C42');
+      expect(html).toContain('var(--quant-surface-elevated)');
+      expect(html).toContain('var(--quant-surface-elevated)');
+      expect(html).toContain('var(--quant-primary)');
       expect(html).toContain('#F5F5F5');
     });
   });

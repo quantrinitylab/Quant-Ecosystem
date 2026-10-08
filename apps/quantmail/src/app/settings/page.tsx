@@ -204,7 +204,7 @@ const TABS: Array<{ key: SettingsTab; label: string }> = [
 ];
 
 /**
- * The swatches are the real canvases, not decorative approximations: `#090A0C`
+ * The swatches are the real canvases, not decorative approximations: `var(--quant-background)`
  * is `--quant-background` under `:root[data-theme='dark']` and `#f4f2ed` is the
  * light one. The old card previewed light mode as `#F5F5F5`, a colour the light
  * theme uses for *text*, so the swatch was showing something the theme never
@@ -215,7 +215,7 @@ const THEME_OPTIONS: readonly SettingsChoiceOption<Theme>[] = [
     value: 'dark',
     label: 'Obsidian',
     description: 'The default. Near-black canvas, warm accent.',
-    swatch: 'bg-[#090A0C]',
+    swatch: 'bg-[var(--quant-background)]',
   },
   {
     value: 'light',
@@ -227,7 +227,7 @@ const THEME_OPTIONS: readonly SettingsChoiceOption<Theme>[] = [
     value: 'system',
     label: 'Match system',
     description: 'Follows your OS, and keeps following it.',
-    swatch: 'bg-gradient-to-br from-[#090A0C] via-[#090A0C] to-[#f4f2ed]',
+    swatch: 'bg-gradient-to-br from-[var(--quant-background)] via-[var(--quant-background)] to-[#f4f2ed]',
   },
 ];
 

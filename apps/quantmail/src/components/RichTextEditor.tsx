@@ -44,7 +44,7 @@ interface ImageDialogState {
 
 const FONT_SIZES = ['12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px'];
 const COLORS = [
-  '#000000',
+  'var(--quant-background)',
   '#333333',
   '#666666',
   '#999999',
@@ -85,7 +85,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     unorderedList: false,
     heading: 'p',
     alignment: 'left',
-    foreColor: '#000000',
+    foreColor: 'var(--quant-background)',
   });
   const [linkDialog, setLinkDialog] = useState<LinkDialogState>({
     isOpen: false,
@@ -130,7 +130,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           : document.queryCommandValue('justifyRight')
             ? 'right'
             : 'left',
-      foreColor: document.queryCommandValue('foreColor') || '#000000',
+      foreColor: document.queryCommandValue('foreColor') || 'var(--quant-background)',
     });
   }, []);
 

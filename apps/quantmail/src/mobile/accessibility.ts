@@ -106,6 +106,8 @@ export class AccessibilityService {
   private focusStack: FocusConfig[] = [];
   private dynamicTypeConfig: DynamicTypeConfig = { baseSize: 16, minScale: 0.8, maxScale: 2.0, currentScale: 1.0, respectSystemSetting: true };
   private announcements: Announcement[] = [];
+  // High-contrast theme uses fixed WCAG hex values by design (QM-UIUX-004 lint exemption).
+  // eslint-disable-next-line surface-hex/no-raw-surface-hex
   private highContrastTheme: HighContrastTheme = { background: '#000000', foreground: '#FFFFFF', primary: '#FFFF00', secondary: '#00FFFF', error: '#FF4444', border: '#FFFFFF', focusRing: '#FFFF00' };
 
   constructor() {

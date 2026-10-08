@@ -290,12 +290,12 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="booking-links-modal-title"
-        className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-[#121316] border border-[#282C35] shadow-2xl overflow-hidden z-10 text-[#F5F5F5] animate-in fade-in zoom-in-95 duration-150"
+        className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-[var(--quant-surface-subtle)] border border-[var(--quant-surface-elevated)] shadow-2xl overflow-hidden z-10 text-[#F5F5F5] animate-in fade-in zoom-in-95 duration-150"
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#282C35]/80 bg-[#0c0c0f]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--quant-surface-elevated)]/80 bg-[#0c0c0f]">
           <div className="flex items-center gap-3">
-            <div className="size-9 rounded-xl bg-[#FF8C42]/10 border border-[#FF8C42]/20 flex items-center justify-center text-[#FF8C42] text-lg font-bold">
+            <div className="size-9 rounded-xl bg-[var(--quant-primary)]/10 border border-[var(--quant-primary)]/20 flex items-center justify-center text-[var(--quant-primary)] text-lg font-bold">
               <IconLink size={18} />
             </div>
             <div>
@@ -304,7 +304,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                 className="text-base font-bold tracking-tight text-white flex items-center gap-2"
               >
                 Booking Links
-                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#FF8C42]/20 text-[#FF8C42] border border-[#FF8C42]/30">
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] border border-[var(--quant-primary)]/30">
                   Calendly Parity
                 </span>
               </h2>
@@ -319,21 +319,21 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close modal"
-            className="size-8 grid place-items-center rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+            className="size-8 grid place-items-center rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           >
             <IconX size={16} />
           </button>
         </div>
 
         {/* Tab Toggle Toolbar */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-[#282C35]/60 bg-[#16181D]/50">
-          <div className="flex items-center rounded-lg border border-[#282C35] bg-[#0c0c0f] p-0.5">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--quant-surface-elevated)]/60 bg-[var(--quant-surface-elevated)]/50">
+          <div className="flex items-center rounded-lg border border-[var(--quant-surface-elevated)] bg-[#0c0c0f] p-0.5">
             <button
               type="button"
               onClick={() => setActiveTab('list')}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
                 activeTab === 'list'
-                  ? 'bg-[#FF8C42] text-[#090A0C] shadow-sm'
+                  ? 'bg-[var(--quant-primary)] text-[var(--quant-background)] shadow-sm'
                   : 'text-[#A1A4AC] hover:text-white'
               }`}
             >
@@ -344,7 +344,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
               onClick={() => setActiveTab('create')}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
                 activeTab === 'create'
-                  ? 'bg-[#FF8C42] text-[#090A0C] shadow-sm'
+                  ? 'bg-[var(--quant-primary)] text-[var(--quant-background)] shadow-sm'
                   : 'text-[#A1A4AC] hover:text-white'
               }`}
             >
@@ -356,7 +356,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('create')}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FF8C42] hover:bg-[#FF9B5A] text-[#090A0C] transition-colors shadow-sm"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-[var(--quant-background)] transition-colors shadow-sm"
             >
               + New Link
             </button>
@@ -368,7 +368,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
           {activeTab === 'list' ? (
             links.length === 0 ? (
               <div className="text-center py-12 px-4 space-y-3">
-                <div className="flex justify-center"><IconCalendar size={36} className="text-[#FF8C42]" /></div>
+                <div className="flex justify-center"><IconCalendar size={36} className="text-[var(--quant-primary)]" /></div>
                 <h3 className="text-sm font-semibold text-white">No booking links created yet</h3>
                 <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto">
                   Create your first shareable link to let others book slots directly on your
@@ -377,7 +377,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveTab('create')}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#FF8C42] hover:bg-[#FF9B5A] text-[#090A0C] shadow-md transition-all"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-[var(--quant-background)] shadow-md transition-all"
                 >
                   Create Your First Link
                 </button>
@@ -389,17 +389,17 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                   return (
                     <div
                       key={link.id}
-                      className="group p-4 rounded-xl border border-[#282C35] bg-[#16181D] hover:border-[#3A404D] transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      className="group p-4 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] hover:border-[#3A404D] transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                     >
                       <div className="space-y-1.5 flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h4 className="font-semibold text-sm text-white truncate">
                             {link.title}
                           </h4>
-                          <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#FF8C42]/15 text-[#FF8C42] border border-[#FF8C42]/25">
+                          <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[var(--quant-primary)]/15 text-[var(--quant-primary)] border border-[var(--quant-primary)]/25">
                             {link.duration} min
                           </span>
-                          <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-[#1F2430] text-[#7EE787] border border-[#7EE787]/20">
+                          <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-[var(--quant-surface-elevated)] text-[#7EE787] border border-[#7EE787]/20">
                             Active
                           </span>
                         </div>
@@ -452,7 +452,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                           href={`/calendar/booking/${link.slug}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1F2430] hover:bg-[#282E3E] text-[#58A6FF] border border-[#58A6FF]/30 transition-all flex items-center gap-1"
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--quant-surface-elevated)] hover:bg-[#282E3E] text-[#58A6FF] border border-[#58A6FF]/30 transition-all flex items-center gap-1"
                           title="Preview public booking page"
                         >
                           ↗ View Page
@@ -470,7 +470,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[#A1A4AC] font-semibold mb-1">
-                    Meeting Title <span className="text-[#FF8C42]">*</span>
+                    Meeting Title <span className="text-[var(--quant-primary)]">*</span>
                   </label>
                   <input
                     type="text"
@@ -478,15 +478,15 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                     onChange={handleTitleChange}
                     placeholder="e.g. 30 Min Strategy Session"
                     required
-                    className="w-full px-3 py-2 rounded-xl bg-[#0c0c0f] border border-[#282C35] text-white placeholder-[#5E6472] focus:outline-none focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42] text-xs transition-colors"
+                    className="w-full px-3 py-2 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white placeholder-[#5E6472] focus:outline-none focus:border-[var(--quant-primary)] focus:ring-1 focus:ring-[var(--quant-primary)] text-xs transition-colors"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[#A1A4AC] font-semibold mb-1">
-                    URL Slug <span className="text-[#FF8C42]">*</span>
+                    URL Slug <span className="text-[var(--quant-primary)]">*</span>
                   </label>
-                  <div className="flex items-center rounded-xl bg-[#0c0c0f] border border-[#282C35] focus-within:border-[#FF8C42] focus-within:ring-1 focus-within:ring-[#FF8C42] overflow-hidden text-xs">
+                  <div className="flex items-center rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] focus-within:border-[var(--quant-primary)] focus-within:ring-1 focus-within:ring-[var(--quant-primary)] overflow-hidden text-xs">
                     <span className="pl-3 text-[#5E6472] select-none text-[11px]">/booking/</span>
                     <input
                       type="text"
@@ -494,7 +494,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                       onChange={handleSlugChange}
                       placeholder="strategy-session"
                       required
-                      className="w-full pr-3 py-2 bg-transparent border-0 text-white placeholder-[#5E6472] focus:outline-none text-xs font-mono focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                      className="w-full pr-3 py-2 bg-transparent border-0 text-white placeholder-[#5E6472] focus:outline-none text-xs font-mono focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     />
                   </div>
                 </div>
@@ -510,7 +510,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                   onChange={(e) => setFormDescription(e.target.value)}
                   placeholder="Share a brief overview of what this meeting is about, what attendees should prepare, etc."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-xl bg-[#0c0c0f] border border-[#282C35] text-white placeholder-[#5E6472] focus:outline-none focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42] text-xs transition-colors"
+                  className="w-full px-3 py-2 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white placeholder-[#5E6472] focus:outline-none focus:border-[var(--quant-primary)] focus:ring-1 focus:ring-[var(--quant-primary)] text-xs transition-colors"
                 />
               </div>
 
@@ -527,8 +527,8 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                       onClick={() => setFormDuration(dur)}
                       className={`py-2 px-3 rounded-xl border text-center font-semibold transition-all ${
                         formDuration === dur
-                          ? 'bg-[#FF8C42] text-[#090A0C] border-[#FF8C42] shadow-sm'
-                          : 'bg-[#16181D] text-[#A1A4AC] border-[#282C35] hover:text-white hover:border-[#3A404D]'
+                          ? 'bg-[var(--quant-primary)] text-[var(--quant-background)] border-[var(--quant-primary)] shadow-sm'
+                          : 'bg-[var(--quant-surface-elevated)] text-[#A1A4AC] border-[var(--quant-surface-elevated)] hover:text-white hover:border-[#3A404D]'
                       }`}
                     >
                       {dur} min
@@ -544,7 +544,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                   <select
                     id="booking-start-hour" value={formStartHour}
                     onChange={(e) => setFormStartHour(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl bg-[#0c0c0f] border border-[#282C35] text-white focus:outline-none focus:border-[#FF8C42] text-xs cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white focus:outline-none focus:border-[var(--quant-primary)] text-xs cursor-pointer"
                   >
                     {Array.from({ length: 24 }).map((_, i) => (
                       <option key={i} value={i}>
@@ -559,7 +559,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                   <select
                     id="booking-end-hour" value={formEndHour}
                     onChange={(e) => setFormEndHour(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl bg-[#0c0c0f] border border-[#282C35] text-white focus:outline-none focus:border-[#FF8C42] text-xs cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white focus:outline-none focus:border-[var(--quant-primary)] text-xs cursor-pointer"
                   >
                     {Array.from({ length: 24 }).map((_, i) => (
                       <option key={i + 1} value={i + 1}>
@@ -585,8 +585,8 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                         onClick={() => toggleDay(day)}
                         className={`py-2 rounded-xl text-center text-xs font-bold transition-all border ${
                           isSelected
-                            ? 'bg-[#FF8C42] text-[#090A0C] border-[#FF8C42] shadow-sm'
-                            : 'bg-[#16181D] text-[#8B949E] border-[#282C35] hover:text-white'
+                            ? 'bg-[var(--quant-primary)] text-[var(--quant-background)] border-[var(--quant-primary)] shadow-sm'
+                            : 'bg-[var(--quant-surface-elevated)] text-[#8B949E] border-[var(--quant-surface-elevated)] hover:text-white'
                         }`}
                       >
                         {label}
@@ -597,11 +597,11 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
               </div>
 
               {/* Form Action Buttons */}
-              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-[#282C35]/80">
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-[var(--quant-surface-elevated)]/80">
                 <button
                   type="button"
                   onClick={() => setActiveTab('list')}
-                  className="px-4 py-2 rounded-xl border border-[#282C35] bg-[#16181D] hover:bg-[#20232A] text-[#A1A4AC] hover:text-white font-semibold transition-colors"
+                  className="px-4 py-2 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] hover:bg-[#20232A] text-[#A1A4AC] hover:text-white font-semibold transition-colors"
                 >
                   Cancel
                 </button>
@@ -609,7 +609,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] text-[#090A0C] font-bold shadow-md transition-all disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-[var(--quant-background)] font-bold shadow-md transition-all disabled:opacity-50"
                 >
                   {isSubmitting ? 'Creating Link…' : 'Create Booking Link'}
                 </button>
@@ -619,7 +619,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-3 border-t border-[#282C35]/80 bg-[#0c0c0f] flex items-center justify-between text-xs text-[#A1A4AC]">
+        <div className="px-6 py-3 border-t border-[var(--quant-surface-elevated)]/80 bg-[#0c0c0f] flex items-center justify-between text-xs text-[#A1A4AC]">
           <span className="flex items-center gap-1.5">
             Host: <span className="font-semibold text-white">{userEmail}</span>
           </span>

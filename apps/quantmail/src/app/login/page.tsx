@@ -241,7 +241,7 @@ function LoginForm() {
           </div>
 
           {stage === 'credentials' && contextNotice ? (
-            <div className="mb-5 rounded-xl border border-[#FF8C42]/30 bg-[#FF8C42]/10 shadow-[0_0_16px_rgba(255,140,66,0.1),inset_0_1px_0_0_rgba(255,255,255,0.06)] px-4 py-3 text-sm text-[#FFB875]">
+            <div className="mb-5 rounded-xl border border-[var(--quant-primary)]/30 bg-[var(--quant-primary)]/10 shadow-[0_0_16px_rgba(255,140,66,0.1),inset_0_1px_0_0_rgba(255,255,255,0.06)] px-4 py-3 text-sm text-[#FFB875]">
               {contextNotice}
             </div>
           ) : null}
@@ -265,7 +265,7 @@ function LoginForm() {
                   </label>
                   <Link
                     href="/forgot-email"
-                    className="-my-3.5 -mr-2 inline-flex items-center px-2 py-3.5 text-xs font-medium text-[#FF8C42] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    className="-my-3.5 -mr-2 inline-flex items-center px-2 py-3.5 text-xs font-medium text-[var(--quant-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                   >
                     Forgot email?
                   </Link>
@@ -282,7 +282,7 @@ function LoginForm() {
                   onChange={(event) => setIdentifier(event.target.value)}
                   aria-invalid={Boolean(fieldErrors.identifier)}
                   aria-describedby={fieldErrors.identifier ? 'login-id-error' : undefined}
-                  className={`w-full rounded-xl border bg-[#111318]/90 backdrop-blur px-3.5 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-all shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] focus:border-[#FF8C42] focus:ring-2 focus:ring-[#FF8C42]/20 motion-reduce:transition-none ${
+                  className={`w-full rounded-xl border bg-[var(--quant-surface)]/90 backdrop-blur px-3.5 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-all shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] focus:border-[var(--quant-primary)] focus:ring-2 focus:ring-[var(--quant-primary)]/20 motion-reduce:transition-none ${
                     fieldErrors.identifier ? 'border-red-500/50' : 'border-white/[0.08]'
                   }`}
                 />
@@ -300,13 +300,13 @@ function LoginForm() {
                   </label>
                   <Link
                     href="/forgot-password"
-                    className="-my-3.5 -mr-2 inline-flex items-center px-2 py-3.5 text-xs font-medium text-[#FF8C42] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    className="-my-3.5 -mr-2 inline-flex items-center px-2 py-3.5 text-xs font-medium text-[var(--quant-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                   >
                     Forgot password?
                   </Link>
                 </div>
                 <div
-                  className={`flex overflow-hidden rounded-xl border bg-[#111318]/90 backdrop-blur transition-all shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] focus-within:border-[#FF8C42] focus-within:ring-2 focus-within:ring-[#FF8C42]/20 motion-reduce:transition-none ${
+                  className={`flex overflow-hidden rounded-xl border bg-[var(--quant-surface)]/90 backdrop-blur transition-all shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] focus-within:border-[var(--quant-primary)] focus-within:ring-2 focus-within:ring-[var(--quant-primary)]/20 motion-reduce:transition-none ${
                     fieldErrors.password ? 'border-red-500/50' : 'border-white/[0.08]'
                   }`}
                 >
@@ -327,7 +327,7 @@ function LoginForm() {
                     onClick={() => setShowPassword((visible) => !visible)}
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                     aria-pressed={showPassword}
-                    className="px-3.5 text-xs font-semibold text-zinc-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
+                    className="px-3.5 text-xs font-semibold text-zinc-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)]"
                   >
                     {showPassword ? 'Hide' : 'Show'}
                   </button>
@@ -363,7 +363,7 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[#FF8C42] text-[#090A0C] font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all shadow-[0_4px_20px_-4px_rgba(255,140,66,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] py-3 px-4 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C]"
+                className="w-full rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[var(--quant-primary)] text-[var(--quant-background)] font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all shadow-[0_4px_20px_-4px_rgba(255,140,66,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] py-3 px-4 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)]"
               >
                 {isLoading ? 'Authenticating…' : 'Sign in'}
               </button>
@@ -398,7 +398,7 @@ function LoginForm() {
                   }}
                   aria-invalid={Boolean(error)}
                   aria-describedby="login-code-hint"
-                  className="w-full rounded-xl border border-white/[0.08] bg-[#111318]/90 px-3.5 py-3 text-center text-lg font-semibold tracking-[0.35em] text-white outline-none transition-all placeholder:font-normal placeholder:tracking-[0.2em] placeholder:text-zinc-600 focus:border-[#FF8C42] focus:ring-2 focus:ring-[#FF8C42]/20 font-mono shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
+                  className="w-full rounded-xl border border-white/[0.08] bg-[var(--quant-surface)]/90 px-3.5 py-3 text-center text-lg font-semibold tracking-[0.35em] text-white outline-none transition-all placeholder:font-normal placeholder:tracking-[0.2em] placeholder:text-zinc-600 focus:border-[var(--quant-primary)] focus:ring-2 focus:ring-[var(--quant-primary)]/20 font-mono shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
                 />
                 <p
                   id="login-code-hint"
@@ -431,7 +431,7 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[#FF8C42] text-[#090A0C] font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all shadow-[0_4px_20px_-4px_rgba(255,140,66,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] py-3 px-4 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C]"
+                className="w-full rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[var(--quant-primary)] text-[var(--quant-background)] font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all shadow-[0_4px_20px_-4px_rgba(255,140,66,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] py-3 px-4 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)]"
               >
                 {isLoading ? 'Verifying…' : 'Verify and sign in'}
               </button>
@@ -451,7 +451,7 @@ function LoginForm() {
                     setError(null);
                     codeInputRef.current?.focus();
                   }}
-                  className="inline-flex min-h-[44px] items-center px-2 text-xs font-medium text-[#FF8C42] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  className="inline-flex min-h-[44px] items-center px-2 text-xs font-medium text-[var(--quant-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 >
                   {codeMode === 'totp'
                     ? 'Use a recovery code instead'
@@ -460,7 +460,7 @@ function LoginForm() {
                 <button
                   type="button"
                   onClick={() => backToPassword(null)}
-                  className="inline-flex min-h-[44px] items-center px-2 text-xs font-medium text-zinc-400 underline-offset-4 hover:text-white hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  className="inline-flex min-h-[44px] items-center px-2 text-xs font-medium text-zinc-400 underline-offset-4 hover:text-white hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 >
                   Sign in as someone else
                 </button>
@@ -473,7 +473,7 @@ function LoginForm() {
               New to QuantMail?{' '}
               <Link
                 href="/register"
-                className="-my-3.5 inline-flex items-center px-1.5 py-3.5 font-semibold text-[#FF8C42] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                className="-my-3.5 inline-flex items-center px-1.5 py-3.5 font-semibold text-[var(--quant-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
               >
                 Create an address
               </Link>
@@ -514,7 +514,7 @@ function LoginFallback() {
           </div>
         </div>
         <div className="mb-7">
-          <div className="h-5 w-32 bg-[#FF8C42]/10 rounded-full mb-2.5" />
+          <div className="h-5 w-32 bg-[var(--quant-primary)]/10 rounded-full mb-2.5" />
           <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight text-white">
             Sign in to QuantMail
           </h1>
@@ -523,9 +523,9 @@ function LoginFallback() {
           </p>
         </div>
         <div aria-hidden="true" className="space-y-4">
-          <div className="h-[46px] rounded-xl border border-white/[0.08] bg-[#111318]/90" />
-          <div className="h-[46px] rounded-xl border border-white/[0.08] bg-[#111318]/90" />
-          <div className="h-[46px] rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[#FF8C42] opacity-40" />
+          <div className="h-[46px] rounded-xl border border-white/[0.08] bg-[var(--quant-surface)]/90" />
+          <div className="h-[46px] rounded-xl border border-white/[0.08] bg-[var(--quant-surface)]/90" />
+          <div className="h-[46px] rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[var(--quant-primary)] opacity-40" />
         </div>
       </div>
     </AuthShell>

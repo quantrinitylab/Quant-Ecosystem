@@ -76,7 +76,7 @@ export default function Error({
           </motion.div>
           <a
             href="/"
-            className="inline-flex min-h-touch items-center gap-1 rounded-lg border border-[var(--quant-border)] px-4 py-2 text-sm font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-muted)] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] motion-reduce:transition-none"
+            className="inline-flex min-h-touch items-center gap-1 rounded-lg border border-[var(--quant-border)] px-4 py-2 text-sm font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-muted)] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] motion-reduce:transition-none"
           >
             Go to Inbox
           </a>

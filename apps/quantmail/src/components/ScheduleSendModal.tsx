@@ -230,12 +230,12 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="w-full max-w-lg rounded-3xl border border-[#282C35] bg-[#121622] p-4 sm:p-6 shadow-2xl space-y-4"
+            className="w-full max-w-lg rounded-3xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] p-4 sm:p-6 shadow-2xl space-y-4"
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-[#282C35]/80 pb-3">
+            <div className="flex items-center justify-between border-b border-[var(--quant-surface-elevated)]/80 pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="size-8 rounded-xl bg-[#FF8C42]/10 text-[#FF8C42] flex items-center justify-center border border-[#FF8C42]/20">
+                <div className="size-8 rounded-xl bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] flex items-center justify-center border border-[var(--quant-primary)]/20">
                   <svg
                     className="size-4"
                     viewBox="0 0 24 24"
@@ -258,7 +258,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                 type="button"
                 onClick={onClose}
                 aria-label="Close schedule send dialog"
-                className="inline-flex items-center justify-center size-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 -mr-1.5 sm:mr-0 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                className="inline-flex items-center justify-center size-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 -mr-1.5 sm:mr-0 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
               >
                 <IconX size={15} />
               </button>
@@ -269,22 +269,22 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
               <button
                 type="button"
                 onClick={() => handleQuickPreset('today_evening')}
-                className="px-3.5 py-2.5 rounded-2xl bg-[#111318]/80 hover:bg-[#282C35]/90 border border-[#282C35] text-left transition-all hover:border-[#FF8C42]/40 group"
+                className="px-3.5 py-2.5 rounded-2xl bg-[var(--quant-surface)]/80 hover:bg-[var(--quant-surface-elevated)]/90 border border-[var(--quant-surface-elevated)] text-left transition-all hover:border-[var(--quant-primary)]/40 group"
               >
                 <span className="block font-medium text-[#F5F5F5] text-xs group-hover:text-white">
                   Today
                 </span>
-                <span className="text-xs text-[#FF8C42] font-semibold">6:00 PM</span>
+                <span className="text-xs text-[var(--quant-primary)] font-semibold">6:00 PM</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickPreset('tomorrow_morning')}
-                className="px-3.5 py-2.5 rounded-2xl bg-[#111318]/80 hover:bg-[#282C35]/90 border border-[#282C35] text-left transition-all hover:border-[#FF8C42]/40 group"
+                className="px-3.5 py-2.5 rounded-2xl bg-[var(--quant-surface)]/80 hover:bg-[var(--quant-surface-elevated)]/90 border border-[var(--quant-surface-elevated)] text-left transition-all hover:border-[var(--quant-primary)]/40 group"
               >
                 <span className="block font-medium text-[#F5F5F5] text-xs group-hover:text-white">
                   Tomorrow
                 </span>
-                <span className="text-xs text-[#FF8C42] font-semibold">8:00 AM</span>
+                <span className="text-xs text-[var(--quant-primary)] font-semibold">8:00 AM</span>
               </button>
             </div>
 
@@ -295,7 +295,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                 drag="x"
                 dragConstraints={{ left: 0, right: 0 }}
                 onDragEnd={handleCalendarDragEnd}
-                className="space-y-2.5 bg-[#090A0C]/40 p-3 rounded-2xl border border-[#282C35]/80 touch-pan-y"
+                className="space-y-2.5 bg-[var(--quant-background)]/40 p-3 rounded-2xl border border-[var(--quant-surface-elevated)]/80 touch-pan-y"
               >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-white">
@@ -305,7 +305,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                     <button
                       type="button"
                       onClick={handlePrevMonth}
-                      className="inline-flex items-center justify-center size-7 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                      className="inline-flex items-center justify-center size-7 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                       title="Previous month (or swipe right)"
                       aria-label="Previous month"
                     >
@@ -314,7 +314,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                     <button
                       type="button"
                       onClick={handleNextMonth}
-                      className="inline-flex items-center justify-center size-7 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                      className="inline-flex items-center justify-center size-7 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                       title="Next month (or swipe left)"
                       aria-label="Next month"
                     >
@@ -351,9 +351,9 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                         onClick={() => handleSelectDay(item.date, item.isPast)}
                         className={`size-11 mx-auto rounded-lg flex items-center justify-center text-[11px] font-medium transition-all ${
                           isSelected
-                            ? 'bg-[#FF8C42] text-black font-bold shadow-md scale-105'
+                            ? 'bg-[var(--quant-primary)] text-black font-bold shadow-md scale-105'
                             : isToday
-                              ? 'border border-[#FF8C42]/50 text-[#FF8C42]'
+                              ? 'border border-[var(--quant-primary)]/50 text-[var(--quant-primary)]'
                               : item.isPast
                                 ? // Genuinely `disabled`, so 1.4.3 does not
                                   // apply — but #3A404D is 1.91:1 and the past
@@ -361,7 +361,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                                   // than as dates you cannot pick.
                                   'text-[#6B6E76] cursor-not-allowed'
                                 : item.currentMonth
-                                  ? 'text-[#F5F5F5] hover:bg-[#282C35]'
+                                  ? 'text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)]'
                                   : 'text-[#A1A4AC]'
                         }`}
                       >
@@ -376,16 +376,16 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
               </motion.div>
 
               {/* Right Column: Google Clock Material Style Picker with Drag Gestures */}
-              <div className="flex flex-col items-center justify-between bg-[#090A0C]/40 p-3 rounded-2xl border border-[#282C35]/80 space-y-2 select-none">
+              <div className="flex flex-col items-center justify-between bg-[var(--quant-background)]/40 p-3 rounded-2xl border border-[var(--quant-surface-elevated)]/80 space-y-2 select-none">
                 {/* Digital Time Display */}
                 <div className="flex items-center justify-center gap-2">
-                  <div className="flex items-center rounded-xl bg-[#111318] border border-[#282C35] p-1">
+                  <div className="flex items-center rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] p-1">
                     <button
                       type="button"
                       onClick={() => setClockMode('hours')}
                       className={`px-2.5 py-1 rounded-lg text-sm font-bold transition-all ${
                         clockMode === 'hours'
-                          ? 'bg-[#FF8C42] text-black shadow'
+                          ? 'bg-[var(--quant-primary)] text-black shadow'
                           : 'text-[#A1A4AC] hover:text-white'
                       }`}
                     >
@@ -397,7 +397,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                       onClick={() => setClockMode('minutes')}
                       className={`px-2.5 py-1 rounded-lg text-sm font-bold transition-all ${
                         clockMode === 'minutes'
-                          ? 'bg-[#FF8C42] text-black shadow'
+                          ? 'bg-[var(--quant-primary)] text-black shadow'
                           : 'text-[#A1A4AC] hover:text-white'
                       }`}
                     >
@@ -406,13 +406,13 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                   </div>
 
                   {/* AM/PM Toggle */}
-                  <div className="flex rounded-xl bg-[#111318] border border-[#282C35] p-0.5 text-xs font-bold">
+                  <div className="flex rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] p-0.5 text-xs font-bold">
                     <button
                       type="button"
                       onClick={() => setPeriod('AM')}
                       className={`px-2 py-1 rounded-lg transition-all ${
                         period === 'AM'
-                          ? 'bg-[#FF8C42] text-black'
+                          ? 'bg-[var(--quant-primary)] text-black'
                           : 'text-[#A1A4AC] hover:text-white'
                       }`}
                     >
@@ -423,7 +423,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                       onClick={() => setPeriod('PM')}
                       className={`px-2 py-1 rounded-lg transition-all ${
                         period === 'PM'
-                          ? 'bg-[#FF8C42] text-black'
+                          ? 'bg-[var(--quant-primary)] text-black'
                           : 'text-[#A1A4AC] hover:text-white'
                       }`}
                     >
@@ -438,20 +438,20 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                   onPointerDown={handleClockPointerDown}
                   onPointerMove={handleClockPointerMove}
                   onPointerUp={handleClockPointerUp}
-                  className="relative size-40 rounded-full bg-[#111318]/90 border border-[#282C35] flex items-center justify-center shadow-inner cursor-pointer touch-none"
+                  className="relative size-40 rounded-full bg-[var(--quant-surface)]/90 border border-[var(--quant-surface-elevated)] flex items-center justify-center shadow-inner cursor-pointer touch-none"
                 >
                   {/* Center Pin */}
-                  <div className="size-2 rounded-full bg-[#FF8C42] z-10 pointer-events-none" />
+                  <div className="size-2 rounded-full bg-[var(--quant-primary)] z-10 pointer-events-none" />
 
                   {/* Clock Hand / Pointer */}
                   <div
-                    className="absolute bottom-1/2 left-1/2 w-0.5 origin-bottom bg-[#FF8C42] transition-transform duration-100 z-0 pointer-events-none"
+                    className="absolute bottom-1/2 left-1/2 w-0.5 origin-bottom bg-[var(--quant-primary)] transition-transform duration-100 z-0 pointer-events-none"
                     style={{
                       height: '56px',
                       transform: `translateX(-50%) rotate(${pointerRotation}deg)`,
                     }}
                   >
-                    <div className="size-6 -top-3 -left-[11px] absolute rounded-full bg-[#FF8C42]/30 border border-[#FF8C42]" />
+                    <div className="size-6 -top-3 -left-[11px] absolute rounded-full bg-[var(--quant-primary)]/30 border border-[var(--quant-primary)]" />
                   </div>
 
                   {/* Numbers accurately plotted at angle = (val * 30 - 90) deg */}
@@ -472,7 +472,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                         }}
                         className={`absolute size-6 rounded-full flex items-center justify-center text-[10px] font-semibold pointer-events-none transition-all ${
                           isCur
-                            ? 'bg-[#FF8C42] text-black font-bold shadow scale-110'
+                            ? 'bg-[var(--quant-primary)] text-black font-bold shadow scale-110'
                             : 'text-[#A1A4AC]'
                         }`}
                       >
@@ -487,14 +487,14 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                   <div className="flex items-center justify-between text-[10px] text-[#A1A4AC]">
                     <span>
                       Fine-tune Minute:{' '}
-                      <strong className="text-[#FF8C42]">
+                      <strong className="text-[var(--quant-primary)]">
                         {minute.toString().padStart(2, '0')}
                       </strong>
                     </span>
                     <button
                       type="button"
                       onClick={() => setClockMode(clockMode === 'hours' ? 'minutes' : 'hours')}
-                      className="text-[#FF8C42] hover:underline capitalize"
+                      className="text-[var(--quant-primary)] hover:underline capitalize"
                     >
                       Switch to {clockMode === 'hours' ? 'Minutes' : 'Hours'}
                     </button>
@@ -509,17 +509,17 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                       setMinute(parseInt(e.target.value, 10));
                       setClockMode('minutes');
                     }}
-                    className="w-full accent-[#FF8C42] h-1.5 bg-[#282C35] rounded-lg cursor-pointer"
+                    className="w-full accent-[var(--quant-primary)] h-1.5 bg-[var(--quant-surface-elevated)] rounded-lg cursor-pointer"
                   />
                 </div>
               </div>
             </div>
 
             {/* Footer Preview & Actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-[#282C35]">
+            <div className="flex items-center justify-between pt-3 border-t border-[var(--quant-surface-elevated)]">
               <div className="text-xs text-[#A1A4AC] truncate pr-2">
                 <span>Send on: </span>
-                <strong className="text-[#FF8C42] font-semibold">
+                <strong className="text-[var(--quant-primary)] font-semibold">
                   {`${selectedDate.toLocaleDateString([], {
                     month: 'short',
                     day: 'numeric',
@@ -532,14 +532,14 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleConfirm}
-                  className="px-4 py-1.5 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] text-[#111111] text-xs font-semibold shadow-sm transition-all"
+                  className="px-4 py-1.5 rounded-xl bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-[#111111] text-xs font-semibold shadow-sm transition-all"
                 >
                   Schedule Send
                 </button>

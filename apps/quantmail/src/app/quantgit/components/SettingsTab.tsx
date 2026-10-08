@@ -31,7 +31,7 @@ export function SettingsTab({
 }: SettingsTabProps) {
   return (
     <div className="max-w-2xl space-y-6 text-xs">
-      <div className="p-4 rounded bg-[#161B22] border border-[#30363D] space-y-4">
+      <div className="p-4 rounded bg-[var(--quant-surface-elevated)] border border-[#30363D] space-y-4">
         <h4 className="font-bold text-white text-sm">General Repository Settings</h4>
         <div className="space-y-1.5">
           <label htmlFor="git-settings-name" className="text-[#7D8590] font-semibold">Repository name</label>
@@ -87,7 +87,7 @@ export function SettingsTab({
         </button>
       </div>
 
-      <div className="p-4 rounded bg-[#161B22] border border-[#DA3633] space-y-3">
+      <div className="p-4 rounded bg-[var(--quant-surface-elevated)] border border-[#DA3633] space-y-3">
         <h4 className="font-bold text-[#F85149] text-sm">Danger Zone</h4>
         <p className="text-[#7D8590]">
           Once deleted, this repository will be archived with a tombstone timestamp.

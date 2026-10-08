@@ -295,7 +295,7 @@ function renderSnippetWithHighlight(snippet: string, query: string) {
     const parts = snippet.split(regex);
     return parts.map((part, i) =>
       regex.test(part) ? (
-        <mark key={i} className="bg-[#FF8C42]/20 text-[#FF8C42] font-semibold px-0.5 rounded">
+        <mark key={i} className="bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] font-semibold px-0.5 rounded">
           {part}
         </mark>
       ) : (
@@ -416,10 +416,10 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
     >
       {/* Search Input Bar */}
       <div
-        className={`flex items-center gap-2 px-3 py-2 rounded-xl bg-[#16181D] border transition-all duration-200 shadow-lg ${
+        className={`flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--quant-surface-elevated)] border transition-all duration-200 shadow-lg ${
           isOpen
             ? 'border-[#60A5FA] ring-2 ring-[#60A5FA]/20'
-            : 'border-[#282C35] hover:border-slate-600'
+            : 'border-[var(--quant-surface-elevated)] hover:border-slate-600'
         }`}
       >
         {/* Search Icon / Spinner */}
@@ -490,13 +490,13 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 shrink-0 whitespace-nowrap select-none ${
             state.isSemantic
               ? 'bg-[#60A5FA]/15 text-[#60A5FA] border border-[#60A5FA]/30 hover:bg-[#60A5FA]/25'
-              : 'bg-[#282C35] text-slate-300 border border-slate-700 hover:bg-slate-800'
+              : 'bg-[var(--quant-surface-elevated)] text-slate-300 border border-slate-700 hover:bg-slate-800'
           }`}
         >
           {state.isSemantic ? (
             <>
               <svg
-                className="w-3.5 h-3.5 text-[#FF8C42]"
+                className="w-3.5 h-3.5 text-[var(--quant-primary)]"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -541,7 +541,7 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
             }}
             data-testid="clear-search-button"
             aria-label="Clear Search"
-            className="p-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-[#282C35] transition-colors"
+            className="p-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-[var(--quant-surface-elevated)] transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
@@ -559,10 +559,10 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
       {showDropdown && (
         <div
           data-testid="drive-ai-search-results-popover"
-          className="absolute left-0 right-0 top-full mt-2 z-50 overflow-hidden rounded-xl bg-[#16181D] border border-[#282C35] shadow-2xl backdrop-blur-xl"
+          className="absolute left-0 right-0 top-full mt-2 z-50 overflow-hidden rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] shadow-2xl backdrop-blur-xl"
         >
           {/* Header Status Bar */}
-          <div className="flex items-center justify-between px-3.5 py-2 border-b border-[#282C35] text-xs text-slate-400 bg-[#16181D]/80">
+          <div className="flex items-center justify-between px-3.5 py-2 border-b border-[var(--quant-surface-elevated)] text-xs text-slate-400 bg-[var(--quant-surface-elevated)]/80">
             <span data-testid="results-count-label">
               {state.isSearching
                 ? 'Scanning in-file contents...'
@@ -570,19 +570,19 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
             </span>
             <div className="flex items-center gap-2">
               <span className="text-[11px] text-slate-500">
-                <kbd className="px-1 py-0.5 rounded bg-[#282C35] text-slate-400 border border-slate-700">
+                <kbd className="px-1 py-0.5 rounded bg-[var(--quant-surface-elevated)] text-slate-400 border border-slate-700">
                   ↑↓
                 </kbd>{' '}
                 navigate
               </span>
               <span className="text-[11px] text-slate-500">
-                <kbd className="px-1 py-0.5 rounded bg-[#282C35] text-slate-400 border border-slate-700">
+                <kbd className="px-1 py-0.5 rounded bg-[var(--quant-surface-elevated)] text-slate-400 border border-slate-700">
                   ↵
                 </kbd>{' '}
                 select
               </span>
               <span className="text-[11px] text-slate-500">
-                <kbd className="px-1 py-0.5 rounded bg-[#282C35] text-slate-400 border border-slate-700">
+                <kbd className="px-1 py-0.5 rounded bg-[var(--quant-surface-elevated)] text-slate-400 border border-slate-700">
                   esc
                 </kbd>{' '}
                 close
@@ -591,7 +591,7 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
           </div>
 
           {/* Results List */}
-          <div className="max-h-80 overflow-y-auto divide-y divide-[#282C35]/50 py-1">
+          <div className="max-h-80 overflow-y-auto divide-y divide-[var(--quant-surface-elevated)]/50 py-1">
             {state.error && (
               <div
                 data-testid="search-error-message"
@@ -633,8 +633,8 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
                   onMouseEnter={() => manager.selectIndex(idx)}
                   className={`px-3.5 py-2.5 cursor-pointer transition-colors duration-150 flex flex-col gap-1 ${
                     isSelected
-                      ? 'bg-[#282C35] border-l-2 border-[#60A5FA]'
-                      : 'hover:bg-[#282C35]/60'
+                      ? 'bg-[var(--quant-surface-elevated)] border-l-2 border-[#60A5FA]'
+                      : 'hover:bg-[var(--quant-surface-elevated)]/60'
                   }`}
                 >
                   {/* Top Line: File Name & Match Badge */}
@@ -660,7 +660,7 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
                         {result.fileName}
                       </span>
                       {result.matchedLine !== undefined && (
-                        <span className="text-[10px] text-slate-500 bg-[#16181D] px-1.5 py-0.5 rounded border border-[#282C35]">
+                        <span className="text-[10px] text-slate-500 bg-[var(--quant-surface-elevated)] px-1.5 py-0.5 rounded border border-[var(--quant-surface-elevated)]">
                           Line {result.matchedLine}
                         </span>
                       )}
@@ -671,7 +671,7 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
                     {result.score != null && (
                       <span
                         data-testid="result-match-badge"
-                        className="px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide shrink-0 bg-[#FF8C42]/15 text-[#FF8C42] border border-[#FF8C42]/30"
+                        className="px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide shrink-0 bg-[var(--quant-primary)]/15 text-[var(--quant-primary)] border border-[var(--quant-primary)]/30"
                       >
                         {matchPercentage(result.score)}
                       </span>

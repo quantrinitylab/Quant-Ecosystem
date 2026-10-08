@@ -91,7 +91,7 @@ export function DriveContextTabsHeader({
       // (<MobileSubTabStrip />) for drive's tabs, so a mid-page duplicate row
       // is the exact double-stack the mobile QA shots flagged.
       // `hidden md:flex` keeps the desktop layout pixel-identical.
-      className="hidden md:flex items-center gap-1.5 overflow-x-auto no-scrollbar py-2.5 px-4 sm:px-8 border-b border-[#232938] bg-[#090A0E]/95 backdrop-blur-md sticky top-0 z-20"
+      className="hidden md:flex items-center gap-1.5 overflow-x-auto no-scrollbar py-2.5 px-4 sm:px-8 border-b border-[#232938] bg-[var(--quant-background)]/95 backdrop-blur-md sticky top-0 z-20"
     >
       {tabs.map((tab) => {
         const Icon = tab.icon;
@@ -109,8 +109,8 @@ export function DriveContextTabsHeader({
             onClick={() => onTabChange(tab.id)}
             className={`group inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-medium transition-all duration-150 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] select-none ${
               isActive
-                ? 'bg-[#12151E] text-[#38BDF8] border border-[#38BDF8]/40 shadow-[0_0_16px_rgba(56,189,248,0.12),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
-                : 'bg-transparent text-[#94A3B8] border border-transparent hover:bg-[#12151E]/60 hover:text-[#F8FAFC] hover:border-[#232938]'
+                ? 'bg-[var(--quant-surface)] text-[#38BDF8] border border-[#38BDF8]/40 shadow-[0_0_16px_rgba(56,189,248,0.12),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
+                : 'bg-transparent text-[#94A3B8] border border-transparent hover:bg-[var(--quant-surface)]/60 hover:text-[#F8FAFC] hover:border-[#232938]'
             }`}
           >
             <Icon
@@ -126,7 +126,7 @@ export function DriveContextTabsHeader({
                 className={`ml-0.5 px-1.5 py-px rounded text-[10px] font-mono tracking-wider uppercase font-semibold ${
                   isActive
                     ? 'bg-[#38BDF8]/20 text-[#38BDF8] border border-[#38BDF8]/40'
-                    : 'bg-[#1E293B] text-[#94A3B8] border border-[#334155]'
+                    : 'bg-[var(--quant-surface-elevated)] text-[#94A3B8] border border-[#334155]'
                 }`}
               >
                 {tab.badgeText}
@@ -137,7 +137,7 @@ export function DriveContextTabsHeader({
               <span
                 className={`ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${
                   isActive
-                    ? 'bg-[#38BDF8] text-[#090A0E]'
+                    ? 'bg-[#38BDF8] text-[var(--quant-background)]'
                     : 'bg-[#334155] text-[#E2E8F0]'
                 }`}
               >

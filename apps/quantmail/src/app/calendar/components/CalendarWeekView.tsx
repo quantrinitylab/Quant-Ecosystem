@@ -142,7 +142,7 @@ function ChevronRightIcon({ className }: { className?: string }) {
 }
 
 function eventColor(ev: CalendarEventLike): string {
-  return ev.color || '#F59E0B';
+  return ev.color || 'var(--quant-warning)';
 }
 
 export function CalendarWeekView({
@@ -310,7 +310,7 @@ export function CalendarWeekView({
   const hours = useMemo(() => Array.from({ length: 24 }, (_, h) => h), []);
 
   return (
-    <div className={`flex flex-col h-full bg-[#08080a] text-white ${className}`} data-testid="calendar-week-view">
+    <div className={`flex flex-col h-full bg-[var(--quant-background)] text-white ${className}`} data-testid="calendar-week-view">
       {/* Week toolbar: prev/next + range label + Today (synced with page header via selectedDate effect) */}
       <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[#232938] shrink-0">
         <div className="flex items-center gap-1">
@@ -319,7 +319,7 @@ export function CalendarWeekView({
             onClick={goPrevWeek}
             aria-label="Previous week"
             data-testid="week-prev"
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#161822] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F59E0B]"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)]"
           >
             <ChevronLeftIcon className="size-4" />
           </button>
@@ -328,7 +328,7 @@ export function CalendarWeekView({
             onClick={goNextWeek}
             aria-label="Next week"
             data-testid="week-next"
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#161822] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F59E0B]"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)]"
           >
             <ChevronRightIcon className="size-4" />
           </button>
@@ -340,7 +340,7 @@ export function CalendarWeekView({
           type="button"
           onClick={goToday}
           data-testid="week-today"
-          className="min-h-[44px] px-4 rounded-lg text-xs font-medium text-[#A1A4AC] hover:text-white hover:bg-[#161822] border border-[#232938] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F59E0B]"
+          className="min-h-[44px] px-4 rounded-lg text-xs font-medium text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] border border-[#232938] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)]"
         >
           Today
         </button>
@@ -349,7 +349,7 @@ export function CalendarWeekView({
       <div className="flex-1 min-h-0 overflow-x-auto">
         <div className="min-w-[640px] h-full flex flex-col">
           {/* Day headers */}
-          <div className="flex shrink-0 border-b border-[#232938] sticky top-0 bg-[#08080a] z-10">
+          <div className="flex shrink-0 border-b border-[#232938] sticky top-0 bg-[var(--quant-background)] z-10">
             <div className="w-12 shrink-0" aria-hidden="true" />
             {days.map((day, i) => {
               const k = dayKey(day);
@@ -363,15 +363,15 @@ export function CalendarWeekView({
                   aria-label={`${weekdayNames[i]}, ${MONTHS_SHORT[day.getMonth()]} ${day.getDate()}`}
                   aria-pressed={isSelected}
                   data-testid={`week-day-header-${i}`}
-                  className="flex-1 min-w-0 flex flex-col items-center py-2 gap-0.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F59E0B] hover:bg-[#101218]"
+                  className="flex-1 min-w-0 flex flex-col items-center py-2 gap-0.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)] hover:bg-[#101218]"
                 >
-                  <span className={`text-[10px] font-medium uppercase tracking-wide ${isToday ? 'text-[#F59E0B]' : 'text-[#A1A4AC]'}`}>
+                  <span className={`text-[10px] font-medium uppercase tracking-wide ${isToday ? 'text-[var(--quant-warning)]' : 'text-[#A1A4AC]'}`}>
                     {weekdayNames[i].slice(0, 3)}
                   </span>
                   <span
                     className={`flex items-center justify-center size-8 rounded-full text-sm font-semibold ${
                       isToday
-                        ? 'bg-[#F59E0B] text-black shadow-[0_0_12px_rgba(245,158,11,0.4)]'
+                        ? 'bg-[var(--quant-warning)] text-black shadow-[0_0_12px_rgba(245,158,11,0.4)]'
                         : isSelected
                           ? 'bg-[#232938] text-white'
                           : 'text-[#F5F5F5]'
@@ -411,7 +411,7 @@ export function CalendarWeekView({
                       onClick={() => onSelectEvent(ev)}
                       data-week-event
                       title={ev.title}
-                      className="w-full truncate text-left text-[11px] px-1.5 py-0.5 rounded border-l-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F59E0B]"
+                      className="w-full truncate text-left text-[11px] px-1.5 py-0.5 rounded border-l-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)]"
                       style={{
                         borderLeftColor: eventColor(ev),
                         backgroundColor: `${eventColor(ev)}26`,
@@ -430,7 +430,7 @@ export function CalendarWeekView({
           <div ref={bodyRef} className="flex-1 min-h-0 overflow-y-auto relative" data-testid="week-grid-body">
             <div className="flex" style={{ height: minutesToTop(DAY_MINUTES) }}>
               {/* Time gutter */}
-              <div className="w-12 shrink-0 sticky left-0 bg-[#08080a] z-[5]" aria-hidden="true">
+              <div className="w-12 shrink-0 sticky left-0 bg-[var(--quant-background)] z-[5]" aria-hidden="true">
                 {hours.map((h) => (
                   <div key={h} className="relative" style={{ height: WEEK_HOUR_HEIGHT }}>
                     <span className="absolute -top-2 right-1 text-[10px] text-[#A1A4AC]">
@@ -458,7 +458,7 @@ export function CalendarWeekView({
                     onPointerUp={() => finishDrag(di)}
                     onPointerCancel={() => setDrag(null)}
                     data-testid={`week-day-column-${di}`}
-                    className="flex-1 min-w-0 relative border-l border-[#232938]/40 cursor-crosshair focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#F59E0B]"
+                    className="flex-1 min-w-0 relative border-l border-[#232938]/40 cursor-crosshair focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-warning)]"
                     style={{ touchAction: 'pan-y' }}
                   >
                     {/* Hour lines */}
@@ -488,7 +488,7 @@ export function CalendarWeekView({
                     {/* Drag selection highlight */}
                     {drag && drag.dayIndex === di && dragHi - dragLo >= SNAP_MINUTES && (
                       <div
-                        className="absolute left-1 right-1 z-[5] rounded bg-[#F59E0B]/25 border border-[#F59E0B]/60 pointer-events-none"
+                        className="absolute left-1 right-1 z-[5] rounded bg-[var(--quant-warning)]/25 border border-[var(--quant-warning)]/60 pointer-events-none"
                         style={{ top: minutesToTop(dragLo), height: Math.max(14, minutesToTop(dragHi) - minutesToTop(dragLo)) }}
                         data-testid="week-drag-highlight"
                         aria-hidden="true"

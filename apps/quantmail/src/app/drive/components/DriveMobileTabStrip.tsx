@@ -93,7 +93,7 @@ export function DriveMobileTabStrip({
   ];
 
   return (
-    <div className="relative md:hidden border-b border-[#232938] bg-[#090A0E]/95 backdrop-blur-md sticky top-0 z-20">
+    <div className="relative md:hidden border-b border-[#232938] bg-[var(--quant-background)]/95 backdrop-blur-md sticky top-0 z-20">
       <div
         role="tablist"
         aria-label="Drive sections"
@@ -130,7 +130,7 @@ export function DriveMobileTabStrip({
                   className={`ml-0.5 px-1.5 py-px rounded text-[10px] font-mono tracking-wider uppercase font-semibold ${
                     isActive
                       ? 'bg-[#38BDF8]/20 text-[#38BDF8] border border-[#38BDF8]/40'
-                      : 'bg-[#1E293B] text-[#94A3B8] border border-[#334155]'
+                      : 'bg-[var(--quant-surface-elevated)] text-[#94A3B8] border border-[#334155]'
                   }`}
                 >
                   {tab.badgeText}
@@ -140,7 +140,7 @@ export function DriveMobileTabStrip({
               {tab.badgeCount !== undefined && tab.badgeCount > 0 && (
                 <span
                   className={`ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${
-                    isActive ? 'bg-[#38BDF8] text-[#090A0E]' : 'bg-[#334155] text-[#E2E8F0]'
+                    isActive ? 'bg-[#38BDF8] text-[var(--quant-background)]' : 'bg-[#334155] text-[#E2E8F0]'
                   }`}
                 >
                   {tab.badgeCount}
@@ -157,7 +157,7 @@ export function DriveMobileTabStrip({
       {/* Right-edge fade: scroll affordance for the overflowing pill row. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#090A0E] to-transparent"
+        className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[var(--quant-background)] to-transparent"
       />
     </div>
   );

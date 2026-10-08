@@ -1038,7 +1038,7 @@ pnpm install && pnpm dev
           <div
             className={`flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 ${
               editorTheme === 'github-dark'
-                ? 'bg-[#161B22] border-[#30363D]'
+                ? 'bg-[var(--quant-surface-elevated)] border-[#30363D]'
                 : 'bg-[#F6F8FA] border-[#D0D7DE]'
             }`}
           >
@@ -1241,7 +1241,7 @@ pnpm install && pnpm dev
               data-testid="search-replace-widget"
               className={`flex flex-wrap items-center justify-between gap-3 px-4 py-2 border-b text-xs ${
                 editorTheme === 'github-dark'
-                  ? 'bg-[#161B22] border-[#30363D]'
+                  ? 'bg-[var(--quant-surface-elevated)] border-[#30363D]'
                   : 'bg-[#F6F8FA] border-[#D0D7DE]'
               }`}
             >
@@ -1424,7 +1424,7 @@ pnpm install && pnpm dev
                   {/* Tokenized Lines */}
                   <div className="p-3 flex-1 overflow-x-auto leading-6 whitespace-pre">
                     {lines.map((line, idx) => (
-                      <div key={idx} className="hover:bg-[#161B22]/60 px-1 rounded">
+                      <div key={idx} className="hover:bg-[var(--quant-surface-elevated)]/60 px-1 rounded">
                         {renderSyntaxHighlightedLine(line, detectedLang, editorTheme)}
                       </div>
                     ))}
@@ -1441,7 +1441,7 @@ pnpm install && pnpm dev
                 <div
                   className={`flex items-center justify-between px-4 py-2 border-b text-xs ${
                     editorTheme === 'github-dark'
-                      ? 'bg-[#161B22] border-[#30363D]'
+                      ? 'bg-[var(--quant-surface-elevated)] border-[#30363D]'
                       : 'bg-[#F6F8FA] border-[#D0D7DE]'
                   }`}
                 >
@@ -1504,7 +1504,7 @@ pnpm install && pnpm dev
                           {originalFileContent ? originalFileContent.split('\n').length : 0} lines)
                         </div>
                         {originalFileContent.split('\n').map((line, idx) => (
-                          <div key={idx} className="flex gap-2 leading-5 hover:bg-[#161B22]/50">
+                          <div key={idx} className="flex gap-2 leading-5 hover:bg-[var(--quant-surface-elevated)]/50">
                             <span className="w-8 text-right text-[#484F58] select-none text-[11px] shrink-0">
                               {idx + 1}
                             </span>
@@ -1519,7 +1519,7 @@ pnpm install && pnpm dev
                           Current Edits ({lines.length} lines)
                         </div>
                         {lines.map((line, idx) => (
-                          <div key={idx} className="flex gap-2 leading-5 hover:bg-[#161B22]/50">
+                          <div key={idx} className="flex gap-2 leading-5 hover:bg-[var(--quant-surface-elevated)]/50">
                             <span className="w-8 text-right text-[#484F58] select-none text-[11px] shrink-0">
                               {idx + 1}
                             </span>
@@ -1591,7 +1591,7 @@ pnpm install && pnpm dev
                     data-testid="blame-gutter"
                     className={`select-none py-3 px-2 border-r font-mono text-[11px] leading-6 shrink-0 ${
                       editorTheme === 'github-dark'
-                        ? 'bg-[#161B22]/40 text-[#7D8590] border-[#30363D]'
+                        ? 'bg-[var(--quant-surface-elevated)]/40 text-[#7D8590] border-[#30363D]'
                         : 'bg-[#F6F8FA] text-[#57606A] border-[#D0D7DE]'
                     }`}
                   >
@@ -1621,7 +1621,7 @@ pnpm install && pnpm dev
                     }
                   }}
                   spellCheck={false}
-                  className={`flex-1 p-3 font-mono text-xs leading-6 resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                  className={`flex-1 p-3 font-mono text-xs leading-6 resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                     editorTheme === 'github-dark'
                       ? 'bg-[#0D1117] text-[#E6EDF3]'
                       : 'bg-white text-[#1F2328]'
@@ -1635,7 +1635,7 @@ pnpm install && pnpm dev
             <div
               className={`flex items-center justify-between px-4 py-1.5 text-[11px] border-t ${
                 editorTheme === 'github-dark'
-                  ? 'bg-[#161B22] border-[#30363D] text-[#7D8590]'
+                  ? 'bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#7D8590]'
                   : 'bg-[#F6F8FA] border-[#D0D7DE] text-[#656D76]'
               }`}
             >
@@ -1653,7 +1653,7 @@ pnpm install && pnpm dev
           <div
             className={`p-4 border-t space-y-3 ${
               editorTheme === 'github-dark'
-                ? 'bg-[#161B22] border-[#30363D]'
+                ? 'bg-[var(--quant-surface-elevated)] border-[#30363D]'
                 : 'bg-[#F6F8FA] border-[#D0D7DE]'
             }`}
           >
@@ -1841,7 +1841,7 @@ pnpm install && pnpm dev
             data-testid="delete-file-modal"
             className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
           >
-            <div className="bg-[#161B22] border border-[#30363D] rounded-xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-left">
+            <div className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-left">
               <div className="flex items-center justify-between pb-3 border-b border-[#30363D]">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <span className="text-[#F85149]">🗑️</span>
@@ -1962,7 +1962,7 @@ pnpm install && pnpm dev
             data-testid="file-history-modal"
             className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
           >
-            <div className="bg-[#161B22] border border-[#30363D] rounded-xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
+            <div className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
               <div className="flex items-center justify-between pb-3 border-b border-[#30363D]">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <span>History for</span>
@@ -2028,7 +2028,7 @@ pnpm install && pnpm dev
             </span>
 
             {/* Tree vs Directory View Mode Toggle */}
-            <div className="flex items-center bg-[#161B22] border border-[#30363D] rounded-md p-0.5">
+            <div className="flex items-center bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-md p-0.5">
               <button
                 type="button"
                 onClick={() => setViewMode('directory')}
@@ -2122,7 +2122,7 @@ pnpm install && pnpm dev
               </button>
 
               {isAddFileOpen && (
-                <div className="absolute right-0 mt-1 w-48 rounded-md bg-[#161B22] border border-[#30363D] shadow-xl z-50 py-1 text-xs">
+                <div className="absolute right-0 mt-1 w-48 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-xl z-50 py-1 text-xs">
                   <button
                     type="button"
                     onClick={() => {
@@ -2254,7 +2254,7 @@ pnpm install && pnpm dev
         />
 
         {/* 2. Comprehensive Breadcrumb Path Navigator (root / packages / storage / src / index.ts) */}
-        <div className="flex items-center justify-between bg-[#161B22] border border-[#30363D] rounded-md px-3.5 py-2 text-xs">
+        <div className="flex items-center justify-between bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-md px-3.5 py-2 text-xs">
           <div className="flex flex-wrap items-center gap-1.5 text-[#7D8590]">
             <svg height="14" viewBox="0 0 16 16" width="14" fill="#58A6FF" className="shrink-0">
               <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8ZM5 12.25a.25.25 0 0 1 .25-.25h6.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-6.5a.25.25 0 0 1-.25-.25Z" />
@@ -2309,9 +2309,9 @@ pnpm install && pnpm dev
         </div>
 
         {/* 3. Latest Commit Banner */}
-        <div className="bg-[#161B22] border border-[#30363D] rounded-t-md p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-t-md p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="w-5 h-5 rounded-full bg-[#FF8C42] text-black font-bold flex items-center justify-center text-[10px] shrink-0">
+            <span className="w-5 h-5 rounded-full bg-[var(--quant-primary)] text-black font-bold flex items-center justify-center text-[10px] shrink-0">
               K
             </span>
             <span className="font-semibold text-white">Developer 6</span>
@@ -2356,7 +2356,7 @@ pnpm install && pnpm dev
           {/* ".." Parent Directory Row when inside a subfolder in directory mode */}
           {viewMode === 'directory' && parentPath !== null && !filterQuery && (
             <div
-              className="flex items-center justify-between px-3.5 py-2.5 hover:bg-[#161B22] transition-colors cursor-pointer group bg-[#161B22]/30"
+              className="flex items-center justify-between px-3.5 py-2.5 hover:bg-[var(--quant-surface-elevated)] transition-colors cursor-pointer group bg-[var(--quant-surface-elevated)]/30"
               onClick={() => onNavigatePath?.(parentPath)}
             >
               <div className="flex items-center gap-2.5 min-w-0">
@@ -2394,7 +2394,7 @@ pnpm install && pnpm dev
             return (
               <div
                 key={file.path}
-                className="flex items-center justify-between px-3.5 py-2.5 hover:bg-[#161B22] transition-colors cursor-pointer group"
+                className="flex items-center justify-between px-3.5 py-2.5 hover:bg-[var(--quant-surface-elevated)] transition-colors cursor-pointer group"
                 style={{ paddingLeft: depth > 0 ? `${depth * 1.5 + 0.875}rem` : '0.875rem' }}
                 onClick={() => {
                   if (isDir) {

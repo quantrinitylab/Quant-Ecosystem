@@ -95,7 +95,7 @@ export function QuantumSplashIntro({ onComplete }: { onComplete?: () => void }) 
         animate={{ opacity: isLeaving ? 0 : 1 }}
         transition={{ duration: FADE_MS / 1000, ease: 'easeOut' }}
         onClick={dismiss}
-        className="fixed inset-0 z-[99999] flex select-none flex-col items-center justify-center gap-6 bg-[#090A0C]"
+        className="fixed inset-0 z-[99999] flex select-none flex-col items-center justify-center gap-6 bg-[var(--quant-background)]"
         role="status"
         aria-live="polite"
         aria-busy="true"
@@ -106,9 +106,9 @@ export function QuantumSplashIntro({ onComplete }: { onComplete?: () => void }) 
           transition={{ duration: 0.28, ease: 'easeOut' }}
           className="flex flex-col items-center gap-5"
         >
-          <div className="flex size-16 items-center justify-center rounded-2xl border border-[#282C35] bg-[#111318] shadow-[0_4px_16px_rgba(0,0,0,0.6)]">
+          <div className="flex size-16 items-center justify-center rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] shadow-[0_4px_16px_rgba(0,0,0,0.6)]">
             <svg
-              className="size-8 text-[#FF8C42]"
+              className="size-8 text-[var(--quant-primary)]"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -131,9 +131,9 @@ export function QuantumSplashIntro({ onComplete }: { onComplete?: () => void }) 
           honest signal is how much of it is left. Fixed width rather than a
           percentage so it reads the same on a phone and a monitor.
         */}
-        <div className="h-0.5 w-32 overflow-hidden rounded-full bg-[#282C35]" aria-hidden="true">
+        <div className="h-0.5 w-32 overflow-hidden rounded-full bg-[var(--quant-surface-elevated)]" aria-hidden="true">
           <motion.div
-            className="h-full rounded-full bg-[#FF8C42]"
+            className="h-full rounded-full bg-[var(--quant-primary)]"
             initial={{ width: prefersReducedMotion ? '100%' : '0%' }}
             animate={{ width: '100%' }}
             transition={{ duration: prefersReducedMotion ? 0 : HOLD_MS / 1000, ease: 'linear' }}

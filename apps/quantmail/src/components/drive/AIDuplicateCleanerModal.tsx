@@ -424,7 +424,7 @@ export class DuplicateCleanerManager {
 /**
  * AIDuplicateCleanerModal Component
  * Accessible dialog styled with Quant Studio tokens:
- * `#16181D`, `#282C35`, `#FF8C42`, `#EF4444`, `#22C55E`
+ * `var(--quant-surface-elevated)`, `var(--quant-surface-elevated)`, `var(--quant-primary)`, `var(--quant-destructive)`, `var(--quant-success)`
  */
 export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = ({
   isOpen,
@@ -489,16 +489,16 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
       <div
         className="relative w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl overflow-hidden shadow-2xl border"
         style={{
-          backgroundColor: '#16181D',
-          borderColor: '#282C35',
+          backgroundColor: 'var(--quant-surface-elevated)',
+          borderColor: 'var(--quant-surface-elevated)',
         }}
       >
         {/* Modal Header */}
         <div
           className="flex items-center justify-between px-6 py-4 border-b shrink-0"
           style={{
-            backgroundColor: '#16181D',
-            borderColor: '#282C35',
+            backgroundColor: 'var(--quant-surface-elevated)',
+            borderColor: 'var(--quant-surface-elevated)',
           }}
         >
           <div className="flex items-center gap-3">
@@ -506,7 +506,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
               className="p-2 rounded-lg flex items-center justify-center"
               style={{
                 backgroundColor: 'rgba(255, 140, 66, 0.12)',
-                color: '#FF8C42',
+                color: 'var(--quant-primary)',
               }}
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -536,7 +536,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
             onClick={onClose}
             disabled={state.isCleaning}
             aria-label="Close dialog"
-            className="p-1.5 rounded-lg text-[#9CA3AF] hover:text-white hover:bg-[#282C35] transition-colors disabled:opacity-50"
+            className="p-1.5 rounded-lg text-[#9CA3AF] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors disabled:opacity-50"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
@@ -555,7 +555,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
             data-testid="duplicate-summary-banner"
             className="mx-6 mt-4 p-4 rounded-lg border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0"
             style={{
-              backgroundColor: 'rgba(255, 140, 66, 0.08)',
+              backgroundColor: 'var(--quant-accent-faint)',
               borderColor: 'rgba(255, 140, 66, 0.25)',
             }}
           >
@@ -564,7 +564,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                 className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 font-bold"
                 style={{
                   backgroundColor: 'rgba(255, 140, 66, 0.2)',
-                  color: '#FF8C42',
+                  color: 'var(--quant-primary)',
                 }}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -593,7 +593,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                 type="button"
                 data-testid="select-all-duplicates-button"
                 onClick={() => manager.selectAllDuplicates()}
-                className="px-2.5 py-1 text-xs font-medium rounded text-[#9CA3AF] hover:text-white bg-[#282C35] hover:bg-[#323742] transition-colors"
+                className="px-2.5 py-1 text-xs font-medium rounded text-[#9CA3AF] hover:text-white bg-[var(--quant-surface-elevated)] hover:bg-[#323742] transition-colors"
               >
                 Select All
               </button>
@@ -601,7 +601,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                 type="button"
                 data-testid="deselect-all-duplicates-button"
                 onClick={() => manager.deselectAll()}
-                className="px-2.5 py-1 text-xs font-medium rounded text-[#9CA3AF] hover:text-white bg-[#282C35] hover:bg-[#323742] transition-colors"
+                className="px-2.5 py-1 text-xs font-medium rounded text-[#9CA3AF] hover:text-white bg-[var(--quant-surface-elevated)] hover:bg-[#323742] transition-colors"
               >
                 Deselect All
               </button>
@@ -619,7 +619,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
             >
               <div
                 className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin"
-                style={{ borderColor: '#FF8C42', borderTopColor: 'transparent' }}
+                style={{ borderColor: 'var(--quant-primary)', borderTopColor: 'transparent' }}
               />
               <p className="text-sm font-medium text-white">
                 Scanning Drive files for duplicates...
@@ -638,7 +638,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
               style={{
                 backgroundColor: 'rgba(239, 68, 68, 0.1)',
                 borderColor: 'rgba(239, 68, 68, 0.3)',
-                color: '#EF4444',
+                color: 'var(--quant-destructive)',
               }}
             >
               <span className="font-medium">{state.error}</span>
@@ -660,7 +660,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
               style={{
                 backgroundColor: 'rgba(34, 197, 94, 0.1)',
                 borderColor: 'rgba(34, 197, 94, 0.3)',
-                color: '#22C55E',
+                color: 'var(--quant-success)',
               }}
             >
               <svg
@@ -694,7 +694,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                 className="w-12 h-12 rounded-full flex items-center justify-center"
                 style={{
                   backgroundColor: 'rgba(34, 197, 94, 0.15)',
-                  color: '#22C55E',
+                  color: 'var(--quant-success)',
                 }}
               >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -721,16 +721,16 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                 data-testid={`duplicate-group-${group.hash}`}
                 className="rounded-lg border overflow-hidden"
                 style={{
-                  backgroundColor: '#16181D',
-                  borderColor: '#282C35',
+                  backgroundColor: 'var(--quant-surface-elevated)',
+                  borderColor: 'var(--quant-surface-elevated)',
                 }}
               >
                 {/* Group Sub-Header */}
                 <div
                   className="px-4 py-2.5 border-b flex items-center justify-between text-xs"
                   style={{
-                    backgroundColor: '#1E222A',
-                    borderColor: '#282C35',
+                    backgroundColor: 'var(--quant-surface-elevated)',
+                    borderColor: 'var(--quant-surface-elevated)',
                   }}
                 >
                   <div className="flex items-center gap-2">
@@ -740,19 +740,19 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                     <span className="text-[#6B7280]">•</span>
                     <span className="text-[#9CA3AF]">{group.files.length} identical copies</span>
                   </div>
-                  <div className="font-medium" style={{ color: '#FF8C42' }}>
+                  <div className="font-medium" style={{ color: 'var(--quant-primary)' }}>
                     {formatBytes(group.potentialSavings)} potential savings
                   </div>
                 </div>
 
                 {/* Group Files */}
-                <div className="divide-y" style={{ borderColor: '#282C35' }}>
+                <div className="divide-y" style={{ borderColor: 'var(--quant-surface-elevated)' }}>
                   {group.files.map((file) => (
                     <div
                       key={file.id}
                       data-testid={`file-row-${file.id}`}
                       className={`px-4 py-3 flex items-center justify-between gap-3 transition-colors ${
-                        file.selectedForDeletion ? 'bg-red-500/5' : 'hover:bg-[#1E222A]/60'
+                        file.selectedForDeletion ? 'bg-red-500/5' : 'hover:bg-[var(--quant-surface-elevated)]/60'
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
@@ -761,7 +761,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                           <div
                             data-testid={`original-lock-${file.id}`}
                             className="w-4 h-4 rounded flex items-center justify-center shrink-0"
-                            style={{ color: '#22C55E' }}
+                            style={{ color: 'var(--quant-success)' }}
                             title="Original file cannot be deleted"
                           >
                             <svg
@@ -785,7 +785,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                             aria-label={`Select duplicate ${file.name} for deletion`}
                             checked={file.selectedForDeletion}
                             onChange={() => manager.toggleSelectFile(file.id)}
-                            className="w-4 h-4 rounded cursor-pointer accent-[#EF4444] border-gray-600 bg-gray-800"
+                            className="w-4 h-4 rounded cursor-pointer accent-[var(--quant-destructive)] border-gray-600 bg-gray-800"
                           />
                         )}
 
@@ -802,7 +802,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                                 className="px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider border shrink-0"
                                 style={{
                                   backgroundColor: 'rgba(34, 197, 94, 0.15)',
-                                  color: '#22C55E',
+                                  color: 'var(--quant-success)',
                                   borderColor: 'rgba(34, 197, 94, 0.3)',
                                 }}
                               >
@@ -814,7 +814,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                                 className="px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider border shrink-0"
                                 style={{
                                   backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                                  color: '#EF4444',
+                                  color: 'var(--quant-destructive)',
                                   borderColor: 'rgba(239, 68, 68, 0.3)',
                                 }}
                               >
@@ -838,7 +838,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                       {/* Right indicator */}
                       <div className="shrink-0 text-right">
                         {file.selectedForDeletion && !file.isOriginal ? (
-                          <span className="text-xs font-medium" style={{ color: '#EF4444' }}>
+                          <span className="text-xs font-medium" style={{ color: 'var(--quant-destructive)' }}>
                             -{formatBytes(file.size)}
                           </span>
                         ) : (
@@ -858,8 +858,8 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
         <div
           className="flex items-center justify-between px-6 py-4 border-t shrink-0"
           style={{
-            backgroundColor: '#16181D',
-            borderColor: '#282C35',
+            backgroundColor: 'var(--quant-surface-elevated)',
+            borderColor: 'var(--quant-surface-elevated)',
           }}
         >
           <div className="text-xs text-[#9CA3AF]">
@@ -880,7 +880,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
               data-testid="cleaner-cancel-button"
               onClick={onClose}
               disabled={state.isCleaning}
-              className="px-4 py-2 text-xs font-medium rounded-lg text-[#9CA3AF] hover:text-white bg-[#282C35] hover:bg-[#323742] transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-xs font-medium rounded-lg text-[#9CA3AF] hover:text-white bg-[var(--quant-surface-elevated)] hover:bg-[#323742] transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
@@ -892,7 +892,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
               onClick={handleClean}
               className="px-4 py-2 text-xs font-medium rounded-lg text-white transition-all shadow-md flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{
-                backgroundColor: '#EF4444',
+                backgroundColor: 'var(--quant-destructive)',
               }}
             >
               {state.isCleaning && (

@@ -46,7 +46,7 @@ export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
       className="space-y-6"
     >
       {/* 1. Vault Status Card */}
-      <div className="rounded-2xl border border-[#232938] bg-[#12151E] p-5 shadow-[0_4px_28px_rgba(0,0,0,0.4)]">
+      <div className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-5 shadow-[0_4px_28px_rgba(0,0,0,0.4)]">
         <div className="flex items-center gap-3.5">
           <div className="size-12 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8] shrink-0 shadow-[0_0_16px_rgba(56,189,248,0.2)]">
             <VaultShieldIcon className="size-6" />
@@ -70,8 +70,8 @@ export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
         </div>
 
         {items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#232938] bg-[#12151E] px-6 py-12 text-center">
-            <div className="size-10 rounded-xl bg-[#090A0E] border border-[#232938] flex items-center justify-center text-[#64748B]">
+          <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#232938] bg-[var(--quant-surface)] px-6 py-12 text-center">
+            <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[#232938] flex items-center justify-center text-[#64748B]">
               <PadlockIcon className="size-5" />
             </div>
             <p className="text-sm font-semibold text-[#F8FAFC]">No vault items yet</p>
@@ -86,7 +86,7 @@ export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
               return (
                 <div
                   key={item.id}
-                  className="group relative flex flex-col justify-between p-4 rounded-xl border border-[#232938] bg-[#12151E] hover:border-[#38BDF8]/40 hover:bg-[#161A26] transition-all shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
+                  className="group relative flex flex-col justify-between p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[#38BDF8]/40 hover:bg-[var(--quant-surface-elevated)] transition-all shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-2">
@@ -114,7 +114,7 @@ export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
                       type="button"
                       aria-label={`Copy SHA-256 checksum for ${item.name}`}
                       onClick={(e) => handleCopySha256(item.id, item.sha256Checksum, e)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#090A0E] border border-[#232938] text-[11px] font-mono text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[#38BDF8]/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--quant-background)] border border-[#232938] text-[11px] font-mono text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[#38BDF8]/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
                     >
                       {isCopied ? (
                         <>

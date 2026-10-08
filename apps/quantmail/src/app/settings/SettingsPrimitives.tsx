@@ -4,7 +4,7 @@
  * Settings' shared surfaces: one card, one toggle row, one choice group.
  *
  * The page had eleven hand-rolled versions of the same card — `rounded-2xl`
- * beside `rounded-xl`, `bg-[#121622]` beside `bg-[#111318]`, `shadow-xl` beside
+ * beside `rounded-xl`, `bg-[var(--quant-surface-elevated)]` beside `bg-[var(--quant-surface)]`, `shadow-xl` beside
  * `shadow-sm`, headings at three sizes — and thirteen hand-rolled checkbox rows,
  * of which the ones wrapped in a `<label>` were tappable and the ones without
  * were a 16px box on a phone. ART LAW 18: a pattern repeated more than twice
@@ -17,7 +17,7 @@
  *
  * Every colour here is a `--quant-*` / `--brand-*` token rather than the hex it
  * resolves to in the dark theme. The theme picker lives on this page, so a
- * hardcoded `#111318` card meant the one control that switches to light mode
+ * hardcoded `var(--quant-surface)` card meant the one control that switches to light mode
  * left its own surroundings black — the cheapest possible way for a setting to
  * be a lie. The dark values are byte-identical to the hexes they replaced.
  */

@@ -170,7 +170,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
         <div className="relative">
           <button
             onClick={() => setIsTokenUsageOpen(!isTokenUsageOpen)}
-            className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#161B22] border border-[#30363D] hover:border-[#8B949E] text-xs transition-colors"
+            className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[#8B949E] text-xs transition-colors"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-[11px] text-[#8D96A0]">Usage:</span>
@@ -180,7 +180,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
           </button>
 
           {isTokenUsageOpen && (
-            <div className="absolute right-0 top-full mt-2 w-64 rounded-xl bg-[#161B22] border border-[#30363D] shadow-2xl p-4 z-40 space-y-3 text-xs">
+            <div className="absolute right-0 top-full mt-2 w-64 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-2xl p-4 z-40 space-y-3 text-xs">
               <h4 className="font-semibold text-xs text-[#E6EDF3]">Session token usage</h4>
               <div className="space-y-1 text-[11px]">
                 <div className="flex justify-between text-[#8D96A0]">
@@ -207,7 +207,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
       </div>
 
       {/* Cloud Agent Sessions Banner (Screens 140–142) */}
-      <div className="my-3 p-4 rounded-xl bg-gradient-to-r from-[#1E293B]/70 to-[#0F172A]/70 border border-[#30363D] flex items-center justify-between gap-4">
+      <div className="my-3 p-4 rounded-xl bg-gradient-to-r from-[var(--quant-surface-elevated)]/70 to-[#0F172A]/70 border border-[#30363D] flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-xl shrink-0">
             ⚡
@@ -233,7 +233,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
         {agentTasks.map((task) => (
           <div
             key={task.id}
-            className="p-3.5 rounded-xl bg-[#161B22] border border-[#30363D] hover:border-[#58A6FF]/60 transition-all space-y-2.5"
+            className="p-3.5 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[#58A6FF]/60 transition-all space-y-2.5"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2.5">
@@ -288,7 +288,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
           onClick={() =>
             setPromptText('Explain database indexing benefits and recommend GIN trigram indexes')
           }
-          className="p-2.5 rounded-lg bg-[#161B22] border border-[#30363D] hover:border-[#58A6FF] text-left transition-colors"
+          className="p-2.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[#58A6FF] text-left transition-colors"
         >
           <p className="font-semibold text-xs text-[#E6EDF3]">Performance & Optimization</p>
           <p className="text-[10px] text-[#8D96A0] truncate">Explain database indexing benefits</p>
@@ -299,7 +299,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
               'Audit Signal protocol prekey rotation and check for timing vulnerabilities',
             )
           }
-          className="p-2.5 rounded-lg bg-[#161B22] border border-[#30363D] hover:border-[#58A6FF] text-left transition-colors"
+          className="p-2.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[#58A6FF] text-left transition-colors"
         >
           <p className="font-semibold text-xs text-[#E6EDF3]">Security & Auditing</p>
           <p className="text-[10px] text-[#8D96A0] truncate">Audit Signal protocol prekeys</p>
@@ -337,7 +337,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
         </div>
 
         {/* Input box */}
-        <div className="relative rounded-xl bg-[#161B22] border border-[#30363D] focus-within:border-[#58A6FF] transition-all p-2.5 space-y-2">
+        <div className="relative rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] focus-within:border-[#58A6FF] transition-all p-2.5 space-y-2">
           <textarea
             value={promptText}
             onChange={(e) => setPromptText(e.target.value)}
@@ -390,7 +390,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
                 </button>
 
                 {isModelMenuOpen && (
-                  <div className="absolute right-0 bottom-full mb-1.5 w-64 rounded-xl bg-[#161B22] border border-[#30363D] shadow-2xl p-2 z-50 space-y-2 max-h-72 overflow-y-auto">
+                  <div className="absolute right-0 bottom-full mb-1.5 w-64 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-2xl p-2 z-50 space-y-2 max-h-72 overflow-y-auto">
                     <div className="text-[10px] font-semibold text-[#8D96A0] px-2 uppercase">
                       Select Model
                     </div>

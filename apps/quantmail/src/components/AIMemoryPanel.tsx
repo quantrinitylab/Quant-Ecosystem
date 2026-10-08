@@ -99,14 +99,14 @@ export function AIMemoryPanel({ query = '' }: AIMemoryPanelProps) {
   };
 
   return (
-    <section className="rounded-xl border border-white/[0.08] bg-[#111318] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]">
+    <section className="rounded-xl border border-white/[0.08] bg-[var(--quant-surface)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]">
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
         aria-expanded={isOpen}
-        className="w-full min-h-[44px] flex items-center gap-3 px-4 py-3 text-left rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+        className="w-full min-h-[44px] flex items-center gap-3 px-4 py-3 text-left rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
       >
-        <span className="size-9 rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/30 shadow-[0_0_12px_rgba(255,140,66,0.15)] flex items-center justify-center text-[#FF8C42] shrink-0">
+        <span className="size-9 rounded-lg bg-[var(--quant-primary)]/12 border border-[var(--quant-primary)]/30 shadow-[0_0_12px_rgba(255,140,66,0.15)] flex items-center justify-center text-[var(--quant-primary)] shrink-0">
           <IconSparkle size={18} />
         </span>
         <span className="min-w-0 flex-1">
@@ -127,7 +127,7 @@ export function AIMemoryPanel({ query = '' }: AIMemoryPanelProps) {
       </button>
 
       {isOpen && (
-        <div className="border-t border-[#282C35] px-4 py-3 flex flex-col gap-4">
+        <div className="border-t border-[var(--quant-surface-elevated)] px-4 py-3 flex flex-col gap-4">
           {!isLoading && !error && total > 0 && shown === 0 && (
             <p className="text-xs text-[#6B6E76]">No memory matches that search.</p>
           )}
@@ -141,7 +141,7 @@ export function AIMemoryPanel({ query = '' }: AIMemoryPanelProps) {
                 {group.items.map((item) => (
                   <li
                     key={item.id}
-                    className="flex items-start gap-3 rounded-lg bg-[#16181D] px-3 py-2.5"
+                    className="flex items-start gap-3 rounded-lg bg-[var(--quant-surface-elevated)] px-3 py-2.5"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-[#F5F5F5] break-words">{item.summary}</p>
@@ -156,7 +156,7 @@ export function AIMemoryPanel({ query = '' }: AIMemoryPanelProps) {
                       onClick={() => void handleForget(item)}
                       disabled={forgettingId === item.id}
                       aria-label={`Forget: ${item.summary.slice(0, 80)}`}
-                      className="size-11 -my-1 -mr-1 shrink-0 flex items-center justify-center rounded-lg text-[#6B6E76] transition-colors hover:text-[#F5F5F5] hover:bg-[#282C35] disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                      className="size-11 -my-1 -mr-1 shrink-0 flex items-center justify-center rounded-lg text-[#6B6E76] transition-colors hover:text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)] disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     >
                       <IconTrash size={16} />
                     </button>

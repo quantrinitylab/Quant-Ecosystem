@@ -27,13 +27,13 @@ export const MARK_RADIUS = 22;
  * Kept to the design system's values so a mark cannot drift from the UI around it.
  */
 export const MARK_COLORS = {
-  canvas: '#090A0C',
+  canvas: 'var(--quant-background)',
   void: '#0B0C0F',
-  card: '#16181D',
-  border: '#282C35',
-  ember: '#FF8C42',
+  card: 'var(--quant-surface-elevated)',
+  border: 'var(--quant-surface-elevated)',
+  ember: 'var(--quant-primary)',
   emberHot: '#FFB875',
-  emberDeep: '#E8752F',
+  emberDeep: 'var(--brand-primary-pressed)',
   emberInk: '#1A0F08',
   peach: '#FFD9B8',
   type: '#F5F5F5',
@@ -61,7 +61,7 @@ export function markSquirclePath(
  * builds its lava, because that is the mark this set is judged against.
  *
  * The construction is the point, and an earlier draft of this file got it wrong in a
- * way worth recording. That draft laid a `#FFB875 → #FF8C42 → #DC6A24` diagonal down
+ * way worth recording. That draft laid a `#FFB875 → var(--quant-primary) → #DC6A24` diagonal down
  * and floated two low-alpha radial passes over it, on the theory that a quiet plate
  * would read as premium. It does not. A linear gradient plus two whispers is a *flat
  * orange sticker*: there is no depth in it, because a diagonal ramp has no interior,
@@ -99,7 +99,7 @@ export function paintEmberPlate(
   // The floor. *Ember, radial, and generous* — not obsidian. A first cut at this
   // rewrite used a near-black base and let the four layers do all the lighting, which
   // produced a genuinely molten 192px render and a 24px chip that read brown-black.
-  // The plate has to be recognisable as `#FF8C42` in a sidebar before it is allowed to
+  // The plate has to be recognisable as `var(--quant-primary)` in a sidebar before it is allowed to
   // be dramatic anywhere else, so the floor never falls below deep ember and the
   // interior darkness is subtracted from it by the void pass instead.
   const fx = cx - 8;
@@ -139,7 +139,7 @@ export function paintEmberPlate(
   ]);
 
   // 2 — brand ember. The plate's identity, at full strength and slightly high, so the
-  // eye reads `#FF8C42` first and everything else as light on it.
+  // eye reads `var(--quant-primary)` first and everything else as light on it.
   layer(-6, -4, 1.05, 11, 50, 9, [
     [0, MARK_COLORS.ember],
     [0.38, '#F87A2C'],
@@ -155,7 +155,7 @@ export function paintEmberPlate(
     [0, '#FFF1D6'],
     [0.26, '#FFC584'],
     [0.62, 'rgba(255, 158, 78, 0.46)'],
-    [1, 'rgba(255, 140, 66, 0)'],
+    [1, 'var(--quant-accent-faint)'],
   ]);
 
   // 4 — the void. Cold, tight, orbiting the other way, and the whole reason the plate
@@ -230,7 +230,7 @@ export function strokeMarkBezel(
  * graphite model alongside the orange one.
  *
  * Black is the hardest material to make read on a dark UI, because a flat black fill
- * on `#090A0C` is a hole rather than an object. Two moving passes fix that: a cool
+ * on `var(--quant-background)` is a hole rather than an object. Two moving passes fix that: a cool
  * sheen top-left, which is the light the room is putting on it, and a warm pass
  * bottom-right, which is what keeps an obsidian mark inside an ember product instead
  * of looking like it wandered in from a different brand. Clip first.
@@ -265,7 +265,7 @@ export function paintObsidianPlate(
   const warm = ctx.createRadialGradient(wx, wy, 2, wx, wy, 44);
   warm.addColorStop(0, 'rgba(255, 140, 66, 0.22)');
   warm.addColorStop(0.5, 'rgba(198, 88, 30, 0.09)');
-  warm.addColorStop(1, 'rgba(255, 140, 66, 0)');
+  warm.addColorStop(1, 'var(--quant-accent-faint)');
   ctx.fillStyle = warm;
   ctx.fillRect(cx - half, cy - half, half * 2, half * 2);
 }
@@ -333,7 +333,7 @@ export function paintObsidianPlate(
  *
  * The arithmetic supports the reversal, and the raster is blunter than the arithmetic was. The
  * saturated column's loudest *hues* are `#4E8CFF` at chroma 177 and `#FF5E7A` at 161, but the
- * stop at 0.85 **is** `#FF8C42` — so a 288-sample walk along the squircle's whole perimeter
+ * stop at 0.85 **is** `var(--quant-primary)` — so a 288-sample walk along the squircle's whole perimeter
  * measures the ring's chroma ceiling at exactly **189 at every one of the six mounted sizes**,
  * which is `MARK_COLORS.ember` itself, the dominant colour on four of the six marks. Nothing in
  * this ring is more chromatic than the accent the entire product is built on. Median chroma
@@ -384,7 +384,7 @@ const RING_FINISHES = {
     [0.59, '#7FA9A6', '#22C08F'],
     [0.68, '#C8E6DC', '#7BE8C0'],
     [0.77, '#F6E6C2', '#FFD54A'],
-    [0.85, '#FFD0BC', '#FF8C42'],
+    [0.85, '#FFD0BC', 'var(--quant-primary)'],
     [0.93, '#4C4654', '#1A1420'],
     [1, '#FFF6EC', '#FFFFFF'],
   ],

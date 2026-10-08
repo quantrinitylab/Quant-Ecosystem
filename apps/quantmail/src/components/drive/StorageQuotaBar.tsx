@@ -256,9 +256,9 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
       textColor: 'text-slate-300',
     },
     warning: {
-      badgeBg: 'bg-[#FF8C42]/15 text-[#FF8C42] border-[#FF8C42]/30',
-      barColor: 'bg-[#FF8C42]',
-      textColor: 'text-[#FF8C42]',
+      badgeBg: 'bg-[var(--quant-primary)]/15 text-[var(--quant-primary)] border-[var(--quant-primary)]/30',
+      barColor: 'bg-[var(--quant-primary)]',
+      textColor: 'text-[var(--quant-primary)]',
     },
     critical: {
       badgeBg: 'bg-red-500/15 text-red-400 border-red-500/30',
@@ -270,7 +270,7 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
   return (
     <div
       data-testid="storage-quota-bar-container"
-      className="w-full rounded-2xl bg-[#16181D] border border-[#282C35] p-4 text-slate-200 shadow-md"
+      className="w-full rounded-2xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] p-4 text-slate-200 shadow-md"
     >
       {/* Top Header Row */}
       <div className="flex items-center justify-between mb-2">
@@ -315,7 +315,7 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
           type="button"
           onClick={onUpgradeClick}
           data-testid="upgrade-storage-button"
-          className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-[#FF8C42] hover:bg-[#FF8C42]/90 text-black transition-colors duration-150 shadow-sm"
+          className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/90 text-black transition-colors duration-150 shadow-sm"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
@@ -351,7 +351,7 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
       {/* Usage Bar — real used-of-limit only (backend reports no category breakdown) */}
       <div
         data-testid="storage-usage-bar"
-        className="w-full h-3 rounded-full bg-[#282C35] overflow-hidden flex"
+        className="w-full h-3 rounded-full bg-[var(--quant-surface-elevated)] overflow-hidden flex"
         role="progressbar"
         aria-label="Storage quota usage"
         aria-valuemin={0}
@@ -372,10 +372,10 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
       {warningStatus === 'warning' && (
         <div
           data-testid="warning-threshold-banner"
-          className="mt-2.5 px-3 py-1.5 rounded-lg bg-[#FF8C42]/10 border border-[#FF8C42]/30 text-xs text-[#FF8C42] flex items-center gap-2"
+          className="mt-2.5 px-3 py-1.5 rounded-lg bg-[var(--quant-primary)]/10 border border-[var(--quant-primary)]/30 text-xs text-[var(--quant-primary)] flex items-center gap-2"
         >
           <svg
-            className="w-4 h-4 shrink-0 text-[#FF8C42]"
+            className="w-4 h-4 shrink-0 text-[var(--quant-primary)]"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"

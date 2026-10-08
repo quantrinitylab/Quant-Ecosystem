@@ -129,7 +129,7 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Contextual Bottom Nav Integr
 
       // QuantPillarTopBar has calendar active
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
-      expect(html).toContain('#F59E0B');
+      expect(html).toContain('var(--quant-warning)');
 
       // Contextual tabs now live in the bottom bar (top strip removed)
       expect(html).toContain('Calendar contextual navigation');

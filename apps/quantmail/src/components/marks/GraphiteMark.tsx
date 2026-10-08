@@ -159,8 +159,8 @@ export function GraphiteMark({
             y2="24"
             gradientUnits="userSpaceOnUse"
           >
-            <stop stopColor="#FF9B5A" />
-            <stop offset="1" stopColor="#FF8C42" />
+            <stop stopColor="var(--quant-primary-hover)" />
+            <stop offset="1" stopColor="var(--quant-primary)" />
           </linearGradient>
         </defs>
 

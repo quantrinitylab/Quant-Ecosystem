@@ -5,12 +5,12 @@ import { Modal, Button } from '@quant/shared-ui';
 import type { ContactGroup } from '../../../types';
 
 const PRESET_COLORS = [
-  '#FF8C42',
+  'var(--quant-primary)',
   '#4E7BEE',
   '#10B981',
   '#EC4899',
   '#8B5CF6',
-  '#F59E0B',
+  'var(--quant-warning)',
   '#06B6D4',
   '#64748B',
 ];
@@ -33,7 +33,7 @@ export function ContactGroupModal({
   isSaving = false,
 }: ContactGroupModalProps) {
   const [name, setName] = useState('');
-  const [color, setColor] = useState<string | null>('#FF8C42');
+  const [color, setColor] = useState<string | null>('var(--quant-primary)');
   const [emails, setEmails] = useState<string[]>([]);
   const [emailInput, setEmailInput] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -41,11 +41,11 @@ export function ContactGroupModal({
   useEffect(() => {
     if (group) {
       setName(group.name || '');
-      setColor(group.color || '#FF8C42');
+      setColor(group.color || 'var(--quant-primary)');
       setEmails(group.emails || []);
     } else {
       setName('');
-      setColor('#FF8C42');
+      setColor('var(--quant-primary)');
       setEmails([]);
     }
     setEmailInput('');
@@ -123,7 +123,7 @@ export function ContactGroupModal({
         {/* Group Name */}
         <div>
           <label className="block text-xs font-medium text-[#A1A4AC] mb-1.5">
-            Group Name <span className="text-[#FF8C42]">*</span>
+            Group Name <span className="text-[var(--quant-primary)]">*</span>
           </label>
           <input
             type="text"
@@ -132,7 +132,7 @@ export function ContactGroupModal({
             placeholder="e.g. Core Engineering, VIP Clients, Investors"
             maxLength={60}
             required
-            className="w-full rounded-xl border border-[#282C35] bg-[#16181D] px-3.5 py-2.5 text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:border-[#FF8C42] focus:outline-none focus:ring-1 focus:ring-[#FF8C42]"
+            className="w-full rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3.5 py-2.5 text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:border-[var(--quant-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--quant-primary)]"
           />
         </div>
 
@@ -167,7 +167,7 @@ export function ContactGroupModal({
               onChange={(e) => setEmailInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Add email address..."
-              className="flex-1 rounded-xl border border-[#282C35] bg-[#16181D] px-3.5 py-2 text-xs text-[#F5F5F5] placeholder-[#6B6E76] focus:border-[#FF8C42] focus:outline-none focus:ring-1 focus:ring-[#FF8C42]"
+              className="flex-1 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3.5 py-2 text-xs text-[#F5F5F5] placeholder-[#6B6E76] focus:border-[var(--quant-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--quant-primary)]"
             />
             <Button
               type="button"
@@ -181,21 +181,21 @@ export function ContactGroupModal({
           </div>
 
           {emails.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 rounded-xl bg-[#0D0E11] border border-[#282C35]">
+            <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 rounded-xl bg-[#0D0E11] border border-[var(--quant-surface-elevated)]">
               {emails.map((email) => (
                 <span
                   key={email}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-[#1F2228] text-[#D1D5DB] border border-[#282C35]"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-[#1F2228] text-[#D1D5DB] border border-[var(--quant-surface-elevated)]"
                 >
                   <span
                     className="w-1.5 h-1.5 rounded-full"
-                    style={{ backgroundColor: color || '#FF8C42' }}
+                    style={{ backgroundColor: color || 'var(--quant-primary)' }}
                   />
                   {email}
                   <button
                     type="button"
                     onClick={() => handleRemoveEmail(email)}
-                    className="ml-0.5 text-[#6B6E76] hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    className="ml-0.5 text-[#6B6E76] hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     title="Remove email"
                   >
                     ×
@@ -211,7 +211,7 @@ export function ContactGroupModal({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-between pt-4 border-t border-[#282C35]">
+        <div className="flex items-center justify-between pt-4 border-t border-[var(--quant-surface-elevated)]">
           {group && onDelete ? (
             <Button
               type="button"

@@ -34,7 +34,7 @@ export function SenderIntelligence({
 }: SenderIntelligenceProps) {
   const interactionLevel = useMemo(() => {
     const total = totalReceived + totalSent;
-    if (total >= 50) return { label: 'Frequent', color: '#4ade80', bg: 'rgba(74, 222, 128, 0.08)' };
+    if (total >= 50) return { label: 'Frequent', color: '#4ade80', bg: 'var(--quant-success-faint)' };
     if (total >= 20) return { label: 'Regular', color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.08)' };
     if (total >= 5) return { label: 'Occasional', color: '#fbbf24', bg: 'rgba(251, 191, 36, 0.08)' };
     return { label: 'New', color: '#a78bfa', bg: 'rgba(167, 139, 250, 0.08)' };

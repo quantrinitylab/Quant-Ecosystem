@@ -27,7 +27,7 @@ export const SQUIRCLE =
  * so a mark reads as one solid object with holes in it rather than as stacked
  * shapes. Filled holes survive at 16px where a 1.8-weight outline disappears.
  */
-export const MARK_VOID = '#090A0C';
+export const MARK_VOID = 'var(--quant-background)';
 
 type AppMarkProps = QuantLogoProps & {
   /** Receives the `url(#…)` of the inner brand gradient for highlight details. */
@@ -67,12 +67,12 @@ export function AppMark({ size = 32, className = '', title = 'Quant', children }
         <defs>
           <linearGradient id={plateId} x1="4" y1="2" x2="28" y2="30" gradientUnits="userSpaceOnUse">
             <stop stopColor="#FFB875" />
-            <stop offset="0.52" stopColor="#FF8C42" />
-            <stop offset="1" stopColor="#E8752F" />
+            <stop offset="0.52" stopColor="var(--quant-primary)" />
+            <stop offset="1" stopColor="var(--brand-primary-pressed)" />
           </linearGradient>
           <linearGradient id={brandId} x1="8" y1="8" x2="24" y2="24" gradientUnits="userSpaceOnUse">
             <stop stopColor="#FFB875" />
-            <stop offset="1" stopColor="#FF8C42" />
+            <stop offset="1" stopColor="var(--quant-primary)" />
           </linearGradient>
           <linearGradient
             id={rimId}

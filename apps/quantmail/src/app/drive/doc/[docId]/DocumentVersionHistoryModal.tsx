@@ -115,14 +115,14 @@ export function DocumentVersionHistoryModal({
         {/* Create Named Snapshot Form */}
         <form
           onSubmit={handleCreateSnapshot}
-          className="flex items-center gap-2 rounded-xl border border-[#30363D] bg-[#161B22] p-3"
+          className="flex items-center gap-2 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] p-3"
         >
           <input
             type="text"
             value={newSnapshotTitle}
             onChange={(e) => setNewSnapshotTitle(e.target.value)}
             placeholder="Name a new checkpoint (e.g. Major draft complete)"
-            className="flex-1 rounded-lg border border-[#30363D] bg-[#0D1117] px-3 py-1.5 text-xs text-[#F0F6FC] placeholder-[#8B949E] focus:outline-none focus:border-[#FF8C42]"
+            className="flex-1 rounded-lg border border-[#30363D] bg-[#0D1117] px-3 py-1.5 text-xs text-[#F0F6FC] placeholder-[#8B949E] focus:outline-none focus:border-[var(--quant-primary)]"
           />
           <Button
             variant="primary"
@@ -137,9 +137,9 @@ export function DocumentVersionHistoryModal({
         {/* Version list & preview */}
         {isLoading ? (
           <div className="space-y-3 py-4">
-            <Skeleton className="h-16 w-full rounded-xl bg-[#161B22]" />
-            <Skeleton className="h-16 w-full rounded-xl bg-[#161B22]" />
-            <Skeleton className="h-16 w-full rounded-xl bg-[#161B22]" />
+            <Skeleton className="h-16 w-full rounded-xl bg-[var(--quant-surface-elevated)]" />
+            <Skeleton className="h-16 w-full rounded-xl bg-[var(--quant-surface-elevated)]" />
+            <Skeleton className="h-16 w-full rounded-xl bg-[var(--quant-surface-elevated)]" />
           </div>
         ) : versions.length === 0 ? (
           <div className="py-12 text-center text-[#8B949E]">
@@ -169,8 +169,8 @@ export function DocumentVersionHistoryModal({
                   key={ver.id}
                   className={`rounded-xl border p-3 transition-all ${
                     isSelectedForPreview
-                      ? 'border-[#FF8C42] bg-[#21262D]'
-                      : 'border-[#30363D] bg-[#161B22] hover:border-[#484F58]'
+                      ? 'border-[var(--quant-primary)] bg-[#21262D]'
+                      : 'border-[#30363D] bg-[var(--quant-surface-elevated)] hover:border-[#484F58]'
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -180,7 +180,7 @@ export function DocumentVersionHistoryModal({
                           {ver.title || 'Snapshot'}
                         </span>
                         {index === 0 && (
-                          <span className="rounded bg-[#FF8C42]/20 border border-[#FF8C42]/30 px-1.5 py-px text-[var(--q-type-xs)] font-bold text-[#FF8C42]">
+                          <span className="rounded bg-[var(--quant-primary)]/20 border border-[var(--quant-primary)]/30 px-1.5 py-px text-[var(--q-type-xs)] font-bold text-[var(--quant-primary)]">
                             LATEST
                           </span>
                         )}

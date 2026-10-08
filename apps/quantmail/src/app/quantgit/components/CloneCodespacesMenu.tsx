@@ -64,7 +64,7 @@ export const CloneCodespacesMenu: React.FC<CloneCodespacesMenuProps> = ({
       <div className="fixed inset-0 z-40" onClick={onClose} aria-hidden="true" />
 
       {/* Popover Menu Card */}
-      <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 rounded-xl bg-[#161B22] border border-[#30363D] shadow-2xl overflow-hidden z-50 text-xs text-[#E6EDF3] animate-in fade-in zoom-in-95 duration-100">
+      <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-2xl overflow-hidden z-50 text-xs text-[#E6EDF3] animate-in fade-in zoom-in-95 duration-100">
         {/* Top Tabs: Local vs Codespaces */}
         <div className="flex border-b border-[#30363D] bg-[#0D1117]">
           <button

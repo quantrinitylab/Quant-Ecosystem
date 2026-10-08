@@ -105,7 +105,7 @@ const DIALS: readonly {
 ];
 
 const FOCUS =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C]';
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)]';
 
 /**
  * Every size a `<Quanty>` is mounted at in the product, plus the 104px lab hero for the
@@ -183,7 +183,7 @@ function format(value: number): string {
  */
 function Panel({ label, note, children }: { label: string; note: string; children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-[#282C35] bg-[#111318] p-5">
+    <div className="rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] p-5">
       <p className="text-[11px] uppercase tracking-[0.12em] text-[#A1A4AC]">{label}</p>
       <p className="mt-1 text-[11px] text-[#6B6E76]">{note}</p>
       <div className="no-scrollbar mt-4 flex items-end gap-5 overflow-x-auto pb-1">{children}</div>
@@ -244,7 +244,7 @@ function ReactionBench() {
             key={event}
             type="button"
             onClick={() => quantyReact(event)}
-            className="min-h-11 rounded-lg border border-[#282C35] bg-[#16181D] px-2.5 text-[11px] text-[#A1A4AC] transition-colors hover:border-[#5C3016] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+            className="min-h-11 rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-2.5 text-[11px] text-[#A1A4AC] transition-colors hover:border-[#5C3016] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           >
             {event}
           </button>
@@ -294,7 +294,7 @@ export function MarkLab() {
   }, [json]);
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#090A0C] px-4 py-8 sm:px-8">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--quant-background)] px-4 py-8 sm:px-8">
       <div className="mx-auto max-w-[1180px]">
         <header>
           <p className="text-[11px] uppercase tracking-[0.14em] text-[#6B6E76]">
@@ -317,7 +317,7 @@ export function MarkLab() {
             role="status"
             data-testid="shader-error"
           >
-            <p className="text-[13px] font-medium text-[#FF8C42]">
+            <p className="text-[13px] font-medium text-[var(--quant-primary)]">
               No WebGL tier — every mark below is the SVG twin
             </p>
             <pre className="no-scrollbar mt-2 overflow-x-auto whitespace-pre-wrap text-[11px] leading-relaxed text-[#A1A4AC]">
@@ -341,10 +341,10 @@ export function MarkLab() {
                 type="button"
                 onClick={() => pick(variant)}
                 aria-pressed={selected === variant.id}
-                className={`flex flex-col rounded-xl border bg-[#111318] p-4 text-left transition-colors duration-200 ${
+                className={`flex flex-col rounded-xl border bg-[var(--quant-surface)] p-4 text-left transition-colors duration-200 ${
                   selected === variant.id
                     ? 'border-[#5C3016]'
-                    : 'border-[#282C35] hover:border-[#3A404D]'
+                    : 'border-[var(--quant-surface-elevated)] hover:border-[#3A404D]'
                 } ${FOCUS}`}
               >
                 <MarkGL
@@ -367,7 +367,7 @@ export function MarkLab() {
           </div>
         </section>
         <section
-          className="mt-10 grid gap-6 rounded-xl border border-[#282C35] bg-[#111318] p-5 lg:grid-cols-[300px_1fr]"
+          className="mt-10 grid gap-6 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] p-5 lg:grid-cols-[300px_1fr]"
           aria-labelledby="tuner"
         >
           <div className="flex flex-col items-center justify-center gap-3">
@@ -395,7 +395,7 @@ export function MarkLab() {
               {DIALS.map((dial) => (
                 <label
                   key={dial.key}
-                  className="block border-t border-[#282C35] py-1 first:border-t-0"
+                  className="block border-t border-[var(--quant-surface-elevated)] py-1 first:border-t-0"
                 >
                   <span className="flex items-baseline justify-between gap-3">
                     <span className="text-[11px] uppercase tracking-[0.12em] text-[#A1A4AC]">
@@ -412,7 +412,7 @@ export function MarkLab() {
                     step={dial.step}
                     value={dials[dial.key]}
                     onChange={(event) => setDial(dial.key, Number(event.target.value))}
-                    className={`h-[44px] w-full cursor-pointer accent-[#FF8C42] ${FOCUS}`}
+                    className={`h-[44px] w-full cursor-pointer accent-[var(--quant-primary)] ${FOCUS}`}
                   />
                 </label>
               ))}
@@ -497,7 +497,7 @@ export function MarkLab() {
             scaled to 0.578 and asks for the width of a 0.578× box to compensate, which is the
             family row&apos;s business, not this one&apos;s.
           </p>
-          <div className="mt-4 flex flex-wrap items-end gap-5 rounded-xl border border-[#282C35] bg-[#111318] p-5">
+          <div className="mt-4 flex flex-wrap items-end gap-5 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] p-5">
             {RING_SIZES.map((size) => (
               <div key={size} className="flex flex-col items-center gap-2">
                 <Quanty size={size} figure="badge" title={`Quanty at ${size}px`} />
@@ -532,7 +532,7 @@ export function MarkLab() {
             the one live surface over it is <code className="px-1 text-[#A1A4AC]">codehub</code>
             &apos;s 64px mascot.
           </p>
-          <div className="mt-4 overflow-x-auto no-scrollbar rounded-xl border border-[#282C35] bg-[#111318] p-5">
+          <div className="mt-4 overflow-x-auto no-scrollbar rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] p-5">
             <div className="w-max">
               {/*
                 Every cell is `shrink-0`, header included. Without it the header row — whose
@@ -578,7 +578,7 @@ export function MarkLab() {
             warm cast-metal face and one travelling highlight carry the family material. This
             candidate is intentionally outside the six shipping marks above.
           </p>
-          <div className="mt-4 flex flex-wrap items-end gap-5 rounded-xl border border-[#282C35] bg-[#111318] p-5">
+          <div className="mt-4 flex flex-wrap items-end gap-5 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] p-5">
             {DINOSAUR_MARK_SIZES.map((size) => (
               <div key={size} className="flex min-w-[104px] flex-col items-center gap-2">
                 <DinosaurMarkCandidate size={size} title={`Dinosaur candidate at ${size}px`} />
@@ -606,7 +606,7 @@ export function MarkLab() {
             {UNREAD_CASES.map((unread) => (
               <div
                 key={unread.label}
-                className="flex w-[150px] flex-col items-center gap-3 rounded-xl border border-[#282C35] bg-[#111318] p-5"
+                className="flex w-[150px] flex-col items-center gap-3 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] p-5"
               >
                 <div className="flex items-end gap-4">{unread.render(36)}</div>
                 {unread.render(20)}
@@ -628,13 +628,13 @@ export function MarkLab() {
             index, and a pulse decays back to <code className="px-1">idle</code> on its own while a
             latch waits to be replaced.
           </p>
-          <div className="mt-4 rounded-xl border border-[#282C35] bg-[#111318] p-5">
+          <div className="mt-4 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] p-5">
             <ReactionBench />
           </div>
         </section>
 
         <section
-          className="mt-10 rounded-xl border border-[#282C35] bg-[#111318] p-5"
+          className="mt-10 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] p-5"
           aria-labelledby="values"
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -651,7 +651,7 @@ export function MarkLab() {
             <button
               type="button"
               onClick={copy}
-              className={`min-h-[44px] rounded-lg border border-[#5C3016] bg-[#2B1A11] px-4 text-[13px] font-medium text-[#FF8C42] transition-colors duration-200 hover:bg-[#3A2416] ${FOCUS}`}
+              className={`min-h-[44px] rounded-lg border border-[#5C3016] bg-[#2B1A11] px-4 text-[13px] font-medium text-[var(--quant-primary)] transition-colors duration-200 hover:bg-[#3A2416] ${FOCUS}`}
             >
               {copied ? 'Copied' : 'Copy JSON'}
             </button>

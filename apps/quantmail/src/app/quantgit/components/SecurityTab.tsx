@@ -305,7 +305,7 @@ export function SecurityTab({
   return (
     <div className="space-y-5 text-xs text-[#E6EDF3]" data-testid="security-tab">
       {/* 1. Header Overview Banner */}
-      <div className="p-4 rounded-md bg-[#161B22] border border-[#30363D] flex flex-wrap items-center justify-between gap-4">
+      <div className="p-4 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="p-1 rounded bg-[#238636]/20 text-[#3FB950] font-bold text-sm">🛡️</span>
@@ -344,8 +344,8 @@ export function SecurityTab({
           onClick={() => setActiveSubTab('dependabot')}
           className={`flex items-center gap-2 px-4 py-2.5 font-semibold text-xs border-b-2 transition-colors whitespace-nowrap ${
             activeSubTab === 'dependabot'
-              ? 'border-[#F78166] text-white bg-[#161B22]/50'
-              : 'border-transparent text-[#7D8590] hover:text-[#C9D1D9] hover:bg-[#161B22]/20'
+              ? 'border-[#F78166] text-white bg-[var(--quant-surface-elevated)]/50'
+              : 'border-transparent text-[#7D8590] hover:text-[#C9D1D9] hover:bg-[var(--quant-surface-elevated)]/20'
           }`}
         >
           <span>📦 Dependabot alerts</span>
@@ -360,8 +360,8 @@ export function SecurityTab({
           onClick={() => setActiveSubTab('secrets')}
           className={`flex items-center gap-2 px-4 py-2.5 font-semibold text-xs border-b-2 transition-colors whitespace-nowrap ${
             activeSubTab === 'secrets'
-              ? 'border-[#F78166] text-white bg-[#161B22]/50'
-              : 'border-transparent text-[#7D8590] hover:text-[#C9D1D9] hover:bg-[#161B22]/20'
+              ? 'border-[#F78166] text-white bg-[var(--quant-surface-elevated)]/50'
+              : 'border-transparent text-[#7D8590] hover:text-[#C9D1D9] hover:bg-[var(--quant-surface-elevated)]/20'
           }`}
         >
           <span>🔑 Secret scanning</span>
@@ -376,8 +376,8 @@ export function SecurityTab({
           onClick={() => setActiveSubTab('codeql')}
           className={`flex items-center gap-2 px-4 py-2.5 font-semibold text-xs border-b-2 transition-colors whitespace-nowrap ${
             activeSubTab === 'codeql'
-              ? 'border-[#F78166] text-white bg-[#161B22]/50'
-              : 'border-transparent text-[#7D8590] hover:text-[#C9D1D9] hover:bg-[#161B22]/20'
+              ? 'border-[#F78166] text-white bg-[var(--quant-surface-elevated)]/50'
+              : 'border-transparent text-[#7D8590] hover:text-[#C9D1D9] hover:bg-[var(--quant-surface-elevated)]/20'
           }`}
         >
           <span>🔬 CodeQL / SAST Code scanning</span>
@@ -392,8 +392,8 @@ export function SecurityTab({
           onClick={() => setActiveSubTab('policy')}
           className={`flex items-center gap-2 px-4 py-2.5 font-semibold text-xs border-b-2 transition-colors whitespace-nowrap ${
             activeSubTab === 'policy'
-              ? 'border-[#F78166] text-white bg-[#161B22]/50'
-              : 'border-transparent text-[#7D8590] hover:text-[#C9D1D9] hover:bg-[#161B22]/20'
+              ? 'border-[#F78166] text-white bg-[var(--quant-surface-elevated)]/50'
+              : 'border-transparent text-[#7D8590] hover:text-[#C9D1D9] hover:bg-[var(--quant-surface-elevated)]/20'
           }`}
         >
           <span>📜 Security policy & Branch rules</span>
@@ -414,7 +414,7 @@ export function SecurityTab({
               className={`px-3 py-1.5 rounded-full font-semibold border transition-all ${
                 selectedSeverity === 'all'
                   ? 'bg-[#30363D] text-white border-[#58A6FF]'
-                  : 'bg-[#161B22] text-[#7D8590] border-[#30363D] hover:text-[#C9D1D9]'
+                  : 'bg-[var(--quant-surface-elevated)] text-[#7D8590] border-[#30363D] hover:text-[#C9D1D9]'
               }`}
             >
               All Severities ({dependabotAlerts.length})
@@ -490,7 +490,7 @@ export function SecurityTab({
           </div>
 
           {/* Filters & Search Toolbar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-md bg-[#161B22] border border-[#30363D]">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D]">
             <div className="flex items-center gap-2">
               <span className="text-[#7D8590] font-semibold">State:</span>
               <div className="flex items-center rounded bg-[#0D1117] border border-[#30363D] p-0.5">
@@ -543,7 +543,7 @@ export function SecurityTab({
                 <div
                   key={sec.id}
                   data-testid={`dependabot-card-${sec.id}`}
-                  className="p-4 hover:bg-[#161B22]/70 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  className="p-4 hover:bg-[var(--quant-surface-elevated)]/70 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
                 >
                   <div className="space-y-2 flex-1">
                     {/* Top Row: Severity, Package Name, CVE, CVSS */}
@@ -662,7 +662,7 @@ export function SecurityTab({
       {activeSubTab === 'secrets' && (
         <div className="space-y-4" data-testid="secret-scanning-view">
           {/* Header Action Bar */}
-          <div className="p-4 rounded-md bg-[#161B22] border border-[#30363D] flex flex-wrap items-center justify-between gap-4">
+          <div className="p-4 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <span>🔑 Git Credential & Secret Scanner</span>
@@ -698,7 +698,7 @@ export function SecurityTab({
           </div>
 
           {/* Secret Filters Toolbar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-md bg-[#161B22] border border-[#30363D]">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D]">
             <div className="flex items-center gap-2">
               <span className="text-[#7D8590] font-semibold">Status:</span>
               <div className="flex items-center rounded bg-[#0D1117] border border-[#30363D] p-0.5">
@@ -749,7 +749,7 @@ export function SecurityTab({
                 <div
                   key={sec.id}
                   data-testid={`secret-card-${sec.id}`}
-                  className="p-4 hover:bg-[#161B22]/70 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  className="p-4 hover:bg-[var(--quant-surface-elevated)]/70 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
                 >
                   <div className="space-y-1.5 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -772,7 +772,7 @@ export function SecurityTab({
                     </div>
 
                     {/* Matched Snippet (Masked) */}
-                    <div className="font-mono text-xs text-[#E6EDF3] bg-[#161B22] px-3 py-1.5 rounded border border-[#30363D] inline-block">
+                    <div className="font-mono text-xs text-[#E6EDF3] bg-[var(--quant-surface-elevated)] px-3 py-1.5 rounded border border-[#30363D] inline-block">
                       <span className="text-[#7D8590] mr-2">Token:</span>
                       <span
                         data-testid={`masked-secret-${sec.id}`}
@@ -831,7 +831,7 @@ export function SecurityTab({
       {activeSubTab === 'codeql' && (
         <div className="space-y-4" data-testid="codeql-sast-view">
           {/* Header Banner */}
-          <div className="p-4 rounded-md bg-[#161B22] border border-[#30363D] flex flex-wrap items-center justify-between gap-4">
+          <div className="p-4 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <span>🔬 CodeQL Static Application Security Testing (SAST)</span>
@@ -856,7 +856,7 @@ export function SecurityTab({
           </div>
 
           {/* CodeQL Filters Toolbar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-md bg-[#161B22] border border-[#30363D]">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D]">
             <div className="flex items-center gap-2">
               <span className="text-[#7D8590] font-semibold">Severity:</span>
               <div className="flex items-center rounded bg-[#0D1117] border border-[#30363D] p-0.5">
@@ -909,7 +909,7 @@ export function SecurityTab({
                 <div
                   key={alert.id}
                   data-testid={`codeql-card-${alert.id}`}
-                  className="p-5 hover:bg-[#161B22]/50 transition-colors space-y-3"
+                  className="p-5 hover:bg-[var(--quant-surface-elevated)]/50 transition-colors space-y-3"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
@@ -966,7 +966,7 @@ export function SecurityTab({
                   {/* Recommended Code Fix Diff */}
                   <div
                     data-testid={`codeql-diff-${alert.id}`}
-                    className="rounded bg-[#161B22] border border-[#30363D] overflow-hidden font-mono text-[11px]"
+                    className="rounded bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden font-mono text-[11px]"
                   >
                     <div className="px-3 py-1.5 bg-[#21262D] border-b border-[#30363D] text-[#7D8590] font-semibold text-[10px] flex items-center justify-between">
                       <span>Recommended Code Fix Diff</span>
@@ -1000,7 +1000,7 @@ export function SecurityTab({
       {activeSubTab === 'policy' && (
         <div className="space-y-6" data-testid="security-policy-view">
           {/* Section 1: SECURITY.md Editor & Viewer */}
-          <div className="space-y-3 p-5 rounded-md bg-[#161B22] border border-[#30363D]">
+          <div className="space-y-3 p-5 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D]">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-white text-sm flex items-center gap-2">
@@ -1056,7 +1056,7 @@ export function SecurityTab({
 
           {/* Section 2: Branch Protection Security Rules */}
           <div
-            className="space-y-4 p-5 rounded-md bg-[#161B22] border border-[#30363D]"
+            className="space-y-4 p-5 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D]"
             data-testid="branch-protection-rules-view"
           >
             <div className="flex items-center justify-between">

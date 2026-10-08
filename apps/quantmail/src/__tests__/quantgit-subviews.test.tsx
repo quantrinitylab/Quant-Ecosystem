@@ -55,7 +55,7 @@ const FIXTURE_ISSUES: IssueTrackItem[] = [
     issueNumber: 11,
     title: 'Fixture: verify empty states',
     priority: 'P1 High',
-    priorityColor: '#EF4444',
+    priorityColor: 'var(--quant-destructive)',
     labels: ['test'],
     state: 'open',
     author: 'tester',

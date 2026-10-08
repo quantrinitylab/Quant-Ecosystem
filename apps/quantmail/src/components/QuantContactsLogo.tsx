@@ -42,7 +42,7 @@ import {
  * The front figure is now the design system's own **Brand Soft pair, lit**: `#5C3016`
  * (the border token, luminance 58.2, hue 22.3°) as the mid stop, `#7A3F1C` above it —
  * the same pigment at 1.33x exposure rather than a new colour — and `#2B1A11` (the
- * surface token, luminance 30.1) in the shadow. Hue 20.8-22.3° against `#FF8C42`'s own
+ * surface token, luminance 30.1) in the shadow. Hue 20.8-22.3° against `var(--quant-primary)`'s own
  * 22.1°, and chroma 26-94 where obsidian had 4-9.
  *
  * The value gap survives the swap because it was never black-against-peach, it was
@@ -51,7 +51,7 @@ import {
  * ## What the raster says, at every mounted size
  *
  * Read off the live buffer: front head 62-73 at chroma 71-84, front torso 34-61 at chroma
- * 32-55, every hue 21-24° against `#FF8C42`'s own 22.1°. The back figure is untouched at
+ * 32-55, every hue 21-24° against `var(--quant-primary)`'s own 22.1°. The back figure is untouched at
  * 232 and 190, which is the proof that only the front figure moved.
  *
  * The wrap-aware hue census — over each cell's own buffer, skipping `a < 200` and

@@ -3,7 +3,7 @@
 // ============================================================================
 // QuantMail — Amazon/Flipkart-Class Super-App Command Header
 // Pure SVG Vector Engine — Strictly 100% ZERO raw Unicode emojis.
-// Obsidian/Slate Palette: #090A0E, #12151E, #1E222A.
+// Obsidian/Slate Palette: var(--quant-background), var(--quant-surface), var(--quant-surface-elevated).
 // ============================================================================
 
 import React, { useState, useEffect, useRef, useCallback, type KeyboardEvent } from 'react';
@@ -599,7 +599,7 @@ export function QuantMailSuperAppHeader({
 
   return (
     <header
-      className={`w-full bg-[#090A0E] text-[#F1F5F9] border-b border-[#1E222A] select-none font-sans ${className}`}
+      className={`w-full bg-[var(--quant-background)] text-[#F1F5F9] border-b border-[var(--quant-surface-elevated)] select-none font-sans ${className}`}
       data-testid="quantmail-superapp-header"
       role="banner"
     >
@@ -613,11 +613,11 @@ export function QuantMailSuperAppHeader({
           <button
             type="button"
             onClick={() => router.push('/')}
-            className="flex items-center gap-2.5 p-1 rounded-lg hover:bg-[#12151E] transition-all group focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="flex items-center gap-2.5 p-1 rounded-lg hover:bg-[var(--quant-surface)] transition-all group focus:outline-none focus:ring-1 focus:ring-indigo-500"
             aria-label="QuantMail Home"
             title="QuantMail — High-Performance Sovereign Inbox"
           >
-            <div className="relative flex items-center justify-center p-1 rounded-lg bg-[#12151E] border border-[#1E222A] group-hover:border-indigo-500/50 transition-colors shadow-sm">
+            <div className="relative flex items-center justify-center p-1 rounded-lg bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] group-hover:border-indigo-500/50 transition-colors shadow-sm">
               <QuantMonogramSvg className="size-6 text-indigo-400 group-hover:scale-105 transition-transform" />
             </div>
             <div className="flex flex-col text-left">
@@ -636,7 +636,7 @@ export function QuantMailSuperAppHeader({
           </button>
 
           {/* Divider */}
-          <div className="h-6 w-px bg-[#1E222A] hidden sm:block" aria-hidden="true" />
+          <div className="h-6 w-px bg-[var(--quant-surface-elevated)] hidden sm:block" aria-hidden="true" />
 
           {/* Workspace / Account Switcher Dropdown */}
           <div className="relative" ref={dropdownRef}>
@@ -646,7 +646,7 @@ export function QuantMailSuperAppHeader({
               aria-haspopup="listbox"
               aria-expanded={isWorkspaceDropdownOpen}
               aria-label={`Current Workspace: ${activeWorkspace.name} · ${activeWorkspace.email}`}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#12151E] border border-[#1E222A] hover:border-[#282E3E] hover:bg-[#161B26] transition-all text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 text-left max-w-[240px] sm:max-w-[280px]"
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] hover:border-[#282E3E] hover:bg-[var(--quant-surface-elevated)] transition-all text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 text-left max-w-[240px] sm:max-w-[280px]"
             >
               <div className="size-2 rounded-full bg-emerald-400 shrink-0 ring-4 ring-emerald-400/10" />
               <div className="truncate flex-1">
@@ -669,7 +669,7 @@ export function QuantMailSuperAppHeader({
               <div
                 role="listbox"
                 aria-label="Select Workspace"
-                className="absolute top-full left-0 mt-1.5 w-72 rounded-xl bg-[#12151E] border border-[#1E222A] shadow-2xl p-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                className="absolute top-full left-0 mt-1.5 w-72 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] shadow-2xl p-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
               >
                 <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">
                   Active Workspaces
@@ -700,7 +700,7 @@ export function QuantMailSuperAppHeader({
                   })}
                 </div>
 
-                <div className="my-1.5 border-t border-[#1E222A]" />
+                <div className="my-1.5 border-t border-[var(--quant-surface-elevated)]" />
 
                 <button
                   type="button"
@@ -721,7 +721,7 @@ export function QuantMailSuperAppHeader({
         {/* Center: Wide Global Command Search Bar (Amazon / Superhuman) */}
         <div className="flex-1 max-w-2xl mx-2 hidden md:block">
           <form onSubmit={handleSearchFormSubmit} className="relative w-full">
-            <div className="relative flex items-center w-full rounded-xl bg-[#12151E] border border-[#1E222A] focus-within:border-indigo-500/80 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all shadow-inner">
+            <div className="relative flex items-center w-full rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] focus-within:border-indigo-500/80 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all shadow-inner">
               {/* Search Magnifier SVG */}
               <div className="pl-3.5 pr-2 text-[#64748B] flex items-center pointer-events-none">
                 <SearchMagnifierSvg className="size-4" />
@@ -735,7 +735,7 @@ export function QuantMailSuperAppHeader({
                 onChange={handleSearchInputChange}
                 placeholder={searchPlaceholder}
                 aria-label="Global Super-App Search"
-                className="w-full py-2 bg-transparent text-xs text-white placeholder-[#64748B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                className="w-full py-2 bg-transparent text-xs text-white placeholder-[#64748B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
               />
 
               {/* Clear button when input has text */}
@@ -758,7 +758,7 @@ export function QuantMailSuperAppHeader({
                 className={`p-1.5 rounded-md transition-colors mr-1 ${
                   isVoiceListening
                     ? 'text-rose-400 bg-rose-500/10 animate-pulse'
-                    : 'text-[#64748B] hover:text-slate-200 hover:bg-[#1E222A]'
+                    : 'text-[#64748B] hover:text-slate-200 hover:bg-[var(--quant-surface-elevated)]'
                 }`}
                 aria-label="Voice Search"
                 title="Voice Search"
@@ -770,7 +770,7 @@ export function QuantMailSuperAppHeader({
               <button
                 type="button"
                 onClick={() => router.push('/search?mode=scan')}
-                className="p-1.5 rounded-md text-[#64748B] hover:text-slate-200 hover:bg-[#1E222A] transition-colors mr-2"
+                className="p-1.5 rounded-md text-[#64748B] hover:text-slate-200 hover:bg-[var(--quant-surface-elevated)] transition-colors mr-2"
                 aria-label="Scan Document or QR"
                 title="Scan Document or QR"
               >
@@ -779,7 +779,7 @@ export function QuantMailSuperAppHeader({
 
               {/* Keyboard shortcut hint */}
               <div className="pr-3 hidden lg:flex items-center">
-                <kbd className="px-1.5 py-0.5 text-[10px] font-mono tracking-wider text-[#64748B] bg-[#1E222A] rounded border border-[#282E3E]">
+                <kbd className="px-1.5 py-0.5 text-[10px] font-mono tracking-wider text-[#64748B] bg-[var(--quant-surface-elevated)] rounded border border-[#282E3E]">
                   Ctrl+K
                 </kbd>
               </div>
@@ -793,7 +793,7 @@ export function QuantMailSuperAppHeader({
           <button
             type="button"
             onClick={() => router.push('/notifications')}
-            className="relative p-2 rounded-xl bg-[#12151E] border border-[#1E222A] text-slate-300 hover:text-white hover:border-[#282E3E] transition-all focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="relative p-2 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-slate-300 hover:text-white hover:border-[#282E3E] transition-all focus:outline-none focus:ring-1 focus:ring-indigo-500"
             aria-label={`Notifications: ${unreadNotifications} unread`}
             title="Notifications"
           >
@@ -807,7 +807,7 @@ export function QuantMailSuperAppHeader({
 
           {/* Quant Credits Chip (ZERO raw emojis! Pure SVG lightning bolt) */}
           <div
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#12151E] border border-[#1E222A] text-xs font-semibold text-amber-400 shadow-sm"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-xs font-semibold text-amber-400 shadow-sm"
             title="Quant Credits Balance"
           >
             <ZapCreditsSvg className="size-3.5 text-amber-400 shrink-0" />
@@ -818,13 +818,13 @@ export function QuantMailSuperAppHeader({
           <button
             type="button"
             onClick={() => router.push('/settings/profile')}
-            className="relative flex items-center justify-center size-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 font-bold text-xs text-white ring-2 ring-[#1E222A] hover:ring-indigo-500/50 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+            className="relative flex items-center justify-center size-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 font-bold text-xs text-white ring-2 ring-[var(--quant-surface-elevated)] hover:ring-indigo-500/50 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             aria-label={`User Profile: ${userName}`}
             title={`${userName} (${userEmail})`}
           >
             <span>{userInitials}</span>
             <span
-              className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-500 ring-2 ring-[#090A0E]"
+              className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-500 ring-2 ring-[var(--quant-background)]"
               aria-label="Online status"
             />
           </button>
@@ -834,7 +834,7 @@ export function QuantMailSuperAppHeader({
       {/* ================================================================== */}
       {/* TIER 2: 5-Pillar Horizontal Mini-App Rail (Flipkart category strip)*/}
       {/* ================================================================== */}
-      <div className="w-full bg-[#0D0F16] border-t border-[#1E222A]/80">
+      <div className="w-full bg-[#0D0F16] border-t border-[var(--quant-surface-elevated)]/80">
         <div className="max-w-[1720px] mx-auto px-2 sm:px-4">
           <nav
             role="tablist"
@@ -853,10 +853,10 @@ export function QuantMailSuperAppHeader({
                   aria-selected={isActive}
                   aria-label={`${pillar.label} Pillar${pillar.badge ? ` (${pillar.badge})` : ''}`}
                   onClick={() => handlePillarClick(pillar)}
-                  className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                  className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                     isActive
-                      ? 'bg-[#161B26] text-white shadow-sm font-semibold'
-                      : 'text-[#94A3B8] hover:text-white hover:bg-[#12151E]'
+                      ? 'bg-[var(--quant-surface-elevated)] text-white shadow-sm font-semibold'
+                      : 'text-[#94A3B8] hover:text-white hover:bg-[var(--quant-surface)]'
                   }`}
                 >
                   {/* Pillar SVG Icon */}
@@ -878,7 +878,7 @@ export function QuantMailSuperAppHeader({
                       className={`ml-1 px-1.5 py-px rounded-full text-[10px] font-bold ${
                         isActive
                           ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
-                          : 'bg-[#1E222A] text-[#94A3B8] group-hover:text-slate-200'
+                          : 'bg-[var(--quant-surface-elevated)] text-[#94A3B8] group-hover:text-slate-200'
                       }`}
                     >
                       {pillar.badge}
@@ -906,12 +906,12 @@ export function QuantMailSuperAppHeader({
       {/* ================================================================== */}
       {/* TIER 3: Executive Quick-Glance Widget Tiles                        */}
       {/* ================================================================== */}
-      <div className="w-full bg-[#090A0E] border-t border-[#1E222A]/60 py-2">
+      <div className="w-full bg-[var(--quant-background)] border-t border-[var(--quant-surface-elevated)]/60 py-2">
         <div className="max-w-[1720px] mx-auto px-3 sm:px-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
             {/* Tile 1: Priority Mail */}
             <div
-              className="flex items-center justify-between p-2.5 rounded-xl bg-[#12151E] border border-[#1E222A] hover:border-[#282E3E] transition-all cursor-pointer group"
+              className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] hover:border-[#282E3E] transition-all cursor-pointer group"
               onClick={() => router.push('/?lens=important')}
               role="button"
               tabIndex={0}
@@ -937,7 +937,7 @@ export function QuantMailSuperAppHeader({
 
             {/* Tile 2: Next Meeting with 1-Tap Join */}
             <div
-              className="flex items-center justify-between p-2.5 rounded-xl bg-[#12151E] border border-[#1E222A] hover:border-[#282E3E] transition-all"
+              className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] hover:border-[#282E3E] transition-all"
               aria-label={`Next Meeting: ${nextMeetingTitle}`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
@@ -973,7 +973,7 @@ export function QuantMailSuperAppHeader({
 
             {/* Tile 3: Storage Quota (QuantDrive) */}
             <div
-              className="flex flex-col justify-center p-2.5 rounded-xl bg-[#12151E] border border-[#1E222A] hover:border-[#282E3E] transition-all cursor-pointer"
+              className="flex flex-col justify-center p-2.5 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] hover:border-[#282E3E] transition-all cursor-pointer"
               onClick={() => router.push('/drive')}
               role="button"
               tabIndex={0}
@@ -988,7 +988,7 @@ export function QuantMailSuperAppHeader({
                   {storageUsedGB} / {storageTotalGB} GB
                 </span>
               </div>
-              <div className="w-full bg-[#1E222A] rounded-full h-1.5 overflow-hidden">
+              <div className="w-full bg-[var(--quant-surface-elevated)] rounded-full h-1.5 overflow-hidden">
                 <div
                   className="bg-gradient-to-r from-sky-500 to-indigo-500 h-1.5 rounded-full transition-all duration-300"
                   style={{ width: `${storagePercentage}%` }}
@@ -1002,7 +1002,7 @@ export function QuantMailSuperAppHeader({
 
             {/* Tile 4: Executive Quick Actions */}
             <div
-              className="flex items-center justify-between p-2 rounded-xl bg-[#12151E] border border-[#1E222A]"
+              className="flex items-center justify-between p-2 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)]"
               aria-label="Executive Quick Actions"
             >
               <div className="grid grid-cols-2 gap-1.5 w-full">
@@ -1011,7 +1011,7 @@ export function QuantMailSuperAppHeader({
                   onClick={() =>
                     onQuickAction ? onQuickAction('compose') : router.push('/compose')
                   }
-                  className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg bg-[#161B26] hover:bg-[#1E222A] text-slate-300 hover:text-white text-[11px] font-medium border border-[#1E222A] transition-colors"
+                  className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-slate-300 hover:text-white text-[11px] font-medium border border-[var(--quant-surface-elevated)] transition-colors"
                 >
                   <PlusSvg className="size-3 text-indigo-400" />
                   <span>+ New Email</span>
@@ -1021,7 +1021,7 @@ export function QuantMailSuperAppHeader({
                   onClick={() =>
                     onQuickAction ? onQuickAction('event') : router.push('/calendar?new=1')
                   }
-                  className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg bg-[#161B26] hover:bg-[#1E222A] text-slate-300 hover:text-white text-[11px] font-medium border border-[#1E222A] transition-colors"
+                  className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-slate-300 hover:text-white text-[11px] font-medium border border-[var(--quant-surface-elevated)] transition-colors"
                 >
                   <PlusSvg className="size-3 text-amber-400" />
                   <span>+ New Event</span>
@@ -1031,7 +1031,7 @@ export function QuantMailSuperAppHeader({
                   onClick={() =>
                     onQuickAction ? onQuickAction('upload') : router.push('/drive?action=upload')
                   }
-                  className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg bg-[#161B26] hover:bg-[#1E222A] text-slate-300 hover:text-white text-[11px] font-medium border border-[#1E222A] transition-colors"
+                  className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-slate-300 hover:text-white text-[11px] font-medium border border-[var(--quant-surface-elevated)] transition-colors"
                 >
                   <PlusSvg className="size-3 text-sky-400" />
                   <span>+ Upload File</span>
@@ -1041,7 +1041,7 @@ export function QuantMailSuperAppHeader({
                   onClick={() =>
                     onQuickAction ? onQuickAction('repo') : router.push('/quantgit/new')
                   }
-                  className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg bg-[#161B26] hover:bg-[#1E222A] text-slate-300 hover:text-white text-[11px] font-medium border border-[#1E222A] transition-colors"
+                  className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-slate-300 hover:text-white text-[11px] font-medium border border-[var(--quant-surface-elevated)] transition-colors"
                 >
                   <PlusSvg className="size-3 text-purple-400" />
                   <span>+ New Repo</span>

@@ -21,7 +21,7 @@
  * THE DESIGN TOKENS, GIVEN PHYSICAL MEANING. `#2B1A11` and `#5C3016` have been
  * "brand soft" and "brand soft border" — two hexes with no story. Here they are
  * the interior wall of a milled channel: the colour a wall takes when the only
- * light reaching it is the ember at the bottom. `#FF8C42` is the emission
+ * light reaching it is the ember at the bottom. `var(--quant-primary)` is the emission
  * itself, and `rgba(0,0,0,0.6)` — the standard shadow — is the contact shadow.
  *
  * WHAT A MARK MUST SUPPLY. Two functions, ~15 lines. Everything else is shared:
@@ -61,8 +61,8 @@ float markChannel(vec2 uv, out float hot);
 // ── The palette, straight from the design system ────────────────────────────
 const vec3 GRAPHITE_DEEP = vec3(0.051, 0.059, 0.075); // #0D0F13
 const vec3 GRAPHITE_LIT  = vec3(0.102, 0.114, 0.137); // #1A1D23
-const vec3 EMBER         = vec3(1.000, 0.549, 0.259); // #FF8C42
-const vec3 EMBER_HOT     = vec3(1.000, 0.702, 0.451); // #FF9B5A hover/hot
+const vec3 EMBER         = vec3(1.000, 0.549, 0.259); // var(--quant-primary)
+const vec3 EMBER_HOT     = vec3(1.000, 0.702, 0.451); // var(--quant-primary-hover) hover/hot
 const vec3 WALL_DEEP     = vec3(0.169, 0.102, 0.067); // #2B1A11 channel wall
 const vec3 WALL_LIT      = vec3(0.361, 0.188, 0.086); // #5C3016 wall, ember-lit
 const vec3 ENV_KEY       = vec3(0.859, 0.898, 1.000); // cool room light
@@ -284,8 +284,8 @@ vec3 shade(vec3 pw, vec3 nw, vec3 rd) {
 
 /**
  * A shoulder only where the value would clip. Below ~0.85 the token colours
- * pass through untouched, which is the whole point: #FF8C42 has to still be
- * #FF8C42 on the face of the mark, not a filmic approximation of it.
+ * pass through untouched, which is the whole point: var(--quant-primary) has to still be
+ * var(--quant-primary) on the face of the mark, not a filmic approximation of it.
  */
 vec3 tonemap(vec3 c) {
   float m = max(c.r, max(c.g, c.b));

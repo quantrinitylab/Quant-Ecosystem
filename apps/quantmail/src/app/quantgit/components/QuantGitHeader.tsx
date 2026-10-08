@@ -62,7 +62,7 @@ export function QuantGitHeader({
   return (
     <>
       {activeDeckTab === 'quanty' ? (
-        <div className="shrink-0 z-20 bg-[#090A0E] border-b border-[#21262D] px-4 py-2 flex items-center justify-between text-xs">
+        <div className="shrink-0 z-20 bg-[var(--quant-background)] border-b border-[#21262D] px-4 py-2 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2.5">
             <button
               type="button"
@@ -129,7 +129,7 @@ export function QuantGitHeader({
           </div>
         </div>
       ) : (
-        <div className="shrink-0 z-20 bg-[#090A0E] border-b border-[#21262D] px-4 sm:px-6 py-2 flex items-center justify-between text-xs">
+        <div className="shrink-0 z-20 bg-[var(--quant-background)] border-b border-[#21262D] px-4 sm:px-6 py-2 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2.5 min-w-0">
             {/* Git Branch / Sovereign Repository Icon */}
             <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
@@ -239,7 +239,7 @@ export function QuantGitHeader({
                   <div className="fixed inset-0 z-40" onClick={() => setIsCreateMenuOpen(false)} />
                   <div
                     data-testid="create-new-dropdown-menu"
-                    className="absolute right-0 mt-1.5 w-48 rounded-lg bg-[#161B22] border border-[#30363D] shadow-xl py-1 z-50 text-xs text-[#E6EDF3] divide-y divide-[#21262D] animate-in fade-in"
+                    className="absolute right-0 mt-1.5 w-48 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-xl py-1 z-50 text-xs text-[#E6EDF3] divide-y divide-[#21262D] animate-in fade-in"
                   >
                     <div className="py-1">
                       <button
@@ -309,12 +309,12 @@ export function QuantGitHeader({
               onClick={() => setIsCopilotDrawerOpen?.((prev) => !prev)}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-semibold transition-all ${
                 isCopilotDrawerOpen
-                  ? 'bg-[#FF8C42]/20 border-[#FF8C42] text-[#FF8C42]'
+                  ? 'bg-[var(--quant-primary)]/20 border-[var(--quant-primary)] text-[var(--quant-primary)]'
                   : 'bg-[#21262D] border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D]'
               }`}
               title="Toggle Quanty Copilot"
             >
-              <svg className="size-3.5 text-[#FF8C42]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg className="size-3.5 text-[var(--quant-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
                 <path d="M5 3v4" />
                 <path d="M19 17v4" />
@@ -326,7 +326,7 @@ export function QuantGitHeader({
 
             <div className="flex items-center gap-1.5 pl-1 border-l border-[#30363D]">
               <BubbleAvatar state="coding" size={24} />
-              <span className="hidden md:inline text-[11px] font-bold text-[#FF8C42]">
+              <span className="hidden md:inline text-[11px] font-bold text-[var(--quant-primary)]">
                 Astra Swarm
               </span>
             </div>
@@ -341,7 +341,7 @@ export function QuantGitHeader({
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 transition-opacity"
             onClick={() => setIsHistoryOpen(false)}
           />
-          <aside className="fixed top-0 left-0 bottom-0 w-80 bg-[#161B22] border-r border-[#30363D] z-50 p-4 flex flex-col shadow-2xl animate-in slide-in-from-left duration-200">
+          <aside className="fixed top-0 left-0 bottom-0 w-80 bg-[var(--quant-surface-elevated)] border-r border-[#30363D] z-50 p-4 flex flex-col shadow-2xl animate-in slide-in-from-left duration-200">
             <div className="flex items-center justify-between pb-3 border-b border-[#21262D]">
               <div className="flex items-center gap-2">
                 <BubbleAvatar state="coding" size={28} />
@@ -383,8 +383,8 @@ export function QuantGitHeader({
               {/* Pinned Chats Section */}
               {pinnedSessionIds.length > 0 && (
                 <div className="space-y-1">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-[#FF8C42] px-2 flex items-center gap-1.5">
-                    <svg className="size-3 text-[#FF8C42]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--quant-primary)] px-2 flex items-center gap-1.5">
+                    <svg className="size-3 text-[var(--quant-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <line x1="12" y1="17" x2="12" y2="22" />
                       <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
                     </svg>
@@ -438,7 +438,7 @@ export function QuantGitHeader({
                                   setEditingSessionId(null);
                                 }}
                                 autoFocus
-                                className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-2 py-0.5 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                                className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-2 py-0.5 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                               />
                             ) : (
                               <>
@@ -465,7 +465,7 @@ export function QuantGitHeader({
                                       );
                                       showToast('Chat unpinned');
                                     }}
-                                    className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-[#30363D] text-[#FF8C42] hover:text-white"
+                                    className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-[#30363D] text-[var(--quant-primary)] hover:text-white"
                                     title="Unpin chat"
                                     aria-label="Unpin chat"
                                   >
@@ -580,7 +580,7 @@ export function QuantGitHeader({
                                 setEditingSessionId(null);
                               }}
                               autoFocus
-                              className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-2 py-0.5 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                              className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-2 py-0.5 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                             />
                           ) : (
                             <>

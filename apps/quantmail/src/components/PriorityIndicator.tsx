@@ -40,7 +40,7 @@ export function PriorityIndicator({ email }: PriorityIndicatorProps) {
        * supplying their own hue, which is exactly why they differed per
        * platform.
        */}
-      <IconDot size={8} tone={priority === 'critical' ? '#F87171' : '#FF8C42'} />
+      <IconDot size={8} tone={priority === 'critical' ? '#F87171' : 'var(--quant-primary)'} />
     </span>
   );
 }

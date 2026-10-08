@@ -198,7 +198,7 @@ export default function WorkspaceDetailPage() {
 
         <div className="flex-1 overflow-y-auto p-4">
           {actionError && (
-            <Card padding="none" className="mb-3 p-3 text-xs text-[var(--quant-danger,#ef4444)]">
+            <Card padding="none" className="mb-3 p-3 text-xs text-[var(--quant-danger,var(--quant-destructive))]">
               {actionError}
             </Card>
           )}
@@ -367,9 +367,9 @@ export default function WorkspaceDetailPage() {
                 <Card
                   padding="none"
                   variant="outlined"
-                  className="space-y-3 p-4 border-[var(--quant-danger,#ef4444)]"
+                  className="space-y-3 p-4 border-[var(--quant-danger,var(--quant-destructive))]"
                 >
-                  <h2 className="text-sm font-semibold text-[var(--quant-danger,#ef4444)]">
+                  <h2 className="text-sm font-semibold text-[var(--quant-danger,var(--quant-destructive))]">
                     Danger zone
                   </h2>
                   <p className="text-xs text-[var(--quant-muted-foreground)]">

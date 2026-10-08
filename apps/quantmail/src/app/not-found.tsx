@@ -26,13 +26,13 @@ export default function NotFound() {
     <main
       id="main-content"
       tabIndex={-1}
-      className="flex min-h-[100dvh] items-center justify-center bg-[#090A0C] p-6"
+      className="flex min-h-[100dvh] items-center justify-center bg-[var(--quant-background)] p-6"
     >
       <div className="w-full max-w-xl">
         <div className="mb-8 text-center">
           <svg
             viewBox="0 0 24 24"
-            className="mx-auto mb-4 size-11 text-[#FF8C42]"
+            className="mx-auto mb-4 size-11 text-[var(--quant-primary)]"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.6"
@@ -43,7 +43,7 @@ export default function NotFound() {
             <circle cx="11" cy="11" r="7.2" />
             <path d="M16.3 16.3 21 21M8.4 11h5.2" />
           </svg>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#FF8C42]">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--quant-primary)]">
             Error 404
           </p>
           <h1 className="text-[26px] font-semibold tracking-[-0.03em] text-[#F5F5F5]">
@@ -60,7 +60,7 @@ export default function NotFound() {
             <Link
               key={destination.href}
               href={destination.href}
-              className="group flex min-h-touch items-center justify-between gap-3 rounded-xl bg-[#111318] px-4 py-3 border border-white/[0.08] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] transition-all hover:bg-white/[0.04] hover:border-[#FF8C42]/40 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08),0_0_16px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] motion-reduce:transition-none"
+              className="group flex min-h-touch items-center justify-between gap-3 rounded-xl bg-[var(--quant-surface)] px-4 py-3 border border-white/[0.08] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] transition-all hover:bg-white/[0.04] hover:border-[var(--quant-primary)]/40 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08),0_0_16px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] motion-reduce:transition-none"
             >
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold text-[#F5F5F5]">
@@ -72,7 +72,7 @@ export default function NotFound() {
               </span>
               <svg
                 viewBox="0 0 24 24"
-                className="size-4 flex-none text-[#6B6E76] transition-colors group-hover:text-[#FF8C42] motion-reduce:transition-none"
+                className="size-4 flex-none text-[#6B6E76] transition-colors group-hover:text-[var(--quant-primary)] motion-reduce:transition-none"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"

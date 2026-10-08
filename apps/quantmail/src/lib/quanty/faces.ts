@@ -71,7 +71,7 @@ export type ExtraKind =
  *
  * **None of the five spends a palette exception**, and the argument is per-hex rather than
  * per-vibe. `white` runs the LED's own three existing hexes — `#FFFFFF`, `#F4FBFF`, `#C8DEEC`
- * — so it introduces nothing. `ember` and `hot` are the product's own `#FF8C42` family at two
+ * — so it introduces nothing. `ember` and `hot` are the product's own `var(--quant-primary)` family at two
  * depths. `gold`'s `#FFE49A` and `#F5B22E` measure hue 46.1° and 36.7°, inside the design
  * system's warm 14–60° band, and the mascot's own disclosed `spectral` ring already carries
  * `#FFD54A` at 0.77. `cool`'s `#9DBFD4` is `white`'s cool end run further down its own ramp —
@@ -362,7 +362,7 @@ export const FACES = {
   // clenched** — a flattened eye is the clenched one.
   //
   // Both run `hot`, which is where the sheet's "Color: Black + Rainbow Accent" spec gets
-  // honoured without importing a red: `hot` is `#FF8C42 → #E8752F`, the product's own accent at
+  // honoured without importing a red: `hot` is `var(--quant-primary) → var(--brand-primary-pressed)`, the product's own accent at
   // its deepest, so rage is the same pigment as success driven further down rather than a new
   // hue the suite uses nowhere else.
   annoyed: {

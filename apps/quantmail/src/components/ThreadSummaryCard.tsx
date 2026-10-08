@@ -135,7 +135,7 @@ export function ThreadSummaryCard({ onSummarize }: ThreadSummaryCardProps) {
             <p className="ai-summary-text">{result.summary}</p>
             {result.keyPoints && result.keyPoints.length > 0 && (
               <div className="mt-2">
-                <p className="text-[0.62rem] font-semibold uppercase tracking-wider text-[#FF9B5A]">
+                <p className="text-[0.62rem] font-semibold uppercase tracking-wider text-[var(--quant-primary-hover)]">
                   Key points
                 </p>
                 <ul className="mt-1 space-y-1">
@@ -149,7 +149,7 @@ export function ThreadSummaryCard({ onSummarize }: ThreadSummaryCardProps) {
             )}
             {result.actionItems && result.actionItems.length > 0 && (
               <div className="mt-2">
-                <p className="text-[0.62rem] font-semibold uppercase tracking-wider text-[#FF9B5A]">
+                <p className="text-[0.62rem] font-semibold uppercase tracking-wider text-[var(--quant-primary-hover)]">
                   Action items
                 </p>
                 <ul className="mt-1 space-y-1">

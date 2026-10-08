@@ -33,7 +33,7 @@
   height: 52px;
   border-radius: 9999px;
   border: none;
-  background: #FF8C42;
+  background: var(--quant-primary);
   color: #111111;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
   cursor: pointer;
@@ -41,11 +41,11 @@
 }
 .quant-compose-fab:hover {
   transform: translateY(-2px);
-  background: #FF9B5A;
+  background: var(--quant-primary-hover);
 }
 .quant-compose-fab:active {
   transform: scale(0.96);
-  background: #E8752F;
+  background: var(--brand-primary-pressed);
 }
 .quant-compose-fab svg {
   width: 24px;
@@ -77,7 +77,7 @@
   border-radius: 9999px;
   border: 1px solid rgba(255, 140, 66, 0.32);
   background: rgba(255, 140, 66, 0.1);
-  color: var(--quant-primary, #FF8C42);
+  color: var(--quant-primary, var(--quant-primary));
   font-size: 12.5px;
   font-weight: 600;
   white-space: nowrap;
@@ -225,7 +225,7 @@
   color: var(--quant-foreground, #e8edf4);
 }
 .icon-action.is-on {
-  color: #FF8C42;
+  color: var(--quant-primary);
 }
 .icon-action-danger:hover {
   color: #ff6b6b;
@@ -245,7 +245,7 @@
   width: 8px;
   height: 8px;
   border-radius: 9999px;
-  background: #FF8C42;
+  background: var(--quant-primary);
   box-shadow: 0 0 0 2px rgba(255, 140, 66, 0.2);
   flex: 0 0 auto;
 }
@@ -289,7 +289,7 @@
   transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 .mark-all-read-btn:hover {
-  color: #FF8C42;
+  color: var(--quant-primary);
   border-color: rgba(255, 140, 66, 0.32);
   background: rgba(255, 140, 66, 0.12);
   box-shadow: 0 0 12px rgba(255, 140, 66, 0.1);
@@ -327,7 +327,7 @@
   border-radius: 8px;
   border: 1px solid rgba(255, 140, 66, 0.35);
   background: rgba(255, 140, 66, 0.12);
-  color: #FF8C42;
+  color: var(--quant-primary);
   box-shadow: 0 0 10px rgba(255, 140, 66, 0.1);
   font-size: 12px;
   font-weight: 600;
@@ -649,8 +649,8 @@
 /* (b) Quanty robot replaces the QuantAI pill next to search */
 .inbox-ai-trigger.has-quanty {
   padding: 4px 8px;
-  background: #111318;
-  border: 1px solid #282C35;
+  background: var(--quant-surface);
+  border: 1px solid var(--quant-surface-elevated);
   border-radius: 9999px;
   transition: border-color 0.15s ease, background-color 0.15s ease;
 }
@@ -674,12 +674,12 @@
 /* (d) Calendar FAB */
 .quant-fab-calendar {
   border: none;
-  background: #FF8C42;
+  background: var(--quant-primary);
   color: #111111;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
 }
 .quant-fab-calendar:hover {
-  background: #FF9B5A;
+  background: var(--quant-primary-hover);
 }
 
 /* ============================================================================
@@ -831,7 +831,7 @@
 
 /* P06: starred mail pins to the top of the inbox */
 .mail-row.is-pinned {
-  background: rgba(255, 140, 66, 0.05);
+  background: var(--quant-accent-faint);
 }
 .mail-pin-badge {
   display: inline-flex;
@@ -882,7 +882,7 @@
   height: 21px;
 }
 .qbn-item.is-active {
-  color: #FF8C42;
+  color: var(--quant-primary);
   background: rgba(255, 140, 66, 0.12);
 }
 @media (min-width: 1024px) {
@@ -927,8 +927,8 @@
   max-width: 560px;
   border: 1px solid rgba(255, 140, 66, 0.3);
   border-radius: 16px;
-  background: #16181D;
-  box-shadow: 0 0 20px rgba(255, 140, 66, 0.08), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+  background: var(--quant-surface-elevated);
+  box-shadow: 0 0 20px var(--quant-accent-faint), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -986,7 +986,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #FF8C42;
+  color: var(--quant-primary);
   margin-bottom: 3px;
 }
 .composer-quanty-apply {
@@ -995,7 +995,7 @@
   border-radius: 9999px;
   border: 1px solid rgba(255, 140, 66, 0.35);
   background: rgba(255, 140, 66, 0.12);
-  color: #FF8C42;
+  color: var(--quant-primary);
   box-shadow: 0 0 10px rgba(255, 140, 66, 0.1);
   font-size: 12px;
   font-weight: 700;
@@ -1020,9 +1020,9 @@
   cursor: pointer;
 }
 .composer-quanty-tones button:hover {
-  color: #FF8C42;
+  color: var(--quant-primary);
   border-color: rgba(255, 140, 66, 0.35);
-  background: rgba(255, 140, 66, 0.08);
+  background: var(--quant-accent-faint);
 }
 .composer-quanty-input {
   display: flex;
@@ -1040,13 +1040,13 @@
   outline: none;
 }
 .composer-quanty-input input:focus {
-  border-color: #FF8C42;
+  border-color: var(--quant-primary);
 }
 .composer-quanty-input button {
   padding: 9px 16px;
   border-radius: 10px;
   border: none;
-  background: #FF8C42;
+  background: var(--quant-primary);
   color: #111111;
   font-size: 13px;
   font-weight: 700;
@@ -1111,9 +1111,9 @@
 
 /* P13/P14: CodeHub — Quanty build chat, agents strip, connectors */
 .ch-quanty-hero {
-  border: 1px solid #282C35;
+  border: 1px solid var(--quant-surface-elevated);
   border-radius: 18px;
-  background: #111318;
+  background: var(--quant-surface);
   padding: 18px;
   margin-bottom: 16px;
 }
@@ -1152,7 +1152,7 @@
   cursor: pointer;
 }
 .ch-mode-toggle button.is-active {
-  background: #FF8C42;
+  background: var(--quant-primary);
   color: #111111;
 }
 .ch-quanty-thread {
@@ -1202,7 +1202,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #FF8C42;
+  color: var(--quant-primary);
   margin-bottom: 3px;
 }
 .ch-quanty-composer {
@@ -1221,13 +1221,13 @@
   outline: none;
 }
 .ch-quanty-composer input:focus {
-  border-color: #FF8C42;
+  border-color: var(--quant-primary);
 }
 .ch-quanty-composer button {
   padding: 10px 18px;
   border-radius: 12px;
   border: none;
-  background: #FF8C42;
+  background: var(--quant-primary);
   color: #111111;
   font-size: 13px;
   font-weight: 800;
@@ -1254,7 +1254,7 @@
   cursor: pointer;
 }
 .ch-quanty-quick button:hover {
-  color: #FF8C42;
+  color: var(--quant-primary);
   border-color: rgba(255, 140, 66, 0.35);
   background: rgba(255, 140, 66, 0.12);
   box-shadow: 0 0 10px rgba(255, 140, 66, 0.1);
@@ -1327,7 +1327,7 @@
 }
 .ch-agent-dot.is-active,
 .ch-agent-dot.is-busy {
-  background: #FF8C42;
+  background: var(--quant-primary);
   box-shadow: 0 0 0 3px rgba(255, 140, 66, 0.18);
 }
 .ch-agent-dot.is-idle,

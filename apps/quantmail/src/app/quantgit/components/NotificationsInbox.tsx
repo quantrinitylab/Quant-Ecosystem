@@ -89,7 +89,7 @@ export const NotificationsInbox: React.FC = () => {
             className={`w-full flex items-center justify-between px-3 py-2 rounded-lg font-medium transition-colors ${
               activeMainTab === 'inbox'
                 ? 'bg-[#21262D] text-[#E6EDF3]'
-                : 'text-[#8D96A0] hover:bg-[#161B22]'
+                : 'text-[#8D96A0] hover:bg-[var(--quant-surface-elevated)]'
             }`}
           >
             <span className="flex items-center gap-2">
@@ -106,7 +106,7 @@ export const NotificationsInbox: React.FC = () => {
             className={`w-full flex items-center justify-between px-3 py-2 rounded-lg font-medium transition-colors ${
               activeMainTab === 'saved'
                 ? 'bg-[#21262D] text-[#E6EDF3]'
-                : 'text-[#8D96A0] hover:bg-[#161B22]'
+                : 'text-[#8D96A0] hover:bg-[var(--quant-surface-elevated)]'
             }`}
           >
             <span className="flex items-center gap-2">
@@ -120,7 +120,7 @@ export const NotificationsInbox: React.FC = () => {
             className={`w-full flex items-center justify-between px-3 py-2 rounded-lg font-medium transition-colors ${
               activeMainTab === 'done'
                 ? 'bg-[#21262D] text-[#E6EDF3]'
-                : 'text-[#8D96A0] hover:bg-[#161B22]'
+                : 'text-[#8D96A0] hover:bg-[var(--quant-surface-elevated)]'
             }`}
           >
             <span className="flex items-center gap-2">
@@ -148,7 +148,7 @@ export const NotificationsInbox: React.FC = () => {
               className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-left transition-colors ${
                 selectedFilter === f.id
                   ? 'bg-[#1F242C] text-[#58A6FF] font-medium'
-                  : 'text-[#8D96A0] hover:text-[#E6EDF3] hover:bg-[#161B22]'
+                  : 'text-[#8D96A0] hover:text-[#E6EDF3] hover:bg-[var(--quant-surface-elevated)]'
               }`}
             >
               <span>{f.icon}</span>
@@ -195,12 +195,12 @@ export const NotificationsInbox: React.FC = () => {
 
         {/* Notifications List */}
         {filteredNotifs.length > 0 ? (
-          <div className="divide-y divide-[#21262D] rounded-xl bg-[#161B22] border border-[#30363D] overflow-hidden">
+          <div className="divide-y divide-[#21262D] rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden">
             {filteredNotifs.map((item) => (
               <div
                 key={item.id}
                 className={`p-4 flex items-start justify-between gap-3 hover:bg-[#1C2128] transition-colors ${
-                  item.unread ? 'bg-[#161B22]' : 'bg-[#161B22]/60'
+                  item.unread ? 'bg-[var(--quant-surface-elevated)]' : 'bg-[var(--quant-surface-elevated)]/60'
                 }`}
               >
                 <div className="flex items-start gap-3">
@@ -239,7 +239,7 @@ export const NotificationsInbox: React.FC = () => {
           </div>
         ) : (
           /* Empty State Illustration (Screen 22) */
-          <div className="py-16 text-center space-y-4 rounded-xl bg-[#161B22] border border-[#30363D] p-8">
+          <div className="py-16 text-center space-y-4 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] p-8">
             <div className="w-16 h-16 rounded-full bg-blue-500/10 border border-blue-500/20 mx-auto flex items-center justify-center text-3xl">
               🧘
             </div>

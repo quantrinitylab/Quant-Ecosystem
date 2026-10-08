@@ -18,7 +18,7 @@ import type { Attachment } from './EmailComposer';
  * Superhuman/Gmail-class floating bottom-right docked composer widget.
  *
  * Invariants:
- * - Fixed: bottom-4 right-6 z-40 w-[540px] max-w-[calc(100vw-32px)] rounded-2xl border border-[#232938] bg-[#0D1017]/98 backdrop-blur-xl shadow-2xl overflow-hidden
+ * - Fixed: bottom-4 right-6 z-40 w-[540px] max-w-[calc(100vw-32px)] rounded-2xl border border-[#232938] bg-[var(--quant-surface-subtle)]/98 backdrop-blur-xl shadow-2xl overflow-hidden
  * - Header bar: title ('New Message'), minimize/collapse button, expand-to-fullscreen button, close button.
  * - Inputs: To, Cc/Bcc toggle, Subject, rich body editor.
  * - Bottom toolbar: Molten amber Send (⌘↵) button, formatting tools, attachment button (with 25MB guard), AI ghostwrite trigger.
@@ -708,10 +708,10 @@ export function DockedComposer({
       <div
         data-testid="docked-composer-minimized"
         onClick={() => setIsMinimized(false)}
-        className="fixed bottom-4 right-6 z-40 w-[300px] h-11 rounded-2xl border border-[#232938] bg-[#0D1017]/98 backdrop-blur-xl shadow-2xl flex items-center justify-between px-3.5 cursor-pointer hover:border-[#FF8C42]/50 transition-all select-none"
+        className="fixed bottom-4 right-6 z-40 w-[300px] h-11 rounded-2xl border border-[#232938] bg-[var(--quant-surface-subtle)]/98 backdrop-blur-xl shadow-2xl flex items-center justify-between px-3.5 cursor-pointer hover:border-[var(--quant-primary)]/50 transition-all select-none"
       >
         <div className="flex items-center gap-2 min-w-0">
-          <span className="size-2 rounded-full bg-[#FF8C42] shrink-0 animate-pulse" />
+          <span className="size-2 rounded-full bg-[var(--quant-primary)] shrink-0 animate-pulse" />
           <span className="text-xs font-semibold text-white truncate">
             {subject.trim() || 'New Message'}
           </span>
@@ -749,8 +749,8 @@ export function DockedComposer({
   // DOCKED & EXPANDED CONTAINER
   // --------------------------------------------------------------------------
   const containerClasses = isExpanded
-    ? 'fixed inset-4 sm:inset-10 z-50 rounded-2xl border border-[#232938] bg-[#0D1017]/98 backdrop-blur-2xl shadow-2xl overflow-hidden flex flex-col'
-    : 'fixed bottom-4 right-6 z-40 w-[540px] max-w-[calc(100vw-32px)] rounded-2xl border border-[#232938] bg-[#0D1017]/98 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col max-h-[82vh]';
+    ? 'fixed inset-4 sm:inset-10 z-50 rounded-2xl border border-[#232938] bg-[var(--quant-surface-subtle)]/98 backdrop-blur-2xl shadow-2xl overflow-hidden flex flex-col'
+    : 'fixed bottom-4 right-6 z-40 w-[540px] max-w-[calc(100vw-32px)] rounded-2xl border border-[#232938] bg-[var(--quant-surface-subtle)]/98 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col max-h-[82vh]';
 
   return (
     <div
@@ -774,7 +774,7 @@ export function DockedComposer({
           tabIndex={0}
           onPointerDown={handleResizeDragStart}
           onKeyDown={handleResizeKeyDown}
-          className="absolute inset-x-[33%] top-0 z-20 flex h-4 cursor-ns-resize touch-none items-start justify-center pt-1.5 focus-visible:outline-2 focus-visible:outline-[#FF8C42]"
+          className="absolute inset-x-[33%] top-0 z-20 flex h-4 cursor-ns-resize touch-none items-start justify-center pt-1.5 focus-visible:outline-2 focus-visible:outline-[var(--quant-primary)]"
         >
           <span
             aria-hidden="true"
@@ -795,10 +795,10 @@ export function DockedComposer({
       <div
         onPointerDown={handleHeaderDragStart}
         title="Drag down to minimize"
-        className="relative flex items-center justify-between px-4 py-2.5 bg-[#121622] border-b border-[#232938] select-none shrink-0 touch-none cursor-grab active:cursor-grabbing"
+        className="relative flex items-center justify-between px-4 py-2.5 bg-[var(--quant-surface-elevated)] border-b border-[#232938] select-none shrink-0 touch-none cursor-grab active:cursor-grabbing"
       >
         <div className="flex items-center gap-2 min-w-0">
-          <div className="flex size-6 items-center justify-center rounded-lg bg-[#FF8C42]/20 text-[#FF8C42]">
+          <div className="flex size-6 items-center justify-center rounded-lg bg-[var(--quant-primary)]/20 text-[var(--quant-primary)]">
             <IconSend className="size-3.5" />
           </div>
           <h3 className="text-xs font-bold text-white truncate tracking-wide">
@@ -877,14 +877,14 @@ export function DockedComposer({
             onFocus={() => setShowSuggestions(true)}
             placeholder="Recipients (e.g. sundar@google.com)"
             aria-label="To recipients"
-            className="flex-1 bg-transparent text-white placeholder-[#4B5563] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded text-xs"
+            className="flex-1 bg-transparent text-white placeholder-[#4B5563] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded text-xs"
           />
 
           {!showCcBcc && (
             <button
               type="button"
               onClick={() => setShowCcBcc(true)}
-              className="text-[11px] text-[#A1A4AC] hover:text-[#FF8C42] font-semibold transition-colors px-1.5 py-0.5 rounded"
+              className="text-[11px] text-[#A1A4AC] hover:text-[var(--quant-primary)] font-semibold transition-colors px-1.5 py-0.5 rounded"
             >
               Cc / Bcc
             </button>
@@ -892,7 +892,7 @@ export function DockedComposer({
 
           {/* Autocomplete suggestions dropdown */}
           {showSuggestions && filteredSuggestions.length > 0 && (
-            <div className="absolute left-14 top-full mt-1 w-72 rounded-xl border border-[#282C35] bg-[#141822] shadow-2xl z-50 overflow-hidden py-1">
+            <div className="absolute left-14 top-full mt-1 w-72 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] shadow-2xl z-50 overflow-hidden py-1">
               {filteredSuggestions.map((c) => (
                 <div
                   key={c.id}
@@ -900,7 +900,7 @@ export function DockedComposer({
                     setTo(c.email);
                     setShowSuggestions(false);
                   }}
-                  className="px-3 py-1.5 hover:bg-[#FF8C42]/15 cursor-pointer flex flex-col transition-colors"
+                  className="px-3 py-1.5 hover:bg-[var(--quant-primary)]/15 cursor-pointer flex flex-col transition-colors"
                 >
                   <span className="text-xs font-semibold text-white">{c.name || c.email}</span>
                   <span className="text-[10px] text-[#9CA3AF] truncate">{c.email}</span>
@@ -922,7 +922,7 @@ export function DockedComposer({
                 onChange={(e) => setCc(e.target.value)}
                 placeholder="Cc recipients"
                 aria-label="Cc recipients"
-                className="flex-1 bg-transparent text-white placeholder-[#4B5563] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded text-xs"
+                className="flex-1 bg-transparent text-white placeholder-[#4B5563] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded text-xs"
               />
             </div>
             <div className="flex items-center px-4 py-1.5 gap-2 text-xs">
@@ -934,7 +934,7 @@ export function DockedComposer({
                 onChange={(e) => setBcc(e.target.value)}
                 placeholder="Bcc recipients"
                 aria-label="Bcc recipients"
-                className="flex-1 bg-transparent text-white placeholder-[#4B5563] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded text-xs"
+                className="flex-1 bg-transparent text-white placeholder-[#4B5563] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded text-xs"
               />
             </div>
           </>
@@ -949,7 +949,7 @@ export function DockedComposer({
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Subject"
-            className="flex-1 bg-transparent text-white placeholder-[#4B5563] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded text-xs"
+            className="flex-1 bg-transparent text-white placeholder-[#4B5563] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded text-xs"
           />
         </div>
 
@@ -980,7 +980,7 @@ export function DockedComposer({
             >
               <IconUnderline />
             </button>
-            <div className="w-px h-4 bg-[#282C35] mx-1" />
+            <div className="w-px h-4 bg-[var(--quant-surface-elevated)] mx-1" />
             <button
               type="button"
               onClick={() => applyFormatting('list')}
@@ -1009,7 +1009,7 @@ export function DockedComposer({
               setBody(next);
             }}
             placeholder="Write your email here... Type '++' to trigger AI ghostwriter."
-            className="w-full flex-1 bg-transparent text-white placeholder-[#4B5563] resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded text-xs leading-relaxed"
+            className="w-full flex-1 bg-transparent text-white placeholder-[#4B5563] resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded text-xs leading-relaxed"
           />
 
           {/* Attached Files Strip */}
@@ -1018,9 +1018,9 @@ export function DockedComposer({
               {attachments.map((att) => (
                 <div
                   key={att.id}
-                  className="flex items-center gap-1.5 rounded-lg border border-[#282C35] bg-[#141822] px-2.5 py-1 text-[11px] text-[#EDEDED]"
+                  className="flex items-center gap-1.5 rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-2.5 py-1 text-[11px] text-[#EDEDED]"
                 >
-                  <IconPaperclip className="size-3 text-[#FF8C42]" />
+                  <IconPaperclip className="size-3 text-[var(--quant-primary)]" />
                   <span className="truncate max-w-[150px]">{att.name}</span>
                   <span className="text-[#6B7280]">({formatBytes(att.size)})</span>
                   <button
@@ -1040,7 +1040,7 @@ export function DockedComposer({
 
       {/* BOTTOM TOOLBAR — horizontally scrollable on narrow screens so the
           Send + action buttons never clip on 360px viewports. Scrollbar hidden. */}
-      <div className="px-4 py-3 bg-[#0D1017] border-t border-[#232938] flex items-center justify-between gap-3 shrink-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="px-4 py-3 bg-[var(--quant-surface-subtle)] border-t border-[#232938] flex items-center justify-between gap-3 shrink-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex items-center gap-2 min-w-max">
           {/* Molten Amber Send Button */}
           <button
@@ -1048,7 +1048,7 @@ export function DockedComposer({
             onClick={handleSend}
             disabled={isSending}
             data-testid="docked-composer-send-button"
-            className="group flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#FF8C42] to-[#F97316] px-4 py-2 text-xs font-bold text-black shadow-lg shadow-[#FF8C42]/20 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
+            className="group flex items-center gap-2 rounded-xl bg-gradient-to-r from-[var(--quant-primary)] to-[#F97316] px-4 py-2 text-xs font-bold text-black shadow-lg shadow-[var(--quant-primary)]/20 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
             title="Send email (⌘↵ or Ctrl+Enter)"
           >
             <IconSend className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -1061,8 +1061,8 @@ export function DockedComposer({
             onClick={() => setShowFormatting(!showFormatting)}
             className={`p-2 rounded-xl border transition-colors ${
               showFormatting
-                ? 'border-[#FF8C42]/50 bg-[#FF8C42]/10 text-[#FF8C42]'
-                : 'border-[#282C35] bg-[#141822] text-[#A1A4AC] hover:text-white'
+                ? 'border-[var(--quant-primary)]/50 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)]'
+                : 'border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:text-white'
             }`}
             title="Formatting options"
           >
@@ -1073,7 +1073,7 @@ export function DockedComposer({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 rounded-xl border border-[#282C35] bg-[#141822] text-[#A1A4AC] hover:text-[#FF8C42] hover:border-[#FF8C42]/40 transition-colors relative"
+            className="p-2 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:text-[var(--quant-primary)] hover:border-[var(--quant-primary)]/40 transition-colors relative"
             title="Attach files (25MB limit)"
           >
             <IconPaperclip className="size-4" />
