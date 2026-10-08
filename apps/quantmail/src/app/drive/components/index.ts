@@ -1,5 +1,6 @@
 export * from './DriveIcons';
 export * from './DriveContextTabsHeader';
+export * from './DriveMobileTabStrip';
 export * from './DriveFilesSubView';
 export * from './DriveSharedSubView';
 export * from './DriveVaultSubView';
