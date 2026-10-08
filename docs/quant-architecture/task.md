@@ -1429,3 +1429,101 @@ Finding: Opening ANY conversation on quantchat.quantrinity.in crashes the app �
 Required: (1) fail-closed frontend guard so a missing `participants` can never crash the page; (2) backend includes active members (with user) mapped to the participant DTO shape so the chat header resolves the real contact name.
 Scope: apps/quantchat frontend chat page + useConversations; apps/quantchat/backend/services/conversation.service.ts.
 Dependencies: none.
+
+## QM-M39-001 — Drive: "Shared by me" view (screen 5)
+Status: [ ] TODO
+Finding: M39 screen 5 ("Shared by me") does not exist — only "Shared with me" (DriveSharedSubView) is built. Sharing principle requires separating current access from proposed changes.
+Required: backend endpoint listing files/folders the user owns and has shared (with whom, permission, link state); UI view under /drive?tab=shared sub-filter or own tab; real counts or no counts (never fake).
+Scope: apps/quantmail drive API + drive page.
+Dependencies: none.
+
+## QM-M39-002 — Drive: "Recent" view (screen 6)
+Status: [ ] TODO
+Finding: M39 screen 6 ("Recent") has no dedicated honest view (only a media "Feed" tab and scattered mentions). Must be a real recency-ordered view from backend data, not client-sorted theater.
+Required: backend query for recently modified/opened files across the user's drive; UI view; empty state honest ("No recent files").
+Scope: apps/quantmail drive API + drive page.
+Dependencies: none.
+
+## QM-M39-003 — Drive: Upload center with queue, progress, scan states (screen 15)
+Status: [ ] TODO
+Finding: M39 screen 15 requires an upload center: queue → progress → scan → available. Upload route exists but there is no visible queue/progress/scan state machine; scan state is absent from drive surfaces.
+Required: real upload queue UI with per-file progress; distinct states for queued/uploading/scanning/available/failed; retry on failure; no fake progress values.
+Scope: apps/quantmail drive upload route + drive page.
+Dependencies: QM-M39-009 (scan state backend).
+
+## QM-M39-004 — Drive: capability-aware preview system (screens 9–14)
+Status: [ ] TODO
+Finding: M39 preview principle: preview is progressive and capability-aware — a file can exist while preview, download, or scan is unavailable; never collapse into one generic loading state. DriveFilePreview exists but capability separation (image/video/PDF-audio/document/unsupported-file distinct states) is unverified.
+Required: explicit per-type preview states; unsupported-file honest state (screen 14); separate indicators for preview-unavailable vs download-unavailable vs scan-pending; no fake "loading" masks.
+Scope: apps/quantmail DriveFilePreview + doc editor.
+Dependencies: QM-M39-009.
+
+## QM-M39-005 — Drive: permissions/access viewer (screen 21)
+Status: [ ] TODO
+Finding: M39 screen 21 (permissions/access viewer) is missing — FileShareModal covers share changes but there is no read view of current access. Sharing principle: UI must separate CURRENT access from PROPOSED changes.
+Required: read-only access viewer showing current collaborators, roles, link scope/audience/expiry; distinct from the share-change flow; real backend data only.
+Scope: apps/quantmail drive shares API + FileShareModal/page.
+Dependencies: QM-M39-001.
+
+## QM-M39-006 — Drive: link sharing with scope/audience/expiry + authoritative confirmation (screen 22)
+Status: [ ] TODO
+Finding: M39 screen 22 requires link sharing that exposes scope, audience, expiry, permission — and saving a share change requires authoritative confirmation. shares/link route exists; full scope/audience/expiry UI + confirmation is unverified.
+Required: link dialog with scope (anyone/org/specific), audience, expiry picker, permission; confirmation step before save; backend enforces expiry; honest states (never claim a link exists when it doesn't).
+Scope: apps/quantmail drive shares/link + UI.
+Dependencies: QM-M39-005.
+
+## QM-M39-007 — Drive: file details panel (screen 24)
+Status: [ ] TODO
+Finding: M39 screen 24 (file details) missing. File identity rule: every file surface must make name, type, owner, modified time, location, sharing state, scan/availability state, and version context understandable when relevant.
+Required: details panel (side or modal) with all identity fields from real backend data; location breadcrumb; sharing summary; version count; scan state; no fabricated metadata.
+Scope: apps/quantmail drive page + files API.
+Dependencies: QM-M39-009.
+
+## QM-M39-008 — Drive: activity/history view (screen 25)
+Status: [ ] TODO
+Finding: M39 screen 25 (activity/history) missing — no per-file event log surface exists.
+Required: backend event log for file actions (upload, rename, move, share change, version restore); UI timeline per file; honest empty state; no fake activity entries.
+Scope: apps/quantmail drive backend + drive page.
+Dependencies: none.
+
+## QM-M39-009 — Drive: security/scanning state surface (screen 29)
+Status: [ ] TODO
+Finding: M39 screen 29 (security/scanning state) missing. Files have no visible scan/availability state; preview principle depends on it.
+Required: backend scan-job states (pending/scanning/clean/quarantined/unknown); UI state indicators on files and in details; "unknown" must render as unknown, never as safe.
+Scope: apps/quantmail drive backend + UI.
+Dependencies: none.
+
+## QM-M39-010 — Drive: mail attachment handoff (screen 30)
+Status: [ ] TODO
+Finding: M39 screen 30: Mail attachment → Drive preview/save → canonical Drive file. Drive owns file objects; mail attachment references must not be duplicate Drive objects. No such handoff exists.
+Required: "Save to Drive" on mail attachments creating a canonical Drive object with dedupe (content-hash based, not duplicate rows); preview via Drive preview; return-to-Mail context.
+Scope: apps/quantmail mail attachment UI + drive backend.
+Dependencies: QM-M39-004.
+
+## QM-M39-011 — Drive: Quanty file workspace (screen 31)
+Status: [ ] TODO
+Finding: M39 screen 31 (Quanty file workspace) missing — FileAISummaryDrawer gives one-shot summaries, not a workspace where Quanty helps organize (move/copy suggestions, dedupe, find files).
+Required: Quanty-assisted file operations surface wired to real Quanty tools (search files, suggest destination, summarize); every action must execute real backend ops and report real results; no simulated Quanty streaming (already banned pattern).
+Scope: apps/quantmail drive + Quanty integration.
+Dependencies: QM-M39-004, QM-M39-008.
+
+## QM-M39-012 — Drive: settings handoff (screen 32)
+Status: [ ] TODO
+Finding: M39 screen 32 (Drive settings handoff) missing — no Drive settings surface (storage management, offline, sync preferences, default sharing).
+Required: Drive settings surface with real, working controls only; every toggle must persist via backend; remove or never-add decorative controls.
+Scope: apps/quantmail drive page + backend.
+Dependencies: none.
+
+## QM-M39-013 — Drive: fake-data purge across all drive surfaces
+Status: [ ] TODO
+Finding: Standing user rule — no fake stats/counts/collaborators/activity. Drive surfaces (StorageQuotaBar, shared counts, starred counts, AI memory vault, cleaner) must be audited: every number/person/activity must be backend-provable or removed.
+Required: audit + remove all fabricated drive data; quota from real usage; counts real or absent; zero fake collaborators/activity; evidence per surface.
+Scope: all apps/quantmail drive components and API routes.
+Dependencies: none.
+
+## QM-M39-014 — Drive: large-collection performance (virtualization + pagination)
+Status: [ ] TODO
+Finding: M39 requires desktop virtualized list/grid + cursor pagination, mobile progressive loading with compact metadata; sorting/filtering server-compatible and restorable. DriveFilesSubView (545 lines) implementation of this is unverified.
+Required: verify or implement virtualization for large folders; cursor pagination on files API; mobile progressive loading; restore sort/filter state; no client-only fake pagination.
+Scope: apps/quantmail drive files API + DriveFilesSubView.
+Dependencies: none.
