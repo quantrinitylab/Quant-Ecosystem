@@ -14,7 +14,6 @@ import {
   DriveFeedSubView,
   DriveAiMemorySubView,
   FileShareModal,
-  FileScanDetail,
   type DriveSubTab,
   type AiMemoryItem,
 } from './components';
@@ -41,7 +40,7 @@ import { FileVersionHistoryModal } from '../../components/drive/FileVersionHisto
 import { FileAISummaryDrawer } from '../../components/drive/FileAISummaryDrawer';
 import { AIDuplicateCleanerModal } from '../../components/drive/AIDuplicateCleanerModal';
 import { StorageQuotaBar } from '../../components/drive/StorageQuotaBar';
-import { apiFetchRaw } from '@quant/api-client';
+import { DriveFilePreview } from '../../components/DriveFilePreview';
 
 type DriveItem = {
   id: string;
@@ -270,28 +269,6 @@ function isImageOrDocument(mimeType: string, name: string): boolean {
   );
 }
 
-function isTextOrCodeFile(mimeType: string, name: string): boolean {
-  const m = (mimeType || '').toLowerCase();
-  const n = (name || '').toLowerCase();
-  if (
-    m.startsWith('text/') ||
-    m.includes('javascript') ||
-    m.includes('typescript') ||
-    m.includes('json') ||
-    m.includes('xml') ||
-    m.includes('yaml') ||
-    m.includes('markdown') ||
-    m.includes('sql') ||
-    m.includes('x-sh') ||
-    m.includes('x-python')
-  ) {
-    return true;
-  }
-  return /\.(txt|md|markdown|json|js|jsx|ts|tsx|py|rs|go|java|c|cpp|h|hpp|cs|rb|php|sh|bash|zsh|yml|yaml|toml|ini|env|sql|graphql|prisma|html|css|scss|less|svg|xml|log|csv|tsv)$/i.test(
-    n,
-  );
-}
-
 function DrivePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -335,6 +312,7 @@ function DrivePageContent() {
     fetchFiles,
     uploadFiles,
     downloadFile,
+    attemptDownload,
     getDownloadUrl,
     createFolder,
     deleteFiles,
@@ -497,74 +475,9 @@ function DrivePageContent() {
   const [isDuplicateCleanerOpen, setIsDuplicateCleanerOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
 
-  const [textPreviewContent, setTextPreviewContent] = useState<string | null>(null);
-  const [isLoadingTextPreview, setIsLoadingTextPreview] = useState(false);
-  const [textPreviewError, setTextPreviewError] = useState<string | null>(null);
-  const [copiedTextPreview, setCopiedTextPreview] = useState(false);
-
-  useEffect(() => {
-    // QM-M39-009: never fetch bytes for a quarantined file — preview is
-    // blocked with an instruction, not attempted.
-    if (
-      !previewItem ||
-      previewItem.scanStatus === 'quarantined' ||
-      !isTextOrCodeFile(previewItem.mimeType, previewItem.name)
-    ) {
-      setTextPreviewContent(null);
-      setIsLoadingTextPreview(false);
-      setTextPreviewError(null);
-      setCopiedTextPreview(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    setIsLoadingTextPreview(true);
-    setTextPreviewError(null);
-    setTextPreviewContent(null);
-    setCopiedTextPreview(false);
-
-    const url = getDownloadUrl(previewItem.id);
-    apiFetchRaw(url, { signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`Failed to load file preview (${res.status})`);
-        }
-        const text = await res.text();
-        const MAX_PREVIEW_BYTES = 1024 * 1024; // 1 MB preview ceiling
-        if (text.length > MAX_PREVIEW_BYTES) {
-          setTextPreviewContent(
-            text.slice(0, MAX_PREVIEW_BYTES) +
-              '\n\n/* ... [Preview truncated: file exceeds 1 MB limit] ... */',
-          );
-        } else {
-          setTextPreviewContent(text);
-        }
-      })
-      .catch((err) => {
-        if (controller.signal.aborted) return;
-        setTextPreviewError(err instanceof Error ? err.message : 'Failed to load file preview');
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setIsLoadingTextPreview(false);
-        }
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [previewItem, getDownloadUrl]);
-
-  const handleCopyTextPreview = useCallback(async () => {
-    if (!textPreviewContent) return;
-    try {
-      await navigator.clipboard.writeText(textPreviewContent);
-      setCopiedTextPreview(true);
-      setTimeout(() => setCopiedTextPreview(false), 2000);
-    } catch {
-      showToast({ text: 'Failed to copy to clipboard', type: 'error' });
-    }
-  }, [textPreviewContent]);
+  // QM-M39-004: text/code preview fetching lives inside DriveFilePreview's
+  // TextViewer now (capability-aware, per-type states). The page only tracks
+  // which item is open.
 
   const handleThumbnailError = useCallback((fileId: string) => {
     setFailedThumbnails((prev) => {
@@ -1582,229 +1495,26 @@ function DrivePageContent() {
           />
         )}
 
-        {/* File Preview Lightbox Modal */}
+        {/* File Preview Lightbox Modal — QM-M39-004: capability-aware preview.
+            DriveFilePreview owns the per-type states (image/video/PDF/audio/
+            document/text/unsupported), the scan-state strip, and the
+            independent download-availability indicator. */}
         <Modal
           isOpen={!!previewItem}
           onClose={() => setPreviewItem(null)}
           title={previewItem?.name || 'File Preview'}
         >
-          <div className="p-4 space-y-4 text-center">
-            {/* QM-M39-009: security scan state — details context. 'unknown'
-                renders as "Not scanned", never as safe. */}
+          <div className="p-4 space-y-4">
             {previewItem && (
-              <div className="text-left rounded-xl bg-[#111318] px-4 py-3 shadow-[inset_0_0_0_1px_#282C35]">
-                <FileScanDetail status={previewItem.scanStatus} reason={previewItem.scanReason} />
-              </div>
-            )}
-            {previewItem && previewItem.scanStatus === 'quarantined' ? (
-              /* QM-M39-009: quarantine blocks preview honestly — an
-                 instruction, not a generic error and not a broken viewer. */
-              <div
-                className="flex flex-col items-center justify-center rounded-xl bg-[#1A0E10] p-8 border border-[#EF4444]/40"
-                role="alert"
-              >
-                <span className="mb-3 text-[#EF4444]">
-                  <svg className="w-14 h-14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
-                    />
-                  </svg>
-                </span>
-                <h4 className="text-sm font-bold text-[#F5F5F5]">This file is quarantined</h4>
-                <p className="text-xs text-[#A1A4AC] mt-2 max-w-md">
-                  Preview and download are disabled for this file. It was flagged by a security
-                  scan as potentially harmful.
-                  {previewItem.scanReason ? (
-                    <span className="block mt-1 text-[#D1D5DB]">Reason: {previewItem.scanReason}</span>
-                  ) : null}
-                </p>
-                <p className="text-xs text-[#A1A4AC] mt-2 max-w-md">
-                  Contact your workspace administrator to request a security review — do not share
-                  this file.
-                </p>
-              </div>
-            ) : previewItem && previewItem.mimeType.startsWith('image/') ? (
-              <div className="rounded-xl bg-[#111318] p-4 shadow-[inset_0_0_0_1px_#282C35]">
-                <img
-                  src={getDownloadUrl(previewItem.id)}
-                  alt={previewItem.name}
-                  className="max-h-96 mx-auto rounded-lg object-contain"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <h4 className="text-sm font-bold text-[#F5F5F5] mt-3">{previewItem.name}</h4>
-                <p className="text-xs text-[#A1A4AC] mt-1">
-                  {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
-                </p>
-              </div>
-            ) : previewItem && previewItem.mimeType === 'application/pdf' ? (
-              <div className="rounded-xl bg-[#111318] p-4 shadow-[inset_0_0_0_1px_#282C35]">
-                <iframe
-                  src={getDownloadUrl(previewItem.id)}
-                  className="w-full h-96 rounded-lg border border-[var(--quant-border)]"
-                  title={previewItem.name}
-                />
-                <h4 className="text-sm font-bold text-[#F5F5F5] mt-3">{previewItem.name}</h4>
-                <p className="text-xs text-[#A1A4AC] mt-1">
-                  {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
-                </p>
-              </div>
-            ) : previewItem && previewItem.mimeType.startsWith('audio/') ? (
-              <div className="flex flex-col items-center justify-center rounded-xl bg-[#111318] p-8 shadow-[inset_0_0_0_1px_#282C35]">
-                <span className="mb-3 text-[#A1A4AC]">
-                  {getFileIcon(previewItem.mimeType, previewItem.type, 'w-14 h-14')}
-                </span>
-                <h4 className="text-sm font-bold text-[#F5F5F5]">{previewItem.name}</h4>
-                <p className="text-xs text-[#A1A4AC] mt-1 mb-4">
-                  {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
-                </p>
-                <audio controls src={getDownloadUrl(previewItem.id)} className="w-full max-w-md" />
-              </div>
-            ) : previewItem && previewItem.mimeType.startsWith('video/') ? (
-              <div className="rounded-xl bg-[#111318] p-4 shadow-[inset_0_0_0_1px_#282C35]">
-                <video
-                  controls
-                  src={getDownloadUrl(previewItem.id)}
-                  className="max-h-96 w-full rounded-lg mx-auto"
-                />
-                <h4 className="text-sm font-bold text-[#F5F5F5] mt-3">{previewItem.name}</h4>
-                <p className="text-xs text-[#A1A4AC] mt-1">
-                  {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
-                </p>
-              </div>
-            ) : previewItem && isTextOrCodeFile(previewItem.mimeType, previewItem.name) ? (
-              <div className="rounded-xl bg-[#111318] p-4 text-left shadow-[inset_0_0_0_1px_#282C35]">
-                <div className="flex items-center justify-between border-b border-[#282C35] pb-3 mb-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[#FF8C42] shrink-0">
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <polyline
-                          points="16 18 22 12 16 6"
-                          strokeWidth={1.8}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <polyline
-                          points="8 6 2 12 8 18"
-                          strokeWidth={1.8}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </span>
-                    <div className="min-w-0">
-                      <h4 className="text-sm font-bold text-[#F5F5F5] truncate">
-                        {previewItem.name}
-                      </h4>
-                      <p className="text-[11px] text-[#A1A4AC]">
-                        {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
-                        {textPreviewContent !== null && (
-                          <span className="text-[#FF8C42] ml-1.5 font-mono">
-                            ({textPreviewContent.split('\n').length} lines)
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCopyTextPreview}
-                    disabled={!textPreviewContent || isLoadingTextPreview}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1D2027] border border-[#323642] text-xs font-semibold text-[#E0E2EC] hover:bg-[#252A33] hover:text-white transition-colors disabled:opacity-50"
-                  >
-                    {copiedTextPreview ? (
-                      <>
-                        <svg
-                          className="w-3.5 h-3.5 text-emerald-400"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <polyline
-                            points="20 6 9 17 4 12"
-                            strokeWidth={2}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        <span className="text-emerald-400">Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          className="w-3.5 h-3.5 text-[#A1A4AC]"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <rect
-                            x="9"
-                            y="9"
-                            width="13"
-                            height="13"
-                            rx="2"
-                            strokeWidth={1.8}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <path
-                            d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                            strokeWidth={1.8}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        <span>Copy</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {isLoadingTextPreview ? (
-                  <div className="py-12 text-center text-xs text-[#A1A4AC] space-y-3">
-                    <div className="w-6 h-6 border-2 border-[#FF8C42] border-t-transparent rounded-full animate-spin mx-auto" />
-                    <p>Loading code preview…</p>
-                  </div>
-                ) : textPreviewError ? (
-                  <div className="py-8 text-center text-xs text-rose-400 bg-rose-500/10 rounded-lg p-4 border border-rose-500/20">
-                    <p className="font-semibold mb-1">Unable to preview file</p>
-                    <p className="text-zinc-400">{textPreviewError}</p>
-                  </div>
-                ) : textPreviewContent !== null ? (
-                  <div className="flex bg-[#0B0C0E] border border-[#282C35] rounded-lg max-h-[30rem] overflow-auto font-mono text-xs shadow-inner">
-                    <div className="select-none py-3 px-3 text-right text-[#4E525E] border-r border-[#22262E] bg-[#0E1014] font-mono text-xs leading-relaxed shrink-0">
-                      {textPreviewContent.split('\n').map((_, idx) => (
-                        <div key={idx}>{idx + 1}</div>
-                      ))}
-                    </div>
-                    <pre className="p-3 text-[#E0E2EC] whitespace-pre overflow-x-auto min-w-0 flex-1 font-mono text-xs leading-relaxed">
-                      <code>{textPreviewContent}</code>
-                    </pre>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center rounded-xl bg-[#111318] p-8 shadow-[inset_0_0_0_1px_#282C35]">
-                <span className="mb-3 text-[#A1A4AC]">
-                  {previewItem ? (
-                    getFileIcon(previewItem.mimeType, previewItem.type, 'w-14 h-14')
-                  ) : (
-                    <IconFile size={56} />
-                  )}
-                </span>
-                <h4 className="text-sm font-bold text-[#F5F5F5]">{previewItem?.name}</h4>
-                <p className="text-xs text-[#A1A4AC] mt-1">
-                  {previewItem?.mimeType} · {formatBytes(previewItem?.size ?? 0)}
-                </p>
-              </div>
+              <DriveFilePreview
+                file={previewItem}
+                previewUrl={getDownloadUrl(previewItem.id)}
+                onClose={() => setPreviewItem(null)}
+                onDownload={(fileId) => attemptDownload(fileId, previewItem.name)}
+                // QM-M39-009: quarantined files gate download at the backend
+                // (403 FILE_QUARANTINED); don't offer the button at all.
+                canDownload={previewItem.scanStatus !== 'quarantined'}
+              />
             )}
             <div className="flex items-center justify-end gap-2 flex-wrap">
               {previewItem && (
@@ -1826,22 +1536,6 @@ function DrivePageContent() {
                     AI Insights
                   </Button>
                 </>
-              )}
-              <Button variant="secondary" onClick={() => setPreviewItem(null)}>
-                Close
-              </Button>
-              {/* QM-M39-009: no download offered for quarantined files — the
-                  quarantine panel above carries the instruction instead. */}
-              {previewItem && previewItem.scanStatus !== 'quarantined' && (
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    downloadFile(previewItem.id, previewItem.name);
-                    setPreviewItem(null);
-                  }}
-                >
-                  Download File
-                </Button>
               )}
             </div>
           </div>

@@ -31,6 +31,15 @@ export interface DriveFile {
   scannedAt?: string | null;
 }
 
+// QM-M39-004: honest download outcome. The preview component renders the
+// download-unavailable indicator itself from this — it never guesses
+// download availability from preview or scan state.
+export interface DownloadOutcome {
+  ok: boolean;
+  /** The backend's real instruction when the download failed (never generic). */
+  message?: string;
+}
+
 export interface ReceivedShare {
   id: string;
   fileId: string | null;
@@ -88,6 +97,7 @@ export interface UseDriveReturn {
   searchFiles: (query: string) => Promise<void>;
   getDownloadUrl: (fileId: string) => string;
   downloadFile: (fileId: string, fileName?: string) => Promise<void>;
+  attemptDownload: (fileId: string, fileName?: string) => Promise<DownloadOutcome>;
   cancelUpload: (uploadId: string) => void;
   acceptShare: (shareId: string) => Promise<{ success: boolean; share: any }>;
   declineShare: (shareId: string) => Promise<{ success: boolean; share: any }>;
@@ -550,34 +560,56 @@ export function useDrive(): UseDriveReturn {
     [],
   );
 
+  // QM-M39-004: the honest download attempt. Returns the outcome instead of
+  // swallowing it, so capability-aware UI (DriveFilePreview) can render a
+  // dedicated download-unavailable indicator with the backend's instruction.
+  // Does not touch hook error state — the caller decides how to surface it.
+  const attemptDownload = useCallback(
+    async (fileId: string, fileName?: string): Promise<DownloadOutcome> => {
+      try {
+        const response = await apiRequest(`/api/drive/files/${fileId}/download`);
+        if (!response.ok) {
+          const instruction = await readErrorInstruction(response);
+          throw new Error(instruction || `Download failed with status ${response.status}`);
+        }
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = objectUrl;
+        if (fileName) anchor.download = fileName;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+        return { ok: true };
+      } catch (err) {
+        return {
+          ok: false,
+          message: getDriveErrorMessage(
+            err,
+            'Download is temporarily unavailable. Retry in a moment.',
+          ),
+        };
+      }
+    },
+    [],
+  );
+
   // Authenticated download: navigating the browser straight to the download
   // URL sends no Authorization header and lands on raw 401 JSON. Fetch the
   // bytes with the session attached, then hand the user a real file.
   // QM-M39-009: a quarantined file answers 403 FILE_QUARANTINED. Surface the
   // backend's instruction verbatim — never a generic "download failed".
-  const downloadFile = useCallback(async (fileId: string, fileName?: string) => {
-    setError(null);
-    try {
-      const response = await apiRequest(`/api/drive/files/${fileId}/download`);
-      if (!response.ok) {
-        const instruction = await readErrorInstruction(response);
-        throw new Error(instruction || `Download failed with status ${response.status}`);
+  const downloadFile = useCallback(
+    async (fileId: string, fileName?: string) => {
+      setError(null);
+      const outcome = await attemptDownload(fileId, fileName);
+      if (!outcome.ok) {
+        setError(outcome.message ?? 'Download is temporarily unavailable. Retry in a moment.');
       }
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = objectUrl;
-      if (fileName) anchor.download = fileName;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
-    } catch (err) {
-      setError(
-        getDriveErrorMessage(err, 'Download is temporarily unavailable. Retry in a moment.'),
-      );
-    }
-  }, []);
+    },
+    [attemptDownload],
+  );
 
   const cancelUpload = useCallback((uploadId: string) => {
     cancelledUploadIds.current.add(uploadId);
@@ -705,6 +737,7 @@ export function useDrive(): UseDriveReturn {
     searchFiles,
     getDownloadUrl,
     downloadFile,
+    attemptDownload,
     cancelUpload,
     acceptShare,
     declineShare,

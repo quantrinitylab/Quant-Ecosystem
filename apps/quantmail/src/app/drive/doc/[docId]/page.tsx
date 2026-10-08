@@ -40,6 +40,7 @@ export default function DocumentPage() {
     lastSaved,
     collaborators,
     isLoading,
+    loadError,
     broadcastCursor,
     breadcrumbs,
     subpages,
@@ -213,6 +214,32 @@ export default function DocumentPage() {
               <div className="h-4 w-3/4 bg-[#161B22] rounded" />
               <div className="h-32 w-full bg-[#161B22] rounded-xl" />
             </div>
+          ) : loadError ? (
+            /* QM-M39-004: honest load-failure state — no server, no cached
+               copy. Never render default empty blocks as if they were the
+               document. */
+            <div className="mx-auto max-w-4xl py-20 px-8 text-center">
+              <p className="text-lg font-bold text-[#F0F6FC]">Couldn&apos;t load this document</p>
+              <p className="text-sm text-[#8B949E] mt-2 max-w-md mx-auto">
+                We couldn&apos;t reach the server and there&apos;s no saved copy on this device.
+                Nothing was changed.
+              </p>
+              <div className="mt-6 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="px-4 py-2 rounded-lg bg-[#FF8C42] text-xs font-bold text-black hover:bg-[#ff9d5c]"
+                >
+                  Retry
+                </button>
+                <Link
+                  href="/drive"
+                  className="px-4 py-2 rounded-lg bg-[#161B22] border border-[#30363D] text-xs font-semibold text-[#C9D1D9] hover:bg-[#21262D]"
+                >
+                  Back to Drive
+                </Link>
+              </div>
+            </div>
           ) : (
             <div className="min-h-full">
               {/* Document Title & Icon Header Area */}
@@ -328,8 +355,9 @@ export default function DocumentPage() {
             </div>
           )}
 
-          {/* Floating Auto-save / Sync Status Pill — clears the single h-16
-              bottom bar + safe-area on mobile, sits bottom-4 on desktop */}
+          {/* Floating Auto-save / Sync Status Pill — hidden when the document
+              failed to load (there is no local cache to claim). */}
+          {!loadError && (
           <div className="fixed right-6 z-30 flex items-center gap-2 rounded-full border border-[#30363D] bg-[#161B22]/90 px-3 py-1.5 text-xs text-[#8B949E] shadow-xl backdrop-blur-md bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)] md:bottom-4">
             {syncStatus === 'connected' && (
               <>
@@ -361,6 +389,7 @@ export default function DocumentPage() {
               </>
             )}
           </div>
+          )}
         </main>
       </div>
 

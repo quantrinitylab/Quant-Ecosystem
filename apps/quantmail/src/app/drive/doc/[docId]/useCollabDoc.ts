@@ -72,6 +72,10 @@ export function useCollabDoc(docId: string) {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [collaborators, setCollaborators] = useState<DocumentCollaborator[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  // QM-M39-004: true when the server could not be reached (or answered with
+  // an error) AND there is no cached copy — the editor must say so honestly
+  // instead of rendering default empty blocks as if that were the document.
+  const [loadError, setLoadError] = useState<boolean>(false);
   const [breadcrumbs, setBreadcrumbs] = useState<DocumentBreadcrumb[]>([]);
   const [subpages, setSubpages] = useState<DocumentSubpage[]>([]);
 
@@ -134,6 +138,8 @@ export function useCollabDoc(docId: string) {
 
     async function loadDoc() {
       setIsLoading(true);
+      setLoadError(false);
+      let hadUsableData = false;
       try {
         const cached = localStorage.getItem(`quant_doc_${docId}`);
         if (cached) {
@@ -143,6 +149,7 @@ export function useCollabDoc(docId: string) {
               if (parsed.title) setTitleState(parsed.title);
               if (parsed.blocks && Array.isArray(parsed.blocks)) setBlocksState(parsed.blocks);
               if (parsed.metadata) setMetadataState(parsed.metadata);
+              hadUsableData = true;
             }
           } catch {
             // Ignore parse errors on cached state
@@ -175,14 +182,27 @@ export function useCollabDoc(docId: string) {
             }
             setSyncStatus('saved');
             setLastSaved(new Date(doc.updatedAt || Date.now()));
+            hadUsableData = true;
+          } else if (isMounted && !hadUsableData) {
+            // 200 but no usable payload and nothing cached — say so honestly.
+            setLoadError(true);
           }
         } else if (res.status === 404) {
           // New document or not yet saved in backend — seed default blocks
           setSyncStatus('saved');
+        } else if (isMounted && !hadUsableData) {
+          // QM-M39-004: server error with no cached copy — don't render the
+          // default empty blocks as if they were the document.
+          setLoadError(true);
         }
       } catch {
         // Fallback gracefully on network error
         setSyncStatus('offline');
+        if (isMounted && !hadUsableData) {
+          // QM-M39-004: no server and no cache — the page renders an honest
+          // load-failure state instead of a fake empty document.
+          setLoadError(true);
+        }
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -475,6 +495,7 @@ export function useCollabDoc(docId: string) {
     lastSaved,
     collaborators,
     isLoading,
+    loadError,
     broadcastCursor,
     breadcrumbs,
     subpages,
