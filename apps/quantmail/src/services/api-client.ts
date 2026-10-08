@@ -1339,22 +1339,65 @@ export class QuantMailApiClient {
 
   async aiSuggestReplies(
     emailId: string,
-  ): Promise<ApiResponse<{ emailId: string; suggestions: string[] }>> {
+  ): Promise<
+    ApiResponse<{
+      emailId: string;
+      suggestions: Array<{
+        content: string;
+        confidence: number;
+        evidence: Array<{
+          label: string;
+          quote?: string;
+          quoteTruncated?: boolean;
+          deepLink?: string;
+          resourceRef: { resourceId: string; resourceType: string; appId: string };
+        }>;
+      }>;
+      provenance: {
+        producedBy: string;
+        capabilityId: string;
+        capabilityVersion: number;
+        contextBytes: number;
+        contextTruncated: boolean;
+        sourceCount: number;
+      };
+      cost: { credits: number; meter: string; quoteRequired: boolean; estimated: boolean };
+    }>
+  > {
     // The reply-suggestions route lives on the AI router mounted at /emails
     // (backend/routes/ai.ts: GET /:id/reply-suggestions), not under /ai — the
     // old GET /ai/replies/:id path was never allow-listed and 404ed, so the UI
-    // silently fell back to canned replies. The backend returns ReplySuggestion[]
-    // ({ content, confidence }); flatten it to the string[] the component renders.
-    const response = await this.get<Array<{ content: string; confidence: number }>>(
-      `/emails/${emailId}/reply-suggestions`,
-    );
-    if (!response.success || !response.data) {
-      return { ...response, data: undefined };
-    }
-    return {
-      ...response,
-      data: { emailId, suggestions: response.data.map((reply) => reply.content) },
-    };
+    // silently fell back to canned replies.
+    // QM-QUANTY-002: the backend now returns the full envelope (suggestions
+    // with evidence refs, provenance, cost) — passed through untouched.
+    return this.get(`/emails/${emailId}/reply-suggestions`);
+  }
+
+  /**
+   * QM-QUANTY-002 — preview before mutation. Returns the exact
+   * MutationPreview the user reviews before POST /emails/:id/send runs.
+   * Read-only: never queues or sends.
+   */
+  async aiSendPreview(emailId: string): Promise<
+    ApiResponse<{
+      capabilityId: string;
+      capabilityVersion: number;
+      summary: string;
+      changes: Array<{ description: string; detail?: Record<string, unknown> }>;
+      requiresApproval: boolean;
+      approvalReason?: string;
+      cost: { credits: number; meter: string; quoteRequired: boolean; estimated: boolean };
+      reversibility: {
+        reversible: boolean;
+        undoCapabilityId?: string;
+        undoToken?: string;
+        note: string;
+      };
+      idempotencyKey: string;
+      createdAt: string;
+    }>
+  > {
+    return this.post(`/emails/${emailId}/send-preview`, {});
   }
 
   // --------------------------------------------------------------------------
