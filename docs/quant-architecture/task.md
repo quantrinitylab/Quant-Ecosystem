@@ -1264,7 +1264,7 @@ Scope: QuantChat conversation page.
 Dependencies: none.
 
 ## QM-UIUX-057 — QuantChat: delete dead realtime implementations
-Status: [ ] TODO
+Status: [~] IN_PROGRESS — Owner: e5f6a7b8-9c0d-1e2f-3a4b-5c6d7e8f9a0b; Branch: fix/qm-uiux-057-dead-realtime
 Finding: FOUR competing realtime implementations (1,630 lines): `websocket-client.ts` (477 lines, zero usages), `useChat.ts` (284 lines, zero usages), `RealtimeProvider` (live socket, dead protocol), `chat-socket` singleton (only working path). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantchat-realtime-audit.md`.
 Required: delete the three dead paths; keep only the working singleton.
 Scope: `apps/quantchat/src/`.
