@@ -42,7 +42,7 @@ function ToastIcon({ type }: { type: ToastMessage['type'] }) {
     case 'warning':
       return (
         <svg
-          className="size-4 text-[#FF8C42] shrink-0"
+          className="size-4 text-[var(--quant-primary)] shrink-0"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -75,7 +75,7 @@ function ToastIcon({ type }: { type: ToastMessage['type'] }) {
     default:
       return (
         <svg
-          className="size-4 text-[#FF8C42] shrink-0"
+          className="size-4 text-[var(--quant-primary)] shrink-0"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -136,7 +136,7 @@ function InboxToastItem({
       {toast.undoAction && (
         <button
           type="button"
-          className="inbox-toast-undo text-[#FF8C42] hover:bg-[#FF8C42]/20 px-2 py-0.5 rounded font-semibold transition-colors"
+          className="inbox-toast-undo text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 px-2 py-0.5 rounded font-semibold transition-colors"
           onClick={() => {
             // Dismiss first: clears the pending undo, so the same action
             // cannot be reversed a second time.

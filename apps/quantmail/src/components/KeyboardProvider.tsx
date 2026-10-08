@@ -435,14 +435,14 @@ function SequenceHint() {
 
   return (
     <div
-      className="pointer-events-none fixed bottom-5 left-5 z-[130] flex items-center gap-2 rounded-xl border border-[#FF8C42]/30 bg-[#111318]/90 backdrop-blur-xl px-3 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.8),inset_0_1px_0_0_rgba(255,255,255,0.06),0_0_16px_rgba(255,140,66,0.12)]"
+      className="pointer-events-none fixed bottom-5 left-5 z-[130] flex items-center gap-2 rounded-xl border border-[var(--quant-primary)]/30 bg-[var(--quant-surface)]/90 backdrop-blur-xl px-3 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.8),inset_0_1px_0_0_rgba(255,255,255,0.06),0_0_16px_rgba(255,140,66,0.12)]"
       role="status"
       aria-live="polite"
     >
       {pending.map((chord, index) => (
         <kbd
           key={`${chord}-${index}`}
-          className="rounded-md border border-[#FF8C42]/40 bg-[#FF8C42]/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-[#FF8C42] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]"
+          className="rounded-md border border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-[var(--quant-primary)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]"
         >
           {chordToLabelParts(chord).join(' ')}
         </kbd>

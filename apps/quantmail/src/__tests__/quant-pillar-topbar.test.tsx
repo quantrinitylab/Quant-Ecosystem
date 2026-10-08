@@ -98,7 +98,7 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       expect(html).toContain('rgba(13,13,18,0.96)');
       // Active-only markers: these strings render ONLY when Mail is active —
       // the Swiggy-style sliding line gradient and the active logo glow.
-      // (Bare '#FF8C42' / '#FF6B35' are global: AI capsule, search ring and the
+      // (Bare 'var(--quant-primary)' / '#FF6B35' are global: AI capsule, search ring and the
       // profile avatar all carry them, so they prove nothing per-pillar.)
       expect(html).toContain('linear-gradient(90deg, #FF6B35, #FF6B35CC)');
       expect(html).toContain('drop-shadow(0 0 6px #FF6B3566)');
@@ -295,11 +295,11 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       );
 
       // Frosted pill container
-      expect(html).toContain('rounded-full bg-[#111318]/90 border border-[#232938]');
+      expect(html).toContain('rounded-full bg-[var(--quant-surface)]/90 border border-[#232938]');
 
       // Molten pulsing orb
-      expect(html).toContain('animate-ping rounded-full bg-[#FF8C42]');
-      expect(html).toContain('rounded-full bg-[#FF8C42] shadow-[0_0_6px_#FF8C42]');
+      expect(html).toContain('animate-ping rounded-full bg-[var(--quant-primary)]');
+      expect(html).toContain('rounded-full bg-[var(--quant-primary)] shadow-[0_0_6px_var(--quant-primary)]');
 
       // Live text
       expect(html).toContain('Quant AI: 3 urgent items prioritized');
@@ -310,7 +310,7 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
 
       expect(html).not.toContain('3 urgent items prioritized');
       expect(html).not.toContain('5ms E2EE');
-      expect(html).not.toContain('rounded-full bg-[#111318]/90 border border-[#232938]');
+      expect(html).not.toContain('rounded-full bg-[var(--quant-surface)]/90 border border-[#232938]');
     });
 
     it('renders custom live AI text when aiLiveText prop is supplied', () => {

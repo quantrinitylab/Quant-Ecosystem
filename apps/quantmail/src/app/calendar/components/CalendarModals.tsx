@@ -102,11 +102,11 @@ export function CalendarModals({
               onChange={(e) =>
                 setFormState({ ...formState, currentCycleDay: Number(e.target.value) || 1 })
               }
-              className="w-full bg-[#111318] border border-[#3A404D] rounded-xl px-3 py-1.5 text-xs text-white"
+              className="w-full bg-[var(--quant-surface)] border border-[#3A404D] rounded-xl px-3 py-1.5 text-xs text-white"
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#282C35]">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--quant-surface-elevated)]">
             <Button variant="primary" onClick={() => setIsPeriodCustomizeOpen(false)}>
               Done
             </Button>
@@ -129,10 +129,10 @@ export function CalendarModals({
                 setFormState({ ...formState, timezone: tz.value });
                 setIsTimezoneModalOpen(false);
               }}
-              className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42] ${
+              className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)] ${
                 formState.timezone === tz.value
-                  ? 'bg-[#FF8C42] text-black font-black'
-                  : 'text-[#A1A4AC] hover:bg-[#282C35]'
+                  ? 'bg-[var(--quant-primary)] text-black font-black'
+                  : 'text-[#A1A4AC] hover:bg-[var(--quant-surface-elevated)]'
               }`}
               aria-pressed={formState.timezone === tz.value}
             >
@@ -158,10 +158,10 @@ export function CalendarModals({
                 setFormState({ ...formState, recurrence: rec });
                 setIsRecurrenceModalOpen(false);
               }}
-              className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42] ${
+              className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)] ${
                 formState.recurrence === rec
-                  ? 'bg-[#FF8C42] text-black font-black'
-                  : 'text-[#A1A4AC] hover:bg-[#282C35]'
+                  ? 'bg-[var(--quant-primary)] text-black font-black'
+                  : 'text-[#A1A4AC] hover:bg-[var(--quant-surface-elevated)]'
               }`}
               aria-pressed={formState.recurrence === rec}
             >
@@ -180,7 +180,7 @@ export function CalendarModals({
       >
         <div className="space-y-4 text-xs text-white">
           <div className="text-center py-2">
-            <span className="text-lg font-black text-[#FF8C42]">
+            <span className="text-lg font-black text-[var(--quant-primary)]">
               {NOTIFICATION_SLIDER_VALUES[notifSliderIndex].label}
             </span>
           </div>
@@ -193,7 +193,7 @@ export function CalendarModals({
             max={NOTIFICATION_SLIDER_VALUES.length - 1}
             value={notifSliderIndex}
             onChange={(e) => setNotifSliderIndex(Number(e.target.value))}
-            className="w-full accent-[#FF8C42]"
+            className="w-full accent-[var(--quant-primary)]"
           />
 
           <div className="flex items-center justify-between text-[10px] text-[#A1A4AC]">
@@ -203,7 +203,7 @@ export function CalendarModals({
             <span>1w</span>
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#282C35]">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--quant-surface-elevated)]">
             <Button variant="ghost" onClick={() => setIsNotificationSliderOpen(false)}>
               Cancel
             </Button>
@@ -229,7 +229,7 @@ export function CalendarModals({
         >
           <div className="space-y-3 text-xs text-[#A1A4AC]">
             <div className="flex items-center gap-2 text-white font-semibold">
-              <IconClock className="size-4 text-[#FF8C42]" />
+              <IconClock className="size-4 text-[var(--quant-primary)]" />
               <span>
                 {selectedEvent.allDay
                   ? 'All Day Entry'
@@ -244,10 +244,10 @@ export function CalendarModals({
                     selectedEvent.type === 'period'
                       ? 'bg-rose-500/20 text-rose-300'
                       : selectedEvent.type === 'task'
-                        ? 'bg-[#FF8C42]/20 text-[#FFB875]'
+                        ? 'bg-[var(--quant-primary)]/20 text-[#FFB875]'
                         : selectedEvent.type === 'birthday'
                           ? 'bg-emerald-500/20 text-emerald-300'
-                          : 'bg-[#FF8C42]/20 text-[#FF8C42]'
+                          : 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)]'
                   }`}
                 >
                   {selectedEvent.type}
@@ -268,7 +268,7 @@ export function CalendarModals({
                     href={selectedEvent.location}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-[#FF8C42] hover:underline font-bold"
+                    className="inline-flex items-center gap-1.5 text-[var(--quant-primary)] hover:underline font-bold"
                   >
                     <IconVideoCall size={13} />
                     {selectedEvent.location}
@@ -281,17 +281,17 @@ export function CalendarModals({
             )}
 
             {selectedEvent.description && (
-              <div className="pt-2 border-t border-[#282C35] text-[#A1A4AC]">
+              <div className="pt-2 border-t border-[var(--quant-surface-elevated)] text-[#A1A4AC]">
                 {selectedEvent.description}
               </div>
             )}
 
-            <div className="flex items-center justify-between pt-3 border-t border-[#282C35]">
+            <div className="flex items-center justify-between pt-3 border-t border-[var(--quant-surface-elevated)]">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => openEditSheet(selectedEvent)}
-                  className="px-3 py-1.5 rounded-xl bg-[#FF8C42]/20 text-[#FF8C42] hover:bg-[#FF8C42]/30 text-xs font-bold"
+                  className="px-3 py-1.5 rounded-xl bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/30 text-xs font-bold"
                 >
                   Edit Entry
                 </button>

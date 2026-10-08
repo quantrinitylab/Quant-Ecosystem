@@ -560,12 +560,12 @@ export function FileAISummaryDrawer({
         aria-label={`AI Insights for ${fileName}`}
         aria-modal="true"
         data-testid="file-ai-summary-drawer"
-        className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col bg-[#16181D] text-slate-100 shadow-2xl border-l border-[#282C35] transition-transform duration-300 ease-in-out ${className}`}
+        className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col bg-[var(--quant-surface-elevated)] text-slate-100 shadow-2xl border-l border-[var(--quant-surface-elevated)] transition-transform duration-300 ease-in-out ${className}`}
       >
         {/* Drawer Header */}
-        <div className="flex items-center justify-between border-b border-[#282C35] px-6 py-4 bg-[#16181D]/90 backdrop-blur-md">
+        <div className="flex items-center justify-between border-b border-[var(--quant-surface-elevated)] px-6 py-4 bg-[var(--quant-surface-elevated)]/90 backdrop-blur-md">
           <div className="flex items-center gap-3 min-w-0">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-[#FF8C42]/20 via-[#FF8C42]/10 to-[#60A5FA]/20 border border-[#FF8C42]/30 text-[#FF8C42]">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-[var(--quant-primary)]/20 via-[var(--quant-primary)]/10 to-[#60A5FA]/20 border border-[var(--quant-primary)]/30 text-[var(--quant-primary)]">
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path
                   strokeLinecap="round"
@@ -578,7 +578,7 @@ export function FileAISummaryDrawer({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-semibold text-slate-100">Quant AI Insights</h2>
-                <span className="inline-flex items-center rounded-full bg-[#FF8C42]/15 px-2 py-0.5 text-[10px] font-medium text-[#FF8C42] border border-[#FF8C42]/30">
+                <span className="inline-flex items-center rounded-full bg-[var(--quant-primary)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--quant-primary)] border border-[var(--quant-primary)]/30">
                   Drive AI
                 </span>
               </div>
@@ -599,7 +599,7 @@ export function FileAISummaryDrawer({
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
                 state.copied
                   ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400'
-                  : 'border-[#282C35] bg-[#282C35]/50 hover:bg-[#282C35] text-slate-200 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed'
+                  : 'border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/50 hover:bg-[var(--quant-surface-elevated)] text-slate-200 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed'
               }`}
             >
               {state.copied ? (
@@ -645,7 +645,7 @@ export function FileAISummaryDrawer({
               onClick={onClose}
               aria-label="Close AI Insights"
               data-testid="drawer-close-btn"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#282C35] transition-colors"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
@@ -660,14 +660,14 @@ export function FileAISummaryDrawer({
         </div>
 
         {/* 3 Tab Navigation View */}
-        <div className="flex border-b border-[#282C35] bg-[#16181D] px-6">
+        <div className="flex border-b border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-6">
           <button
             type="button"
             data-testid="tab-summary"
             onClick={() => manager.setActiveTab('summary')}
             className={`flex items-center gap-2 py-3 px-3 text-sm font-medium border-b-2 transition-all ${
               activeTab === 'summary'
-                ? 'border-[#FF8C42] text-[#FF8C42]'
+                ? 'border-[var(--quant-primary)] text-[var(--quant-primary)]'
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-700'
             }`}
           >
@@ -681,7 +681,7 @@ export function FileAISummaryDrawer({
             </svg>
             <span>Summary</span>
             {data?.keyPoints && data.keyPoints.length > 0 && (
-              <span className="rounded-full bg-[#282C35] px-1.5 py-px text-[10px] font-mono text-slate-300">
+              <span className="rounded-full bg-[var(--quant-surface-elevated)] px-1.5 py-px text-[10px] font-mono text-slate-300">
                 {data.keyPoints.length}
               </span>
             )}
@@ -707,7 +707,7 @@ export function FileAISummaryDrawer({
             </svg>
             <span>Entities</span>
             {data?.entities && (
-              <span className="rounded-full bg-[#282C35] px-1.5 py-px text-[10px] font-mono text-slate-300">
+              <span className="rounded-full bg-[var(--quant-surface-elevated)] px-1.5 py-px text-[10px] font-mono text-slate-300">
                 {(data.entities.dates?.length || 0) +
                   (data.entities.amounts?.length || 0) +
                   (data.entities.vendors?.length || 0) +
@@ -722,7 +722,7 @@ export function FileAISummaryDrawer({
             onClick={() => manager.setActiveTab('actions')}
             className={`flex items-center gap-2 py-3 px-3 text-sm font-medium border-b-2 transition-all ${
               activeTab === 'actions'
-                ? 'border-[#FF8C42] text-[#FF8C42]'
+                ? 'border-[var(--quant-primary)] text-[var(--quant-primary)]'
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-700'
             }`}
           >
@@ -736,7 +736,7 @@ export function FileAISummaryDrawer({
             </svg>
             <span>Actions</span>
             {data?.actionItems && data.actionItems.length > 0 && (
-              <span className="rounded-full bg-[#FF8C42]/20 px-1.5 py-px text-[10px] font-mono text-[#FF8C42]">
+              <span className="rounded-full bg-[var(--quant-primary)]/20 px-1.5 py-px text-[10px] font-mono text-[var(--quant-primary)]">
                 {data.actionItems.length}
               </span>
             )}
@@ -748,29 +748,29 @@ export function FileAISummaryDrawer({
           {/* Loading Skeleton */}
           {state.status === 'loading' && (
             <div data-testid="ai-summary-loading-skeleton" className="space-y-6 animate-pulse">
-              <div className="flex items-center gap-3 p-4 rounded-xl border border-[#282C35] bg-[#282C35]/30">
-                <div className="h-5 w-5 rounded-full bg-[#FF8C42]/40" />
+              <div className="flex items-center gap-3 p-4 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/30">
+                <div className="h-5 w-5 rounded-full bg-[var(--quant-primary)]/40" />
                 <div className="space-y-1.5 flex-1">
-                  <div className="h-3.5 w-3/4 rounded bg-[#282C35]" />
-                  <div className="h-2.5 w-1/2 rounded bg-[#282C35]/70" />
+                  <div className="h-3.5 w-3/4 rounded bg-[var(--quant-surface-elevated)]" />
+                  <div className="h-2.5 w-1/2 rounded bg-[var(--quant-surface-elevated)]/70" />
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[#282C35] bg-[#16181D] p-5 space-y-3">
-                <div className="h-4 w-1/3 rounded bg-[#282C35]" />
+              <div className="rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] p-5 space-y-3">
+                <div className="h-4 w-1/3 rounded bg-[var(--quant-surface-elevated)]" />
                 <div className="space-y-2">
-                  <div className="h-3 w-full rounded bg-[#282C35]/80" />
-                  <div className="h-3 w-5/6 rounded bg-[#282C35]/80" />
-                  <div className="h-3 w-4/6 rounded bg-[#282C35]/80" />
+                  <div className="h-3 w-full rounded bg-[var(--quant-surface-elevated)]/80" />
+                  <div className="h-3 w-5/6 rounded bg-[var(--quant-surface-elevated)]/80" />
+                  <div className="h-3 w-4/6 rounded bg-[var(--quant-surface-elevated)]/80" />
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[#282C35] bg-[#16181D] p-5 space-y-3">
-                <div className="h-4 w-1/4 rounded bg-[#282C35]" />
+              <div className="rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] p-5 space-y-3">
+                <div className="h-4 w-1/4 rounded bg-[var(--quant-surface-elevated)]" />
                 <div className="space-y-2.5">
-                  <div className="h-3 w-11/12 rounded bg-[#282C35]/70" />
-                  <div className="h-3 w-10/12 rounded bg-[#282C35]/70" />
-                  <div className="h-3 w-8/12 rounded bg-[#282C35]/70" />
+                  <div className="h-3 w-11/12 rounded bg-[var(--quant-surface-elevated)]/70" />
+                  <div className="h-3 w-10/12 rounded bg-[var(--quant-surface-elevated)]/70" />
+                  <div className="h-3 w-8/12 rounded bg-[var(--quant-surface-elevated)]/70" />
                 </div>
               </div>
             </div>
@@ -816,9 +816,9 @@ export function FileAISummaryDrawer({
           {state.status === 'idle' && !data && (
             <div
               data-testid="ai-summary-idle-card"
-              className="flex flex-col items-center justify-center p-8 text-center rounded-xl border border-dashed border-[#282C35] bg-[#282C35]/10 space-y-4"
+              className="flex flex-col items-center justify-center p-8 text-center rounded-xl border border-dashed border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/10 space-y-4"
             >
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF8C42]/10 border border-[#FF8C42]/20 text-[#FF8C42]">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--quant-primary)]/10 border border-[var(--quant-primary)]/20 text-[var(--quant-primary)]">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
                     strokeLinecap="round"
@@ -839,7 +839,7 @@ export function FileAISummaryDrawer({
                 type="button"
                 data-testid="generate-summary-btn"
                 onClick={() => manager.generateSummary(file)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#FF8C42] to-[#FF8C42]/80 hover:from-[#FF8C42]/90 hover:to-[#FF8C42] text-xs font-semibold text-black shadow-lg transition-transform active:scale-95"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[var(--quant-primary)] to-[var(--quant-primary)]/80 hover:from-[var(--quant-primary)]/90 hover:to-[var(--quant-primary)] text-xs font-semibold text-black shadow-lg transition-transform active:scale-95"
               >
                 Analyze File
               </button>
@@ -852,11 +852,11 @@ export function FileAISummaryDrawer({
               {/* Executive Summary Card */}
               <div
                 data-testid="summary-card"
-                className="rounded-xl border border-[#282C35] bg-[#16181D]/90 p-5 shadow-lg space-y-3"
+                className="rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/90 p-5 shadow-lg space-y-3"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-[#FF8C42]" />
+                    <span className="h-2 w-2 rounded-full bg-[var(--quant-primary)]" />
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
                       Executive Summary
                     </h3>
@@ -864,7 +864,7 @@ export function FileAISummaryDrawer({
                   {typeof data.tokenCount === 'number' && (
                     <span
                       data-testid="token-count-badge"
-                      className="rounded-full bg-[#282C35] border border-slate-700 px-2 py-0.5 text-[10px] font-mono text-slate-300"
+                      className="rounded-full bg-[var(--quant-surface-elevated)] border border-slate-700 px-2 py-0.5 text-[10px] font-mono text-slate-300"
                     >
                       {data.tokenCount} tokens
                     </span>
@@ -879,7 +879,7 @@ export function FileAISummaryDrawer({
               {data.keyPoints && data.keyPoints.length > 0 && (
                 <div
                   data-testid="key-points-card"
-                  className="rounded-xl border border-[#282C35] bg-[#16181D]/90 p-5 shadow-lg space-y-4"
+                  className="rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/90 p-5 shadow-lg space-y-4"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -896,7 +896,7 @@ export function FileAISummaryDrawer({
                         data-testid="key-point-item"
                         className="flex items-start gap-3 text-xs leading-normal text-slate-300"
                       >
-                        <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#FF8C42]" />
+                        <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--quant-primary)]" />
                         <span>{point}</span>
                       </li>
                     ))}
@@ -913,11 +913,11 @@ export function FileAISummaryDrawer({
               {data.entities?.vendors && data.entities.vendors.length > 0 && (
                 <div
                   data-testid="entity-section-vendors"
-                  className="rounded-xl border border-[#282C35] bg-[#16181D]/90 p-5 space-y-3"
+                  className="rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/90 p-5 space-y-3"
                 >
                   <div className="flex items-center gap-2">
                     <svg
-                      className="w-4 h-4 text-[#FF8C42]"
+                      className="w-4 h-4 text-[var(--quant-primary)]"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -938,7 +938,7 @@ export function FileAISummaryDrawer({
                       <span
                         key={`ven-${idx}`}
                         data-testid="entity-pill-vendor"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#FF8C42]/30 bg-[#FF8C42]/10 px-2.5 py-1 text-xs font-medium text-[#FF8C42]"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--quant-primary)]/30 bg-[var(--quant-primary)]/10 px-2.5 py-1 text-xs font-medium text-[var(--quant-primary)]"
                       >
                         🏢 {vendor}
                       </span>
@@ -951,7 +951,7 @@ export function FileAISummaryDrawer({
               {data.entities?.dates && data.entities.dates.length > 0 && (
                 <div
                   data-testid="entity-section-dates"
-                  className="rounded-xl border border-[#282C35] bg-[#16181D]/90 p-5 space-y-3"
+                  className="rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/90 p-5 space-y-3"
                 >
                   <div className="flex items-center gap-2">
                     <svg
@@ -989,7 +989,7 @@ export function FileAISummaryDrawer({
               {data.entities?.amounts && data.entities.amounts.length > 0 && (
                 <div
                   data-testid="entity-section-amounts"
-                  className="rounded-xl border border-[#282C35] bg-[#16181D]/90 p-5 space-y-3"
+                  className="rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/90 p-5 space-y-3"
                 >
                   <div className="flex items-center gap-2">
                     <svg
@@ -1027,7 +1027,7 @@ export function FileAISummaryDrawer({
               {data.entities?.contacts && data.entities.contacts.length > 0 && (
                 <div
                   data-testid="entity-section-contacts"
-                  className="rounded-xl border border-[#282C35] bg-[#16181D]/90 p-5 space-y-3"
+                  className="rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/90 p-5 space-y-3"
                 >
                   <div className="flex items-center gap-2">
                     <svg
@@ -1068,7 +1068,7 @@ export function FileAISummaryDrawer({
                 !data.entities?.contacts?.length && (
                   <div
                     data-testid="no-entities-notice"
-                    className="rounded-xl border border-[#282C35] p-6 text-center text-slate-400 text-xs"
+                    className="rounded-xl border border-[var(--quant-surface-elevated)] p-6 text-center text-slate-400 text-xs"
                   >
                     No specific entity pills detected. Click below to run deep extraction on
                     receipt/invoice documents.
@@ -1137,7 +1137,7 @@ export function FileAISummaryDrawer({
                         className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all cursor-pointer select-none ${
                           isDone
                             ? 'border-emerald-500/30 bg-emerald-950/10 text-slate-400'
-                            : 'border-[#282C35] bg-[#16181D]/80 hover:bg-[#282C35]/30 text-slate-200'
+                            : 'border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/80 hover:bg-[var(--quant-surface-elevated)]/30 text-slate-200'
                         }`}
                       >
                         <button
@@ -1146,7 +1146,7 @@ export function FileAISummaryDrawer({
                           className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
                             isDone
                               ? 'border-emerald-500 bg-emerald-500 text-black'
-                              : 'border-slate-500 hover:border-[#FF8C42]'
+                              : 'border-slate-500 hover:border-[var(--quant-primary)]'
                           }`}
                         >
                           {isDone && (
@@ -1174,7 +1174,7 @@ export function FileAISummaryDrawer({
                   })}
                 </div>
               ) : (
-                <div className="rounded-xl border border-[#282C35] p-6 text-center text-slate-400 text-xs">
+                <div className="rounded-xl border border-[var(--quant-surface-elevated)] p-6 text-center text-slate-400 text-xs">
                   No explicit action items detected for this document.
                 </div>
               )}
@@ -1183,7 +1183,7 @@ export function FileAISummaryDrawer({
         </div>
 
         {/* Drawer Footer Controls */}
-        <div className="border-t border-[#282C35] bg-[#16181D]/90 p-4 flex items-center justify-between text-xs">
+        <div className="border-t border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/90 p-4 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2 text-slate-400">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
             <span>Quanty ONNX Inference Ready</span>
@@ -1194,7 +1194,7 @@ export function FileAISummaryDrawer({
             data-testid="regenerate-btn"
             onClick={() => manager.generateSummary(file)}
             disabled={state.status === 'loading'}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#282C35] hover:border-[#FF8C42]/50 hover:bg-[#282C35] text-slate-300 hover:text-[#FF8C42] transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--quant-surface-elevated)] hover:border-[var(--quant-primary)]/50 hover:bg-[var(--quant-surface-elevated)] text-slate-300 hover:text-[var(--quant-primary)] transition-colors disabled:opacity-50"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path

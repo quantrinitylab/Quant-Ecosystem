@@ -174,7 +174,7 @@ export function DriveFilesSubView({
       className="space-y-6"
     >
       {/* 1. Storage Quota Meter — real numbers from GET /api/drive/quota */}
-      <div className="rounded-2xl border border-[#232938] bg-[#12151E] p-4 sm:p-5 shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
+      <div className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-4 sm:p-5 shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-3">
             <div className="size-10 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8] shrink-0">
@@ -223,7 +223,7 @@ export function DriveFilesSubView({
               ? `${formatBytes(quota.used)} of ${formatBytes(quota.total)} used`
               : 'Calculating'
           }
-          className="w-full h-2 rounded-full bg-[#1E293B] overflow-hidden"
+          className="w-full h-2 rounded-full bg-[var(--quant-surface-elevated)] overflow-hidden"
         >
           <div
             className="h-full rounded-full bg-gradient-to-r from-[#38BDF8] to-[#0284C7] shadow-[0_0_12px_rgba(56,189,248,0.5)] transition-all duration-500"
@@ -238,17 +238,17 @@ export function DriveFilesSubView({
         <button
           type="button"
           onClick={() => setTypeFilter(typeFilter === 'pdf' ? 'all' : 'pdf')}
-          className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#EF4444] ${
+          className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-destructive)] ${
             typeFilter === 'pdf'
-              ? 'bg-[#EF4444]/15 border-[#EF4444]/60 shadow-[0_0_16px_rgba(239,68,68,0.2)]'
-              : 'bg-[#12151E] border-[#232938] hover:border-[#EF4444]/40 hover:bg-[#EF4444]/5'
+              ? 'bg-[var(--quant-destructive)]/15 border-[var(--quant-destructive)]/60 shadow-[0_0_16px_rgba(239,68,68,0.2)]'
+              : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[var(--quant-destructive)]/40 hover:bg-[var(--quant-destructive)]/5'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="size-8 rounded-lg bg-[#EF4444]/15 border border-[#EF4444]/30 flex items-center justify-center text-[#EF4444] font-bold text-xs">
+            <span className="size-8 rounded-lg bg-[var(--quant-destructive)]/15 border border-[var(--quant-destructive)]/30 flex items-center justify-center text-[var(--quant-destructive)] font-bold text-xs">
               PDF
             </span>
-            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/25">
+            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[var(--quant-destructive)]/10 text-[var(--quant-destructive)] border border-[var(--quant-destructive)]/25">
               RED
             </span>
           </div>
@@ -262,17 +262,17 @@ export function DriveFilesSubView({
         <button
           type="button"
           onClick={() => setTypeFilter(typeFilter === 'doc' ? 'all' : 'doc')}
-          className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] ${
+          className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-info)] ${
             typeFilter === 'doc'
-              ? 'bg-[#3B82F6]/15 border-[#3B82F6]/60 shadow-[0_0_16px_rgba(59,130,246,0.2)]'
-              : 'bg-[#12151E] border-[#232938] hover:border-[#3B82F6]/40 hover:bg-[#3B82F6]/5'
+              ? 'bg-[var(--quant-info)]/15 border-[var(--quant-info)]/60 shadow-[0_0_16px_rgba(59,130,246,0.2)]'
+              : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[var(--quant-info)]/40 hover:bg-[var(--quant-info)]/5'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="size-8 rounded-lg bg-[#3B82F6]/15 border border-[#3B82F6]/30 flex items-center justify-center text-[#3B82F6] font-bold text-xs">
+            <span className="size-8 rounded-lg bg-[var(--quant-info)]/15 border border-[var(--quant-info)]/30 flex items-center justify-center text-[var(--quant-info)] font-bold text-xs">
               DOC
             </span>
-            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/25">
+            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[var(--quant-info)]/10 text-[var(--quant-info)] border border-[var(--quant-info)]/25">
               BLUE
             </span>
           </div>
@@ -289,7 +289,7 @@ export function DriveFilesSubView({
           className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#10B981] ${
             typeFilter === 'code'
               ? 'bg-[#10B981]/15 border-[#10B981]/60 shadow-[0_0_16px_rgba(16,185,129,0.2)]'
-              : 'bg-[#12151E] border-[#232938] hover:border-[#10B981]/40 hover:bg-[#10B981]/5'
+              : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[#10B981]/40 hover:bg-[#10B981]/5'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
@@ -310,17 +310,17 @@ export function DriveFilesSubView({
         <button
           type="button"
           onClick={() => setTypeFilter(typeFilter === 'zip' ? 'all' : 'zip')}
-          className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F59E0B] ${
+          className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)] ${
             typeFilter === 'zip'
-              ? 'bg-[#F59E0B]/15 border-[#F59E0B]/60 shadow-[0_0_16px_rgba(245,158,11,0.2)]'
-              : 'bg-[#12151E] border-[#232938] hover:border-[#F59E0B]/40 hover:bg-[#F59E0B]/5'
+              ? 'bg-[var(--quant-warning)]/15 border-[var(--quant-warning)]/60 shadow-[0_0_16px_rgba(245,158,11,0.2)]'
+              : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[var(--quant-warning)]/40 hover:bg-[var(--quant-warning)]/5'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="size-8 rounded-lg bg-[#F59E0B]/15 border border-[#F59E0B]/30 flex items-center justify-center text-[#F59E0B] font-bold text-xs">
+            <span className="size-8 rounded-lg bg-[var(--quant-warning)]/15 border border-[var(--quant-warning)]/30 flex items-center justify-center text-[var(--quant-warning)] font-bold text-xs">
               ZIP
             </span>
-            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/25">
+            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[var(--quant-warning)]/10 text-[var(--quant-warning)] border border-[var(--quant-warning)]/25">
               GOLD
             </span>
           </div>
@@ -332,7 +332,7 @@ export function DriveFilesSubView({
       </div>
 
       {typeFilter !== 'all' && (
-        <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[#12151E] border border-[#232938] text-xs">
+        <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[var(--quant-surface)] border border-[#232938] text-xs">
           <span className="text-[#94A3B8]">
             Filtering by <strong className="text-[#38BDF8] uppercase">{typeFilter}</strong> ({displayedFiles.length} match{displayedFiles.length === 1 ? '' : 'es'})
           </span>
@@ -364,10 +364,10 @@ export function DriveFilesSubView({
                   className={`group relative flex items-center gap-2.5 p-3 rounded-xl border transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-[#38BDF8]/15 border-[#38BDF8]/50 shadow-[0_0_12px_rgba(56,189,248,0.15)]'
-                      : 'bg-[#12151E] border-[#232938] hover:border-[#38BDF8]/40 hover:bg-[#161A26]'
+                      : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[#38BDF8]/40 hover:bg-[var(--quant-surface-elevated)]'
                   }`}
                 >
-                  <div className="size-8 rounded-lg bg-[#F59E0B]/15 border border-[#F59E0B]/30 flex items-center justify-center text-[#F59E0B] shrink-0">
+                  <div className="size-8 rounded-lg bg-[var(--quant-warning)]/15 border border-[var(--quant-warning)]/30 flex items-center justify-center text-[var(--quant-warning)] shrink-0">
                     <FolderIcon className="size-4" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -395,7 +395,7 @@ export function DriveFilesSubView({
         </div>
 
         {displayedFiles.length === 0 ? (
-          <div className="text-center py-16 rounded-2xl border border-dashed border-[#232938] bg-[#12151E]/40 p-8 space-y-3">
+          <div className="text-center py-16 rounded-2xl border border-dashed border-[#232938] bg-[var(--quant-surface)]/40 p-8 space-y-3">
             <div className="flex justify-center text-[#64748B]">
               <HardDriveIcon className="size-12" />
             </div>
@@ -415,7 +415,7 @@ export function DriveFilesSubView({
                   className={`group relative flex flex-col justify-between p-3.5 rounded-xl border transition-all duration-150 cursor-pointer ${
                     isSelected
                       ? 'bg-[#38BDF8]/15 border-[#38BDF8]/50 shadow-[0_0_14px_rgba(56,189,248,0.18)]'
-                      : 'bg-[#12151E] border-[#232938] hover:border-[#38BDF8]/40 hover:bg-[#161A26] shadow-[0_2px_12px_rgba(0,0,0,0.25)]'
+                      : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[#38BDF8]/40 hover:bg-[var(--quant-surface-elevated)] shadow-[0_2px_12px_rgba(0,0,0,0.25)]'
                   }`}
                 >
                   <div>
@@ -432,10 +432,10 @@ export function DriveFilesSubView({
                           type="button"
                           aria-label={file.isStarred ? 'Unstar file' : 'Star file'}
                           onClick={(e) => onToggleStar?.(file, e)}
-                          className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F59E0B] transition-colors focus-visible:outline-none"
+                          className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[var(--quant-warning)] transition-colors focus-visible:outline-none"
                         >
                           {file.isStarred ? (
-                            <StarFilledIcon className="size-3.5 text-[#F59E0B]" />
+                            <StarFilledIcon className="size-3.5 text-[var(--quant-warning)]" />
                           ) : (
                             <StarIcon className="size-3.5" />
                           )}
@@ -470,7 +470,7 @@ export function DriveFilesSubView({
                             ? 'Quarantined — download disabled. Open the file to see the security notice.'
                             : 'Download'
                         }
-                        className="px-2 py-0.5 rounded bg-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-[10px] disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="px-2 py-0.5 rounded bg-[var(--quant-surface-elevated)] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-[10px] disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         Download
                       </button>
@@ -502,7 +502,7 @@ export function DriveFilesSubView({
                   className={`group flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-[#38BDF8]/15 border-[#38BDF8]/50 shadow-[0_0_12px_rgba(56,189,248,0.15)]'
-                      : 'bg-[#12151E] border-[#232938] hover:border-[#38BDF8]/40 hover:bg-[#161A26]'
+                      : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[#38BDF8]/40 hover:bg-[var(--quant-surface-elevated)]'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -531,10 +531,10 @@ export function DriveFilesSubView({
                       type="button"
                       aria-label={file.isStarred ? 'Unstar file' : 'Star file'}
                       onClick={(e) => onToggleStar?.(file, e)}
-                      className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F59E0B] transition-colors"
+                      className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[var(--quant-warning)] transition-colors"
                     >
                       {file.isStarred ? (
-                        <StarFilledIcon className="size-3.5 text-[#F59E0B]" />
+                        <StarFilledIcon className="size-3.5 text-[var(--quant-warning)]" />
                       ) : (
                         <StarIcon className="size-3.5" />
                       )}
@@ -545,13 +545,7 @@ export function DriveFilesSubView({
                         e.stopPropagation();
                         onDownloadFile?.(file.id, file.name);
                       }}
-                      disabled={file.scanStatus === 'quarantined'}
-                      title={
-                        file.scanStatus === 'quarantined'
-                          ? 'Quarantined — download disabled. Open the file to see the security notice.'
-                          : 'Download'
-                      }
-                      className="px-2.5 py-1 rounded-lg bg-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-2.5 py-1 rounded-lg bg-[var(--quant-surface-elevated)] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Download
                     </button>

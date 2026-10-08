@@ -111,9 +111,9 @@ export function TitaniumGridCanvas({
         height * 0.38,
         Math.min(width, height) * 0.65,
       );
-      amberGlow.addColorStop(0, 'rgba(255, 140, 66, 0.045)');
-      amberGlow.addColorStop(0.5, 'rgba(255, 140, 66, 0.012)');
-      amberGlow.addColorStop(1, 'rgba(255, 140, 66, 0)');
+      amberGlow.addColorStop(0, 'var(--quant-accent-faint)');
+      amberGlow.addColorStop(0.5, 'var(--quant-accent-faint)');
+      amberGlow.addColorStop(1, 'var(--quant-accent-faint)');
       ctx.fillStyle = amberGlow;
       ctx.fillRect(0, 0, width, height);
 

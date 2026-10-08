@@ -329,7 +329,7 @@ export const PILLAR_TILES: PillarTile[] = [
     borderColor: 'border-[#FF6B35]/50',
     glowColor: 'shadow-[0_0_12px_rgba(255,107,53,0.18)]',
     searchPlaceholder: 'Search emails, senders, keywords…',
-    themeBg: 'linear-gradient(180deg, rgba(255,107,53,0.08) 0%, transparent 40%)',
+    themeBg: 'linear-gradient(180deg, var(--quant-accent-faint) 0%, transparent 40%)',
     themeGlow: 'rgba(255,107,53,0.15)',
     icon: MailLogoIcon,
   },
@@ -1268,7 +1268,7 @@ export function QuantPillarTopBar({
     >
       <div className="flex items-center gap-2 w-full max-w-5xl mx-auto">
         <div
-          className="relative flex items-center gap-2 px-3 rounded-xl bg-[#16181F] border border-[#232938] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner flex-1"
+          className="relative flex items-center gap-2 px-3 rounded-xl bg-[#16181F] border border-[#232938] focus-within:border-[var(--quant-primary)]/60 focus-within:ring-1 focus-within:ring-[var(--quant-primary)]/30 transition-all shadow-inner flex-1"
           style={{
             height: searchCompact ? 40 : 48,
             transition: 'height 0.25s ease-out',
@@ -1282,14 +1282,14 @@ export function QuantPillarTopBar({
             onKeyDown={handleSearchKeyDown}
             placeholder={searchPlaceholder || activeTile.searchPlaceholder}
             aria-label={searchPlaceholder || activeTile.searchPlaceholder}
-            className="w-full bg-transparent text-xs text-white placeholder-[#64748B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded"
+            className="w-full bg-transparent text-xs text-white placeholder-[#64748B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
           />
 
           {internalSearch.length > 0 && (
             <button
               type="button"
               onClick={handleClearClick}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-md text-[#94A3B8] hover:text-white hover:bg-[#1F2430] transition-colors"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-md text-[#94A3B8] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors"
               title="Clear search"
               aria-label="Clear search"
             >
@@ -1300,10 +1300,10 @@ export function QuantPillarTopBar({
           <button
             type="button"
             onClick={handleMicClick}
-            className={`min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-lg transition-colors outline-none focus-visible:ring-1 focus-visible:ring-[#FF8C42] ${
+            className={`min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-lg transition-colors outline-none focus-visible:ring-1 focus-visible:ring-[var(--quant-primary)] ${
               isListening
                 ? 'text-red-400 bg-red-950/40 border border-red-500/50 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.4)]'
-                : 'text-[#94A3B8] hover:text-white hover:bg-[#1F2430]'
+                : 'text-[#94A3B8] hover:text-white hover:bg-[var(--quant-surface-elevated)]'
             }`}
             title={isListening ? 'Stop Listening' : 'Voice Search'}
             aria-label={isListening ? 'Stop Listening' : 'Voice Search'}
@@ -1317,7 +1317,7 @@ export function QuantPillarTopBar({
         <button
           type="button"
           onClick={handleLiveCapsuleClick}
-          className="flex items-center justify-center rounded-xl shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] transition-all duration-200 hover:scale-105 active:scale-95"
+          className="flex items-center justify-center rounded-xl shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] transition-all duration-200 hover:scale-105 active:scale-95"
           style={{
             width: searchCompact ? 40 : 0,
             height: searchCompact ? 40 : 0,
@@ -1330,7 +1330,7 @@ export function QuantPillarTopBar({
           title="Open Quant AI Assistant"
           aria-label="Open Quant AI Assistant"
         >
-          <SparklesIcon className="size-4 text-[#FF8C42]" />
+          <SparklesIcon className="size-4 text-[var(--quant-primary)]" />
         </button>
       </div>
     </div>
@@ -1347,22 +1347,22 @@ export function QuantPillarTopBar({
         <button
           type="button"
           onClick={handleLiveCapsuleClick}
-          className="group flex items-center gap-2 px-3 py-1 rounded-full bg-[#111318]/90 border border-[#232938] hover:border-[#FF8C42]/50 hover:bg-[#161922] transition-all duration-200 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+          className="group flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--quant-surface)]/90 border border-[#232938] hover:border-[var(--quant-primary)]/50 hover:bg-[#161922] transition-all duration-200 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           title="Open Quant AI Assistant"
           aria-label="Open Quant AI Assistant"
         >
           <span className="relative flex size-2 items-center justify-center">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FF8C42] opacity-75" />
-            <span className="relative inline-flex size-1.5 rounded-full bg-[#FF8C42] shadow-[0_0_6px_#FF8C42]" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--quant-primary)] opacity-75" />
+            <span className="relative inline-flex size-1.5 rounded-full bg-[var(--quant-primary)] shadow-[0_0_6px_var(--quant-primary)]" />
           </span>
 
-          <SparklesIcon className="size-3.5 text-[#FF8C42] group-hover:scale-110 transition-transform" />
+          <SparklesIcon className="size-3.5 text-[var(--quant-primary)] group-hover:scale-110 transition-transform" />
 
           <span className="text-[11px] font-medium tracking-tight text-[#E2E8F0] group-hover:text-white truncate">
             <span>{aiLiveText}</span>
           </span>
 
-          <ChevronRightIcon className="size-3 text-[#64748B] group-hover:text-[#FF8C42] group-hover:translate-x-0.5 transition-all" />
+          <ChevronRightIcon className="size-3 text-[#64748B] group-hover:text-[var(--quant-primary)] group-hover:translate-x-0.5 transition-all" />
         </button>
 
         {/* Dismiss the capsule — it must never push content down once the
@@ -1370,7 +1370,7 @@ export function QuantPillarTopBar({
         <button
           type="button"
           onClick={() => setAiPillDismissed(true)}
-          className="p-1.5 rounded-full text-[#64748B] hover:text-white hover:bg-[#1F2430] transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+          className="p-1.5 rounded-full text-[#64748B] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           title="Dismiss"
           aria-label="Dismiss Quant AI status"
         >
@@ -1404,10 +1404,10 @@ export function QuantPillarTopBar({
               role="tab"
               aria-selected={isSelected}
               onClick={() => handleLensClick(lens)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10.5px] font-medium shrink-0 transition-all outline-none focus-visible:ring-1 focus-visible:ring-[#FF8C42] ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10.5px] font-medium shrink-0 transition-all outline-none focus-visible:ring-1 focus-visible:ring-[var(--quant-primary)] ${
                 isSelected
                   ? 'text-white font-semibold shadow-sm'
-                  : 'bg-[#111318] text-[#94A3B8] hover:text-[#E2E8F0] hover:bg-[#161922] border border-[#232938]'
+                  : 'bg-[var(--quant-surface)] text-[#94A3B8] hover:text-[#E2E8F0] hover:bg-[#161922] border border-[#232938]'
               }`}
               style={
                 isSelected
@@ -1427,7 +1427,7 @@ export function QuantPillarTopBar({
                     isSelected
                       ? {
                           backgroundColor: activeTile.accentColor,
-                          color: '#000000',
+                          color: 'var(--quant-background)',
                         }
                       : {
                           backgroundColor: '#232938',

@@ -1586,7 +1586,7 @@ function QuantGitContent() {  const router = useRouter();
       status: 'active',
       currentTask: 'Initialized and listening on swarm event bus.',
       initial: newAgentName.trim().charAt(0).toUpperCase(),
-      color: '#FF8C42',
+      color: 'var(--quant-primary)',
       steps: ['Loaded sovereign context', 'Mounted workspace volume'],
       thoughts: 'Ready for local tasks.',
     };
@@ -2062,7 +2062,7 @@ function QuantGitContent() {  const router = useRouter();
                   onClick={() => openRepositoryTab(t.id as GitHubTab)}
                   className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-all shrink-0 ${
                     active
-                      ? 'border-[#FF8C42] text-white font-bold'
+                      ? 'border-[var(--quant-primary)] text-white font-bold'
                       : 'border-transparent text-[#7D8590] hover:text-[#E6EDF3] hover:border-[#30363D]'
                   }`}
                 >
@@ -2071,7 +2071,7 @@ function QuantGitContent() {  const router = useRouter();
                     <span
                       className={`px-1.5 py-px rounded-full text-[10px] ${
                         active
-                          ? 'bg-[#FF8C42]/20 text-[#FF8C42] font-bold'
+                          ? 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] font-bold'
                           : 'bg-[#21262D] text-[#7D8590]'
                       }`}
                     >
@@ -2386,7 +2386,7 @@ function QuantGitContent() {  const router = useRouter();
         {activeDeckTab === 'lab' && (
           <div className="flex-1 min-h-0 w-full overflow-y-auto overscroll-contain">
             <div className="mx-auto flex min-h-full max-w-7xl flex-col gap-4 px-4 py-5 pb-20 text-xs sm:px-8">
-              <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-lg bg-[#161B22] border border-[#30363D]">
+              <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
                 <div>
                   <h3 className="text-base font-bold text-white">Autonomous Swarm Fleet Command</h3>
                   <p className="text-[#7D8590]">
@@ -2396,7 +2396,7 @@ function QuantGitContent() {  const router = useRouter();
                 <button
                   type="button"
                   onClick={() => setModalState('deploy-agent')}
-                  className="px-3.5 py-1.5 rounded-md bg-[#FF8C42] hover:bg-[#ff9b5a] text-black font-bold text-xs transition-colors"
+                  className="px-3.5 py-1.5 rounded-md bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-black font-bold text-xs transition-colors"
                 >
                   + Deploy Agent
                 </button>
@@ -2545,12 +2545,12 @@ function QuantGitContent() {  const router = useRouter();
       {/* Dark bottom safeguard — covers any light safe-area strip between content and bottom nav */}
       <div
         aria-hidden="true"
-        className="fixed bottom-0 inset-x-0 h-[80px] bg-[#090A0E] pointer-events-none z-20"
+        className="fixed bottom-0 inset-x-0 h-[80px] bg-[var(--quant-background)] pointer-events-none z-20"
       />
 
       {/* Floating Toast Notification — above the single bottom nav */}
       {toastMessage && (
-        <div className="fixed left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-[#111318]/90 backdrop-blur-xl border border-[#FF8C42]/35 text-[#FF8C42] text-xs font-semibold shadow-[0_8px_32px_rgba(0,0,0,0.8),inset_0_1px_0_0_rgba(255,255,255,0.08),0_0_20px_rgba(255,140,66,0.15)] animate-in fade-in slide-in-from-bottom-3 bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)]">
+        <div className="fixed left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-[var(--quant-surface)]/90 backdrop-blur-xl border border-[var(--quant-primary)]/35 text-[var(--quant-primary)] text-xs font-semibold shadow-[0_8px_32px_rgba(0,0,0,0.8),inset_0_1px_0_0_rgba(255,255,255,0.08),0_0_20px_rgba(255,140,66,0.15)] animate-in fade-in slide-in-from-bottom-3 bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)]">
           {toastMessage}
         </div>
       )}
@@ -2563,7 +2563,7 @@ export default function QuantGitPage() {
   return (
     <Suspense
       fallback={
-        <div className="h-dvh max-h-dvh w-full flex items-center justify-center bg-[#090A0E] text-[#A78BFA] font-mono text-xs">
+        <div className="h-dvh max-h-dvh w-full flex items-center justify-center bg-[var(--quant-background)] text-[#A78BFA] font-mono text-xs">
           Loading QuantGit Workspace...
         </div>
       }

@@ -208,10 +208,10 @@ export default function DocumentPage() {
         <main className="flex-1 overflow-y-auto no-scrollbar relative">
           {isLoading ? (
             <div className="mx-auto max-w-4xl py-20 px-8 space-y-6 animate-pulse">
-              <div className="h-10 w-48 bg-[#161B22] rounded-lg" />
-              <div className="h-4 w-full bg-[#161B22] rounded" />
-              <div className="h-4 w-3/4 bg-[#161B22] rounded" />
-              <div className="h-32 w-full bg-[#161B22] rounded-xl" />
+              <div className="h-10 w-48 bg-[var(--quant-surface-elevated)] rounded-lg" />
+              <div className="h-4 w-full bg-[var(--quant-surface-elevated)] rounded" />
+              <div className="h-4 w-3/4 bg-[var(--quant-surface-elevated)] rounded" />
+              <div className="h-32 w-full bg-[var(--quant-surface-elevated)] rounded-xl" />
             </div>
           ) : (
             <div className="min-h-full">
@@ -226,14 +226,14 @@ export default function DocumentPage() {
                   <button
                     type="button"
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className="w-12 h-12 rounded-xl bg-[#161B22] border border-[#30363D] hover:border-[#FF8C42] flex items-center justify-center text-2xl transition-all shadow-sm"
+                    className="w-12 h-12 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[var(--quant-primary)] flex items-center justify-center text-2xl transition-all shadow-sm"
                     title="Change icon"
                   >
                     {metadata.icon || '📄'}
                   </button>
 
                   {showEmojiPicker && (
-                    <div className="absolute left-0 top-full mt-2 w-64 rounded-xl border border-[#30363D] bg-[#161B22] p-2 shadow-2xl z-50">
+                    <div className="absolute left-0 top-full mt-2 w-64 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] p-2 shadow-2xl z-50">
                       <div className="text-[10px] font-semibold text-[#8B949E] px-1 py-1 uppercase tracking-wider">
                         Select Icon
                       </div>
@@ -288,7 +288,7 @@ export default function DocumentPage() {
                       type="button"
                       onClick={handleAddSubpage}
                       disabled={isCreatingSubpage}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-[#161B22] text-[#C9D1D9] hover:bg-[#21262D] hover:text-[#FF8C42] border border-[#30363D] transition-colors"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-[var(--quant-surface-elevated)] text-[#C9D1D9] hover:bg-[#21262D] hover:text-[var(--quant-primary)] border border-[#30363D] transition-colors"
                     >
                       <span>+ Add subpage</span>
                     </button>
@@ -300,7 +300,7 @@ export default function DocumentPage() {
                         <Link
                           key={subpage.id}
                           href={`/drive/doc/${subpage.id}`}
-                          className="flex items-center gap-2.5 p-2.5 rounded-lg bg-[#161B22]/70 border border-[#30363D]/60 hover:border-[#FF8C42]/60 hover:bg-[#161B22] transition-all group"
+                          className="flex items-center gap-2.5 p-2.5 rounded-lg bg-[var(--quant-surface-elevated)]/70 border border-[#30363D]/60 hover:border-[var(--quant-primary)]/60 hover:bg-[var(--quant-surface-elevated)] transition-all group"
                         >
                           <span className="text-base shrink-0">
                             {(subpage.metadata as any)?.icon || '📄'}
@@ -330,7 +330,7 @@ export default function DocumentPage() {
 
           {/* Floating Auto-save / Sync Status Pill — clears the single h-16
               bottom bar + safe-area on mobile, sits bottom-4 on desktop */}
-          <div className="fixed right-6 z-30 flex items-center gap-2 rounded-full border border-[#30363D] bg-[#161B22]/90 px-3 py-1.5 text-xs text-[#8B949E] shadow-xl backdrop-blur-md bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)] md:bottom-4">
+          <div className="fixed right-6 z-30 flex items-center gap-2 rounded-full border border-[#30363D] bg-[var(--quant-surface-elevated)]/90 px-3 py-1.5 text-xs text-[#8B949E] shadow-xl backdrop-blur-md bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)] md:bottom-4">
             {syncStatus === 'connected' && (
               <>
                 <span className="h-2 w-2 rounded-full bg-[#3FB950] animate-pulse" />

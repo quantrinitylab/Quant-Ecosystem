@@ -484,7 +484,7 @@ export function SsoChooserContent({
   }, [showChooser, hasAccounts, authorizing]);
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-center bg-[#07080A] text-[#FAFAFA] px-4 py-8 selection:bg-[#FF8C42]/20 selection:text-[#FF8C42] overflow-x-hidden">
+    <div className="relative min-h-screen w-full flex flex-col items-center justify-center bg-[#07080A] text-[#FAFAFA] px-4 py-8 selection:bg-[var(--quant-primary)]/20 selection:text-[var(--quant-primary)] overflow-x-hidden">
       {/* Ambient subtle obsidian titanium grid with microscopic starfield */}
       <TitaniumGridCanvas />
 
@@ -498,7 +498,7 @@ export function SsoChooserContent({
           <div className="mt-3.5 flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-[11px] font-mono tracking-wider uppercase text-zinc-300">
             <span className="font-semibold text-white">QUANT ID</span>
             <span className="text-zinc-600">/</span>
-            <span className="text-[#FF8C42] font-semibold">SOVEREIGN SSO</span>
+            <span className="text-[var(--quant-primary)] font-semibold">SOVEREIGN SSO</span>
           </div>
         </div>
 
@@ -510,7 +510,7 @@ export function SsoChooserContent({
           <p className="mt-1.5 text-sm text-zinc-400 flex items-center justify-center gap-1.5">
             <span>to continue to</span>
             <span className="font-medium text-white inline-flex items-center gap-1.5 bg-white/[0.04] px-2 py-0.5 rounded-md border border-white/[0.06]">
-              <ClientAppIcon type={clientApp.iconType} className="w-3.5 h-3.5 text-[#FF8C42]" />
+              <ClientAppIcon type={clientApp.iconType} className="w-3.5 h-3.5 text-[var(--quant-primary)]" />
               <span>{clientApp.name}</span>
             </span>
           </p>
@@ -519,7 +519,7 @@ export function SsoChooserContent({
         {/* Authorizing Spinner Overlay */}
         {authorizing && (
           <div className="w-full py-12 flex flex-col items-center justify-center space-y-3">
-            <div className="w-8 h-8 rounded-full border-2 border-[#FF8C42] border-t-transparent animate-spin" />
+            <div className="w-8 h-8 rounded-full border-2 border-[var(--quant-primary)] border-t-transparent animate-spin" />
             <p className="text-sm font-medium text-zinc-300">
               Connecting you to {clientApp.name}...
             </p>
@@ -558,8 +558,8 @@ export function SsoChooserContent({
                     aria-selected={isSelected}
                     className={`w-full flex items-center gap-3.5 p-3.5 rounded-xl border transition-all text-left group relative ${
                       isSelected
-                        ? 'border-[#FF8C42]/60 bg-white/[0.05] ring-1 ring-[#FF8C42]/40 shadow-[0_4px_20px_-4px_rgba(255,140,66,0.2)]'
-                        : 'border-white/[0.08] hover:border-[#FF8C42]/50 bg-white/[0.02] hover:bg-white/[0.04]'
+                        ? 'border-[var(--quant-primary)]/60 bg-white/[0.05] ring-1 ring-[var(--quant-primary)]/40 shadow-[0_4px_20px_-4px_rgba(255,140,66,0.2)]'
+                        : 'border-white/[0.08] hover:border-[var(--quant-primary)]/50 bg-white/[0.02] hover:bg-white/[0.04]'
                     }`}
                   >
                     {/* Circle Avatar with luxury gradient */}
@@ -572,7 +572,7 @@ export function SsoChooserContent({
 
                     {/* Account Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-white truncate group-hover:text-[#FF8C42] transition-colors">
+                      <div className="text-sm font-medium text-white truncate group-hover:text-[var(--quant-primary)] transition-colors">
                         {acc.displayName || acc.email.split('@')[0]}
                       </div>
                       <div className="text-xs text-zinc-400 truncate font-mono">{acc.email}</div>
@@ -593,7 +593,7 @@ export function SsoChooserContent({
 
                       {hotkeyNumber && (
                         <span
-                          className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium border border-white/[0.12] bg-white/[0.04] text-zinc-400 group-hover:border-[#FF8C42]/50 group-hover:text-[#FF8C42] transition-colors"
+                          className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium border border-white/[0.12] bg-white/[0.04] text-zinc-400 group-hover:border-[var(--quant-primary)]/50 group-hover:text-[var(--quant-primary)] transition-colors"
                           title={`Press ${hotkeyNumber} to immediately select`}
                         >
                           [ {hotkeyNumber} ]
@@ -616,7 +616,7 @@ export function SsoChooserContent({
               type="button"
               className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-white/[0.08] hover:border-white/[0.18] hover:bg-white/[0.04] text-sm font-medium text-zinc-300 hover:text-white transition-all group mt-2"
             >
-              <svg className="w-4 h-4 text-[#FF8C42] group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg className="w-4 h-4 text-[var(--quant-primary)] group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
@@ -652,7 +652,7 @@ export function SsoChooserContent({
                   placeholder="you@quantmail.in"
                   autoFocus
                   required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42]/50 text-sm text-white placeholder:text-zinc-600 outline-none transition-all"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] focus:border-[var(--quant-primary)] focus:ring-1 focus:ring-[var(--quant-primary)]/50 text-sm text-white placeholder:text-zinc-600 outline-none transition-all"
                 />
               </div>
 
@@ -665,7 +665,7 @@ export function SsoChooserContent({
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42]/50 text-sm text-white placeholder:text-zinc-600 outline-none transition-all pr-12"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] focus:border-[var(--quant-primary)] focus:ring-1 focus:ring-[var(--quant-primary)]/50 text-sm text-white placeholder:text-zinc-600 outline-none transition-all pr-12"
                   />
                   <button
                     type="button"
@@ -680,7 +680,7 @@ export function SsoChooserContent({
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[#FF8C42] text-[#090A0C] font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all shadow-[0_4px_20px_-4px_rgba(255,140,66,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] disabled:opacity-50"
+                className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[var(--quant-primary)] text-[var(--quant-background)] font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all shadow-[0_4px_20px_-4px_rgba(255,140,66,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] disabled:opacity-50"
               >
                 {submitting ? 'Signing in...' : `Continue to ${clientApp.name}`}
               </button>
@@ -731,13 +731,13 @@ export function SsoChooserContent({
                   placeholder="6-digit code or recovery code"
                   autoFocus
                   required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42]/50 text-sm text-white placeholder:text-zinc-600 outline-none transition-all text-center font-mono tracking-widest text-lg"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] focus:border-[var(--quant-primary)] focus:ring-1 focus:ring-[var(--quant-primary)]/50 text-sm text-white placeholder:text-zinc-600 outline-none transition-all text-center font-mono tracking-widest text-lg"
                 />
               </div>
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[#FF8C42] text-[#090A0C] font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all shadow-[0_4px_20px_-4px_rgba(255,140,66,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] disabled:opacity-50"
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[var(--quant-primary)] text-[var(--quant-background)] font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all shadow-[0_4px_20px_-4px_rgba(255,140,66,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] disabled:opacity-50"
               >
                 {submitting ? 'Verifying...' : `Verify and Continue`}
               </button>
@@ -748,7 +748,7 @@ export function SsoChooserContent({
         {/* Telemetry Bar & Ecosystem Sovereign Notice */}
         <div className="mt-8 pt-6 border-t border-white/[0.06] text-center w-full">
           <div className="flex items-center justify-center gap-1.5 text-[11px] font-mono tracking-wide text-zinc-400">
-            <svg className="w-3.5 h-3.5 text-[#FF8C42] flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg className="w-3.5 h-3.5 text-[var(--quant-primary)] flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="currentColor" fillOpacity="0.25" />
             </svg>
             <span>One sign-in for every Quant app</span>

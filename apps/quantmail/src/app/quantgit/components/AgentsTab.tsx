@@ -13,7 +13,7 @@ export interface AgentsTabProps {
 export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
   return (
     <div className="space-y-6 text-xs">
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-lg bg-[#161B22] border border-[#30363D]">
+      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
         <div className="space-y-1">
           <h3 className="text-base font-bold text-white flex items-center gap-2">
             <BubbleAvatar state="coding" size={20} />
@@ -27,14 +27,14 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
         <button
           type="button"
           onClick={() => setModalState('deploy-agent')}
-          className="px-3.5 py-1.5 rounded-md bg-[#FF8C42] hover:bg-[#ff9b5a] text-black font-bold transition-colors"
+          className="px-3.5 py-1.5 rounded-md bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-black font-bold transition-colors"
         >
           + Deploy Agent
         </button>
       </div>
 
       {agents.length === 0 ? (
-        <div className="rounded-lg bg-[#161B22] border border-[#30363D]">
+        <div className="rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
           <QuantGitEmptyState
             icon="agent"
             title="No agents deployed"
@@ -49,7 +49,7 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
           {agents.map((ag) => (
           <div
             key={ag.id}
-            className="p-4 rounded-md bg-[#161B22] border border-[#30363D] space-y-3"
+            className="p-4 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] space-y-3"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -68,7 +68,7 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
                 {ag.status}
               </span>
             </div>
-            <p className="text-[11px] text-[#FF8C42] font-semibold">{ag.role}</p>
+            <p className="text-[11px] text-[var(--quant-primary)] font-semibold">{ag.role}</p>
             <p className="text-[11px] text-[#7D8590] leading-relaxed">{ag.currentTask}</p>
             <div className="bg-[#0D1117] p-2.5 rounded border border-[#21262D] space-y-1 text-[10px]">
               <p className="font-bold text-white">Thought Chain:</p>

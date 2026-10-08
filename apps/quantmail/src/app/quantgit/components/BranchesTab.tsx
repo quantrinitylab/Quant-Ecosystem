@@ -130,7 +130,7 @@ export function BranchesTab({
   return (
     <div data-testid="branches-tab" className="space-y-6">
       {/* 1. Header Toolbar: Search Filter & "+ New branch" Action */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#161B22] border border-[#30363D] rounded-lg p-3.5 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-lg p-3.5 text-xs">
         <div className="flex items-center gap-3 flex-1 min-w-[240px] max-w-md">
           <div className="relative w-full">
             <input
@@ -200,7 +200,7 @@ export function BranchesTab({
 
         <div
           data-testid="default-branch-card"
-          className="rounded-lg border border-[#30363D] bg-[#161B22] p-4 flex flex-wrap items-center justify-between gap-3 text-xs"
+          className="rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] p-4 flex flex-wrap items-center justify-between gap-3 text-xs"
         >
           <div className="flex items-center gap-3">
             <svg height="16" viewBox="0 0 16 16" width="16" fill="#58A6FF" className="shrink-0">
@@ -281,7 +281,7 @@ export function BranchesTab({
 
         <div
           data-testid="active-branches-list"
-          className="rounded-lg border border-[#30363D] bg-[#161B22] divide-y divide-[#21262D] overflow-hidden text-xs"
+          className="rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] divide-y divide-[#21262D] overflow-hidden text-xs"
         >
           {activeBranches.length === 0 ? (
             <div className="p-8 text-center text-[#7D8590]">
@@ -398,7 +398,7 @@ export function BranchesTab({
           data-testid="new-branch-modal"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4"
         >
-          <div className="w-full max-w-md rounded-lg border border-[#30363D] bg-[#161B22] p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-md rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-[#21262D] pb-3">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <span>🌱</span> Create a branch
@@ -437,7 +437,7 @@ export function BranchesTab({
                   className="w-full bg-[#0D1117] border border-[#30363D] rounded-md px-3 py-2 text-xs text-white focus:outline-none focus:border-[#58A6FF] cursor-pointer font-mono"
                 >
                   {branchList.map((b) => (
-                    <option key={b.name} value={b.name} className="bg-[#161B22] text-[#E6EDF3]">
+                    <option key={b.name} value={b.name} className="bg-[var(--quant-surface-elevated)] text-[#E6EDF3]">
                       {b.name} {b.name === defaultBranchItem.name ? '(default)' : ''}
                     </option>
                   ))}

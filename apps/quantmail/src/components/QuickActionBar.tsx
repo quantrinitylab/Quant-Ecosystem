@@ -156,7 +156,7 @@ export function QuickActionBar({
       label: 'Done & archive',
       icon: (
         <svg
-          className="size-3.5 text-[#FF8C42]"
+          className="size-3.5 text-[var(--quant-primary)]"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -185,7 +185,7 @@ export function QuickActionBar({
     >
       <span className="quick-action-label flex items-center gap-1">
         <svg
-          className="size-3.5 text-[#FF8C42]"
+          className="size-3.5 text-[var(--quant-primary)]"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"

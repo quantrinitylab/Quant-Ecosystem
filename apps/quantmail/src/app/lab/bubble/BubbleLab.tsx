@@ -94,7 +94,7 @@ export function BubbleLab() {
             <BubbleAvatar state={hero} size={84} />
             <div>
               <h1 className="text-3xl font-semibold tracking-tight">
-                Bubble <span className="text-[#FF8C42]">Intelligence</span>
+                Bubble <span className="text-[var(--quant-primary)]">Intelligence</span>
               </h1>
               <p className="mt-1 text-sm opacity-70">
                 Feels. Understands. Builds with you. — {order.length} meaningful states.
@@ -105,7 +105,7 @@ export function BubbleLab() {
             <button
               type="button"
               onClick={() => setPlaying((v) => !v)}
-              className="rounded-full bg-[#FF8C42] px-4 py-2 text-sm font-medium text-[#1a0f05] transition hover:bg-[#ffa366]"
+              className="rounded-full bg-[var(--quant-primary)] px-4 py-2 text-sm font-medium text-[#1a0f05] transition hover:bg-[#ffa366]"
             >
               {playing ? '⏸ Stop tour' : '▶ Play tour'}
             </button>
@@ -128,7 +128,7 @@ export function BubbleLab() {
               className="drop-shadow-[0_18px_40px_rgba(255,140,66,0.35)]"
             />
             <div className="min-w-0">
-              <p className="text-xs font-medium uppercase tracking-[0.2em] text-[#FF8C42]">
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--quant-primary)]">
                 State {String(order.indexOf(hero) + 1).padStart(2, '0')} / {order.length}
               </p>
               <h2 className="mt-2 text-2xl font-semibold">
@@ -164,8 +164,8 @@ export function BubbleLab() {
                 aria-pressed={hero === state}
                 className={`group rounded-2xl border p-4 text-left transition ${
                   hero === state
-                    ? 'border-[#FF8C42]/70 bg-[#FF8C42]/10'
-                    : 'border-black/10 hover:border-[#FF8C42]/40 hover:bg-[#FF8C42]/[0.06] dark:border-white/10'
+                    ? 'border-[var(--quant-primary)]/70 bg-[var(--quant-primary)]/10'
+                    : 'border-black/10 hover:border-[var(--quant-primary)]/40 hover:bg-[var(--quant-primary)]/[0.06] dark:border-white/10'
                 }`}
               >
                 <span className="text-[10px] font-medium opacity-50">

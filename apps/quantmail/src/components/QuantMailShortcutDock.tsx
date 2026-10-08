@@ -228,7 +228,7 @@ export function QuantMailShortcutDock({
         // the bar used to sit glued over the inbox's bottom nav on mobile.
         className={`hidden md:flex ${positionClasses} backdrop-blur-md bg-black/75 border border-white/10 shadow-2xl rounded-full px-4 py-2 items-center gap-2.5 text-xs text-gray-300 hover:text-white transition-all cursor-pointer ${className}`}
       >
-        <span className="size-2 rounded-full bg-[#FF8C42] shadow-[0_0_8px_rgba(255,140,66,0.8)]" />
+        <span className="size-2 rounded-full bg-[var(--quant-primary)] shadow-[0_0_8px_rgba(255,140,66,0.8)]" />
         <span className="font-semibold text-white">Shortcuts</span>
         <span className="text-[10px] text-gray-400 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded font-mono">
           ?
@@ -251,7 +251,7 @@ export function QuantMailShortcutDock({
     >
       {/* Brand mark */}
       <div className="flex items-center gap-1.5 font-medium text-white shrink-0 pr-1">
-        <span className="size-2 rounded-full bg-[#FF8C42] shadow-[0_0_8px_rgba(255,140,66,0.8)]" />
+        <span className="size-2 rounded-full bg-[var(--quant-primary)] shadow-[0_0_8px_rgba(255,140,66,0.8)]" />
         <span className="font-bold text-xs tracking-wide">Keys</span>
       </div>
 
@@ -268,7 +268,7 @@ export function QuantMailShortcutDock({
             data-testid="key-badge-J"
             className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-bold transition-all border ${
               isKeyActive('J')
-                ? 'border-[#FF8C42] bg-[#FF8C42]/20 text-[#FF8C42] shadow-[0_0_12px_rgba(255,140,66,0.6)]'
+                ? 'border-[var(--quant-primary)] bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] shadow-[0_0_12px_rgba(255,140,66,0.6)]'
                 : 'border-white/10 bg-white/5 text-gray-300'
             }`}
           >
@@ -278,7 +278,7 @@ export function QuantMailShortcutDock({
             data-testid="key-badge-K"
             className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-bold transition-all border ${
               isKeyActive('K')
-                ? 'border-[#FF8C42] bg-[#FF8C42]/20 text-[#FF8C42] shadow-[0_0_12px_rgba(255,140,66,0.6)]'
+                ? 'border-[var(--quant-primary)] bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] shadow-[0_0_12px_rgba(255,140,66,0.6)]'
                 : 'border-white/10 bg-white/5 text-gray-300'
             }`}
           >
@@ -300,7 +300,7 @@ export function QuantMailShortcutDock({
           data-testid="key-badge-E"
           className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-bold transition-all border ${
             isKeyActive('E')
-              ? 'border-[#FF8C42] bg-[#FF8C42]/20 text-[#FF8C42] shadow-[0_0_12px_rgba(255,140,66,0.6)]'
+              ? 'border-[var(--quant-primary)] bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] shadow-[0_0_12px_rgba(255,140,66,0.6)]'
               : 'border-white/10 bg-white/5 text-gray-300'
           }`}
         >
@@ -321,7 +321,7 @@ export function QuantMailShortcutDock({
           data-testid="key-badge-S"
           className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-bold transition-all border ${
             isKeyActive('S')
-              ? 'border-[#FF8C42] bg-[#FF8C42]/20 text-[#FF8C42] shadow-[0_0_12px_rgba(255,140,66,0.6)]'
+              ? 'border-[var(--quant-primary)] bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] shadow-[0_0_12px_rgba(255,140,66,0.6)]'
               : 'border-white/10 bg-white/5 text-gray-300'
           }`}
         >
@@ -342,7 +342,7 @@ export function QuantMailShortcutDock({
           data-testid="key-badge-R"
           className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-bold transition-all border ${
             isKeyActive('R')
-              ? 'border-[#FF8C42] bg-[#FF8C42]/20 text-[#FF8C42] shadow-[0_0_12px_rgba(255,140,66,0.6)]'
+              ? 'border-[var(--quant-primary)] bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] shadow-[0_0_12px_rgba(255,140,66,0.6)]'
               : 'border-white/10 bg-white/5 text-gray-300'
           }`}
         >
@@ -363,7 +363,7 @@ export function QuantMailShortcutDock({
           data-testid="key-badge-Z"
           className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-bold transition-all border ${
             isKeyActive('Z')
-              ? 'border-[#FF8C42] bg-[#FF8C42]/20 text-[#FF8C42] shadow-[0_0_12px_rgba(255,140,66,0.6)]'
+              ? 'border-[var(--quant-primary)] bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] shadow-[0_0_12px_rgba(255,140,66,0.6)]'
               : 'border-white/10 bg-white/5 text-gray-300'
           }`}
         >
@@ -384,7 +384,7 @@ export function QuantMailShortcutDock({
           data-testid="key-badge-CMD_K"
           className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-bold transition-all border ${
             isKeyActive('CMD_K')
-              ? 'border-[#FF8C42] bg-[#FF8C42]/20 text-[#FF8C42] shadow-[0_0_12px_rgba(255,140,66,0.6)]'
+              ? 'border-[var(--quant-primary)] bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] shadow-[0_0_12px_rgba(255,140,66,0.6)]'
               : 'border-white/10 bg-white/5 text-gray-300'
           }`}
         >
@@ -399,7 +399,7 @@ export function QuantMailShortcutDock({
         data-testid="dock-minimize-button"
         aria-label="Minimize dock"
         onClick={() => setCollapsed(true)}
-        className="ml-1 p-1 text-gray-400 hover:text-white rounded-full hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+        className="ml-1 p-1 text-gray-400 hover:text-white rounded-full hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
       >
         <svg
           className="size-3.5"

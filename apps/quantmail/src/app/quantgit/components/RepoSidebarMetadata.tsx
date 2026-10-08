@@ -136,7 +136,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
           </button>
 
           {isWatchMenuOpen && (
-            <div className="absolute right-0 top-full mt-1.5 w-64 rounded-xl bg-[#161B22] border border-[#30363D] shadow-2xl p-2 z-30 space-y-1 text-xs">
+            <div className="absolute right-0 top-full mt-1.5 w-64 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-2xl p-2 z-30 space-y-1 text-xs">
               {['Participating and @mentions', 'All Activity', 'Ignore'].map((opt) => (
                 <button
                   key={opt}

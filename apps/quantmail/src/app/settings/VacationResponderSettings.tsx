@@ -262,7 +262,7 @@ export function VacationResponderSettings() {
                 onChange={(event) =>
                   setDraft((value) => ({ ...value, onlyContacts: event.target.checked }))
                 }
-                className="h-4 w-4 shrink-0 rounded accent-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                className="h-4 w-4 shrink-0 rounded accent-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
               />
               Reply only to known contacts
             </label>

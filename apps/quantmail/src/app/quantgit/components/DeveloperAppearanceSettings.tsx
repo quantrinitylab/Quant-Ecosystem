@@ -36,7 +36,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
   const accents = [
     { id: 0, name: 'Light default', bg: '#ffffff', border: '#d0d7de' },
     { id: 1, name: 'Light colorblind', bg: '#f6f8fa', border: '#0969da' },
-    { id: 2, name: 'Light high contrast', bg: '#ffffff', border: '#000000' },
+    { id: 2, name: 'Light high contrast', bg: '#ffffff', border: 'var(--quant-background)' },
     { id: 3, name: 'Dark default', bg: '#0d1117', border: '#30363d' },
     { id: 4, name: 'Dark dimmed', bg: '#22272e', border: '#444c56' },
     { id: 5, name: 'Dark high contrast', bg: '#010409', border: '#ffffff' },
@@ -69,7 +69,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
               className={`px-4 py-2 rounded-lg font-medium capitalize border transition-all ${
                 themeMode === mode
                   ? 'bg-[#21262D] border-[#58A6FF] text-[#58A6FF] shadow-sm'
-                  : 'bg-[#161B22] border-[#30363D] text-[#8D96A0] hover:text-[#E6EDF3]'
+                  : 'bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#8D96A0] hover:text-[#E6EDF3]'
               }`}
             >
               {mode === 'system' ? 'Sync with system' : `${mode} mode`}
@@ -113,7 +113,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
           <select
             id="dev-tab-size" value={tabSize}
             onChange={(e) => setTabSize(Number(e.target.value))}
-            className="bg-[#161B22] border border-[#30363D] rounded-md py-1.5 px-3 text-xs text-[#E6EDF3] outline-none"
+            className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-md py-1.5 px-3 text-xs text-[#E6EDF3] outline-none"
           >
             <option value={2}>2 spaces</option>
             <option value={4}>4 spaces (Default)</option>
@@ -128,7 +128,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
               type="checkbox"
               checked={useMonospaceMarkdown}
               onChange={(e) => setUseMonospaceMarkdown(e.target.checked)}
-              className="mt-0.5 w-4 h-4 rounded bg-[#161B22] border-[#30363D] text-[#58A6FF] focus:ring-0"
+              className="mt-0.5 w-4 h-4 rounded bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#58A6FF] focus:ring-0"
             />
             <div>
               <span className="font-semibold text-xs text-[#E6EDF3]">
@@ -155,7 +155,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
                 className={`p-2 rounded-lg text-base border transition-all ${
                   selectedEmojiTone === idx
                     ? 'bg-[#21262D] border-[#58A6FF] scale-110'
-                    : 'bg-[#161B22] border-[#30363D] hover:bg-[#21262D]'
+                    : 'bg-[var(--quant-surface-elevated)] border-[#30363D] hover:bg-[#21262D]'
                 }`}
               >
                 {tone}
@@ -175,7 +175,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
             type="checkbox"
             checked={enableCharacterKeys}
             onChange={(e) => setEnableCharacterKeys(e.target.checked)}
-            className="mt-0.5 w-4 h-4 rounded bg-[#161B22] border-[#30363D] text-[#58A6FF] focus:ring-0"
+            className="mt-0.5 w-4 h-4 rounded bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#58A6FF] focus:ring-0"
           />
           <div>
             <span className="font-semibold text-xs text-[#E6EDF3]">Character keys</span>
@@ -194,7 +194,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
             type="checkbox"
             checked={showHovercards}
             onChange={(e) => setShowHovercards(e.target.checked)}
-            className="mt-0.5 w-4 h-4 rounded bg-[#161B22] border-[#30363D] text-[#58A6FF] focus:ring-0"
+            className="mt-0.5 w-4 h-4 rounded bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#58A6FF] focus:ring-0"
           />
           <div>
             <span className="font-semibold text-xs text-[#E6EDF3]">Show hovercards</span>
@@ -217,7 +217,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
           </span>
         </div>
 
-        <div className="divide-y divide-[#21262D] rounded-xl bg-[#161B22] border border-[#30363D] overflow-hidden">
+        <div className="divide-y divide-[#21262D] rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden">
           {[
             {
               id: 'commandPalette',

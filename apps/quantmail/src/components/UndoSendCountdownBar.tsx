@@ -375,8 +375,8 @@ export function UndoSendCountdownBar(props: UndoSendCountdownBarProps) {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 overflow-hidden">
               <span className="flex h-2 w-2 relative shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FF8C42] opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#FF8C42]" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--quant-primary)] opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--quant-primary)]" />
               </span>
               <p
                 data-testid="undo-send-text"
@@ -393,7 +393,7 @@ export function UndoSendCountdownBar(props: UndoSendCountdownBarProps) {
                 type="button"
                 data-testid="undo-button"
                 onClick={handleUndo}
-                className="px-2.5 py-1 min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-xs font-semibold rounded-md bg-[#FF8C42]/15 text-[#FF8C42] hover:bg-[#FF8C42]/25 border border-[#FF8C42]/30 transition-colors focus:outline-none focus:ring-1 focus:ring-[#FF8C42]"
+                className="px-2.5 py-1 min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-xs font-semibold rounded-md bg-[var(--quant-primary)]/15 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/25 border border-[var(--quant-primary)]/30 transition-colors focus:outline-none focus:ring-1 focus:ring-[var(--quant-primary)]"
                 title="Undo send (Press Z)"
               >
                 Undo (Z)
@@ -419,7 +419,7 @@ export function UndoSendCountdownBar(props: UndoSendCountdownBarProps) {
           >
             <div
               data-testid="undo-send-progress"
-              className="h-full bg-gradient-to-r from-[#FF8C42] to-[#FFA768] rounded-full transition-all duration-75 ease-linear"
+              className="h-full bg-gradient-to-r from-[var(--quant-primary)] to-[#FFA768] rounded-full transition-all duration-75 ease-linear"
               style={{ width: `${progressPercent}%` }}
             />
           </div>

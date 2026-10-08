@@ -215,15 +215,15 @@ describe('QuantMailSuperAppHeader — Amazon/Flipkart-Class Super-App Command He
       expect(hasEmoji).toBe(false);
     });
 
-    it('uses the canonical obsidian/slate palette colors (#090A0E, #12151E, #1E222A)', () => {
+    it('uses the canonical obsidian/slate palette colors (var(--quant-background), var(--quant-surface), var(--quant-surface-elevated))', () => {
       const html = renderToStaticMarkup(<QuantMailSuperAppHeader />);
 
       // Obsidian base
-      expect(html).toContain('bg-[#090A0E]');
+      expect(html).toContain('bg-[var(--quant-background)]');
       // Slate surface
-      expect(html).toContain('bg-[#12151E]');
+      expect(html).toContain('bg-[var(--quant-surface)]');
       // Obsidian border
-      expect(html).toContain('border-[#1E222A]');
+      expect(html).toContain('border-[var(--quant-surface-elevated)]');
     });
 
     it('all icons are vector SVGs with aria-hidden="true"', () => {

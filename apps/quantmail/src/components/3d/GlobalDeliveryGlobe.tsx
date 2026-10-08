@@ -327,13 +327,13 @@ export function GlobalDeliveryFallback({
             <linearGradient id={`arcGrad-${fallbackSvgId}`} x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#10b981" stopOpacity="0.8" />
               <stop offset="50%" stopColor="#06b6d4" stopOpacity="0.9" />
-              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.8" />
+              <stop offset="100%" stopColor="var(--quant-info)" stopOpacity="0.8" />
             </linearGradient>
           </defs>
 
           {/* Concentric telemetry rings */}
-          <ellipse cx="300" cy="120" rx="260" ry="85" stroke="#1e293b" strokeWidth="1" strokeDasharray="4 4" />
-          <ellipse cx="300" cy="120" rx="190" ry="60" stroke="#1e293b" strokeWidth="1" />
+          <ellipse cx="300" cy="120" rx="260" ry="85" stroke="var(--quant-surface-elevated)" strokeWidth="1" strokeDasharray="4 4" />
+          <ellipse cx="300" cy="120" rx="190" ry="60" stroke="var(--quant-surface-elevated)" strokeWidth="1" />
           <ellipse cx="300" cy="120" rx="110" ry="35" stroke="#334155" strokeWidth="1" strokeDasharray="2 2" />
 
           {/* Connection paths */}

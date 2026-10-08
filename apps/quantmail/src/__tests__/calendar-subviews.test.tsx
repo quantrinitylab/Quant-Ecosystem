@@ -44,7 +44,7 @@ const mockSampleEvents: CalendarEventLike[] = [
     end: new Date(Date.now() + 3600000).toISOString(),
     location: 'QuantMeet Room Alpha',
     allDay: false,
-    color: '#F59E0B',
+    color: 'var(--quant-warning)',
     priority: 'urgent',
     attendees: ['sundar@quantmail.in', 'satya@quantmail.in'],
   },

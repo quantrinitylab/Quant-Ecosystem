@@ -44,7 +44,7 @@ describe('app-theme', () => {
     // Orange family for mail
     expect(APP_THEMES.mail.accent).toMatch(/^#FF/i);
     // Blue family for calendar
-    expect(APP_THEMES.calendar.accent).toMatch(/^#3B82F6|^#4285F4/i);
+    expect(APP_THEMES.calendar.accent).toMatch(/^var(--quant-info)|^#4285F4/i);
     // Green family for drive
     expect(APP_THEMES.drive.accent).toMatch(/^#22|^#34/i);
     // Purple family for quantgit

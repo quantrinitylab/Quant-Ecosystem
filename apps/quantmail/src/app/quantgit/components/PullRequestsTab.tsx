@@ -289,7 +289,7 @@ export function PullRequestsTab({
                   {isReviewBoxOpen && (
                     <div
                       data-testid="review-changes-box"
-                      className="absolute right-0 top-full mt-2 w-80 bg-[#161B22] border border-[#30363D] rounded-xl p-4 shadow-2xl z-50 space-y-3 animate-in fade-in"
+                      className="absolute right-0 top-full mt-2 w-80 bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl p-4 shadow-2xl z-50 space-y-3 animate-in fade-in"
                     >
                       <div className="flex items-center justify-between border-b border-[#30363D] pb-2">
                         <span className="font-bold text-xs text-[#E6EDF3]">Review changes</span>
@@ -469,7 +469,7 @@ export function PullRequestsTab({
           </div>
 
           {/* Reviews Status Bar */}
-          <div className="rounded-xl bg-[#161B22] border border-[#30363D] p-3.5 space-y-2">
+          <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] p-3.5 space-y-2">
             <h4 className="font-bold text-xs text-[#E6EDF3] flex items-center justify-between">
               <span>Review decisions:</span>
               <span className="text-[#8D96A0] text-[11px] font-normal">
@@ -520,7 +520,7 @@ export function PullRequestsTab({
 
           {/* Automated Security & CI Status Check Box */}
           <div
-            className="rounded-xl bg-[#161B22] border border-[#30363D] p-4 space-y-3"
+            className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] p-4 space-y-3"
             data-testid="security-ci-checks-box"
           >
             <div className="flex items-center justify-between">
@@ -673,7 +673,7 @@ export function PullRequestsTab({
                             onChange={(e) => setMergeCommitMsg(e.target.value)}
                             placeholder={`Merge pull request #${(selectedPR as any).number || selectedPR.id} from ${selectedPR.branchSource}`}
                             data-testid="merge-commit-input"
-                            className="w-full bg-[#161B22] border border-[#30363D] focus:border-[#58A6FF] rounded px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
+                            className="w-full bg-[var(--quant-surface-elevated)] border border-[#30363D] focus:border-[#58A6FF] rounded px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
                           />
                         </div>
 
@@ -756,7 +756,7 @@ export function PullRequestsTab({
                 Files changed ({selectedPR?.changedFiles ?? 0})
               </span>
 
-              <div className="flex items-center gap-1 bg-[#161B22] p-0.5 rounded border border-[#30363D]">
+              <div className="flex items-center gap-1 bg-[var(--quant-surface-elevated)] p-0.5 rounded border border-[#30363D]">
                 <button
                   type="button"
                   onClick={() => setDiffViewMode('unified')}
@@ -812,7 +812,7 @@ export function PullRequestsTab({
                 onChange={(e) => setPullSearchQuery(e.target.value)}
                 placeholder="is:pr state:open ..."
                 data-testid="pull-search-input"
-                className="w-full bg-[#161B22] border border-[#30363D] focus:border-[#58A6FF] rounded-lg px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
+                className="w-full bg-[var(--quant-surface-elevated)] border border-[#30363D] focus:border-[#58A6FF] rounded-lg px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
               />
             </div>
             <button
@@ -826,7 +826,7 @@ export function PullRequestsTab({
           </div>
 
           <div className="border border-[#30363D] rounded-xl bg-[#0D1117] overflow-hidden">
-            <div className="bg-[#161B22] border-b border-[#30363D] px-4 py-3 flex items-center justify-between font-semibold">
+            <div className="bg-[var(--quant-surface-elevated)] border-b border-[#30363D] px-4 py-3 flex items-center justify-between font-semibold">
               <div className="flex items-center gap-4">
                 <button
                   type="button"
@@ -888,7 +888,7 @@ export function PullRequestsTab({
                       openPullDetail?.(pr);
                     }}
                     aria-label={`Open pull request ${pr.title}`}
-                    className="w-full p-4 hover:bg-[#161B22] transition-colors flex items-start justify-between gap-4 group text-left cursor-pointer"
+                    className="w-full p-4 hover:bg-[var(--quant-surface-elevated)] transition-colors flex items-start justify-between gap-4 group text-left cursor-pointer"
                   >
                     <div className="space-y-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">

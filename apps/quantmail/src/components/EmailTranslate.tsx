@@ -55,7 +55,7 @@ export function EmailTranslate({ text, detectedLanguage, onTranslate }: EmailTra
         <div className="translate-prompt flex items-center gap-2">
           <span className="translate-icon">
             <svg
-              className="size-4 text-[#FF8C42]"
+              className="size-4 text-[var(--quant-primary)]"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -104,7 +104,7 @@ export function EmailTranslate({ text, detectedLanguage, onTranslate }: EmailTra
             <div className="translate-result-header flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-xs font-medium">
                 <svg
-                  className="size-3.5 text-[#FF8C42]"
+                  className="size-3.5 text-[var(--quant-primary)]"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"

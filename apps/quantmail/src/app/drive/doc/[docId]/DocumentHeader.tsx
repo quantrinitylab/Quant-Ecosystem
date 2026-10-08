@@ -69,7 +69,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
         <div className="flex items-center gap-2 min-w-0">
           <Link
             href="/drive"
-            className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-[#8B949E] hover:text-[#FF8C42] hover:bg-[#161B22] transition-colors shrink-0"
+            className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-[#8B949E] hover:text-[var(--quant-primary)] hover:bg-[var(--quant-surface-elevated)] transition-colors shrink-0"
             title="Back to QuantDrive"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -92,7 +92,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                 <React.Fragment key={crumb.id}>
                   <Link
                     href={`/drive/doc/${crumb.id}`}
-                    className="truncate text-xs font-medium text-[#8B949E] hover:text-[#FF8C42] hover:bg-[#161B22] px-1.5 py-0.5 rounded transition-colors max-w-[100px] sm:max-w-[140px]"
+                    className="truncate text-xs font-medium text-[#8B949E] hover:text-[var(--quant-primary)] hover:bg-[var(--quant-surface-elevated)] px-1.5 py-0.5 rounded transition-colors max-w-[100px] sm:max-w-[140px]"
                     title={crumb.title || 'Untitled'}
                   >
                     {crumb.title || 'Untitled'}
@@ -116,13 +116,13 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                   if (e.key === 'Enter') setIsEditingTitle(false);
                 }}
                 autoFocus
-                className="w-full bg-[#161B22] border border-[#FF8C42] rounded px-2 py-0.5 text-xs font-semibold text-[#F0F6FC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                className="w-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-primary)] rounded px-2 py-0.5 text-xs font-semibold text-[#F0F6FC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
               />
             ) : (
               <button
                 type="button"
                 onClick={() => setIsEditingTitle(true)}
-                className="truncate text-left text-xs font-semibold text-[#F0F6FC] hover:text-[#FF8C42] hover:bg-[#161B22] px-2 py-1 rounded transition-colors block w-full"
+                className="truncate text-left text-xs font-semibold text-[#F0F6FC] hover:text-[var(--quant-primary)] hover:bg-[var(--quant-surface-elevated)] px-2 py-1 rounded transition-colors block w-full"
                 title="Click to rename"
               >
                 {title || 'Untitled Document'}
@@ -134,7 +134,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
         {/* Right Cluster: Sync Status, Presence, and Actions */}
         <div className="flex items-center gap-2">
           {/* Connection & Sync Status Indicator */}
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[#161B22] border border-[#30363D] text-[11px]">
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[var(--quant-surface-elevated)] border border-[#30363D] text-[11px]">
             {syncStatus === 'connected' && (
               <>
                 <span className="relative flex h-2 w-2">
@@ -189,10 +189,10 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
           <button
             type="button"
             onClick={() => setShowShareModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#30363D] bg-[#161B22] hover:bg-[#21262D] text-xs font-medium text-[#F0F6FC] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] text-xs font-medium text-[#F0F6FC] transition-colors"
           >
             <svg
-              className="w-3.5 h-3.5 text-[#FF8C42]"
+              className="w-3.5 h-3.5 text-[var(--quant-primary)]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -211,7 +211,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
           <button
             type="button"
             onClick={onExportMarkdown}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#30363D] bg-[#161B22] hover:bg-[#21262D] text-xs font-medium text-[#C9D1D9] hover:text-[#F0F6FC] transition-colors"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] text-xs font-medium text-[#C9D1D9] hover:text-[#F0F6FC] transition-colors"
             title="Download as Markdown (.md)"
           >
             <svg
@@ -235,7 +235,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
             <button
               type="button"
               onClick={onOpenVersionHistory}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#30363D] bg-[#161B22] hover:bg-[#21262D] text-xs font-medium text-[#C9D1D9] hover:text-[#F0F6FC] transition-colors"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] text-xs font-medium text-[#C9D1D9] hover:text-[#F0F6FC] transition-colors"
               title="View Version History"
             >
               <svg
@@ -266,7 +266,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
             <button
               type="button"
               onClick={() => setShowMoreMenu(!showMoreMenu)}
-              className="p-1.5 rounded-lg border border-[#30363D] bg-[#161B22] hover:bg-[#21262D] text-[#8B949E] hover:text-[#F0F6FC] transition-colors"
+              className="p-1.5 rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] text-[#8B949E] hover:text-[#F0F6FC] transition-colors"
               title="More actions"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -277,7 +277,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
             </button>
 
             {showMoreMenu && (
-              <div className="absolute right-0 top-full mt-1.5 w-52 rounded-xl border border-[#30363D] bg-[#161B22] p-1.5 shadow-2xl z-50 space-y-1">
+              <div className="absolute right-0 top-full mt-1.5 w-52 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] p-1.5 shadow-2xl z-50 space-y-1">
                 <div className="px-2.5 py-1.5 border-b border-[#21262D] text-[11px] text-[#8B949E]">
                   <p>
                     {wordCount} words • {readingTime} min read

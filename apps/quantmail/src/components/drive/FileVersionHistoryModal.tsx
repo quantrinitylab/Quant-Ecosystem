@@ -309,11 +309,11 @@ export function FileVersionHistoryModal({
         role="dialog"
         aria-modal="true"
         aria-label={`Version history for ${fileName}`}
-        className="bg-[#16181D] border border-[#282C35] rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col text-[#F5F5F5] overflow-hidden"
+        className="bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col text-[#F5F5F5] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-[#282C35] flex items-center justify-between gap-3 bg-[#16181D]">
+        <div className="px-5 py-4 border-b border-[var(--quant-surface-elevated)] flex items-center justify-between gap-3 bg-[var(--quant-surface-elevated)]">
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-[#F5F5F5] flex items-center gap-2">
               <span>Version History</span>
@@ -327,7 +327,7 @@ export function FileVersionHistoryModal({
             aria-label="Close dialog"
             data-testid="close-version-history-btn"
             onClick={onClose}
-            className="p-1.5 rounded-md text-[#9E9E9E] hover:text-[#F5F5F5] hover:bg-[#282C35] transition-colors"
+            className="p-1.5 rounded-md text-[#9E9E9E] hover:text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)] transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -363,7 +363,7 @@ export function FileVersionHistoryModal({
               data-testid="version-history-loading"
               className="py-12 flex flex-col items-center justify-center text-center gap-2 text-[#9E9E9E]"
             >
-              <div className="w-6 h-6 border-2 border-[#FF8C42] border-t-transparent rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-[var(--quant-primary)] border-t-transparent rounded-full animate-spin" />
               <span className="text-xs">Loading version history...</span>
             </div>
           ) : sortedVersions.length === 0 ? (
@@ -390,22 +390,22 @@ export function FileVersionHistoryModal({
                   data-testid={`version-card-${version.versionNumber}`}
                   className={`p-3.5 rounded-lg border transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                     isCurrent
-                      ? 'bg-[#282C35]/60 border-[#FF8C42]/50 shadow-sm'
-                      : 'bg-[#1A1D24] border-[#282C35] hover:border-[#383E4A]'
+                      ? 'bg-[var(--quant-surface-elevated)]/60 border-[var(--quant-primary)]/50 shadow-sm'
+                      : 'bg-[#1A1D24] border-[var(--quant-surface-elevated)] hover:border-[#383E4A]'
                   }`}
                 >
                   <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span
                         data-testid={`version-badge-${version.versionNumber}`}
-                        className="px-2 py-0.5 rounded text-xs font-semibold bg-[#282C35] text-[#FF8C42] border border-[#FF8C42]/30"
+                        className="px-2 py-0.5 rounded text-xs font-semibold bg-[var(--quant-surface-elevated)] text-[var(--quant-primary)] border border-[var(--quant-primary)]/30"
                       >
                         v{version.versionNumber}
                       </span>
                       {isCurrent && (
                         <span
                           data-testid="current-version-pill"
-                          className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FF8C42]/20 text-[#FF8C42] border border-[#FF8C42]/40"
+                          className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] border border-[var(--quant-primary)]/40"
                         >
                           Current
                         </span>
@@ -421,7 +421,7 @@ export function FileVersionHistoryModal({
                               ? 'text-emerald-400 bg-emerald-950/40 border-emerald-800/40'
                               : delta.startsWith('-')
                                 ? 'text-rose-400 bg-rose-950/40 border-rose-800/40'
-                                : 'text-[#9E9E9E] bg-[#282C35]/40 border-[#282C35]'
+                                : 'text-[#9E9E9E] bg-[var(--quant-surface-elevated)]/40 border-[var(--quant-surface-elevated)]'
                           }`}
                         >
                           {delta}
@@ -460,7 +460,7 @@ export function FileVersionHistoryModal({
                         data-version-number={version.versionNumber}
                         disabled={state.isRestoring}
                         onClick={() => handleRestore(version)}
-                        className="w-full sm:w-auto px-3.5 py-1.5 rounded-md text-xs font-medium bg-[#FF8C42] hover:bg-[#FF8C42]/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 shadow-sm"
+                        className="w-full sm:w-auto px-3.5 py-1.5 rounded-md text-xs font-medium bg-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/90 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 shadow-sm"
                       >
                         {isThisRestoring ? 'Restoring...' : 'Restore this version'}
                       </button>
@@ -477,7 +477,7 @@ export function FileVersionHistoryModal({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-[#282C35] flex items-center justify-between text-xs text-[#9E9E9E] bg-[#16181D]">
+        <div className="px-5 py-3 border-t border-[var(--quant-surface-elevated)] flex items-center justify-between text-xs text-[#9E9E9E] bg-[var(--quant-surface-elevated)]">
           <span>
             {sortedVersions.length} {sortedVersions.length === 1 ? 'version' : 'versions'}
           </span>
@@ -485,7 +485,7 @@ export function FileVersionHistoryModal({
             type="button"
             data-testid="version-history-footer-close"
             onClick={onClose}
-            className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#282C35] hover:bg-[#383E4A] text-[#F5F5F5] transition-colors"
+            className="px-3 py-1.5 rounded-md text-xs font-medium bg-[var(--quant-surface-elevated)] hover:bg-[#383E4A] text-[#F5F5F5] transition-colors"
           >
             Close
           </button>

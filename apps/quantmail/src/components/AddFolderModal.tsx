@@ -18,11 +18,11 @@ export interface AddFolderModalProps {
 }
 
 const PRESET_COLORS = [
-  { value: '#FF8C42', label: 'Molten Amber' },
+  { value: 'var(--quant-primary)', label: 'Molten Amber' },
   { value: '#38BDF8', label: 'Electric Blue' },
   { value: '#10B981', label: 'Emerald' },
   { value: '#A78BFA', label: 'Royal Violet' },
-  { value: '#F59E0B', label: 'Solar Amber' },
+  { value: 'var(--quant-warning)', label: 'Solar Amber' },
   { value: '#FB7185', label: 'Rose Coral' },
 ];
 
@@ -33,7 +33,7 @@ export function AddFolderModal({
   existingContacts = [],
 }: AddFolderModalProps) {
   const [name, setName] = useState('');
-  const [color, setColor] = useState('#FF8C42');
+  const [color, setColor] = useState('var(--quant-primary)');
   const [filterType, setFilterType] = useState<'contact' | 'keyword' | 'standard'>('contact');
   const [filterValue, setFilterValue] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +45,7 @@ export function AddFolderModal({
   useEffect(() => {
     if (isOpen) {
       setName('');
-      setColor('#FF8C42');
+      setColor('var(--quant-primary)');
       setFilterType('contact');
       setFilterValue('');
       setError(null);
@@ -95,13 +95,13 @@ export function AddFolderModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-md bg-[#111318] border border-[#282C35] rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all"
+        className="w-full max-w-md bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all"
       >
         {/* Header */}
-        <div className="flex items-center justify-between gap-3 p-4 bg-[#16181D] border-b border-[#282C35]">
+        <div className="flex items-center justify-between gap-3 p-4 bg-[var(--quant-surface-elevated)] border-b border-[var(--quant-surface-elevated)]">
           <div className="flex items-center gap-2.5 min-w-0">
             <div
-              className="size-9 rounded-xl flex items-center justify-center text-[#111318] shrink-0 shadow-sm"
+              className="size-9 rounded-xl flex items-center justify-center text-[var(--quant-surface)] shrink-0 shadow-sm"
               style={{ backgroundColor: color }}
             >
               <svg
@@ -132,7 +132,7 @@ export function AddFolderModal({
           <button
             type="button"
             onClick={onClose}
-            className="size-8 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+            className="size-8 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             aria-label="Close dialog"
           >
             <svg
@@ -162,7 +162,7 @@ export function AddFolderModal({
           {/* Folder Name */}
           <div className="space-y-1.5">
             <label htmlFor="folder-name-input" className="block text-xs font-semibold text-[#E2E8F0]">
-              Folder Name <span className="text-[#FF8C42]">*</span>
+              Folder Name <span className="text-[var(--quant-primary)]">*</span>
             </label>
             <input
               ref={nameInputRef}
@@ -174,7 +174,7 @@ export function AddFolderModal({
                 if (error) setError(null);
               }}
               placeholder="e.g. VIP Clients, Invoices, Project Titan"
-              className="w-full h-10 px-3 rounded-xl bg-[#090A0C] border border-[#282C35] text-xs text-white placeholder-[#717888] focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42]/40 outline-none transition-all"
+              className="w-full h-10 px-3 rounded-xl bg-[var(--quant-background)] border border-[var(--quant-surface-elevated)] text-xs text-white placeholder-[#717888] focus:border-[var(--quant-primary)] focus:ring-1 focus:ring-[var(--quant-primary)]/40 outline-none transition-all"
             />
           </div>
 
@@ -189,7 +189,7 @@ export function AddFolderModal({
                   onClick={() => setColor(c.value)}
                   className={`size-7 rounded-full transition-transform flex items-center justify-center ${
                     color === c.value
-                      ? 'scale-110 ring-2 ring-white ring-offset-2 ring-offset-[#111318]'
+                      ? 'scale-110 ring-2 ring-white ring-offset-2 ring-offset-[var(--quant-surface)]'
                       : 'hover:scale-105 opacity-80 hover:opacity-100'
                   }`}
                   style={{ backgroundColor: c.value }}
@@ -218,13 +218,13 @@ export function AddFolderModal({
           {/* Filter Type Segmented Control */}
           <div className="space-y-1.5">
             <span className="block text-xs font-semibold text-[#E2E8F0]">Filter Type</span>
-            <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-[#090A0C] border border-[#282C35]">
+            <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-[var(--quant-background)] border border-[var(--quant-surface-elevated)]">
               <button
                 type="button"
                 onClick={() => setFilterType('contact')}
                 className={`py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
                   filterType === 'contact'
-                    ? 'bg-[#FF8C42]/20 text-[#FF8C42] font-semibold border border-[#FF8C42]/40'
+                    ? 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] font-semibold border border-[var(--quant-primary)]/40'
                     : 'text-[#A1A4AC] hover:text-white'
                 }`}
               >
@@ -235,7 +235,7 @@ export function AddFolderModal({
                 onClick={() => setFilterType('keyword')}
                 className={`py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
                   filterType === 'keyword'
-                    ? 'bg-[#FF8C42]/20 text-[#FF8C42] font-semibold border border-[#FF8C42]/40'
+                    ? 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] font-semibold border border-[var(--quant-primary)]/40'
                     : 'text-[#A1A4AC] hover:text-white'
                 }`}
               >
@@ -246,7 +246,7 @@ export function AddFolderModal({
                 onClick={() => setFilterType('standard')}
                 className={`py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
                   filterType === 'standard'
-                    ? 'bg-[#FF8C42]/20 text-[#FF8C42] font-semibold border border-[#FF8C42]/40'
+                    ? 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] font-semibold border border-[var(--quant-primary)]/40'
                     : 'text-[#A1A4AC] hover:text-white'
                 }`}
               >
@@ -267,7 +267,7 @@ export function AddFolderModal({
                 value={filterValue}
                 onChange={(e) => setFilterValue(e.target.value)}
                 placeholder="Leave blank for all saved contacts, or enter name/email"
-                className="w-full h-10 px-3 rounded-xl bg-[#090A0C] border border-[#282C35] text-xs text-white placeholder-[#717888] focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42]/40 outline-none transition-all"
+                className="w-full h-10 px-3 rounded-xl bg-[var(--quant-background)] border border-[var(--quant-surface-elevated)] text-xs text-white placeholder-[#717888] focus:border-[var(--quant-primary)] focus:ring-1 focus:ring-[var(--quant-primary)]/40 outline-none transition-all"
               />
               {existingContacts.length > 0 && (
                 <div className="flex flex-wrap gap-1 pt-1 max-h-20 overflow-y-auto">
@@ -276,7 +276,7 @@ export function AddFolderModal({
                       key={ct.email}
                       type="button"
                       onClick={() => setFilterValue(ct.email)}
-                      className="px-2 py-0.5 rounded-full text-[10px] bg-[#1C1F26] hover:bg-[#282C35] text-[#A1A4AC] hover:text-white transition-colors"
+                      className="px-2 py-0.5 rounded-full text-[10px] bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-[#A1A4AC] hover:text-white transition-colors"
                     >
                       {ct.name || ct.email}
                     </button>
@@ -297,23 +297,23 @@ export function AddFolderModal({
                 value={filterValue}
                 onChange={(e) => setFilterValue(e.target.value)}
                 placeholder="e.g. invoice, receipt, proposal, urgency"
-                className="w-full h-10 px-3 rounded-xl bg-[#090A0C] border border-[#282C35] text-xs text-white placeholder-[#717888] focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42]/40 outline-none transition-all"
+                className="w-full h-10 px-3 rounded-xl bg-[var(--quant-background)] border border-[var(--quant-surface-elevated)] text-xs text-white placeholder-[#717888] focus:border-[var(--quant-primary)] focus:ring-1 focus:ring-[var(--quant-primary)]/40 outline-none transition-all"
               />
             </div>
           )}
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#282C35]">
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[var(--quant-surface-elevated)]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-medium text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="px-4 py-2 rounded-xl text-xs font-medium text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#090A0C] text-xs font-bold transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="px-4 py-2 rounded-xl bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] active:bg-[var(--brand-primary-pressed)] text-[var(--quant-background)] text-xs font-bold transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               Create Folder
             </button>

@@ -42,7 +42,7 @@ const THEMES: Record<
 > = {
   'github-dark': {
     shell: 'bg-[#0d1117] text-[#e6edf3]',
-    header: 'bg-[#161b22]',
+    header: 'bg-[var(--quant-surface-elevated)]',
     editor: 'bg-[#0d1117]',
     gutter: 'bg-[#0d1117] text-[#484f58]',
     text: 'text-[#e6edf3]',

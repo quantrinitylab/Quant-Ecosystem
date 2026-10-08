@@ -114,7 +114,7 @@ export function IssuesTab({
             {/* Conversation Timeline */}
             <div className="flex-1 space-y-4">
               {/* Original Post card */}
-              <div className="rounded-xl bg-[#161B22] border border-[#30363D] overflow-hidden">
+              <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden">
                 <div className="px-4 py-2.5 bg-[#0D1117] border-b border-[#30363D] flex items-center justify-between">
                   <span className="font-semibold text-xs text-[#E6EDF3]">
                     {selectedIssue.author} commented {selectedIssue.createdAt}
@@ -138,7 +138,7 @@ export function IssuesTab({
               </div>
 
               {/* Comment Composer with Markdown Toolbar (Screen 153) */}
-              <div className="rounded-xl bg-[#161B22] border border-[#30363D] overflow-hidden space-y-2">
+              <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden space-y-2">
                 <div className="px-3 py-2 bg-[#0D1117] border-b border-[#30363D] flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     <button
@@ -306,7 +306,7 @@ export function IssuesTab({
         </div>
       ) : isCreatingIssue ? (
         /* Issue Creation Composer */
-        <div className="rounded-xl bg-[#161B22] border border-[#30363D] p-5 space-y-4">
+        <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-[#30363D] pb-3">
             <h3 className="font-bold text-sm text-[#E6EDF3]">Create new issue</h3>
             <button
@@ -364,7 +364,7 @@ export function IssuesTab({
                 value={issueSearchQuery}
                 onChange={(e) => setIssueSearchQuery(e.target.value)}
                 placeholder="is:issue state:open ..."
-                className="w-full bg-[#161B22] border border-[#30363D] focus:border-[#58A6FF] rounded-lg px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
+                className="w-full bg-[var(--quant-surface-elevated)] border border-[#30363D] focus:border-[#58A6FF] rounded-lg px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
               />
             </div>
 
@@ -386,7 +386,7 @@ export function IssuesTab({
                 <button
                   key={flt}
                   onClick={() => alert(`Filter by ${flt}...`)}
-                  className="px-2.5 py-1 rounded-md bg-[#161B22] hover:bg-[#21262D] border border-[#30363D] text-[#8D96A0] hover:text-[#E6EDF3] flex items-center gap-1 transition-colors"
+                  className="px-2.5 py-1 rounded-md bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] border border-[#30363D] text-[#8D96A0] hover:text-[#E6EDF3] flex items-center gap-1 transition-colors"
                 >
                   <span>{flt}</span>
                   <span className="text-[var(--q-type-xs)]">▼</span>
@@ -397,7 +397,7 @@ export function IssuesTab({
 
           {/* Issues List Container */}
           <div className="border border-[#30363D] rounded-xl bg-[#0D1117] overflow-hidden">
-            <div className="bg-[#161B22] border-b border-[#30363D] px-4 py-3 flex items-center justify-between font-semibold">
+            <div className="bg-[var(--quant-surface-elevated)] border-b border-[#30363D] px-4 py-3 flex items-center justify-between font-semibold">
               <div className="flex items-center gap-4">
                 <button
                   type="button"
@@ -454,7 +454,7 @@ export function IssuesTab({
                     data-testid={`issue-row-${issue.id}`}
                     onClick={() => setSelectedIssue(issue)}
                     aria-label={`Open issue ${issue.title}`}
-                    className="w-full p-4 hover:bg-[#161B22] transition-colors flex items-start justify-between gap-4 group text-left cursor-pointer"
+                    className="w-full p-4 hover:bg-[var(--quant-surface-elevated)] transition-colors flex items-start justify-between gap-4 group text-left cursor-pointer"
                   >
                     <div className="space-y-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">

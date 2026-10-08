@@ -319,7 +319,7 @@ export function AttachmentPreview({
     if (mimeType.includes('zip') || mimeType.includes('archive')) {
       return (
         <svg
-          className="size-5 text-[#FF8C42]"
+          className="size-5 text-[var(--quant-primary)]"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -391,7 +391,7 @@ export function AttachmentPreview({
     <div className="attachment-preview-container">
       <p className="attachment-preview-label flex items-center gap-1.5">
         <svg
-          className="size-3.5 text-[#FF8C42]"
+          className="size-3.5 text-[var(--quant-primary)]"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -533,7 +533,7 @@ export function AttachmentPreview({
               </button>
               {/* Zoom controls: discoverability for mouse users who won't pinch */}
               <div
-                className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-full border border-[#282C35] bg-[#16181D]/95 p-1 shadow-xl"
+                className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-full border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/95 p-1 shadow-xl"
                 role="group"
                 aria-label="Image zoom"
               >
@@ -545,7 +545,7 @@ export function AttachmentPreview({
                     applyTransform(next, pan.x, pan.y);
                   }}
                   disabled={zoom <= MIN_ZOOM}
-                  className="grid min-h-[36px] min-w-[36px] place-items-center rounded-full text-lg text-[#F5F5F5] transition-colors hover:bg-[#282C35] disabled:opacity-30"
+                  className="grid min-h-[36px] min-w-[36px] place-items-center rounded-full text-lg text-[#F5F5F5] transition-colors hover:bg-[var(--quant-surface-elevated)] disabled:opacity-30"
                   aria-label="Zoom out"
                 >
                   −
@@ -570,7 +570,7 @@ export function AttachmentPreview({
                     applyTransform(next, pan.x, pan.y);
                   }}
                   disabled={zoom >= MAX_ZOOM}
-                  className="grid min-h-[36px] min-w-[36px] place-items-center rounded-full text-lg text-[#F5F5F5] transition-colors hover:bg-[#282C35] disabled:opacity-30"
+                  className="grid min-h-[36px] min-w-[36px] place-items-center rounded-full text-lg text-[#F5F5F5] transition-colors hover:bg-[var(--quant-surface-elevated)] disabled:opacity-30"
                   aria-label="Zoom in"
                 >
                   +

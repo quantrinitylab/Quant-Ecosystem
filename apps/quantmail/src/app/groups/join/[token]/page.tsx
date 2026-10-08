@@ -101,7 +101,7 @@ export default function GroupJoinPage() {
             </div>
 
             {joinError && (
-              <p className="mt-3 text-xs text-[var(--quant-danger,#ef4444)]">{joinError}</p>
+              <p className="mt-3 text-xs text-[var(--quant-danger,var(--quant-destructive))]">{joinError}</p>
             )}
           </Card>
         )}

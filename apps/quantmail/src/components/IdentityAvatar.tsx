@@ -54,7 +54,7 @@ const SIZES: Record<string, string> = {
 function UnknownPersonIcon({ sizeClass }: { sizeClass: string }) {
   return (
     <span
-      className={`flex flex-none items-center justify-center rounded-full bg-[#282C35]/90 border border-[#3A404D]/60 shadow-inner ${sizeClass}`}
+      className={`flex flex-none items-center justify-center rounded-full bg-[var(--quant-surface-elevated)]/90 border border-[#3A404D]/60 shadow-inner ${sizeClass}`}
       aria-hidden="true"
     >
       <svg viewBox="0 0 24 24" fill="currentColor" className="h-[62%] w-[62%] text-[#A1A4AC]">

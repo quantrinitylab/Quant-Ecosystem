@@ -664,10 +664,10 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
   mail: {
     pillar: 'mail',
     name: 'Mail',
-    accentColor: '#FF8C42',
-    activeContainerStyle: 'bg-[#FF8C42]/15 border-[#FF8C42]/40',
-    activeTextStyle: 'text-[#FF8C42]',
-    badgeStyle: 'bg-[#FF8C42] text-black',
+    accentColor: 'var(--quant-primary)',
+    activeContainerStyle: 'bg-[var(--quant-primary)]/15 border-[var(--quant-primary)]/40',
+    activeTextStyle: 'text-[var(--quant-primary)]',
+    badgeStyle: 'bg-[var(--quant-primary)] text-black',
     tabs: [
       {
         id: 'inbox',
@@ -688,10 +688,10 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
   calendar: {
     pillar: 'calendar',
     name: 'Calendar',
-    accentColor: '#F59E0B',
-    activeContainerStyle: 'bg-[#F59E0B]/15 border-[#F59E0B]/40',
-    activeTextStyle: 'text-[#F59E0B]',
-    badgeStyle: 'bg-[#F59E0B] text-black',
+    accentColor: 'var(--quant-warning)',
+    activeContainerStyle: 'bg-[var(--quant-warning)]/15 border-[var(--quant-warning)]/40',
+    activeTextStyle: 'text-[var(--quant-warning)]',
+    badgeStyle: 'bg-[var(--quant-warning)] text-black',
     tabs: [
       {
         id: 'feed',

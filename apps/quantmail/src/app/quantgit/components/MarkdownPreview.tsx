@@ -219,7 +219,7 @@ function renderInlineMarkdown(text: string): React.ReactNode {
       parts.push(
         <code
           key={keyIdx++}
-          className="px-1.5 py-0.5 rounded bg-[#161B22] border border-[#30363D] text-[#58A6FF] font-mono text-[11px]"
+          className="px-1.5 py-0.5 rounded bg-[var(--quant-surface-elevated)] border border-[#30363D] text-[#58A6FF] font-mono text-[11px]"
         >
           {codeMatch[2]}
         </code>,
@@ -428,7 +428,7 @@ export function MarkdownPreview({
   return (
     <div className="border border-[#30363D] rounded-md bg-[#0D1117] overflow-hidden mt-6 shadow-sm">
       {/* Header Bar */}
-      <div className="bg-[#161B22] border-b border-[#30363D] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="bg-[var(--quant-surface-elevated)] border-b border-[#30363D] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2 font-bold text-white">
           <svg height="16" viewBox="0 0 16 16" width="16" fill="#7D8590" className="shrink-0">
             <path d="M0 1.75A.75.75 0 0 1 .75 1h4.253c1.227 0 2.317.59 3 1.501A3.743 3.743 0 0 1 11.006 1h4.245a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-4.507a2.25 2.25 0 0 0-1.591.659l-.622.621a.75.75 0 0 1-1.06 0l-.622-.621A2.25 2.25 0 0 0 5.258 13H.75a.75.75 0 0 1-.75-.75Zm7.251 10.324.53-.53a3.75 3.75 0 0 1 2.65-1.094h3.57V2.5h-3.006a2.25 2.25 0 0 0-2.25 2.25v6.524ZM6.75 4.75A2.25 2.25 0 0 0 4.504 2.5H1.5v7.95h3.757a3.75 3.75 0 0 1 2.651 1.094Z" />
@@ -578,7 +578,7 @@ export function MarkdownPreview({
               return (
                 <div
                   key={idx}
-                  className={`border-l-4 ${alertColor} pl-4 py-2 my-3 bg-[#161B22]/50 rounded-r text-[#C9D1D9] leading-relaxed`}
+                  className={`border-l-4 ${alertColor} pl-4 py-2 my-3 bg-[var(--quant-surface-elevated)]/50 rounded-r text-[#C9D1D9] leading-relaxed`}
                 >
                   {sec.alertType && (
                     <div className="font-bold uppercase tracking-wider text-[10px] mb-1 flex items-center gap-1.5">
@@ -594,7 +594,7 @@ export function MarkdownPreview({
               return (
                 <div
                   key={idx}
-                  className="my-3 rounded-md bg-[#161B22] border border-[#30363D] overflow-hidden"
+                  className="my-3 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden"
                 >
                   <div className="bg-[#0D1117] border-b border-[#30363D] px-3.5 py-1.5 flex items-center justify-between text-[11px] text-[#7D8590]">
                     <span className="font-mono text-[#58A6FF] uppercase font-semibold">
@@ -633,7 +633,7 @@ export function MarkdownPreview({
                 <ul key={idx} className="space-y-1.5 my-2 pl-2">
                   {sec.items.map((it, itemIdx) => (
                     <li key={itemIdx} className="flex items-start gap-2">
-                      <span className="text-[#FF8C42] mt-1 shrink-0">•</span>
+                      <span className="text-[var(--quant-primary)] mt-1 shrink-0">•</span>
                       <span className="text-[#C9D1D9]">{renderInlineMarkdown(it)}</span>
                     </li>
                   ))}
@@ -645,7 +645,7 @@ export function MarkdownPreview({
               return (
                 <div key={idx} className="overflow-x-auto my-3">
                   <table className="w-full text-left border-collapse border border-[#30363D] text-[11px]">
-                    <thead className="bg-[#161B22] text-white">
+                    <thead className="bg-[var(--quant-surface-elevated)] text-white">
                       <tr>
                         {sec.headers.map((h, hIdx) => (
                           <th key={hIdx} className="border border-[#30363D] px-3 py-2 font-bold">
@@ -658,7 +658,7 @@ export function MarkdownPreview({
                       {sec.rows.map((row, rIdx) => (
                         <tr
                           key={rIdx}
-                          className={rIdx % 2 === 0 ? 'bg-[#0D1117]' : 'bg-[#161B22]/40'}
+                          className={rIdx % 2 === 0 ? 'bg-[#0D1117]' : 'bg-[var(--quant-surface-elevated)]/40'}
                         >
                           {row.map((cell, cIdx) => (
                             <td

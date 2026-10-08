@@ -38,7 +38,7 @@ function awarenessFrame(state: Record<string, unknown>): Uint8Array {
 
 function generateCollaboratorColor(): string {
   const colors = [
-    '#FF8C42', // Quant Orange
+    'var(--quant-primary)', // Quant Orange
     '#58A6FF', // Blue
     '#3FB950', // Green
     '#BC8CFF', // Purple

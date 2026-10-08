@@ -191,7 +191,7 @@ export function QuantyCommandBar({
           aria-label="Quanty ko command dein"
           disabled={busy}
           maxLength={500}
-          className="h-11 min-w-0 flex-1 bg-transparent text-[15px] text-zinc-100 placeholder:text-zinc-500 focus:outline-none disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+          className="h-11 min-w-0 flex-1 bg-transparent text-[15px] text-zinc-100 placeholder:text-zinc-500 focus:outline-none disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
         />
 
         {/* Mic */}

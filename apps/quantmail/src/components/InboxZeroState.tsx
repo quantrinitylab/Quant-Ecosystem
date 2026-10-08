@@ -43,7 +43,7 @@ export function InboxZeroState({ query }: { query?: string }) {
           <button
             type="button"
             onClick={() => router.push('/compose')}
-            className="mt-6 inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-[#FF8C42] px-6 text-sm font-bold text-[#090A0C] transition-colors hover:bg-[#FF9B5A] active:bg-[#E8752F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C]"
+            className="mt-6 inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-[var(--quant-primary)] px-6 text-sm font-bold text-[var(--quant-background)] transition-colors hover:bg-[var(--quant-primary-hover)] active:bg-[var(--brand-primary-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)]"
           >
             <span aria-hidden="true" className="text-base leading-none">
               ✎

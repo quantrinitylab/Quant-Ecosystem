@@ -59,7 +59,7 @@ const createInitialFormState = (currentUserEmail: string = ''): FormState => ({
   location: '',
   description: '',
   recurrence: 'Does not repeat',
-  color: '#FF8C42',
+  color: 'var(--quant-primary)',
   accountEmail: currentUserEmail,
   notifications: ['30 minutes before'],
   attendeeInput: '',
@@ -694,7 +694,7 @@ function CalendarPageContent() {
         location: '',
         description: '',
         recurrence: 'Does not repeat',
-        color: '#FF8C42',
+        color: 'var(--quant-primary)',
         accountEmail: currentUserEmail,
         notifications: ['30 minutes before'],
         attendeeInput: '',
@@ -1091,7 +1091,7 @@ function CalendarPageContent() {
       searchPlaceholder="Search events, meetings, tasks, birthdays…"
       onQuantyOpenChange={setIsQuantyDrawerOpen}
     >
-      <div className="flex flex-col h-full bg-[#08080a] text-white relative -mb-20">
+      <div className="flex flex-col h-full bg-[var(--quant-background)] text-white relative -mb-20">
         {/* -mb-20: extend the dark page background over the AppShell's pb-20
             bottom-nav reserve so no light-theme gap strip shows between the
             content and the fixed bottom nav. */}
@@ -1236,7 +1236,7 @@ function CalendarPageContent() {
 
 export default function CalendarPage() {
   return (
-    <React.Suspense fallback={<div className="h-full w-full bg-[#08080a]" />}>
+    <React.Suspense fallback={<div className="h-full w-full bg-[var(--quant-background)]" />}>
       <CalendarPageContent />
     </React.Suspense>
   );

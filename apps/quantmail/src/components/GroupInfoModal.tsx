@@ -172,14 +172,14 @@ function MembersTab({
             if (onAddMembers) onAddMembers();
             else if (onEdit) onEdit();
           }}
-          className="mb-2 min-h-[48px] w-full rounded-xl border border-dashed border-[#FF8C42]/40 bg-[#111318] text-sm font-semibold text-[#FF8C42] hover:bg-[#FF8C42]/10 hover:border-[#FF8C42]/60 hover:shadow-[0_0_14px_rgba(255,140,66,0.1)] transition-all"
+          className="mb-2 min-h-[48px] w-full rounded-xl border border-dashed border-[var(--quant-primary)]/40 bg-[var(--quant-surface)] text-sm font-semibold text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/10 hover:border-[var(--quant-primary)]/60 hover:shadow-[0_0_14px_rgba(255,140,66,0.1)] transition-all"
         >
           + Add or edit members
         </button>
       )}
 
       {management && (
-        <div className="mb-2 rounded-xl border border-[#282C35] bg-[#111318] p-3">
+        <div className="mb-2 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] p-3">
           <p className="text-xs font-bold text-white">Invite link</p>
           <p className="mt-0.5 text-[11px] text-[#A1A4AC]">
             Anyone with the link can join this group.
@@ -188,14 +188,14 @@ function MembersTab({
             <p className="mt-2 text-xs text-[#A1A4AC]">Loading invite link…</p>
           ) : management.inviteLink ? (
             <div className="mt-2 space-y-2">
-              <p className="truncate rounded-lg bg-[#090A0C] px-2.5 py-2 font-mono text-[11px] text-[#FF8C42]">
+              <p className="truncate rounded-lg bg-[var(--quant-background)] px-2.5 py-2 font-mono text-[11px] text-[var(--quant-primary)]">
                 {management.inviteLink.inviteUrl}
               </p>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={copyInviteLink}
-                  className="min-h-[36px] rounded-lg bg-[#FF8C42] px-3 text-xs font-bold text-[#090A0C] hover:bg-[#FF9B5A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  className="min-h-[36px] rounded-lg bg-[var(--quant-primary)] px-3 text-xs font-bold text-[var(--quant-background)] hover:bg-[var(--quant-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 >
                   {copied ? 'Copied!' : 'Copy link'}
                 </button>
@@ -203,7 +203,7 @@ function MembersTab({
                   type="button"
                   onClick={management.onCreateInviteLink}
                   disabled={management.inviteLinkBusy}
-                  className="min-h-[36px] rounded-lg border border-[#282C35] bg-[#16181D] px-3 text-xs font-semibold text-[#A1A4AC] hover:text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  className="min-h-[36px] rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3 text-xs font-semibold text-[#A1A4AC] hover:text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 >
                   Regenerate
                 </button>
@@ -211,7 +211,7 @@ function MembersTab({
                   type="button"
                   onClick={management.onRevokeInviteLink}
                   disabled={management.inviteLinkBusy}
-                  className="min-h-[36px] rounded-lg border border-red-500/30 bg-[#16181D] px-3 text-xs font-semibold text-red-400 hover:text-red-300 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  className="min-h-[36px] rounded-lg border border-red-500/30 bg-[var(--quant-surface-elevated)] px-3 text-xs font-semibold text-red-400 hover:text-red-300 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                 >
                   Revoke
                 </button>
@@ -222,7 +222,7 @@ function MembersTab({
               type="button"
               onClick={management.onCreateInviteLink}
               disabled={management.inviteLinkBusy}
-              className="mt-2 min-h-[36px] rounded-lg border border-[#FF8C42]/40 bg-[#FF8C42]/10 px-3 text-xs font-bold text-[#FF8C42] hover:bg-[#FF8C42]/20 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="mt-2 min-h-[36px] rounded-lg border border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 px-3 text-xs font-bold text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               Create invite link
             </button>
@@ -243,10 +243,10 @@ function MembersTab({
             isSelf || management?.adminEmails.some((a) => normalize(a) === normalize(email));
           const busy = management?.busyEmail === email;
           return (
-            <li key={email} className="rounded-xl border border-[#282C35] bg-[#111318] px-3 py-2">
+            <li key={email} className="rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] px-3 py-2">
               <div className="flex min-h-[48px] items-center gap-3">
                 <span
-                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-[#090A0C]"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-[var(--quant-background)]"
                   style={{ backgroundColor: accent }}
                 >
                   {initials(email)}
@@ -260,24 +260,24 @@ function MembersTab({
                 <span
                   className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${
                     isSelf
-                      ? 'bg-[#FF8C42]/15 text-[#FF8C42]'
+                      ? 'bg-[var(--quant-primary)]/15 text-[var(--quant-primary)]'
                       : isAdmin
                         ? 'bg-amber-500/15 text-amber-300'
-                        : 'bg-[#16181D] text-[#A1A4AC]'
+                        : 'bg-[var(--quant-surface-elevated)] text-[#A1A4AC]'
                   }`}
                 >
                   {isSelf ? 'Owner' : isAdmin ? 'Admin' : 'Member'}
                 </span>
               </div>
               {management && !isSelf && (
-                <div className="mt-1 flex items-center gap-2 border-t border-[#282C35]/60 pt-2">
+                <div className="mt-1 flex items-center gap-2 border-t border-[var(--quant-surface-elevated)]/60 pt-2">
                   <button
                     type="button"
                     onClick={() =>
                       isAdmin ? management.onDemote(email) : management.onPromote(email)
                     }
                     disabled={busy}
-                    className="min-h-[32px] rounded-lg px-2 text-[11px] font-semibold text-[#FF8C42] hover:bg-[#FF8C42]/10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    className="min-h-[32px] rounded-lg px-2 text-[11px] font-semibold text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                   >
                     {isAdmin ? 'Remove admin' : 'Make admin'}
                   </button>
@@ -343,14 +343,14 @@ function Inspector({
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${id}-title`}
-        className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-[#282C35] bg-[#090A0C] shadow-[0_24px_80px_rgba(0,0,0,.75)] sm:rounded-3xl"
+        className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-background)] shadow-[0_24px_80px_rgba(0,0,0,.75)] sm:rounded-3xl"
       >
-        <header className="flex items-center gap-3 border-b border-[#282C35] bg-[#111318] p-4 sm:p-5">
+        <header className="flex items-center gap-3 border-b border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] p-4 sm:p-5">
           {onEdit ? (
             <button
               type="button"
               onClick={onEdit}
-              className="group relative flex size-14 shrink-0 items-center justify-center rounded-full text-base font-black text-[#090A0C] transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="group relative flex size-14 shrink-0 items-center justify-center rounded-full text-base font-black text-[var(--quant-background)] transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
               style={{ backgroundColor: accent }}
               title="Change group photo or color"
               aria-label="Change group photo or color"
@@ -371,7 +371,7 @@ function Inspector({
             </button>
           ) : (
             <div
-              className="flex size-14 shrink-0 items-center justify-center rounded-full text-base font-black text-[#090A0C]"
+              className="flex size-14 shrink-0 items-center justify-center rounded-full text-base font-black text-[var(--quant-background)]"
               style={{ backgroundColor: accent }}
             >
               {initials(avatarLabel)}
@@ -390,7 +390,7 @@ function Inspector({
                       setContactNameInput(title);
                       setIsEditingContactName(true);
                     }}
-                    className="rounded p-1 text-[#A1A4AC] hover:bg-[#282C35] hover:text-[#FF8C42] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    className="rounded p-1 text-[#A1A4AC] hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     title="Edit contact nickname"
                     aria-label="Edit contact nickname"
                   >
@@ -423,18 +423,18 @@ function Inspector({
                   onChange={(e) => setContactNameInput(e.target.value)}
                   placeholder="Enter friendly name"
                   autoFocus
-                  className="min-h-[36px] rounded-lg border border-[#FF8C42] bg-[#090A0C] px-2.5 text-sm font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  className="min-h-[36px] rounded-lg border border-[var(--quant-primary)] bg-[var(--quant-background)] px-2.5 text-sm font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 />
                 <button
                   type="submit"
-                  className="min-h-[36px] rounded-lg bg-[#FF8C42] px-3 text-xs font-bold text-[#090A0C] hover:bg-[#FF9B5A]"
+                  className="min-h-[36px] rounded-lg bg-[var(--quant-primary)] px-3 text-xs font-bold text-[var(--quant-background)] hover:bg-[var(--quant-primary-hover)]"
                 >
                   Save
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsEditingContactName(false)}
-                  className="min-h-[36px] rounded-lg border border-[#282C35] bg-[#16181D] px-2.5 text-xs text-[#A1A4AC] hover:text-white"
+                  className="min-h-[36px] rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-2.5 text-xs text-[#A1A4AC] hover:text-white"
                 >
                   Cancel
                 </button>
@@ -445,7 +445,7 @@ function Inspector({
               <button
                 type="button"
                 onClick={onEdit}
-                className="mt-1 min-h-[44px] text-xs font-bold text-[#FF8C42] hover:text-[#FF9B5A]"
+                className="mt-1 min-h-[44px] text-xs font-bold text-[var(--quant-primary)] hover:text-[var(--quant-primary-hover)]"
               >
                 Edit group
               </button>
@@ -455,7 +455,7 @@ function Inspector({
             type="button"
             onClick={onClose}
             aria-label="Close inspector"
-            className="flex size-11 items-center justify-center rounded-xl text-[#A1A4AC] hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+            className="flex size-11 items-center justify-center rounded-xl text-[#A1A4AC] hover:bg-[var(--quant-surface-elevated)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           >
             ✕
           </button>
@@ -463,7 +463,7 @@ function Inspector({
         <div
           role="tablist"
           aria-label="Shared information"
-          className="grid border-b border-[#282C35] bg-[#111318]"
+          className="grid border-b border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)]"
           style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0,1fr))` }}
         >
           {tabs.map((item) => (
@@ -473,9 +473,9 @@ function Inspector({
               role="tab"
               aria-selected={tab === item.key}
               onClick={() => setTab(item.key)}
-              className={`min-h-[52px] border-b-2 px-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42] ${
+              className={`min-h-[52px] border-b-2 px-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)] ${
                 tab === item.key
-                  ? 'border-[#FF8C42] text-[#FF8C42]'
+                  ? 'border-[var(--quant-primary)] text-[var(--quant-primary)]'
                   : 'border-transparent text-[#A1A4AC] hover:text-white'
               }`}
             >
@@ -500,12 +500,12 @@ function Inspector({
                 {shared.media.map(({ attachment, sender, date }) => (
                   <li
                     key={attachment.id}
-                    className="overflow-hidden rounded-xl border border-[#282C35] bg-[#111318]"
+                    className="overflow-hidden rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)]"
                   >
                     <button
                       type="button"
                       onClick={() => safeOpen(attachment.url)}
-                      className="aspect-square w-full bg-[#16181D] focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                      className="aspect-square w-full bg-[var(--quant-surface-elevated)] focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     >
                       {attachment.mimeType.startsWith('image/') ? (
                         <img
@@ -544,9 +544,9 @@ function Inspector({
                     <button
                       type="button"
                       onClick={() => safeOpen(attachment.url)}
-                      className="flex min-h-[64px] w-full items-center gap-3 rounded-xl border border-[#282C35] bg-[#111318] p-3 text-left hover:bg-[#16181D]"
+                      className="flex min-h-[64px] w-full items-center gap-3 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] p-3 text-left hover:bg-[var(--quant-surface-elevated)]"
                     >
-                      <span className="flex size-10 items-center justify-center rounded-xl bg-[#FF8C42]/12 border border-[#FF8C42]/30 text-[10px] font-black text-[#FF8C42] shadow-[0_0_10px_rgba(255,140,66,0.12)]">
+                      <span className="flex size-10 items-center justify-center rounded-xl bg-[var(--quant-primary)]/12 border border-[var(--quant-primary)]/30 text-[10px] font-black text-[var(--quant-primary)] shadow-[0_0_10px_rgba(255,140,66,0.12)]">
                         FILE
                       </span>
                       <span className="min-w-0 flex-1">
@@ -572,7 +572,7 @@ function Inspector({
                     <button
                       type="button"
                       onClick={() => safeOpen(link.url)}
-                      className="flex min-h-[64px] w-full items-center rounded-xl border border-[#282C35] bg-[#111318] p-3 text-left hover:bg-[#16181D]"
+                      className="flex min-h-[64px] w-full items-center rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] p-3 text-left hover:bg-[var(--quant-surface-elevated)]"
                     >
                       <span className="min-w-0 flex-1">
                         <strong className="block truncate text-sm text-white">{link.label}</strong>
@@ -580,7 +580,7 @@ function Inspector({
                           {link.sender} · {dateLabel(link.date)}
                         </span>
                       </span>
-                      <span className="text-[#FF8C42]">↗</span>
+                      <span className="text-[var(--quant-primary)]">↗</span>
                     </button>
                   </li>
                 ))}
@@ -596,7 +596,7 @@ function Inspector({
 
 function Empty({ text }: { text: string }) {
   return (
-    <div className="flex min-h-[260px] items-center justify-center rounded-2xl border border-dashed border-[#282C35] bg-[#111318]/50 text-sm text-[#A1A4AC]">
+    <div className="flex min-h-[260px] items-center justify-center rounded-2xl border border-dashed border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)]/50 text-sm text-[#A1A4AC]">
       {text}
     </div>
   );
@@ -715,7 +715,7 @@ export function GroupInfoModal(props: GroupInfoModalProps) {
         subtitle={`${props.group.emails.length} ${
           props.group.emails.length === 1 ? 'member' : 'members'
         }`}
-        accent={props.group.color ?? '#FF8C42'}
+        accent={props.group.color ?? 'var(--quant-primary)'}
         avatarLabel={props.group.name}
         messages={props.messages}
         members={props.group.emails}
@@ -776,7 +776,7 @@ export function ContactProfileInspector({
       open={open}
       title={localName}
       subtitle={email}
-      accent="#FF8C42"
+      accent="var(--quant-primary)"
       avatarLabel={localName}
       messages={messages}
       onClose={onClose}

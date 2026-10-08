@@ -166,7 +166,7 @@ export const SlashMenu: React.FC<SlashMenuProps> = ({ query, onSelect, onClose, 
       ref={menuRef}
       role="menu"
       aria-label="Slash commands"
-      className="absolute z-50 w-72 max-h-80 overflow-y-auto rounded-xl border border-[#30363D] bg-[#161B22] p-1.5 shadow-2xl backdrop-blur-md no-scrollbar"
+      className="absolute z-50 w-72 max-h-80 overflow-y-auto rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] p-1.5 shadow-2xl backdrop-blur-md no-scrollbar"
       style={{
         top: position ? `${position.top}px` : 'auto',
         left: position ? `${position.left}px` : 'auto',
@@ -174,7 +174,7 @@ export const SlashMenu: React.FC<SlashMenuProps> = ({ query, onSelect, onClose, 
     >
       <div className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#8B949E] border-b border-[#21262D] mb-1 flex items-center justify-between">
         <span>Basic Blocks</span>
-        {cleanQuery && <span className="text-[#FF8C42]">Filter: &ldquo;{cleanQuery}&rdquo;</span>}
+        {cleanQuery && <span className="text-[var(--quant-primary)]">Filter: &ldquo;{cleanQuery}&rdquo;</span>}
       </div>
 
       {filteredCommands.length === 0 ? (
@@ -202,7 +202,7 @@ export const SlashMenu: React.FC<SlashMenuProps> = ({ query, onSelect, onClose, 
                 <div
                   className={`w-7 h-7 rounded-md flex items-center justify-center text-xs font-mono font-bold shrink-0 border ${
                     isSelected
-                      ? 'border-[#FF8C42]/40 bg-[#FF8C42]/10 text-[#FF8C42]'
+                      ? 'border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)]'
                       : 'border-[#30363D] bg-[#0D1117] text-[#8B949E]'
                   }`}
                 >

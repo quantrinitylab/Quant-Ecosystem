@@ -57,7 +57,7 @@
 }
 .quant-shell-close:hover {
   color: var(--quant-foreground);
-  border-color: #FF8C42;
+  border-color: var(--quant-primary);
 }
 .quant-shell-panel .quant-shell-pin { top: 3.3rem; }
 
@@ -161,7 +161,7 @@
   opacity: 1;
   visibility: visible;
 }
-.mail-copilot-trigger svg { color: #FF8C42; }
+.mail-copilot-trigger svg { color: var(--quant-primary); }
 
 /* 3) Auth pages: the access form stays vertically centered, and desktop is a
       real two-column layout instead of a short form lost in empty space.
@@ -217,10 +217,10 @@
   opacity: 1;
   border-color: rgba(255, 140, 66, 0.35);
   background: rgba(255, 140, 66, 0.12);
-  color: #FF8C42;
+  color: var(--quant-primary);
 }
 .folder-row-action:focus-visible {
-  outline: 2px solid #FF8C42;
+  outline: 2px solid var(--quant-primary);
   outline-offset: 2px;
   opacity: 1;
 }
@@ -234,7 +234,7 @@
 .folder-row-count {
   flex: 0 0 auto;
   padding: 0.1rem 0.4rem;
-  border: 1px solid #282C35;
+  border: 1px solid var(--quant-surface-elevated);
   border-radius: 999px;
   font-size: 10px;
   line-height: 1.4;
@@ -300,7 +300,7 @@
 }
 .snooze-trigger:hover {
   background: rgba(255, 140, 66, 0.12);
-  color: #FF8C42;
+  color: var(--quant-primary);
 }
 .snooze-trigger.is-hidden {
   display: none !important;
@@ -313,8 +313,8 @@
   margin-top: 0.5rem;
   width: 240px;
   max-width: 90vw;
-  background: #16181D;
-  border: 1px solid #282C35;
+  background: var(--quant-surface-elevated);
+  border: 1px solid var(--quant-surface-elevated);
   border-radius: 0.85rem;
   padding: 0.5rem;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65);
@@ -354,7 +354,7 @@
 .snooze-option:hover {
   background: rgba(255, 140, 66, 0.12);
   border-color: rgba(255, 140, 66, 0.30);
-  color: #FF8C42;
+  color: var(--quant-primary);
 }
 
 .snooze-option-date {
@@ -364,7 +364,7 @@
 }
 
 .snooze-option:hover .snooze-option-date {
-  color: #FF9B5A;
+  color: var(--quant-primary-hover);
 }
 
 .snooze-custom {
@@ -393,7 +393,7 @@
 }
 
 .snooze-custom-row input[type='datetime-local']:focus {
-  border-color: #FF8C42;
+  border-color: var(--quant-primary);
 }
 
 .snooze-custom-row button {
@@ -401,7 +401,7 @@
   border-radius: 0.45rem;
   border: 1px solid rgba(255, 140, 66, 0.30);
   background: rgba(255, 140, 66, 0.12);
-  color: #FF8C42;
+  color: var(--quant-primary);
   font-size: 0.72rem;
   font-weight: 600;
   cursor: pointer;
@@ -409,7 +409,7 @@
 }
 
 .snooze-custom-row button:hover:not(:disabled) {
-  background: #FF8C42;
+  background: var(--quant-primary);
   color: #111111;
 }
 

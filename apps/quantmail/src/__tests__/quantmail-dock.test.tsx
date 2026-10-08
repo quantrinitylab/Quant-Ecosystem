@@ -36,7 +36,7 @@ describe('QuantMail Shortcut Dock (Wave 39 UI/UX Parity)', () => {
       expect(html).toContain('px-4 py-2');
 
       // Verify brand mark
-      expect(html).toContain('bg-[#FF8C42]');
+      expect(html).toContain('bg-[var(--quant-primary)]');
       expect(html).toContain('Keys');
     });
 
@@ -96,25 +96,25 @@ describe('QuantMail Shortcut Dock (Wave 39 UI/UX Parity)', () => {
       expect(html).not.toContain('data-testid="dock-minimize-button"');
     });
 
-    it('renders glowing orange accent (#FF8C42) when activeKey is set to a specific key', () => {
+    it('renders glowing orange accent (var(--quant-primary)) when activeKey is set to a specific key', () => {
       // Test highlighting for 'J'
       const htmlJ = renderToStaticMarkup(
         <QuantMailShortcutDock activeKeyOverride="J" disableListener />,
       );
-      expect(htmlJ).toContain('border-[#FF8C42] bg-[#FF8C42]/20 text-[#FF8C42]');
+      expect(htmlJ).toContain('border-[var(--quant-primary)] bg-[var(--quant-primary)]/20 text-[var(--quant-primary)]');
       expect(htmlJ).toContain('shadow-[0_0_12px_rgba(255,140,66,0.6)]');
 
       // Test highlighting for 'E' (Done / Archive)
       const htmlE = renderToStaticMarkup(
         <QuantMailShortcutDock activeKeyOverride="E" disableListener />,
       );
-      expect(htmlE).toContain('border-[#FF8C42] bg-[#FF8C42]/20 text-[#FF8C42]');
+      expect(htmlE).toContain('border-[var(--quant-primary)] bg-[var(--quant-primary)]/20 text-[var(--quant-primary)]');
 
       // Test highlighting for 'CMD_K' (Command Palette)
       const htmlPalette = renderToStaticMarkup(
         <QuantMailShortcutDock activeKeyOverride="CMD_K" disableListener />,
       );
-      expect(htmlPalette).toContain('border-[#FF8C42] bg-[#FF8C42]/20 text-[#FF8C42]');
+      expect(htmlPalette).toContain('border-[var(--quant-primary)] bg-[var(--quant-primary)]/20 text-[var(--quant-primary)]');
     });
   });
 

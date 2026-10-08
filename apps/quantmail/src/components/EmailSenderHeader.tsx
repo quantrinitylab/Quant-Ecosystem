@@ -70,11 +70,11 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
   };
 
   return (
-    <div className="flex flex-col gap-2 p-4 sm:p-5 border-b border-[#282C35]/60 bg-[#111318]/40">
+    <div className="flex flex-col gap-2 p-4 sm:p-5 border-b border-[var(--quant-surface-elevated)]/60 bg-[var(--quant-surface)]/40">
       {/* Upper Line: Avatar + Name + Relative Time + Quick Actions */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3.5 min-w-0">
-          <IdentityAvatar name={senderName} size="lg" className="ring-2 ring-[#282C35] shrink-0" />
+          <IdentityAvatar name={senderName} size="lg" className="ring-2 ring-[var(--quant-surface-elevated)] shrink-0" />
 
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -110,7 +110,7 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
         <div className="flex items-center gap-1 shrink-0">
           {/* Reaction Badge if reacted */}
           {activeReaction && (
-            <span className="px-2 py-0.5 rounded-full bg-[#282C35] border border-[#3A404D] text-xs">
+            <span className="px-2 py-0.5 rounded-full bg-[var(--quant-surface-elevated)] border border-[#3A404D] text-xs">
               {activeReaction}
             </span>
           )}
@@ -120,7 +120,7 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
             <button
               type="button"
               onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
-              className="p-2 rounded-xl text-[#A1A4AC] hover:text-[#FFB875] hover:bg-[#282C35]/80 transition-colors"
+              className="p-2 rounded-xl text-[#A1A4AC] hover:text-[#FFB875] hover:bg-[var(--quant-surface-elevated)]/80 transition-colors"
               title="Add reaction"
             >
               <svg
@@ -136,13 +136,13 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
             </button>
 
             {isEmojiPickerOpen && (
-              <div className="absolute right-0 mt-2 p-2 rounded-2xl border border-[#282C35] bg-[#181c26] backdrop-blur-xl shadow-2xl flex gap-1.5 z-50">
+              <div className="absolute right-0 mt-2 p-2 rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] backdrop-blur-xl shadow-2xl flex gap-1.5 z-50">
                 {emojis.map((emoji) => (
                   <button
                     key={emoji}
                     type="button"
                     onClick={() => handleEmojiSelect(emoji)}
-                    className="p-1.5 rounded-xl hover:bg-[#282C35] text-lg transition-transform hover:scale-125"
+                    className="p-1.5 rounded-xl hover:bg-[var(--quant-surface-elevated)] text-lg transition-transform hover:scale-125"
                   >
                     {emoji}
                   </button>
@@ -155,7 +155,7 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
           <button
             type="button"
             onClick={onQuickReply}
-            className="p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors"
+            className="p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors"
             title="Reply"
           >
             <svg
@@ -175,7 +175,7 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
             <button
               type="button"
               onClick={() => setIsSenderMenuOpen(!isSenderMenuOpen)}
-              className="p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors"
+              className="p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors"
               title="More sender options"
             >
               <svg
@@ -192,14 +192,14 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
             </button>
 
             {isSenderMenuOpen && (
-              <div className="absolute right-0 mt-2 w-52 rounded-2xl border border-[#282C35] bg-[#161a24] backdrop-blur-xl shadow-2xl p-1.5 z-50 text-xs text-[#F5F5F5]">
+              <div className="absolute right-0 mt-2 w-52 rounded-2xl border border-[var(--quant-surface-elevated)] bg-[#161a24] backdrop-blur-xl shadow-2xl p-1.5 z-50 text-xs text-[#F5F5F5]">
                 <button
                   type="button"
                   onClick={() => {
                     setIsSenderMenuOpen(false);
                     showToast({ text: `Blocked ${senderEmail}`, type: 'info' });
                   }}
-                  className="flex items-center gap-2.5 w-full min-h-[44px] px-3 py-2 rounded-xl hover:bg-[#282C35] text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  className="flex items-center gap-2.5 w-full min-h-[44px] px-3 py-2 rounded-xl hover:bg-[var(--quant-surface-elevated)] text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 >
                   <IconBan size={14} className="shrink-0" />
                   <span>Block "{senderName}"</span>
@@ -210,7 +210,7 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
                     setIsSenderMenuOpen(false);
                     showToast({ text: 'Raw headers copied', type: 'success' });
                   }}
-                  className="flex items-center gap-2.5 w-full min-h-[44px] px-3 py-2 rounded-xl hover:bg-[#282C35] text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  className="flex items-center gap-2.5 w-full min-h-[44px] px-3 py-2 rounded-xl hover:bg-[var(--quant-surface-elevated)] text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 >
                   <IconFileText size={14} className="shrink-0" />
                   <span>View Original Headers</span>
@@ -223,7 +223,7 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
 
       {/* Accordion Details Table (when "to me ⌵" is tapped) */}
       {isDetailsOpen && (
-        <div className="mt-2 p-3.5 rounded-2xl border border-[#282C35] bg-[#090A0C]/80 text-xs space-y-2 text-[#A1A4AC] font-mono">
+        <div className="mt-2 p-3.5 rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-background)]/80 text-xs space-y-2 text-[#A1A4AC] font-mono">
           <div className="grid grid-cols-12 gap-2">
             <span className="col-span-3 text-[#A1A4AC] font-medium">From:</span>
             <div className="col-span-9 flex items-center gap-1.5 flex-wrap">
@@ -256,7 +256,7 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
             </div>
           </div>
 
-          <div className="grid grid-cols-12 gap-2 pt-1 border-t border-[#282C35]/80">
+          <div className="grid grid-cols-12 gap-2 pt-1 border-t border-[var(--quant-surface-elevated)]/80">
             <span className="col-span-3 text-[#A1A4AC] font-medium">Security:</span>
             <div className="col-span-9 flex items-center gap-1.5 text-cyan-400 text-[11px] font-sans">
               <IconLock size={13} className="shrink-0" />

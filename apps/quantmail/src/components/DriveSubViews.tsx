@@ -557,7 +557,7 @@ export function SingleEnterpriseStorageGauge({
   return (
     <div
       data-testid="single-enterprise-storage-gauge"
-      className={`rounded-2xl border border-[#232938] bg-[#12151E] p-4 sm:p-5 shadow-[0_4px_24px_rgba(0,0,0,0.35)] ${className}`}
+      className={`rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-4 sm:p-5 shadow-[0_4px_24px_rgba(0,0,0,0.35)] ${className}`}
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-3.5">
         <div className="flex items-center gap-3">
@@ -616,7 +616,7 @@ export function SingleEnterpriseStorageGauge({
         aria-valuemax={100}
         aria-label="Storage quota usage"
         aria-valuetext={`${usedFormatted} of ${totalFormatted} used`}
-        className="w-full h-2 rounded-full bg-[#1E293B] overflow-hidden"
+        className="w-full h-2 rounded-full bg-[var(--quant-surface-elevated)] overflow-hidden"
       >
         <div
           className="h-full rounded-full bg-gradient-to-r from-[#38BDF8] via-[#0284C7] to-[#818CF8] shadow-[0_0_12px_rgba(56,189,248,0.5)] transition-all duration-500"
@@ -820,10 +820,10 @@ export function DriveHomeSubView({
         count: categoryStats.documents.count,
         formattedSize: categoryStats.documents.formattedSize,
         icon: DocumentIcon,
-        accentColor: '#F59E0B',
+        accentColor: 'var(--quant-warning)',
         containerStyle:
-          'hover:border-[#F59E0B]/60 hover:bg-[#F59E0B]/5 hover:shadow-[0_0_20px_rgba(245,158,11,0.12)]',
-        badgeBg: 'bg-[#F59E0B]/15 text-[#F59E0B] border-[#F59E0B]/30',
+          'hover:border-[var(--quant-warning)]/60 hover:bg-[var(--quant-warning)]/5 hover:shadow-[0_0_20px_rgba(245,158,11,0.12)]',
+        badgeBg: 'bg-[var(--quant-warning)]/15 text-[var(--quant-warning)] border-[var(--quant-warning)]/30',
       },
       {
         id: 'archive' as DriveCategory,
@@ -983,7 +983,7 @@ export function DriveHomeSubView({
                   type="button"
                   data-testid={`category-card-${cat.id}`}
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`group text-left rounded-2xl p-4 border border-[#232938] bg-[#12151E] transition-all duration-200 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] ${cat.containerStyle}`}
+                  className={`group text-left rounded-2xl p-4 border border-[#232938] bg-[var(--quant-surface)] transition-all duration-200 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] ${cat.containerStyle}`}
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div
@@ -1029,7 +1029,7 @@ export function DriveHomeSubView({
                 {folders.map((folder) => (
                   <div
                     key={folder.id}
-                    className="group relative flex items-center gap-1 p-2 rounded-xl border border-[#232938] bg-[#12151E] hover:border-[#FF8C42]/50 hover:bg-[#FF8C42]/5 transition-all"
+                    className="group relative flex items-center gap-1 p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[var(--quant-primary)]/50 hover:bg-[var(--quant-primary)]/5 transition-all"
                   >
                     {/*
                      * A real <button>: keyboard-focusable, announced as a
@@ -1042,13 +1042,13 @@ export function DriveHomeSubView({
                       onClick={() => onNavigateToFolder?.(folder.id, folder.name)}
                       aria-label={`Open folder ${folder.name}`}
                       title={`Open ${folder.name}`}
-                      className="flex flex-1 items-center gap-3 min-w-0 p-1 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                      className="flex flex-1 items-center gap-3 min-w-0 p-1 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     >
-                      <div className="size-8 rounded-lg bg-[#FF8C42]/15 border border-[#FF8C42]/30 flex items-center justify-center text-[#FF8C42] shrink-0">
+                      <div className="size-8 rounded-lg bg-[var(--quant-primary)]/15 border border-[var(--quant-primary)]/30 flex items-center justify-center text-[var(--quant-primary)] shrink-0">
                         <FolderIcon className="size-4" />
                       </div>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#FF8C42] transition-colors">
+                        <span className="block text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[var(--quant-primary)] transition-colors">
                           {folder.name}
                         </span>
                         <span className="block text-[10px] text-[#64748B]">Folder</span>
@@ -1061,7 +1061,7 @@ export function DriveHomeSubView({
                           aria-label={`Rename folder ${folder.name}`}
                           title="Rename"
                           onClick={(e) => onOpenRename(folder, e)}
-                          className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F8FAFC] hover:bg-[#21262D] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                          className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F8FAFC] hover:bg-[#21262D] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                         >
                           <PencilIcon className="size-3.5" />
                         </button>
@@ -1093,7 +1093,7 @@ export function DriveHomeSubView({
             </div>
 
             {files.length === 0 ? (
-              <div className="text-center py-10 rounded-2xl border border-dashed border-[#232938] bg-[#0E1017]">
+              <div className="text-center py-10 rounded-2xl border border-dashed border-[#232938] bg-[var(--quant-surface-subtle)]">
                 <FolderIcon className="size-10 text-[#64748B] mx-auto mb-2" />
                 <p className="text-xs font-semibold text-[#F8FAFC]">No files uploaded yet</p>
                 <p className="text-[11px] text-[#64748B] mt-0.5">
@@ -1106,7 +1106,7 @@ export function DriveHomeSubView({
                   <div
                     key={file.id}
                     onClick={() => onPreviewItem?.(file)}
-                    className="group rounded-xl p-3 border border-[#232938] bg-[#12151E] hover:border-[#38BDF8]/50 hover:bg-[#38BDF8]/5 cursor-pointer transition-all flex flex-col justify-between"
+                    className="group rounded-xl p-3 border border-[#232938] bg-[var(--quant-surface)] hover:border-[#38BDF8]/50 hover:bg-[#38BDF8]/5 cursor-pointer transition-all flex flex-col justify-between"
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="size-8 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/25 flex items-center justify-center text-[#38BDF8] shrink-0">
@@ -1140,7 +1140,7 @@ export function DriveHomeSubView({
                 ))}
               </div>
             ) : (
-              <div className="rounded-xl border border-[#232938] bg-[#12151E] overflow-hidden divide-y divide-[#232938]">
+              <div className="rounded-xl border border-[#232938] bg-[var(--quant-surface)] overflow-hidden divide-y divide-[#232938]">
                 {files.slice(0, 10).map((file) => (
                   <div
                     key={file.id}
@@ -1198,7 +1198,7 @@ export function DriveHomeSubView({
                   setSelectedTag(null);
                   setCategorySearchQuery('');
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#232938] bg-[#12151E] text-xs font-semibold text-[#94A3B8] hover:text-white hover:border-[#38BDF8]/50 hover:bg-[#38BDF8]/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-xs font-semibold text-[#94A3B8] hover:text-white hover:border-[#38BDF8]/50 hover:bg-[#38BDF8]/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
               >
                 <ArrowLeftIcon className="size-3.5" />
                 <span>All Categories</span>
@@ -1225,7 +1225,7 @@ export function DriveHomeSubView({
                 value={categorySearchQuery}
                 onChange={(e) => setCategorySearchQuery(e.target.value)}
                 placeholder={`Search ${selectedCategory}...`}
-                className="w-full h-8 pl-8 pr-3 rounded-lg border border-[#232938] bg-[#0E1017] text-xs text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:border-[#38BDF8] transition-colors"
+                className="w-full h-8 pl-8 pr-3 rounded-lg border border-[#232938] bg-[var(--quant-surface-subtle)] text-xs text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:border-[#38BDF8] transition-colors"
               />
             </div>
           </div>
@@ -1239,7 +1239,7 @@ export function DriveHomeSubView({
                 className={`px-3 py-1 rounded-full text-xs font-mono font-medium transition-all ${
                   selectedTag === null
                     ? 'bg-[#6366F1] text-white shadow-[0_0_12px_rgba(99,102,241,0.3)]'
-                    : 'bg-[#12151E] text-[#94A3B8] border border-[#232938] hover:text-white'
+                    : 'bg-[var(--quant-surface)] text-[#94A3B8] border border-[#232938] hover:text-white'
                 }`}
               >
                 #All Tags
@@ -1252,7 +1252,7 @@ export function DriveHomeSubView({
                   className={`px-3 py-1 rounded-full text-xs font-mono font-medium transition-all shrink-0 ${
                     selectedTag === t
                       ? 'bg-[#6366F1] text-white shadow-[0_0_12px_rgba(99,102,241,0.3)]'
-                      : 'bg-[#12151E] text-[#94A3B8] border border-[#232938] hover:text-white'
+                      : 'bg-[var(--quant-surface)] text-[#94A3B8] border border-[#232938] hover:text-white'
                   }`}
                 >
                   {t}
@@ -1268,7 +1268,7 @@ export function DriveHomeSubView({
               {categoryItems.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between p-3.5 rounded-xl border border-[#232938] bg-[#12151E] hover:border-rose-500/40 transition-colors"
+                  className="flex items-center justify-between p-3.5 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-rose-500/40 transition-colors"
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className="size-8 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
@@ -1302,7 +1302,7 @@ export function DriveHomeSubView({
             </div>
           ) : categoryItems.length === 0 ? (
             /* Empty category state */
-            <div className="text-center py-16 rounded-2xl border border-dashed border-[#232938] bg-[#0E1017]">
+            <div className="text-center py-16 rounded-2xl border border-dashed border-[#232938] bg-[var(--quant-surface-subtle)]">
               <DocumentIcon className="size-10 text-[#64748B] mx-auto mb-2" />
               <p className="text-sm font-semibold text-[#F8FAFC]">
                 No {selectedCategory} found
@@ -1318,7 +1318,7 @@ export function DriveHomeSubView({
                 <div
                   key={item.id}
                   onClick={() => onPreviewItem?.(item)}
-                  className="group rounded-xl p-3.5 border border-[#232938] bg-[#12151E] hover:border-[#38BDF8]/50 hover:bg-[#38BDF8]/5 cursor-pointer transition-all flex flex-col justify-between"
+                  className="group rounded-xl p-3.5 border border-[#232938] bg-[var(--quant-surface)] hover:border-[#38BDF8]/50 hover:bg-[#38BDF8]/5 cursor-pointer transition-all flex flex-col justify-between"
                 >
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div className="size-9 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/25 flex items-center justify-center text-[#38BDF8] shrink-0">
@@ -1548,7 +1548,7 @@ export function DriveFeedSubView({
               className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
                 mediaFilter === filter.key
                   ? 'bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/40 shadow-[0_0_12px_rgba(56,189,248,0.15)]'
-                  : 'bg-[#12151E] text-[#94A3B8] border border-[#232938] hover:text-white'
+                  : 'bg-[var(--quant-surface)] text-[#94A3B8] border border-[#232938] hover:text-white'
               }`}
             >
               {filter.label}
@@ -1567,7 +1567,7 @@ export function DriveFeedSubView({
             <button
               type="button"
               onClick={handleBatchDownload}
-              className="px-3 py-1.5 rounded-lg bg-[#12151E] text-white border border-[#232938] hover:bg-[#1E293B] font-semibold flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-lg bg-[var(--quant-surface)] text-white border border-[#232938] hover:bg-[var(--quant-surface-elevated)] font-semibold flex items-center gap-1.5"
             >
               <DownloadIcon className="size-3.5 text-[#38BDF8]" />
               <span>Download Batch</span>
@@ -1616,7 +1616,7 @@ export function DriveFeedSubView({
                       className={`group relative rounded-2xl border overflow-hidden cursor-pointer transition-all duration-200 aspect-[4/3] flex flex-col justify-between p-3 select-none ${
                         isSelected
                           ? 'border-[#38BDF8] ring-2 ring-[#38BDF8]/40 shadow-[0_0_20px_rgba(56,189,248,0.2)]'
-                          : 'border-[#232938] hover:border-[#38BDF8]/60 bg-[#12151E]'
+                          : 'border-[#232938] hover:border-[#38BDF8]/60 bg-[var(--quant-surface)]'
                       }`}
                     >
                       {/* Gradient / Image visual simulation */}
@@ -1699,7 +1699,7 @@ export function DriveFeedSubView({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-lg p-4 sm:p-8"
         >
-          <div className="relative w-full max-w-4xl rounded-2xl border border-[#232938] bg-[#0E1017] p-5 shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="relative w-full max-w-4xl rounded-2xl border border-[#232938] bg-[var(--quant-surface-subtle)] p-5 shadow-2xl flex flex-col max-h-[90vh]">
             {/* Lightbox Header */}
             <div className="flex items-center justify-between pb-3 border-b border-[#232938]">
               <div className="min-w-0 flex-1">
@@ -1715,7 +1715,7 @@ export function DriveFeedSubView({
                 <button
                   type="button"
                   onClick={() => onDownloadFile?.(lightboxItem.id, lightboxItem.name)}
-                  className="p-2 rounded-xl border border-[#232938] bg-[#12151E] text-[#94A3B8] hover:text-white hover:border-[#38BDF8]"
+                  className="p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-[#94A3B8] hover:text-white hover:border-[#38BDF8]"
                   title="Download File"
                 >
                   <DownloadIcon className="size-4" />
@@ -1723,7 +1723,7 @@ export function DriveFeedSubView({
                 <button
                   type="button"
                   onClick={() => onShareItem?.(lightboxItem)}
-                  className="p-2 rounded-xl border border-[#232938] bg-[#12151E] text-[#94A3B8] hover:text-white hover:border-[#38BDF8]"
+                  className="p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-[#94A3B8] hover:text-white hover:border-[#38BDF8]"
                   title="Share File"
                 >
                   <ShareIcon className="size-4" />
@@ -1739,7 +1739,7 @@ export function DriveFeedSubView({
                 <button
                   type="button"
                   onClick={() => setLightboxItem(null)}
-                  className="p-2 rounded-xl border border-[#232938] bg-[#12151E] text-[#94A3B8] hover:text-white hover:border-rose-500"
+                  className="p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-[#94A3B8] hover:text-white hover:border-rose-500"
                   title="Close Lightbox"
                 >
                   <CloseIcon className="size-4" />
@@ -1835,9 +1835,9 @@ export function DriveAiMemorySubView({
     () => ({
       QuantMail: {
         name: 'QuantMail',
-        color: '#FF8C42',
+        color: 'var(--quant-primary)',
         icon: MailAppIcon,
-        borderStyle: 'border-[#FF8C42]/40 bg-[#FF8C42]/10 text-[#FF8C42]',
+        borderStyle: 'border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)]',
       },
       QuantCalendar: {
         name: 'QuantCalendar',
@@ -1937,7 +1937,7 @@ export function DriveAiMemorySubView({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search memories, facts, conversation context..."
-          className="w-full h-11 pl-10 pr-4 rounded-xl border border-[#232938] bg-[#12151E] text-xs text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:border-[#38BDF8] focus:ring-1 focus:ring-[#38BDF8] transition-all shadow-[0_2px_12px_rgba(0,0,0,0.25)]"
+          className="w-full h-11 pl-10 pr-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-xs text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:border-[#38BDF8] focus:ring-1 focus:ring-[#38BDF8] transition-all shadow-[0_2px_12px_rgba(0,0,0,0.25)]"
         />
         {searchQuery && (
           <button
@@ -1958,7 +1958,7 @@ export function DriveAiMemorySubView({
           className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all shrink-0 ${
             selectedApp === 'all'
               ? 'bg-[#38BDF8] text-black shadow-[0_0_14px_rgba(56,189,248,0.25)]'
-              : 'bg-[#12151E] text-[#94A3B8] border border-[#232938] hover:text-white'
+              : 'bg-[var(--quant-surface)] text-[#94A3B8] border border-[#232938] hover:text-white'
           }`}
         >
           All Sources
@@ -1979,7 +1979,7 @@ export function DriveAiMemorySubView({
               className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all shrink-0 ${
                 isActive
                   ? 'bg-white text-black shadow-[0_0_14px_rgba(255,255,255,0.25)]'
-                  : 'bg-[#12151E] text-[#94A3B8] border border-[#232938] hover:text-white'
+                  : 'bg-[var(--quant-surface)] text-[#94A3B8] border border-[#232938] hover:text-white'
               }`}
             >
               <Icon className="size-3.5" />
@@ -1992,7 +1992,7 @@ export function DriveAiMemorySubView({
       {/* Memory Cards Feed */}
       <div className="space-y-4">
         {filteredMemories.length === 0 ? (
-          <div className="text-center py-16 rounded-2xl border border-dashed border-[#232938] bg-[#0E1017]">
+          <div className="text-center py-16 rounded-2xl border border-dashed border-[#232938] bg-[var(--quant-surface-subtle)]">
             <BrainIcon className="size-10 text-[#64748B] mx-auto mb-2" />
             <p className="text-sm font-semibold text-[#F8FAFC]">No memories found</p>
             <p className="text-xs text-[#64748B] mt-0.5">
@@ -2009,7 +2009,7 @@ export function DriveAiMemorySubView({
             return (
               <div
                 key={mem.id}
-                className="rounded-2xl border border-[#232938] bg-[#12151E] p-4 sm:p-5 hover:border-[#38BDF8]/40 transition-all space-y-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.3)]"
+                className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-4 sm:p-5 hover:border-[#38BDF8]/40 transition-all space-y-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.3)]"
               >
                 {/* Card Top: Source App Badge & Timestamp */}
                 <div className="flex items-center justify-between gap-3">
@@ -2040,7 +2040,7 @@ export function DriveAiMemorySubView({
 
                 {/* Facts are shown only when the governed projection actually contains them. */}
                 {mem.extractedFacts.length > 0 && (
-                  <div className="space-y-1.5 bg-[#090A0E] p-3 rounded-xl border border-[#232938]/80">
+                  <div className="space-y-1.5 bg-[var(--quant-background)] p-3 rounded-xl border border-[#232938]/80">
                     <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#64748B]">
                       Extracted Key Facts
                     </span>
@@ -2062,7 +2062,7 @@ export function DriveAiMemorySubView({
                     {mem.entityGraphLinks.map((link, idx) => (
                       <span
                         key={idx}
-                        className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-[#1E293B]/70 text-[#94A3B8] border border-[#334155]"
+                        className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-[var(--quant-surface-elevated)]/70 text-[#94A3B8] border border-[#334155]"
                       >
                         {link}
                       </span>

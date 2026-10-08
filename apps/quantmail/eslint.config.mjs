@@ -62,8 +62,87 @@ export function findSub10pxTypeViolations(text) {
   return violations;
 }
 
-const typeScalePlugin = {
+/**
+ * QM-UIUX-004 — bans raw surface-hex color literals in QuantMail web source.
+ *
+ * Every hex that belongs to the --quant-* surface/brand palette has a design
+ * token; raw literals are banned so the theme switcher (dark/light) can
+ * recolor the whole UI. Hexes inside custom-property *definitions*
+ * (`--foo: #hex;`) are the token values themselves and are allowed.
+ */
+const BANNED_SURFACE_HEX = [
+  '000000', '08080a', '090a0c', '090a0e', '0b0d13', '0c0e11', '0d1017',
+  '0e1017', '0e1119', '111318', '121316', '12151e', '121622', '141722',
+  '141822', '16181d', '161822', '161a26', '161b22', '161b26', '181c26',
+  '1c1f26', '1e2128', '1e222a', '1e293b', '1f2430', '22c55e', '25252e',
+  '282c35', '3b82f6', 'e8752f', 'ef4444', 'f59e0b', 'ff8c42', 'ff9b5a',
+];
+
+/** Exported for unit-testing the QM-UIUX-004 hex scanner. */
+export function findRawSurfaceHexViolations(text) {
+  const violations = [];
+  const lines = text.split('\n');
+  const tokenDefRe = /^\s*--[a-zA-Z0-9-]+\s*:\s*#[0-9a-fA-F]{3,8}/;
+  lines.forEach((line, idx) => {
+    if (tokenDefRe.test(line)) return; // token definitions are the source of truth
+    const hexRe = new RegExp('#(?:' + BANNED_SURFACE_HEX.join('|') + ')(?![0-9a-fA-F])', 'gi');
+    let m;
+    while ((m = hexRe.exec(line)) !== null) {
+      violations.push({
+        line: idx + 1,
+        column: m.index + 1,
+        message: `QM-UIUX-004: raw surface hex ${m[0]} — use the matching --quant-* theme token instead.`,
+      });
+    }
+  });
+  return violations;
+}
+
+const surfaceHexPlugin = {
   rules: {
+    'no-raw-surface-hex': {
+      meta: { type: 'problem', docs: { description: 'Ban raw surface-hex literals (QM-UIUX-004) — use --quant-* tokens.' } },
+      create(context) {
+        return {
+          Program() {
+            const text = context.sourceCode.getText();
+            for (const v of findRawSurfaceHexViolations(text)) {
+              context.report({ loc: { line: v.line, column: v.column }, message: v.message });
+            }
+          },
+        };
+      },
+    },
+  },
+};
+
+const cssCombinedProcessor = {
+  preprocess() {
+    return [''];
+  },
+  postprocess(_messages, filename) {
+    // Re-read the original file — preprocess handed ESLint an empty program.
+    const text = fs.readFileSync(filename, 'utf8');
+    return [
+      ...findSub10pxTypeViolations(text).map((v) => ({
+        ruleId: 'type-scale/no-sub-10px-type',
+        severity: 2,
+        message: v.message,
+        line: v.line,
+        column: v.column,
+      })),
+      ...findRawSurfaceHexViolations(text).map((v) => ({
+        ruleId: 'surface-hex/no-raw-surface-hex',
+        severity: 2,
+        message: v.message,
+        line: v.line,
+        column: v.column,
+      })),
+    ];
+  },
+};
+
+const typeScalePlugin = {  rules: {
     'no-sub-10px-type': {
       meta: { type: 'problem', docs: { description: 'Ban text below the 10px type floor (QM-UIUX-005).' } },
       create(context) {
@@ -136,16 +215,21 @@ export default tseslint.config(
     },
   },
   // QM-UIUX-005: ban text below the 10px type floor, going forward.
+  // QM-UIUX-004: ban raw surface-hex literals, going forward.
   {
     files: ['src/**/*.{ts,tsx}', 'backend/**/*.ts', '*.{ts,tsx}'],
-    plugins: { 'type-scale': typeScalePlugin },
-    rules: { 'type-scale/no-sub-10px-type': 'error' },
+    plugins: { 'type-scale': typeScalePlugin, 'surface-hex': surfaceHexPlugin },
+    rules: {
+      'type-scale/no-sub-10px-type': 'error',
+      'surface-hex/no-raw-surface-hex': 'error',
+    },
   },
   {
     files: ['src/**/*.css'],
     plugins: {
       'type-scale': { processors: { 'css-type-floor': cssTypeFloorProcessor } },
+      'surface-hex': { processors: { 'css-combined': cssCombinedProcessor } },
     },
-    processor: 'type-scale/css-type-floor',
+    processor: 'surface-hex/css-combined',
   },
 );

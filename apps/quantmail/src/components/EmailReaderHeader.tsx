@@ -31,7 +31,7 @@ export interface EmailReaderHeaderProps {
  * focus ring, some did not, and none of them met the touch-target floor).
  */
 const MENU_ITEM_CLASS =
-  'flex items-center gap-3 w-full min-h-touch px-3 py-2 rounded-xl text-left transition-colors hover:bg-[#1E2128] outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]';
+  'flex items-center gap-3 w-full min-h-touch px-3 py-2 rounded-xl text-left transition-colors hover:bg-[var(--quant-surface-elevated)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]';
 
 const MENU_ICON_CLASS = 'size-4 flex-none text-[#A1A4AC]';
 
@@ -52,7 +52,7 @@ const MENU_ICON_PROPS = {
  * apart and are routinely mis-tapped. The colour treatment stays per-button.
  */
 const ACTION_BUTTON_CLASS =
-  'inline-flex min-h-touch min-w-touch flex-none items-center justify-center rounded-xl transition-all active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]';
+  'inline-flex min-h-touch min-w-touch flex-none items-center justify-center rounded-xl transition-all active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]';
 
 export function EmailReaderHeader({
   subject = '(No Subject)',
@@ -97,13 +97,13 @@ export function EmailReaderHeader({
   };
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between gap-2 px-3 sm:px-5 py-2 border-b border-[#282C35] bg-[#090A0C]/95 backdrop-blur-xl shadow-[0_4px_16px_rgba(0,0,0,0.6)]">
+    <header className="sticky top-0 z-30 flex items-center justify-between gap-2 px-3 sm:px-5 py-2 border-b border-[var(--quant-surface-elevated)] bg-[var(--quant-background)]/95 backdrop-blur-xl shadow-[0_4px_16px_rgba(0,0,0,0.6)]">
       {/* Left Section: Back Button + Title/Sender info */}
       <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex min-h-touch min-w-touch -ml-2 flex-none items-center justify-center rounded-xl text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#1E2128] active:scale-95 transition-all outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+          className="inline-flex min-h-touch min-w-touch -ml-2 flex-none items-center justify-center rounded-xl text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)] active:scale-95 transition-all outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           title="Back to Inbox"
           aria-label="Back to Inbox"
         >
@@ -156,7 +156,7 @@ export function EmailReaderHeader({
         <button
           type="button"
           onClick={onOpenQuanty}
-          className="group relative flex min-h-touch items-center gap-1.5 px-2 rounded-xl text-[#FF8C42] hover:bg-[#FF8C42]/10 transition-all cursor-pointer select-none active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+          className="group relative flex min-h-touch items-center gap-1.5 px-2 rounded-xl text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/10 transition-all cursor-pointer select-none active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           title="Ask Quanty AI"
         >
           <Quanty size={24} expression="happy" bob={false} />
@@ -172,8 +172,8 @@ export function EmailReaderHeader({
           onClick={onToggleStar}
           className={`${ACTION_BUTTON_CLASS} ${
             isStarred
-              ? 'text-[#FF8C42] bg-[#FF8C42]/10 shadow-sm'
-              : 'text-[#A1A4AC] hover:text-[#FF9B5A] hover:bg-white/[0.04]'
+              ? 'text-[var(--quant-primary)] bg-[var(--quant-primary)]/10 shadow-sm'
+              : 'text-[#A1A4AC] hover:text-[var(--quant-primary-hover)] hover:bg-white/[0.04]'
           }`}
           title={isStarred ? 'Unpin (S)' : 'Pin (S)'}
           aria-label="Pin"
@@ -194,7 +194,7 @@ export function EmailReaderHeader({
         <button
           type="button"
           onClick={onArchive}
-          className={`${ACTION_BUTTON_CLASS} text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#1E2128]`}
+          className={`${ACTION_BUTTON_CLASS} text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)]`}
           title="Archive (E)"
           aria-label="Archive"
         >
@@ -233,7 +233,7 @@ export function EmailReaderHeader({
           <button
             type="button"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className={`${ACTION_BUTTON_CLASS} text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#1E2128]`}
+            className={`${ACTION_BUTTON_CLASS} text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)]`}
             title="More options"
             aria-label="More options"
             // Deliberately a disclosure, not `aria-haspopup="menu"`: the popup is a
@@ -256,7 +256,7 @@ export function EmailReaderHeader({
           </button>
 
           {isMenuOpen && (
-            <div className="absolute right-0 mt-2 w-56 sm:w-60 rounded-2xl border border-[#282C35] bg-[#16181D]/98 backdrop-blur-xl shadow-[0_4px_16px_rgba(0,0,0,0.6)] p-1.5 z-50 text-xs text-[#F5F5F5]">
+            <div className="absolute right-0 mt-2 w-56 sm:w-60 rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/98 backdrop-blur-xl shadow-[0_4px_16px_rgba(0,0,0,0.6)] p-1.5 z-50 text-xs text-[#F5F5F5]">
               {/* Mark as Important — the one destructive-adjacent item, so it keeps
                   its own rose treatment rather than the neutral row styling. */}
               <button
@@ -265,10 +265,10 @@ export function EmailReaderHeader({
                   setIsMenuOpen(false);
                   handleImportantToggle();
                 }}
-                className={`flex items-center gap-3 w-full min-h-touch px-3 py-2 rounded-xl text-left transition-colors font-medium outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                className={`flex items-center gap-3 w-full min-h-touch px-3 py-2 rounded-xl text-left transition-colors font-medium outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                   localImportant
                     ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                    : 'hover:bg-[#1E2128] text-rose-300'
+                    : 'hover:bg-[var(--quant-surface-elevated)] text-rose-300'
                 }`}
               >
                 <svg className="size-4 text-rose-500 fill-current" viewBox="0 0 24 24">
@@ -375,7 +375,7 @@ export function EmailReaderHeader({
                 <span>Print</span>
               </button>
 
-              <div className="h-px bg-[#282C35] my-1" />
+              <div className="h-px bg-[var(--quant-surface-elevated)] my-1" />
 
               <button
                 type="button"
@@ -383,7 +383,7 @@ export function EmailReaderHeader({
                   setIsMenuOpen(false);
                   showToast({ text: 'Reported as spam', type: 'error' });
                 }}
-                className="flex items-center gap-3 w-full min-h-touch px-3 py-2 rounded-xl hover:bg-rose-500/15 text-rose-400 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                className="flex items-center gap-3 w-full min-h-touch px-3 py-2 rounded-xl hover:bg-rose-500/15 text-rose-400 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
               >
                 <svg
                   className="size-4 flex-none text-rose-400"

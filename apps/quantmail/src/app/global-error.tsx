@@ -15,7 +15,7 @@
  * stylesheet and the theme bootstrap are exactly the things that may not have
  * run, and an error screen that itself renders unstyled white-on-white is worse
  * than no error screen at all. The hexes are the design system's own —
- * #090A0C canvas, #16181D elevated surface, #282C35 border, #FF8C42 accent.
+ * var(--quant-background) canvas, var(--quant-surface-elevated) elevated surface, var(--quant-surface-elevated) border, var(--quant-primary) accent.
  */
 export default function GlobalError({
   error,
@@ -34,7 +34,7 @@ export default function GlobalError({
           alignItems: 'center',
           justifyContent: 'center',
           padding: '24px',
-          backgroundColor: '#090A0C',
+          backgroundColor: 'var(--quant-background)',
           color: '#F5F5F5',
           fontFamily:
             'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
@@ -46,8 +46,8 @@ export default function GlobalError({
             width: '100%',
             maxWidth: '460px',
             borderRadius: '16px',
-            border: '1px solid #282C35',
-            backgroundColor: '#16181D',
+            border: '1px solid var(--quant-surface-elevated)',
+            backgroundColor: 'var(--quant-surface-elevated)',
             boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
             padding: '28px',
             textAlign: 'center',
@@ -58,7 +58,7 @@ export default function GlobalError({
             width="44"
             height="44"
             fill="none"
-            stroke="#FF8C42"
+            stroke="var(--quant-primary)"
             strokeWidth="1.7"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -111,9 +111,9 @@ export default function GlobalError({
                 minHeight: '44px',
                 padding: '0 20px',
                 borderRadius: '10px',
-                border: '1px solid #E8752F',
-                backgroundColor: '#FF8C42',
-                color: '#090A0C',
+                border: '1px solid var(--brand-primary-pressed)',
+                backgroundColor: 'var(--quant-primary)',
+                color: 'var(--quant-background)',
                 fontSize: '14px',
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -129,7 +129,7 @@ export default function GlobalError({
                 minHeight: '44px',
                 padding: '0 20px',
                 borderRadius: '10px',
-                border: '1px solid #282C35',
+                border: '1px solid var(--quant-surface-elevated)',
                 color: '#A1A4AC',
                 fontSize: '14px',
                 fontWeight: 500,

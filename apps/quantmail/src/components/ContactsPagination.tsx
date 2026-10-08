@@ -29,7 +29,7 @@ export function ContactsPagination({
         ? `Page ${page} of ${Math.max(1, current.totalPages)} · ${current.total} contacts`
         : `Page ${page}`;
   const buttonClass =
-    'min-h-11 rounded-xl border border-[#282C35] bg-[#16181D] px-3 text-sm font-medium text-[#F5F5F5] transition-colors hover:border-[#3A404D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] disabled:cursor-not-allowed disabled:opacity-50';
+    'min-h-11 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3 text-sm font-medium text-[#F5F5F5] transition-colors hover:border-[#3A404D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] disabled:cursor-not-allowed disabled:opacity-50';
 
   return (
     <nav

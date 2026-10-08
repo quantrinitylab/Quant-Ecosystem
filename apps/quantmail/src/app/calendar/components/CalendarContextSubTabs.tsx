@@ -306,17 +306,17 @@ export function CalendarContextSubTabs({
               id={`tab-${tab.key}`}
               onClick={() => onSelectTab(tab.key)}
               data-testid={`calendar-tab-${tab.key}`}
-              className={`${tab.isLegacy ? 'hidden' : 'flex'} items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F59E0B] ${
+              className={`${tab.isLegacy ? 'hidden' : 'flex'} items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)] ${
                 isActive
-                  ? 'bg-[#F59E0B]/15 text-[#F59E0B] border border-[#F59E0B]/40 shadow-[0_0_12px_rgba(245,158,11,0.15)] font-semibold'
-                  : 'text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#161822] border border-transparent'
+                  ? 'bg-[var(--quant-warning)]/15 text-[var(--quant-warning)] border border-[var(--quant-warning)]/40 shadow-[0_0_12px_rgba(245,158,11,0.15)] font-semibold'
+                  : 'text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[var(--quant-surface-elevated)] border border-transparent'
               }`}
             >
-              <IconComp className={`size-3.5 ${isActive ? 'text-[#F59E0B]' : 'text-[#A1A4AC]'}`} />
+              <IconComp className={`size-3.5 ${isActive ? 'text-[var(--quant-warning)]' : 'text-[#A1A4AC]'}`} />
               <span>{tab.label}</span>
               {isActive && (
                 <span
-                  className="size-1.5 rounded-full bg-[#F59E0B] shadow-[0_0_6px_#F59E0B]"
+                  className="size-1.5 rounded-full bg-[var(--quant-warning)] shadow-[0_0_6px_var(--quant-warning)]"
                   aria-hidden="true"
                 />
               )}

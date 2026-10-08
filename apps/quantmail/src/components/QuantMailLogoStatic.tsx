@@ -48,7 +48,7 @@ export function QuantMailLogoStatic({ size = 42, className, title }: QuantMailLo
         <radialGradient id="qm-static-plate" gradientUnits="userSpaceOnUse" cx="42" cy="40" r="82">
           <stop offset="0" stopColor="#FFC189" />
           <stop offset="0.3" stopColor="#FF9450" />
-          <stop offset="0.5" stopColor="#FF8C42" />
+          <stop offset="0.5" stopColor="var(--quant-primary)" />
           <stop offset="0.74" stopColor="#C8520F" />
           <stop offset="1" stopColor="#6E2606" />
         </radialGradient>

@@ -23,24 +23,24 @@ export interface AppTheme {
 export const APP_THEMES: Record<AppThemeId, AppTheme> = {
   mail: {
     id: 'mail',
-    accent: '#FF8C42',
+    accent: 'var(--quant-primary)',
     glow: 'rgba(255, 140, 66, 0.25)',
-    bgWash: 'linear-gradient(180deg, rgba(255, 140, 66, 0.06) 0%, transparent 32%)',
-    ring: '#FF8C42',
+    bgWash: 'linear-gradient(180deg, var(--quant-accent-faint) 0%, transparent 32%)',
+    ring: 'var(--quant-primary)',
   },
   calendar: {
     id: 'calendar',
-    accent: '#3B82F6',
+    accent: 'var(--quant-info)',
     glow: 'rgba(59, 130, 246, 0.25)',
     bgWash: 'linear-gradient(180deg, rgba(59, 130, 246, 0.06) 0%, transparent 32%)',
-    ring: '#3B82F6',
+    ring: 'var(--quant-info)',
   },
   drive: {
     id: 'drive',
-    accent: '#22C55E',
+    accent: 'var(--quant-success)',
     glow: 'rgba(34, 197, 94, 0.25)',
     bgWash: 'linear-gradient(180deg, rgba(34, 197, 94, 0.06) 0%, transparent 32%)',
-    ring: '#22C55E',
+    ring: 'var(--quant-success)',
   },
   contacts: {
     id: 'contacts',

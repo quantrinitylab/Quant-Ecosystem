@@ -322,7 +322,7 @@ export default function SecurityPage() {
                           className={`flex size-10 shrink-0 items-center justify-center rounded-full ${
                             status.enabled
                               ? 'bg-[var(--quant-success)]/10 text-[var(--quant-success)]'
-                              : 'bg-[var(--quant-muted)] text-[#FF8C42]'
+                              : 'bg-[var(--quant-muted)] text-[var(--quant-primary)]'
                           }`}
                         >
                           {status.enabled ? (
@@ -382,7 +382,7 @@ export default function SecurityPage() {
                   {status?.enabled &&
                   !passwordPrompt &&
                   status.backupCodesRemaining <= RECOVERY_CODES_LOW ? (
-                    <p className="rounded-xl border border-[#FF8C42]/30 bg-[#FF8C42]/10 shadow-[0_0_12px_rgba(255,140,66,0.1)] px-3.5 py-2.5 text-xs leading-5 text-[#FFB875]">
+                    <p className="rounded-xl border border-[var(--quant-primary)]/30 bg-[var(--quant-primary)]/10 shadow-[0_0_12px_rgba(255,140,66,0.1)] px-3.5 py-2.5 text-xs leading-5 text-[#FFB875]">
                       {status.backupCodesRemaining === 0
                         ? 'No recovery codes left. Generate a new set now — without one, losing your authenticator means losing the account.'
                         : 'Nearly out of recovery codes. Generate a new set while you still have a way in.'}
@@ -522,7 +522,7 @@ export default function SecurityPage() {
                   ) : null}
 
                   {freshCodes ? (
-                    <div className="space-y-3 rounded-xl border border-[#FF8C42]/30 bg-[#FF8C42]/10 shadow-[0_0_16px_rgba(255,140,66,0.1),inset_0_1px_0_0_rgba(255,255,255,0.06)] px-4 py-4">
+                    <div className="space-y-3 rounded-xl border border-[var(--quant-primary)]/30 bg-[var(--quant-primary)]/10 shadow-[0_0_16px_rgba(255,140,66,0.1),inset_0_1px_0_0_rgba(255,255,255,0.06)] px-4 py-4">
                       <div>
                         <h3 className="text-sm font-medium text-[var(--quant-foreground)]">
                           Save your recovery codes
@@ -760,7 +760,7 @@ export default function SecurityPage() {
                 </p>
                 <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5 space-y-4">
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5 text-[#FF8C42]">
+                    <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5 text-[var(--quant-primary)]">
                       <svg
                         className="size-4"
                         viewBox="0 0 24 24"
@@ -783,7 +783,7 @@ export default function SecurityPage() {
                   </div>
 
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5 text-[#FF8C42]">
+                    <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5 text-[var(--quant-primary)]">
                       <svg
                         className="size-4"
                         viewBox="0 0 24 24"
@@ -808,7 +808,7 @@ export default function SecurityPage() {
                   </div>
 
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5 text-[#FF8C42]">
+                    <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5 text-[var(--quant-primary)]">
                       <svg
                         className="size-4"
                         viewBox="0 0 24 24"

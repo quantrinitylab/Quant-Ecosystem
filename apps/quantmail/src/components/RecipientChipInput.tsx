@@ -211,14 +211,14 @@ export function RecipientChipInput({
       </label>
 
       <div
-        className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5 py-1 px-1.5 rounded-xl border border-transparent focus-within:border-[#3A404D]/80 focus-within:bg-[#111318]/40 transition-colors"
+        className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5 py-1 px-1.5 rounded-xl border border-transparent focus-within:border-[#3A404D]/80 focus-within:bg-[var(--quant-surface)]/40 transition-colors"
         onClick={() => inputRef.current?.focus()}
       >
         {/* Recipient Chips */}
         {recipients.map((recipient, idx) => (
           <span
             key={`${recipient.email}-${idx}`}
-            className="inline-flex max-w-full items-center gap-1.5 pl-1.5 pr-2 py-0.5 rounded-full bg-[#282C35]/90 border border-[#3A404D]/80 text-xs text-[#F5F5F5] hover:border-[#FF8C42]/50 hover:bg-[#282C35] transition-all select-none shadow-sm group"
+            className="inline-flex max-w-full items-center gap-1.5 pl-1.5 pr-2 py-0.5 rounded-full bg-[var(--quant-surface-elevated)]/90 border border-[#3A404D]/80 text-xs text-[#F5F5F5] hover:border-[var(--quant-primary)]/50 hover:bg-[var(--quant-surface-elevated)] transition-all select-none shadow-sm group"
           >
             <IdentityAvatar
               name={recipient.name || recipient.email}
@@ -271,7 +271,7 @@ export function RecipientChipInput({
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={recipients.length === 0 ? placeholder : ''}
-          className="flex-1 min-w-[70px] sm:min-w-[120px] min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none py-1 focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+          className="flex-1 min-w-[70px] sm:min-w-[120px] min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none py-1 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           autoComplete="off"
           spellCheck={false}
         />
@@ -283,9 +283,9 @@ export function RecipientChipInput({
       {isOpen && suggestions.length > 0 && (
         <div
           ref={dropdownRef}
-          className="absolute left-14 sm:left-20 top-full mt-1 z-50 w-72 sm:w-80 bg-[#090A0C]/95 border border-[#282C35] rounded-2xl shadow-2xl overflow-hidden backdrop-blur-md max-h-56 overflow-y-auto"
+          className="absolute left-14 sm:left-20 top-full mt-1 z-50 w-72 sm:w-80 bg-[var(--quant-background)]/95 border border-[var(--quant-surface-elevated)] rounded-2xl shadow-2xl overflow-hidden backdrop-blur-md max-h-56 overflow-y-auto"
         >
-          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC] border-b border-[#282C35]/80 bg-[#111318]/60">
+          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC] border-b border-[var(--quant-surface-elevated)]/80 bg-[var(--quant-surface)]/60">
             Contacts & Suggestions
           </div>
           {suggestions.map((contact, idx) => (
@@ -303,8 +303,8 @@ export function RecipientChipInput({
               onMouseEnter={() => setHighlightedIndex(idx)}
               className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
                 highlightedIndex === idx
-                  ? 'bg-[#FF8C42]/15 text-[#FFB875]'
-                  : 'hover:bg-[#111318] text-[#F5F5F5]'
+                  ? 'bg-[var(--quant-primary)]/15 text-[#FFB875]'
+                  : 'hover:bg-[var(--quant-surface)] text-[#F5F5F5]'
               }`}
             >
               <IdentityAvatar name={contact.name || contact.email} size="sm" />
@@ -315,7 +315,7 @@ export function RecipientChipInput({
                 <span className="text-[11px] text-[#A1A4AC] truncate">{contact.email}</span>
               </div>
               {contact.company && (
-                <span className="text-[10px] text-[#A1A4AC] px-1.5 py-0.5 rounded bg-[#111318] border border-[#282C35] shrink-0">
+                <span className="text-[10px] text-[#A1A4AC] px-1.5 py-0.5 rounded bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] shrink-0">
                   {contact.company}
                 </span>
               )}

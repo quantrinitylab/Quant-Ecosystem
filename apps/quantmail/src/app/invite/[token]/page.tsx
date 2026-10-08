@@ -92,7 +92,7 @@ export default function InviteAcceptPage() {
             </p>
 
             {invite.status !== 'PENDING' ? (
-              <p className="mt-4 text-xs text-[var(--quant-danger,#ef4444)]">
+              <p className="mt-4 text-xs text-[var(--quant-danger,var(--quant-destructive))]">
                 This invitation is no longer active ({invite.status.toLowerCase()}). Ask for a fresh
                 invite.
               </p>
@@ -113,7 +113,7 @@ export default function InviteAcceptPage() {
             )}
 
             {acceptError && (
-              <p className="mt-3 text-xs text-[var(--quant-danger,#ef4444)]">{acceptError}</p>
+              <p className="mt-3 text-xs text-[var(--quant-danger,var(--quant-destructive))]">{acceptError}</p>
             )}
           </Card>
         )}

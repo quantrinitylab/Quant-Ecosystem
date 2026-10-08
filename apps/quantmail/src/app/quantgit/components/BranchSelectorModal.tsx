@@ -54,7 +54,7 @@ export const BranchSelectorModal: React.FC<BranchSelectorModalProps> = ({
       />
 
       {/* Modal Card */}
-      <div className="relative w-full max-w-sm rounded-xl bg-[#161B22] border border-[#30363D] shadow-2xl overflow-hidden z-10 flex flex-col text-sm text-[#E6EDF3] animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-sm rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-2xl overflow-hidden z-10 flex flex-col text-sm text-[#E6EDF3] animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#30363D]">
           <span className="font-semibold text-xs text-[#E6EDF3] tracking-wide">

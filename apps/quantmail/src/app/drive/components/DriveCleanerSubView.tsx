@@ -46,7 +46,7 @@ export function DriveCleanerSubView({ clusters = [] }: DriveCleanerSubViewProps)
       className="space-y-6"
     >
       {/* 1. Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[#232938] bg-[#12151E] shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[#232938] bg-[var(--quant-surface)] shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
         <div className="flex items-center gap-3.5">
           <div className="size-11 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8] shrink-0">
             <CleanerSparkleIcon className="size-5" />
@@ -69,8 +69,8 @@ export function DriveCleanerSubView({ clusters = [] }: DriveCleanerSubViewProps)
         </div>
 
         {clusters.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#232938] bg-[#12151E] px-6 py-12 text-center">
-            <div className="size-10 rounded-xl bg-[#090A0E] border border-[#232938] flex items-center justify-center text-[#64748B]">
+          <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#232938] bg-[var(--quant-surface)] px-6 py-12 text-center">
+            <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[#232938] flex items-center justify-center text-[#64748B]">
               <CleanerSparkleIcon className="size-5" />
             </div>
             <p className="text-sm font-semibold text-[#F8FAFC]">No duplicates found</p>
@@ -83,7 +83,7 @@ export function DriveCleanerSubView({ clusters = [] }: DriveCleanerSubViewProps)
             {clusters.map((cluster) => (
               <div
                 key={cluster.clusterId}
-                className="p-4 rounded-xl border border-[#232938] bg-[#12151E] shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
+                className="p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#232938] pb-2.5">
                   <div>
@@ -103,10 +103,10 @@ export function DriveCleanerSubView({ clusters = [] }: DriveCleanerSubViewProps)
                   {cluster.files.map((file) => (
                     <div
                       key={file.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-lg bg-[#090A0E] border border-[#232938] text-xs gap-2"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-lg bg-[var(--quant-background)] border border-[#232938] text-xs gap-2"
                     >
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <div className="size-6 rounded bg-[#161A26] border border-[#232938] flex items-center justify-center text-[#94A3B8] shrink-0 font-mono text-[10px]">
+                        <div className="size-6 rounded bg-[var(--quant-surface-elevated)] border border-[#232938] flex items-center justify-center text-[#94A3B8] shrink-0 font-mono text-[10px]">
                           {file.isOriginal ? 'ORIG' : 'DUP'}
                         </div>
                         <div className="min-w-0 flex-1">

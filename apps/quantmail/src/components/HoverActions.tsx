@@ -60,7 +60,7 @@ export const HoverActions = memo(function HoverActions({
           type="button"
           className={`hover-action-btn ${
             isPinned
-              ? 'text-[#FF8C42] bg-[#FF8C42]/12 shadow-sm'
+              ? 'text-[var(--quant-primary)] bg-[var(--quant-primary)]/12 shadow-sm'
               : 'text-[#A1A4AC] hover:text-[#EDEDED]'
           }`}
           onClick={(e) => {
@@ -113,7 +113,7 @@ export const HoverActions = memo(function HoverActions({
       {isSpam && onRescueSpam && (
         <button
           type="button"
-          className="hover-action-btn text-[#FF8C42] hover:text-[#FFA666] hover:bg-[#FF8C42]/12"
+          className="hover-action-btn text-[var(--quant-primary)] hover:text-[#FFA666] hover:bg-[var(--quant-primary)]/12"
           onClick={onRescueSpam}
           aria-label="Not spam"
           title="Not spam"
@@ -191,7 +191,7 @@ export const HoverActions = memo(function HoverActions({
           >
             <rect x="3" y="5" width="18" height="14" rx="2" />
             <path d="m3 7 9 6 9-6" />
-            <circle cx="18" cy="6" r="3" fill="#FF8C42" stroke="none" />
+            <circle cx="18" cy="6" r="3" fill="var(--quant-primary)" stroke="none" />
           </svg>
         ) : (
           <svg

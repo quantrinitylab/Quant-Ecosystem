@@ -51,7 +51,7 @@ function VintagePostageStamp({
   stamp: PostcardTemplate['stamp'];
   isDark?: boolean;
 }) {
-  const inkColor = isDark ? '#F59E0B' : '#1C1917';
+  const inkColor = isDark ? 'var(--quant-warning)' : '#1C1917';
   const postmarkColor = isDark ? 'rgba(245, 158, 11, 0.75)' : 'rgba(28, 25, 23, 0.75)';
 
   return (
@@ -97,13 +97,13 @@ function VintagePostageStamp({
       {/* 2. REAL PERFORATED POSTAGE STAMP (Serrated Scalloped Teeth)  */}
       {/* ------------------------------------------------------------- */}
       <div
-        className="relative w-16 h-20 p-1 bg-white dark:bg-[#282C35] shadow-md border border-[#A1A4AC]/60 dark:border-[#FF8C42]/40 rounded-[2px]"
+        className="relative w-16 h-20 p-1 bg-white dark:bg-[var(--quant-surface-elevated)] shadow-md border border-[#A1A4AC]/60 dark:border-[var(--quant-primary)]/40 rounded-[2px]"
         style={{
           boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
         }}
       >
         {/* Scalloped teeth simulated borders */}
-        <div className="w-full h-full border border-dashed border-[#A1A4AC]/80 dark:border-[#FF8C42]/50 p-1 flex flex-col justify-between items-center bg-[#FAF6F0] dark:bg-[#111318] overflow-hidden">
+        <div className="w-full h-full border border-dashed border-[#A1A4AC]/80 dark:border-[var(--quant-primary)]/50 p-1 flex flex-col justify-between items-center bg-[#FAF6F0] dark:bg-[var(--quant-surface)] overflow-hidden">
           {/* Stamp Top Kicker */}
           <div className="w-full flex items-center justify-between text-[6.5px] font-black uppercase tracking-wider text-[#6B6E76] dark:text-[#FFB875]">
             <span>POST</span>
@@ -133,7 +133,7 @@ function VintagePostageStamp({
           </div>
 
           {/* Stamp Bottom Text */}
-          <span className="text-[var(--q-type-xs)] font-bold tracking-widest text-[#6B6E76] dark:text-[#FF8C42]/80 uppercase">
+          <span className="text-[var(--q-type-xs)] font-bold tracking-widest text-[#6B6E76] dark:text-[var(--quant-primary)]/80 uppercase">
             QUANT TRINITY
           </span>
         </div>
@@ -184,10 +184,10 @@ export function PostcardCanvas({
       ink: '#2D2824',
     },
     'obsidian-matte': {
-      bg: 'bg-[#121316] shadow-[inset_0_0_50px_rgba(0,0,0,0.85)]',
+      bg: 'bg-[var(--quant-surface-subtle)] shadow-[inset_0_0_50px_rgba(0,0,0,0.85)]',
       text: 'text-[#F3F4F6]',
-      border: 'border-[#FF8C42]/40',
-      ink: '#F59E0B',
+      border: 'border-[var(--quant-primary)]/40',
+      ink: 'var(--quant-warning)',
     },
     'clean-ivory': {
       bg: 'bg-[#FCFAF7] shadow-[inset_0_0_40px_rgba(0,0,0,0.06)]',
@@ -250,16 +250,16 @@ export function PostcardCanvas({
             {template.hasFiligree && (
               <>
                 <FiligreeCorner
-                  className={`absolute top-2 left-2 ${isDark ? 'text-[#FF8C42]' : 'text-[#8C6D52]'}`}
+                  className={`absolute top-2 left-2 ${isDark ? 'text-[var(--quant-primary)]' : 'text-[#8C6D52]'}`}
                 />
                 <FiligreeCorner
-                  className={`absolute top-2 right-2 rotate-90 ${isDark ? 'text-[#FF8C42]' : 'text-[#8C6D52]'}`}
+                  className={`absolute top-2 right-2 rotate-90 ${isDark ? 'text-[var(--quant-primary)]' : 'text-[#8C6D52]'}`}
                 />
                 <FiligreeCorner
-                  className={`absolute bottom-2 left-2 -rotate-90 ${isDark ? 'text-[#FF8C42]' : 'text-[#8C6D52]'}`}
+                  className={`absolute bottom-2 left-2 -rotate-90 ${isDark ? 'text-[var(--quant-primary)]' : 'text-[#8C6D52]'}`}
                 />
                 <FiligreeCorner
-                  className={`absolute bottom-2 right-2 rotate-180 ${isDark ? 'text-[#FF8C42]' : 'text-[#8C6D52]'}`}
+                  className={`absolute bottom-2 right-2 rotate-180 ${isDark ? 'text-[var(--quant-primary)]' : 'text-[#8C6D52]'}`}
                 />
               </>
             )}
@@ -274,7 +274,7 @@ export function PostcardCanvas({
                   className="text-2xl sm:text-3xl font-serif tracking-widest font-black uppercase drop-shadow-sm"
                   style={{
                     fontFamily: '"Cinzel", "Georgia", "Times New Roman", serif',
-                    color: isDark ? '#F59E0B' : '#3E2715',
+                    color: isDark ? 'var(--quant-warning)' : '#3E2715',
                   }}
                 >
                   Post Card
@@ -462,13 +462,13 @@ export function PostcardCanvas({
                 <span className="mb-3 text-[#C75D1E] dark:text-[#FFB875]">
                   <IconMailHeart size={44} />
                 </span>
-                <h3 className="text-lg sm:text-xl font-serif font-bold text-[#282C35] dark:text-[#F5F5F5]">
+                <h3 className="text-lg sm:text-xl font-serif font-bold text-[var(--quant-surface-elevated)] dark:text-[#F5F5F5]">
                   {template.name}
                 </h3>
                 <p className="text-xs text-[#6B6E76] dark:text-[#A1A4AC] max-w-sm mt-1">
                   {template.description}
                 </p>
-                <div className="mt-4 px-3 py-1 bg-[#FF8C42]/15 border border-[#FF8C42]/30 rounded-full text-xs font-mono text-[#C75D1E] dark:text-[#FFB875] font-semibold">
+                <div className="mt-4 px-3 py-1 bg-[var(--quant-primary)]/15 border border-[var(--quant-primary)]/30 rounded-full text-xs font-mono text-[#C75D1E] dark:text-[#FFB875] font-semibold">
                   Tap "Flip Card" below to write message
                 </div>
               </div>
@@ -485,7 +485,7 @@ export function PostcardCanvas({
           <button
             type="button"
             onClick={() => setIsFlipped((prev) => !prev)}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#FF8C42]/30 bg-[#111318]/90 px-4 py-1.5 text-xs font-semibold text-[#FF8C42] shadow-md transition-all hover:border-[#FF8C42] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 dark:bg-[#282C35]"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--quant-primary)]/30 bg-[var(--quant-surface)]/90 px-4 py-1.5 text-xs font-semibold text-[var(--quant-primary)] shadow-md transition-all hover:border-[var(--quant-primary)] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] sm:min-h-0 dark:bg-[var(--quant-surface-elevated)]"
           >
             <svg
               viewBox="0 0 24 24"

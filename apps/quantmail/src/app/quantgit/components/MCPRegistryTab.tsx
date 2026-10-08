@@ -119,7 +119,7 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = ({
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6 text-[#E6EDF3] py-4">
       {/* Hero Banner (Screens 59–60) */}
-      <div className="rounded-2xl bg-gradient-to-b from-[#1E293B] to-[#0D1117] border border-[#30363D] p-8 text-center space-y-3 relative overflow-hidden">
+      <div className="rounded-2xl bg-gradient-to-b from-[var(--quant-surface-elevated)] to-[#0D1117] border border-[#30363D] p-8 text-center space-y-3 relative overflow-hidden">
         <div className="w-14 h-14 rounded-2xl bg-blue-500/20 border border-blue-500/40 mx-auto flex items-center justify-center text-3xl shadow-lg">
           🔌
         </div>
@@ -151,7 +151,7 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search MCPs..."
-            className="w-full bg-[#161B22] border border-[#30363D] focus:border-[#58A6FF] rounded-xl py-2.5 pl-11 pr-4 text-sm text-[#E6EDF3] placeholder-[#8D96A0] outline-none shadow-inner transition-all"
+            className="w-full bg-[var(--quant-surface-elevated)] border border-[#30363D] focus:border-[#58A6FF] rounded-xl py-2.5 pl-11 pr-4 text-sm text-[#E6EDF3] placeholder-[#8D96A0] outline-none shadow-inner transition-all"
           />
         </div>
       </div>
@@ -189,7 +189,7 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = ({
           return (
             <div
               key={server.id}
-              className="rounded-xl bg-[#161B22] border border-[#30363D] hover:border-[#58A6FF]/60 p-5 flex flex-col justify-between gap-4 transition-all group"
+              className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[#58A6FF]/60 p-5 flex flex-col justify-between gap-4 transition-all group"
             >
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-3">

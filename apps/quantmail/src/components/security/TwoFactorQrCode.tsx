@@ -28,7 +28,7 @@ const QUIET_ZONE_MODULES = 4;
  * our dark canvas reads on some phones and not others, and "it scanned on mine"
  * is not a standard worth holding a login behind.
  */
-const MODULE_COLOR = '#111318';
+const MODULE_COLOR = 'var(--quant-surface)';
 const FIELD_COLOR = '#FFFFFF';
 
 export function TwoFactorQrCode({ value, size = 200, className }: TwoFactorQrCodeProps) {

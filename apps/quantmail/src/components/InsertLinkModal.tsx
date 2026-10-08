@@ -51,12 +51,12 @@ export function InsertLinkModal({
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="relative z-10 w-full max-w-md rounded-2xl border border-[#282C35] bg-[#121622] p-5 shadow-2xl space-y-4"
+          className="relative z-10 w-full max-w-md rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] p-5 shadow-2xl space-y-4"
         >
-          <div className="flex items-center justify-between border-b border-[#282C35]/80 pb-3">
+          <div className="flex items-center justify-between border-b border-[var(--quant-surface-elevated)]/80 pb-3">
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
               <svg
-                className="size-4 text-[#FF8C42]"
+                className="size-4 text-[var(--quant-primary)]"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -71,7 +71,7 @@ export function InsertLinkModal({
               type="button"
               onClick={onClose}
               aria-label="Close insert link dialog"
-              className="inline-flex items-center justify-center size-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 -mr-1.5 sm:mr-0 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="inline-flex items-center justify-center size-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 -mr-1.5 sm:mr-0 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               <IconX size={15} />
             </button>
@@ -87,7 +87,7 @@ export function InsertLinkModal({
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="e.g. Project Deliverables Document"
-                className="w-full rounded-xl bg-[#111318]/90 border border-[#282C35] px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]/50"
+                className="w-full rounded-xl bg-[var(--quant-surface)]/90 border border-[var(--quant-surface-elevated)] px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[var(--quant-primary)]/50"
               />
             </div>
 
@@ -101,22 +101,22 @@ export function InsertLinkModal({
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://example.com or mailto:user@domain.com"
                 required
-                className="w-full rounded-xl bg-[#111318]/90 border border-[#282C35] px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]/50"
+                className="w-full rounded-xl bg-[var(--quant-surface)]/90 border border-[var(--quant-surface-elevated)] px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[var(--quant-primary)]/50"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#282C35]/80">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--quant-surface-elevated)]/80">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
+                className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-[#A1A4AC] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={!url.trim()}
-                className="px-4 py-1.5 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] text-[#111111] text-xs font-semibold shadow-sm transition-all disabled:opacity-40"
+                className="px-4 py-1.5 rounded-xl bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-[#111111] text-xs font-semibold shadow-sm transition-all disabled:opacity-40"
               >
                 Insert Link
               </button>
