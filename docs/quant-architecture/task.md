@@ -1431,7 +1431,9 @@ Scope: apps/quantchat frontend chat page + useConversations; apps/quantchat/back
 Dependencies: none.
 
 ## QM-M39-001 — Drive: "Shared by me" view (screen 5)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: Muse fix agent
+Branch: fix/qm-m39-001-shared-by-me
 Finding: M39 screen 5 ("Shared by me") does not exist — only "Shared with me" (DriveSharedSubView) is built. Sharing principle requires separating current access from proposed changes.
 Required: backend endpoint listing files/folders the user owns and has shared (with whom, permission, link state); UI view under /drive?tab=shared sub-filter or own tab; real counts or no counts (never fake).
 Scope: apps/quantmail drive API + drive page.
