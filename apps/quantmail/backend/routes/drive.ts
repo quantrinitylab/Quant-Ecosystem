@@ -1564,6 +1564,15 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     });
   });
 
+  // QM-M39-003: Single-file status read for the upload center. The center
+  // polls this after an upload completes so its "scanning" state is always
+  // the backend's real scanStatus — never animated or assumed.
+  fastify.get<{ Params: { fileId: string } }>('/drive/files/:fileId', async (request, reply) => {
+    const userId = requireUserId(request);
+    const file = await fileAccess(prisma, request.params.fileId, userId);
+    return reply.send({ file: fileDto(file, await ownerInfo(prisma, userId)) });
+  });
+
   // Task QD-01 / Task D1 & Task QD-02: Resumable chunked upload protocol
   fastify.post('/drive/upload/chunk/initiate', async (request, reply) => {
     const userId = requireUserId(request);

@@ -250,3 +250,42 @@ describe('Drive scan-state routes', () => {
     await app.close();
   });
 });
+
+describe('QM-M39-003 single-file status read (upload center scan polling)', () => {
+  it('returns the file DTO with the real scanStatus for the owner', async () => {
+    const app = await buildApp(fakePrisma('scanning'));
+    const res = await app.inject({ method: 'GET', url: '/drive/files/file-1' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().file).toMatchObject({
+      id: 'file-1',
+      name: 'a.txt',
+      scanStatus: 'scanning',
+    });
+    await app.close();
+  });
+
+  it('answers 404 for a missing file', async () => {
+    const prisma = fakePrisma('unknown') as any;
+    prisma.file.findUnique = vi.fn().mockResolvedValue(null);
+    const app = await buildApp(prisma);
+    const res = await app.inject({ method: 'GET', url: '/drive/files/nope' });
+    expect(res.statusCode).toBe(404);
+    await app.close();
+  });
+
+  it('answers 403 for another user without an accepted share', async () => {
+    const prisma = fakePrisma('unknown') as any;
+    prisma.file.findUnique = vi.fn().mockResolvedValue({
+      id: 'file-1',
+      userId: 'user-2',
+      isDeleted: false,
+      scanStatus: 'unknown',
+      scanReason: null,
+      scannedAt: null,
+    });
+    const app = await buildApp(prisma);
+    const res = await app.inject({ method: 'GET', url: '/drive/files/file-1' });
+    expect(res.statusCode).toBe(403);
+    await app.close();
+  });
+});

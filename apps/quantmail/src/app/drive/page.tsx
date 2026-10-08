@@ -41,6 +41,7 @@ import { FileVersionHistoryModal } from '../../components/drive/FileVersionHisto
 import { FileAISummaryDrawer } from '../../components/drive/FileAISummaryDrawer';
 import { AIDuplicateCleanerModal } from '../../components/drive/AIDuplicateCleanerModal';
 import { StorageQuotaBar } from '../../components/drive/StorageQuotaBar';
+import { UploadCenter } from './components/UploadCenter';
 import { apiFetchRaw } from '@quant/api-client';
 
 type DriveItem = {
@@ -351,6 +352,11 @@ function DrivePageContent() {
     restoreFile,
     purgeFile,
     moveFiles,
+    uploads,
+    cancelUpload,
+    retryUpload,
+    dismissUpload,
+    clearFinishedUploads,
   } = useDrive();
 
   // Re-tap active app tab → refresh drive files (P1: app-switcher refresh)
@@ -1951,6 +1957,17 @@ function DrivePageContent() {
           isOpen={isDuplicateCleanerOpen}
           onClose={() => setIsDuplicateCleanerOpen(false)}
           onCleanupComplete={() => fetchFiles(currentFolderId)}
+        />
+
+        {/* QM-M39-003: real upload center — visible queue with per-file progress,
+            real states (queued → uploading → scanning → available → failed) and
+            retry on failure. Progress comes only from actual upload bytes. */}
+        <UploadCenter
+          uploads={uploads}
+          onRetry={retryUpload}
+          onCancel={cancelUpload}
+          onDismiss={dismissUpload}
+          onClearFinished={clearFinishedUploads}
         />
 
         {dialog}

@@ -97,8 +97,8 @@ describe('Drive operation promise contracts', () => {
     await expect(useDrive().uploadFiles(files())).resolves.toBeUndefined();
     expect(state.request).toHaveBeenCalledWith('/api/drive/files?');
     expect(state.cells[3].value).toEqual([
-      expect.objectContaining({ status: 'complete', progress: 100 }),
-      expect.objectContaining({ status: 'complete', progress: 100 }),
+      expect.objectContaining({ status: 'available', progress: 100 }),
+      expect.objectContaining({ status: 'available', progress: 100 }),
     ]);
   });
 
@@ -112,8 +112,8 @@ describe('Drive operation promise contracts', () => {
     );
     expect(state.request).toHaveBeenCalledWith('/api/drive/files?');
     expect(state.cells[3].value).toEqual([
-      expect.objectContaining({ status: 'complete' }),
-      expect.objectContaining({ status: 'error', error: 'Quota exceeded' }),
+      expect.objectContaining({ status: 'available' }),
+      expect.objectContaining({ status: 'failed', error: 'Quota exceeded' }),
     ]);
     expect(state.cells[2].value).toContain('Uploaded 1 of 2 files');
   });
