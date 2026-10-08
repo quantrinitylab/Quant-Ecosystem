@@ -883,7 +883,9 @@ Scope: `apps/quantmail/src/app/drive/`.
 Dependencies: none.
 
 ## QM-UIUX-020 — Drive fake-data purge: vault, shared, starred, cleaner
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-020-drive-fake-data-purge
 Finding: systemic fake data across Drive tabs — `DriveVaultSubView.tsx` hardcodes 4 fake "encrypted" files with fabricated SHA256 hashes/dates (parent passes no `items` → fakes always render); `DEFAULT_DEMO_SHARES` with fake people (Elena Rostova, Marcus Vance); `DEFAULT_DEMO_STARRED`; `DEFAULT_CLUSTERS`. The `shares.length > 0 ? shares : FAKES` fallback means even empty accounts show phantom data. The "decrypt" action is a toast claiming "Unlocked via WebCrypto SubtleCrypto L3" with no real crypto. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/drive-audit.md`.
 Required: remove all hardcoded demo files/shares/starred/clusters; render honest empty states; remove the fake decrypt toast (or wire to a real capability).
 Scope: `apps/quantmail/src/app/drive/` subviews.
@@ -911,9 +913,10 @@ Scope: Calendar header/subview components.
 Dependencies: none.
 
 ## QM-UIUX-024 — Compose P0: Send button looks live but rejects on tap
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: muse-main
 Branch: fix/qm-uiux-024-compose-send-validation
+Merged: PR #676 (2026-10-08)
 Finding: `EmailComposer.tsx:653-668` vs `:2047` — validation toasts errors for empty subject/body, but the button is only disabled when To is empty. Users tap a fully-actionable-looking Send and get an error toast. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/compose-audit.md`.
 Required: mirror validation in the disabled state, or make subject a confirm-dialog instead of a hard block.
 Scope: `apps/quantmail/src/components/EmailComposer.tsx`.
@@ -927,9 +930,10 @@ Scope: `apps/quantmail/src/components/EmailComposer.tsx`.
 Dependencies: QM-UIUX-024 (same file; fix together).
 
 ## QM-UIUX-026 — Delete fake contacts with real public figures' names
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: muse-main
 Branch: fix/qm-uiux-026-fake-contacts-purge
+Merged: PR #675 (2026-10-08)
 Finding: `ContactsSubViews.tsx:18` hardcodes `SOVEREIGN_DEFAULT_CONTACTS` — 10 fake contacts including REAL public figures (Sundar Pichai, Satya Nadella, Sam Altman, Linus Torvalds, Demis Hassabis) with FABRICATED phone numbers, injected into every user's list at two points (`:199-201` "Ensure sovereign VIPs are present", `:360-361` CompaniesSubView). The fake numbers are wired to `tel:` links — tapping "call" dials a stranger. Using real people's names with fake numbers is a reputational/legal risk. The "3 EXECUTIVES" badge derives from these fakes. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/contacts-audit.md`.
 Required: delete `SOVEREIGN_DEFAULT_CONTACTS` and both injection points; the honest empty state already exists — make it reachable; remove the fake "3 EXECUTIVES" badge (or wire to a real count).
 Scope: `apps/quantmail/src/components/ContactsSubViews.tsx`.
@@ -943,9 +947,10 @@ Scope: `apps/quantmail/src/app/account/page.tsx`.
 Dependencies: QM-BACK-006 (data lifecycle) for the real deletion path.
 
 ## QM-UIUX-028 — QuantGit: stop fabricating repo metadata, fix fake MCP count
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: muse-main
 Branch: fix/qm-uiux-028-quantgit-fabrication
+Merged: PR #677 (2026-10-08)
 Finding: (a) `page.tsx:560-580` — when the API omits fields, the UI invents them: hardcoded SHA `'948e3612'`, `checksStatus: 'passing'` (always), `branchCount: 4`, `commitCount: 2118`, fake topics. A repo with no data shows "Initial commit / passing checks". (b) Fake MCP count "288"/"288+" while the catalog has 7 entries. (c) "Zero-mock" hero copy contradicts the fabrication in the same view. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
 Required: render "unknown"/"—" for missing API fields, never invent; show the real MCP catalog count (7) or remove the badge; fix hero copy to be truthful.
 Scope: `apps/quantmail/src/app/quantgit/page.tsx`.
