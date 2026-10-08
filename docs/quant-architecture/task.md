@@ -1024,6 +1024,7 @@ Dependencies: QM-UIUX-037 (same area).
 
 ## QM-UIUX-039 — Performance: memoize EmailRow, lazy images, drop dead font
 Status: [~] IN_PROGRESS
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/640
 Owner: f929fb66-0810-4dbd-88ed-c06a3a84fddd (uuid c7d9e1f2-3a4b-5c6d-7e8f-9a0b1c2d3e4f)
 Branch: fix/qm-uiux-039-perf
 Finding: (a) `EmailRow` not memoized in the virtualized inbox (`page.tsx:301`) — every parent state change re-renders all visible rows (only 1 `React.memo` in the whole codebase); (b) zero `next/image` usage — 13 raw `<img>`, 1 lazy; (c) Pacifico font loaded on every page but never used — dead network request; (d) yjs statically imported (~100KB+) before needed. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/performance-audit.md`.
