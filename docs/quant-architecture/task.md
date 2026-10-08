@@ -1095,3 +1095,44 @@ Finding: `EmailNudge.tsx` ("Smart Nudge — AI-powered contextual reminders") an
 Required: delete both, or build honestly with real backend.
 Scope: `EmailNudge.tsx`, `InboxDigest.tsx`.
 Dependencies: none.
+
+## QM-SCREEN-032 — Calendar reminders must come only from the authoritative reminder domain
+Status: [ ] TODO
+Finding: the current branch still seeds a production-looking `rem-4` reminder directly in both `apps/quantmail/src/components/CalendarSubViews.tsx` and `apps/quantmail/src/app/calendar/components/CalendarRemindersView.tsx`. The standalone Flutter Calendar model also seeds a `rem-4` reminder. These records can appear as user activity without an authoritative Calendar API record and the web/Flutter copies are not guaranteed to converge.
+Required: remove seeded production reminder/activity records from every Calendar surface; load reminders/tasks from the canonical Calendar contract; define pagination/range loading, CRUD, optimistic reconciliation, offline behavior and cross-device convergence; empty accounts must remain empty.
+Scope: `apps/quantmail/src/components/CalendarSubViews.tsx`; `apps/quantmail/src/app/calendar/components/CalendarRemindersView.tsx`; `flutter_apps/apps/quant_calendar/lib/models/calendar_models.dart`; Calendar API/service/tests.
+Dependencies: QM-SCREEN-008/009; QM-WORK-007; QM-PLAT-006.
+Validation: source search on 2026-10-08 reproduced `rem-4` in all three Calendar surfaces; no implementation claim yet.
+
+## QM-SCREEN-033 — Drive mobile vault security state must match the actual encryption contract
+Status: [ ] TODO
+Finding: `apps/quantmail/src/app/drive/components/DriveVaultSubView.tsx` explicitly says client-side encryption is not available yet, while `DriveMobileTabStrip.tsx` still exposes an `E2EE` badge and encrypted-vault accessibility label. This is a direct same-product contradiction and can cause users to infer a cryptographic guarantee that the current Drive surface does not provide.
+Required: derive the vault security badge/label from one authoritative encryption capability contract; until client-side encryption is actually available and reviewed, remove the E2EE claim from mobile and desktop indicators. If a Secret Notes/Vault Documents zero-knowledge path is retained, scope the claim to that exact resource type and document key lifecycle/availability rather than branding the general Drive vault.
+Scope: `apps/quantmail/src/app/drive/components/DriveVaultSubView.tsx`; `apps/quantmail/src/app/drive/components/DriveMobileTabStrip.tsx`; Drive encryption/capability contract.
+Dependencies: QM-TRUST-003; QM-SCREEN-010/011; QuantDrive security architecture.
+Validation: source audit on 2026-10-08 confirmed the contradictory copy in both components; no remediation implementation claim yet.
+
+## QM-SCREEN-034 — Contacts must purge seeded public-figure identities across Web and Flutter
+Status: [ ] TODO
+Finding: the current Web Contacts implementation still exports `SOVEREIGN_DEFAULT_CONTACTS` containing real public figures (Sundar Pichai, Satya Nadella, Sam Altman) with fabricated-looking phone/email/contact metadata, and the same component renders a hard-coded Sundar Pichai collision/Personal Address Book scenario plus executive/circle membership derived from named people. Flutter separately seeds the same real-person identities in `composer_models.dart` and the Contacts pillar. This is broader than the previously tracked Web contact-list cleanup: the platform-specific Flutter composer/VIP/circle surfaces can still inject invented identities even after the Web default-contact path is removed.
+Required: remove all production seeded public-figure identities and fabricated contact details from Web and Flutter; make autocomplete, VIP, collision, company and circle views derive only from the authenticated user's contact domain; keep fixtures confined to explicit tests; ensure phone/call actions can only target an actual user-owned contact record.
+Scope: `apps/quantmail/src/app/contacts/components/ContactsSubViews.tsx`; `apps/quantmail/src/app/contacts/page.tsx`; `flutter_apps/apps/quant_mail/lib/models/composer_models.dart`; `flutter_apps/apps/quant_mail/lib/screens/contacts/contacts_pillar_view.dart`; contact APIs/services/tests.
+Dependencies: QM-UIUX-026; QM-SCREEN-012; QM-PLAT-006.
+Validation: source search on 2026-10-08 reproduced public-figure seed data in both Web and Flutter; no remediation implementation claim yet.
+
+## QM-SCREEN-035 — QuantGit Security Center must never manufacture vulnerability state
+Status: [ ] TODO
+Finding: `apps/quantmail/backend/routes/repos.ts` initializes repository security state from hard-coded `DEFAULT_BACKEND_DEPENDABOT_ALERTS`, `DEFAULT_BACKEND_SECRET_ALERTS`, and `DEFAULT_BACKEND_CODEQL_ALERTS`; the scan endpoint returns fixed metrics (`48` files, `14` commits, `124ms`) without performing a scan; and the Dependabot fix-PR endpoint generates a random PR number with `Math.random()`. The UI therefore has a path where critical vulnerabilities, leaked secrets, scan completion and remediation PRs can appear authoritative without coming from repository/scanner state.
+Required: replace seeded security findings with repository-authoritative scanner integrations/results; persist scan jobs/results with provenance, commit/ref, timestamps and scanner version; make scan status asynchronous and truthful; create fix PRs only through the real QuantGit PR mutation path and return its authoritative ID; render unavailable/not-configured/never-scanned states explicitly. Never use deterministic-looking seeded findings or fixed scan metrics as production security evidence.
+Scope: `apps/quantmail/backend/routes/repos.ts`; QuantGit SecurityTab and related security APIs/services; scanner/job infrastructure; PR creation path; tests.
+Dependencies: QM-SCREEN-013; QM-PLAT-013; QuantGit security architecture.
+Validation: source audit on 2026-10-08 confirmed hard-coded findings, fixed scan metrics and random PR-ID generation; no remediation implementation claim yet.
+
+## QM-SCREEN-036 — QuantGit Secret Scanning must not ship raw secret material in backend source
+Status: [ ] TODO
+Finding: `DEFAULT_BACKEND_SECRET_ALERTS` contains literal `rawMatch` values including an AWS access-key example, GitHub/GitLab tokens, an OpenAI API-key-shaped value, an RSA private-key fragment and a database connection string/password. Even if these are intended as fixtures, they live in a production backend route module and are returned as part of the security-alert model path. This violates the secret-scanning trust boundary and risks accidental exposure through logs, API responses or future UI wiring.
+Required: remove all raw secret material from production code; use non-sensitive fingerprints/masked placeholders only in tests; ensure API DTOs can never include raw secret values; add regression tests that reject secret-shaped fixture content and assert only masked/fingerprint metadata crosses the API boundary. If scanner fixtures are needed, isolate them under test-only modules that cannot be imported by production routes.
+Scope: `apps/quantmail/backend/routes/repos.ts`; QuantGit security DTOs; secret-scanner tests/fixtures.
+Dependencies: QM-SCREEN-035; security/secrets architecture.
+Validation: source audit on 2026-10-08 inspected the default secret-alert array and confirmed raw secret-shaped values are embedded in the backend route; no remediation implementation claim yet.
+
