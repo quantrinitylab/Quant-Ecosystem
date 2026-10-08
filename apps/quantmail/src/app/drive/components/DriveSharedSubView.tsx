@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { formatBytes } from '../../../lib/format-bytes';
+import { FileScanBadge } from './FileScanBadge';
 import { SharedUsersIcon, HardDriveIcon } from './DriveIcons';
 
 export interface SharedCollaborator {
@@ -20,6 +21,9 @@ export interface SharedItemRecord {
   permission: 'Viewer' | 'Editor' | 'Admin';
   owner: SharedCollaborator;
   status?: 'pending' | 'accepted' | 'declined';
+  // QM-M39-009: security scan state (never rendered as safe).
+  scanStatus?: string | null;
+  scanReason?: string | null;
 }
 
 export interface DriveSharedSubViewProps {
@@ -162,6 +166,12 @@ export function DriveSharedSubView({
                   <p className="text-[11px] text-[#94A3B8] mt-1">
                     Shared by <span className="text-[#E2E8F0] font-medium">{item.owner.name}</span> · {formatBytes(item.size)} · Shared {formattedDate}
                   </p>
+                  {/* QM-M39-009: security scan state — 'unknown' renders as "Not scanned", never as safe */}
+                  {item.type === 'file' && (
+                    <div className="mt-1.5">
+                      <FileScanBadge status={item.scanStatus} reason={item.scanReason} />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -196,7 +206,13 @@ export function DriveSharedSubView({
                     <button
                       type="button"
                       onClick={() => onDownloadFile?.(item.id, item.name)}
-                      className="px-3 py-1.5 rounded-lg bg-[#38BDF8]/15 border border-[#38BDF8]/35 text-xs font-semibold text-[#38BDF8] hover:bg-[#38BDF8]/25 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
+                      disabled={item.type === 'file' && item.scanStatus === 'quarantined'}
+                      title={
+                        item.scanStatus === 'quarantined'
+                          ? 'Quarantined — download disabled. Open the file to see the security notice.'
+                          : 'Download'
+                      }
+                      className="px-3 py-1.5 rounded-lg bg-[#38BDF8]/15 border border-[#38BDF8]/35 text-xs font-semibold text-[#38BDF8] hover:bg-[#38BDF8]/25 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Download
                     </button>

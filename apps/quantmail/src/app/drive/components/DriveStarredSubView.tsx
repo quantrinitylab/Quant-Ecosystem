@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { formatBytes } from '../../../lib/format-bytes';
+import { FileScanBadge } from './FileScanBadge';
 import { StarFilledIcon, HardDriveIcon, FolderIcon } from './DriveIcons';
 
 export interface StarredItem {
@@ -12,6 +13,9 @@ export interface StarredItem {
   size: number;
   modifiedAt: string;
   isStarred?: boolean;
+  // QM-M39-009: security scan state (never rendered as safe).
+  scanStatus?: string | null;
+  scanReason?: string | null;
 }
 
 export interface DriveStarredSubViewProps {
@@ -105,6 +109,12 @@ export function DriveStarredSubView({
               <p className="text-[11px] text-[#94A3B8] mt-0.5">
                 {item.type === 'folder' ? 'Folder' : formatBytes(item.size)} · Pinned
               </p>
+              {/* QM-M39-009: security scan state — 'unknown' renders as "Not scanned", never as safe */}
+              {item.type === 'file' && (
+                <div className="mt-1.5">
+                  <FileScanBadge status={item.scanStatus} reason={item.scanReason} />
+                </div>
+              )}
             </div>
 
             <div className="pt-2 border-t border-[#232938] flex items-center justify-between text-[11px]">
@@ -116,7 +126,13 @@ export function DriveStarredSubView({
                     e.stopPropagation();
                     onDownloadFile?.(item.id, item.name);
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium"
+                  disabled={item.type === 'file' && item.scanStatus === 'quarantined'}
+                  title={
+                    item.scanStatus === 'quarantined'
+                      ? 'Quarantined — download disabled. Open the file to see the security notice.'
+                      : 'Download'
+                  }
+                  className="px-2.5 py-1 rounded-lg bg-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Download
                 </button>

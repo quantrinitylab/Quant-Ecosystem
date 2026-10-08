@@ -7,6 +7,7 @@ export * from './DriveVaultSubView';
 export * from './DriveStarredSubView';
 export * from './DriveCleanerSubView';
 export * from './FileShareModal';
+export * from './FileScanBadge';
 export {
   DriveHomeSubView,
   DriveFeedSubView,

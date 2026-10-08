@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { formatBytes } from '../../../lib/format-bytes';
 import { useStorageQuota } from '../../../hooks/useStorageQuota';
+import { FileScanBadge } from './FileScanBadge';
 import {
   FolderIcon,
   HardDriveIcon,
@@ -21,6 +22,9 @@ export interface DriveItem {
   isStarred?: boolean;
   sharedWith?: { email: string; permission: string }[];
   deletedAt?: string;
+  // QM-M39-009: security scan state from the backend (never rendered as safe).
+  scanStatus?: string | null;
+  scanReason?: string | null;
 }
 
 export interface DriveFilesSubViewProps {
@@ -445,6 +449,10 @@ export function DriveFilesSubView({
                     <p className="text-[11px] text-[#94A3B8] mt-0.5">
                       {formatBytes(file.size)} · {file.modifiedAt ? new Date(file.modifiedAt).toLocaleDateString() : 'Recent'}
                     </p>
+                    {/* QM-M39-009: security scan state — 'unknown' renders as "Not scanned", never as safe */}
+                    <div className="mt-1.5">
+                      <FileScanBadge status={file.scanStatus} reason={file.scanReason} />
+                    </div>
                   </div>
 
                   <div className="mt-3 pt-2 border-t border-[#232938] flex items-center justify-between text-[11px]">
@@ -456,7 +464,13 @@ export function DriveFilesSubView({
                           e.stopPropagation();
                           onDownloadFile?.(file.id, file.name);
                         }}
-                        className="px-2 py-0.5 rounded bg-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-[10px]"
+                        disabled={file.scanStatus === 'quarantined'}
+                        title={
+                          file.scanStatus === 'quarantined'
+                            ? 'Quarantined — download disabled. Open the file to see the security notice.'
+                            : 'Download'
+                        }
+                        className="px-2 py-0.5 rounded bg-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-[10px] disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         Download
                       </button>
@@ -503,6 +517,8 @@ export function DriveFilesSubView({
                         <span className="inline-flex items-center px-1.5 py-px rounded text-[var(--q-type-xs)] font-mono font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
                           FastCDC Deduped
                         </span>
+                        {/* QM-M39-009: security scan state — 'unknown' renders as "Not scanned", never as safe */}
+                        <FileScanBadge status={file.scanStatus} reason={file.scanReason} />
                       </div>
                       <p className="text-[11px] text-[#94A3B8]">
                         {formatBytes(file.size)} · Modified {file.modifiedAt ? new Date(file.modifiedAt).toLocaleDateString() : 'Recent'}
@@ -529,7 +545,13 @@ export function DriveFilesSubView({
                         e.stopPropagation();
                         onDownloadFile?.(file.id, file.name);
                       }}
-                      className="px-2.5 py-1 rounded-lg bg-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium"
+                      disabled={file.scanStatus === 'quarantined'}
+                      title={
+                        file.scanStatus === 'quarantined'
+                          ? 'Quarantined — download disabled. Open the file to see the security notice.'
+                          : 'Download'
+                      }
+                      className="px-2.5 py-1 rounded-lg bg-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Download
                     </button>
