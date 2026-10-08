@@ -1276,6 +1276,7 @@ Dependencies: none.
 
 ## QM-UIUX-059 — Flutter: purge fake data (contacts, stats, claims)
 Status: [~] IN_PROGRESS — Owner: 9d0e1f2a-3b4c-5d6e-7f8a-9b0c1d2e3f4a; Branch: fix/qm-uiux-059-flutter-fakes
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/649
 Finding: Flutter QuantMail still ships fake contacts with real people's names (Demis Hassabis etc., `isVerified: true`), fake QuantGit stats ('14.8k stars'), `<5ms FTS5` claims, fake "Quanty AI" simulated streaming, `MailHeaderSecurity` defaulting every mail to 'Kyber-1024 + AES-256-GCM' with SPF/DKIM/DMARC 'PASS', hardcoded unread badges and infra claims. Web purged all of these; Flutter didn't. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/flutter-parity-audit.md`.
 Required: remove all fake data/claims from Flutter app (same purge standard as web).
 Scope: `flutter_apps/apps/quant_mail/`.
