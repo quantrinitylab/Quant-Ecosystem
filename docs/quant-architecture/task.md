@@ -1463,13 +1463,14 @@ Scope: apps/quantmail DriveFilePreview + doc editor.
 Dependencies: QM-M39-009.
 
 ## QM-M39-005 — Drive: permissions/access viewer (screen 21)
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: Muse
 Branch: fix/qm-m39-005-permissions-viewer
 Finding: M39 screen 21 (permissions/access viewer) is missing — FileShareModal covers share changes but there is no read view of current access. Sharing principle: UI must separate CURRENT access from PROPOSED changes.
 Required: read-only access viewer showing current collaborators, roles, link scope/audience/expiry; distinct from the share-change flow; real backend data only.
 Scope: apps/quantmail drive shares API + FileShareModal/page.
 Dependencies: QM-M39-001.
+Completed: 2026-10-08 — PR #670 (fix/qm-m39-005-permissions-viewer). New owner-only GET /drive/files/:id/links backend route (link scope/audience/expiry, token+password-hash never exposed); GET proxy for /drive/files/:id/share; FilePermissionsViewer read-only modal wired to the drive feed lightbox with a 'Manage sharing' handoff to FileShareModal. Note: QM-M39-001/PR #664 not merged on main, so no GET /drive/shares/sent exists; viewer uses GET /drive/files/:id/share instead. Validation: 11 new frontend tests + 4 new backend route tests + 2 fail-closed reachability entries, all green; existing suites green (186 drive frontend, 12 parity, 24 reachability); eslint clean; frontend tsc clean.
 
 ## QM-M39-006 — Drive: link sharing with scope/audience/expiry + authoritative confirmation (screen 22)
 Status: [ ] TODO
