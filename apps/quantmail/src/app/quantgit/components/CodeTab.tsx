@@ -1621,7 +1621,7 @@ pnpm install && pnpm dev
                     }
                   }}
                   spellCheck={false}
-                  className={`flex-1 p-3 font-mono text-xs leading-6 resize-none focus:outline-none ${
+                  className={`flex-1 p-3 font-mono text-xs leading-6 resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                     editorTheme === 'github-dark'
                       ? 'bg-[#0D1117] text-[#E6EDF3]'
                       : 'bg-white text-[#1F2328]'
@@ -2169,6 +2169,7 @@ pnpm install && pnpm dev
                 type="file"
                 multiple
                 ref={uploadInputRef}
+                aria-label="Upload files"
                 className="hidden"
                 onChange={async (e) => {
                   const filesList = e.target.files;

@@ -180,6 +180,7 @@ export function CodeEditor(props: CodeEditorProps): React.ReactElement {
             )}
             <textarea
               className="editor-textarea"
+              aria-label={`Edit ${filename}`}
               value={editedContent}
               onChange={(e) => handleChange(e.target.value)}
               onKeyDown={handleKeyDown}

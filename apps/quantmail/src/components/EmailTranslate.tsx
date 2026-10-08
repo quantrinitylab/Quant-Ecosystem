@@ -73,6 +73,7 @@ export function EmailTranslate({ text, detectedLanguage, onTranslate }: EmailTra
           </span>
           <select
             className="translate-select"
+            aria-label="Target language"
             value={targetLang}
             onChange={(e) => setTargetLang(e.target.value)}
           >

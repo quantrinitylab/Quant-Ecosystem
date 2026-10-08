@@ -1037,6 +1037,7 @@ export function SecurityTab({
 
             {isEditingPolicy ? (
               <textarea
+                aria-label="Security policy"
                 data-testid="security-policy-textarea"
                 rows={12}
                 value={securityPolicy}

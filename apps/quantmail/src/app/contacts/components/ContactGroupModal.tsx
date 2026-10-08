@@ -195,7 +195,7 @@ export function ContactGroupModal({
                   <button
                     type="button"
                     onClick={() => handleRemoveEmail(email)}
-                    className="ml-0.5 text-[#6B6E76] hover:text-red-400 focus:outline-none"
+                    className="ml-0.5 text-[#6B6E76] hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     title="Remove email"
                   >
                     ×

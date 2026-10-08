@@ -108,6 +108,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
             {isEditingTitle ? (
               <input
                 type="text"
+                aria-label="Document title"
                 value={title}
                 onChange={(e) => onTitleChange(e.target.value)}
                 onBlur={() => setIsEditingTitle(false)}
@@ -115,7 +116,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                   if (e.key === 'Enter') setIsEditingTitle(false);
                 }}
                 autoFocus
-                className="w-full bg-[#161B22] border border-[#FF8C42] rounded px-2 py-0.5 text-xs font-semibold text-[#F0F6FC] focus:outline-none"
+                className="w-full bg-[#161B22] border border-[#FF8C42] rounded px-2 py-0.5 text-xs font-semibold text-[#F0F6FC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               />
             ) : (
               <button
@@ -254,6 +255,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
           <input
             ref={fileInputRef}
             type="file"
+            aria-label="Import document file"
             accept=".md,.markdown,.txt"
             onChange={handleFileInput}
             className="hidden"

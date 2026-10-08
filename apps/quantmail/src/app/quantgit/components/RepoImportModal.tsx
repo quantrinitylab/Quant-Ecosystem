@@ -350,7 +350,7 @@ export function RepoImportModal({
                       value={targetRepoName}
                       onChange={(e) => setTargetRepoName(e.target.value)}
                       placeholder="repository-name"
-                      className="w-full bg-transparent px-2.5 py-2 text-xs text-white focus:outline-none font-mono"
+                      className="w-full bg-transparent px-2.5 py-2 text-xs text-white focus:outline-none font-mono focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     />
                   </div>
                 </div>

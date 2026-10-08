@@ -428,8 +428,9 @@ export function BranchesTab({
               </div>
 
               <div className="space-y-1.5">
-                <label className="font-semibold text-white block">Source branch</label>
+                <label htmlFor="branch-source-select" className="font-semibold text-white block">Source branch</label>
                 <select
+                  id="branch-source-select"
                   data-testid="source-branch-select"
                   value={sourceBranch}
                   onChange={(e) => setSourceBranch(e.target.value)}

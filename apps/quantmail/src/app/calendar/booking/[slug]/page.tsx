@@ -571,11 +571,12 @@ export default function PublicBookingPage(props: PageProps) {
             {/* Left Column Bottom: Timezone Selector & Footer Note */}
             <div className="space-y-4 pt-6 border-t border-[#282C35]/60">
               <div>
-                <label className="block text-[11px] font-semibold text-[#A1A4AC] mb-1.5">
+                <label htmlFor="booking-timezone" className="block text-[11px] font-semibold text-[#A1A4AC] mb-1.5">
                   Your Timezone
                 </label>
                 <div className="relative">
                   <select
+                    id="booking-timezone"
                     value={selectedTimezone}
                     onChange={(e) => setSelectedTimezone(e.target.value)}
                     className="w-full appearance-none rounded-xl border border-[#282C35] bg-[#16181D] pl-8 pr-8 py-2 text-xs text-white focus:outline-none focus:border-[#FF8C42] cursor-pointer"

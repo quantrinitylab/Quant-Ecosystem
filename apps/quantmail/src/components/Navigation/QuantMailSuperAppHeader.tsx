@@ -733,7 +733,7 @@ export function QuantMailSuperAppHeader({
                 onChange={handleSearchInputChange}
                 placeholder={searchPlaceholder}
                 aria-label="Global Super-App Search"
-                className="w-full py-2 bg-transparent text-xs text-white placeholder-[#64748B] focus:outline-none"
+                className="w-full py-2 bg-transparent text-xs text-white placeholder-[#64748B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               />
 
               {/* Clear button when input has text */}
@@ -816,7 +816,7 @@ export function QuantMailSuperAppHeader({
           <button
             type="button"
             onClick={() => router.push('/settings/profile')}
-            className="relative flex items-center justify-center size-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 font-bold text-xs text-white ring-2 ring-[#1E222A] hover:ring-indigo-500/50 transition-all focus:outline-none"
+            className="relative flex items-center justify-center size-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 font-bold text-xs text-white ring-2 ring-[#1E222A] hover:ring-indigo-500/50 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             aria-label={`User Profile: ${userName}`}
             title={`${userName} (${userEmail})`}
           >
@@ -851,7 +851,7 @@ export function QuantMailSuperAppHeader({
                   aria-selected={isActive}
                   aria-label={`${pillar.label} Pillar${pillar.badge ? ` (${pillar.badge})` : ''}`}
                   onClick={() => handlePillarClick(pillar)}
-                  className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all shrink-0 focus:outline-none ${
+                  className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                     isActive
                       ? 'bg-[#161B26] text-white shadow-sm font-semibold'
                       : 'text-[#94A3B8] hover:text-white hover:bg-[#12151E]'

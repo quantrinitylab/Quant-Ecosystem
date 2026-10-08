@@ -231,6 +231,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                               </div>
                               <input
                                 type="radio"
+                                aria-label={`Use ${contact.email || 'this contact'} as primary`}
                                 name={`primary-${cIdx}`}
                                 checked={isSelectedPrimary}
                                 onChange={() => handleSelectPrimary(cIdx, contact.id)}

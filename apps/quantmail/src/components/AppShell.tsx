@@ -861,7 +861,7 @@ export function AppShell({
                               ? 'Search in QuantMail (sender, subject, keyword)…'
                               : `Search in ${appDisplayName(currentApp)}…`)
                           }
-                          className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#717888] focus:outline-none"
+                          className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#717888] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded"
                         />
                         {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
                         <kbd className="hidden lg:inline px-1.5 py-0.5 rounded bg-[#181B22] text-[10px] font-mono text-[#6B6E76] border border-[#2B303C] shrink-0">
@@ -942,7 +942,7 @@ export function AppShell({
                             ? 'Search messages, contacts, keywords…'
                             : `Search in ${appDisplayName(currentApp)}…`)
                         }
-                        className="h-11 w-full bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
+                        className="h-11 w-full bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded"
                       />
                       {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
                     </div>

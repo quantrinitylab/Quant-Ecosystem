@@ -94,7 +94,7 @@ export function EmailShareLink({ emailId, subject }: EmailShareLinkProps) {
               </button>
             ) : (
               <div className="share-link-result">
-                <input type="text" readOnly value={link} className="share-link-input" />
+                <input type="text" readOnly value={link} aria-label="Generated share link" className="share-link-input" />
                 <button type="button" className="share-link-copy" onClick={copyLink}>
                   Copy
                 </button>

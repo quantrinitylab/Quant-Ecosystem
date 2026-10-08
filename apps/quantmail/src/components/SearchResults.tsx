@@ -142,9 +142,9 @@ export function SearchResults(props: SearchResultsProps): React.ReactElement {
         <div className="advanced-filters">
           <div className="filter-row">
             <div className="form-group"><label>From</label><input type="text" value={advancedFilters.from} onChange={(e) => setAdvancedFilters({ ...advancedFilters, from: e.target.value })} placeholder="sender@email.com" /></div>
-            <div className="form-group"><label>To</label><input type="text" value={advancedFilters.to} onChange={(e) => setAdvancedFilters({ ...advancedFilters, to: e.target.value })} placeholder="recipient@email.com" /></div>
-            <div className="form-group"><label>From date</label><input type="date" value={advancedFilters.dateFrom} onChange={(e) => setAdvancedFilters({ ...advancedFilters, dateFrom: e.target.value })} /></div>
-            <div className="form-group"><label>To date</label><input type="date" value={advancedFilters.dateTo} onChange={(e) => setAdvancedFilters({ ...advancedFilters, dateTo: e.target.value })} /></div>
+            <div className="form-group"><label htmlFor="srch-to">To</label><input id="srch-to" type="text" value={advancedFilters.to} onChange={(e) => setAdvancedFilters({ ...advancedFilters, to: e.target.value })} placeholder="recipient@email.com" /></div>
+            <div className="form-group"><label htmlFor="srch-from-date">From date</label><input id="srch-from-date" type="date" value={advancedFilters.dateFrom} onChange={(e) => setAdvancedFilters({ ...advancedFilters, dateFrom: e.target.value })} /></div>
+            <div className="form-group"><label htmlFor="srch-to-date">To date</label><input type="date" id="srch-to-date" value={advancedFilters.dateTo} onChange={(e) => setAdvancedFilters({ ...advancedFilters, dateTo: e.target.value })} /></div>
             <label className="checkbox-label"><input type="checkbox" checked={advancedFilters.hasAttachment} onChange={(e) => setAdvancedFilters({ ...advancedFilters, hasAttachment: e.target.checked })} /> Has attachment</label>
           </div>
         </div>

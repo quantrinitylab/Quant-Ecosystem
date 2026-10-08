@@ -230,6 +230,7 @@ export const CloneCodespacesMenu: React.FC<CloneCodespacesMenuProps> = ({
               <input
                 type="text"
                 readOnly
+                aria-label="Clone URL"
                 value={cloneUrls[cloneProtocol]}
                 className="w-full bg-[#0D1117] border border-[#30363D] rounded-md py-1.5 pl-3 pr-10 text-[11px] font-mono text-[#E6EDF3] outline-none select-all"
               />

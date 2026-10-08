@@ -599,6 +599,7 @@ export default function ContactsPage() {
         <input
           ref={vcardInputRef}
           type="file"
+          aria-label="Import contacts file"
           accept=".vcf,.vcard,.csv"
           className="hidden"
           onChange={handleImportFile}

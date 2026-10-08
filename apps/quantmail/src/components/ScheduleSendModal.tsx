@@ -503,6 +503,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                     type="range"
                     min="0"
                     max="59"
+                    aria-label="Minute"
                     value={minute}
                     onChange={(e) => {
                       setMinute(parseInt(e.target.value, 10));

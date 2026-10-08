@@ -343,6 +343,7 @@ export const FileManager: React.FC<FileManagerProps> = ({
                 {renamingFile === file.id ? (
                   <input
                     type="text"
+                    aria-label={`Rename ${file.name || 'file'}`}
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
                     onBlur={() => handleRenameSubmit(file.id)}
@@ -426,6 +427,7 @@ export const FileManager: React.FC<FileManagerProps> = ({
                   {renamingFile === file.id ? (
                     <input
                       type="text"
+                      aria-label={`Rename ${file.name || 'file'}`}
                       value={renameValue}
                       onChange={(e) => setRenameValue(e.target.value)}
                       onBlur={() => handleRenameSubmit(file.id)}
