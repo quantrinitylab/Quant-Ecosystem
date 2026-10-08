@@ -10,7 +10,7 @@
 // state is an empty inbox, not fabricated rows about merged PRs or CI runs.
 // ============================================================================
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 export interface GitNotificationItem {
   id: string;
@@ -38,6 +38,13 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
   const [filterRead, setFilterRead] = useState<'all' | 'unread'>('all');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [notifications, setNotifications] = useState<GitNotificationItem[]>(providedNotifications);
+
+  // Keep the inbox in sync with real data supplied after mount (e.g. an
+  // async API fetch resolving in the parent). Without this, notifications
+  // that arrive after the first render would silently never appear.
+  useEffect(() => {
+    setNotifications(providedNotifications);
+  }, [providedNotifications]);
 
   const filteredNotifs = notifications.filter((n) => {
     if (filterRead === 'unread' && !n.unread) return false;
