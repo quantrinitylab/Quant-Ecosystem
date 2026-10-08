@@ -1449,7 +1449,7 @@ Scope: apps/quantmail drive API + drive page.
 Dependencies: none.
 
 ## QM-M39-003 — Drive: Upload center with queue, progress, scan states (screen 15)
-Status: [~] IN_PROGRESS — Owner: muse-m39-wave3, Branch: fix/qm-m39-003-drive-upload-center (takeover 2026-10-08: stale muse-coordinator claim, no branch/PR/agent existed)
+Status: [x] DONE — PR #668 (drive upload center, tests green, unmerged)
 Finding: M39 screen 15 requires an upload center: queue → progress → scan → available. Upload route exists but there is no visible queue/progress/scan state machine; scan state is absent from drive surfaces.
 Required: real upload queue UI with per-file progress; distinct states for queued/uploading/scanning/available/failed; retry on failure; no fake progress values.
 Scope: apps/quantmail drive upload route + drive page.
