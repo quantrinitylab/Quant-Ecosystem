@@ -126,10 +126,19 @@ describe('ToolRegistry', () => {
     expect(registry.listAll()).toHaveLength(1);
   });
 
-  it('should register all 85 predefined tools', () => {
+  it('should register all 87 predefined tools', () => {
     for (const tool of allTools) {
       registry.register(tool);
     }
-    expect(registry.listAll()).toHaveLength(85);
+    expect(registry.listAll()).toHaveLength(87);
+  });
+
+  it('should include the QM-QUANTY-003 voice-to-mail tools', () => {
+    const ids = new Set(allTools.map((t) => t.id));
+    expect(ids.has('quantmail.contacts.search')).toBe(true);
+    expect(ids.has('quantmail.email.get')).toBe(true);
+    const send = allTools.find((t) => t.id === 'quantmail.send')!;
+    // External send requires Sentinel confirmation (tier 3).
+    expect(send.permissionTier).toBe(3);
   });
 });

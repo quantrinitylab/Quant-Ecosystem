@@ -27,9 +27,17 @@ describe('PermissionEngine', () => {
   });
 
   it('should not require confirmation for tier 0 and 1 tools', () => {
-    const result = engine.evaluate('quantmail.send', 1);
+    const result = engine.evaluate('quantmail.search', 1);
     expect(result.allowed).toBe(true);
     expect(result.confirmationRequired).toBe(false);
+  });
+
+  it('should require confirmation for quantmail.send (tier 3, external side effect)', () => {
+    // QM-QUANTY-003: sending mail is an irreversible external side effect.
+    // It must go through Sentinel confirmation like every tier-3 tool.
+    const result = engine.evaluate('quantmail.send', 3);
+    expect(result.allowed).toBe(true);
+    expect(result.confirmationRequired).toBe(true);
   });
 
   it('should return error for non-existent tool', () => {

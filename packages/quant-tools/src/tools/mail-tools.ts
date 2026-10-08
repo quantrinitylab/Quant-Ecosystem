@@ -30,8 +30,12 @@ export const mailTools: ToolDefinition[] = [
         timestamp: { type: 'number', description: 'Send timestamp' },
       },
     },
-    permissionTier: 1,
+    permissionTier: 3,
     costEstimate: 'free',
+    // QM-QUANTY-003: external mail send is an irreversible side effect.
+    // Tier 3 forces Sentinel confirmation via the agent gateway
+    // (confirmationRequired = tier >= 2). Matches app-registry
+    // 'mail.send.execute' risk 3.
     undoRecipe: {
       toolId: 'quantmail.archive',
       params: { messageId: '{{messageId}}' },
@@ -139,5 +143,51 @@ export const mailTools: ToolDefinition[] = [
     costEstimate: 'free',
     undoRecipe: null,
     tags: ['email', 'draft', 'compose'],
+  },
+  {
+    id: 'quantmail.contacts.search',
+    appId: 'quantmail',
+    name: 'Search Contacts',
+    description: 'Search the user\'s contacts by name or email to resolve a recipient',
+    inputSchema: {
+      q: { type: 'string', required: true, description: 'Name or email fragment to search for' },
+    },
+    outputSchema: {
+      type: 'array',
+      description: 'Matching contacts with name and email',
+      fields: {
+        id: { type: 'string', description: 'Contact ID' },
+        name: { type: 'string', description: 'Display name' },
+        email: { type: 'string', description: 'Email address' },
+      },
+    },
+    // QM-QUANTY-003: read-only recipient resolution. Tier 0 = no confirmation.
+    permissionTier: 0,
+    costEstimate: 'free',
+    undoRecipe: null,
+    tags: ['email', 'contacts', 'people', 'resolve'],
+  },
+  {
+    id: 'quantmail.email.get',
+    appId: 'quantmail',
+    name: 'Get Email',
+    description: 'Read an email record by ID, including delivery status',
+    inputSchema: {
+      id: { type: 'string', required: true, description: 'Email ID' },
+    },
+    outputSchema: {
+      type: 'object',
+      description: 'Email record with delivery state',
+      fields: {
+        id: { type: 'string', description: 'Email ID' },
+        isSent: { type: 'string', description: 'Whether the email is marked sent' },
+        deliveryStatus: { type: 'string', description: 'queued | sending | sent | delivered | failed' },
+      },
+    },
+    // QM-QUANTY-003: read-only sent-state verification. Tier 0.
+    permissionTier: 0,
+    costEstimate: 'free',
+    undoRecipe: null,
+    tags: ['email', 'read', 'verify'],
   },
 ];

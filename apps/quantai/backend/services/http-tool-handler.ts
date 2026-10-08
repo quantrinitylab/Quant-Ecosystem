@@ -55,10 +55,19 @@ export function createHttpToolHandler(opts: HttpHandlerOptions): ToolHandler {
     }
 
     const body = mapParams ? mapParams(params) : params;
+    // Substitute :param placeholders in the route path (e.g. /emails/:id).
+    // Substituted params are removed from the query/body payload.
+    const remaining: Record<string, unknown> = { ...body };
+    const path = route.path.replace(/:([A-Za-z0-9_]+)/g, (m, key: string) => {
+      const v = remaining[key];
+      if (v === undefined || v === null) return m; // leave placeholder; backend 404s honestly
+      delete remaining[key];
+      return encodeURIComponent(String(v));
+    });
     const url =
       endpoint.baseUrl +
-      route.path +
-      (route.method === 'GET' ? toQueryString(body) : '');
+      path +
+      (route.method === 'GET' ? toQueryString(remaining) : '');
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -107,6 +116,19 @@ export function createHttpToolHandler(opts: HttpHandlerOptions): ToolHandler {
 // Param mappers: agent-facing tool schema -> target backend API shape
 // ---------------------------------------------------------------------------
 
+/**
+ * Escape HTML special chars so untrusted text (e.g. voice transcripts)
+ * can be embedded in email HTML without injection.
+ */
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /** quantmail.send { to, subject, body, cc } -> POST /emails contract */
 export function mapQuantMailSend(params: Record<string, unknown>): Record<string, unknown> {
   const to = String(params['to'] ?? '')
@@ -123,8 +145,34 @@ export function mapQuantMailSend(params: Record<string, unknown>): Record<string
     ccAddresses: cc,
     subject: String(params['subject'] ?? ''),
     bodyPlain: body,
-    bodyHtml: body ? `<p>${body.replace(/\n/g, '<br/>')}</p>` : undefined,
+    // QM-QUANTY-003: body is untrusted (voice transcript / agent output) —
+    // escape before embedding in HTML.
+    bodyHtml: body ? `<p>${escapeHtml(body).replace(/\n/g, '<br/>')}</p>` : undefined,
     send: true,
+  };
+}
+
+/** quantmail.contacts.search { q } -> GET /contacts/search contract */
+export function mapQuantMailContactsSearch(
+  params: Record<string, unknown>,
+): Record<string, unknown> {
+  return { q: String(params['q'] ?? '') };
+}
+
+/** quantmail.draft { to, subject, body } -> POST /emails (draft) contract */
+export function mapQuantMailDraft(params: Record<string, unknown>): Record<string, unknown> {
+  const to = String(params['to'] ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const body = String(params['body'] ?? '');
+  return {
+    toAddresses: to,
+    subject: String(params['subject'] ?? ''),
+    bodyPlain: body,
+    // Same escaping rule as send: body is untrusted.
+    bodyHtml: body ? `<p>${escapeHtml(body).replace(/\n/g, '<br/>')}</p>` : undefined,
+    send: false,
   };
 }
 

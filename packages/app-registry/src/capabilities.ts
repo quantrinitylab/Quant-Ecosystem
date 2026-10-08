@@ -101,6 +101,16 @@ const R = (
 
 const QUANTMAIL: Capability[] = [
   cap({
+    id: 'people.search', owner: 'quantmail', app: 'quantmail', domain: 'contacts',
+    kind: 'query', sourceOfTruth: 'contacts domain',
+    resources: ['people.contact'], scopes: ['contacts:read'], risk: 0,
+    events: [], verifyRequired: false,
+    degraded: ['fail_closed', 'Contacts unavailable — recipient cannot be resolved right now.'],
+    status: 'active',
+    route: R('quantmail', 'apps/quantmail/backend/routes/contacts.ts', 'GET', 'GET /contacts/search'),
+    note: 'QM-QUANTY-001 required searchPeople; QM-QUANTY-003 uses it for voice recipient resolution.',
+  }),
+  cap({
     id: 'mail.thread.get', owner: 'quantmail', app: 'quantmail', domain: 'mailbox',
     kind: 'query', sourceOfTruth: 'mailbox/thread/message domain',
     resources: ['mail.thread'], scopes: ['mail:read'], risk: 0,

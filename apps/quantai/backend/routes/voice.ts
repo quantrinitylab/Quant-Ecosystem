@@ -78,6 +78,8 @@ export default async function voiceRoutes(fastify: FastifyInstance) {
           provider: result.provider,
           model: result.model,
           durationMs: result.durationMs,
+          // QM-QUANTY-003: ASR confidence in [0,1]; null when unreported.
+          confidence: result.confidence,
         });
       } catch (err) {
         const status = err instanceof MetaVoiceSTTError ? err.statusCode : 500;

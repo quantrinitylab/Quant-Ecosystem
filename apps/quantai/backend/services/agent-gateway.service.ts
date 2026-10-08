@@ -28,6 +28,8 @@ import { getEndpoint, getToolRoute } from './app-endpoints';
 import {
   createHttpToolHandler,
   mapQuantCalendarCreate,
+  mapQuantMailContactsSearch,
+  mapQuantMailDraft,
   mapQuantMailSend,
 } from './http-tool-handler';
 
@@ -53,6 +55,8 @@ const HELD_PLAN_TTL_MS = 10 * 60 * 1000; // 10 minutes
 /** Param mappers per toolId (agent schema -> target API shape). */
 const PARAM_MAPPERS: Record<string, (p: Record<string, unknown>) => Record<string, unknown>> = {
   'quantmail.send': mapQuantMailSend,
+  'quantmail.draft': mapQuantMailDraft,
+  'quantmail.contacts.search': mapQuantMailContactsSearch,
   'quantcalendar.create-event': mapQuantCalendarCreate,
 };
 

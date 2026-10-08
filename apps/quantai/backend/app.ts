@@ -23,6 +23,7 @@ import federationRoutes from './routes/federation';
 import agentHealthRoutes from './routes/agent-health';
 import agentLogsRoutes from './routes/agent-logs';
 import voiceRoutes from './routes/voice';
+import voiceMailRoutes from './routes/voice-mail';
 import quantyPlanRoutes from './routes/quanty-plan';
 import voiceFlowsRoutes from './routes/voice-flows';
 import swarmRoutes from './routes/swarm';
@@ -187,6 +188,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(agentHealthRoutes, { prefix: '/agent-health' });
   await app.register(agentLogsRoutes, { prefix: '/agent-logs' });
   await app.register(voiceRoutes, { prefix: '/voice' });
+  await app.register(voiceMailRoutes, { prefix: '/voice/mail' });
   await app.register(swarmRoutes, { prefix: '/swarm' });
   await app.register(recommendationRoutes, { prefix: '/recommendations' });
   await app.register(moderationRoutes, { prefix: '/moderation' });

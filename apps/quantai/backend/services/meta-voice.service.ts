@@ -18,6 +18,12 @@ export interface MetaSTTResult {
   provider: 'meta';
   model: string;
   durationMs: number;
+  /**
+   * QM-QUANTY-003: ASR confidence in [0, 1], parsed from the API's turns[]
+   * when present. Null when the provider does not report confidence —
+   * callers must treat null as "unknown", never as low or high.
+   */
+  confidence: number | null;
 }
 
 export class MetaVoiceSTTError extends Error {
@@ -107,19 +113,40 @@ export async function transcribeWithMeta(wavBuffer: Buffer): Promise<MetaSTTResu
   }
 
   // Response shape (verified live): { transcript, audioDurationMs, turns[], sessionId }
+  // turns[] entries may carry per-turn confidence; average them for an
+  // overall ASR confidence score (QM-QUANTY-003).
   const data = (await res.json().catch(() => ({}))) as {
     transcript?: unknown;
     text?: unknown;
+    turns?: unknown;
   };
   const text =
     (typeof data.transcript === 'string' && data.transcript) ||
     (typeof data.text === 'string' && data.text) ||
     '';
 
+  let confidence: number | null = null;
+  if (Array.isArray(data.turns) && data.turns.length > 0) {
+    const scores: number[] = [];
+    for (const turn of data.turns) {
+      const c =
+        typeof turn === 'object' && turn !== null
+          ? (turn as Record<string, unknown>)['confidence']
+          : undefined;
+      if (typeof c === 'number' && Number.isFinite(c)) {
+        scores.push(Math.min(1, Math.max(0, c)));
+      }
+    }
+    if (scores.length > 0) {
+      confidence = scores.reduce((a, b) => a + b, 0) / scores.length;
+    }
+  }
+
   return {
     text: text.trim(),
     provider: 'meta',
     model,
     durationMs: Date.now() - started,
+    confidence,
   };
 }

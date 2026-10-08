@@ -50,6 +50,10 @@ export const APP_ENDPOINTS: AppEndpoint[] = [
       'quantmail.search': { method: 'GET', path: '/emails/search' },
       'quantmail.archive': { method: 'POST', path: '/emails/archive' },
       'quantmail.draft': { method: 'POST', path: '/emails' },
+      // QM-QUANTY-003: recipient resolution for voice-to-mail.
+      'quantmail.contacts.search': { method: 'GET', path: '/contacts/search' },
+      // QM-QUANTY-003: authoritative sent-state verification.
+      'quantmail.email.get': { method: 'GET', path: '/emails/:id' },
     },
   },
   {
