@@ -75,6 +75,7 @@ export function QuantyBrowserTab({ tasks = [], loading = false, className = '' }
                       alt=""
                       className="h-14 w-20 shrink-0 rounded-xl border border-white/10 object-cover"
                       loading="lazy"
+                      decoding="async"
                     />
                   ) : (
                     <span

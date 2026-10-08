@@ -117,6 +117,8 @@ function VintagePostageStamp({
                 src={stamp.customImageUrl}
                 alt="Postage stamp"
                 className="size-8 object-cover rounded-[1px] shadow-inner"
+                loading="lazy"
+                decoding="async"
               />
             ) : stamp.type === 'botanical-flower' ? (
               <span className="text-xl leading-none">🌸</span>
@@ -416,6 +418,8 @@ export function PostcardCanvas({
                     src={sticker.src}
                     alt={sticker.alt || 'Postcard sticker'}
                     className="max-w-[72px] max-h-[72px] object-contain drop-shadow-md"
+                    loading="lazy"
+                    decoding="async"
                   />
                 </div>
               ))}
@@ -438,6 +442,8 @@ export function PostcardCanvas({
                   src={template.frontImageUrl}
                   alt="Postcard Cover Art"
                   className="w-full h-full object-cover"
+                  loading="lazy"
+                  decoding="async"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-5 text-white">
                   <span

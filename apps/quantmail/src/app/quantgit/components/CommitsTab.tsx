@@ -414,6 +414,8 @@ export function CommitsTab({
                                 src={commit.author.avatarUrl}
                                 alt={commit.author.name}
                                 className="w-4 h-4 rounded-full"
+                                loading="lazy"
+                                decoding="async"
                               />
                             ) : (
                               <span className="w-4 h-4 rounded-full bg-[#FF8C42] text-black font-bold flex items-center justify-center text-[9px] shrink-0">

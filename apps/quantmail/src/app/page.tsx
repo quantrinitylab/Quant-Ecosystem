@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -922,6 +922,30 @@ function EmailRow({
   );
 }
 
+/**
+ * Memoized inbox row.
+ *
+ * The parent renders per-row handler closures (`(event) => toggleSelect(thread.id,
+ * event)`, …) that get fresh identities on every render, so a default shallow
+ * `memo` would never bail out. The custom comparator ignores function-identity
+ * churn on purpose: every handler delegates to a stable `useCallback`'d parent
+ * function and closes over nothing but `thread.id`, which is covered by the
+ * `thread` reference check below — a new closure over the same thread id behaves
+ * identically. Rows therefore re-render only when their data actually changes.
+ */
+const MemoizedEmailRow = memo(
+  EmailRow,
+  (prev, next) =>
+    prev.thread === next.thread &&
+    prev.isChecked === next.isChecked &&
+    prev.isActive === next.isActive &&
+    prev.isFocused === next.isFocused &&
+    prev.isSpamMode === next.isSpamMode &&
+    prev.savedGroups === next.savedGroups &&
+    prev.onRescueSpam === next.onRescueSpam &&
+    prev.isArchiveView === next.isArchiveView,
+);
+
 
 /**
  * The accents a group chip can carry.
@@ -1351,7 +1375,9 @@ export default function InboxPage() {
   const createGroup = useCreateContactGroup();
   const updateGroup = useUpdateContactGroup();
   const deleteGroup = useDeleteContactGroup();
-  const savedGroups = contactGroups ?? [];
+  // `?? []` allocates a fresh empty array every render, which would defeat the
+  // EmailRow memo comparator — memoize it so row props stay referentially stable.
+  const savedGroups = useMemo(() => contactGroups ?? [], [contactGroups]);
 
   useEffect(() => {
     const handleEditGroup = (event: Event) => {
@@ -3396,7 +3422,7 @@ export default function InboxPage() {
 
                         return (
                           <div key={thread.id} role="listitem">
-                            <EmailRow
+                            <MemoizedEmailRow
                               thread={thread}
                               isChecked={selectedIds.has(thread.id)}
                               isActive={
@@ -3671,7 +3697,7 @@ export default function InboxPage() {
                         // `is-focused` class beside it only says that to an eye.
                         aria-current={focusedIndex === item.index ? 'true' : undefined}
                       >
-                        <EmailRow
+                        <MemoizedEmailRow
                           thread={thread}
                           isChecked={selectedIds.has(thread.id)}
                           isActive={

@@ -332,7 +332,7 @@ export const FileManager: React.FC<FileManagerProps> = ({
             >
               <div className="fm-card-icon">
                 {file.thumbnailUrl ? (
-                  <img src={file.thumbnailUrl} alt="" className="file-thumb" />
+                  <img src={file.thumbnailUrl} alt="" className="file-thumb" loading="lazy" decoding="async" />
                 ) : (
                   <span className="file-type-icon">
                     <MimeTypeIcon mimeType={file.mimeType} kind={file.type} size={34} />

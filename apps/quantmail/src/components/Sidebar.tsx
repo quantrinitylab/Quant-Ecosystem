@@ -124,7 +124,7 @@ export function Sidebar(props: SidebarProps): React.ReactElement {
       <div className="sidebar-profile">
         <div className="profile-avatar">
           {userAvatar ? (
-            <img src={userAvatar} alt={userName} />
+            <img src={userAvatar} alt={userName} decoding="async" />
           ) : (
             <span className="avatar-initials">{userName.charAt(0).toUpperCase()}</span>
           )}
