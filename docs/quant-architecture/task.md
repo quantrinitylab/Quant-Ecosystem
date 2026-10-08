@@ -965,3 +965,38 @@ Finding: (a) Contacts "+ New" add button ~24px tall (below 44px minimum) and the
 Required: fix each per the finding; no invented copy.
 Scope: Contacts, QuantGit, Settings, Search components.
 Dependencies: QM-UIUX-005 (type scale covers e).
+
+## QM-UIUX-032 — QuantChat /call page simulates a call connection
+Status: [ ] TODO
+Finding: `apps/quantchat/src/app/call/page.tsx:56` has the comment `// Simulate connection (in production, LiveKit SDK would handle this)` — it fakes a 1.5s "connecting" state then shows a connected call UI with zero participants and a running timer. No WebRTC, no media. This is a reachable route. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantchat-auth-audit.md`.
+Required: wire to the real LiveKit path (`/meet/[roomId]` already does real `livekit-client` with server tokens), or delete the route. Never simulate a call.
+Scope: `apps/quantchat/src/app/call/`.
+Dependencies: none.
+
+## QM-UIUX-033 — Delete dead VideoCall.tsx theater code
+Status: [ ] TODO
+Finding: `apps/quantchat/src/components/VideoCall.tsx` — 170 lines, no `RTCPeerConnection`/`getUserMedia`, fake "HD" indicator, local-only state toggles. Zero references outside its own file. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantchat-auth-audit.md`.
+Required: delete the file before someone wires it up thinking it works.
+Scope: `apps/quantchat/src/components/VideoCall.tsx`.
+Dependencies: QM-UIUX-032 (same area; do together).
+
+## QM-UIUX-034 — Accessibility P0s: input labels and focus indicators
+Status: [ ] TODO
+Finding: (a) 113 visible inputs with no accessible name (WCAG 1.3.1/3.3.2/4.1.2) — e.g. `EmailSendLater.tsx:65,72` date/time inputs, `DockedComposer.tsx` "To" field uses `<span>` instead of `<label>`; (b) 46 elements use `focus:outline-none` with no fallback (WCAG 2.4.7) — including the command-palette search input. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/accessibility-audit.md`.
+Required: real `<label htmlFor>` + `id` on every input; backfill `focus-visible:ring-2` where focus outline was killed.
+Scope: `apps/quantmail/src/**`.
+Dependencies: none.
+
+## QM-UIUX-035 — Accessibility P1s: reduced-motion, icon labels, contrast
+Status: [ ] TODO
+Finding: (a) 127 animations ignore `prefers-reduced-motion` (WCAG 2.3.3) — add a global CSS kill-switch for `animate-*`; (b) 56 icon-only buttons without accessible names (WCAG 4.1.2) — add `aria-label`; (c) `#6B6E76` text fails WCAG AA at 76 usages (3.64-4.12:1, needs 4.5:1) — replace with `#8D96A0`. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/accessibility-audit.md`.
+Required: fix each per the finding.
+Scope: `apps/quantmail/src/**`; global CSS.
+Dependencies: QM-UIUX-013 (gray consolidation covers c); QM-UIUX-034 (same area).
+
+## QM-UIUX-036 — AI error honesty + global fetch timeout
+Status: [ ] TODO
+Finding: (a) `AIAssistant.tsx:171` catches errors and shows generic "Something went wrong" — the real exception is discarded; (b) no global fetch timeout — if the backend hangs forever, the spinner never resolves (PR #621 added 10s AbortController for auth; the same pattern is needed at the API layer). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/empty-error-states-audit.md`.
+Required: surface sanitized `err.message` in AI errors; add a global fetch timeout so hung requests land on the honest ErrorState + retry.
+Scope: `AIAssistant.tsx`; API fetch layer.
+Dependencies: none.
