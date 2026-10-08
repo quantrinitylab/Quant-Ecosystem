@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo, useRef, Suspense } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   DriveContextTabsHeader,
+  DriveMobileTabStrip,
   DriveFilesSubView,
   DriveSharedSubView,
   DriveVaultSubView,
@@ -313,18 +314,6 @@ function DrivePageContent() {
       setActiveTab(normalizeTab(tabFromQuery));
     }
   }, [tabFromQuery, normalizeTab]);
-
-  // Sync with quant:subtab-change custom event from the shell's MobileSubTabStrip
-  useEffect(() => {
-    const handleSubtabChange = (e: Event) => {
-      const customEvent = e as CustomEvent<{ pillar: string; tabId: string }>;
-      if (customEvent.detail && customEvent.detail.pillar === 'drive') {
-        setActiveTab(normalizeTab(customEvent.detail.tabId));
-      }
-    };
-    window.addEventListener('quant:subtab-change', handleSubtabChange);
-    return () => window.removeEventListener('quant:subtab-change', handleSubtabChange);
-  }, [normalizeTab]);
 
   const handleTabChange = useCallback(
     (newTab: DriveSubTab) => {
@@ -1170,6 +1159,16 @@ function DrivePageContent() {
             </button>
           </div>
         </div>
+
+        {/* Mobile tab strip (QM-UIUX-019): the desktop header below is
+            hidden on mobile, so without this strip 7 of 8 Drive surfaces
+            were unreachable on phones. */}
+        <DriveMobileTabStrip
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          sharedCount={receivedShares.length}
+          starredCount={items.filter((i) => i.isStarred).length}
+        />
 
         {/* Sovereign Context Sub-Navigation Tabs */}
         <DriveContextTabsHeader
