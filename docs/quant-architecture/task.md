@@ -1095,7 +1095,7 @@ Scope: `AIMemoryPanel`; settings or drawer.
 Dependencies: none.
 
 ## QM-UIUX-048 — Delete dead "AI-powered" components (Nudge, Digest)
-Status: [~] IN_PROGRESS — Owner: a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d; Branch: fix/qm-uiux-048-ai-fakes
+Status: [x] DONE — PR #651 merged 2026-10-08 (dead fake AI Nudge/Digest deleted)
 PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/651
 Finding: `EmailNudge.tsx` ("Smart Nudge — AI-powered contextual reminders") and `InboxDigest.tsx` ("AI-powered Inbox Digest") have no AI and no renderers. Dead components with fake claims. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quanty-ai-audit.md`.
 Required: delete both, or build honestly with real backend.
