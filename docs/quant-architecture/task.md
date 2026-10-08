@@ -883,9 +883,10 @@ Scope: `apps/quantmail/src/app/drive/`.
 Dependencies: none.
 
 ## QM-UIUX-020 — Drive fake-data purge: vault, shared, starred, cleaner
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: muse-main
 Branch: fix/qm-uiux-020-drive-fake-data-purge
+PR: #678 merged 2026-10-08 (merge commit 007412ef)
 Finding: systemic fake data across Drive tabs — `DriveVaultSubView.tsx` hardcodes 4 fake "encrypted" files with fabricated SHA256 hashes/dates (parent passes no `items` → fakes always render); `DEFAULT_DEMO_SHARES` with fake people (Elena Rostova, Marcus Vance); `DEFAULT_DEMO_STARRED`; `DEFAULT_CLUSTERS`. The `shares.length > 0 ? shares : FAKES` fallback means even empty accounts show phantom data. The "decrypt" action is a toast claiming "Unlocked via WebCrypto SubtleCrypto L3" with no real crypto. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/drive-audit.md`.
 Required: remove all hardcoded demo files/shares/starred/clusters; render honest empty states; remove the fake decrypt toast (or wire to a real capability).
 Scope: `apps/quantmail/src/app/drive/` subviews.
@@ -923,7 +924,9 @@ Scope: `apps/quantmail/src/components/EmailComposer.tsx`.
 Dependencies: none.
 
 ## QM-UIUX-025 — Compose P1s: wrong mascot reaction, lying toast, latent overflow
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-025-compose-p1s
 Finding: (a) `quantyReact('mail:noRecipients')` fires for missing subject/body too — copy-paste bug, makes the AI feel fake; (b) "Message sent" toast claims sent while the 10s recall countdown runs — should say "Sending… (10s to undo)"; (c) modal compose branch `:984` is `fixed bottom-0 right-4 w-full` — latent 1rem horizontal overflow on mobile (no caller passes `modal={true}` today). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/compose-audit.md`.
 Required: distinct `mail:noSubject`/`mail:noBody` reactions; honest toast copy; `inset-x-4 w-auto` on mobile for the modal branch.
 Scope: `apps/quantmail/src/components/EmailComposer.tsx`.
@@ -972,13 +975,15 @@ Dependencies: none.
 
 ## QM-UIUX-031 — Contacts/QuantGit/Settings P1s: touch targets, copy, pills
 Status: [ ] TODO
-Finding: (a) Contacts "+ New" add button ~24px tall (below 44px minimum) and the ONLY add path on mobile — add a proper FAB or enlarge; (b) "Sovereign" marketing fluff across Contacts/QuantGit/Settings copy ("instant sovereign dial", "verified sovereign tenants", "Quant Sovereign privacy guarantees"); (c) QuantGit meaningless "Cloud OS" pill; (d) Settings inconsistent crypto claims ("TLS 1.3" on account page vs "TLS 1.2+" on Security tab); (e) Search input 12px on mobile (iOS auto-zoom) — use `text-base`; (f) Voice search silent failure when `SpeechRecognition` unavailable — honest disabled state. Evidence: contacts/quantgit/settings/search audit reports.
+Finding: (a) Contacts "+ New" add button ~24px tall (below 44px minimum) and the ONLY add path on mobile — add a proper FAB or enlarge; (b) "Sovereign" marketing fluff across Contacts/QuantGit/Settings copy ("instant sovereign dial", "verified sovereign tenants", "Quant Sovereign privacy guarantees"); (c) QuantGit meaningless "Cloud OS" pill; (d) Settings inconsistent crypto claims ("TLS 1.3" on account page vs "TLS 1.2+" on Security tab); (e) Search input 12px on mobile (iOS auto-zoom) — use `Status: [~] IN_PROGRESStext-base`; (f) Voice search silent failure when `SpeechRecognition` unavailable — honest disabled state. Evidence: contacts/quantgit/settings/search audit reports.
 Required: fix each per the finding; no invented copy.
 Scope: Contacts, QuantGit, Settings, Search components.
 Dependencies: QM-UIUX-005 (type scale covers e).
 
 ## QM-UIUX-032 — QuantChat /call page simulates a call connection
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-032-quantchat-call-simulation
 Finding: `apps/quantchat/src/app/call/page.tsx:56` has the comment `// Simulate connection (in production, LiveKit SDK would handle this)` — it fakes a 1.5s "connecting" state then shows a connected call UI with zero participants and a running timer. No WebRTC, no media. This is a reachable route. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantchat-auth-audit.md`.
 Required: wire to the real LiveKit path (`/meet/[roomId]` already does real `livekit-client` with server tokens), or delete the route. Never simulate a call.
 Scope: `apps/quantchat/src/app/call/`.
