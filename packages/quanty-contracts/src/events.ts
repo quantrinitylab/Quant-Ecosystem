@@ -1,0 +1,3 @@
+export const QUANTY_EVENTS = ['quanty.session.started.v1','quanty.session.updated.v1','quanty.task.created.v1','quanty.task.node.completed.v1','quanty.task.node.failed.v1','quanty.approval.requested.v1','quanty.approval.resolved.v1','quanty.navigation.requested.v1','quanty.navigation.completed.v1','quanty.verification.completed.v1','quanty.memory.candidate.created.v1','quanty.feedback.recorded.v1','quanty.tool.execution.started.v1','quanty.tool.execution.completed.v1','quanty.tool.execution.failed.v1'] as const;
+export type QuantyEventType=typeof QUANTY_EVENTS[number];
+export interface QuantyRuntimeEvent<T=unknown>{eventId:string;type:QuantyEventType;occurredAt:string;correlationId:string;sessionId?:string;taskId?:string;nodeId?:string;payload:T;}

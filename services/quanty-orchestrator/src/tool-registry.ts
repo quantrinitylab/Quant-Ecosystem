@@ -1,0 +1,2 @@
+import type {QuantyToolHandler} from '@quant/quanty-contracts';
+export class QuantyToolRegistry { private readonly tools=new Map<string,QuantyToolHandler>(); register<TIn,TOut>(handler:QuantyToolHandler<TIn,TOut>){if(this.tools.has(handler.descriptor.toolId))throw new Error('TOOL_ALREADY_REGISTERED');this.tools.set(handler.descriptor.toolId,handler as QuantyToolHandler);return handler.descriptor;} get(toolId:string){const tool=this.tools.get(toolId);if(!tool)throw new Error('TOOL_NOT_FOUND');return tool;} list(){return [...this.tools.values()].map(t=>t.descriptor);} }

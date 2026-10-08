@@ -32,13 +32,22 @@ export interface OutboxRecord {
   payload: unknown;
   /** When the producer appended the row (not when it was relayed). */
   occurredAt: Date;
+  /**
+   * Canonical context is optional during migration. New producers must supply
+   * it; old rows are published with the explicit legacy shape until backfilled.
+   */
+  context?: Omit<QuantContextEnvelope, 'eventId' | 'occurredAt' | 'payload'>;
 }
 
 /**
  * The wire envelope. Every field a consumer needs to route, order and
  * deduplicate an event, without reading the database.
  */
-export interface EventEnvelope {
+import type { QuantContextEnvelope, QuantEventEnvelope } from '@quant/ecosystem-contracts';
+
+export type EventEnvelope = QuantEventEnvelope | LegacyEventEnvelope;
+
+export interface LegacyEventEnvelope {
   eventId: string;
   aggregateType: string;
   aggregateId: string;
@@ -46,17 +55,38 @@ export interface EventEnvelope {
   occurredAt: string;
   payload: unknown;
 }
+import { assertContextEnvelope } from '@quant/ecosystem-contracts';
 
-/** Build the envelope for a record. Shared so every transport agrees on shape. */
+/**
+ * Build the canonical wire envelope.
+ *
+ * Legacy outbox rows do not contain enough provenance to manufacture a truthful
+ * actor/source context. They therefore require explicit migration metadata from
+ * the caller rather than being silently upgraded with guessed values.
+ */
 export function toEnvelope(record: OutboxRecord): EventEnvelope {
-  return {
+  if (!record.context) {
+    return {
+      eventId: record.eventId,
+      eventType: record.eventType,
+      aggregateType: record.aggregateType,
+      aggregateId: record.aggregateId,
+      occurredAt: record.occurredAt.toISOString(),
+      payload: record.payload,
+    };
+  }
+
+  const envelope: QuantEventEnvelope = {
+    ...record.context,
     eventId: record.eventId,
+    eventType: record.eventType,
     aggregateType: record.aggregateType,
     aggregateId: record.aggregateId,
-    eventType: record.eventType,
     occurredAt: record.occurredAt.toISOString(),
     payload: record.payload,
   };
+  assertContextEnvelope(envelope);
+  return envelope;
 }
 
 /**

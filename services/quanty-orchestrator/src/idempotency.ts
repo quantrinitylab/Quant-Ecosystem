@@ -1,0 +1,2 @@
+export interface IdempotencyRecord { key:string; fingerprint:string; status:'running'|'completed'|'failed'; result?:unknown; error?:string; createdAt:string; }
+export class IdempotencyStore { private readonly records=new Map<string,IdempotencyRecord>(); get(key:string){return this.records.get(key);} put(record:IdempotencyRecord){this.records.set(record.key,record);} }

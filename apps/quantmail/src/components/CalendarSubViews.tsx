@@ -796,61 +796,29 @@ export function CalendarMonthSubView({
 
   return (
     <div className={`flex-1 flex flex-col overflow-y-auto bg-[#090A0E] text-[#F5F5F5] p-4 sm:p-6 pb-24 space-y-6 ${className}`}>
-      {/* Month Toolbar & Steppers */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#12151E] border border-[#232938] rounded-2xl p-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={handlePrevMonth}
-              aria-label="Previous month"
-              className="size-8 grid place-items-center rounded-xl border border-[#232938] text-[#A1A4AC] hover:text-white hover:bg-[#181C26] transition-colors"
-            >
-              <SvgChevronLeft className="size-4" />
-            </button>
-            <button
-              type="button"
-              onClick={handleNextMonth}
-              aria-label="Next month"
-              className="size-8 grid place-items-center rounded-xl border border-[#232938] text-[#A1A4AC] hover:text-white hover:bg-[#181C26] transition-colors"
-            >
-              <SvgChevronRight className="size-4" />
-            </button>
-          </div>
-
-          <h2 className="text-base sm:text-lg font-bold text-[#F5F5F5] tracking-tight">
-            <span>{MONTH_NAMES[viewMonth]}</span>{' '}
-            <span className="text-[#A1A4AC] font-normal">{viewYear}</span>
-          </h2>
-
+      {/* Secondary week navigator. Month navigation lives in the shared page header. */}
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] text-[#64748B]">
+          Select a date or drag across days to create a multi-day event.
+        </p>
+        <div className="inline-flex items-center rounded-xl border border-[#232938] bg-[#12151E] p-1 shrink-0">
           <button
             type="button"
-            onClick={handleGoToday}
-            className="px-2.5 py-1 text-xs font-medium rounded-lg border border-[#232938] bg-[#181C26] hover:bg-[#202534] text-[#F5F5F5] transition-colors"
+            onClick={handlePrevWeek}
+            aria-label="Previous week"
+            className="size-8 grid place-items-center rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#181C26] transition-colors"
           >
-            Today
+            <SvgChevronLeft className="size-4" />
           </button>
-        </div>
-
-        {/* Week-by-Week Sliding Stepper */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-[#A1A4AC] font-medium hidden sm:inline">Week Sliding:</span>
-          <div className="inline-flex rounded-xl border border-[#232938] bg-[#0B0D13] p-0.5">
-            <button
-              type="button"
-              onClick={handlePrevWeek}
-              className="px-2.5 py-1 rounded-lg text-xs font-medium text-[#A1A4AC] hover:text-white hover:bg-[#181C26] transition-colors"
-            >
-              ‹ Prev Week
-            </button>
-            <button
-              type="button"
-              onClick={handleNextWeek}
-              className="px-2.5 py-1 rounded-lg text-xs font-medium text-[#A1A4AC] hover:text-white hover:bg-[#181C26] transition-colors"
-            >
-              Next Week ›
-            </button>
-          </div>
+          <span className="px-2 text-[11px] font-semibold text-[#A1A4AC]">Week</span>
+          <button
+            type="button"
+            onClick={handleNextWeek}
+            aria-label="Next week"
+            className="size-8 grid place-items-center rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#181C26] transition-colors"
+          >
+            <SvgChevronRight className="size-4" />
+          </button>
         </div>
       </div>
 
@@ -1112,43 +1080,17 @@ export function CalendarTrackersSubView({
   const [isDiscreetMode, setIsDiscreetMode] = useState(false);
 
   // Health tracker interactive counters
-  const [waterMl, setWaterMl] = useState(1750);
+  const [waterMl, setWaterMl] = useState(0);
   const waterTarget = 2500;
 
   // Custom life trackers state
-  const [lifeTrackers, setLifeTrackers] = useState<CustomLifeTracker[]>([
-    {
-      id: 'lt-1',
-      title: 'Annual Full Body Health Checkup',
-      category: 'Recurring Cycle',
-      targetDate: '2026-11-15',
-      recurringDays: 365,
-      notes: 'Blood work, lipid profile & ECG at Apollo Diagnostics',
-      tone: 'emerald',
-    },
-    {
-      id: 'lt-2',
-      title: 'Passport & Visa Expiry Renewal',
-      category: 'Countdown',
-      targetDate: '2027-02-18',
-      notes: 'Requires 6 months validity for sovereign summit travel',
-      tone: 'sky',
-    },
-    {
-      id: 'lt-3',
-      title: 'Apartment Lease Agreement Renewal',
-      category: 'Countdown',
-      targetDate: '2026-12-27',
-      notes: 'Send 60-day notice to landlord regarding renewal terms',
-      tone: 'amber',
-    },
-  ]);
+  const [lifeTrackers, setLifeTrackers] = useState<CustomLifeTracker[]>([]);
 
   // Modal / Creator for Custom Tracker
   const [isAddTrackerOpen, setIsAddTrackerOpen] = useState(false);
   const [newTrackerTitle, setNewTrackerTitle] = useState('');
   const [newTrackerCategory, setNewTrackerCategory] = useState<CustomLifeTracker['category']>('Countdown');
-  const [newTrackerDate, setNewTrackerDate] = useState('2026-12-31');
+  const [newTrackerDate, setNewTrackerDate] = useState('');
   const [newTrackerNotes, setNewTrackerNotes] = useState('');
 
   const handleAddWater = () => {
@@ -1161,13 +1103,16 @@ export function CalendarTrackersSubView({
 
   const handleCreateTracker = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTrackerTitle.trim()) return;
+    if (!newTrackerTitle.trim() || !newTrackerDate) {
+      showToast({ text: 'Choose a target date for this tracker', type: 'error' });
+      return;
+    }
 
     const item: CustomLifeTracker = {
       id: `lt-${Date.now()}`,
       title: newTrackerTitle.trim(),
       category: newTrackerCategory,
-      targetDate: newTrackerDate || '2026-12-31',
+      targetDate: newTrackerDate,
       notes: newTrackerNotes.trim(),
       tone: newTrackerCategory === 'Recurring Cycle' ? 'emerald' : newTrackerCategory === 'Medical / Health' ? 'rose' : 'sky',
     };
@@ -1329,39 +1274,18 @@ export function CalendarTrackersSubView({
           ) : (
             <div className="space-y-3">
               {/* Prediction Banner */}
-              <div className="p-3.5 rounded-xl bg-gradient-to-r from-rose-950/40 to-[#12151E] border border-rose-900/40 space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-[#A1A4AC]">Cycle Day</span>
-                  <span className="font-bold text-rose-300">Day 14 of 28</span>
+              <div className="p-4 rounded-xl bg-[#0B0D13] border border-rose-900/30 space-y-2">
+                <div className="flex items-center gap-2">
+                  <SvgShieldEye className="size-4 text-rose-300" />
+                  <span className="text-xs font-semibold text-[#F5F5F5]">No cycle data connected</span>
                 </div>
-                <div className="h-1.5 rounded-full bg-rose-950 overflow-hidden">
-                  <div className="h-full bg-rose-500 rounded-full" style={{ width: '50%' }} />
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-[#A1A4AC] pt-1">
-                  <span>Next Period: <strong className="text-white">in 14 days</strong></span>
-                  <span className="text-rose-400 font-semibold">Ovulation Window</span>
-                </div>
+                <p className="text-[11px] leading-relaxed text-[#A1A4AC]">
+                  Cycle predictions appear only after you explicitly add a private tracker or connect an authorized source. Quanty never invents health data.
+                </p>
               </div>
-
-              {/* Status Chips */}
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2.5 rounded-xl bg-[#0B0D13] border border-[#232938]">
-                  <span className="text-[10px] text-[#A1A4AC] block">Fertile Window</span>
-                  <span className="font-semibold text-rose-200">Oct 10 – Oct 15</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-[#0B0D13] border border-[#232938]">
-                  <span className="text-[10px] text-[#A1A4AC] block">Symptom Log</span>
-                  <span className="font-semibold text-[#F5F5F5]">Pain Free · Energetic</span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => openDedicatedSheet?.('period')}
-                className="w-full py-2 rounded-xl bg-rose-900/30 hover:bg-rose-900/50 border border-rose-800/50 text-rose-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
-              >
+              <button type="button" onClick={() => openDedicatedSheet?.('period')} className="w-full py-2 rounded-xl bg-rose-900/30 hover:bg-rose-900/50 border border-rose-800/50 text-rose-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all">
                 <SvgPlus className="size-3.5 text-rose-300" />
-                <span>Log Cycle Symptoms & Mood</span>
+                <span>Set Up Private Cycle Tracker</span>
               </button>
             </div>
           )}
@@ -1382,8 +1306,8 @@ export function CalendarTrackersSubView({
               </div>
             </div>
 
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-950/60 text-emerald-300 border border-emerald-800/40">
-              Synced
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-[#181C26] text-[#94A3B8] border border-[#232938]">
+              Not connected
             </span>
           </div>
 
@@ -1422,8 +1346,8 @@ export function CalendarTrackersSubView({
                   <SvgMoon className="size-3.5" />
                   <span className="font-semibold">Sleep</span>
                 </div>
-                <span className="font-bold text-sm text-[#F5F5F5]">7h 45m</span>
-                <span className="text-[10px] text-emerald-400 block">92% Restful</span>
+                <span className="font-bold text-sm text-[#F5F5F5]">—</span>
+                <span className="text-[10px] text-[#64748B] block">No source connected</span>
               </div>
 
               <div className="p-3 rounded-xl bg-[#0B0D13] border border-[#232938]">
@@ -1431,8 +1355,8 @@ export function CalendarTrackersSubView({
                   <SvgHeart className="size-3.5" />
                   <span className="font-semibold">Resting HR</span>
                 </div>
-                <span className="font-bold text-sm text-[#F5F5F5]">64 bpm</span>
-                <span className="text-[10px] text-[#A1A4AC] block">BP: 118/76 mmHg</span>
+                <span className="font-bold text-sm text-[#F5F5F5]">—</span>
+                <span className="text-[10px] text-[#64748B] block">No source connected</span>
               </div>
             </div>
           </div>
@@ -1465,43 +1389,40 @@ export function CalendarTrackersSubView({
 
           {/* List of Custom Trackers */}
           <div className="space-y-2.5">
-            {lifeTrackers.map((tracker) => {
-              const diffDays = Math.ceil(
-                (new Date(tracker.targetDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24),
-              );
-
-              return (
-                <div
-                  key={tracker.id}
-                  className="p-3 rounded-xl bg-[#0B0D13] border border-[#232938] hover:border-sky-800/50 transition-all space-y-1.5"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h4 className="text-xs font-semibold text-[#F5F5F5]">{tracker.title}</h4>
-                      <span className="text-[10px] text-[#A1A4AC]">{tracker.category}</span>
+            {lifeTrackers.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-[#2B3444] bg-[#0B0D13] p-4 text-center">
+                <p className="text-xs font-semibold text-[#E2E8F0]">No life trackers yet</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-[#64748B]">
+                  Add a private countdown or recurring reminder. Nothing is pre-filled with personal data.
+                </p>
+                <button type="button" onClick={() => setIsAddTrackerOpen(true)} className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-sky-800/50 bg-sky-950/30 px-3 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-950/50">
+                  <SvgPlus className="size-3.5" /> Add tracker
+                </button>
+              </div>
+            ) : (
+              lifeTrackers.map((tracker) => {
+                const diffDays = Math.ceil((new Date(tracker.targetDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                return (
+                  <div key={tracker.id} className="p-3 rounded-xl bg-[#0B0D13] border border-[#232938] hover:border-sky-800/50 transition-all space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="text-xs font-semibold text-[#F5F5F5]">{tracker.title}</h4>
+                        <span className="text-[10px] text-[#A1A4AC]">{tracker.category}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-950/60 text-sky-300 border border-sky-800/40">
+                          {diffDays > 0 ? `${diffDays}d left` : 'Due today'}
+                        </span>
+                        <button type="button" onClick={() => handleDeleteTracker(tracker.id)} className="text-[#A1A4AC] hover:text-rose-400 transition-colors p-0.5" title="Delete Tracker">
+                          <SvgTrash className="size-3" />
+                        </button>
+                      </div>
                     </div>
-
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-950/60 text-sky-300 border border-sky-800/40">
-                        {diffDays > 0 ? `${diffDays}d left` : 'Due today'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteTracker(tracker.id)}
-                        className="text-[#A1A4AC] hover:text-rose-400 transition-colors p-0.5"
-                        title="Delete Tracker"
-                      >
-                        <SvgTrash className="size-3" />
-                      </button>
-                    </div>
+                    {tracker.notes && <p className="text-[11px] text-[#A1A4AC]/80 truncate">{tracker.notes}</p>}
                   </div>
-
-                  {tracker.notes && (
-                    <p className="text-[11px] text-[#A1A4AC]/80 truncate">{tracker.notes}</p>
-                  )}
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
       </div>
@@ -1558,6 +1479,7 @@ export function CalendarTrackersSubView({
                     type="date"
                     required
                     value={newTrackerDate}
+                    required
                     onChange={(e) => setNewTrackerDate(e.target.value)}
                     className="w-full bg-[#0B0D13] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#F59E0B]"
                   >

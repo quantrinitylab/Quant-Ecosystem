@@ -1,0 +1,1 @@
+export interface QuantyAgentDescriptor { agentId:string; productScope:string[]; version:string; capabilities:string[]; supportedModalities:Array<'text'|'voice'|'vision'|'audio'|'code'>; toolRefs:string[]; modelPolicy:string; timeoutMs:number; evaluationVersion:string; enabled:boolean; }

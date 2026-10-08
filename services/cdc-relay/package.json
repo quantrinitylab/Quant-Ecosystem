@@ -17,6 +17,7 @@
     "kafkajs": "^2.2.4",
     "pg": "^8.13.1",
     "@quant/health-server": "workspace:*",
+    "@quant/ecosystem-contracts": "workspace:*",
     "@quant/common": "workspace:*",
     "zod": "^3.24.2",
     "pino": "^9.6.0"

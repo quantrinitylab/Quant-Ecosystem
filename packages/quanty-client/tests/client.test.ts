@@ -1,0 +1,3 @@
+import {describe,it,expect,vi} from 'vitest';
+import {QuantyClient} from '../src';
+describe('QuantyClient',()=>{it('uses the transport instead of owning product state',async()=>{const send=vi.fn().mockResolvedValue({sessionId:'s'});const c=new QuantyClient({send});await c.startSession({userId:'u',mode:'voice',platform:'android'});expect(send).toHaveBeenCalledWith('session.start',{userId:'u',mode:'voice',platform:'android'});});});

@@ -1642,6 +1642,83 @@ importers:
         specifier: ^4.19.0
         version: 4.22.3
 
+  packages/ecosystem-contracts:
+    devDependencies:
+      typescript:
+        specifier: ~5.5.0
+        version: 5.5.4
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(@vitest/coverage-v8@4.1.9(vitest@4.1.11))(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
+
+  packages/quanty-client:
+    dependencies:
+      '@quant/quanty-contracts':
+        specifier: workspace:*
+        version: link:../quanty-contracts
+    devDependencies:
+      typescript:
+        specifier: ~5.5.0
+        version: 5.5.4
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(@vitest/coverage-v8@4.1.9(vitest@4.1.11))(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
+
+  packages/quanty-contracts:
+    dependencies:
+      '@quant/ecosystem-contracts':
+        specifier: workspace:*
+        version: link:../ecosystem-contracts
+    devDependencies:
+      typescript:
+        specifier: ~5.5.0
+        version: 5.5.4
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(@vitest/coverage-v8@4.1.9(vitest@4.1.11))(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
+
+  packages/quanty-memory:
+    dependencies:
+      '@quant/ecosystem-contracts':
+        specifier: workspace:*
+        version: link:../ecosystem-contracts
+    devDependencies:
+      typescript:
+        specifier: ~5.5.0
+        version: 5.5.4
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(@vitest/coverage-v8@4.1.9(vitest@4.1.11))(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
+
+  packages/quanty-platform:
+    dependencies:
+      '@quant/quanty-contracts':
+        specifier: workspace:*
+        version: link:../quanty-contracts
+    devDependencies:
+      typescript:
+        specifier: ~5.5.0
+        version: 5.5.4
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(@vitest/coverage-v8@4.1.9(vitest@4.1.11))(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
+
+      '@quant/ecosystem-contracts':
+        specifier: workspace:*
+        version: link:../../packages/ecosystem-contracts
+  services/quanty-orchestrator:
+    dependencies:
+      '@quant/quanty-contracts':
+        specifier: workspace:*
+        version: link:../../packages/quanty-contracts
+    devDependencies:
+      typescript:
+        specifier: ~5.5.0
+        version: 5.5.4
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(@vitest/coverage-v8@4.1.9(vitest@4.1.11))(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
+
   packages/encryption:
     devDependencies:
       '@types/node':
