@@ -874,3 +874,52 @@ Finding: the "Sport" category pill is cut off at the right edge with no visible 
 Required: edge fade or scroll hint on the pill row.
 Scope: QuanTube mobile feed.
 Dependencies: none.
+
+## QM-UIUX-019 — Drive tabs unreachable on mobile
+Status: [ ] TODO
+Finding: `DriveContextTabsHeader` is `hidden md:flex` (desktop only); the mobile replacement `MobileSubTabStrip` was deleted — the file does not exist. No mobile tab UI in `app/drive/page.tsx`. Users are stuck on the default tab; 7 of 8 Drive surfaces unreachable on phones. Dead code: `page.tsx:316` listens for `quant:subtab-change` from a component that no longer exists. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/drive-audit.md`.
+Required: restore/build a mobile tab strip for Drive (swipeable pills or bottom sheet); remove the dead event listener.
+Scope: `apps/quantmail/src/app/drive/`.
+Dependencies: none.
+
+## QM-UIUX-020 — Drive fake-data purge: vault, shared, starred, cleaner
+Status: [ ] TODO
+Finding: systemic fake data across Drive tabs — `DriveVaultSubView.tsx` hardcodes 4 fake "encrypted" files with fabricated SHA256 hashes/dates (parent passes no `items` → fakes always render); `DEFAULT_DEMO_SHARES` with fake people (Elena Rostova, Marcus Vance); `DEFAULT_DEMO_STARRED`; `DEFAULT_CLUSTERS`. The `shares.length > 0 ? shares : FAKES` fallback means even empty accounts show phantom data. The "decrypt" action is a toast claiming "Unlocked via WebCrypto SubtleCrypto L3" with no real crypto. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/drive-audit.md`.
+Required: remove all hardcoded demo files/shares/starred/clusters; render honest empty states; remove the fake decrypt toast (or wire to a real capability).
+Scope: `apps/quantmail/src/app/drive/` subviews.
+Dependencies: none.
+
+## QM-UIUX-021 — Remove unverified E2EE/AES-256 claims on Drive Vault tab
+Status: [ ] TODO
+Finding: badge `E2EE` + aria-label "AES-256 E2EE Sovereign Cryptographic Vault" with no reviewed crypto contract. Exactly what QM-TRUST-003 forbids. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/drive-audit.md`.
+Required: remove the claims or replace with evidence-backed language per QM-TRUST-003.
+Scope: Drive Vault tab.
+Dependencies: QM-TRUST-003; QM-UIUX-020 (same files; fix together).
+
+## QM-UIUX-022 — Calendar dead code: delete ~1,630 lines of unreferenced views
+Status: [ ] TODO
+Finding: `CalendarMonthView.tsx` (483 lines, zero references), `CalendarAgendaView.tsx` (446 lines, zero references), `CalendarViews.tsx` (701 lines, imported but never rendered). Live views are the `*SubView` components. Dead files duplicate month-grid logic with divergent styling. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/calendar-audit.md`.
+Required: delete the three dead files; verify no imports break; run Calendar tests.
+Scope: `apps/quantmail/src/components/CalendarMonthView.tsx`, `CalendarAgendaView.tsx`, `CalendarViews.tsx`.
+Dependencies: none.
+
+## QM-UIUX-023 — Calendar P1s: duplicate navigation, small touch targets
+Status: [ ] TODO
+Finding: (a) page-level `CalendarHeader` AND `CalendarMonthSubView` toolbar both render prev/next chevrons + "Today" — two "Today" buttons on one screen; (b) touch targets below 44px on mobile — month chevrons `size-8` (32px), "Today" `h-8`, split-button chevron `px-1.5` (~28px). Week view already uses `min-h-[44px]` — follow that pattern. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/calendar-audit.md`.
+Required: single navigation source; all touch targets >= 44px on mobile.
+Scope: Calendar header/subview components.
+Dependencies: none.
+
+## QM-UIUX-024 — Compose P0: Send button looks live but rejects on tap
+Status: [ ] TODO
+Finding: `EmailComposer.tsx:653-668` vs `:2047` — validation toasts errors for empty subject/body, but the button is only disabled when To is empty. Users tap a fully-actionable-looking Send and get an error toast. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/compose-audit.md`.
+Required: mirror validation in the disabled state, or make subject a confirm-dialog instead of a hard block.
+Scope: `apps/quantmail/src/components/EmailComposer.tsx`.
+Dependencies: none.
+
+## QM-UIUX-025 — Compose P1s: wrong mascot reaction, lying toast, latent overflow
+Status: [ ] TODO
+Finding: (a) `quantyReact('mail:noRecipients')` fires for missing subject/body too — copy-paste bug, makes the AI feel fake; (b) "Message sent" toast claims sent while the 10s recall countdown runs — should say "Sending… (10s to undo)"; (c) modal compose branch `:984` is `fixed bottom-0 right-4 w-full` — latent 1rem horizontal overflow on mobile (no caller passes `modal={true}` today). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/compose-audit.md`.
+Required: distinct `mail:noSubject`/`mail:noBody` reactions; honest toast copy; `inset-x-4 w-auto` on mobile for the modal branch.
+Scope: `apps/quantmail/src/components/EmailComposer.tsx`.
+Dependencies: QM-UIUX-024 (same file; fix together).
