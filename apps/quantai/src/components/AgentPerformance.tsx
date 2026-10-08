@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface AgentStats {
   agentId: string;
@@ -17,7 +18,7 @@ export const AgentPerformance: React.FC = () => {
   const loadStats = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/analytics/agents/top');
+      const response = await apiFetchRaw('/api/analytics/agents/top');
       const data = await response.json();
       setStats(data);
     } catch {

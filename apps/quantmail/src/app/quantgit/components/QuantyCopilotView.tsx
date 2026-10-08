@@ -1052,6 +1052,7 @@ export function QuantyCopilotView({
                         </span>
                         <input
                           type="checkbox"
+                          aria-label={item.label}
                           checked={(sourcesState as any)[item.key]}
                           onChange={() =>
                             setSourcesState((prev) => ({
@@ -1198,7 +1199,7 @@ export function QuantyCopilotView({
                 }
               }}
               placeholder={isChatSubmitting ? 'Quanty is thinking...' : 'Do anything with AI...'}
-              className="w-full bg-transparent border-0 resize-none text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none leading-relaxed disabled:opacity-60"
+              className="w-full bg-transparent border-0 resize-none text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none leading-relaxed disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             />
 
             {/* Bottom Action Bar inside Textarea container */}

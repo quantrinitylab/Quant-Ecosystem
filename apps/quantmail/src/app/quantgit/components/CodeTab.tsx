@@ -703,8 +703,8 @@ export function CodeTab({
   });
 
   const branchCount =
-    repoBranches?.length || selectedRepo.branches?.length || selectedRepo.branchCount || 1;
-  const commitCount = selectedRepo.commitCount || (selectedRepo.latestCommitSha ? 2118 : 1);
+    repoBranches?.length || selectedRepo.branches?.length || selectedRepo.branchCount;
+  const commitCount = selectedRepo.commitCount;
 
   // Search occurrences in editingFile
   const searchMatches = useMemo(() => {
@@ -1621,7 +1621,7 @@ pnpm install && pnpm dev
                     }
                   }}
                   spellCheck={false}
-                  className={`flex-1 p-3 font-mono text-xs leading-6 resize-none focus:outline-none ${
+                  className={`flex-1 p-3 font-mono text-xs leading-6 resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                     editorTheme === 'github-dark'
                       ? 'bg-[#0D1117] text-[#E6EDF3]'
                       : 'bg-white text-[#1F2328]'
@@ -2021,8 +2021,10 @@ pnpm install && pnpm dev
             </button>
 
             <span className="text-[#7D8590] hidden sm:inline">
-              <span className="text-white font-semibold">{branchCount.toLocaleString()}</span>{' '}
-              branches · <span className="text-white font-semibold">2</span> tags
+              <span className="text-white font-semibold">
+                {branchCount != null ? branchCount.toLocaleString() : '—'}
+              </span>{' '}
+              branches
             </span>
 
             {/* Tree vs Directory View Mode Toggle */}
@@ -2167,6 +2169,7 @@ pnpm install && pnpm dev
                 type="file"
                 multiple
                 ref={uploadInputRef}
+                aria-label="Upload files"
                 className="hidden"
                 onChange={async (e) => {
                   const filesList = e.target.files;
@@ -2323,12 +2326,18 @@ pnpm install && pnpm dev
             </span>
             <button
               type="button"
-              onClick={() => showToast(`Commit SHA: ${selectedRepo.latestCommitSha}`)}
+              onClick={() =>
+                showToast(
+                  selectedRepo.latestCommitSha
+                    ? `Commit SHA: ${selectedRepo.latestCommitSha}`
+                    : 'Commit SHA unknown',
+                )
+              }
               className="font-mono text-[#58A6FF] hover:underline"
             >
-              {selectedRepo.latestCommitSha}
+              {selectedRepo.latestCommitSha || '—'}
             </button>
-            <span>· {selectedRepo.latestCommitTime}</span>
+            <span>· {selectedRepo.latestCommitTime || '—'}</span>
             <button
               type="button"
               onClick={() => showToast('Opening commit history...')}
@@ -2337,7 +2346,7 @@ pnpm install && pnpm dev
               <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
                 <path d="M1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0ZM8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm.75 4.75a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 .375.65l2.5 1.5a.75.75 0 1 0 .75-1.3L8.75 7.85V4.75Z" />
               </svg>
-              {commitCount.toLocaleString()} Commits
+              {commitCount != null ? commitCount.toLocaleString() : '—'} Commits
             </button>
           </div>
         </div>
@@ -2503,25 +2512,11 @@ pnpm install && pnpm dev
           repoOwner={selectedRepo.fullName ? selectedRepo.fullName.split('/')[0] : 'quantrinitylab'}
           repoName={selectedRepo.name}
           description={selectedRepo.description}
-          websiteUrl={selectedRepo.website || 'https://quantmail.in'}
-          topics={
-            selectedRepo.topics && selectedRepo.topics.length > 0
-              ? selectedRepo.topics
-              : ['web-platform', 'enterprise', 'high-performance']
-          }
-          starsCount={selectedRepo.stars || 111000}
-          forksCount={selectedRepo.forks || 5200}
-          watchersCount={selectedRepo.watching || 146}
-          releasesCount={28144}
-          latestReleaseTag="v1.0.5"
-          latestReleaseTime="12 hours ago"
-          usedByCount="110K"
-          contributorsCount={8}
-          languages={[
-            { name: 'TypeScript', percentage: 83.9, color: '#3178c6' },
-            { name: 'MDX', percentage: 15.6, color: '#fcb32c' },
-            { name: 'JavaScript', percentage: 0.5, color: '#f7df1e' },
-          ]}
+          websiteUrl={selectedRepo.website || undefined}
+          topics={selectedRepo.topics && selectedRepo.topics.length > 0 ? selectedRepo.topics : []}
+          starsCount={selectedRepo.stars ?? 0}
+          forksCount={selectedRepo.forks ?? 0}
+          watchersCount={selectedRepo.watching ?? 0}
         />
       </div>
     </div>

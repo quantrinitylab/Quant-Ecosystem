@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface MarketplaceAgent {
   id: string;
@@ -19,7 +20,7 @@ export const Marketplace: React.FC = () => {
   const loadAgents = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/marketplace');
+      const response = await apiFetchRaw('/api/marketplace');
       const data = await response.json();
       setAgents(data);
     } catch {
@@ -41,7 +42,7 @@ export const Marketplace: React.FC = () => {
 
   const installAgent = async (agentId: string) => {
     try {
-      await fetch(`/api/marketplace/${agentId}/install`, { method: 'POST' });
+      await apiFetchRaw(`/api/marketplace/${agentId}/install`, { method: 'POST' });
       alert('Agent installed successfully!');
     } catch (error) {
       alert('Failed to install agent');

@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { sanitizeMediaUrl } from '@quant/common';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Post {
   id: string;
@@ -57,7 +58,7 @@ const FeedPage: React.FC = () => {
       }
       const params = new URLSearchParams({ mode: feedMode, limit: '20' });
       if (pageCursor) params.set('cursor', pageCursor);
-      const response = await fetch(`/api/feed?${params.toString()}`);
+      const response = await apiFetchRaw(`/api/feed?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to load feed');
       const data = await response.json();
       if (pageCursor) {
@@ -150,7 +151,7 @@ const FeedPage: React.FC = () => {
         return p;
       }),
     );
-    await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
+    await apiFetchRaw(`/api/posts/${postId}/like`, { method: 'POST' });
   }, []);
 
   const handleRepost = useCallback(async (postId: string) => {
@@ -166,7 +167,7 @@ const FeedPage: React.FC = () => {
         return p;
       }),
     );
-    await fetch(`/api/posts/${postId}/repost`, { method: 'POST' });
+    await apiFetchRaw(`/api/posts/${postId}/repost`, { method: 'POST' });
   }, []);
 
   const handleReply = useCallback((postId: string) => {
@@ -195,7 +196,7 @@ const FeedPage: React.FC = () => {
         return p;
       }),
     );
-    await fetch(`/api/posts/${postId}/bookmark`, { method: 'POST' });
+    await apiFetchRaw(`/api/posts/${postId}/bookmark`, { method: 'POST' });
   }, []);
 
   const formatTime = (dateStr: string): string => {

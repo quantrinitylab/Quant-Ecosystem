@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { sanitizeCodeHighlight } from '@quant/shared-ui';
+import { apiFetchRaw } from '@quant/api-client';
 
 /** Escape HTML metacharacters to prevent XSS before regex-based highlighting. */
 function escapeHtml(text: string): string {
@@ -290,7 +291,7 @@ export default function CodePage(): JSX.Element {
   /** Real AI call: the QuantAI chat pipeline answers, errors surface honestly. */
   const askAssistant = useCallback(
     async (message: string, systemPrompt?: string): Promise<string> => {
-      const res = await fetch('/api/assistant/chat', {
+      const res = await apiFetchRaw('/api/assistant/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({

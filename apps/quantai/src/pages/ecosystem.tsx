@@ -6,6 +6,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface EcosystemApp {
   id: string;
@@ -34,7 +35,7 @@ export default function EcosystemPage(): JSX.Element {
       setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch('/api/ecosystem/apps');
+        const res = await apiFetchRaw('/api/ecosystem/apps');
         const data = (await res.json().catch(() => ({}))) as {
           apps?: EcosystemApp[];
           error?: string;
@@ -77,7 +78,7 @@ export default function EcosystemPage(): JSX.Element {
     setActionLoading(appId);
     setActionError(null);
     try {
-      const res = await fetch(`/api/ecosystem/apps/${encodeURIComponent(appId)}/toggle-ai`, {
+      const res = await apiFetchRaw(`/api/ecosystem/apps/${encodeURIComponent(appId)}/toggle-ai`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ enabled: next }),

@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface UserProfile {
   id: string;
@@ -55,7 +56,7 @@ const ProfilePage: React.FC<{ id?: string }> = ({ id }) => {
   const fetchProfile = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/users/${userId}`);
+      const res = await apiFetchRaw(`/api/users/${userId}`);
       if (!res.ok) throw new Error('User not found');
       const data = await res.json();
       setProfile(data);
@@ -71,7 +72,7 @@ const ProfilePage: React.FC<{ id?: string }> = ({ id }) => {
     async (tab: ProfileTab) => {
       try {
         setPostsLoading(true);
-        const res = await fetch(`/api/users/${userId}/${tab}`);
+        const res = await apiFetchRaw(`/api/users/${userId}/${tab}`);
         if (res.ok) {
           const data = await res.json();
           setPosts(data.posts || []);
@@ -104,20 +105,20 @@ const ProfilePage: React.FC<{ id?: string }> = ({ id }) => {
           }
         : null,
     );
-    await fetch(`/api/users/${userId}/${action}`, { method: 'POST' });
+    await apiFetchRaw(`/api/users/${userId}/${action}`, { method: 'POST' });
   }, [profile, userId]);
 
   const handleBlock = useCallback(async () => {
     if (!profile) return;
     setProfile((prev) => (prev ? { ...prev, isBlocked: !prev.isBlocked } : null));
-    await fetch(`/api/users/${userId}/block`, { method: 'POST' });
+    await apiFetchRaw(`/api/users/${userId}/block`, { method: 'POST' });
     setShowMenu(false);
   }, [profile, userId]);
 
   const handleMute = useCallback(async () => {
     if (!profile) return;
     setProfile((prev) => (prev ? { ...prev, isMuted: !prev.isMuted } : null));
-    await fetch(`/api/users/${userId}/mute`, { method: 'POST' });
+    await apiFetchRaw(`/api/users/${userId}/mute`, { method: 'POST' });
     setShowMenu(false);
   }, [profile, userId]);
 

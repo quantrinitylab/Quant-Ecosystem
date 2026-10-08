@@ -4,7 +4,7 @@
 // ============================================================================
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import * as Y from 'yjs';
+import type * as Y from 'yjs';
 import { browserAuthSession } from '../../../../services/browser-auth-session';
 import { browserApiRequest } from '../../../../services/browser-api-request';
 import type {
@@ -276,17 +276,18 @@ export function useCollabDoc(docId: string) {
   }, [docId, title, blocks, metadata, isPublic, isLoading]);
 
   // Yjs WebSocket gateway connection (/collab/:docId)
+  // yjs is ~100KB+ — imported lazily so the drive/doc route bundle stays lean
+  // until a document page actually mounts (same pattern as @xterm in BuildTerminal).
   useEffect(() => {
     if (typeof window === 'undefined' || !docId) return;
-
-    const ydoc = new Y.Doc();
-    ydocRef.current = ydoc;
 
     let ws: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let isDisposed = false;
+    let ydoc: Y.Doc | null = null;
+    let onDocUpdate: ((update: Uint8Array, origin: unknown) => void) | null = null;
 
-    async function connectWebSocket() {
+    async function connectWebSocket(Y: typeof import('yjs'), doc: Y.Doc) {
       if (isDisposed) return;
 
       const token = browserAuthSession.getAccessToken();
@@ -323,7 +324,7 @@ export function useCollabDoc(docId: string) {
 
           // Send Sync Step 1
           if (ws?.readyState === WebSocket.OPEN) {
-            ws.send(frame(MESSAGE_SYNC, SYNC_STEP_1, Y.encodeStateVector(ydoc)));
+            ws.send(frame(MESSAGE_SYNC, SYNC_STEP_1, Y.encodeStateVector(doc)));
 
             // Broadcast initial presence awareness
             ws.send(
@@ -350,14 +351,14 @@ export function useCollabDoc(docId: string) {
             if (subtype === SYNC_STEP_1) {
               // Respond with Step 2 containing our missing state
               if (ws?.readyState === WebSocket.OPEN) {
-                ws.send(frame(MESSAGE_SYNC, SYNC_STEP_2, Y.encodeStateAsUpdate(ydoc, payload)));
+                ws.send(frame(MESSAGE_SYNC, SYNC_STEP_2, Y.encodeStateAsUpdate(doc, payload)));
               }
             } else if (subtype === SYNC_STEP_2 || subtype === SYNC_UPDATE) {
               isRemoteApplyingRef.current = true;
               try {
-                Y.applyUpdate(ydoc, payload, 'websocket');
+                Y.applyUpdate(doc, payload, 'websocket');
                 // Check if doc_data has updated blocks
-                const ymap = ydoc.getMap('doc_data');
+                const ymap = doc.getMap('doc_data');
                 const remoteBlocksStr = ymap.get('blocks') as string | undefined;
                 if (remoteBlocksStr) {
                   try {
@@ -411,7 +412,7 @@ export function useCollabDoc(docId: string) {
           setSyncStatus('saved');
           if (!isDisposed) {
             // Reconnect with backoff
-            reconnectTimer = setTimeout(connectWebSocket, 5000);
+            reconnectTimer = setTimeout(() => void connectWebSocket(Y, doc), 5000);
           }
         };
 
@@ -424,15 +425,20 @@ export function useCollabDoc(docId: string) {
       }
     }
 
-    // Bind local Yjs doc update handler to broadcast changes
-    const onDocUpdate = (update: Uint8Array, origin: unknown) => {
-      if (origin !== 'websocket' && ws?.readyState === WebSocket.OPEN) {
-        ws.send(frame(MESSAGE_SYNC, SYNC_UPDATE, update));
-      }
-    };
-    ydoc.on('update', onDocUpdate);
-
-    void connectWebSocket();
+    // Load yjs on demand, then bind the local doc update handler and connect.
+    void import('yjs').then((Y) => {
+      if (isDisposed) return;
+      const doc = new Y.Doc();
+      ydoc = doc;
+      ydocRef.current = doc;
+      onDocUpdate = (update: Uint8Array, origin: unknown) => {
+        if (origin !== 'websocket' && ws?.readyState === WebSocket.OPEN) {
+          ws.send(frame(MESSAGE_SYNC, SYNC_UPDATE, update));
+        }
+      };
+      doc.on('update', onDocUpdate);
+      void connectWebSocket(Y, doc);
+    });
 
     return () => {
       isDisposed = true;
@@ -448,8 +454,11 @@ export function useCollabDoc(docId: string) {
         }
         ws.close();
       }
-      ydoc.off('update', onDocUpdate);
-      ydoc.destroy();
+      if (ydoc) {
+        if (onDocUpdate) ydoc.off('update', onDocUpdate);
+        ydoc.destroy();
+      }
+      ydocRef.current = null;
     };
   }, [docId]);
 

@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { SettingsSheet, SheetNote, SheetPrimaryButton } from '../SettingsSheet';
 import { getAuthToken } from '../../../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 export function ReferralSheet({ onClose }: { onClose: () => void }) {
   const [code, setCode] = useState('');
@@ -23,7 +24,7 @@ export function ReferralSheet({ onClose }: { onClose: () => void }) {
     setBusy(true);
     try {
       const token = getAuthToken();
-      const res = await fetch('/api/quanty/referral/redeem', {
+      const res = await apiFetchRaw('/api/quanty/referral/redeem', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

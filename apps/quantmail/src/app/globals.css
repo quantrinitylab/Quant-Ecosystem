@@ -1026,6 +1026,18 @@ body {
 .mail-row { border-bottom-color: rgba(255,255,255,0.055); }
 .mail-row:hover { border-color: #2d2d30; background: #111318; }
 /*
+ * Desktop (md+, 768px): deep black, no divider lines (explicit user requirement).
+ * Row separation comes from list spacing, not hairlines. Unread/active keep a
+ * near-black lift so their functional signals survive on the black surface.
+ */
+@media (min-width: 768px) {
+  .mail-row { background: #000; border-bottom-color: transparent; }
+  .mail-row:hover { background: #0A0B0D; border-color: transparent; }
+  .mail-row.is-unread { background: #0A0B0D; border-bottom-color: transparent; }
+  .mail-row.is-unread:hover { background: #0D0E11; border-color: transparent; }
+  .mail-row.is-active { background: #0D0E12; border-color: transparent; }
+}
+/*
  * The pane the row slides off. It fills the shell rather than sizing itself to the
  * travel, so the label holds still while the row moves — the row reads as leaving,
  * which is the honest picture of what is about to happen. `is-trailing` is the
@@ -1246,7 +1258,7 @@ body {
 }
 
 @media (max-width: 1023px) {
-  .auth-shell { display: block; }.auth-shell-brand { display: none; }.auth-shell-mobile-brand { display: block; height: 5rem; overflow: hidden; border-bottom: 1px solid rgba(255,255,255,.075); }.auth-shell-form { min-height: calc(100dvh - 5rem); padding: 2.5rem 1.25rem; }.auth-mobile-brand { position: relative; display: flex; height: 100%; align-items: center; justify-content: space-between; padding: 0 1.25rem; }.auth-brand-desktop { display: none; }
+  .auth-shell { display: block; }.auth-shell-brand { display: none; }.auth-shell-mobile-brand { display: block; height: 5rem; overflow: hidden; }.auth-shell-form { min-height: calc(100dvh - 5rem); padding: 2.5rem 1.25rem; flex-direction: column; align-items: stretch; }.auth-shell-form-content { flex: 1; display: flex; flex-direction: column; }.auth-shell-form-content > div { display: flex; flex-direction: column; flex: 1; }.auth-legal-footer { margin-top: auto; }.auth-mobile-brand { position: relative; display: flex; height: 100%; align-items: center; justify-content: space-between; padding: 0 1.25rem; }.auth-brand-desktop { display: none; }
 }
 @media (max-width: 767px) {
   .inbox-list-pane { width: 100%; min-width: 0; border-right: 0; }.reading-pane { display: none; }
@@ -2198,6 +2210,21 @@ body {
 }
 .safety-banner-unsubscribe:hover {
   background: rgba(255, 255, 255, 0.05);
+}
+
+/* ==========================================================================
+   Blocked remote image placeholder (QM-UIUX-042)
+   Remote <img> tags are rewritten to this inert span until the reader
+   consents — no network request, no sender-controlled content.
+   ========================================================================== */
+.email-html-content .qm-blocked-remote-image {
+  display: inline-block;
+  width: 64px;
+  height: 64px;
+  border: 1px dashed var(--quant-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  vertical-align: middle;
 }
 
 /* ==========================================================================
@@ -3506,74 +3533,6 @@ body {
 .focus-banner-actions button:last-child:hover { color: #ccc; }
 
 /* ========================================================================== */
-/* AI Inbox Digest                                                            */
-/* ========================================================================== */
-.inbox-digest {
-  margin: 0.55rem 0.55rem 0;
-  padding: 0.7rem 1rem;
-  border-radius: 0.65rem;
-  background: linear-gradient(135deg, rgba(255, 140, 66, 0.04), rgba(99, 102, 241, 0.03));
-  border: 1px solid rgba(255, 140, 66, 0.1);
-}
-.digest-header {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.45rem;
-}
-.digest-icon {
-  color: #FF8C42;
-  font-size: 0.7rem;
-}
-.digest-header strong {
-  font-size: 0.7rem;
-  font-weight: 650;
-  color: #F5F5F5;
-}
-.digest-count {
-  margin-left: auto;
-  font-size: 0.625rem;
-  color: #888;
-}
-.digest-insights {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  margin-bottom: 0.4rem;
-}
-.digest-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 1rem;
-  font-size: 0.625rem;
-  font-weight: 550;
-  border: 1px solid transparent;
-}
-.digest-chip--urgent { background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.2); color: #f87171; }
-.digest-chip--action { background: rgba(251, 191, 36, 0.08); border-color: rgba(251, 191, 36, 0.2); color: #fbbf24; }
-.digest-chip--meeting { background: rgba(96, 165, 250, 0.08); border-color: rgba(96, 165, 250, 0.2); color: #60a5fa; }
-.digest-chip--attachment { background: rgba(74, 222, 128, 0.08); border-color: rgba(74, 222, 128, 0.2); color: #4ade80; }
-.digest-senders {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  flex-wrap: wrap;
-}
-.digest-senders-label {
-  font-size: 0.625rem;
-  color: #A1A4AC;
-}
-.digest-sender {
-  font-size: 0.625rem;
-  color: #999;
-  padding: 0.1rem 0.35rem;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 0.25rem;
-}
-
-/* ========================================================================== */
 /* AI Quick Action Bar                                                        */
 /* ========================================================================== */
 .quick-action-bar {
@@ -4683,18 +4642,6 @@ body {
 .ai-summary-result-header button { margin-left: auto; border: none; background: transparent; color: #A1A4AC; font-size: 1rem; cursor: pointer; }
 .ai-summary-text { font-size: 0.72rem; color: #bbb; line-height: 1.55; }
 
-/* ========================================================================== */
-/* Smart Nudge                                                                */
-/* ========================================================================== */
-.email-nudge { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.7rem; border-radius: 0.5rem; border: 1px solid; margin-bottom: 0.3rem; }
-.nudge-icon { display: inline-flex; align-items: center; flex-shrink: 0; }
-.nudge-message { font-size: 0.64rem; color: #bbb; flex: 1; }
-.nudge-action { display: inline-flex; align-items: center; min-height: 44px; border: none; background: transparent; font-size: 0.625rem; font-weight: 600; cursor: pointer; padding: 0.15rem 0.5rem; border-radius: 0.3rem; transition: opacity 80ms; }
-.nudge-action:hover { opacity: 0.8; }
-/* 44px of tap area on a 10px glyph: the nudge sits inline in a thread, so the
-   dismiss is the control a thumb reaches for most and the easiest to miss. */
-.nudge-dismiss { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; margin: -0.4rem -0.35rem -0.4rem 0; border: none; background: transparent; color: #6B6E76; cursor: pointer; flex-shrink: 0; transition: color 80ms; }
-.nudge-dismiss:hover { color: #F5F5F5; }
 
 /* Read Receipt */
 .read-receipt { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.7rem; font-weight: 600; letter-spacing: -0.05em; }

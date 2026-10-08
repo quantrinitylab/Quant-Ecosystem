@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
 import { spring } from '@quant/brand';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface ObjectiveOption {
   id: string;
@@ -268,7 +269,7 @@ const CreateCampaignPage: React.FC = () => {
       const url = isEditMode
         ? `/api/campaigns/${encodeURIComponent(editId as string)}`
         : '/api/campaigns';
-      const response = await fetch(url, {
+      const response = await apiFetchRaw(url, {
         method: isEditMode ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -309,7 +310,7 @@ const CreateCampaignPage: React.FC = () => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch(`/api/campaigns/${encodeURIComponent(editId)}`)
+    apiFetchRaw(`/api/campaigns/${encodeURIComponent(editId)}`)
       .then((res) => {
         if (!res.ok) throw new Error('Failed to load campaign');
         return res.json();

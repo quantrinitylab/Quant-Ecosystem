@@ -170,8 +170,21 @@ export default function ComposePage() {
     async (data: ComposerMessageData) => {
       const draft = await composeDraft(data);
 
-      // Scheduling currently persists an explicitly scheduled draft only.
-      if (data.scheduledAt) return;
+      // QM-UIUX-050: a scheduled send must actually queue the draft for
+      // delivery — the backend expects `sendAt` (its compose schema silently
+      // strips `scheduledAt`). Previously this returned early and the draft
+      // sat in Drafts forever while the UI claimed "Email scheduled".
+      if (data.scheduledAt) {
+        const scheduledAt =
+          typeof data.scheduledAt === 'string'
+            ? data.scheduledAt
+            : new Date(data.scheduledAt).toISOString();
+        const schedRes = await apiClient.sendEmail(draft.id, { sendAt: scheduledAt });
+        if (!schedRes.success) {
+          throw new Error(schedRes.error?.message || 'Email could not be scheduled.');
+        }
+        return;
+      }
 
       const response = await apiClient.sendEmail(draft.id, { delayMs: 10000 });
       if (!response.success) {

@@ -13,6 +13,7 @@ import { HeatmapOverlay } from '../../components/map/HeatmapOverlay';
 import { navItems, routes } from '../../lib/navigation';
 import { shouldBroadcastLocation } from './locationBroadcast';
 import type { GeoPosition, FriendLocation } from '../../components/map';
+import { apiFetchRaw } from '@quant/api-client';
 
 // ============================================================================
 // Task 8.1: Map page — MapCanvas + GhostModeToggle header + FriendPins
@@ -80,7 +81,7 @@ export default function MapPage() {
   useEffect(() => {
     let cancelled = false;
 
-    fetch('/api/map/friends')
+    apiFetchRaw('/api/map/friends')
       .then((res) => (res.ok ? (res.json() as Promise<FriendsOnMapResponse>) : null))
       .then((json) => {
         if (cancelled || !json?.success) return;

@@ -8,6 +8,8 @@ import { useContacts } from '../hooks/useContacts';
 import { useConfirm } from '../hooks/useConfirm';
 import { apiClient } from '../services/api-client';
 import { useUndoSend } from './UndoSendCountdownBar';
+import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
+import { apiFetchRaw } from '@quant/api-client';
 import { composeMessageBodies } from '../lib/email-body';
 import { loadDefaultSignatureHtml } from '../lib/email-signature-preference';
 import type { Attachment } from './EmailComposer';
@@ -358,6 +360,58 @@ export function DockedComposer({
       active = false;
     };
   }, []);
+
+  // Draft autosave: the docked composer previously had no draft saving at all —
+  // work was lost if the user closed it without sending. Now a real timer saves
+  // 10s after the last edit, only when dirty, only with content.
+  const saveDraftToServer = async (): Promise<boolean> => {
+    const { bodyText } = composeMessageBodies(body.trim(), signatureHtml);
+    try {
+      await apiFetchRaw('/api/emails/drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: to.trim(),
+          cc: cc.trim() || undefined,
+          bcc: bcc.trim() || undefined,
+          subject: subject.trim(),
+          body: bodyText,
+          attachments,
+          inReplyTo: replyToId,
+        }),
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const draftSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        to,
+        cc,
+        bcc,
+        subject,
+        body,
+        attachments: attachments.map((a) => (a as any).id ?? a.filename),
+      }),
+    [to, cc, bcc, subject, body, attachments],
+  );
+  const draftHasContent = useMemo(
+    () =>
+      Boolean(
+        to.trim() || subject.trim() || body.trim() || attachments.length > 0,
+      ),
+    [to, subject, body, attachments],
+  );
+  const { saveState: draftSaveState } = useDraftAutosave({
+    snapshot: draftSnapshot,
+    hasContent: draftHasContent,
+    save: saveDraftToServer,
+    enabled: !isSending,
+  });
+  const draftSaveLabel = draftSaveStateLabel(draftSaveState);
 
   // Sync initials when props change
   useEffect(() => {
@@ -732,6 +786,7 @@ export function DockedComposer({
         ref={fileInputRef}
         type="file"
         multiple
+        aria-label="Attach files"
         className="hidden"
         onChange={handleFileChange}
       />
@@ -749,6 +804,21 @@ export function DockedComposer({
           <h3 className="text-xs font-bold text-white truncate tracking-wide">
             {subject.trim() || 'New Message'}
           </h3>
+          {/* Honest autosave indicator: the real state of the last save attempt. */}
+          {draftSaveLabel && (
+            <span
+              aria-live="polite"
+              className={`text-[10px] font-medium shrink-0 ${
+                draftSaveState === 'error'
+                  ? 'text-[#FF6B6B]'
+                  : draftSaveState === 'saved'
+                    ? 'text-[#4ADE80]'
+                    : 'text-[#A1A4AC]'
+              }`}
+            >
+              {draftSaveLabel}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1">
@@ -795,9 +865,10 @@ export function DockedComposer({
       <div className="flex-1 flex flex-col min-h-0 overflow-y-auto divide-y divide-[#1A202E]">
         {/* Recipient To: */}
         <div className="relative flex items-center px-4 py-2 gap-2 text-xs">
-          <span className="w-10 text-[#6B7280] font-semibold select-none">To</span>
+          <label htmlFor="docked-composer-to" className="w-10 text-[#6B7280] font-semibold select-none">To</label>
           <input
             type="text"
+            id="docked-composer-to"
             value={to}
             onChange={(e) => {
               setTo(e.target.value);
@@ -805,7 +876,8 @@ export function DockedComposer({
             }}
             onFocus={() => setShowSuggestions(true)}
             placeholder="Recipients (e.g. sundar@google.com)"
-            className="flex-1 bg-transparent text-white placeholder-[#4B5563] focus:outline-none text-xs"
+            aria-label="To recipients"
+            className="flex-1 bg-transparent text-white placeholder-[#4B5563] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded text-xs"
           />
 
           {!showCcBcc && (
@@ -842,23 +914,27 @@ export function DockedComposer({
         {showCcBcc && (
           <>
             <div className="flex items-center px-4 py-1.5 gap-2 text-xs">
-              <span className="w-10 text-[#6B7280] font-semibold select-none">Cc</span>
+              <label htmlFor="docked-composer-cc" className="w-10 text-[#6B7280] font-semibold select-none">Cc</label>
               <input
                 type="text"
+                id="docked-composer-cc"
                 value={cc}
                 onChange={(e) => setCc(e.target.value)}
                 placeholder="Cc recipients"
-                className="flex-1 bg-transparent text-white placeholder-[#4B5563] focus:outline-none text-xs"
+                aria-label="Cc recipients"
+                className="flex-1 bg-transparent text-white placeholder-[#4B5563] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded text-xs"
               />
             </div>
             <div className="flex items-center px-4 py-1.5 gap-2 text-xs">
-              <span className="w-10 text-[#6B7280] font-semibold select-none">Bcc</span>
+              <label htmlFor="docked-composer-bcc" className="w-10 text-[#6B7280] font-semibold select-none">Bcc</label>
               <input
                 type="text"
+                id="docked-composer-bcc"
                 value={bcc}
                 onChange={(e) => setBcc(e.target.value)}
                 placeholder="Bcc recipients"
-                className="flex-1 bg-transparent text-white placeholder-[#4B5563] focus:outline-none text-xs"
+                aria-label="Bcc recipients"
+                className="flex-1 bg-transparent text-white placeholder-[#4B5563] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded text-xs"
               />
             </div>
           </>
@@ -868,10 +944,12 @@ export function DockedComposer({
         <div className="flex items-center px-4 py-2 gap-2 text-xs">
           <input
             type="text"
+            id="docked-composer-subject"
+            aria-label="Subject"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Subject"
-            className="flex-1 bg-transparent text-white placeholder-[#4B5563] font-semibold focus:outline-none text-xs"
+            className="flex-1 bg-transparent text-white placeholder-[#4B5563] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded text-xs"
           />
         </div>
 
@@ -931,7 +1009,7 @@ export function DockedComposer({
               setBody(next);
             }}
             placeholder="Write your email here... Type '++' to trigger AI ghostwriter."
-            className="w-full flex-1 bg-transparent text-white placeholder-[#4B5563] resize-none focus:outline-none text-xs leading-relaxed"
+            className="w-full flex-1 bg-transparent text-white placeholder-[#4B5563] resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded text-xs leading-relaxed"
           />
 
           {/* Attached Files Strip */}

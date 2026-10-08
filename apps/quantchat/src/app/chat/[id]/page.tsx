@@ -22,6 +22,7 @@ import { DisappearingMessage } from '../../../components/chat/DisappearingMessag
 import { DisappearingTimerPicker } from '../../../components/chat/DisappearingTimerPicker';
 import DisappearingTimer from '../../../components/DisappearingTimer';
 import { formatTimerLabel } from '../../../lib/disappearing-timers';
+import type { SendMessageRequest } from '../../../types';
 
 type DeliveryStatus = 'sent' | 'delivered' | 'read';
 
@@ -127,6 +128,16 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   const [replyTo, setReplyTo] = useState<{ id: string; content: string; sender: string } | null>(
     null,
   );
+
+  // QM-UIUX-056: failed sends must never vanish silently. REST failures are
+  // tracked here so the user's text stays visible with an error state + retry.
+  interface FailedSend {
+    key: string;
+    content: string;
+    error: string;
+    retrying: boolean;
+  }
+  const [failedSends, setFailedSends] = useState<FailedSend[]>([]);
 
   // Orphaned-feature wiring: AI auto-reply panel + in-chat games launcher.
   const [showAIPanel, setShowAIPanel] = useState(false);
@@ -433,12 +444,60 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     }
   }, [snapType]);
 
+  // QM-UIUX-056: wraps sendMessage.mutate with failure tracking. On REST
+  // failure the user's text is preserved in `failedSends` (rendered below
+  // with a retry button) instead of vanishing silently.
+  const sendWithFailureTracking = useCallback(
+    (request: Omit<SendMessageRequest, 'conversationId'>) => {
+      const key = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      sendMessage.mutate(
+        { ...request, conversationId: id },
+        {
+          onError: (err) => {
+            const message = err instanceof Error ? err.message : 'Failed to send message';
+            setFailedSends((prev) => [
+              ...prev,
+              { key, content: request.content, error: message, retrying: false },
+            ]);
+          },
+        },
+      );
+    },
+    [id, sendMessage],
+  );
+
+  const retryFailedSend = useCallback(
+    (key: string) => {
+      const failed = failedSends.find((f) => f.key === key);
+      if (!failed || failed.retrying) return;
+      setFailedSends((prev) => prev.map((f) => (f.key === key ? { ...f, retrying: true } : f)));
+      sendMessage.mutate(
+        { conversationId: id, content: failed.content, type: 'text' as const },
+        {
+          onSuccess: () => {
+            setFailedSends((prev) => prev.filter((f) => f.key !== key));
+          },
+          onError: (err) => {
+            const message = err instanceof Error ? err.message : 'Failed to send message';
+            setFailedSends((prev) =>
+              prev.map((f) => (f.key === key ? { ...f, retrying: false, error: message } : f)),
+            );
+          },
+        },
+      );
+    },
+    [failedSends, id, sendMessage],
+  );
+
+  const dismissFailedSend = useCallback((key: string) => {
+    setFailedSends((prev) => prev.filter((f) => f.key !== key));
+  }, []);
+
   const handleSendSnap = useCallback(() => {
     if (!snapMediaPreview) return;
     const content = snapCaption.trim() || (snapType === 'snap_photo' ? 'Photo Snap' : 'Video Snap');
 
-    sendMessage.mutate({
-      conversationId: id,
+    sendWithFailureTracking({
       content,
       type: snapType,
       mediaUrl: snapMediaPreview,
@@ -450,7 +509,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     setShowSnapCamera(false);
     setSnapMediaPreview(null);
     setSnapCaption('');
-  }, [id, snapMediaPreview, snapCaption, snapType, sendMessage, sendRealtimeMessage]);
+  }, [snapMediaPreview, snapCaption, snapType, sendWithFailureTracking, sendRealtimeMessage]);
 
   // Wire read receipts: mark latest message from others as read on mount and on new messages
   useEffect(() => {
@@ -462,10 +521,11 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     }
   }, [messages, markRead]);
 
+
   const handleSend = useCallback(
     (content: string) => {
-      // REST POST for persistence
-      sendMessage.mutate({ conversationId: id, content, type: 'text' as const });
+      // REST POST for persistence (failure-tracked — never loses user text)
+      sendWithFailureTracking({ content, type: 'text' as const });
       // WS broadcast for real-time delivery
       sendRealtimeMessage(content);
       // Stop typing indicator on send
@@ -473,18 +533,17 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       // Clear reply-to
       setReplyTo(null);
     },
-    [id, sendMessage, sendRealtimeMessage, setTyping],
+    [sendWithFailureTracking, sendRealtimeMessage, setTyping],
   );
 
   const handleVoiceRecording = useCallback(
     (durationMs: number) => {
-      sendMessage.mutate({
-        conversationId: id,
+      sendWithFailureTracking({
         content: `Voice note (${Math.ceil(durationMs / 1000)}s)`,
         type: 'text' as const,
       });
     },
-    [id, sendMessage],
+    [sendWithFailureTracking],
   );
 
   const handleTyping = useCallback(
@@ -498,10 +557,10 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   // the in-chat GameLauncher). Persists via REST and broadcasts over WS.
   const handlePostSystemMessage = useCallback(
     (text: string) => {
-      sendMessage.mutate({ conversationId: id, content: text, type: 'text' as const });
+      sendWithFailureTracking({ content: text, type: 'text' as const });
       sendRealtimeMessage(text);
     },
-    [id, sendMessage, sendRealtimeMessage],
+    [sendWithFailureTracking, sendRealtimeMessage],
   );
 
   // Recent context handed to the AI reply-suggestion strip (oldest → newest).
@@ -544,30 +603,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           window.location.href = '/';
         }}
         rightActions={[
-          <button
-            key="call-video"
-            type="button"
-            onClick={() => {
-              window.location.href = `/call?roomId=${encodeURIComponent(id)}&callerName=${encodeURIComponent(chatDisplayName)}`;
-            }}
-            aria-label="Start video call"
-            className="min-w-touch min-h-touch flex items-center justify-center text-lg hover:scale-110 active:scale-95 transition-transform"
-            title="Video Call (QuantMeet)"
-          >
-            📹
-          </button>,
-          <button
-            key="call-audio"
-            type="button"
-            onClick={() => {
-              window.location.href = `/call?roomId=${encodeURIComponent(id)}&callerName=${encodeURIComponent(chatDisplayName)}&audioOnly=true`;
-            }}
-            aria-label="Start audio call"
-            className="min-w-touch min-h-touch flex items-center justify-center text-lg hover:scale-110 active:scale-95 transition-transform"
-            title="Voice Call"
-          >
-            📞
-          </button>,
           <button
             key="games"
             type="button"
@@ -892,6 +927,44 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
               </motion.div>
             ))}
           </motion.div>
+        )}
+
+        {/* QM-UIUX-056: failed sends — the user's text is never lost. Each
+            failed message renders with an error state and a retry button. */}
+        {failedSends.length > 0 && (
+          <div className="space-y-3 mt-3" role="alert" aria-live="polite">
+            {failedSends.map((failed) => (
+              <div key={failed.key} className="flex justify-end">
+                <div className="max-w-[75%] rounded-2xl rounded-br-md border border-red-500/40 bg-red-500/10 px-4 py-2.5">
+                  <p className="text-sm text-[var(--quant-foreground)] break-words">
+                    {failed.content}
+                  </p>
+                  <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-red-500 font-medium">
+                      Not delivered{failed.error ? ` — ${failed.error}` : ''}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => retryFailedSend(failed.key)}
+                      disabled={failed.retrying}
+                      className="text-xs font-semibold text-red-400 underline underline-offset-2 hover:text-red-300 disabled:opacity-50 disabled:no-underline"
+                      aria-label={`Retry sending: ${failed.content.slice(0, 40)}`}
+                    >
+                      {failed.retrying ? 'Retrying…' : 'Retry'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => dismissFailedSend(failed.key)}
+                      className="text-xs text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
+                      aria-label="Dismiss failed message"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
         <TypingIndicator users={typingUsers} />
       </div>

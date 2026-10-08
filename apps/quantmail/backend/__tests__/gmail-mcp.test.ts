@@ -276,7 +276,12 @@ describe('GmailOAuth', () => {
     const cipher = new EnvKeyTokenCipher(testConfig.encryptionKey);
     const enc = cipher.encrypt('super-secret-refresh-token');
     expect(cipher.decrypt(enc)).toBe('super-secret-refresh-token');
-    expect(() => cipher.decrypt(enc.slice(0, -2) + 'ff')).toThrow();
+    // Flip the final hex nibble deterministically (never a no-op): setting it
+    // to 'ff' is flaky — 1/256 of ciphertexts already end in 'ff', making the
+    // "tamper" identical to the original so decrypt would not throw.
+    const lastNibble = enc[enc.length - 1]!;
+    const flipped = lastNibble === '0' ? '1' : '0';
+    expect(() => cipher.decrypt(enc.slice(0, -1) + flipped)).toThrow();
   });
 
   it('gmailOAuthConfigFromEnv fails closed on missing env', () => {

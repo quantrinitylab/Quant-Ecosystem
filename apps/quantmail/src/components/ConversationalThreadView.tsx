@@ -2682,7 +2682,7 @@ export function ConversationalThreadView({
         {/* Main Floating Input Bar */}
         <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-2xl border border-[#282C35] bg-[#111318] shadow-2xl">
           {/* File Attachment Hidden Input */}
-          <input
+          <input aria-label="Attach file"
             type="file"
             ref={fileInputRef}
             onChange={handleFileSelect}
@@ -2749,7 +2749,7 @@ export function ConversationalThreadView({
                 : 'Message (↵ to send)…'
             }
             aria-label={composeMode === 'mail' ? 'Start a letter reply' : 'Message'}
-            className="min-h-[44px] min-w-0 flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none px-1 sm:px-2 py-1.5 sm:min-h-0"
+            className="min-h-[44px] min-w-0 flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded px-1 sm:px-2 py-1.5 sm:min-h-0"
           />
 
           {/* Send Button — sends the line, or carries it into the full composer */}

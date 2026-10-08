@@ -6,6 +6,7 @@
 // restore a session with /auth/refresh, and rotates before the access token expires.
 // ============================================================================
 import { apiClient } from './api-client';
+import { apiFetchRaw } from '@quant/api-client';
 
 export interface SessionData {
   accessToken?: string;
@@ -43,7 +44,7 @@ export function isTwoFactorChallenge(
 
 async function postAuth(action: string, body?: unknown): Promise<SessionResult> {
   try {
-    const res = await fetch(`/auth/${action}`, {
+    const res = await apiFetchRaw(`/auth/${action}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined,

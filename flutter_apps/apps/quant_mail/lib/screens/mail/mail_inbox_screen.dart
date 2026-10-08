@@ -8,7 +8,7 @@ import 'thread_detail_screen.dart';
 
 /// Sovereign QuantMail Superhuman Inbox Screen
 ///
-/// Features split category lenses row with unread badges, sticky sub-5ms local
+/// Features split category lenses row with unread badges, sticky local
 /// search filter, virtualized Impeller-accelerated thread cards, luxury 44dp
 /// avatars with verified beacon dots, priority triage indicators, native swipe
 /// gestures (Emerald Archive / Amber Snooze), long-press multi-select mode with
@@ -42,13 +42,15 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
   // Undo Stack
   final List<_UndoAction> _undoStack = [];
 
-  // Category unread counters
+  // Category unread counters.
+  // QM-UIUX-059: zeroed hardcoded fake counts. Computed from real thread
+  // data when the inbox is wired to the backend.
   final Map<MailCategoryLens, int> _categoryUnreadCounts = {
-    MailCategoryLens.primary: 4,
-    MailCategoryLens.updates: 12,
-    MailCategoryLens.promotions: 5,
-    MailCategoryLens.forums: 2,
-    MailCategoryLens.vips: 3,
+    MailCategoryLens.primary: 0,
+    MailCategoryLens.updates: 0,
+    MailCategoryLens.promotions: 0,
+    MailCategoryLens.forums: 0,
+    MailCategoryLens.vips: 0,
   };
 
   @override
@@ -607,7 +609,7 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
           ),
           QuantAiCapsule(
             title: 'Superhuman Core',
-            statusText: '<5ms FTS5',
+            statusText: 'FTS5',
             beaconColor: QuantColors.moltenAmber,
             onTap: _showCommandPalette,
           ),
@@ -692,7 +694,7 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
           controller: _searchController,
           style: const TextStyle(color: QuantColors.textPrimary, fontSize: 13.5),
           decoration: InputDecoration(
-            hintText: 'Search sender, subject, or snippet (<5ms local FTS5)...',
+            hintText: 'Search sender, subject, or snippet...',
             hintStyle: const TextStyle(color: QuantColors.textMuted, fontSize: 12.5),
             prefixIcon: const Icon(Icons.search_rounded, color: QuantColors.textSecondary, size: 18),
             suffixIcon: _searchQuery.isNotEmpty

@@ -8,6 +8,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { getAuthHeaders } from '../../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Device {
   id: string;
@@ -23,7 +24,7 @@ export default function DevicesSection() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/devices', { headers: getAuthHeaders() })
+    apiFetchRaw('/api/devices', { headers: getAuthHeaders() })
       .then(async (r) => {
         const j = await r.json();
         if (!cancelled) {

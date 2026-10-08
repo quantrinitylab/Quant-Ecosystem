@@ -1761,150 +1761,92 @@ export function DriveFeedSubView({
 
 export type EcosystemApp =
   | 'all'
-  | 'QuantChat'
-  | 'QuantAI'
-  | 'QuantGram'
   | 'QuantMail'
-  | 'QuanTube';
+  | 'QuantCalendar'
+  | 'QuantDrive'
+  | 'QuantContacts'
+  | 'QuantGit'
+  | 'Shared';
 
 export interface AiMemoryItem {
   id: string;
-  app: 'QuantChat' | 'QuantAI' | 'QuantGram' | 'QuantMail' | 'QuanTube';
+  app: Exclude<EcosystemApp, 'all'>;
   title: string;
   timestamp: string;
   rawContext: string;
   extractedFacts: string[];
   entityGraphLinks: string[];
-  confidenceScore: number;
+  confidenceScore?: number;
+  sensitivity?: string;
+  explicitness?: string;
+  policyVersion?: string;
+  provenance?: string;
+  sourceObjectId?: string;
 }
 
 export interface DriveAiMemorySubViewProps {
   className?: string;
   onRecallInChat?: (memory: AiMemoryItem) => void;
+  onForgetMemory?: (memory: AiMemoryItem) => void;
+  /** Canonical memory projections supplied by the memory API. No demo records are generated here. */
+  memories?: AiMemoryItem[];
 }
 
 export function DriveAiMemorySubView({
   className = '',
   onRecallInChat,
+  onForgetMemory,
+  memories = [],
 }: DriveAiMemorySubViewProps) {
   const [selectedApp, setSelectedApp] = useState<EcosystemApp>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // App definitions with distinct colors and SVG icons
+  // App definitions. The memory surface follows the five QuantMail workspace pillars.
   const appConfigs = useMemo(
     () => ({
-      QuantChat: {
-        name: 'QuantChat',
-        color: '#10B981',
-        icon: ChatAppIcon,
-        borderStyle: 'border-[#10B981]/40 bg-[#10B981]/10 text-[#10B981]',
-      },
-      QuantAI: {
-        name: 'QuantAI',
-        color: '#38BDF8',
-        icon: SparklesIcon,
-        borderStyle: 'border-[#38BDF8]/40 bg-[#38BDF8]/10 text-[#38BDF8]',
-      },
-      QuantGram: {
-        name: 'QuantGram',
-        color: '#EC4899',
-        icon: CameraGridIcon,
-        borderStyle: 'border-[#EC4899]/40 bg-[#EC4899]/10 text-[#EC4899]',
-      },
       QuantMail: {
         name: 'QuantMail',
         color: '#FF8C42',
         icon: MailAppIcon,
         borderStyle: 'border-[#FF8C42]/40 bg-[#FF8C42]/10 text-[#FF8C42]',
       },
-      QuanTube: {
-        name: 'QuanTube',
-        color: '#EF4444',
-        icon: TubeAppIcon,
-        borderStyle: 'border-[#EF4444]/40 bg-[#EF4444]/10 text-[#EF4444]',
+      QuantCalendar: {
+        name: 'QuantCalendar',
+        color: '#38BDF8',
+        icon: DocumentIcon,
+        borderStyle: 'border-[#38BDF8]/40 bg-[#38BDF8]/10 text-[#38BDF8]',
+      },
+      QuantDrive: {
+        name: 'QuantDrive',
+        color: '#10B981',
+        icon: HardDriveIcon,
+        borderStyle: 'border-[#10B981]/40 bg-[#10B981]/10 text-[#10B981]',
+      },
+      QuantContacts: {
+        name: 'QuantContacts',
+        color: '#EC4899',
+        icon: LayersIcon,
+        borderStyle: 'border-[#EC4899]/40 bg-[#EC4899]/10 text-[#EC4899]',
+      },
+      QuantGit: {
+        name: 'QuantGit',
+        color: '#A78BFA',
+        icon: FolderIcon,
+        borderStyle: 'border-[#A78BFA]/40 bg-[#A78BFA]/10 text-[#A78BFA]',
+      },
+      Shared: {
+        name: 'Shared context',
+        color: '#94A3B8',
+        icon: LayersIcon,
+        borderStyle: 'border-[#94A3B8]/40 bg-[#94A3B8]/10 text-[#CBD5E1]',
       },
     }),
     [],
   );
 
-  // Cross-app memory vault entries
-  const memoryItems: AiMemoryItem[] = useMemo(
-    () => [
-      {
-        id: 'mem-1',
-        app: 'QuantChat',
-        title: 'Production Deployment Architecture Discussion',
-        timestamp: '15 mins ago',
-        rawContext:
-          'Discussion with Elena on staging EKS cluster: 20 pods currently green in quant-staging. ed25519 authentication keys rotated.',
-        extractedFacts: [
-          'User confirmed 20 pods running in quant-staging',
-          'Sovereign ed25519 cryptographic rotation completed',
-          'Next sprint focus: multi-tenant FastCDC chunking',
-        ],
-        entityGraphLinks: ['@ElenaRostova', '#EKS-Cluster', '#quant-staging', 'Key:ed25519'],
-        confidenceScore: 99.4,
-      },
-      {
-        id: 'mem-2',
-        app: 'QuantAI',
-        title: 'Deep Memory Synthesis & Benchmark Preferences',
-        timestamp: '2 hours ago',
-        rawContext:
-          'User directed: Always benchmark incumbents across YouTube, GitHub, and Instagram before shipping sovereign features.',
-        extractedFacts: [
-          'Requirement: Sub-5ms FTS5 SQLite query search ceiling',
-          'Zero raw Unicode emojis across all app codebases',
-          'Local ONNX embedding models for offline inference',
-        ],
-        entityGraphLinks: ['#FTS5-Engine', '#ONNX-Inference', '#ZeroEmojis', '@AstraCEO'],
-        confidenceScore: 99.8,
-      },
-      {
-        id: 'mem-3',
-        app: 'QuantGram',
-        title: 'Creator Studio & 9:16 Video Monetization Preferences',
-        timestamp: 'Yesterday, 19:40',
-        rawContext:
-          'Creator profile layout: 4-tab matrix (Grid, Reels, Reposts, Tagged) with zero-compromise 9:16 swipe feed.',
-        extractedFacts: [
-          'Creator wallet connected: 1,420 QC sovereign tokens',
-          'Preferred resolution: 4K HDR 60fps segment cache',
-        ],
-        entityGraphLinks: ['#CreatorStudio', '#Reels4Tab', '#QC-Tokens'],
-        confidenceScore: 98.6,
-      },
-      {
-        id: 'mem-4',
-        app: 'QuantMail',
-        title: 'Inbox Triage & VIP Rule Automation',
-        timestamp: 'Oct 4, 2026',
-        rawContext:
-          'Configured automatic VIP routing for board of directors and sovereign node operators. Follow-up nudges set to 48 hours.',
-        extractedFacts: [
-          'Board member emails bypass spam filters directly to Priority Radar',
-          'Undo send buffer confirmed at 10 seconds',
-        ],
-        entityGraphLinks: ['@BoardOfDirectors', '#PriorityRadar', '#UndoSend'],
-        confidenceScore: 99.1,
-      },
-      {
-        id: 'mem-5',
-        app: 'QuanTube',
-        title: 'Sovereign Audio & Video Streaming Cache Policy',
-        timestamp: 'Oct 3, 2026',
-        rawContext:
-          'Audio engine set to lossless FLAC streaming with background play and local persistent IndexedDB song caching.',
-        extractedFacts: [
-          'Lossless FLAC preference selected',
-          'Offline downloads stored encrypted in QuantDrive Vault',
-        ],
-        entityGraphLinks: ['#LosslessFLAC', '#IndexedDB', '#VaultBridge'],
-        confidenceScore: 97.9,
-      },
-    ],
-    [],
-  );
+  // Memory is a projection of canonical source data. This component never invents
+  // memories, confidence scores, people, projects, or conversation facts.
+  const memoryItems = memories;
 
   // Filter items by app and semantic search query
   const filteredMemories = useMemo(() => {
@@ -1946,7 +1888,7 @@ export function DriveAiMemorySubView({
               </span>
             </div>
             <p className="text-xs text-[#94A3B8] mt-0.5">
-              Continuously indexing facts, entity graphs, and conversation context across all ecosystem apps
+              Governed cross-app context with provenance, confidence, privacy scope, and user controls
             </p>
           </div>
         </div>
@@ -1954,7 +1896,7 @@ export function DriveAiMemorySubView({
         {/* Live sync metric */}
         <div className="flex items-center gap-2 text-xs font-mono text-[#10B981] bg-[#10B981]/10 border border-[#10B981]/30 px-3 py-1 rounded-xl">
           <span className="size-2 rounded-full bg-[#10B981] animate-pulse" />
-          <span>Real-time L3 Sync Active</span>
+          <span>{memories.length > 0 ? 'Memory sync available' : 'Waiting for memory data'}</span>
         </div>
       </div>
 
@@ -1990,11 +1932,11 @@ export function DriveAiMemorySubView({
               : 'bg-[#12151E] text-[#94A3B8] border border-[#232938] hover:text-white'
           }`}
         >
-          All Apps (5)
+          All Sources
         </button>
 
         {(
-          ['QuantChat', 'QuantAI', 'QuantGram', 'QuantMail', 'QuanTube'] as const
+          ['QuantMail', 'QuantCalendar', 'QuantDrive', 'QuantContacts', 'QuantGit'] as const
         ).map((appName) => {
           const cfg = appConfigs[appName];
           const Icon = cfg.icon;
@@ -2025,7 +1967,9 @@ export function DriveAiMemorySubView({
             <BrainIcon className="size-10 text-[#64748B] mx-auto mb-2" />
             <p className="text-sm font-semibold text-[#F8FAFC]">No memories found</p>
             <p className="text-xs text-[#64748B] mt-0.5">
-              Try adjusting your search terms or filter selection
+              {memories.length === 0
+                ? 'Memory records will appear here after an authorized source produces a governed memory projection.'
+                : 'Try adjusting your search terms or filter selection.'}
             </p>
           </div>
         ) : (
@@ -2051,7 +1995,9 @@ export function DriveAiMemorySubView({
                   </div>
 
                   <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-[#38BDF8]/10 text-[#38BDF8] border border-[#38BDF8]/20">
-                    {mem.confidenceScore}% Confidence
+                    {mem.confidenceScore == null
+                      ? 'Confidence not scored'
+                      : `${mem.confidenceScore}% Confidence`}
                   </span>
                 </div>
 
@@ -2063,41 +2009,62 @@ export function DriveAiMemorySubView({
                   </p>
                 </div>
 
-                {/* Extracted Key Facts */}
-                <div className="space-y-1.5 bg-[#090A0E] p-3 rounded-xl border border-[#232938]/80">
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#64748B]">
-                    Extracted Key Facts
-                  </span>
-                  <ul className="space-y-1 text-xs text-[#E2E8F0]">
-                    {mem.extractedFacts.map((fact, idx) => (
-                      <li key={idx} className="flex items-start gap-2">
-                        <span className="text-[#38BDF8] mt-1 text-[8px]">&bull;</span>
-                        <span className="flex-1">{fact}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                {/* Facts are shown only when the governed projection actually contains them. */}
+                {mem.extractedFacts.length > 0 && (
+                  <div className="space-y-1.5 bg-[#090A0E] p-3 rounded-xl border border-[#232938]/80">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#64748B]">
+                      Extracted Key Facts
+                    </span>
+                    <ul className="space-y-1 text-xs text-[#E2E8F0]">
+                      {mem.extractedFacts.map((fact, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-[#38BDF8] mt-1 text-[8px]">&bull;</span>
+                          <span className="flex-1">{fact}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
-                {/* Entity Graph Links & Actions */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[#232938]/60">
-                  {/* Entity links */}
+                {/* Graph links are shown only when the governed projection provides them. */}
+                {mem.entityGraphLinks.length > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <NodeLinkIcon className="size-3.5 text-[#64748B]" />
                     {mem.entityGraphLinks.map((link, idx) => (
                       <span
                         key={idx}
-                        className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-[#1E293B]/70 text-[#94A3B8] border border-[#334155] hover:text-[#38BDF8] hover:border-[#38BDF8]/40 cursor-pointer transition-colors"
+                        className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-[#1E293B]/70 text-[#94A3B8] border border-[#334155]"
                       >
                         {link}
                       </span>
                     ))}
                   </div>
+                )}
 
-                  {/* Recall Action Button */}
+                {(mem.sensitivity || mem.explicitness || mem.policyVersion || mem.provenance) && (
+                  <div className="flex flex-wrap gap-2 text-[10px] font-mono text-[#94A3B8]">
+                    {mem.sensitivity && <span className="px-2 py-1 rounded-md border border-[#334155]">Sensitivity: {mem.sensitivity}</span>}
+                    {mem.explicitness && <span className="px-2 py-1 rounded-md border border-[#334155]">Explicitness: {mem.explicitness}</span>}
+                    {mem.policyVersion && <span className="px-2 py-1 rounded-md border border-[#334155]">Policy: {mem.policyVersion}</span>}
+                    {mem.provenance && <span className="px-2 py-1 rounded-md border border-[#334155]">Source: {mem.provenance}</span>}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#232938]/60">
+                  {onForgetMemory && (
+                    <button
+                      type="button"
+                      onClick={() => onForgetMemory(mem)}
+                      className="inline-flex items-center gap-1 px-3 py-1 rounded-lg border border-[#7F1D1D] text-xs font-semibold text-[#FCA5A5] hover:bg-[#7F1D1D]/20 transition-colors"
+                    >
+                      Forget
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => onRecallInChat?.(mem)}
-                    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-[#38BDF8]/15 border border-[#38BDF8]/35 text-xs font-semibold text-[#38BDF8] hover:bg-[#38BDF8]/25 transition-colors self-end sm:self-auto"
+                    disabled={!onRecallInChat}
+                    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-[#38BDF8]/15 border border-[#38BDF8]/35 text-xs font-semibold text-[#38BDF8] hover:bg-[#38BDF8]/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <span>Recall Context</span>
                     <svg

@@ -20,3 +20,61 @@ export type { RegistryHooks, RegistryOptions, AuditEntry } from './capability-re
 export { projectForQuanty } from './quanty-projection';
 export type { ProjectionPolicy } from './quanty-projection';
 export { ALL_CAPABILITIES, buildCapabilityRegistry, activeCapabilities } from './capabilities';
+
+// EC-02 — Cross-App Resource Contract & Context Envelope (doc 22).
+export * from './resource-types';
+export { RESOURCE_ERROR_CODES, ResourceContractError } from './resource-errors';
+export type { ResourceErrorCode } from './resource-errors';
+export {
+  createResourceRef,
+  tryCreateResourceRef,
+  isResourceRef,
+  parseResourceRef,
+  serializeResourceRef,
+  deserializeResourceRef,
+  deepLinkFor,
+  parseDeepLink,
+  isStaleVersion,
+  sameResource,
+} from './resource-ref';
+export {
+  createContextEnvelope,
+  isContextEnvelope,
+  parseContextEnvelope,
+  serializeEnvelope,
+  deserializeEnvelope,
+  assertBudget,
+  assertTenantMatch,
+  estimatePayloadBytes,
+  isTierWithin,
+  DEFAULT_ENVELOPE_BUDGET_BYTES,
+} from './context-envelope';
+
+// QM-QUANTY-002 — Quanty inline context surfaces: evidence, context boundary,
+// preview-before-mutation, cost/reversibility, provenance.
+export {
+  QuantyContextError,
+  createEvidenceRef,
+  isEvidenceRef,
+  recordProvenance,
+  quantyContextBudgetFor,
+  assertQuantyContextBudget,
+  quoteCost,
+  requiresPreview,
+  buildMutationPreview,
+  buildOutputEnvelope,
+  EVIDENCE_QUOTE_MAX_CHARS,
+  QUANTY_INLINE_CONTEXT_BUDGET_BYTES,
+  QUANTY_CONTEXT_BUDGET_BY_TIER,
+  CREDIT_ESTIMATES_BY_METER,
+} from './quanty-inline-context';
+export type {
+  QuantyContextErrorCode,
+  EvidenceRef,
+  ProvenanceRecord,
+  ProvenanceProducer,
+  CostQuote,
+  PreviewChange,
+  MutationPreview,
+  QuantyOutputEnvelope,
+} from './quanty-inline-context';

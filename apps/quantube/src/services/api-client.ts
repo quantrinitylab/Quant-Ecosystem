@@ -15,6 +15,7 @@ import type {
   SearchResult,
   Recommendation,
 } from '../types';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -56,7 +57,7 @@ class QuantTubeApiClient {
     if (this.token) reqHeaders['Authorization'] = `Bearer ${this.token}`;
 
     try {
-      const response = await fetch(url, {
+      const response = await apiFetchRaw(url, {
         method,
         headers: reqHeaders,
         body: body ? JSON.stringify(body) : undefined,

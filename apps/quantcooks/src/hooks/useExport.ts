@@ -6,6 +6,7 @@
 // ============================================================================
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface ExportSettings {
   format: 'mp4' | 'mov' | 'gif' | 'png' | 'jpg' | 'pdf' | 'svg';
@@ -252,7 +253,7 @@ export function useExport(): UseExportReturn {
       stopPolling(jobId);
       const interval = setInterval(async () => {
         try {
-          const res = await fetch(`/api/exports/${encodeURIComponent(jobId)}/status`);
+          const res = await apiFetchRaw(`/api/exports/${encodeURIComponent(jobId)}/status`);
           const payload = (await res.json().catch(() => null)) as QueueExportApiResponse | null;
           if (!res.ok || !payload?.success || !payload.data) {
             throw new Error(
@@ -317,7 +318,7 @@ export function useExport(): UseExportReturn {
       }
       const run = async () => {
         try {
-          const res = await fetch('/api/exports', {
+          const res = await apiFetchRaw('/api/exports', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -373,7 +374,7 @@ export function useExport(): UseExportReturn {
       const run = async () => {
         stopPolling(jobId);
         try {
-          const res = await fetch(`/api/exports/${encodeURIComponent(jobId)}/cancel`, {
+          const res = await apiFetchRaw(`/api/exports/${encodeURIComponent(jobId)}/cancel`, {
             method: 'POST',
           });
           const payload = (await res.json().catch(() => null)) as QueueExportApiResponse | null;

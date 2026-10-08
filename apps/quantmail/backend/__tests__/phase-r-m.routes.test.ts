@@ -51,6 +51,7 @@ import * as routeHandlers from '../../src/app/api/[...path]/route';
 
 function createMockPrisma() {
   const storedEmails = new Map<string, any>();
+  const storedThreads = new Map<string, any>();
   const storedDraft = {
     id: 'draft-1',
     userId: 'user-1',
@@ -73,7 +74,7 @@ function createMockPrisma() {
   };
   storedEmails.set('draft-1', storedDraft);
 
-  return {
+  const mock = {
     storedDraft,
     storedEmails,
     email: {
@@ -100,7 +101,36 @@ function createMockPrisma() {
         storedEmails.set(where.id, updated);
         return updated;
       }),
-      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      // QM-BACK-002: versionedUpdate's conditional updateMany. Persists into
+      // the in-memory store, honouring the version predicate and the increment
+      // marker, so re-reads see the write.
+      updateMany: vi.fn().mockImplementation(async ({ where, data }: any) => {
+        let count = 0;
+        const applyRow = (id: string, row: any) => {
+          if (where.version !== undefined && (row.version ?? 0) !== where.version) return;
+          const next: any = { ...row };
+          for (const [k, v] of Object.entries(data as Record<string, any>)) {
+            if (k === 'version' && typeof v === 'object' && v !== null && 'increment' in v) {
+              next.version = (row.version ?? 0) + (v as { increment: number }).increment;
+            } else {
+              next[k] = v;
+            }
+          }
+          storedEmails.set(id, next);
+          count++;
+        };
+        if (where.id !== undefined && typeof where.id === 'string') {
+          const row = storedEmails.get(where.id);
+          if (row) applyRow(where.id, row);
+          else if (where.id === 'draft-1') applyRow(where.id, { ...storedDraft, id: where.id });
+        } else if (where.id?.in) {
+          for (const id of where.id.in) {
+            const row = storedEmails.get(id);
+            if (row) applyRow(id, row);
+          }
+        }
+        return { count };
+      }),
       delete: vi.fn().mockImplementation(async ({ where }: any) => {
         const existing = storedEmails.get(where.id) || storedDraft;
         storedEmails.delete(where.id);
@@ -126,6 +156,7 @@ function createMockPrisma() {
     },
     emailThread: {
       findUnique: vi.fn().mockImplementation(async ({ where }: any) => {
+        if (storedThreads.has(where.id)) return { ...storedThreads.get(where.id) };
         return {
           id: where.id,
           userId: 'user-1',
@@ -134,6 +165,7 @@ function createMockPrisma() {
           snoozedUntil: null,
           participantAddresses: ['sender@test.com'],
           lastEmailAt: new Date(),
+          version: 0,
         };
       }),
       findFirst: vi.fn().mockResolvedValue(null),
@@ -146,6 +178,30 @@ function createMockPrisma() {
           isMuted: data.isMuted ?? false,
           snoozedUntil: data.snoozedUntil ?? null,
         };
+      }),
+      // QM-BACK-002: versionedUpdate's conditional updateMany for threads.
+      updateMany: vi.fn().mockImplementation(async ({ where, data }: any) => {
+        const current = storedThreads.get(where.id) ?? {
+          id: where.id,
+          userId: 'user-1',
+          subject: 'Thread Subject',
+          isMuted: false,
+          snoozedUntil: null,
+          version: 0,
+        };
+        if (where.version !== undefined && (current.version ?? 0) !== where.version) {
+          return { count: 0 };
+        }
+        const next: any = { ...current };
+        for (const [k, v] of Object.entries(data as Record<string, any>)) {
+          if (k === 'version' && typeof v === 'object' && v !== null && 'increment' in v) {
+            next.version = (current.version ?? 0) + (v as { increment: number }).increment;
+          } else {
+            next[k] = v;
+          }
+        }
+        storedThreads.set(where.id, next);
+        return { count: 1 };
       }),
     },
     contact: {
@@ -160,7 +216,22 @@ function createMockPrisma() {
         ...update,
       })),
     },
+    // K1: mail mutations run inside `prisma.$transaction`; the double hands the
+    // callback the mock itself as the tx client and records outbox writes.
+    outboxEvent: {
+      create: vi.fn().mockImplementation(async ({ data }: any) => ({
+        id: `outbox-${Date.now()}`,
+        publishedAt: null,
+        createdAt: new Date(),
+        ...data,
+      })),
+    },
+    $transaction: null as unknown as ReturnType<typeof vi.fn>,
   };
+  mock.$transaction = vi
+    .fn()
+    .mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(mock));
+  return mock;
 }
 
 async function buildTestFastifyApp(prisma: any, authenticatedUserId: string | null = 'user-1') {
@@ -389,9 +460,9 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
         bodyPlain: 'BCC Only Content',
         fromAddress: 'user-1@quantmail.in',
       };
-      prisma.email.findUnique.mockResolvedValue(mockEmail);
+      // QM-BACK-002: seed the in-memory store so the conditional send flip matches.
+      await prisma.email.create({ data: mockEmail });
       prisma.user.findMany.mockResolvedValue([]); // external recipient
-      prisma.email.update.mockResolvedValue({ id: 'email-bcc-1', deliveryStatus: 'delivered' });
 
       await service.send('user-1', 'email-bcc-1', 'sent-folder-id');
 
@@ -416,9 +487,9 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
         bodyPlain: 'CC Content',
         fromAddress: 'user-1@quantmail.in',
       };
-      prisma.email.findUnique.mockResolvedValue(mockEmail);
+      // QM-BACK-002: seed the in-memory store so the conditional send flip matches.
+      await prisma.email.create({ data: mockEmail });
       prisma.user.findMany.mockResolvedValue([]); // external
-      prisma.email.update.mockResolvedValue({ id: 'email-cc-1', deliveryStatus: 'delivered' });
 
       await service.send('user-1', 'email-cc-1', 'sent-folder-id');
 
@@ -621,9 +692,10 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      expect(prisma.email.update).toHaveBeenCalledTimes(1);
+      // QM-BACK-002: the draft update is a conditional updateMany now.
+      expect(prisma.email.updateMany).toHaveBeenCalledTimes(1);
 
-      const updateCall = prisma.email.update.mock.calls[0][0];
+      const updateCall = prisma.email.updateMany.mock.calls[0][0];
       expect(updateCall.where).toEqual({ id: 'draft-1' });
 
       const data = updateCall.data;
@@ -661,9 +733,10 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      expect(prisma.email.update).toHaveBeenCalledTimes(1);
+      // QM-BACK-002: the draft update is a conditional updateMany now.
+      expect(prisma.email.updateMany).toHaveBeenCalledTimes(1);
 
-      const data = prisma.email.update.mock.calls[0][0].data;
+      const data = prisma.email.updateMany.mock.calls[0][0].data;
       expect(data.ccAddresses).toEqual([]);
       expect(data.bccAddresses).toEqual([]);
       expect(data.bodyHtml).toBe('');
@@ -693,9 +766,10 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      expect(prisma.email.update).toHaveBeenCalledTimes(1);
+      // QM-BACK-002: the draft update is a conditional updateMany now.
+      expect(prisma.email.updateMany).toHaveBeenCalledTimes(1);
 
-      const data = prisma.email.update.mock.calls[0][0].data;
+      const data = prisma.email.updateMany.mock.calls[0][0].data;
       expect(data.bodyHtml).toContain('<p>Valid content</p>');
       expect(data.bodyHtml).not.toContain('<script>');
       expect(data.bodyHtml).not.toContain('alert("xss")');
@@ -719,6 +793,7 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
 
       expect(res.statusCode).toBe(401);
       expect(prisma.email.update).not.toHaveBeenCalled();
+      expect(prisma.email.updateMany).not.toHaveBeenCalled();
 
       await app.close();
     });
@@ -745,6 +820,7 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
 
       expect(res.statusCode).toBe(409);
       expect(prisma.email.update).not.toHaveBeenCalled();
+      expect(prisma.email.updateMany).not.toHaveBeenCalled();
 
       await app.close();
     });
@@ -839,7 +915,8 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
         },
       });
       expect(putRes.statusCode).toBe(200);
-      expect(prisma.email.update).toHaveBeenCalledWith(
+      // QM-BACK-002: the draft update is a conditional updateMany now.
+      expect(prisma.email.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             priority: 'URGENT',
@@ -1050,12 +1127,12 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
     it('M-F05: POST /:id/reply deletes orphan draft if outbound send throws', async () => {
       const app = await buildTestFastifyApp(prisma, 'user-1');
 
-      // Make prisma.email.update throw during send
-      prisma.email.update.mockImplementation(async ({ where, data }: any) => {
+      // Make the send flip throw (QM-BACK-002: send flips via updateMany)
+      prisma.email.updateMany.mockImplementation(async ({ where, data }: any) => {
         if (data?.sentAt || data?.isSent) {
           throw new Error('Database transaction write error');
         }
-        return { ...prisma.storedDraft, ...data, id: where.id };
+        return { count: 1 };
       });
 
       const replyRes = await app.inject({

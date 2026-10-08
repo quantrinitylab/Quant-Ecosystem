@@ -4,6 +4,7 @@
 // ============================================================================
 import React, { useState, useEffect, useCallback } from 'react';
 import { getAuthHeaders, getAuthHeadersWithContent } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface FriendSuggestion {
   id: string;
@@ -33,7 +34,7 @@ export const QuickAdd: React.FC<QuickAddProps> = ({ userId, onAddFriend, maxSugg
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/friends/suggestions?limit=${maxSuggestions}`, {
+      const response = await apiFetchRaw(`/api/friends/suggestions?limit=${maxSuggestions}`, {
         headers: { ...getAuthHeaders() },
       });
       if (!response.ok) throw new Error('Failed to load suggestions');
@@ -55,7 +56,7 @@ export const QuickAdd: React.FC<QuickAddProps> = ({ userId, onAddFriend, maxSugg
       setAddedRecently((prev) => new Set([...prev, friendId]));
       setSuggestions((prev) => prev.map((s) => (s.id === friendId ? { ...s, isAdded: true } : s)));
       try {
-        await fetch(`/api/friends/add`, {
+        await apiFetchRaw(`/api/friends/add`, {
           method: 'POST',
           headers: { ...getAuthHeadersWithContent() },
           body: JSON.stringify({ userId: friendId }),
@@ -78,7 +79,7 @@ export const QuickAdd: React.FC<QuickAddProps> = ({ userId, onAddFriend, maxSugg
   const handleDismiss = useCallback(async (friendId: string) => {
     setDismissed((prev) => new Set([...prev, friendId]));
     try {
-      await fetch(`/api/friends/suggestions/${friendId}/dismiss`, {
+      await apiFetchRaw(`/api/friends/suggestions/${friendId}/dismiss`, {
         method: 'POST',
         headers: { ...getAuthHeaders() },
       });

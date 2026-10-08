@@ -10,7 +10,7 @@ describe('Task W33-03: PostgreSQL Persistence Migration for Legal Holds', () => 
   let simulatedDbTable: any[] = [];
 
   const createMockPrisma = () => {
-    return {
+    const mock = {
       legalHold: {
         create: vi.fn(async ({ data }: { data: any }) => {
           const row = {
@@ -68,12 +68,27 @@ describe('Task W33-03: PostgreSQL Persistence Migration for Legal Holds', () => 
       email: {
         findUnique: vi.fn(),
         update: vi.fn(),
+        // QM-BACK-002: versionedUpdate's conditional updateMany.
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       emailFolder: {
         findFirst: vi.fn(),
         create: vi.fn(),
       },
+      // K1: mail mutations run inside `prisma.$transaction`; the double hands
+      // the callback the mock itself as the tx client and records outbox writes.
+      outboxEvent: {
+        create: vi.fn(async ({ data }: { data: any }) => ({
+          id: 'outbox-1',
+          publishedAt: null,
+          createdAt: new Date(),
+          ...data,
+        })),
+      },
+      $transaction: null as unknown as ReturnType<typeof vi.fn>,
     };
+    mock.$transaction = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mock));
+    return mock;
   };
 
   beforeEach(() => {
@@ -284,14 +299,24 @@ describe('Task W33-03: PostgreSQL Persistence Migration for Legal Holds', () => 
         isTrash: false,
       });
       mockPrisma.emailFolder.findFirst.mockResolvedValue({ id: 'trash-folder-id' });
-      mockPrisma.email.update.mockResolvedValue({
-        id: 'regular-email',
-        userId: 'user-owner',
-        fromAddress: 'sender@quantmail.in',
-        toAddresses: ['receiver@quantmail.in'],
-        folderId: 'trash-folder-id',
-        isTrash: true,
-      });
+      // QM-BACK-002: the DELETE route trash-moves via versionedUpdate —
+      // ownership read, then the conditional update's re-read.
+      mockPrisma.email.findUnique
+        .mockResolvedValueOnce({
+          id: 'regular-email',
+          userId: 'user-owner',
+          fromAddress: 'sender@quantmail.in',
+          toAddresses: ['receiver@quantmail.in'],
+          isTrash: false,
+        })
+        .mockResolvedValueOnce({
+          id: 'regular-email',
+          userId: 'user-owner',
+          fromAddress: 'sender@quantmail.in',
+          toAddresses: ['receiver@quantmail.in'],
+          folderId: 'trash-folder-id',
+          isTrash: true,
+        });
 
       const app = await buildEmailApp(mockPrisma, 'user-owner');
 

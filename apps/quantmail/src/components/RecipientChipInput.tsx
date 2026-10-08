@@ -271,7 +271,7 @@ export function RecipientChipInput({
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={recipients.length === 0 ? placeholder : ''}
-          className="flex-1 min-w-[70px] sm:min-w-[120px] min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none py-1"
+          className="flex-1 min-w-[70px] sm:min-w-[120px] min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none py-1 focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
           autoComplete="off"
           spellCheck={false}
         />

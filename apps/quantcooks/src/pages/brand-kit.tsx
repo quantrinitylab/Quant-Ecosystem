@@ -8,6 +8,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { PageTransition } from '../components/PageTransition';
+import { apiFetchRaw } from '@quant/api-client';
 
 /** Matches the backend BrandKit shape exactly. */
 interface BrandKit {
@@ -80,7 +81,7 @@ const BrandKitPage: React.FC<BrandKitPageProps> = ({ userId, teamId }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/brand-kit');
+      const res = await apiFetchRaw('/api/brand-kit');
       const payload = (await res.json().catch(() => null)) as ApiResponse<BrandKit[]> | null;
       if (!res.ok || !payload?.success) {
         throw new Error(payload?.error?.message || `Failed to load brand kits (HTTP ${res.status})`);
@@ -109,7 +110,7 @@ const BrandKitPage: React.FC<BrandKitPageProps> = ({ userId, teamId }) => {
     async (kitId: string, patch: Record<string, unknown>): Promise<BrandKit | null> => {
       setActionError(null);
       try {
-        const res = await fetch(`/api/brand-kit/${encodeURIComponent(kitId)}`, {
+        const res = await apiFetchRaw(`/api/brand-kit/${encodeURIComponent(kitId)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(patch),
@@ -135,7 +136,7 @@ const BrandKitPage: React.FC<BrandKitPageProps> = ({ userId, teamId }) => {
     if (!name) return;
     setActionError(null);
     try {
-      const res = await fetch('/api/brand-kit', {
+      const res = await apiFetchRaw('/api/brand-kit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
@@ -201,7 +202,7 @@ const BrandKitPage: React.FC<BrandKitPageProps> = ({ userId, teamId }) => {
     async (kitId: string) => {
       setActionError(null);
       try {
-        const res = await fetch(`/api/brand-kit/${encodeURIComponent(kitId)}`, {
+        const res = await apiFetchRaw(`/api/brand-kit/${encodeURIComponent(kitId)}`, {
           method: 'DELETE',
         });
         const payload = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;

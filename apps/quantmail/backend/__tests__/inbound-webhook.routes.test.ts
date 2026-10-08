@@ -23,6 +23,7 @@ interface FakeUser {
 const state = vi.hoisted(() => ({
   users: [] as Array<{ id: string; email: string; username: string; role: string }>,
   s3Send: vi.fn(),
+  notifications: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock('@quant/database', () => ({
@@ -39,6 +40,26 @@ vi.mock('@quant/database', () => ({
       findUnique: vi.fn(async (args: unknown) => {
         const id = (args as { where?: { id?: string } }).where?.id;
         return state.users.find((user) => user.id === id) ?? null;
+      }),
+    },
+    // QM-UIUX-052: in-memory notification store for the new-mail notification wire.
+    notification: {
+      findFirst: vi.fn(async (args: unknown) => {
+        const where = (args as { where?: Record<string, unknown> }).where ?? {};
+        return (
+          state.notifications.find(
+            (n) =>
+              n['userId'] === where['userId'] &&
+              n['type'] === where['type'] &&
+              n['sourceEntityId'] === where['sourceEntityId'],
+          ) ?? null
+        );
+      }),
+      create: vi.fn(async (args: unknown) => {
+        const data = (args as { data: Record<string, unknown> }).data;
+        const row = { id: `notif-${state.notifications.length + 1}`, ...data };
+        state.notifications.push(row);
+        return row;
       }),
     },
   },
@@ -259,6 +280,7 @@ function ingestCall(index = 0): IngestArgs {
 
 beforeEach(async () => {
   state.users.length = 0;
+  state.notifications.length = 0;
   state.s3Send.mockReset();
   s3ReturnsRawEmail();
   delete process.env['INBOUND_SNS_TOPIC_ARNS'];
@@ -267,7 +289,14 @@ beforeEach(async () => {
   process.env['INBOUND_WEBHOOK_ALLOW_UNSIGNED'] = 'true';
   fetchStub = vi.fn(async () => ({ status: 200 }));
   globalThis.fetch = fetchStub as unknown as typeof globalThis.fetch;
-  ingest = vi.fn(async () => ({ id: 'email-1' }));
+  ingest = vi.fn(async () => ({
+    id: 'email-1',
+    threadId: 'thread-1',
+    subject: 'Numbers',
+    fromName: 'Ada Lovelace',
+    fromAddress: 'ada@example.com',
+    snippet: 'Hello Bob.',
+  }));
   __setInboundIngestAdapter({ ingest } as unknown as InboundIngestAdapter);
   app = await buildTestApp();
 });
@@ -689,6 +718,82 @@ describe('POST /webhook/inbound — a failed delivery is not reported as success
     // because ingest is idempotent on (userId, messageId).
     expect(response.statusCode).toBe(500);
     expect(ingest).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('POST /webhook/inbound — new mail creates an in-app notification (QM-UIUX-052)', () => {
+  it('creates a new_email notification when mail is delivered', async () => {
+    state.users.push(localUser());
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification(),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(state.notifications).toHaveLength(1);
+    expect(state.notifications[0]).toMatchObject({
+      userId: 'u-bob',
+      type: 'new_email',
+      title: 'New email from Ada Lovelace <ada@example.com>',
+      body: 'Numbers',
+      sourceApp: 'quantmail',
+      sourceEntityId: 'email-1',
+      actionUrl: '/thread/thread-1',
+    });
+  });
+
+  it('does not notify for quarantined (spam) mail', async () => {
+    state.users.push(localUser());
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification({ spamVerdict: { status: 'FAIL' } }),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ ok: true, delivered: 1 });
+    expect(state.notifications).toHaveLength(0);
+  });
+
+  it('does not create a duplicate notification on SNS redelivery', async () => {
+    state.users.push(localUser());
+    // A previous delivery already notified for this email.
+    state.notifications.push({
+      id: 'notif-0',
+      userId: 'u-bob',
+      type: 'new_email',
+      sourceEntityId: 'email-1',
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification(),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(state.notifications).toHaveLength(1);
+  });
+
+  it('a notification failure never breaks mail delivery', async () => {
+    state.users.push(localUser());
+    // Simulate a notification store outage: findFirst throws.
+    const { prisma } = await import('@quant/database');
+    const findFirst = (prisma as unknown as { notification: { findFirst: ReturnType<typeof vi.fn> } })
+      .notification.findFirst as ReturnType<typeof vi.fn>;
+    findFirst.mockRejectedValueOnce(new Error('notification store is down'));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification(),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ ok: true, delivered: 1 });
   });
 });
 

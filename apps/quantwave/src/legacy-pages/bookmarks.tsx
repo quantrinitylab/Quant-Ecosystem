@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface BookmarkedPost {
   id: string;
@@ -45,8 +46,8 @@ const BookmarksPage: React.FC = () => {
       if (selectedFolder) params.set('folder', selectedFolder);
       if (searchQuery) params.set('q', searchQuery);
       const [bookmarksRes, foldersRes] = await Promise.all([
-        fetch(`/api/bookmarks?${params.toString()}`),
-        fetch('/api/bookmarks/folders'),
+        apiFetchRaw(`/api/bookmarks?${params.toString()}`),
+        apiFetchRaw('/api/bookmarks/folders'),
       ]);
       if (!bookmarksRes.ok) throw new Error('Failed to load bookmarks');
       const bookmarksData = await bookmarksRes.json();
@@ -67,13 +68,13 @@ const BookmarksPage: React.FC = () => {
 
   const handleRemoveBookmark = useCallback(async (postId: string) => {
     setBookmarks((prev) => prev.filter((b) => b.id !== postId));
-    await fetch(`/api/posts/${postId}/bookmark`, { method: 'DELETE' });
+    await apiFetchRaw(`/api/posts/${postId}/bookmark`, { method: 'DELETE' });
   }, []);
 
   const handleCreateFolder = useCallback(async () => {
     if (!newFolderName.trim()) return;
     try {
-      const res = await fetch('/api/bookmarks/folders', {
+      const res = await apiFetchRaw('/api/bookmarks/folders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newFolderName }),
@@ -88,7 +89,7 @@ const BookmarksPage: React.FC = () => {
 
   const handleMoveToFolder = useCallback(async (postId: string, folderId: string) => {
     setBookmarks((prev) => prev.map((b) => (b.id === postId ? { ...b, folderId } : b)));
-    await fetch(`/api/bookmarks/${postId}/move`, {
+    await apiFetchRaw(`/api/bookmarks/${postId}/move`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ folderId }),

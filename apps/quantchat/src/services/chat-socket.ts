@@ -38,6 +38,7 @@
 // ============================================================================
 
 import { getAuthHeaders, getChatSocketUrl, getWsProtocols } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 /**
  * K25 — contract §18 envelope as received on the wire. Kept structural (not
@@ -452,7 +453,7 @@ export class ChatSocketManager {
         this.knownMessageIds.set(conversationId, known);
       }
       try {
-        const res = await fetch(
+        const res = await apiFetchRaw(
           `/api/messages/${encodeURIComponent(conversationId)}?limit=${POLL_PAGE_LIMIT}`,
           { headers },
         );

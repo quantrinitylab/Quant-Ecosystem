@@ -6,6 +6,7 @@
 
 import { useState, useCallback } from 'react';
 import { getAuthToken } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 export type Feedback = 'POSITIVE' | 'NEGATIVE' | null;
 
@@ -44,7 +45,7 @@ export function useMessageFeedback(
         const headers: Record<string, string> = { 'content-type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const res = await fetch(
+        const res = await apiFetchRaw(
           `/api/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(
             messageId,
           )}/feedback`,

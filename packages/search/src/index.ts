@@ -101,7 +101,7 @@ export type { ReindexJob, ReindexJobState } from './services/reindex-job';
 export { NLQueryEnhancer } from './services/nl-query-enhancer';
 export type { QueryIntent, ExtractedEntity, EnhancedQuery } from './services/nl-query-enhancer';
 
-export { CrossAppSearchService } from './cross-app-search';
+export { CrossAppSearchService, searchResultToResourceRef } from './cross-app-search';
 export { CrossAppSearchApi } from './services/cross-app-search-api';
 export type { SearchApiOptions, SearchApiResponse } from './services/cross-app-search-api';
 export type {

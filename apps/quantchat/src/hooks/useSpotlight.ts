@@ -10,6 +10,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { getAuthHeaders } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 export interface SpotlightReel {
   id: string;
@@ -55,7 +56,7 @@ export interface UseSpotlightReturn {
 }
 
 async function fetchSpotlight(): Promise<SpotlightResponse['data']> {
-  const res = await fetch('/api/spotlight', { headers: { ...getAuthHeaders() } });
+  const res = await apiFetchRaw('/api/spotlight', { headers: { ...getAuthHeaders() } });
   if (!res.ok) throw new Error(`Failed to load Spotlight: ${res.statusText}`);
   const json: SpotlightResponse = await res.json();
   // A non-success or malformed payload must surface the error state (with

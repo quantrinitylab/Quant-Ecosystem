@@ -8,6 +8,7 @@
 import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { SpringButton } from '@quant/shared-ui';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface PostMedia {
   url: string;
@@ -131,7 +132,7 @@ const PostCard: React.FC<PostCardProps> = ({
     async (optionId: string, optionIndex: number) => {
       if (selectedPollOption) return;
       setSelectedPollOption(optionId);
-      await fetch(`/api/posts/${id}/poll/vote`, {
+      await apiFetchRaw(`/api/posts/${id}/poll/vote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // Backend `pollVoteSchema` expects the numeric option index, not the id.

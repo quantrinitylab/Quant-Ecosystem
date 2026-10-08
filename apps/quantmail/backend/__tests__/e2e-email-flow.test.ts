@@ -3,7 +3,7 @@ import { EmailService } from '../services/email.service';
 import { FolderService } from '../services/folder.service';
 
 function createMockPrisma() {
-  return {
+  const mock = {
     user: {
       // EmailService.compose stamps the sender's own address on the message.
       findUnique: vi.fn().mockResolvedValue({ email: 'alice@test.com', displayName: 'Alice' }),
@@ -14,6 +14,8 @@ function createMockPrisma() {
       findMany: vi.fn(),
       count: vi.fn(),
       update: vi.fn(),
+      // QM-BACK-002: versionedUpdate's conditional updateMany.
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       delete: vi.fn(),
     },
     emailFolder: {
@@ -27,7 +29,20 @@ function createMockPrisma() {
     label: {
       findMany: vi.fn(),
     },
+    // K1: mail mutations run inside `prisma.$transaction`; the double hands the
+    // callback the mock itself as the tx client and records outbox writes.
+    outboxEvent: {
+      create: vi.fn(async (args: { data: Record<string, unknown> }) => ({
+        id: 'outbox-1',
+        publishedAt: null,
+        createdAt: new Date(),
+        ...args.data,
+      })),
+    },
+    $transaction: null as unknown as ReturnType<typeof vi.fn>,
   };
+  mock.$transaction = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mock));
+  return mock;
 }
 
 /**
@@ -100,7 +115,7 @@ describe('E2E Email Flow', () => {
       expect(composed.isDraft).toBe(true);
       expect(composed.id).toBe('email-1');
 
-      prisma.email.findUnique.mockResolvedValue(composed);
+      prisma.email.findUnique.mockResolvedValueOnce(composed);
       const sentEmail = {
         ...composed,
         isDraft: false,
@@ -108,7 +123,7 @@ describe('E2E Email Flow', () => {
         folderId: 'sent-folder',
         sentAt: new Date(),
       };
-      prisma.email.update.mockResolvedValue(sentEmail);
+      prisma.email.findUnique.mockResolvedValueOnce(sentEmail);
       const sent = await emailService.send('user-1', composed.id, 'sent-folder');
       expect(sent.isSent).toBe(true);
       expect(sent.isDraft).toBe(false);
@@ -137,21 +152,21 @@ describe('E2E Email Flow', () => {
       });
       expect(received.isRead).toBe(false);
 
-      prisma.email.findUnique.mockResolvedValue(received);
+      prisma.email.findUnique.mockResolvedValueOnce(received);
       const readEmail = { ...received, isRead: true };
-      prisma.email.update.mockResolvedValue(readEmail);
+      prisma.email.findUnique.mockResolvedValueOnce(readEmail);
       const read = await emailService.markRead(received.id, 'user-2');
       expect(read.isRead).toBe(true);
 
-      prisma.email.findUnique.mockResolvedValue(readEmail);
+      prisma.email.findUnique.mockResolvedValueOnce(readEmail);
       const archivedEmail = { ...readEmail, folderId: 'archive-folder' };
-      prisma.email.update.mockResolvedValue(archivedEmail);
+      prisma.email.findUnique.mockResolvedValueOnce(archivedEmail);
       const archived = await emailService.moveToFolder(read.id, 'archive-folder', 'user-2');
       expect(archived.folderId).toBe('archive-folder');
 
-      prisma.email.findUnique.mockResolvedValue(archivedEmail);
+      prisma.email.findUnique.mockResolvedValueOnce(archivedEmail);
       const deletedEmail = { ...archivedEmail, deletedAt: new Date(), isTrash: true };
-      prisma.email.update.mockResolvedValue(deletedEmail);
+      prisma.email.findUnique.mockResolvedValueOnce(deletedEmail);
       const deleted = await emailService.delete(archived.id, 'user-2');
       expect(deleted.isTrash).toBe(true);
       expect(deleted.deletedAt).toBeInstanceOf(Date);
@@ -252,9 +267,9 @@ describe('E2E Email Flow', () => {
       expect(archiveFolder).toBeTruthy();
 
       const email = { id: 'email-1', userId: 'user-1', folderId: inboxFolder!.id };
-      prisma.email.findUnique.mockResolvedValue(email);
+      prisma.email.findUnique.mockResolvedValueOnce(email);
       const moved = { ...email, folderId: archiveFolder!.id };
-      prisma.email.update.mockResolvedValue(moved);
+      prisma.email.findUnique.mockResolvedValueOnce(moved);
 
       const result = await emailService.moveToFolder(
         'email-1',
@@ -333,14 +348,14 @@ describe('E2E Email Flow', () => {
   describe('Star and Label Operations', () => {
     it('toggles star on and off', async () => {
       const unstarred = { id: 'email-1', userId: 'user-1', isStarred: false };
-      prisma.email.findUnique.mockResolvedValue(unstarred);
-      prisma.email.update.mockResolvedValue({ ...unstarred, isStarred: true });
+      prisma.email.findUnique.mockResolvedValueOnce(unstarred);
+      prisma.email.findUnique.mockResolvedValueOnce({ ...unstarred, isStarred: true });
 
       const starred = await emailService.markStarred('email-1', 'user-1');
       expect(starred.isStarred).toBe(true);
 
-      prisma.email.findUnique.mockResolvedValue(starred);
-      prisma.email.update.mockResolvedValue({ ...starred, isStarred: false });
+      prisma.email.findUnique.mockResolvedValueOnce(starred);
+      prisma.email.findUnique.mockResolvedValueOnce({ ...starred, isStarred: false });
 
       const unstarredAgain = await emailService.markStarred('email-1', 'user-1');
       expect(unstarredAgain.isStarred).toBe(false);
@@ -348,8 +363,8 @@ describe('E2E Email Flow', () => {
 
     it('applies labels without duplicating', async () => {
       const email = { id: 'email-1', userId: 'user-1', labels: ['important'] };
-      prisma.email.findUnique.mockResolvedValue(email);
-      prisma.email.update.mockResolvedValue({ ...email, labels: ['important', 'work'] });
+      prisma.email.findUnique.mockResolvedValueOnce(email);
+      prisma.email.findUnique.mockResolvedValueOnce({ ...email, labels: ['important', 'work'] });
 
       const result = await emailService.applyLabel('email-1', 'work', 'user-1');
       expect((result as unknown as { labels: string[] }).labels).toContain('work');
@@ -365,14 +380,15 @@ describe('E2E Email Flow', () => {
       const emailIds = ['email-1', 'email-2', 'email-3'];
 
       for (const id of emailIds) {
-        prisma.email.findUnique.mockResolvedValue({ id, userId: 'user-1' });
-        prisma.email.update.mockResolvedValue({ id, isTrash: true, deletedAt: new Date() });
+        prisma.email.findUnique.mockResolvedValueOnce({ id, userId: 'user-1' });
+        prisma.email.findUnique.mockResolvedValueOnce({ id, isTrash: true, deletedAt: new Date() });
 
         const result = await emailService.trashEmail(id, 'user-1');
         expect(result.isTrash).toBe(true);
       }
 
-      expect(prisma.email.update).toHaveBeenCalledTimes(3);
+      // QM-BACK-002: trashEmail() deletes via a conditional updateMany now.
+expect(prisma.email.updateMany).toHaveBeenCalledTimes(3);
     });
   });
 });

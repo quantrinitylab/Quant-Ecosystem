@@ -259,7 +259,7 @@ export function QuantGitModals({
               onChange={(e) => setFileSearchQuery(e.target.value)}
               placeholder="Type a filename..."
               autoFocus
-              className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-3 py-2 text-xs text-white focus:outline-none"
+              className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-3 py-2 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             />
             <div className="divide-y divide-[#21262D] max-h-72 overflow-y-auto">
               {filteredFiles.map((file) => (
@@ -369,6 +369,7 @@ export function QuantGitModals({
               <input
                 type="text"
                 readOnly
+                aria-label="Clone URL"
                 value={
                   cloneProtocol === 'https'
                     ? selectedRepo.cloneUrl
@@ -569,6 +570,7 @@ export function QuantGitModals({
             </div>
             <div className="flex items-center justify-between pt-2">
               <select
+                aria-label="Issue label"
                 value={newIssueLabel}
                 onChange={(e) => setNewIssueLabel(e.target.value)}
                 className="bg-[#0D1117] border border-[#30363D] rounded px-2.5 py-1 text-xs text-white"
@@ -763,8 +765,9 @@ export function QuantGitModals({
               />
             </div>
             <div className="space-y-1">
-              <label className="font-semibold text-white">Pod</label>
+              <label htmlFor="agent-pod-select" className="font-semibold text-white">Pod</label>
               <select
+                id="agent-pod-select"
                 value={newAgentPod}
                 onChange={(e) => setNewAgentPod(e.target.value)}
                 className="w-full bg-[#0D1117] border border-[#30363D] rounded px-2.5 py-1.5 text-xs text-white"
@@ -1090,6 +1093,8 @@ export function QuantGitModals({
                           width={32}
                           height={32}
                           className="size-8 rounded-full border border-[#30363D] object-cover shrink-0"
+                          loading="lazy"
+                          decoding="async"
                         />
                       ) : (
                         <div

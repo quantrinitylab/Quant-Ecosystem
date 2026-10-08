@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { logger } from '@quant/common';
 import { getAuthHeaders, getAuthHeadersWithContent } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface GroupMember {
   id: string;
@@ -69,7 +70,7 @@ export const GroupChat: React.FC<GroupChatProps> = ({ groupId, currentUserId, is
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/groups/${groupId}`, {
+      const response = await apiFetchRaw(`/api/groups/${groupId}`, {
         headers: { ...getAuthHeaders() },
       });
       if (!response.ok) throw new Error('Failed to load group');
@@ -94,7 +95,7 @@ export const GroupChat: React.FC<GroupChatProps> = ({ groupId, currentUserId, is
   const handleAddMember = useCallback(
     async (userId: string) => {
       try {
-        await fetch(`/api/groups/${groupId}/members`, {
+        await apiFetchRaw(`/api/groups/${groupId}/members`, {
           method: 'POST',
           headers: {
             ...getAuthHeadersWithContent(),
@@ -113,7 +114,7 @@ export const GroupChat: React.FC<GroupChatProps> = ({ groupId, currentUserId, is
   const handleRemoveMember = useCallback(
     async (userId: string) => {
       try {
-        await fetch(`/api/groups/${groupId}/members/${userId}`, {
+        await apiFetchRaw(`/api/groups/${groupId}/members/${userId}`, {
           method: 'DELETE',
           headers: { ...getAuthHeaders() },
         });
@@ -128,7 +129,7 @@ export const GroupChat: React.FC<GroupChatProps> = ({ groupId, currentUserId, is
   const handlePromoteMember = useCallback(
     async (userId: string, role: string) => {
       try {
-        await fetch(`/api/groups/${groupId}/members/${userId}/role`, {
+        await apiFetchRaw(`/api/groups/${groupId}/members/${userId}/role`, {
           method: 'PUT',
           headers: {
             ...getAuthHeadersWithContent(),
@@ -148,7 +149,7 @@ export const GroupChat: React.FC<GroupChatProps> = ({ groupId, currentUserId, is
   const handleCreatePoll = useCallback(async () => {
     if (!pollQuestion.trim() || pollOptions.filter((o) => o.trim()).length < 2) return;
     try {
-      const response = await fetch(`/api/groups/${groupId}/polls`, {
+      const response = await apiFetchRaw(`/api/groups/${groupId}/polls`, {
         method: 'POST',
         headers: {
           ...getAuthHeadersWithContent(),
@@ -174,7 +175,7 @@ export const GroupChat: React.FC<GroupChatProps> = ({ groupId, currentUserId, is
   const handleVote = useCallback(
     async (pollId: string, optionId: string) => {
       try {
-        await fetch(`/api/groups/${groupId}/polls/${pollId}/vote`, {
+        await apiFetchRaw(`/api/groups/${groupId}/polls/${pollId}/vote`, {
           method: 'POST',
           headers: {
             ...getAuthHeadersWithContent(),
@@ -206,7 +207,7 @@ export const GroupChat: React.FC<GroupChatProps> = ({ groupId, currentUserId, is
   const handleUnpin = useCallback(
     async (messageId: string) => {
       try {
-        await fetch(`/api/groups/${groupId}/pinned/${messageId}`, {
+        await apiFetchRaw(`/api/groups/${groupId}/pinned/${messageId}`, {
           method: 'DELETE',
           headers: { ...getAuthHeaders() },
         });
@@ -234,7 +235,7 @@ export const GroupChat: React.FC<GroupChatProps> = ({ groupId, currentUserId, is
 
   const handleUpdateSettings = useCallback(async () => {
     try {
-      await fetch(`/api/groups/${groupId}/settings`, {
+      await apiFetchRaw(`/api/groups/${groupId}/settings`, {
         method: 'PUT',
         headers: {
           ...getAuthHeadersWithContent(),

@@ -5,6 +5,11 @@ import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
 import { QUANT_INTERNAL_DOMAINS, isInternalDomain, getSenderDomain } from '../lib/domains';
 import { suppressionService, SuppressionService } from './suppression.service';
 import { MailFilterService } from './mail-filter.service';
+import { emitOutbox, MailOutboxEvents } from '../lib/outbox-events';
+import { MutationOptions, resolveRequestId } from '../lib/mutation-context';
+import { versionedUpdate, VersionedTx } from '../lib/optimistic-update';
+
+export type { MutationOptions };
 
 export interface PaginationOptions {
   page?: number;
@@ -95,6 +100,12 @@ export interface ComposeEmailInput {
    * Case-insensitive, defaults to `NORMAL`.
    */
   priority?: EmailPriority | string;
+  /**
+   * QM-BACK-002: correlation id for the whole mutation path. Recorded in the
+   * `draftCreated` outbox payload (doc 23 correlationId) so downstream
+   * consumers can tie the event back to the originating HTTP request.
+   */
+  requestId?: string;
 }
 
 /**
@@ -207,25 +218,39 @@ export class EmailService {
       sender?.displayName || sender?.username || senderEmail.split('@')[0] || 'QuantMail User';
 
     const hasAttachments = Array.isArray(input.attachments) && input.attachments.length > 0;
-    const email = await this.prisma.email.create({
-      data: {
-        userId: input.userId,
-        toAddresses: input.toAddresses,
-        ccAddresses: input.ccAddresses ?? [],
-        bccAddresses: input.bccAddresses ?? [],
-        subject: input.subject,
-        bodyHtml: input.bodyHtml ?? '',
-        bodyPlain: input.bodyPlain ?? '',
-        fromAddress: senderEmail,
-        fromName: senderName,
-        isDraft: true,
-        threadId: input.threadId ?? null,
-        inReplyTo: input.inReplyTo ?? null,
-        hasAttachments,
-        attachments: input.attachments ?? [],
-        messageKind: toMessageKind(input.messageKind),
-        priority: toPriority(input.priority),
-      } as never,
+    // K1: draft row + outbox row in ONE transaction (doc 05 data-and-event-architecture).
+    const email = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.email.create({
+        data: {
+          userId: input.userId,
+          toAddresses: input.toAddresses,
+          ccAddresses: input.ccAddresses ?? [],
+          bccAddresses: input.bccAddresses ?? [],
+          subject: input.subject,
+          bodyHtml: input.bodyHtml ?? '',
+          bodyPlain: input.bodyPlain ?? '',
+          fromAddress: senderEmail,
+          fromName: senderName,
+          isDraft: true,
+          threadId: input.threadId ?? null,
+          inReplyTo: input.inReplyTo ?? null,
+          hasAttachments,
+          attachments: input.attachments ?? [],
+          messageKind: toMessageKind(input.messageKind),
+          priority: toPriority(input.priority),
+        } as never,
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.draftCreated,
+        aggregateType: 'Email',
+        aggregateId: created.id,
+        payload: {
+          userId: input.userId,
+          threadId: (created as { threadId?: string | null }).threadId ?? null,
+          requestId: input.requestId ?? null,
+        },
+      });
+      return created;
     });
 
     return email;
@@ -359,36 +384,51 @@ export class EmailService {
         recipientThreadId = null;
       }
 
-      const created = await this.prisma.email.create({
-        data: {
-          userId: recipient.id,
-          folderId: inboxFolder?.id ?? null,
-          fromAddress: senderEmail,
-          fromName: senderName,
-          toAddresses: input.toAddresses,
-          ccAddresses: input.ccAddresses ?? [],
-          bccAddresses: [],
-          subject: input.subject,
-          bodyHtml: input.bodyHtml ?? '',
-          bodyPlain: input.bodyPlain ?? '',
-          snippet,
-          threadId: recipientThreadId ?? input.threadId ?? null,
-          inReplyTo: input.inReplyTo ?? null,
-          hasAttachments,
-          attachments: input.attachments ?? [],
-          isRead: false,
-          isSent: false,
-          isDraft: false,
-          receivedAt: new Date(),
-          messageId: input.messageId ?? null,
-          messageKind: toMessageKind(input.messageKind),
-          deliveryStatus: 'delivered',
-          // Internal delivery is immediate: the copy lands in the recipient's
-          // mailbox the moment it is created. (Ticks only render on the
-          // sender's outbound copy; this keeps the recipient's own record
-          // honest if it is ever surfaced.)
-          deliveredAt: new Date(),
-        } as never,
+      // K1: recipient copy + outbox row in ONE transaction (doc 05).
+      const created = await this.prisma.$transaction(async (tx) => {
+        const copy = await tx.email.create({
+          data: {
+            userId: recipient.id,
+            folderId: inboxFolder?.id ?? null,
+            fromAddress: senderEmail,
+            fromName: senderName,
+            toAddresses: input.toAddresses,
+            ccAddresses: input.ccAddresses ?? [],
+            bccAddresses: [],
+            subject: input.subject,
+            bodyHtml: input.bodyHtml ?? '',
+            bodyPlain: input.bodyPlain ?? '',
+            snippet,
+            threadId: recipientThreadId ?? input.threadId ?? null,
+            inReplyTo: input.inReplyTo ?? null,
+            hasAttachments,
+            attachments: input.attachments ?? [],
+            isRead: false,
+            isSent: false,
+            isDraft: false,
+            receivedAt: new Date(),
+            messageId: input.messageId ?? null,
+            messageKind: toMessageKind(input.messageKind),
+            deliveryStatus: 'delivered',
+            // Internal delivery is immediate: the copy lands in the recipient's
+            // mailbox the moment it is created. (Ticks only render on the
+            // sender's outbound copy; this keeps the recipient's own record
+            // honest if it is ever surfaced.)
+            deliveredAt: new Date(),
+          } as never,
+        });
+        await emitOutbox(tx, {
+          event: MailOutboxEvents.messageReceived,
+          aggregateType: 'Email',
+          aggregateId: copy.id,
+          payload: {
+            userId: recipient.id,
+            threadId: (copy as { threadId?: string | null }).threadId ?? null,
+            messageId: input.messageId ?? null,
+            deliveryStatus: 'delivered',
+          },
+        });
+        return copy;
       });
       // P0 fix: run the recipient's filters on internally delivered mail.
       // Previously filters only ran (when wired at all) on the external
@@ -477,8 +517,10 @@ export class EmailService {
     userId: string,
     emailId: string,
     sentFolderId: string,
-    options?: { delayMs?: number; sendAt?: Date },
+    options?: { delayMs?: number; sendAt?: Date } & MutationOptions,
   ): Promise<Email> {
+    // QM-BACK-002: requestId correlates this send across logs + outbox events.
+    const sendRequestId = options?.requestId ?? resolveRequestId();
     // Sending has to do three things for the message to actually reach a human:
     //   1. Recipients that are QuantMail users get an internal mailbox copy
     //      (the route calls `deliverInternally` for that).
@@ -714,41 +756,77 @@ export class EmailService {
      */
     const messageId =
       (email as { messageId?: string | null }).messageId ?? `<${emailId}@quantmail.in>`;
-    const updated = await this.prisma.email.update({
-      where: { id: emailId },
-      data: {
-        isDraft: false,
-        isSent: true,
-        folderId: sentFolderId,
-        sentAt,
-        messageId,
-        /*
-         * A sent copy needs a timeline position, not just a send time.
-         *
-         * The unified inbox is one list ordered by `receivedAt`, and this column
-         * was left null on every message the user sent — so their own messages had
-         * no place in that order at all and never appeared beside the conversation
-         * they belong to. `sentAt` is when the message entered this mailbox, so it
-         * is the honest value. An existing `receivedAt` is never overwritten,
-         * which keeps a scheduled or re-sent message on its original timeline.
-         */
-        receivedAt: (email as { receivedAt?: Date | null }).receivedAt ?? sentAt,
-        deliveryStatus,
-        /*
-         * Read-receipt pipeline: the message is delivered the moment this send
-         * completes (internal recipients get their copies below; external SES
-         * delivery succeeded above). A queued/deferred send leaves
-         * `deliveredAt` null until the delivery worker's finalizeEmailState
-         * stamps it on completion.
-         */
-        ...(deliveryStatus === 'delivered' ? { deliveredAt: sentAt } : {}),
-      } as never,
+    // K1: sent-flip + outbox row in ONE transaction (doc 05). The event mirrors
+    // the deliveryStatus recorded here: queued (durable pipeline), submitted
+    // (handed to the provider / delivered immediately), deferred (transient
+    // provider failure, retryable). Spec: delivery-events.md.
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // QM-BACK-002: atomic conditional update — a concurrent writer loses
+      // with VERSION_CONFLICT instead of silently overwriting the send flip.
+      const flipped = await versionedUpdate<Email>(tx as unknown as VersionedTx, {
+        id: emailId,
+        resource: 'Email',
+        notFoundCode: 'EMAIL_NOT_FOUND',
+        notFoundMessage: 'Email not found',
+        expectedVersion: options?.expectedVersion,
+        data: {
+          isDraft: false,
+          isSent: true,
+          folderId: sentFolderId,
+          sentAt,
+          messageId,
+          /*
+           * A sent copy needs a timeline position, not just a send time.
+           *
+           * The unified inbox is one list ordered by `receivedAt`, and this column
+           * was left null on every message the user sent — so their own messages had
+           * no place in that order at all and never appeared beside the conversation
+           * they belong to. `sentAt` is when the message entered this mailbox, so it
+           * is the honest value. An existing `receivedAt` is never overwritten,
+           * which keeps a scheduled or re-sent message on its original timeline.
+           */
+          receivedAt: (email as { receivedAt?: Date | null }).receivedAt ?? sentAt,
+          deliveryStatus,
+          /*
+           * Read-receipt pipeline: the message is delivered the moment this send
+           * completes (internal recipients get their copies below; external SES
+           * delivery succeeded above). A queued/deferred send leaves
+           * `deliveredAt` null until the delivery worker's finalizeEmailState
+           * stamps it on completion.
+           */
+          ...(deliveryStatus === 'delivered' ? { deliveredAt: sentAt } : {}),
+        },
+      });
+      await emitOutbox(tx, {
+        event:
+          deliveryStatus === 'queued'
+            ? MailOutboxEvents.outboundQueued
+            : deliveryStatus === 'deferred'
+              ? MailOutboxEvents.outboundDeferred
+              : MailOutboxEvents.outboundSubmitted,
+        aggregateType: 'Email',
+        aggregateId: emailId,
+        payload: {
+          userId,
+          threadId: (flipped as { threadId?: string | null }).threadId ?? null,
+          messageId,
+          deliveryStatus,
+          requestId: sendRequestId,
+        },
+      });
+      return flipped;
     });
 
     return updated;
   }
 
-  async undoSend(userId: string, emailId: string): Promise<Email> {
+  async undoSend(
+    userId: string,
+    emailId: string,
+    opts?: MutationOptions,
+  ): Promise<Email> {
+    // QM-BACK-002: requestId correlates the undo across logs + outbox events.
+    const requestId = opts?.requestId ?? resolveRequestId();
     const email = await this.prisma.email.findUnique({ where: { id: emailId } });
     if (!email || email.userId !== userId) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
@@ -778,47 +856,82 @@ export class EmailService {
       where: { userId, OR: [{ name: 'Drafts' }, { type: 'DRAFTS' }] },
     });
 
-    return this.prisma.email.update({
-      where: { id: emailId },
-      data: {
-        isDraft: true,
-        isSent: false,
-        sentAt: null,
-        deliveryStatus: 'draft',
-        folderId: draftsFolder?.id ?? null,
-      } as never,
+    // K1: undo flip + outbox row in ONE transaction (doc 05).
+    // QM-BACK-002: atomic conditional update — concurrent undo/send races
+    // surface as VERSION_CONFLICT instead of a silent lost update.
+    return this.prisma.$transaction(async (tx) => {
+      const undone = await versionedUpdate<Email>(tx as unknown as VersionedTx, {
+        id: emailId,
+        resource: 'Email',
+        notFoundCode: 'EMAIL_NOT_FOUND',
+        notFoundMessage: 'Email not found',
+        expectedVersion: opts?.expectedVersion,
+        data: {
+          isDraft: true,
+          isSent: false,
+          sentAt: null,
+          deliveryStatus: 'draft',
+          folderId: draftsFolder?.id ?? null,
+        },
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.outboundCancelled,
+        aggregateType: 'Email',
+        aggregateId: emailId,
+        payload: {
+          userId,
+          threadId: (undone as { threadId?: string | null }).threadId ?? null,
+          requestId,
+        },
+      });
+      return undone;
     });
   }
 
   async receive(input: ReceiveEmailInput): Promise<Email> {
-    const email = await this.prisma.email.create({
-      data: {
-        userId: input.userId,
-        folderId: input.folderId,
-        fromAddress: input.fromAddress,
-        fromName: input.fromName ?? null,
-        toAddresses: input.toAddresses,
-        ccAddresses: input.ccAddresses ?? [],
-        bccAddresses: input.bccAddresses ?? [],
-        subject: input.subject,
-        bodyHtml: input.bodyHtml ?? '',
-        bodyPlain: input.bodyPlain ?? '',
-        snippet: input.snippet ?? '',
-        threadId: input.threadId ?? null,
-        inReplyTo: input.inReplyTo ?? null,
-        hasAttachments: input.hasAttachments ?? false,
-        attachments: input.attachments ?? [],
-        receivedAt: input.receivedAt ?? new Date(),
-        isRead: false,
-        // Additive inbound fields (QuantMail SuperHub Pillar 1, Reqs 5.1/5.3).
-        ...(input.authResults !== undefined ? { authResults: input.authResults } : {}),
-        ...(input.isSpam !== undefined ? { isSpam: input.isSpam } : {}),
-        ...(input.deliveryStatus !== undefined ? { deliveryStatus: input.deliveryStatus } : {}),
-        ...(input.aiCategory !== undefined ? { aiCategory: input.aiCategory } : {}),
-      } as never,
+    // K1: inbound message row + outbox row in ONE transaction (doc 05).
+    // Called by the InboundIngestAdapter for every accepted inbound message.
+    return this.prisma.$transaction(async (tx) => {
+      const email = await tx.email.create({
+        data: {
+          userId: input.userId,
+          folderId: input.folderId,
+          fromAddress: input.fromAddress,
+          fromName: input.fromName ?? null,
+          toAddresses: input.toAddresses,
+          ccAddresses: input.ccAddresses ?? [],
+          bccAddresses: input.bccAddresses ?? [],
+          subject: input.subject,
+          bodyHtml: input.bodyHtml ?? '',
+          bodyPlain: input.bodyPlain ?? '',
+          snippet: input.snippet ?? '',
+          threadId: input.threadId ?? null,
+          inReplyTo: input.inReplyTo ?? null,
+          hasAttachments: input.hasAttachments ?? false,
+          attachments: input.attachments ?? [],
+          receivedAt: input.receivedAt ?? new Date(),
+          isRead: false,
+          // Additive inbound fields (QuantMail SuperHub Pillar 1, Reqs 5.1/5.3).
+          ...(input.authResults !== undefined ? { authResults: input.authResults } : {}),
+          ...(input.isSpam !== undefined ? { isSpam: input.isSpam } : {}),
+          ...(input.deliveryStatus !== undefined ? { deliveryStatus: input.deliveryStatus } : {}),
+          ...(input.aiCategory !== undefined ? { aiCategory: input.aiCategory } : {}),
+        } as never,
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.messageReceived,
+        aggregateType: 'Email',
+        aggregateId: email.id,
+        payload: {
+          userId: input.userId,
+          threadId: input.threadId ?? null,
+          folderId: input.folderId,
+          deliveryStatus: input.deliveryStatus ?? 'delivered',
+          isSpam: input.isSpam ?? false,
+        },
+      });
+      return email;
     });
-
-    return email;
   }
 
   async getEmail(emailId: string, userId: string): Promise<Email> {
@@ -866,7 +979,12 @@ export class EmailService {
     };
   }
 
-  async moveToFolder(emailId: string, folderId: string, userId: string): Promise<Email> {
+  async moveToFolder(
+    emailId: string,
+    folderId: string,
+    userId: string,
+    opts?: MutationOptions,
+  ): Promise<Email> {
     const email = await this.prisma.email.findUnique({ where: { id: emailId } });
 
     if (!email) {
@@ -877,17 +995,69 @@ export class EmailService {
       throw createAppError('Not authorized', 403, 'FORBIDDEN');
     }
 
-    return this.prisma.email.update({
-      where: { id: emailId },
+    // QM-BACK-002: atomic conditional update; concurrent movers get
+    // VERSION_CONFLICT instead of a silent lost update.
+    return versionedUpdate<Email>(this.prisma as unknown as VersionedTx, {
+      id: emailId,
+      resource: 'Email',
+      notFoundCode: 'EMAIL_NOT_FOUND',
+      notFoundMessage: 'Email not found',
+      expectedVersion: opts?.expectedVersion,
       data: { folderId },
     });
   }
 
-  async archive(emailId: string, archiveFolderId: string, userId: string): Promise<Email> {
-    return this.moveToFolder(emailId, archiveFolderId, userId);
+  async archive(
+    emailId: string,
+    archiveFolderId: string,
+    userId: string,
+    opts?: MutationOptions,
+  ): Promise<Email> {
+    const email = await this.prisma.email.findUnique({ where: { id: emailId } });
+
+    if (!email) {
+      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+
+    if (email.userId !== userId) {
+      throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    }
+
+    // QM-BACK-002: requestId correlates the archive across logs + outbox.
+    const requestId = opts?.requestId ?? resolveRequestId();
+    // K1: archive move + outbox row in ONE transaction (doc 05).
+    // QM-BACK-002: atomic conditional update (VERSION_CONFLICT on races).
+    return this.prisma.$transaction(async (tx) => {
+      const archived = await versionedUpdate<Email>(tx as unknown as VersionedTx, {
+        id: emailId,
+        resource: 'Email',
+        notFoundCode: 'EMAIL_NOT_FOUND',
+        notFoundMessage: 'Email not found',
+        expectedVersion: opts?.expectedVersion,
+        data: { folderId: archiveFolderId },
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.threadArchived,
+        aggregateType: 'EmailThread',
+        aggregateId:
+          (archived as { threadId?: string | null }).threadId ?? archived.id,
+        payload: {
+          userId,
+          emailId,
+          folderId: archiveFolderId,
+          requestId,
+        },
+      });
+      return archived as Email;
+    });
   }
 
-  async delete(emailId: string, userId: string, hard = false): Promise<Email> {
+  async delete(
+    emailId: string,
+    userId: string,
+    hard = false,
+    opts?: MutationOptions,
+  ): Promise<Email> {
     const email = await this.prisma.email.findUnique({ where: { id: emailId } });
 
     if (!email) {
@@ -900,13 +1070,40 @@ export class EmailService {
 
     // Preserve history: deleting from the inbox moves the message to trash;
     // deleting an already-trashed message records a logical permanent deletion.
-    return this.prisma.email.update({
-      where: { id: emailId },
-      data: email.isTrash || hard ? { deletedAt: new Date() } : { deletedAt: null, isTrash: true },
+    // K1: delete/trash + outbox row in ONE transaction (doc 05).
+    const permanent = Boolean(email.isTrash || hard);
+    // QM-BACK-002: requestId correlates the delete across logs + outbox.
+    const requestId = opts?.requestId ?? resolveRequestId();
+    // QM-BACK-002: atomic conditional update (VERSION_CONFLICT on races).
+    return this.prisma.$transaction(async (tx) => {
+      const deleted = await versionedUpdate<Email>(tx as unknown as VersionedTx, {
+        id: emailId,
+        resource: 'Email',
+        notFoundCode: 'EMAIL_NOT_FOUND',
+        notFoundMessage: 'Email not found',
+        expectedVersion: opts?.expectedVersion,
+        data: permanent ? { deletedAt: new Date() } : { deletedAt: null, isTrash: true },
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.messageDeleted,
+        aggregateType: 'Email',
+        aggregateId: emailId,
+        payload: {
+          userId,
+          threadId: (email as { threadId?: string | null }).threadId ?? null,
+          hard: permanent,
+          requestId,
+        },
+      });
+      return deleted as Email;
     });
   }
 
-  async markRead(emailId: string, userId: string): Promise<Email> {
+  async markRead(
+    emailId: string,
+    userId: string,
+    opts?: MutationOptions,
+  ): Promise<Email> {
     const email = await this.prisma.email.findUnique({ where: { id: emailId } });
 
     if (!email) {
@@ -918,10 +1115,19 @@ export class EmailService {
     }
 
     const now = new Date();
-    const updated = await this.prisma.email.update({
-      where: { id: emailId },
-      data: { isRead: true, readAt: now } as never,
-    });
+    // QM-BACK-002: atomic conditional update; the version bump keeps the
+    // column truthful for later guarded writes.
+    const updated = await versionedUpdate<Email>(
+      this.prisma as unknown as VersionedTx,
+      {
+        id: emailId,
+        resource: 'Email',
+        notFoundCode: 'EMAIL_NOT_FOUND',
+        notFoundMessage: 'Email not found',
+        expectedVersion: opts?.expectedVersion,
+        data: { isRead: true, readAt: now },
+      },
+    );
 
     // Read-receipt pipeline: a received message being read flips the sender's
     // ticks to double-green. The sender's sent copy shares this messageId
@@ -932,7 +1138,7 @@ export class EmailService {
       await this.prisma.email
         .updateMany({
           where: { messageId, isSent: true, readAt: null, deletedAt: null },
-          data: { readAt: now },
+          data: { readAt: now, version: { increment: 1 } },
         })
         .catch(() => {
           // Best-effort: the read itself already succeeded.
@@ -942,7 +1148,11 @@ export class EmailService {
     return updated;
   }
 
-  async markStarred(emailId: string, userId: string): Promise<Email> {
+  async markStarred(
+    emailId: string,
+    userId: string,
+    opts?: MutationOptions,
+  ): Promise<Email> {
     const email = await this.prisma.email.findUnique({ where: { id: emailId } });
 
     if (!email) {
@@ -953,8 +1163,13 @@ export class EmailService {
       throw createAppError('Not authorized', 403, 'FORBIDDEN');
     }
 
-    return this.prisma.email.update({
-      where: { id: emailId },
+    // QM-BACK-002: atomic conditional update (VERSION_CONFLICT on races).
+    return versionedUpdate<Email>(this.prisma as unknown as VersionedTx, {
+      id: emailId,
+      resource: 'Email',
+      notFoundCode: 'EMAIL_NOT_FOUND',
+      notFoundMessage: 'Email not found',
+      expectedVersion: opts?.expectedVersion,
       data: { isStarred: !email.isStarred },
     });
   }
@@ -963,7 +1178,11 @@ export class EmailService {
    * Toggle pin-to-top for an email. Pin is independent from star: starring
    * marks importance, pinning holds the conversation at the top of the list.
    */
-  async togglePin(emailId: string, userId: string): Promise<Email> {
+  async togglePin(
+    emailId: string,
+    userId: string,
+    opts?: MutationOptions,
+  ): Promise<Email> {
     const email = await this.prisma.email.findUnique({ where: { id: emailId } });
 
     if (!email) {
@@ -974,8 +1193,13 @@ export class EmailService {
       throw createAppError('Not authorized', 403, 'FORBIDDEN');
     }
 
-    return this.prisma.email.update({
-      where: { id: emailId },
+    // QM-BACK-002: atomic conditional update (VERSION_CONFLICT on races).
+    return versionedUpdate<Email>(this.prisma as unknown as VersionedTx, {
+      id: emailId,
+      resource: 'Email',
+      notFoundCode: 'EMAIL_NOT_FOUND',
+      notFoundMessage: 'Email not found',
+      expectedVersion: opts?.expectedVersion,
       data: { isPinned: !(email as { isPinned?: boolean }).isPinned },
     });
   }
@@ -990,10 +1214,39 @@ export class EmailService {
     emailIds: string[],
     userId: string,
     category: string,
+    opts?: MutationOptions,
   ): Promise<{ updated: number; emails: Email[] }> {
     const ids = Array.from(new Set(emailIds.filter(Boolean)));
     if (!ids.includes(anchorEmailId) || ids.length === 0) {
       throw createAppError('Conversation email ids are invalid', 400, 'INVALID_EMAIL_IDS');
+    }
+
+    // QM-BACK-002: per-id optimistic guards when the caller supplies
+    // expectedVersions. Ownership is verified up front (same as the bulk
+    // path); the first VERSION_CONFLICT aborts the whole batch.
+    if (opts?.expectedVersions) {
+      const versions = opts.expectedVersions;
+      return this.prisma.$transaction(async (transaction) => {
+        const owned = await transaction.email.findMany({
+          where: { id: { in: ids }, userId, deletedAt: null },
+        });
+        if (owned.length !== ids.length) {
+          throw createAppError('Email conversation not found', 404, 'EMAIL_NOT_FOUND');
+        }
+        const rows: Email[] = [];
+        for (const id of ids) {
+          const row = await versionedUpdate<Email>(transaction as unknown as VersionedTx, {
+            id,
+            resource: 'Email',
+            notFoundCode: 'EMAIL_NOT_FOUND',
+            notFoundMessage: 'Email conversation not found',
+            expectedVersion: versions[id],
+            data: { aiCategory: category, updatedAt: new Date() },
+          });
+          rows.push(row);
+        }
+        return { updated: rows.length, emails: rows };
+      });
     }
 
     return this.prisma.$transaction(async (transaction) => {
@@ -1007,7 +1260,8 @@ export class EmailService {
 
       const result = await transaction.email.updateMany({
         where: { id: { in: ids }, userId, deletedAt: null },
-        data: { aiCategory: category, updatedAt: new Date() },
+        // QM-BACK-002: keep the version column truthful on batch writes.
+        data: { aiCategory: category, updatedAt: new Date(), version: { increment: 1 } },
       });
       if (result.count !== ids.length) {
         throw createAppError(
@@ -1024,19 +1278,60 @@ export class EmailService {
     });
   }
 
+  /**
+   * QM-BACK-002: run a per-item guarded mutation for every id inside ONE
+   * transaction. Ids with an entry in `expectedVersions` are guarded with the
+   * atomic conditional update; ids without are written unguarded. The first
+   * VERSION_CONFLICT aborts the whole batch so the caller can re-read and
+   * retry — a partial batch would leave the client unable to reconcile.
+   */
+  private async guardedBatch(
+    emailIds: string[],
+    opts: MutationOptions,
+    mutate: (
+      tx: VersionedTx,
+      id: string,
+      expectedVersion: number | undefined,
+    ) => Promise<unknown>,
+  ): Promise<{ count: number }> {
+    const ids = Array.from(new Set(emailIds.filter(Boolean)));
+    const versions = opts.expectedVersions ?? {};
+    await this.prisma.$transaction(async (tx) => {
+      for (const id of ids) {
+        await mutate(tx as unknown as VersionedTx, id, versions[id]);
+      }
+    });
+    return { count: ids.length };
+  }
+
   async batchMarkRead(
     emailIds: string[],
     userId: string,
     isRead = true,
+    opts?: MutationOptions,
   ): Promise<{ count: number }> {
     if (emailIds.length === 0) return { count: 0 };
+    // QM-BACK-002: per-id guards when the caller supplies expectedVersions;
+    // the fast path still bumps versions so the column stays truthful.
+    if (opts?.expectedVersions) {
+      return this.guardedBatch(emailIds, opts, (tx, id, expectedVersion) =>
+        versionedUpdate<Email>(tx, {
+          id,
+          resource: 'Email',
+          notFoundCode: 'EMAIL_NOT_FOUND',
+          notFoundMessage: 'Email not found',
+          expectedVersion,
+          data: { isRead },
+        }),
+      );
+    }
     const result = await this.prisma.email.updateMany({
       where: {
         id: { in: emailIds },
         userId,
         deletedAt: null,
       },
-      data: { isRead, updatedAt: new Date() },
+      data: { isRead, updatedAt: new Date(), version: { increment: 1 } },
     });
     return { count: result.count };
   }
@@ -1045,31 +1340,63 @@ export class EmailService {
     emailIds: string[],
     archiveFolderId: string,
     userId: string,
+    opts?: MutationOptions,
   ): Promise<{ count: number }> {
     if (emailIds.length === 0) return { count: 0 };
+    // QM-BACK-002: per-id guards when the caller supplies expectedVersions.
+    if (opts?.expectedVersions) {
+      return this.guardedBatch(emailIds, opts, (tx, id, expectedVersion) =>
+        versionedUpdate<Email>(tx, {
+          id,
+          resource: 'Email',
+          notFoundCode: 'EMAIL_NOT_FOUND',
+          notFoundMessage: 'Email not found',
+          expectedVersion,
+          data: { folderId: archiveFolderId },
+        }),
+      );
+    }
     const result = await this.prisma.email.updateMany({
       where: {
         id: { in: emailIds },
         userId,
         deletedAt: null,
       },
-      data: { folderId: archiveFolderId, updatedAt: new Date() },
+      data: { folderId: archiveFolderId, updatedAt: new Date(), version: { increment: 1 } },
     });
     return { count: result.count };
   }
 
-  async batchDelete(emailIds: string[], userId: string, hard = false): Promise<{ count: number }> {
+  async batchDelete(
+    emailIds: string[],
+    userId: string,
+    hard = false,
+    opts?: MutationOptions,
+  ): Promise<{ count: number }> {
     if (emailIds.length === 0) return { count: 0 };
+    // QM-BACK-002: per-id guards when the caller supplies expectedVersions.
+    if (opts?.expectedVersions) {
+      return this.guardedBatch(emailIds, opts, (tx, id, expectedVersion) =>
+        versionedUpdate<Email>(tx, {
+          id,
+          resource: 'Email',
+          notFoundCode: 'EMAIL_NOT_FOUND',
+          notFoundMessage: 'Email not found',
+          expectedVersion,
+          data: hard ? { deletedAt: new Date() } : { isTrash: true },
+        }),
+      );
+    }
     if (hard) {
       const result = await this.prisma.email.updateMany({
         where: { id: { in: emailIds }, userId },
-        data: { deletedAt: new Date(), updatedAt: new Date() },
+        data: { deletedAt: new Date(), updatedAt: new Date(), version: { increment: 1 } },
       });
       return { count: result.count };
     }
     const result = await this.prisma.email.updateMany({
       where: { id: { in: emailIds }, userId, deletedAt: null },
-      data: { isTrash: true, updatedAt: new Date() },
+      data: { isTrash: true, updatedAt: new Date(), version: { increment: 1 } },
     });
     return { count: result.count };
   }
@@ -1078,11 +1405,25 @@ export class EmailService {
     emailIds: string[],
     userId: string,
     isStarred = true,
+    opts?: MutationOptions,
   ): Promise<{ count: number }> {
     if (emailIds.length === 0) return { count: 0 };
+    // QM-BACK-002: per-id guards when the caller supplies expectedVersions.
+    if (opts?.expectedVersions) {
+      return this.guardedBatch(emailIds, opts, (tx, id, expectedVersion) =>
+        versionedUpdate<Email>(tx, {
+          id,
+          resource: 'Email',
+          notFoundCode: 'EMAIL_NOT_FOUND',
+          notFoundMessage: 'Email not found',
+          expectedVersion,
+          data: { isStarred },
+        }),
+      );
+    }
     const result = await this.prisma.email.updateMany({
       where: { id: { in: emailIds }, userId, deletedAt: null },
-      data: { isStarred, updatedAt: new Date() },
+      data: { isStarred, updatedAt: new Date(), version: { increment: 1 } },
     });
     return { count: result.count };
   }
@@ -1266,7 +1607,12 @@ export class EmailService {
     return match?.id;
   }
 
-  async applyLabel(emailId: string, labelId: string, userId: string): Promise<Email> {
+  async applyLabel(
+    emailId: string,
+    labelId: string,
+    userId: string,
+    opts?: MutationOptions,
+  ): Promise<Email> {
     const email = await this.prisma.email.findUnique({ where: { id: emailId } });
 
     if (!email) {
@@ -1282,9 +1628,33 @@ export class EmailService {
       return email;
     }
 
-    return this.prisma.email.update({
-      where: { id: emailId },
-      data: { labels: [...currentLabels, labelId] } as never,
+    // K1: label change + outbox row in ONE transaction (doc 05).
+    const nextLabels = [...currentLabels, labelId];
+    // QM-BACK-002: requestId correlates the label change across logs + outbox.
+    const requestId = opts?.requestId ?? resolveRequestId();
+    // QM-BACK-002: atomic conditional update (VERSION_CONFLICT on races).
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await versionedUpdate<Email>(tx as unknown as VersionedTx, {
+        id: emailId,
+        resource: 'Email',
+        notFoundCode: 'EMAIL_NOT_FOUND',
+        notFoundMessage: 'Email not found',
+        expectedVersion: opts?.expectedVersion,
+        data: { labels: nextLabels },
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.threadLabelChanged,
+        aggregateType: 'EmailThread',
+        aggregateId: (email as { threadId?: string | null }).threadId ?? emailId,
+        payload: {
+          userId,
+          emailId,
+          labelId,
+          labels: nextLabels,
+          requestId,
+        },
+      });
+      return updated as Email;
     });
   }
 }

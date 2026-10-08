@@ -3,8 +3,6 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 // Components under test
-import { CalendarAgendaView } from '../app/calendar/components/CalendarAgendaView';
-import { CalendarMonthView } from '../app/calendar/components/CalendarMonthView';
 import { CalendarBookingView } from '../app/calendar/components/CalendarBookingView';
 import { CalendarQuantMeetView } from '../app/calendar/components/CalendarQuantMeetView';
 import { CalendarRemindersView } from '../app/calendar/components/CalendarRemindersView';
@@ -110,107 +108,12 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
     vi.restoreAllMocks();
   });
 
-  // ==========================================================================
-  // 1. Sub-View a: `agenda`
-  // ==========================================================================
-  describe('Sub-View a: `agenda` (CalendarAgendaView)', () => {
-    it('renders 7-day schedule timeline, dual timezone pill (IST / PST), CalDAV sync badge, and event cards', () => {
-      const html = renderToStaticMarkup(
-        <CalendarAgendaView
-          events={mockSampleEvents}
-          selectedDate={new Date()}
-          onSelectDate={vi.fn()}
-          openDedicatedSheet={vi.fn()}
-          onSelectEvent={vi.fn()}
-        />,
-      );
 
-      // 7-day schedule timeline
-      expect(html).toContain('7-Day Schedule Timeline');
-      expect(html).toContain('id="subview-agenda"');
-
-      // Dual timezone pill (IST / PST)
-      expect(html).toContain('IST');
-      expect(html).toContain('PST');
-
-      // CalDAV sync badge
-      expect(html).toContain('CalDAV Synced');
-
-      // Interactive event cards
-      expect(html).toContain('Sovereign Architecture Sprint Review');
-      expect(html).toContain('QuantMeet Room Alpha');
-      expect(html).toContain('urgent');
-      expect(html).toContain('View details');
-    });
-
-    it('renders empty day slots with add slot interactive action', () => {
-      const html = renderToStaticMarkup(
-        <CalendarAgendaView
-          events={[]}
-          selectedDate={new Date()}
-          onSelectDate={vi.fn()}
-          openDedicatedSheet={vi.fn()}
-          onSelectEvent={vi.fn()}
-        />,
-      );
-
-      expect(html).toContain('No scheduled events for this day');
-      expect(html).toContain('Create an event');
-    });
-  });
 
   // ==========================================================================
-  // 2. Sub-View b: `month`
+  // 1. Sub-View: `booking`
   // ==========================================================================
-  describe('Sub-View b: `month` (CalendarMonthView)', () => {
-    it('renders 30-day interactive calendar grid with Mon-Sun columns and active day selection', () => {
-      const html = renderToStaticMarkup(
-        <CalendarMonthView
-          events={mockSampleEvents}
-          selectedDate={new Date()}
-          onSelectDate={vi.fn()}
-          openDedicatedSheet={vi.fn()}
-          onSelectEvent={vi.fn()}
-        />,
-      );
-
-      // Mon-Sun column headers strictly in order
-      expect(html).toContain('Mon');
-      expect(html).toContain('Tue');
-      expect(html).toContain('Wed');
-      expect(html).toContain('Thu');
-      expect(html).toContain('Fri');
-      expect(html).toContain('Sat');
-      expect(html).toContain('Sun');
-
-      // Grid container & day event preview
-      expect(html).toContain('id="subview-month"');
-      expect(html).toContain('30-Day Sovereign Grid');
-      expect(html).toContain('Day Events Preview:');
-      expect(html).toContain('Add to this day');
-    });
-
-    it('displays event title preview and month stepper navigation controls', () => {
-      const html = renderToStaticMarkup(
-        <CalendarMonthView
-          events={mockSampleEvents}
-          selectedDate={new Date()}
-          onSelectDate={vi.fn()}
-          openDedicatedSheet={vi.fn()}
-          onSelectEvent={vi.fn()}
-        />,
-      );
-
-      expect(html).toContain('Previous month');
-      expect(html).toContain('Next month');
-      expect(html).toContain('Today');
-    });
-  });
-
-  // ==========================================================================
-  // 3. Sub-View c: `booking`
-  // ==========================================================================
-  describe('Sub-View c: `booking` (CalendarBookingView)', () => {
+  describe('Sub-View: `booking` (CalendarBookingView)', () => {
     it('renders Calendly-class public booking engine with link, copy pill, time slots, duration chips, and concurrency badge', () => {
       const html = renderToStaticMarkup(
         <CalendarBookingView userEmail="sundar@quantmail.in" bookingSlug="sundar" />,
@@ -239,9 +142,9 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
   });
 
   // ==========================================================================
-  // 4. Sub-View d: `quantmeet`
+  // 2. Sub-View: `quantmeet`
   // ==========================================================================
-  describe('Sub-View d: `quantmeet` (CalendarQuantMeetView)', () => {
+  describe('Sub-View: `quantmeet` (CalendarQuantMeetView)', () => {
     it('renders QuantMeet HD video meeting launcher with action card, calls list, and WebRTC status', () => {
       const html = renderToStaticMarkup(<CalendarQuantMeetView />);
 
@@ -262,9 +165,9 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
   });
 
   // ==========================================================================
-  // 5. Sub-View e: `reminders`
+  // 3. Sub-View: `reminders`
   // ==========================================================================
-  describe('Sub-View e: `reminders` (CalendarRemindersView)', () => {
+  describe('Sub-View: `reminders` (CalendarRemindersView)', () => {
     it('renders task reminders checklist with toggleable checkboxes, due times, and priority pills', () => {
       const html = renderToStaticMarkup(<CalendarRemindersView />);
 
@@ -290,7 +193,7 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
   });
 
   // ==========================================================================
-  // 6. Context Sub-Tabs Selector Component (CalendarContextSubTabs)
+  // 4. Context Sub-Tabs Selector Component (CalendarContextSubTabs)
   // ==========================================================================
   describe('Context Sub-Tabs Selector (CalendarContextSubTabs)', () => {
     it('renders all 5 contextual tabs matching ContextBottomNavBar specification', () => {
@@ -307,111 +210,12 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
     });
   });
 
-  // ==========================================================================
-  // 7. Full Sub-Tabs Router Synchronization (?tab=...)
-  // ==========================================================================
-  describe('Full Sub-Tabs Router Synchronization', () => {
-    function CalendarSubViewRouter({ activeTab }: { activeTab: string }) {
-      switch (activeTab) {
-        case 'month':
-          return (
-            <CalendarMonthView
-              events={mockSampleEvents}
-              selectedDate={new Date()}
-              onSelectDate={vi.fn()}
-              openDedicatedSheet={vi.fn()}
-              onSelectEvent={vi.fn()}
-            />
-          );
-        case 'booking':
-          return <CalendarBookingView userEmail="sundar@quantmail.in" bookingSlug="sundar" />;
-        case 'quantmeet':
-          return <CalendarQuantMeetView />;
-        case 'reminders':
-          return <CalendarRemindersView />;
-        case 'agenda':
-        default:
-          return (
-            <CalendarAgendaView
-              events={mockSampleEvents}
-              selectedDate={new Date()}
-              onSelectDate={vi.fn()}
-              openDedicatedSheet={vi.fn()}
-              onSelectEvent={vi.fn()}
-            />
-          );
-      }
-    }
-
-    it('defaults to Agenda sub-view when tab is agenda', () => {
-      const html = renderToStaticMarkup(<CalendarSubViewRouter activeTab="agenda" />);
-
-      expect(html).toContain('7-Day Schedule Timeline');
-      expect(html).toContain('CalDAV Synced');
-    });
-
-    it('renders Month sub-view when tab=month', () => {
-      const html = renderToStaticMarkup(<CalendarSubViewRouter activeTab="month" />);
-
-      expect(html).toContain('30-Day Sovereign Grid');
-      expect(html).toContain('Day Events Preview:');
-    });
-
-    it('renders Booking sub-view when tab=booking', () => {
-      const html = renderToStaticMarkup(<CalendarSubViewRouter activeTab="booking" />);
-
-      expect(html).toContain('Public Booking Engine');
-      expect(html).toContain('4 slots available today · Instant E2EE Confirmation');
-      expect(html).toContain('https://quantmail.in/calendar/booking/sundar');
-    });
-
-    it('renders QuantMeet sub-view when tab=quantmeet', () => {
-      const html = renderToStaticMarkup(<CalendarSubViewRouter activeTab="quantmeet" />);
-
-      expect(html).toContain('Start Instant Meeting');
-      expect(html).toContain('Mic: Ready · Camera: Ready');
-      expect(html).toContain('Join HD Call');
-    });
-
-    it('renders Reminders sub-view when tab=reminders', () => {
-      const html = renderToStaticMarkup(<CalendarSubViewRouter activeTab="reminders" />);
-
-      expect(html).toContain('Task Reminders');
-      expect(html).toContain('Due: Today, 5:00 PM');
-    });
-  });
 
   // ==========================================================================
-  // 8. Zero Raw Unicode Emojis Invariant
+  // 5. Zero Raw Unicode Emojis Invariant
   // ==========================================================================
   describe('Zero Raw Unicode Emojis Invariant', () => {
     const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
-
-    it('CalendarAgendaView contains strictly ZERO raw Unicode emojis', () => {
-      const html = renderToStaticMarkup(
-        <CalendarAgendaView
-          events={mockSampleEvents}
-          selectedDate={new Date()}
-          onSelectDate={vi.fn()}
-          openDedicatedSheet={vi.fn()}
-          onSelectEvent={vi.fn()}
-        />,
-      );
-      expect(emojiRegex.test(html)).toBe(false);
-    });
-
-    it('CalendarMonthView contains strictly ZERO raw Unicode emojis', () => {
-      const html = renderToStaticMarkup(
-        <CalendarMonthView
-          events={mockSampleEvents}
-          selectedDate={new Date()}
-          onSelectDate={vi.fn()}
-          openDedicatedSheet={vi.fn()}
-          onSelectEvent={vi.fn()}
-        />,
-      );
-      expect(emojiRegex.test(html)).toBe(false);
-    });
 
     it('CalendarBookingView contains strictly ZERO raw Unicode emojis', () => {
       const html = renderToStaticMarkup(
@@ -437,41 +241,5 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
       expect(emojiRegex.test(html)).toBe(false);
     });
 
-    it('all subviews contain strictly ZERO raw Unicode emojis across the board', () => {
-      const tabs = ['agenda', 'month', 'booking', 'quantmeet', 'reminders'];
-      tabs.forEach((tab) => {
-        let html = '';
-        if (tab === 'agenda') {
-          html = renderToStaticMarkup(
-            <CalendarAgendaView
-              events={mockSampleEvents}
-              selectedDate={new Date()}
-              onSelectDate={vi.fn()}
-              openDedicatedSheet={vi.fn()}
-              onSelectEvent={vi.fn()}
-            />,
-          );
-        } else if (tab === 'month') {
-          html = renderToStaticMarkup(
-            <CalendarMonthView
-              events={mockSampleEvents}
-              selectedDate={new Date()}
-              onSelectDate={vi.fn()}
-              openDedicatedSheet={vi.fn()}
-              onSelectEvent={vi.fn()}
-            />,
-          );
-        } else if (tab === 'booking') {
-          html = renderToStaticMarkup(
-            <CalendarBookingView userEmail="sundar@quantmail.in" bookingSlug="sundar" />,
-          );
-        } else if (tab === 'quantmeet') {
-          html = renderToStaticMarkup(<CalendarQuantMeetView />);
-        } else if (tab === 'reminders') {
-          html = renderToStaticMarkup(<CalendarRemindersView />);
-        }
-        expect(emojiRegex.test(html)).toBe(false);
-      });
-    });
   });
 });

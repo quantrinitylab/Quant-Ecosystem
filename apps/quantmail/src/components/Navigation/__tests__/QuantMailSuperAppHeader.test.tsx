@@ -65,11 +65,12 @@ describe('QuantMailSuperAppHeader — Amazon/Flipkart-Class Super-App Command He
     it('renders wide global search bar with Ctrl+K shortcut, voice, and scan lens buttons', () => {
       const html = renderToStaticMarkup(
         <QuantMailSuperAppHeader
-          searchPlaceholder="Search across Mail, Calendar, Drive, Contacts, QuantGit… (<5ms FTS5)"
+          searchPlaceholder="Search across Mail, Calendar, Drive, Contacts, QuantGit…"
         />
       );
 
-      expect(html).toContain('Search across Mail, Calendar, Drive, Contacts, QuantGit… (&lt;5ms FTS5)');
+      expect(html).toContain('Search across Mail, Calendar, Drive, Contacts, QuantGit…');
+      expect(html).not.toContain('5ms');
       expect(html).toContain('Ctrl+K');
       expect(html).toContain('aria-label="Voice Search"');
       expect(html).toContain('aria-label="Scan Document or QR"');
@@ -138,9 +139,9 @@ describe('QuantMailSuperAppHeader — Amazon/Flipkart-Class Super-App Command He
 
       const driveHtml = renderToStaticMarkup(<QuantMailSuperAppHeader activePillar="drive" />);
       expect(driveHtml).toContain('aria-selected="true" aria-label="Drive Pillar (E2EE)"');
-      // Underline glow color for Drive (Cyan #38BDF8)
-      expect(driveHtml).toContain('#38BDF8');
-      expect(driveHtml).toContain('rgba(56, 189, 248, 0.25)');
+      // Underline glow color for Drive (canonical PILLAR_ACCENTS.drive #34A853, QM-UIUX-037)
+      expect(driveHtml).toContain('#34A853');
+      expect(driveHtml).toContain('rgba(52, 168, 83, 0.25)');
     });
   });
 

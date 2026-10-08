@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { apiClient } from '../services/api-client';
+import { apiClient, type EmailFolder } from '../services/api-client';
 import {
   ErrorState,
   Skeleton,
@@ -108,6 +108,61 @@ export interface CustomFolder {
   filterType: 'contact' | 'keyword' | 'standard';
   filterValue?: string;
   createdAt?: number;
+}
+
+type FolderFilterMeta = Pick<CustomFolder, 'filterType' | 'filterValue'>;
+
+const FOLDERS_CACHE_KEY = 'quant_custom_folders';
+const FOLDER_FILTERS_KEY = 'quant_folder_filters';
+
+/**
+ * The backend `/folders` API stores name/color/type but has no fields for the
+ * client-side filter semantics (contact/keyword/standard + value). Those live
+ * in this device-local sidecar keyed by backend folder id, so a folder created
+ * here keeps its filter on this device while its name/color sync cross-device.
+ */
+function readFolderFilters(): Record<string, FolderFilterMeta> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const saved = localStorage.getItem(FOLDER_FILTERS_KEY);
+    if (saved) return JSON.parse(saved) as Record<string, FolderFilterMeta>;
+  } catch {
+    // ignore
+  }
+  return {};
+}
+
+function writeFolderFilters(filters: Record<string, FolderFilterMeta>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(FOLDER_FILTERS_KEY, JSON.stringify(filters));
+  } catch {
+    // ignore
+  }
+}
+
+function persistFoldersCache(folders: CustomFolder[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(FOLDERS_CACHE_KEY, JSON.stringify(folders));
+  } catch {
+    // ignore
+  }
+}
+
+/** Map a backend folder row onto the client CustomFolder shape. */
+function fromBackendFolder(
+  backend: EmailFolder,
+  filter?: FolderFilterMeta,
+): CustomFolder {
+  return {
+    id: backend.id,
+    name: backend.name,
+    color: backend.color || '#FF8C42',
+    filterType: filter?.filterType || 'standard',
+    filterValue: filter?.filterValue || '',
+    createdAt: backend.createdAt ? new Date(backend.createdAt).getTime() : Date.now(),
+  };
 }
 
 type InboxLens =
@@ -922,6 +977,30 @@ function EmailRow({
   );
 }
 
+/**
+ * Memoized inbox row.
+ *
+ * The parent renders per-row handler closures (`(event) => toggleSelect(thread.id,
+ * event)`, …) that get fresh identities on every render, so a default shallow
+ * `memo` would never bail out. The custom comparator ignores function-identity
+ * churn on purpose: every handler delegates to a stable `useCallback`'d parent
+ * function and closes over nothing but `thread.id`, which is covered by the
+ * `thread` reference check below — a new closure over the same thread id behaves
+ * identically. Rows therefore re-render only when their data actually changes.
+ */
+const MemoizedEmailRow = memo(
+  EmailRow,
+  (prev, next) =>
+    prev.thread === next.thread &&
+    prev.isChecked === next.isChecked &&
+    prev.isActive === next.isActive &&
+    prev.isFocused === next.isFocused &&
+    prev.isSpamMode === next.isSpamMode &&
+    prev.savedGroups === next.savedGroups &&
+    prev.onRescueSpam === next.onRescueSpam &&
+    prev.isArchiveView === next.isArchiveView,
+);
+
 
 /**
  * The accents a group chip can carry.
@@ -1065,7 +1144,7 @@ function ArchivedFolderRow({
       type="button"
       onClick={onToggle}
       aria-expanded={isViewing}
-      className="w-full min-h-[44px] flex items-center justify-between gap-3 px-4 py-3 bg-[#111318] hover:bg-[#16181D] border-b border-[#282C35] transition-colors select-none group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-inset"
+      className="w-full min-h-[44px] flex items-center justify-between gap-3 px-4 py-3 bg-[#111318] md:bg-black hover:bg-[#16181D] md:hover:bg-[#0A0B0D] border-b md:border-b-0 border-[#282C35] transition-colors select-none group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-inset"
     >
       <span className="flex items-center gap-3 min-w-0">
         <span className="size-8 shrink-0 rounded-full bg-[#16181D] border border-[#282C35] flex items-center justify-center text-[#A1A4AC] group-hover:text-[#FF8C42] transition-colors">
@@ -1253,10 +1332,15 @@ export default function InboxPage() {
   const selectedThreadId = selectedThread?.id || selectedEmail?.id || null;
 
   // Custom Folders & Filter Lenses
+  // Backend (`/api/folders`) is the source of truth so folders sync
+  // cross-device; localStorage stays as an offline cache plus the device-local
+  // filter sidecar (see `readFolderFilters`). The mount effect below replaces
+  // this cache with the backend list and migrates any legacy local-only
+  // folders up to the server.
   const [customFolders, setCustomFolders] = useState<CustomFolder[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('quant_custom_folders');
+        const saved = localStorage.getItem(FOLDERS_CACHE_KEY);
         if (saved) return JSON.parse(saved);
       } catch {
         // ignore
@@ -1266,9 +1350,91 @@ export default function InboxPage() {
   });
   const [isAddFolderModalOpen, setIsAddFolderModalOpen] = useState(false);
 
-  const handleCreateFolder = useCallback((draft: FolderDraft) => {
-    const newFolder: CustomFolder = {
-      id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+  /**
+   * Load folders from the backend on mount and migrate legacy device-local
+   * folders (`custom_*` ids, created before the backend sync existed) up to
+   * the server. Backend wins on name conflicts; anything that fails to migrate
+   * stays local so no user data is ever dropped.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let backendFolders: EmailFolder[];
+      try {
+        const res = await apiClient.getFolders();
+        if (!res.success || !res.data) return;
+        backendFolders = res.data.filter((f) => f.type === 'CUSTOM');
+      } catch {
+        return;
+      }
+      if (cancelled) return;
+
+      const filters = readFolderFilters();
+      let localCache: CustomFolder[] = [];
+      try {
+        const saved = localStorage.getItem(FOLDERS_CACHE_KEY);
+        if (saved) localCache = JSON.parse(saved);
+      } catch {
+        // ignore
+      }
+
+      // Migrate legacy local-only folders to the backend.
+      const legacy = localCache.filter((f) => f.id.startsWith('custom_'));
+      const migratedIds = new Set<string>();
+      for (const folder of legacy) {
+        if (cancelled) return;
+        if (
+          backendFolders.some((b) => b.name.toLowerCase() === folder.name.toLowerCase())
+        ) {
+          // Backend already has this name — adopt the backend row, keep the
+          // local filter metadata under the backend id.
+          const match = backendFolders.find(
+            (b) => b.name.toLowerCase() === folder.name.toLowerCase(),
+          )!;
+          filters[match.id] = {
+            filterType: folder.filterType,
+            filterValue: folder.filterValue,
+          };
+          migratedIds.add(folder.id);
+          continue;
+        }
+        try {
+          const created = await apiClient.createFolder({
+            name: folder.name,
+            color: folder.color,
+          });
+          if (created.success && created.data) {
+            backendFolders.push(created.data);
+            filters[created.data.id] = {
+              filterType: folder.filterType,
+              filterValue: folder.filterValue,
+            };
+            migratedIds.add(folder.id);
+          }
+        } catch {
+          // Keep it local; a later mount retries.
+        }
+      }
+      if (cancelled) return;
+
+      const merged = backendFolders.map((b) => fromBackendFolder(b, filters[b.id]));
+      // Preserve legacy folders that failed to migrate so nothing is lost.
+      for (const folder of legacy) {
+        if (!migratedIds.has(folder.id)) merged.push(folder);
+      }
+      writeFolderFilters(filters);
+      persistFoldersCache(merged);
+      setCustomFolders(merged);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleCreateFolder = useCallback(async (draft: FolderDraft) => {
+    const tempId = `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const optimistic: CustomFolder = {
+      id: tempId,
       name: draft.name.trim(),
       color: draft.color || '#FF8C42',
       filterType: draft.filterType,
@@ -1276,21 +1442,50 @@ export default function InboxPage() {
       createdAt: Date.now(),
     };
 
+    // Optimistic add so the UI feels instant.
     setCustomFolders((prev) => {
-      const next = [...prev, newFolder];
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('quant_custom_folders', JSON.stringify(next));
-        } catch {
-          // ignore
-        }
-      }
+      const next = [...prev, optimistic];
+      persistFoldersCache(next);
       return next;
     });
-
     setIsAddFolderModalOpen(false);
-    setActiveLens(`folder_${newFolder.id}`);
-    showToast({ text: `Folder "${newFolder.name}" created`, type: 'success' });
+    setActiveLens(`folder_${tempId}`);
+
+    try {
+      const res = await apiClient.createFolder({
+        name: optimistic.name,
+        color: optimistic.color,
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message || 'Could not save folder');
+      }
+      const saved = fromBackendFolder(res.data, {
+        filterType: optimistic.filterType,
+        filterValue: optimistic.filterValue,
+      });
+      const filters = readFolderFilters();
+      filters[saved.id] = {
+        filterType: optimistic.filterType,
+        filterValue: optimistic.filterValue,
+      };
+      writeFolderFilters(filters);
+      setCustomFolders((prev) => {
+        const next = prev.map((f) => (f.id === tempId ? saved : f));
+        persistFoldersCache(next);
+        return next;
+      });
+      setActiveLens(`folder_${saved.id}`);
+      showToast({ text: `Folder "${saved.name}" created`, type: 'success' });
+    } catch (error) {
+      // Roll back the optimistic add — the folder was never saved.
+      setCustomFolders((prev) => {
+        const next = prev.filter((f) => f.id !== tempId);
+        persistFoldersCache(next);
+        return next;
+      });
+      const message = error instanceof Error ? error.message : 'Could not save folder';
+      showToast({ text: `Couldn't create folder: ${message}`, type: 'error' });
+    }
   }, []);
 
   /** Conversation the next shift-click extends from. See `toggleSelect`. */
@@ -1351,7 +1546,9 @@ export default function InboxPage() {
   const createGroup = useCreateContactGroup();
   const updateGroup = useUpdateContactGroup();
   const deleteGroup = useDeleteContactGroup();
-  const savedGroups = contactGroups ?? [];
+  // `?? []` allocates a fresh empty array every render, which would defeat the
+  // EmailRow memo comparator — memoize it so row props stay referentially stable.
+  const savedGroups = useMemo(() => contactGroups ?? [], [contactGroups]);
 
   useEffect(() => {
     const handleEditGroup = (event: Event) => {
@@ -2778,7 +2975,7 @@ export default function InboxPage() {
            * subtree into the positioned layer, where the z-indexes mean what
            * they say. Any popover added to this row inherits the fix.
            */}
-          <div className="relative z-30 flex items-center gap-2 py-2 px-3 sm:px-4 border-b border-[#282C35] bg-[#090A0C]/95 backdrop-blur-md">
+          <div className="relative z-30 flex items-center gap-2 py-2 px-3 sm:px-4 border-b md:border-b-0 border-[#282C35] bg-[#090A0C]/95 md:bg-black/95 backdrop-blur-md">
             {/*
               One pill holds the four lenses and the spam link, because they are
               one row of destinations to a reader. The tablist is a nested group
@@ -3200,8 +3397,8 @@ export default function InboxPage() {
               </div>
             )}
             {!isLoading && !isSearching && !error && showGroupsView && (
-              <section aria-label="Your groups" className="w-full border-b border-[#282C35]">
-                <header className="flex items-center justify-between gap-3 border-b border-[#282C35] bg-[#0B0C0F] px-4 py-3">
+              <section aria-label="Your groups" className="w-full border-b md:border-b-0 border-[#282C35]">
+                <header className="flex items-center justify-between gap-3 border-b md:border-b-0 border-[#282C35] bg-[#0B0C0F] md:bg-black px-4 py-3">
                   <div>
                     <h2 className="text-sm font-bold text-[#F5F5F5]">Groups</h2>
                     <p className="mt-0.5 text-[11px] text-[#A1A4AC]">
@@ -3275,7 +3472,7 @@ export default function InboxPage() {
                     </button>
                   </div>
                 ) : (
-                  <ul role="list" className="m-0 list-none divide-y divide-[#282C35] p-0">
+                  <ul role="list" className="m-0 list-none divide-y divide-[#282C35] md:divide-y-0 md:space-y-1 p-0">
                     {savedGroups.map((group) => {
                       const matchingThread = findGroupThread(group);
                       const latestMessage = matchingThread?.latestEmail;
@@ -3387,7 +3584,7 @@ export default function InboxPage() {
                     <div
                       role="list"
                       aria-label="Other group conversations"
-                      className="divide-y divide-[#282C35]"
+                      className="divide-y divide-[#282C35] md:divide-y-0 md:space-y-1"
                     >
                       {unmatchedGroupThreads.map((thread) => {
                         const displayIndex = displayThreads.findIndex(
@@ -3396,7 +3593,7 @@ export default function InboxPage() {
 
                         return (
                           <div key={thread.id} role="listitem">
-                            <EmailRow
+                            <MemoizedEmailRow
                               thread={thread}
                               isChecked={selectedIds.has(thread.id)}
                               isActive={
@@ -3671,7 +3868,7 @@ export default function InboxPage() {
                         // `is-focused` class beside it only says that to an eye.
                         aria-current={focusedIndex === item.index ? 'true' : undefined}
                       >
-                        <EmailRow
+                        <MemoizedEmailRow
                           thread={thread}
                           isChecked={selectedIds.has(thread.id)}
                           isActive={

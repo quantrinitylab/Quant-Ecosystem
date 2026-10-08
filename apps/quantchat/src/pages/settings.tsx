@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { logger } from '@quant/common';
 import { getAuthHeaders, getAuthHeadersWithContent } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface PrivacySettings {
   whoCanMessage: 'everyone' | 'friends' | 'nobody';
@@ -161,7 +162,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
   const fetchSettings = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/settings', {
+      const response = await apiFetchRaw('/api/settings', {
         headers: { ...getAuthHeaders() },
       });
       if (!response.ok) throw new Error('Failed to load settings');
@@ -197,7 +198,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
     setSaveMessage(null);
     setError(null);
     try {
-      const response = await fetch('/api/settings', {
+      const response = await apiFetchRaw('/api/settings', {
         method: 'PUT',
         headers: {
           ...getAuthHeadersWithContent(),
@@ -221,7 +222,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
 
   const handleUnblock = useCallback(async (userId: string) => {
     try {
-      await fetch(`/api/settings/blocked/${userId}`, {
+      await apiFetchRaw(`/api/settings/blocked/${userId}`, {
         method: 'DELETE',
         headers: { ...getAuthHeaders() },
       });
@@ -238,7 +239,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
       const interval = setInterval(() => {
         setExportProgress((p) => Math.min(p + 10, 90));
       }, 500);
-      const response = await fetch('/api/settings/export', {
+      const response = await apiFetchRaw('/api/settings/export', {
         method: 'POST',
         headers: { ...getAuthHeaders() },
       });
@@ -262,7 +263,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
   const handleDeleteAccount = useCallback(async () => {
     if (deleteConfirmText !== 'DELETE') return;
     try {
-      await fetch('/api/settings/account', {
+      await apiFetchRaw('/api/settings/account', {
         method: 'DELETE',
         headers: { ...getAuthHeaders() },
       });

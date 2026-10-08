@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { spring } from '@quant/brand';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface BlocklistEntry {
   id: string;
@@ -189,7 +190,7 @@ const BrandSafetyPage: React.FC<BrandSafetyPageProps> = ({ accountId: _accountId
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/brand-safety');
+      const response = await apiFetchRaw('/api/brand-safety');
       if (!response.ok) throw new Error('Failed to load brand safety settings');
       const data = await response.json();
       setBlocklist(data.blocklist || []);
@@ -212,7 +213,7 @@ const BrandSafetyPage: React.FC<BrandSafetyPageProps> = ({ accountId: _accountId
     if (!newKeyword.trim()) return;
     setSaving(true);
     try {
-      const response = await fetch('/api/brand-safety/keywords', {
+      const response = await apiFetchRaw('/api/brand-safety/keywords', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keyword: newKeyword.trim(), matchType: newMatchType }),
@@ -229,7 +230,7 @@ const BrandSafetyPage: React.FC<BrandSafetyPageProps> = ({ accountId: _accountId
   }, [newKeyword, newMatchType]);
 
   const removeKeyword = useCallback(async (id: string) => {
-    await fetch(`/api/brand-safety/keywords/${id}`, { method: 'DELETE' });
+    await apiFetchRaw(`/api/brand-safety/keywords/${id}`, { method: 'DELETE' });
     setBlocklist((prev) => prev.filter((b) => b.id !== id));
   }, []);
 
@@ -238,7 +239,7 @@ const BrandSafetyPage: React.FC<BrandSafetyPageProps> = ({ accountId: _accountId
       setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, enabled: !c.enabled } : c)));
       try {
         const cat = categories.find((c) => c.id === id);
-        await fetch(`/api/brand-safety/categories/${id}`, {
+        await apiFetchRaw(`/api/brand-safety/categories/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ enabled: !cat?.enabled }),
@@ -252,7 +253,7 @@ const BrandSafetyPage: React.FC<BrandSafetyPageProps> = ({ accountId: _accountId
     if (!newExclusionValue.trim()) return;
     setSaving(true);
     try {
-      const response = await fetch('/api/brand-safety/exclusions', {
+      const response = await apiFetchRaw('/api/brand-safety/exclusions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -273,13 +274,13 @@ const BrandSafetyPage: React.FC<BrandSafetyPageProps> = ({ accountId: _accountId
   }, [newExclusionValue, newExclusionType]);
 
   const removeExclusion = useCallback(async (id: string) => {
-    await fetch(`/api/brand-safety/exclusions/${id}`, { method: 'DELETE' });
+    await apiFetchRaw(`/api/brand-safety/exclusions/${id}`, { method: 'DELETE' });
     setExclusions((prev) => prev.filter((e) => e.id !== id));
   }, []);
 
   const updateInventoryType = useCallback(async (type: 'limited' | 'standard' | 'full') => {
     setInventoryType(type);
-    await fetch('/api/brand-safety/inventory', {
+    await apiFetchRaw('/api/brand-safety/inventory', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type }),

@@ -5,6 +5,10 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Quanty } from './Quanty';
 import { triggerHapticTap } from './QuantPillarTopBar';
 import { useChromeVisible } from './useScrollChrome';
+// QM-UIUX-037: single accent-color source of truth (mobile values canonical).
+// NOTE: Tailwind arbitrary-value classes below MUST stay literal strings so
+// the JIT compiler can detect them — do not interpolate PILLAR_ACCENTS here.
+import { PILLAR_ACCENTS } from './pillar-accents';
 
 // ============================================================================
 // QuantMail — Contextual Bottom Navigation (mobile)
@@ -656,10 +660,10 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
   mail: {
     pillar: 'mail',
     name: 'Mail',
-    accentColor: '#FF8C42',
-    activeContainerStyle: 'bg-[#FF8C42]/15 border-[#FF8C42]/40',
-    activeTextStyle: 'text-[#FF8C42]',
-    badgeStyle: 'bg-[#FF8C42] text-black',
+    accentColor: PILLAR_ACCENTS.mail,
+    activeContainerStyle: 'bg-[#FF6B35]/15 border-[#FF6B35]/40',
+    activeTextStyle: 'text-[#FF6B35]',
+    badgeStyle: 'bg-[#FF6B35] text-black',
     tabs: [
       {
         id: 'inbox',
@@ -680,10 +684,10 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
   calendar: {
     pillar: 'calendar',
     name: 'Calendar',
-    accentColor: '#F59E0B',
-    activeContainerStyle: 'bg-[#F59E0B]/15 border-[#F59E0B]/40',
-    activeTextStyle: 'text-[#F59E0B]',
-    badgeStyle: 'bg-[#F59E0B] text-black',
+    accentColor: PILLAR_ACCENTS.calendar,
+    activeContainerStyle: 'bg-[#4285F4]/15 border-[#4285F4]/40',
+    activeTextStyle: 'text-[#4285F4]',
+    badgeStyle: 'bg-[#4285F4] text-black',
     tabs: [
       {
         id: 'feed',
@@ -730,10 +734,10 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
   drive: {
     pillar: 'drive',
     name: 'Drive',
-    accentColor: '#38BDF8',
-    activeContainerStyle: 'bg-[#38BDF8]/15 border-[#38BDF8]/40',
-    activeTextStyle: 'text-[#38BDF8]',
-    badgeStyle: 'bg-[#38BDF8] text-black',
+    accentColor: PILLAR_ACCENTS.drive,
+    activeContainerStyle: 'bg-[#34A853]/15 border-[#34A853]/40',
+    activeTextStyle: 'text-[#34A853]',
+    badgeStyle: 'bg-[#34A853] text-black',
     tabs: [
       {
         id: 'home',
@@ -772,10 +776,10 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
   contacts: {
     pillar: 'contacts',
     name: 'Contacts',
-    accentColor: '#10B981',
-    activeContainerStyle: 'bg-[#10B981]/15 border-[#10B981]/40',
-    activeTextStyle: 'text-[#10B981]',
-    badgeStyle: 'bg-[#10B981] text-black',
+    accentColor: PILLAR_ACCENTS.contacts,
+    activeContainerStyle: 'bg-[#8AB4F8]/15 border-[#8AB4F8]/40',
+    activeTextStyle: 'text-[#8AB4F8]',
+    badgeStyle: 'bg-[#8AB4F8] text-black',
     tabs: [
       {
         id: 'home',
@@ -820,10 +824,10 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
   quantgit: {
     pillar: 'quantgit',
     name: 'QuantGit',
-    accentColor: '#A78BFA',
-    activeContainerStyle: 'bg-[#A78BFA]/15 border-[#A78BFA]/40',
-    activeTextStyle: 'text-[#A78BFA]',
-    badgeStyle: 'bg-[#A78BFA] text-black',
+    accentColor: PILLAR_ACCENTS.quantgit,
+    activeContainerStyle: 'bg-[#A855F7]/15 border-[#A855F7]/40',
+    activeTextStyle: 'text-[#A855F7]',
+    badgeStyle: 'bg-[#A855F7] text-black',
     // Gemini-approved bottom-nav order (user-confirmed 2026-10-07):
     // Quanty AI (logo-only, opens the cockpit) → Feed → Repos → PRs → Issues.
     tabs: [

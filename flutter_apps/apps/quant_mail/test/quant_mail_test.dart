@@ -210,10 +210,8 @@ void main() {
       expect(deserialized, equals(recipient1));
       expect(deserialized.name, recipient1.name);
 
-      // 6. Sovereign contacts registry presence
-      expect(EmailRecipient.sovereignContacts.length, greaterThanOrEqualTo(5));
-      expect(EmailRecipient.sovereignContacts.any((c) => c.name == 'Demis Hassabis'), isTrue);
-      expect(EmailRecipient.sovereignContacts.any((c) => c.email == 'alex@trinity.lab'), isTrue);
+      // 6. Sovereign contacts registry is empty (QM-UIUX-059: fake contacts removed)
+      expect(EmailRecipient.sovereignContacts, isEmpty);
     });
 
     test('EmailAttachment: File extensions, formattedSize, icon mapping, and JSON roundtrip', () {

@@ -438,7 +438,7 @@ export function QuantGitHeader({
                                   setEditingSessionId(null);
                                 }}
                                 autoFocus
-                                className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-2 py-0.5 text-xs text-white focus:outline-none"
+                                className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-2 py-0.5 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                               />
                             ) : (
                               <>
@@ -580,7 +580,7 @@ export function QuantGitHeader({
                                 setEditingSessionId(null);
                               }}
                               autoFocus
-                              className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-2 py-0.5 text-xs text-white focus:outline-none"
+                              className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-2 py-0.5 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                             />
                           ) : (
                             <>

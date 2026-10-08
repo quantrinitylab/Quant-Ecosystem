@@ -9,6 +9,8 @@
 import React, { useState, useEffect, useRef, useCallback, type KeyboardEvent } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { quantSymbolDark } from '@quant/brand';
+// QM-UIUX-037: single accent-color source of truth (mobile values canonical).
+import { PILLAR_ACCENTS } from '../pillar-accents';
 
 // ============================================================================
 // Types & Contracts
@@ -414,8 +416,8 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
     path: '/',
     badge: 12,
     badgeTone: 'amber',
-    accentColor: '#FF8C42',
-    glowColor: 'rgba(255, 140, 66, 0.25)',
+    accentColor: PILLAR_ACCENTS.mail,
+    glowColor: 'rgba(255, 107, 53, 0.25)',
     icon: MailPillarSvg,
   },
   {
@@ -424,8 +426,8 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
     path: '/calendar',
     badge: 2,
     badgeTone: 'amber',
-    accentColor: '#F59E0B',
-    glowColor: 'rgba(245, 158, 11, 0.25)',
+    accentColor: PILLAR_ACCENTS.calendar,
+    glowColor: 'rgba(66, 133, 244, 0.25)',
     icon: CalendarPillarSvg,
   },
   {
@@ -434,8 +436,8 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
     path: '/drive',
     badge: 'E2EE',
     badgeTone: 'cyan',
-    accentColor: '#38BDF8',
-    glowColor: 'rgba(56, 189, 248, 0.25)',
+    accentColor: PILLAR_ACCENTS.drive,
+    glowColor: 'rgba(52, 168, 83, 0.25)',
     icon: DrivePillarSvg,
   },
   {
@@ -444,8 +446,8 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
     path: '/contacts',
     badge: 8,
     badgeTone: 'emerald',
-    accentColor: '#10B981',
-    glowColor: 'rgba(16, 185, 129, 0.25)',
+    accentColor: PILLAR_ACCENTS.contacts,
+    glowColor: 'rgba(138, 180, 248, 0.25)',
     icon: ContactsPillarSvg,
   },
   {
@@ -454,8 +456,8 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
     path: '/quantgit',
     badge: 1,
     badgeTone: 'purple',
-    accentColor: '#A78BFA',
-    glowColor: 'rgba(167, 139, 250, 0.25)',
+    accentColor: PILLAR_ACCENTS.quantgit,
+    glowColor: 'rgba(168, 85, 247, 0.25)',
     icon: QuantGitPillarSvg,
   },
 ];
@@ -478,7 +480,7 @@ export function QuantMailSuperAppHeader({
   searchValue = '',
   onSearchChange,
   onSearchSubmit,
-  searchPlaceholder = 'Search across Mail, Calendar, Drive, Contacts, QuantGit… (<5ms FTS5)',
+  searchPlaceholder = 'Search across Mail, Calendar, Drive, Contacts, QuantGit…',
   unreadNotifications = 3,
   quantCredits = '1,250 QC',
   userInitials = 'QT',
@@ -733,7 +735,7 @@ export function QuantMailSuperAppHeader({
                 onChange={handleSearchInputChange}
                 placeholder={searchPlaceholder}
                 aria-label="Global Super-App Search"
-                className="w-full py-2 bg-transparent text-xs text-white placeholder-[#64748B] focus:outline-none"
+                className="w-full py-2 bg-transparent text-xs text-white placeholder-[#64748B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               />
 
               {/* Clear button when input has text */}
@@ -816,7 +818,7 @@ export function QuantMailSuperAppHeader({
           <button
             type="button"
             onClick={() => router.push('/settings/profile')}
-            className="relative flex items-center justify-center size-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 font-bold text-xs text-white ring-2 ring-[#1E222A] hover:ring-indigo-500/50 transition-all focus:outline-none"
+            className="relative flex items-center justify-center size-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 font-bold text-xs text-white ring-2 ring-[#1E222A] hover:ring-indigo-500/50 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             aria-label={`User Profile: ${userName}`}
             title={`${userName} (${userEmail})`}
           >
@@ -851,7 +853,7 @@ export function QuantMailSuperAppHeader({
                   aria-selected={isActive}
                   aria-label={`${pillar.label} Pillar${pillar.badge ? ` (${pillar.badge})` : ''}`}
                   onClick={() => handlePillarClick(pillar)}
-                  className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all shrink-0 focus:outline-none ${
+                  className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                     isActive
                       ? 'bg-[#161B26] text-white shadow-sm font-semibold'
                       : 'text-[#94A3B8] hover:text-white hover:bg-[#12151E]'

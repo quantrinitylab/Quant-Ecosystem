@@ -69,8 +69,7 @@ export function DriveContextTabsHeader({
       label: 'Sovereign Vault',
       shortLabel: 'Vault',
       icon: PadlockIcon,
-      badgeText: 'E2EE',
-      ariaLabel: 'AES-256 E2EE Sovereign Cryptographic Vault',
+      ariaLabel: 'Vault — locked file storage',
     },
   ];
 

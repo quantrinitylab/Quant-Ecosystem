@@ -85,17 +85,19 @@ class MailHeaderSecurity {
   final String messageId;
   final String sourceIp;
 
+  // QM-UIUX-059: no fake security telemetry. Defaults are 'unknown';
+  // real values come from the backend mail headers API.
   const MailHeaderSecurity({
-    this.spf = 'PASS',
-    this.dkim = 'PASS',
-    this.dmarc = 'PASS',
-    this.e2ee = 'Quantum-Resistant Kyber-1024 + AES-256-GCM',
-    this.tlsCipher = 'TLS_AES_256_GCM_SHA384 (TLS 1.3)',
-    this.returnPath = '<bounces+349@trinity.lab>',
-    this.mimeVersion = '1.0 (multipart/alternative)',
-    this.deliveryLatencyMs = 1.8,
-    this.messageId = '<msg-wave76-88f2@quantmail.in>',
-    this.sourceIp = '198.51.100.42 (TLS 1.3 Encrypted)',
+    this.spf = 'unknown',
+    this.dkim = 'unknown',
+    this.dmarc = 'unknown',
+    this.e2ee = 'unknown',
+    this.tlsCipher = 'unknown',
+    this.returnPath = 'unknown',
+    this.mimeVersion = 'unknown',
+    this.deliveryLatencyMs = -1,
+    this.messageId = 'unknown',
+    this.sourceIp = 'unknown',
   });
 }
 

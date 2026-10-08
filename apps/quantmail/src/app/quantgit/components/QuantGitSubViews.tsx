@@ -276,7 +276,7 @@ export function QuantGitReposSubView({
                 </span>
               </div>
               <p className="text-xs text-[#8B949E] mt-0.5">
-                Zero-mock git smart HTTP repositories & sovereign microservices
+                Git repositories & microservices
               </p>
             </div>
           </div>
@@ -308,7 +308,7 @@ export function QuantGitReposSubView({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <select
-              value={typeFilter}
+              aria-label="Filter by type" value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as any)}
               className="bg-[#12151E] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#E6EDF3] focus:outline-none focus:border-[#A78BFA]"
             >
@@ -317,7 +317,7 @@ export function QuantGitReposSubView({
               <option value="private">Private</option>
             </select>
             <select
-              value={langFilter}
+              aria-label="Filter by language" value={langFilter}
               onChange={(e) => setLangFilter(e.target.value)}
               className="bg-[#12151E] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#E6EDF3] focus:outline-none focus:border-[#A78BFA]"
             >
@@ -699,7 +699,7 @@ export function QuantGitIssuesSubView({
                 </span>
               </div>
               <p className="text-xs text-[#8B949E] mt-0.5">
-                Sub-5ms triage, CalDAV recurrence tracking & cryptographic session diagnostics
+                Triage, CalDAV recurrence tracking & session diagnostics
               </p>
             </div>
           </div>
@@ -1172,7 +1172,7 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
               value={inputVal}
               onChange={(e) => setInputVal(e.target.value)}
               placeholder="Ask Quanty about repositories, PR diffs, or architecture..."
-              className="flex-1 bg-transparent px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] focus:outline-none"
+              className="flex-1 bg-transparent px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             />
             <button
               type="submit"

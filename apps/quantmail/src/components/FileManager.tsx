@@ -332,7 +332,7 @@ export const FileManager: React.FC<FileManagerProps> = ({
             >
               <div className="fm-card-icon">
                 {file.thumbnailUrl ? (
-                  <img src={file.thumbnailUrl} alt="" className="file-thumb" />
+                  <img src={file.thumbnailUrl} alt="" className="file-thumb" loading="lazy" decoding="async" />
                 ) : (
                   <span className="file-type-icon">
                     <MimeTypeIcon mimeType={file.mimeType} kind={file.type} size={34} />
@@ -343,6 +343,7 @@ export const FileManager: React.FC<FileManagerProps> = ({
                 {renamingFile === file.id ? (
                   <input
                     type="text"
+                    aria-label={`Rename ${file.name || 'file'}`}
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
                     onBlur={() => handleRenameSubmit(file.id)}
@@ -426,6 +427,7 @@ export const FileManager: React.FC<FileManagerProps> = ({
                   {renamingFile === file.id ? (
                     <input
                       type="text"
+                      aria-label={`Rename ${file.name || 'file'}`}
                       value={renameValue}
                       onChange={(e) => setRenameValue(e.target.value)}
                       onBlur={() => handleRenameSubmit(file.id)}

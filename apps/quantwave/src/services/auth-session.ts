@@ -6,6 +6,7 @@
 // restore a session with /auth/refresh, and rotates before the access token expires.
 // ============================================================================
 import { quantSyncAPI, AuthRequiredError } from './api-client';
+import { apiFetchRaw } from '@quant/api-client';
 
 export interface SessionData {
   accessToken?: string;
@@ -43,7 +44,7 @@ export function isTwoFactorChallenge(
 
 async function postAuth(action: string, body?: unknown): Promise<SessionResult> {
   try {
-    const res = await fetch(`/auth/${action}`, {
+    const res = await apiFetchRaw(`/auth/${action}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined,
@@ -135,13 +136,13 @@ export const authSession = {
 /**
  * POST /api/auth/sso/login — the Next.js proxy forwards this to the QuantWave
  * backend's POST /auth/sso/login, which validates the QuantMail token and
- * returns { accessToken, user }. Plain fetch (not the api-client): a 401 here
+ * returns { accessToken, user }. Plain Fetch API use (not the api-client): a 401 here
  * means the SSO token itself is invalid, not that an existing session died, so
  * it must NOT trigger the api-client's session-death path.
  */
 async function postSsoLogin(quantMailToken: string): Promise<SessionResult> {
   try {
-    const res = await fetch('/api/auth/sso/login', {
+    const res = await apiFetchRaw('/api/auth/sso/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ quantMailToken }),

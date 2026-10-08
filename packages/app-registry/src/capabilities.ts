@@ -162,6 +162,7 @@ const QUANTMAIL: Capability[] = [
     resources: ['mail.message'], scopes: ['mail:send'], risk: 3,
     approval: 'Sending mail is an external side effect.',
     events: ['mail.message.sent.v1'], emits: ['mail.message.sent.v1'],
+    cost: { meter: 'mail.delivery', quote: false },
     degraded: ['queue', 'Mail service unreachable — your message is queued and will send when it recovers.'],
     status: 'active',
     route: R('quantmail', 'apps/quantmail/backend/routes/emails.ts', 'POST', 'POST /emails/:id/send'),
@@ -201,6 +202,61 @@ const QUANTMAIL: Capability[] = [
     degraded: ['fail_closed', 'Reporting unavailable right now.'],
     status: 'preview',
     note: 'Declared in architecture; no dedicated report endpoint verified yet.',
+  }),
+];
+
+// ---------------------------------------------------------------------------
+// QuantMail AI surfaces — source of truth: mailbox/thread/message domain.
+// Route evidence: apps/quantmail/backend/routes/ai.ts, ai-compose.ts.
+// QM-QUANTY-002: every Quanty output in mail carries evidence, provenance
+// and cost; mutations go through preview. Risk tiers follow EC-01 §3:
+// model invocations are tier 1 (metered preparation), the summarize cache
+// write is tier 1 (reversible by recompute), send stays tier 3.
+// ---------------------------------------------------------------------------
+
+const QUANTMAIL_AI: Capability[] = [
+  cap({
+    id: 'mail.ai.reply.suggest', owner: 'quantmail', app: 'quantmail', domain: 'ai-assist',
+    kind: 'query', sourceOfTruth: 'mailbox/thread/message domain',
+    resources: ['mail.message'], scopes: ['mail:read'], risk: 1,
+    events: [], verifyRequired: false,
+    cost: { meter: 'ai.tokens', quote: false },
+    degraded: ['fail_closed', 'Reply suggestions unavailable — write your reply manually.'],
+    links: ['quantmail:///thread/{threadId}'],
+    status: 'active',
+    route: R('quantmail', 'apps/quantmail/backend/routes/ai.ts', 'GET', 'GET /emails/:id/reply-suggestions'),
+  }),
+  cap({
+    id: 'mail.ai.summarize', owner: 'quantmail', app: 'quantmail', domain: 'ai-assist',
+    kind: 'command', sourceOfTruth: 'mailbox/thread/message domain',
+    resources: ['mail.message'], scopes: ['mail:read'], risk: 1,
+    events: ['mail.ai.summarized.v1'],
+    cost: { meter: 'ai.tokens', quote: false },
+    degraded: ['fail_closed', 'Summary unavailable — read the thread directly.'],
+    status: 'active',
+    route: R('quantmail', 'apps/quantmail/backend/routes/ai.ts', 'POST', 'POST /emails/:id/summarize'),
+    note: 'Writes a cached aiSummary on the email; reversible by recompute or clear.',
+  }),
+  cap({
+    id: 'mail.ai.compose.assist', owner: 'quantmail', app: 'quantmail', domain: 'ai-assist',
+    kind: 'command', sourceOfTruth: 'mailbox/thread/message domain',
+    resources: ['mail.draft'], scopes: ['mail:compose'], risk: 1,
+    events: ['mail.ai.compose.assisted.v1'],
+    cost: { meter: 'ai.tokens', quote: false },
+    degraded: ['fail_closed', 'Compose assist unavailable — write manually.'],
+    status: 'active',
+    route: R('quantmail', 'apps/quantmail/backend/routes/ai-compose.ts', 'POST', 'POST /ai/compose'),
+    note: 'Draft-only: output lands in the composer for user review; nothing sends.',
+  }),
+  cap({
+    id: 'mail.send.preview', owner: 'quantmail', app: 'quantmail', domain: 'delivery',
+    kind: 'query', sourceOfTruth: 'mailbox/thread/message domain',
+    resources: ['mail.message'], scopes: ['mail:send'], risk: 1,
+    events: [], verifyRequired: false,
+    degraded: ['fail_closed', 'Send preview unavailable — review the draft directly.'],
+    links: ['quantmail:///compose'],
+    status: 'active',
+    route: R('quantmail', 'apps/quantmail/backend/routes/ai.ts', 'POST', 'POST /emails/:id/send-preview'),
   }),
 ];
 
@@ -459,6 +515,7 @@ for (const c of SHARED_PLATFORM) {
 /** The full canonical catalog: 9 products + shared platform (§4 + §5). */
 export const ALL_CAPABILITIES: readonly Capability[] = Object.freeze([
   ...QUANTMAIL,
+  ...QUANTMAIL_AI,
   ...QUANTCHAT,
   ...OTHER_PRODUCTS,
   ...SHARED_PLATFORM,

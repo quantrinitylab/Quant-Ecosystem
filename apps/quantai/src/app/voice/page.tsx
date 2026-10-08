@@ -3,6 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVoiceCapture } from '../../hooks/useVoiceCapture';
+import { apiFetchRaw } from '@quant/api-client';
 
 export default function VoicePage() {
   const {
@@ -33,7 +34,7 @@ export default function VoicePage() {
       try {
         const form = new FormData();
         form.append('file', wav, 'audio.wav');
-        const sttRes = await fetch('/api/voice/stt', { method: 'POST', body: form });
+        const sttRes = await apiFetchRaw('/api/voice/stt', { method: 'POST', body: form });
         const sttData = (await sttRes.json().catch(() => ({}))) as {
           text?: string;
           error?: string;
@@ -44,7 +45,7 @@ export default function VoicePage() {
         const text = String(sttData.text).trim();
         setTranscript(text);
 
-        const chatRes = await fetch('/api/assistant/chat', {
+        const chatRes = await apiFetchRaw('/api/assistant/chat', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ message: text }),

@@ -20,6 +20,7 @@ import {
   IconBan,
   IconCheck,
 } from '../../../../components/icons';
+import { apiFetchRaw } from '@quant/api-client';
 
 // Helper to format Date to YYYY-MM-DD
 function formatDateToYmd(d: Date): string {
@@ -149,7 +150,7 @@ export default function PublicBookingPage(props: PageProps) {
     let isMounted = true;
     async function fetchLink() {
       try {
-        const res = await fetch(`/api/calendar/booking/${resolvedSlug}`);
+        const res = await apiFetchRaw(`/api/calendar/booking/${resolvedSlug}`);
         if (res.ok) {
           const json = await res.json();
           if (json.success && json.data && isMounted) {
@@ -244,7 +245,7 @@ export default function PublicBookingPage(props: PageProps) {
     async function loadSlots() {
       const dateStr = formatDateToYmd(selectedDate);
       try {
-        const res = await fetch(`/api/calendar/booking/${resolvedSlug}/slots?date=${dateStr}`);
+        const res = await apiFetchRaw(`/api/calendar/booking/${resolvedSlug}/slots?date=${dateStr}`);
         if (res.ok) {
           const json = await res.json();
           if (json.success && Array.isArray(json.data) && json.data.length > 0 && isMounted) {
@@ -383,7 +384,7 @@ export default function PublicBookingPage(props: PageProps) {
     let icsResult: string | undefined;
 
     try {
-      const res = await fetch(`/api/calendar/booking/${resolvedSlug}/book`, {
+      const res = await apiFetchRaw(`/api/calendar/booking/${resolvedSlug}/book`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bookingPayload),
@@ -570,11 +571,12 @@ export default function PublicBookingPage(props: PageProps) {
             {/* Left Column Bottom: Timezone Selector & Footer Note */}
             <div className="space-y-4 pt-6 border-t border-[#282C35]/60">
               <div>
-                <label className="block text-[11px] font-semibold text-[#A1A4AC] mb-1.5">
+                <label htmlFor="booking-timezone" className="block text-[11px] font-semibold text-[#A1A4AC] mb-1.5">
                   Your Timezone
                 </label>
                 <div className="relative">
                   <select
+                    id="booking-timezone"
                     value={selectedTimezone}
                     onChange={(e) => setSelectedTimezone(e.target.value)}
                     className="w-full appearance-none rounded-xl border border-[#282C35] bg-[#16181D] pl-8 pr-8 py-2 text-xs text-white focus:outline-none focus:border-[#FF8C42] cursor-pointer"
@@ -955,7 +957,7 @@ export default function PublicBookingPage(props: PageProps) {
 
       {/* Footer */}
       <footer className="py-4 text-center text-xs text-[#5E6472] border-t border-[#282C35]/60 bg-[#0c0c0f]">
-        QuantCalendar • Sovereign Scheduling Platform • Zero Ads • Sub-5ms Performance
+        QuantCalendar • Sovereign Scheduling Platform • Zero Ads
       </footer>
     </div>
   );

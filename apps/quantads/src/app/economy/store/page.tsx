@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { Card, Button, LoadingState, ErrorState, EmptyState, useAuth } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
 import type { VirtualGood, GoodCategory, InventoryItem } from '@quant/quant-economy';
+import { apiFetchRaw } from '@quant/api-client';
 
 // ============================================================================
 // QuantAds - Virtual Goods Store (real backend endpoints, no mock data)
@@ -45,7 +46,7 @@ const CATEGORIES: { key: GoodCategory; label: string }[] = [
 ];
 
 async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const res = await apiFetchRaw(url);
   const body = await res.json().catch(() => ({}));
   if (!res.ok || body?.success === false) {
     throw new Error(body?.error?.message ?? `Request failed (${res.status})`);
@@ -101,7 +102,7 @@ export default function StorePage() {
       setPurchasingId(item.id);
       setNotice(null);
       try {
-        const res = await fetch('/api/store/purchase', {
+        const res = await apiFetchRaw('/api/store/purchase', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId, itemId: item.id }),

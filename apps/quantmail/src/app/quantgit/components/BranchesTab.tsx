@@ -49,15 +49,15 @@ export function BranchesTab({
     return (
       branchList.find((b) => b.name === defaultBranch || b.isDefault) || {
         name: defaultBranch,
-        sha: repo.latestCommitSha || 'c4e6121',
+        sha: repo.latestCommitSha || '',
         isDefault: true,
         isProtected: true,
         protection: 'require_reviews',
         aheadBy: 0,
         behindBy: 0,
         lastCommitAuthor: '',
-        lastCommitMessage: repo.latestCommit || 'Initial commit',
-        lastCommitTime: repo.latestCommitTime || 'recently',
+        lastCommitMessage: repo.latestCommit || '',
+        lastCommitTime: repo.latestCommitTime || '',
       }
     );
   }, [branchList, defaultBranch, repo]);
@@ -87,7 +87,7 @@ export function BranchesTab({
 
       const newBranch: BranchItem = {
         name: trimmed,
-        sha: '948e3612a1b2c3d4e5f60718293a4b5c6d7e8f90',
+        sha: repo.latestCommitSha || '',
         isDefault: false,
         isProtected: false,
         protection: 'none',
@@ -428,8 +428,9 @@ export function BranchesTab({
               </div>
 
               <div className="space-y-1.5">
-                <label className="font-semibold text-white block">Source branch</label>
+                <label htmlFor="branch-source-select" className="font-semibold text-white block">Source branch</label>
                 <select
+                  id="branch-source-select"
                   data-testid="source-branch-select"
                   value={sourceBranch}
                   onChange={(e) => setSourceBranch(e.target.value)}

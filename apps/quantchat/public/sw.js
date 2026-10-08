@@ -27,7 +27,9 @@ function resolveDeepLink(category, contentId) {
     case 'MESSAGES':
       return contentId ? '/chat/' + contentId : '/chat';
     case 'CALLS':
-      return '/call';
+      // No call UI exists (simulated /call route removed) — land in the
+      // real notification center. Mirrors src/lib/notification-deeplink.ts.
+      return '/notifications';
     case 'STORIES':
       return contentId ? '/stories/' + contentId : '/stories';
     case 'REELS':

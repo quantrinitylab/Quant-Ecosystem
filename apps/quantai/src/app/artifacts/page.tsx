@@ -23,6 +23,7 @@ import {
   type ArtifactTab,
   type ArtifactView,
 } from '../../components/artifacts/types';
+import { apiFetchRaw } from '@quant/api-client';
 
 const API_BASE = '/api';
 const VIEW_PREF_KEY = 'quanty.artifacts.view';
@@ -101,7 +102,7 @@ export default function ArtifactsLibraryPage() {
       const endpoint = showSystemFiles
         ? `${API_BASE}/quanty/artifacts/system`
         : `${API_BASE}/quanty/artifacts?${qs.toString()}`;
-      const res = await fetch(endpoint, { headers: authHeaders() });
+      const res = await apiFetchRaw(endpoint, { headers: authHeaders() });
       if (res.status === 401) {
         router.replace('/login');
         return;
@@ -142,7 +143,7 @@ export default function ArtifactsLibraryPage() {
       setViewerError(null);
       setViewerItem(null);
       try {
-        const res = await fetch(
+        const res = await apiFetchRaw(
           `${API_BASE}/quanty/artifacts/${encodeURIComponent(item.id)}`,
           { headers: authHeaders() },
         );
@@ -160,7 +161,7 @@ export default function ArtifactsLibraryPage() {
         }
         setViewerItem(detail);
         // Record last-opened (fire and forget — must not block the viewer).
-        fetch(`${API_BASE}/quanty/artifacts/${encodeURIComponent(item.id)}`, {
+        apiFetchRaw(`${API_BASE}/quanty/artifacts/${encodeURIComponent(item.id)}`, {
           method: 'PATCH',
           headers: authHeaders(),
         }).catch(() => undefined);
@@ -185,7 +186,7 @@ export default function ArtifactsLibraryPage() {
     async (item: ArtifactListItem) => {
       setDeletingId(item.id);
       try {
-        const res = await fetch(
+        const res = await apiFetchRaw(
           `${API_BASE}/quanty/artifacts/${encodeURIComponent(item.id)}`,
           { method: 'DELETE', headers: authHeaders() },
         );

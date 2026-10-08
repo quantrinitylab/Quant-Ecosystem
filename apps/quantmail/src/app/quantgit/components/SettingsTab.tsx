@@ -34,8 +34,9 @@ export function SettingsTab({
       <div className="p-4 rounded bg-[#161B22] border border-[#30363D] space-y-4">
         <h4 className="font-bold text-white text-sm">General Repository Settings</h4>
         <div className="space-y-1.5">
-          <label className="text-[#7D8590] font-semibold">Repository name</label>
+          <label htmlFor="git-settings-name" className="text-[#7D8590] font-semibold">Repository name</label>
           <input
+            id="git-settings-name"
             type="text"
             value={settingsName}
             onChange={(e) => setSettingsName(e.target.value)}
@@ -53,8 +54,9 @@ export function SettingsTab({
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-[#7D8590] font-semibold">Default branch</label>
+          <label htmlFor="git-settings-branch" className="text-[#7D8590] font-semibold">Default branch</label>
           <input
+            id="git-settings-branch"
             type="text"
             value={settingsBranch}
             onChange={(e) => setSettingsBranch(e.target.value)}
@@ -62,8 +64,9 @@ export function SettingsTab({
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-[#7D8590] font-semibold">Visibility</label>
+          <label htmlFor="git-settings-visibility" className="text-[#7D8590] font-semibold">Visibility</label>
           <select
+            id="git-settings-visibility"
             value={settingsVisibility}
             onChange={(e) => setSettingsVisibility(e.target.value as 'public' | 'private')}
             className="w-full bg-[#0D1117] border border-[#30363D] rounded px-2.5 py-1.5 text-white focus:outline-none focus:border-[#58A6FF]"

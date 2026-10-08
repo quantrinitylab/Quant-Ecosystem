@@ -276,7 +276,8 @@ export function buildQuantyMailTools(deps: QuantyMailToolsDeps): QuantyMailTool[
       const folder = await getOrCreateFolder(prisma, userId, 'Inbox', 'INBOX');
       const result = await (prisma as any).email.updateMany({
         where: { id: { in: ids }, userId, deletedAt: null },
-        data: { folderId: folder.id, isTrash: false, updatedAt: new Date() },
+        // QM-BACK-002: keep the version column truthful on system/agent writes.
+        data: { folderId: folder.id, isTrash: false, updatedAt: new Date(), version: { increment: 1 } },
       });
       return {
         success: true,
@@ -326,7 +327,8 @@ export function buildQuantyMailTools(deps: QuantyMailToolsDeps): QuantyMailTool[
       await threadService.getThread(threadId, userId);
       const result = await (prisma as any).email.updateMany({
         where: { threadId, userId, deletedAt: null },
-        data: { isPinned: pinned, updatedAt: new Date() },
+        // QM-BACK-002: keep the version column truthful on system/agent writes.
+        data: { isPinned: pinned, updatedAt: new Date(), version: { increment: 1 } },
       });
       return {
         success: true,

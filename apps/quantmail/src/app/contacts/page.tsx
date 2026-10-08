@@ -29,7 +29,6 @@ import {
   CompaniesSubView,
   DedupWizardSubView,
   CirclesSubView,
-  SOVEREIGN_DEFAULT_CONTACTS,
   contactDisplayName,
 } from './components/ContactsSubViews';
 import type { Contact, ContactGroup } from '../../types';
@@ -600,6 +599,7 @@ export default function ContactsPage() {
         <input
           ref={vcardInputRef}
           type="file"
+          aria-label="Import contacts file"
           accept=".vcf,.vcard,.csv"
           className="hidden"
           onChange={handleImportFile}

@@ -9,6 +9,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Modal } from '@quant/shared-ui';
 import { showToast } from '../../../components/InboxToast';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface FileShareModalProps {
   isOpen: boolean;
@@ -69,7 +70,7 @@ export const FileShareModal: React.FC<FileShareModalProps> = ({
     }
     setIsSharing(true);
     try {
-      const res = await fetch(`/api/drive/files/${encodeURIComponent(fileId)}/share`, {
+      const res = await apiFetchRaw(`/api/drive/files/${encodeURIComponent(fileId)}/share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, permission: invitePermission }),
@@ -110,7 +111,7 @@ export const FileShareModal: React.FC<FileShareModalProps> = ({
       };
       if (expiresIn !== 'never') body.expiresInDays = parseInt(expiresIn, 10);
 
-      const res = await fetch('/api/drive/shares/link', {
+      const res = await apiFetchRaw('/api/drive/shares/link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -259,10 +260,10 @@ export const FileShareModal: React.FC<FileShareModalProps> = ({
             <div className="space-y-2 pt-1">
               <div className="flex items-center gap-2">
                 <input
-                  type="text"
+                  aria-label="Public share URL" type="text"
                   readOnly
                   value={publicShareUrl}
-                  className="flex-1 bg-[#0D1117] border border-[#238636]/50 rounded-xl px-3 py-2 text-xs font-mono text-[#3FB950] select-all focus:outline-none"
+                  className="flex-1 bg-[#0D1117] border border-[#238636]/50 rounded-xl px-3 py-2 text-xs font-mono text-[#3FB950] select-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 />
                 <Button
                   variant="primary"

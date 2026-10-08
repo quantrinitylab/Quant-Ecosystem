@@ -33,6 +33,8 @@ export { useApiMutation } from './hooks/useApiMutation';
 export type { UseApiMutationOptions } from './hooks/useApiMutation';
 export { apiFetch } from './core/api-fetch';
 export type { ApiMethod, ApiFetchInit } from './core/api-fetch';
+export { apiFetchRaw } from './core/api-fetch';
+export type { ApiFetchRawInit } from './core/api-fetch';
 
 // Endpoints
 export type { Conversation, Message, SendMessageParams } from './endpoints/chat';

@@ -8,6 +8,7 @@
 import React, { useEffect, useState } from 'react';
 import { getAuthHeaders } from '../../lib/auth';
 import { formatCompact, type WalletData } from './types';
+import { apiFetchRaw } from '@quant/api-client';
 
 const BUCKET_LABELS: Record<string, string> = {
   DAILY: 'Daily allowance',
@@ -21,7 +22,7 @@ export default function WalletSection() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/quanty/wallet', { headers: getAuthHeaders() })
+    apiFetchRaw('/api/quanty/wallet', { headers: getAuthHeaders() })
       .then(async (r) => {
         const j = await r.json();
         if (!cancelled) {

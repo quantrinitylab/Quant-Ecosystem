@@ -10,12 +10,25 @@ import { AppSidebar } from '../../components/AppSidebar';
 import { SearchClearButton } from '../../components/SearchClearButton';
 import { UnreadDot } from '../../components/UnreadDot';
 import { useSearchEmails } from '../../hooks/useSearchEmails';
+import { useUniversalSearch, type UniversalSearchScope } from '../../hooks/useUniversalSearch';
+import { UniversalSearchResults } from './UniversalSearchResults';
 import { listContainerVariants, listItemVariants } from '../../lib/motion-variants';
 import type { Email, SearchEmailRequest } from '../../types';
 
 const RECENT_SEARCHES_KEY = 'quantmail_recent_searches';
 const MAX_RECENT_SEARCHES = 5;
 const EXAMPLE_SEARCHES = ['invoice', 'design feedback', 'meeting follow-up'];
+
+// K10/M13: universal scope tabs. Only sources with real backend search
+// endpoints are listed — QuantGit has none, so it is not a tab and is not
+// claimed in the coverage note below.
+const SCOPES: Array<{ id: UniversalSearchScope; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'mail', label: 'Mail' },
+  { id: 'people', label: 'People' },
+  { id: 'calendar', label: 'Calendar' },
+  { id: 'drive', label: 'Drive' },
+];
 
 interface SearchFilter {
   type: 'from' | 'to' | 'has' | 'in' | 'date';
@@ -118,6 +131,7 @@ function saveRecentSearch(query: string): void {
 export default function SearchPage() {
   const router = useRouter();
   const [query, setQuery] = useState('');
+  const [scope, setScope] = useState<UniversalSearchScope>('all');
   const [activeFilters, setActiveFilters] = useState<SearchFilter[]>([]);
   const [editingFilter, setEditingFilter] = useState<SearchFilter['type'] | null>(null);
   const [filterInput, setFilterInput] = useState('');
@@ -141,6 +155,14 @@ export default function SearchPage() {
       : null;
 
   const { data: results, isLoading, error } = useSearchEmails(searchParams);
+
+  // Universal search fans out to the real per-source backends; the mail scope
+  // keeps the dedicated Gmail-style search above (with its filters) untouched.
+  const universalQuery = scope === 'mail' || !hasSearched || !query.trim() ? null : query.trim();
+  const {
+    data: universalResults,
+    isLoading: universalLoading,
+  } = useUniversalSearch(universalQuery);
 
   const runSearchString = useCallback((search: string) => {
     const trimmed = search.trim();
@@ -287,8 +309,12 @@ export default function SearchPage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSearch();
                 }}
-                placeholder="Search mail — sender, subject, words…"
-                aria-label="Search mail"
+                placeholder={
+                  scope === 'mail'
+                    ? 'Search mail — sender, subject, words…'
+                    : 'Search mail, people, calendar, drive…'
+                }
+                aria-label={scope === 'mail' ? 'Search mail' : 'Search everything'}
                 autoFocus
                 className="h-11 w-full rounded-full border border-[var(--quant-border)] bg-[var(--quant-surface)] pl-11 pr-10 text-sm outline-none transition-colors placeholder:text-[var(--quant-muted-foreground)]/60 focus:border-[var(--brand-primary)]/60 focus:ring-2 focus:ring-[var(--brand-primary)]/25"
               />
@@ -298,6 +324,32 @@ export default function SearchPage() {
               Search
             </Button>
           </div>
+
+          {/* Universal scope tabs — All aggregates real per-source backends.
+              The coverage note names exactly what is searched; nothing more. */}
+          <div className="mt-3 flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5" role="tablist" aria-label="Search scope">
+            {SCOPES.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                role="tab"
+                aria-selected={scope === s.id}
+                onClick={() => setScope(s.id)}
+                className={`inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3.5 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0 sm:h-8 ${
+                  scope === s.id
+                    ? 'border-[var(--brand-primary)]/60 bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]'
+                    : 'border-[var(--quant-border)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-muted)] hover:text-[var(--quant-foreground)]'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          {scope !== 'mail' && (
+            <p className="mt-1.5 px-1 text-[11px] text-[var(--quant-muted-foreground)]">
+              Searches mail, people, calendar, and drive. QuantGit is not indexed yet.
+            </p>
+          )}
 
           {/*
             Filter chips — compact pills. This row is the catalogue of what you
@@ -313,6 +365,9 @@ export default function SearchPage() {
             reader — before this, an applied "From" and an unapplied one
             announced identically.
           */}
+          {/* Mail-only filter chips: they speak the Gmail-style mail query the
+              Mail tab runs. Universal scopes search plain text only. */}
+          {scope === 'mail' && (
           <div className="mt-3 flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5">
             {FILTER_CHIPS.map((chip) => {
               const isActive = activeFilters.some((f) => f.type === chip.type);
@@ -343,11 +398,12 @@ export default function SearchPage() {
               );
             })}
           </div>
+          )}
         </div>
 
-        {/* Filter value editor */}
+        {/* Filter value editor — mail scope only, like the chips above */}
         <AnimatePresence>
-          {editingFilter && (
+          {scope === 'mail' && editingFilter && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
@@ -413,7 +469,7 @@ export default function SearchPage() {
           comes back, which is the same `min-h-11 … sm:min-h-0` shape the chip row
           above already uses.
         */}
-        {activeFilters.length > 0 && (
+        {scope === 'mail' && activeFilters.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 px-4 py-2">
             {activeFilters.map((filter) => (
               <span
@@ -477,8 +533,12 @@ export default function SearchPage() {
 
               {recentSearches.length === 0 && (
                 <EmptyState
-                  title="Search every conversation"
-                  description="Look across senders, subjects, attachments, and labels to jump straight back into the exact thread you need."
+                  title={scope === 'mail' ? 'Search every conversation' : 'Search everything'}
+                  description={
+                    scope === 'mail'
+                      ? 'Look across senders, subjects, attachments, and labels to jump straight back into the exact thread you need.'
+                      : 'One query across your mail, people, calendar, and drive — pick a scope above to narrow it down.'
+                  }
                   actionLabel="Try “invoice”"
                   onAction={() => runSearchString('invoice')}
                 />
@@ -505,8 +565,24 @@ export default function SearchPage() {
             </div>
           )}
 
-          {/* Loading */}
-          {hasSearched && isLoading && (
+          {/* Universal scopes: aggregated per-source sections */}
+          {scope !== 'mail' && hasSearched && universalLoading && (
+            <div className="space-y-2 p-4" aria-label="Searching everything">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} variant="rect" width="100%" height="72px" />
+              ))}
+            </div>
+          )}
+          {scope !== 'mail' && hasSearched && !universalLoading && universalResults && (
+            <UniversalSearchResults
+              results={universalResults}
+              scope={scope}
+              onOpenMail={handleEmailClick}
+            />
+          )}
+
+          {/* Mail scope: the dedicated Gmail-style search */}
+          {scope === 'mail' && hasSearched && isLoading && (
             <div className="space-y-2 p-4">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} variant="rect" width="100%" height="72px" />
@@ -514,9 +590,9 @@ export default function SearchPage() {
             </div>
           )}
 
-          {hasSearched && error && <ErrorState message={error.message} onRetry={handleSearch} />}
+          {scope === 'mail' && hasSearched && error && <ErrorState message={error.message} onRetry={handleSearch} />}
 
-          {hasSearched && !isLoading && !error && (!results || results.length === 0) && (
+          {scope === 'mail' && hasSearched && !isLoading && !error && (!results || results.length === 0) && (
             <EmptyState
               title="No results"
               description={`Nothing matched “${query}”. Try a broader phrase, remove filters, or search by sender or subject.`}
@@ -526,7 +602,7 @@ export default function SearchPage() {
           )}
 
           {/* Results */}
-          {hasSearched && !isLoading && !error && results && results.length > 0 && (
+          {scope === 'mail' && hasSearched && !isLoading && !error && results && results.length > 0 && (
             <motion.div
               variants={listContainerVariants}
               initial="hidden"

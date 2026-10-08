@@ -32,51 +32,6 @@ export interface DriveSharedSubViewProps {
   onDownloadFile?: (id: string, name: string) => void;
 }
 
-const DEFAULT_DEMO_SHARES: SharedItemRecord[] = [
-  {
-    id: 'share-1',
-    name: 'Q3_Ecosystem_Architecture_Blueprint.pdf',
-    type: 'file',
-    mimeType: 'application/pdf',
-    size: 14800000,
-    sharedDate: '2026-09-28T14:32:00Z',
-    permission: 'Editor',
-    owner: {
-      name: 'Elena Rostova',
-      email: 'elena.rostova@quant.network',
-    },
-    status: 'accepted',
-  },
-  {
-    id: 'share-2',
-    name: 'Sovereign_Keystore_Specification.docx',
-    type: 'file',
-    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    size: 4200000,
-    sharedDate: '2026-10-01T09:15:00Z',
-    permission: 'Viewer',
-    owner: {
-      name: 'Marcus Vance',
-      email: 'marcus.vance@quant.network',
-    },
-    status: 'accepted',
-  },
-  {
-    id: 'share-3',
-    name: 'FastCDC_Performance_Benchmarks_2026.xlsx',
-    type: 'file',
-    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    size: 8900000,
-    sharedDate: '2026-10-01T17:45:00Z',
-    permission: 'Editor',
-    owner: {
-      name: 'Aria Takahashi',
-      email: 'aria.t@quant.network',
-    },
-    status: 'pending',
-  },
-];
-
 function getInitials(name: string, email: string): string {
   if (name && name.trim()) {
     const parts = name.trim().split(/\s+/);
@@ -89,7 +44,7 @@ function getInitials(name: string, email: string): string {
 }
 
 export function DriveSharedSubView({
-  shares = DEFAULT_DEMO_SHARES,
+  shares = [],
   loading = false,
   onRefresh,
   onAcceptShare,
@@ -97,7 +52,7 @@ export function DriveSharedSubView({
   onPreviewItem,
   onDownloadFile,
 }: DriveSharedSubViewProps) {
-  const activeShares = shares.length > 0 ? shares : DEFAULT_DEMO_SHARES;
+  const activeShares = shares;
 
   return (
     <div
@@ -120,7 +75,7 @@ export function DriveSharedSubView({
               </span>
             </div>
             <p className="text-xs text-[#94A3B8] mt-0.5">
-              Secure zero-knowledge sharing with cryptographically verified permissions
+              Files others share with you appear here
             </p>
           </div>
         </div>
@@ -137,8 +92,19 @@ export function DriveSharedSubView({
       </div>
 
       {/* Shared Items List */}
-      <div className="space-y-3">
-        {activeShares.map((item) => {
+      {activeShares.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#232938] bg-[#12151E] px-6 py-12 text-center">
+          <div className="size-10 rounded-xl bg-[#090A0E] border border-[#232938] flex items-center justify-center text-[#64748B]">
+            <SharedUsersIcon className="size-5" />
+          </div>
+          <p className="text-sm font-semibold text-[#F8FAFC]">No shared files yet</p>
+          <p className="text-xs text-[#94A3B8]">
+            When someone shares a file with you, it will appear here.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {activeShares.map((item) => {
           const initials = getInitials(item.owner.name, item.owner.email);
           const formattedDate = item.sharedDate
             ? new Date(item.sharedDate).toLocaleDateString(undefined, {
@@ -240,7 +206,8 @@ export function DriveSharedSubView({
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

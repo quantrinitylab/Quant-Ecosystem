@@ -2,14 +2,19 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EmailService } from '../services/email.service';
 
 function createMockPrisma() {
-  return {
+  // K1: every mail mutation runs inside `prisma.$transaction`, so the double
+  // passes the callback the mock itself as the tx client and records outbox
+  // writes on `outboxEvent.create` — same-transaction semantics by construction.
+  const mock = {
     email: {
       create: vi.fn(),
       findUnique: vi.fn(),
       findMany: vi.fn(),
       count: vi.fn(),
       update: vi.fn(),
-      updateMany: vi.fn(),
+      // QM-BACK-002: versionedUpdate's conditional updateMany resolves
+      // { count: 1 } by default; conflict tests override per-test.
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       delete: vi.fn(),
     },
     user: {
@@ -24,7 +29,18 @@ function createMockPrisma() {
     label: {
       findMany: vi.fn(),
     },
+    outboxEvent: {
+      create: vi.fn(async (args: { data: Record<string, unknown> }) => ({
+        id: 'outbox-1',
+        publishedAt: null,
+        createdAt: new Date(),
+        ...args.data,
+      })),
+    },
+    $transaction: null as unknown as ReturnType<typeof vi.fn>,
   };
+  mock.$transaction = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mock));
+  return mock;
 }
 
 /**
@@ -174,8 +190,6 @@ describe('EmailService', () => {
         fromAddress: 'user-1@quantmail.in',
         fromName: 'User One',
       };
-      prisma.email.findUnique.mockResolvedValue(mockEmail);
-
       const sentEmail = {
         ...mockEmail,
         isDraft: false,
@@ -183,7 +197,9 @@ describe('EmailService', () => {
         folderId: 'sent-folder-id',
         sentAt: new Date(),
       };
-      prisma.email.update.mockResolvedValue(sentEmail);
+      // QM-BACK-002: send() flips via versionedUpdate — pre-send read returns
+      // the draft, the conditional update's re-read returns the sent row.
+      prisma.email.findUnique.mockResolvedValueOnce(mockEmail).mockResolvedValueOnce(sentEmail);
 
       const result = await svc.send('user-1', 'email-1', 'sent-folder-id');
 
@@ -191,7 +207,7 @@ describe('EmailService', () => {
       expect(result.isDraft).toBe(false);
       expect(result.folderId).toBe('sent-folder-id');
       expect(result.sentAt).toBeInstanceOf(Date);
-      expect(prisma.email.update).toHaveBeenCalledWith({
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
         where: { id: 'email-1' },
         data: {
           isDraft: false,
@@ -207,6 +223,8 @@ describe('EmailService', () => {
           // it belongs to.
           receivedAt: expect.any(Date),
           deliveryStatus: expect.any(String),
+          // QM-BACK-002: the send flip bumps the version column.
+          version: { increment: 1 },
         },
       });
     });
@@ -223,11 +241,11 @@ describe('EmailService', () => {
         bccAddresses: [],
         fromAddress: 'user-1@quantmail.in',
       });
-      prisma.email.update.mockResolvedValue({ id: 'email-1' });
 
       await service.send('user-1', 'email-1', 'sent-folder-id');
 
-      const { data } = prisma.email.update.mock.calls[0][0];
+      // QM-BACK-002: the send flip is a conditional updateMany now.
+      const { data } = prisma.email.updateMany.mock.calls[0][0];
       expect(data.deliveryStatus).toBe('delivered');
       expect(data.deliveredAt).toEqual(data.sentAt);
     });
@@ -272,11 +290,10 @@ describe('EmailService', () => {
         fromAddress: 'user-1@quantmail.in',
         messageId: '<original@quantmail.in>',
       });
-      prisma.email.update.mockResolvedValue({ id: 'email-1' });
-
       await service.send('user-1', 'email-1', 'sent-folder-id');
 
-      const { data } = prisma.email.update.mock.calls[0][0];
+      // QM-BACK-002: the send flip is a conditional updateMany now.
+      const { data } = prisma.email.updateMany.mock.calls[0][0];
       // A re-send keeps the same cross-mailbox identity.
       expect(data.messageId).toBe('<original@quantmail.in>');
     });
@@ -290,11 +307,10 @@ describe('EmailService', () => {
         toAddresses: ['recipient@test.com'],
         fromAddress: 'user-1@quantmail.in',
       });
-      prisma.email.update.mockResolvedValue({ id: 'email-1' });
-
       await svc.send('user-1', 'email-1', 'sent-folder-id');
 
-      const { data } = prisma.email.update.mock.calls[0][0];
+      // QM-BACK-002: the send flip is a conditional updateMany now.
+      const { data } = prisma.email.updateMany.mock.calls[0][0];
       expect(data.receivedAt).toEqual(data.sentAt);
     });
 
@@ -311,11 +327,10 @@ describe('EmailService', () => {
         fromAddress: 'user-1@quantmail.in',
         receivedAt: original,
       });
-      prisma.email.update.mockResolvedValue({ id: 'email-1' });
-
       await svc.send('user-1', 'email-1', 'sent-folder-id');
 
-      const { data } = prisma.email.update.mock.calls[0][0];
+      // QM-BACK-002: the send flip is a conditional updateMany now.
+      const { data } = prisma.email.updateMany.mock.calls[0][0];
       expect(data.receivedAt).toBe(original);
       expect(data.sentAt).not.toBe(original);
     });
@@ -373,23 +388,17 @@ describe('EmailService', () => {
 
   describe('moveToFolder', () => {
     it('updates the folderId of an email', async () => {
-      prisma.email.findUnique.mockResolvedValue({
-        id: 'email-1',
-        userId: 'user-1',
-        folderId: 'inbox',
-      });
-      prisma.email.update.mockResolvedValue({
-        id: 'email-1',
-        userId: 'user-1',
-        folderId: 'archive',
-      });
+      prisma.email.findUnique
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', folderId: 'inbox', version: 2 })
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', folderId: 'archive', version: 3 });
 
       const result = await service.moveToFolder('email-1', 'archive', 'user-1');
 
       expect(result.folderId).toBe('archive');
-      expect(prisma.email.update).toHaveBeenCalledWith({
+      // QM-BACK-002: conditional updateMany bumps the version column.
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
         where: { id: 'email-1' },
-        data: { folderId: 'archive' },
+        data: { folderId: 'archive', version: { increment: 1 } },
       });
     });
 
@@ -407,40 +416,31 @@ describe('EmailService', () => {
 
   describe('delete', () => {
     it('moves an email to recoverable trash by default', async () => {
-      prisma.email.findUnique.mockResolvedValue({
-        id: 'email-1',
-        userId: 'user-1',
-        isTrash: false,
-      });
-      prisma.email.update.mockResolvedValue({
-        id: 'email-1',
-        deletedAt: null,
-        isTrash: true,
-      });
+      prisma.email.findUnique
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isTrash: false, version: 1 })
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isTrash: true, deletedAt: null, version: 2 });
 
       const result = await service.delete('email-1', 'user-1');
 
       expect(result.isTrash).toBe(true);
       expect(result.deletedAt).toBeNull();
-      expect(prisma.email.update).toHaveBeenCalledWith({
+      // QM-BACK-002: conditional updateMany bumps the version column.
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
         where: { id: 'email-1' },
-        data: { deletedAt: null, isTrash: true },
+        data: { deletedAt: null, isTrash: true, version: { increment: 1 } },
       });
     });
 
     it('records logical deletion when the hard flag is true', async () => {
-      prisma.email.findUnique.mockResolvedValue({
-        id: 'email-1',
-        userId: 'user-1',
-        isTrash: true,
-      });
-      prisma.email.update.mockResolvedValue({ id: 'email-1', deletedAt: new Date() });
+      prisma.email.findUnique
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isTrash: true, version: 4 })
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isTrash: true, version: 5 });
 
       await service.delete('email-1', 'user-1', true);
 
-      expect(prisma.email.update).toHaveBeenCalledWith({
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
         where: { id: 'email-1' },
-        data: { deletedAt: expect.any(Date) },
+        data: { deletedAt: expect.any(Date), version: { increment: 1 } },
       });
       expect(prisma.email.delete).not.toHaveBeenCalled();
     });
@@ -624,8 +624,9 @@ describe('EmailService', () => {
 
   describe('markRead', () => {
     it('marks an email as read', async () => {
-      prisma.email.findUnique.mockResolvedValue({ id: 'email-1', userId: 'user-1', isRead: false });
-      prisma.email.update.mockResolvedValue({ id: 'email-1', isRead: true });
+      prisma.email.findUnique
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isRead: false, version: 1 })
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isRead: true, version: 2 });
 
       const result = await service.markRead('email-1', 'user-1');
 
@@ -633,81 +634,86 @@ describe('EmailService', () => {
     });
 
     it('stamps readAt and propagates it to the sender sent copy', async () => {
-      prisma.email.findUnique.mockResolvedValue({
-        id: 'email-2',
-        userId: 'user-1',
-        isRead: false,
-        isSent: false,
-        messageId: '<m1@quantmail.in>',
-      });
-      prisma.email.update.mockResolvedValue({ id: 'email-2', isRead: true });
+      prisma.email.findUnique
+        .mockResolvedValueOnce({
+          id: 'email-2',
+          userId: 'user-1',
+          isRead: false,
+          isSent: false,
+          messageId: '<m1@quantmail.in>',
+          version: 3,
+        })
+        .mockResolvedValueOnce({ id: 'email-2', userId: 'user-1', isRead: true, version: 4 });
       prisma.email.updateMany.mockResolvedValue({ count: 1 });
 
       await service.markRead('email-2', 'user-1');
 
-      expect(prisma.email.update).toHaveBeenCalledWith({
+      // QM-BACK-002: the read flip is a conditional updateMany with a version bump.
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
         where: { id: 'email-2' },
-        data: { isRead: true, readAt: expect.any(Date) },
+        data: { isRead: true, readAt: expect.any(Date), version: { increment: 1 } },
       });
       // The sender's ticks flip to double-green via the shared messageId.
       expect(prisma.email.updateMany).toHaveBeenCalledWith({
         where: { messageId: '<m1@quantmail.in>', isSent: true, readAt: null, deletedAt: null },
-        data: { readAt: expect.any(Date) },
+        data: { readAt: expect.any(Date), version: { increment: 1 } },
       });
     });
 
     it('skips propagation for the sender reading their own sent copy', async () => {
-      prisma.email.findUnique.mockResolvedValue({
-        id: 'email-3',
-        userId: 'user-1',
-        isRead: false,
-        isSent: true,
-        messageId: '<m1@quantmail.in>',
-      });
-      prisma.email.update.mockResolvedValue({ id: 'email-3', isRead: true });
+      prisma.email.findUnique
+        .mockResolvedValueOnce({
+          id: 'email-3',
+          userId: 'user-1',
+          isRead: false,
+          isSent: true,
+          messageId: '<m1@quantmail.in>',
+          version: 1,
+        })
+        .mockResolvedValueOnce({ id: 'email-3', userId: 'user-1', isRead: true, version: 2 });
 
       await service.markRead('email-3', 'user-1');
 
-      expect(prisma.email.updateMany).not.toHaveBeenCalled();
+      // Only the conditional read flip ran — no propagation updateMany.
+      expect(prisma.email.updateMany).toHaveBeenCalledTimes(1);
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
+        where: { id: 'email-3' },
+        data: { isRead: true, readAt: expect.any(Date), version: { increment: 1 } },
+      });
     });
   });
 
   describe('markStarred', () => {
     it('toggles the starred state', async () => {
-      prisma.email.findUnique.mockResolvedValue({
-        id: 'email-1',
-        userId: 'user-1',
-        isStarred: false,
-      });
-      prisma.email.update.mockResolvedValue({ id: 'email-1', isStarred: true });
+      prisma.email.findUnique
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isStarred: false, version: 1 })
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isStarred: true, version: 2 });
 
       const result = await service.markStarred('email-1', 'user-1');
 
       expect(result.isStarred).toBe(true);
-      expect(prisma.email.update).toHaveBeenCalledWith({
+      // QM-BACK-002: conditional updateMany with a version bump.
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
         where: { id: 'email-1' },
-        data: { isStarred: true },
+        data: { isStarred: true, version: { increment: 1 } },
       });
     });
   });
 
   describe('togglePin', () => {
     it('toggles the pinned state independently from star', async () => {
-      prisma.email.findUnique.mockResolvedValue({
-        id: 'email-1',
-        userId: 'user-1',
-        isPinned: false,
-        isStarred: true,
-      });
-      prisma.email.update.mockResolvedValue({ id: 'email-1', isPinned: true, isStarred: true });
+      prisma.email.findUnique
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isPinned: false, isStarred: true, version: 1 })
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isPinned: true, isStarred: true, version: 2 });
 
       const result = await service.togglePin('email-1', 'user-1');
 
       expect(result.isPinned).toBe(true);
       expect(result.isStarred).toBe(true);
-      expect(prisma.email.update).toHaveBeenCalledWith({
+      // QM-BACK-002: conditional updateMany with a version bump.
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
         where: { id: 'email-1' },
-        data: { isPinned: true },
+        data: { isPinned: true, version: { increment: 1 } },
       });
     });
 
@@ -744,8 +750,9 @@ describe('EmailService', () => {
         sentAt: new Date(),
       };
       prisma.email.create.mockResolvedValue(draftEmail);
-      prisma.email.findUnique.mockResolvedValue(draftEmail);
-      prisma.email.update.mockResolvedValue(sentEmail);
+      // QM-BACK-002: sendEmail composes, then send() flips via versionedUpdate —
+      // the compose's ownership read sees the draft, the flip's re-read sees it sent.
+      prisma.email.findUnique.mockResolvedValueOnce(draftEmail).mockResolvedValueOnce(sentEmail);
 
       const result = await svc.sendEmail(
         'user-1',
@@ -756,7 +763,7 @@ describe('EmailService', () => {
       expect(result.isSent).toBe(true);
       expect(result.isDraft).toBe(false);
       expect(prisma.email.create).toHaveBeenCalled();
-      expect(prisma.email.update).toHaveBeenCalled();
+      expect(prisma.email.updateMany).toHaveBeenCalled();
     });
   });
 
@@ -780,12 +787,11 @@ describe('EmailService', () => {
 
   describe('trashEmail', () => {
     it('soft deletes the email (moves to trash)', async () => {
-      prisma.email.findUnique.mockResolvedValue({ id: 'email-1', userId: 'user-1' });
-      prisma.email.update.mockResolvedValue({
-        id: 'email-1',
-        isTrash: true,
-        deletedAt: new Date(),
-      });
+      // QM-BACK-002: delete() flips via versionedUpdate — ownership read, then
+      // the conditional update's re-read returns the trashed row.
+      prisma.email.findUnique
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isTrash: false, version: 1 })
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isTrash: true, version: 2 });
 
       const result = await service.trashEmail('email-1', 'user-1');
 
@@ -795,12 +801,11 @@ describe('EmailService', () => {
 
   describe('starEmail', () => {
     it('toggles starred state on the email', async () => {
-      prisma.email.findUnique.mockResolvedValue({
-        id: 'email-1',
-        userId: 'user-1',
-        isStarred: false,
-      });
-      prisma.email.update.mockResolvedValue({ id: 'email-1', isStarred: true });
+      // QM-BACK-002: markStarred() flips via versionedUpdate — ownership read,
+      // then the conditional update's re-read returns the starred row.
+      prisma.email.findUnique
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isStarred: false, version: 1 })
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isStarred: true, version: 2 });
 
       const result = await service.starEmail('email-1', 'user-1');
 
@@ -841,22 +846,17 @@ describe('EmailService', () => {
 
   describe('applyLabel', () => {
     it('adds a label to an email', async () => {
-      prisma.email.findUnique.mockResolvedValue({
-        id: 'email-1',
-        userId: 'user-1',
-        labels: ['label-1'],
-      });
-      prisma.email.update.mockResolvedValue({
-        id: 'email-1',
-        labels: ['label-1', 'label-2'],
-      });
+      prisma.email.findUnique
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', labels: ['label-1'], version: 1 })
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', labels: ['label-1', 'label-2'], version: 2 });
 
       const result = await service.applyLabel('email-1', 'label-2', 'user-1');
 
       expect((result as unknown as { labels: string[] }).labels).toEqual(['label-1', 'label-2']);
-      expect(prisma.email.update).toHaveBeenCalledWith({
+      // QM-BACK-002: conditional updateMany with a version bump.
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
         where: { id: 'email-1' },
-        data: { labels: ['label-1', 'label-2'] },
+        data: { labels: ['label-1', 'label-2'], version: { increment: 1 } },
       });
     });
 
@@ -907,7 +907,8 @@ describe('EmailService', () => {
           userId: 'user-1',
           deletedAt: null,
         },
-        data: { isRead: true, updatedAt: expect.any(Date) },
+        // QM-BACK-002: bulk writes keep the version column truthful.
+        data: { isRead: true, updatedAt: expect.any(Date), version: { increment: 1 } },
       });
     });
 
@@ -922,7 +923,11 @@ describe('EmailService', () => {
           userId: 'user-1',
           deletedAt: null,
         },
-        data: { folderId: 'archive-folder-id', updatedAt: expect.any(Date) },
+        data: {
+          folderId: 'archive-folder-id',
+          updatedAt: expect.any(Date),
+          version: { increment: 1 },
+        },
       });
     });
 
@@ -937,7 +942,7 @@ describe('EmailService', () => {
           userId: 'user-1',
           deletedAt: null,
         },
-        data: { isTrash: true, updatedAt: expect.any(Date) },
+        data: { isTrash: true, updatedAt: expect.any(Date), version: { increment: 1 } },
       });
     });
 
@@ -951,7 +956,7 @@ describe('EmailService', () => {
           id: { in: ['e1', 'e2'] },
           userId: 'user-1',
         },
-        data: { deletedAt: expect.any(Date), updatedAt: expect.any(Date) },
+        data: { deletedAt: expect.any(Date), updatedAt: expect.any(Date), version: { increment: 1 } },
       });
     });
 
@@ -966,7 +971,7 @@ describe('EmailService', () => {
           userId: 'user-1',
           deletedAt: null,
         },
-        data: { isStarred: true, updatedAt: expect.any(Date) },
+        data: { isStarred: true, updatedAt: expect.any(Date), version: { increment: 1 } },
       });
     });
 

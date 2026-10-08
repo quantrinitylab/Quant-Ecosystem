@@ -30,7 +30,6 @@ import {
 } from './lib/calendar-geometry';
 import { pointerStartsSheetDrag } from './lib/sheet-drag';
 import { CalendarHeader } from './components/CalendarHeader';
-import { CalendarViews } from './components/CalendarViews';
 import { CalendarEventForm } from './components/CalendarEventForm';
 import { CalendarModals } from './components/CalendarModals';
 import { BookingLinksModal } from './components/BookingLinksModal';

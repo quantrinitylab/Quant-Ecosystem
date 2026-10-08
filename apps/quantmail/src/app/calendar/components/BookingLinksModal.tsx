@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { showToast } from '../../../components/InboxToast';
 import { IconLink, IconX, IconCalendar, IconClock, IconClipboard, IconCheck } from '../../../components/icons';
+import { apiFetchRaw } from '@quant/api-client';
 
 export interface BookingLinkItem {
   id: string;
@@ -216,7 +217,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
 
     // Try posting to backend API if available
     try {
-      await fetch('/api/booking/links', {
+      await apiFetchRaw('/api/booking/links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -493,7 +494,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                       onChange={handleSlugChange}
                       placeholder="strategy-session"
                       required
-                      className="w-full pr-3 py-2 bg-transparent border-0 text-white placeholder-[#5E6472] focus:outline-none text-xs font-mono"
+                      className="w-full pr-3 py-2 bg-transparent border-0 text-white placeholder-[#5E6472] focus:outline-none text-xs font-mono focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     />
                   </div>
                 </div>
@@ -539,9 +540,9 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
               {/* Hours of Availability */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[#A1A4AC] font-semibold mb-1">Start Time</label>
+                  <label htmlFor="booking-start-hour" className="block text-[#A1A4AC] font-semibold mb-1">Start Time</label>
                   <select
-                    value={formStartHour}
+                    id="booking-start-hour" value={formStartHour}
                     onChange={(e) => setFormStartHour(Number(e.target.value))}
                     className="w-full px-3 py-2 rounded-xl bg-[#0c0c0f] border border-[#282C35] text-white focus:outline-none focus:border-[#FF8C42] text-xs cursor-pointer"
                   >
@@ -554,9 +555,9 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[#A1A4AC] font-semibold mb-1">End Time</label>
+                  <label htmlFor="booking-end-hour" className="block text-[#A1A4AC] font-semibold mb-1">End Time</label>
                   <select
-                    value={formEndHour}
+                    id="booking-end-hour" value={formEndHour}
                     onChange={(e) => setFormEndHour(Number(e.target.value))}
                     className="w-full px-3 py-2 rounded-xl bg-[#0c0c0f] border border-[#282C35] text-white focus:outline-none focus:border-[#FF8C42] text-xs cursor-pointer"
                   >

@@ -5,6 +5,12 @@ import { ZodError } from 'zod';
 export interface AppError extends Error {
   statusCode: number;
   code: string;
+  /**
+   * Optional machine-readable context (e.g. VERSION_CONFLICT carries
+   * { resource, id, expectedVersion, currentVersion } so the client can
+   * re-read and retry). Serialized into the error response when present.
+   */
+  details?: Record<string, unknown>;
 }
 
 export function isAppError(err: unknown): err is AppError {
@@ -17,10 +23,16 @@ export function isAppError(err: unknown): err is AppError {
   );
 }
 
-export function createAppError(message: string, statusCode: number, code: string): AppError {
+export function createAppError(
+  message: string,
+  statusCode: number,
+  code: string,
+  details?: Record<string, unknown>,
+): AppError {
   const err = new Error(message) as AppError;
   err.statusCode = statusCode;
   err.code = code;
+  if (details !== undefined) err.details = details;
   return err;
 }
 
@@ -65,6 +77,7 @@ async function errorHandlerPlugin(fastify: FastifyInstance) {
           code: error.code,
           message: error.message,
           statusCode: error.statusCode,
+          ...(error.details !== undefined ? { details: error.details } : {}),
         },
       });
     }

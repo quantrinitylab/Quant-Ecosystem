@@ -196,11 +196,12 @@ export const ShareModal: React.FC<ShareModalProps> = ({
       <div className="space-y-6 pt-1">
         {/* Direct Workspace Link */}
         <div>
-          <label className="block text-xs font-semibold text-[#8B949E] mb-1.5">
+          <label htmlFor="share-direct-link" className="block text-xs font-semibold text-[#8B949E] mb-1.5">
             Workspace Direct Link
           </label>
           <div className="flex items-center gap-2">
             <input
+              id="share-direct-link"
               type="text"
               readOnly
               value={directDocUrl}
@@ -247,6 +248,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
           {!publicShareUrl ? (
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <select
+                aria-label="Public share permission"
                 value={publicRole}
                 onChange={(e) => setPublicRole(e.target.value as 'view' | 'edit')}
                 className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-1.5 text-xs text-[#F0F6FC] focus:outline-none focus:border-[#FF8C42]"
@@ -255,6 +257,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 <option value="edit">Can Edit</option>
               </select>
               <select
+                aria-label="Share link expiration"
                 value={expiresIn}
                 onChange={(e) => setExpiresIn(e.target.value as any)}
                 className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-1.5 text-xs text-[#F0F6FC] focus:outline-none focus:border-[#FF8C42]"
@@ -279,8 +282,9 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 <input
                   type="text"
                   readOnly
+                  aria-label="Public share URL"
                   value={publicShareUrl}
-                  className="flex-1 bg-[#0D1117] border border-[#238636]/50 rounded-xl px-3 py-2 text-xs font-mono text-[#3FB950] select-all focus:outline-none"
+                  className="flex-1 bg-[#0D1117] border border-[#238636]/50 rounded-xl px-3 py-2 text-xs font-mono text-[#3FB950] select-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 />
                 <Button
                   variant="primary"
@@ -313,11 +317,13 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             <input
               type="email"
               placeholder="teammate@quant.app"
+              aria-label="Invite by email"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               className="flex-1 bg-[#0D1117] border border-[#30363D] rounded-xl px-3 py-2 text-xs text-[#F0F6FC] placeholder-[#6E7681] focus:outline-none focus:border-[#FF8C42]"
             />
             <select
+              aria-label="Invite role"
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value as 'viewer' | 'editor' | 'admin')}
               className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-2 text-xs text-[#F0F6FC] focus:outline-none focus:border-[#FF8C42]"

@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface VerificationStatus {
   hasApplied: boolean;
@@ -80,9 +81,9 @@ const VerificationPage: React.FC = () => {
     try {
       setLoading(true);
       const [statusRes, eligRes, reqRes] = await Promise.all([
-        fetch('/api/verification/status'),
-        fetch('/api/verification/eligibility'),
-        fetch('/api/verification/requirements'),
+        apiFetchRaw('/api/verification/status'),
+        apiFetchRaw('/api/verification/eligibility'),
+        apiFetchRaw('/api/verification/requirements'),
       ]);
       if (statusRes.ok) setVerificationStatus(await statusRes.json());
       if (eligRes.ok) setEligibility(await eligRes.json());
@@ -103,7 +104,7 @@ const VerificationPage: React.FC = () => {
     if (!applicationReason.trim()) return;
     setSubmitting(true);
     try {
-      const res = await fetch('/api/verification/apply', {
+      const res = await apiFetchRaw('/api/verification/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

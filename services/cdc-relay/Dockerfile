@@ -27,6 +27,7 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json turbo.json ./
 COPY patches/ ./patches/
 # Transitive @quant closure for cdc-relay, plus the bundler script.
 COPY packages/common/ ./packages/common/
+COPY packages/ecosystem-contracts/ ./packages/ecosystem-contracts/
 COPY packages/health-server/ ./packages/health-server/
 COPY services/cdc-relay/ ./services/cdc-relay/
 COPY infra/scripts/ ./infra/scripts/

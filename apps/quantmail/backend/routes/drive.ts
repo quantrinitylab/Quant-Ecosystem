@@ -28,13 +28,26 @@ import { StorageClient, resolveStorageConfigFromEnv } from '@quant/storage';
 
 const MEMORY_SCAN_LIMIT = 2000;
 const MEMORY_APP_LABELS: Record<string, string> = {
+  mail: 'QuantMail',
   quantmail: 'QuantMail',
-  quantchat: 'QuantChat',
-  quantube: 'QuantTube',
-  quantai: 'QuantAI',
+  calendar: 'QuantCalendar',
+  quantcalendar: 'QuantCalendar',
+  drive: 'QuantDrive',
   quantdrive: 'QuantDrive',
+  contacts: 'QuantContacts',
+  quantcontacts: 'QuantContacts',
+  git: 'QuantGit',
+  quantgit: 'QuantGit',
 };
 const MEMORY_SHARED_SESSIONS = new Set(['user-style', 'user-contacts']);
+// Canonical short-form app ids exposed as `sourceApp`. Declared metadata may
+// use the long "quant*" form; the API normalizes to the canonical short form
+// so clients can rely on one stable identifier per app.
+const MEMORY_APP_CANONICAL: Record<string, string> = {
+  quantcalendar: 'calendar',
+  quantgit: 'git',
+  quantcontacts: 'contacts',
+};
 const AI_FILE_SCHEMA = z.object({ fileId: z.string().min(1) });
 const AI_SEARCH_SCHEMA = z.object({
   fileId: z.string().min(1).optional(),
@@ -341,14 +354,58 @@ function metaStr(metadata: unknown, key: string): string | null {
   const value = (metadata as Record<string, unknown>)[key];
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
+function metaNumber(metadata: unknown, ...keys: string[]): number | null {
+  if (!metadata || typeof metadata !== 'object') return null;
+  const record = metadata as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function metaString(metadata: unknown, ...keys: string[]): string | null {
+  if (!metadata || typeof metadata !== 'object') return null;
+  const record = metadata as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function metaStringArray(metadata: unknown, ...keys: string[]): string[] {
+  if (!metadata || typeof metadata !== 'object') return [];
+  const record = metadata as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (Array.isArray(value)) {
+      return value.filter((item): item is string => typeof item === 'string' && item.trim() !== '').map((item) => item.trim());
+    }
+  }
+  return [];
+}
+
+function memoryConfidence(metadata: unknown): number | null {
+  const value = metaNumber(metadata, 'confidenceScore', 'confidence');
+  if (value === null) return null;
+  return value <= 1 ? Math.round(value * 100) : Math.round(Math.min(100, value));
+}
+
 function memorySource(metadata: unknown): { app: string; label: string } {
   const declared = (metaStr(metadata, 'app') || metaStr(metadata, 'sourceApp') || '').toLowerCase();
-  if (MEMORY_APP_LABELS[declared]) return { app: declared, label: MEMORY_APP_LABELS[declared] };
+  if (MEMORY_APP_LABELS[declared]) {
+    const app = MEMORY_APP_CANONICAL[declared] ?? declared;
+    return { app, label: MEMORY_APP_LABELS[declared] };
+  }
   const session = metaStr(metadata, 'session');
   if (session) {
     if (MEMORY_SHARED_SESSIONS.has(session)) return { app: 'shared', label: 'Shared across apps' };
     const prefix = session.split('-')[0]?.toLowerCase() ?? '';
-    if (MEMORY_APP_LABELS[prefix]) return { app: prefix, label: MEMORY_APP_LABELS[prefix] };
+    if (MEMORY_APP_LABELS[prefix]) {
+      const app = MEMORY_APP_CANONICAL[prefix] ?? prefix;
+      return { app, label: MEMORY_APP_LABELS[prefix] };
+    }
   }
   return declared
     ? { app: declared, label: declared }
@@ -2056,6 +2113,7 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       .filter((row) => !row.expiresAt || row.expiresAt.getTime() > now)
       .map((row) => {
         const source = memorySource(row.metadata);
+        const metadata = row.metadata;
         return {
           id: row.logicalId,
           version: row.version,
@@ -2066,6 +2124,14 @@ export default async function driveRoutes(fastify: FastifyInstance) {
           sourceApp: source.app,
           sourceLabel: source.label,
           pinned: row.pinned,
+          confidenceScore: memoryConfidence(metadata),
+          sensitivity: metaString(metadata, 'sensitivity', 'sensitivityClass'),
+          explicitness: metaString(metadata, 'explicitness'),
+          policyVersion: metaString(metadata, 'policyVersion'),
+          provenance: metaString(metadata, 'provenanceSummary', 'provenance'),
+          sourceObjectId: metaString(metadata, 'sourceObjectId', 'sourceId'),
+          extractedFacts: metaStringArray(metadata, 'extractedFacts', 'facts', 'keyFacts'),
+          entityGraphLinks: metaStringArray(metadata, 'entityGraphLinks', 'graphLinks', 'relatedEntities'),
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
         };

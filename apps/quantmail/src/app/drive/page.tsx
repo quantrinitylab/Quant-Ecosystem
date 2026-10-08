@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo, useRef, Suspense } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   DriveContextTabsHeader,
+  DriveMobileTabStrip,
   DriveFilesSubView,
   DriveSharedSubView,
   DriveVaultSubView,
@@ -14,6 +15,7 @@ import {
   DriveAiMemorySubView,
   FileShareModal,
   type DriveSubTab,
+  type AiMemoryItem,
 } from './components';
 import { Button, Skeleton, Modal, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
@@ -38,6 +40,7 @@ import { FileVersionHistoryModal } from '../../components/drive/FileVersionHisto
 import { FileAISummaryDrawer } from '../../components/drive/FileAISummaryDrawer';
 import { AIDuplicateCleanerModal } from '../../components/drive/AIDuplicateCleanerModal';
 import { StorageQuotaBar } from '../../components/drive/StorageQuotaBar';
+import { apiFetchRaw } from '@quant/api-client';
 
 type DriveItem = {
   id: string;
@@ -312,18 +315,6 @@ function DrivePageContent() {
     }
   }, [tabFromQuery, normalizeTab]);
 
-  // Sync with quant:subtab-change custom event from the shell's MobileSubTabStrip
-  useEffect(() => {
-    const handleSubtabChange = (e: Event) => {
-      const customEvent = e as CustomEvent<{ pillar: string; tabId: string }>;
-      if (customEvent.detail && customEvent.detail.pillar === 'drive') {
-        setActiveTab(normalizeTab(customEvent.detail.tabId));
-      }
-    };
-    window.addEventListener('quant:subtab-change', handleSubtabChange);
-    return () => window.removeEventListener('quant:subtab-change', handleSubtabChange);
-  }, [normalizeTab]);
-
   const handleTabChange = useCallback(
     (newTab: DriveSubTab) => {
       setActiveTab(newTab);
@@ -368,6 +359,73 @@ function DrivePageContent() {
   }, [fetchFiles]);
 
   const { confirm, dialog } = useConfirm();
+
+  const [memoryItems, setMemoryItems] = useState<AiMemoryItem[]>([]);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [memoryError, setMemoryError] = useState<string | null>(null);
+
+  const loadMemory = useCallback(async () => {
+    setMemoryLoading(true);
+    setMemoryError(null);
+    try {
+      const response = await fetch('/api/drive/memory', { cache: 'no-store' });
+      if (!response.ok) throw new Error('Memory data is unavailable right now.');
+      const payload = (await response.json()) as {
+        memories?: Array<{
+          id: string;
+          content: string;
+          summary?: string;
+          sourceApp?: string;
+          sourceLabel?: string;
+          confidenceScore?: number | null;
+          sensitivity?: string | null;
+          explicitness?: string | null;
+          policyVersion?: string | null;
+          provenance?: string | null;
+          sourceObjectId?: string | null;
+          extractedFacts?: string[];
+          entityGraphLinks?: string[];
+          updatedAt?: string;
+        }>;
+      };
+
+      const appMap: Record<string, AiMemoryItem['app']> = {
+        QuantMail: 'QuantMail',
+        QuantCalendar: 'QuantCalendar',
+        QuantDrive: 'QuantDrive',
+        QuantContacts: 'QuantContacts',
+        QuantGit: 'QuantGit',
+        shared: 'Shared',
+      };
+
+      setMemoryItems(
+        (payload.memories ?? []).map((memory) => ({
+          id: memory.id,
+          app: appMap[memory.sourceApp ?? ''] ?? 'Shared',
+          title: memory.summary?.trim() || memory.content.slice(0, 120),
+          timestamp: memory.updatedAt ? new Date(memory.updatedAt).toLocaleString() : 'Unknown time',
+          rawContext: memory.content,
+          extractedFacts: memory.extractedFacts ?? [],
+          entityGraphLinks: memory.entityGraphLinks ?? [],
+          confidenceScore: memory.confidenceScore ?? undefined,
+          sensitivity: memory.sensitivity ?? undefined,
+          explicitness: memory.explicitness ?? undefined,
+          policyVersion: memory.policyVersion ?? undefined,
+          provenance: memory.provenance ?? memory.sourceLabel ?? undefined,
+          sourceObjectId: memory.sourceObjectId ?? undefined,
+        })),
+      );
+    } catch (error) {
+      setMemoryItems([]);
+      setMemoryError(error instanceof Error ? error.message : 'Memory data is unavailable right now.');
+    } finally {
+      setMemoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'aimemory') void loadMemory();
+  }, [activeTab, loadMemory]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewModeState] = useState<'grid' | 'list'>('grid');
@@ -456,7 +514,7 @@ function DrivePageContent() {
     setCopiedTextPreview(false);
 
     const url = getDownloadUrl(previewItem.id);
-    fetch(url, { signal: controller.signal })
+    apiFetchRaw(url, { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) {
           throw new Error(`Failed to load file preview (${res.status})`);
@@ -1102,6 +1160,16 @@ function DrivePageContent() {
           </div>
         </div>
 
+        {/* Mobile tab strip (QM-UIUX-019): the desktop header below is
+            hidden on mobile, so without this strip 7 of 8 Drive surfaces
+            were unreachable on phones. */}
+        <DriveMobileTabStrip
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          sharedCount={receivedShares.length}
+          starredCount={items.filter((i) => i.isStarred).length}
+        />
+
         {/* Sovereign Context Sub-Navigation Tabs */}
         <DriveContextTabsHeader
           activeTab={activeTab}
@@ -1285,16 +1353,7 @@ function DrivePageContent() {
             />
           )}
 
-          {activeTab === 'vault' && (
-            <DriveVaultSubView
-              onDecryptItem={(item) =>
-                showToast({
-                  text: `Unlocked "${item.name}" via WebCrypto SubtleCrypto L3`,
-                  type: 'success',
-                })
-              }
-            />
-          )}
+          {activeTab === 'vault' && <DriveVaultSubView />}
 
           {activeTab === 'starred' && (
             <DriveStarredSubView
@@ -1469,13 +1528,44 @@ function DrivePageContent() {
 
           {activeTab === 'aimemory' && (
             <DriveAiMemorySubView
+              memories={memoryItems}
               onRecallInChat={(mem) =>
                 showToast({
                   text: `Recalled context from ${mem.app}: "${mem.title}"`,
                   type: 'success',
                 })
               }
+              onForgetMemory={async (mem) => {
+                const ok = await confirm({
+                  title: `Forget "${mem.title}"?`,
+                  message:
+                    'This archives the memory projection so it no longer participates in normal recall. Source data remains owned by its original product.',
+                  confirmLabel: 'Forget memory',
+                  variant: 'destructive',
+                });
+                if (!ok) return;
+                try {
+                  const response = await fetch(`/api/drive/memory/${encodeURIComponent(mem.id)}`, {
+                    method: 'DELETE',
+                  });
+                  if (!response.ok) throw new Error('Could not forget this memory.');
+                  showToast({ text: 'Memory archived', type: 'success', subject: `memory-forget-${mem.id}` });
+                  await loadMemory();
+                } catch (error) {
+                  showToast({
+                    text: error instanceof Error ? error.message : 'Could not forget this memory.',
+                    type: 'error',
+                    subject: `memory-forget-${mem.id}`,
+                  });
+                }
+              }}
             />
+          )}
+          {activeTab === 'aimemory' && memoryLoading && (
+            <p className="mt-4 text-xs text-[#94A3B8]">Loading governed memory…</p>
+          )}
+          {activeTab === 'aimemory' && memoryError && (
+            <p className="mt-4 text-xs text-[#FCA5A5]">{memoryError}</p>
           )}
         </div>
 
@@ -1502,6 +1592,8 @@ function DrivePageContent() {
                   src={getDownloadUrl(previewItem.id)}
                   alt={previewItem.name}
                   className="max-h-96 mx-auto rounded-lg object-contain"
+                  loading="lazy"
+                  decoding="async"
                 />
                 <h4 className="text-sm font-bold text-[#F5F5F5] mt-3">{previewItem.name}</h4>
                 <p className="text-xs text-[#A1A4AC] mt-1">

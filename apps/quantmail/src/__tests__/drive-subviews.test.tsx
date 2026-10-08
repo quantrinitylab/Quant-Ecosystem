@@ -128,12 +128,13 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
       });
     });
 
-    it('renders badgeText for AI Memory (AI) and Vault (E2EE)', () => {
+    it('renders badgeText for AI Memory (AI) and no unverified E2EE badge on Vault', () => {
       const html = renderToStaticMarkup(
         <DriveContextTabsHeader activeTab="home" onTabChange={() => {}} />,
       );
 
-      expect(html).toContain('E2EE');
+      expect(html).not.toContain('E2EE');
+      expect(html).not.toContain('AES-256');
       expect(html).toContain('>AI<');
     });
 
@@ -229,36 +230,96 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
   describe('3. DriveSharedSubView Component', () => {
     it('renders Shared with Me banner and active counter', () => {
       const html = renderToStaticMarkup(<DriveSharedSubView />);
-
       expect(html).toContain('Shared with Me');
       expect(html).toContain('Active');
       expect(html).toContain('drive-panel-shared');
     });
 
-    it('renders collaborator avatars with user initials', () => {
-      const html = renderToStaticMarkup(<DriveSharedSubView />);
+    it('renders collaborator avatars with user initials from real shares', () => {
+      const html = renderToStaticMarkup(
+        <DriveSharedSubView
+          shares={[
+            {
+              id: 'share-1',
+              name: 'Report.pdf',
+              type: 'file',
+              mimeType: 'application/pdf',
+              size: 1000,
+              sharedDate: '2026-10-01T09:15:00Z',
+              permission: 'Viewer',
+              owner: { name: 'Test User', email: 'test@example.com' },
+              status: 'accepted',
+            },
+          ]}
+        />,
+      );
 
-      // Elena Rostova -> ER
-      expect(html).toContain('ER');
-      // Marcus Vance -> MV
-      expect(html).toContain('MV');
-      // Aria Takahashi -> AT
-      expect(html).toContain('AT');
+      // Test User -> TU
+      expect(html).toContain('TU');
+    });
+
+    it('shows an honest empty state when there are no shares', () => {
+      const html = renderToStaticMarkup(<DriveSharedSubView shares={[]} />);
+
+      expect(html).toContain('No shared files yet');
+      expect(html).not.toContain('Elena Rostova');
+      expect(html).not.toContain('Marcus Vance');
     });
 
     it('renders permission chips: Viewer, Editor', () => {
-      const html = renderToStaticMarkup(<DriveSharedSubView />);
+      const html = renderToStaticMarkup(
+        <DriveSharedSubView
+          shares={[
+            {
+              id: 'share-1',
+              name: 'A.pdf',
+              type: 'file',
+              mimeType: 'application/pdf',
+              size: 1000,
+              sharedDate: '2026-10-01T09:15:00Z',
+              permission: 'Viewer',
+              owner: { name: 'A B', email: 'a@example.com' },
+              status: 'accepted',
+            },
+            {
+              id: 'share-2',
+              name: 'B.pdf',
+              type: 'file',
+              mimeType: 'application/pdf',
+              size: 1000,
+              sharedDate: '2026-10-01T09:15:00Z',
+              permission: 'Editor',
+              owner: { name: 'C D', email: 'c@example.com' },
+              status: 'pending',
+            },
+          ]}
+        />,
+      );
 
       expect(html).toContain('Viewer');
       expect(html).toContain('Editor');
     });
 
     it('renders formatted shared dates and action buttons', () => {
-      const html = renderToStaticMarkup(<DriveSharedSubView />);
+      const html = renderToStaticMarkup(
+        <DriveSharedSubView
+          shares={[
+            {
+              id: 'share-1',
+              name: 'A.pdf',
+              type: 'file',
+              mimeType: 'application/pdf',
+              size: 1000,
+              sharedDate: '2026-10-01T09:15:00Z',
+              permission: 'Viewer',
+              owner: { name: 'A B', email: 'a@example.com' },
+              status: 'accepted',
+            },
+          ]}
+        />,
+      );
 
       expect(html).toContain('Shared');
-      expect(html).toContain('Accept');
-      expect(html).toContain('Decline');
       expect(html).toContain('Preview');
       expect(html).toContain('Download');
     });
@@ -273,35 +334,43 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
   // 4. DriveVaultSubView Tests
   // ==========================================================================
   describe('4. DriveVaultSubView Component', () => {
-    it('renders Sovereign Cryptographic Vault status card with Zero-Knowledge encryption', () => {
+    it('renders an honest vault status card without unverified crypto claims', () => {
       const html = renderToStaticMarkup(<DriveVaultSubView />);
 
-      expect(html).toContain('Sovereign Cryptographic Vault · Zero-Knowledge Encryption');
       expect(html).toContain('drive-panel-vault');
-      expect(html).toContain('AES-256-GCM');
+      expect(html).not.toContain('Zero-Knowledge Encryption');
+      expect(html).not.toContain('AES-256-GCM');
+      expect(html).not.toContain('SubtleCrypto');
+      expect(html).not.toContain('Hardware Keystore');
     });
 
-    it('renders Hardware Keystore / WebCrypto status badge', () => {
+    it('shows an honest empty state when there are no vault items', () => {
       const html = renderToStaticMarkup(<DriveVaultSubView />);
 
-      expect(html).toContain(
-        'Hardware Keystore Active · WebCrypto SubtleCrypto L3 Verified',
+      expect(html).toContain('No vault items yet');
+      expect(html).not.toContain('financial_audit_q3_2026.pdf.enc');
+      expect(html).not.toContain('sovereign_identity_credentials.dat.enc');
+      expect(html).not.toContain('Decrypt on Demand');
+    });
+
+    it('renders real vault items when provided', () => {
+      const html = renderToStaticMarkup(
+        <DriveVaultSubView
+          items={[
+            {
+              id: 'v1',
+              name: 'notes.txt.enc',
+              cipherSize: 1024,
+              cipherAlgorithm: 'AES-256-GCM',
+              sha256Checksum: 'abc123',
+              encryptedAt: '2026-10-01T00:00:00Z',
+            },
+          ]}
+        />,
       );
-      expect(html).toContain('PBKDF2 600,000 iter / Argon2id');
-    });
 
-    it('renders encrypted file cards with padlock vector icons, SHA-256 chips, and Decrypt on Demand', () => {
-      const html = renderToStaticMarkup(<DriveVaultSubView />);
-
-      expect(html).toContain('financial_audit_q3_2026.pdf.enc');
-      expect(html).toContain('sovereign_identity_credentials.dat.enc');
-      expect(html).toContain('executive_keyring_backup.pem.enc');
-      expect(html).toContain('patent_portfolio_rfc_draft.docx.enc');
-
-      // SHA-256 copy chip
-      expect(html).toContain('SHA-256: 7f83b165');
-      // Decrypt on Demand
-      expect(html).toContain('Decrypt on Demand');
+      expect(html).toContain('notes.txt.enc');
+      expect(html).toContain('SHA-256:');
     });
 
     it('contains strictly ZERO raw Unicode emojis in vault subview', () => {
@@ -322,13 +391,32 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
       expect(html).toContain('drive-panel-starred');
     });
 
-    it('renders pinned document cards with gold star filled icon and actions', () => {
+    it('shows an honest empty state when nothing is starred', () => {
       const html = renderToStaticMarkup(<DriveStarredSubView items={[]} />);
 
-      expect(html).toContain('Sovereign_Cloud_Key_Management_RFC.pdf');
-      expect(html).toContain('Q3_Financial_Projections_Final.xlsx');
-      expect(html).toContain('FastCDC_Deduplication_Specification.md');
-      expect(html).toContain('FastCDC Verified');
+      expect(html).toContain('No starred files yet');
+      expect(html).not.toContain('Sovereign_Cloud_Key_Management_RFC.pdf');
+      expect(html).not.toContain('Q3_Financial_Projections_Final.xlsx');
+    });
+
+    it('renders real starred items when provided', () => {
+      const html = renderToStaticMarkup(
+        <DriveStarredSubView
+          items={[
+            {
+              id: 's1',
+              name: 'MyDoc.pdf',
+              type: 'file',
+              mimeType: 'application/pdf',
+              size: 1000,
+              modifiedAt: '2026-10-01T00:00:00Z',
+              isStarred: true,
+            },
+          ]}
+        />,
+      );
+
+      expect(html).toContain('MyDoc.pdf');
       expect(html).toContain('Download');
       expect(html).toContain('Delete');
     });
@@ -343,37 +431,49 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
   // 6. DriveCleanerSubView Tests
   // ==========================================================================
   describe('6. DriveCleanerSubView Component', () => {
-    it('renders FastCDC 64KB Deduplication Cleaner header', () => {
+    it('renders Storage Cleaner header with honest copy', () => {
       const html = renderToStaticMarkup(<DriveCleanerSubView />);
 
-      expect(html).toContain('FastCDC 64KB Deduplication Cleaner');
-      expect(html).toContain('BLAKE3 CAS');
+      expect(html).toContain('Storage Cleaner');
       expect(html).toContain('drive-panel-cleaner');
+      expect(html).not.toContain('94.2% Bandwidth Saved');
+      expect(html).not.toContain('4.8 GB');
     });
 
-    it('renders metric cards: 94.2% Bandwidth Saved, 4.8 GB Duplicate Blocks Identified', () => {
+    it('shows an honest empty state when no duplicates are found', () => {
       const html = renderToStaticMarkup(<DriveCleanerSubView />);
 
-      expect(html).toContain('94.2% Bandwidth Saved');
-      expect(html).toContain('4.8 GB Duplicate Blocks Identified');
-      expect(html).toContain('1,280 CAS Blocks Chunked');
-      expect(html).toContain('FastCDC 64KB Rolling');
+      expect(html).toContain('No duplicates found');
+      expect(html).not.toContain('Quarterly_Report_v1.pdf');
+      expect(html).not.toContain('Reclaim 4.8 GB Storage');
     });
 
-    it('renders duplicate file clusters list (Quarterly_Report_v1.pdf vs v2.pdf)', () => {
-      const html = renderToStaticMarkup(<DriveCleanerSubView />);
+    it('renders real duplicate clusters when provided', () => {
+      const html = renderToStaticMarkup(
+        <DriveCleanerSubView
+          clusters={[
+            {
+              clusterId: 'c1',
+              title: 'a.pdf vs b.pdf',
+              similarity: '98% match',
+              potentialSavings: '1 MB',
+              files: [
+                {
+                  id: 'f1',
+                  name: 'a.pdf',
+                  path: '/a.pdf',
+                  size: '1 MB',
+                  modified: 'Oct 1, 2026',
+                  isOriginal: true,
+                },
+              ],
+            },
+          ]}
+        />,
+      );
 
-      expect(html).toContain('Quarterly_Report_v1.pdf vs v2.pdf');
-      expect(html).toContain('Design_System_Master.fig vs Backup');
-      expect(html).toContain('Financial_Ledger_2026.xlsx vs Copy');
-      expect(html).toContain('98.4% Block Match · FastCDC 64KB CAS');
-      expect(html).toContain('Reclaimable: 6.1 MB');
-    });
-
-    it('renders action button: [Reclaim 4.8 GB Storage]', () => {
-      const html = renderToStaticMarkup(<DriveCleanerSubView />);
-
-      expect(html).toContain('Reclaim 4.8 GB Storage');
+      expect(html).toContain('a.pdf vs b.pdf');
+      expect(html).toContain('Reclaimable: 1 MB');
     });
 
     it('contains strictly ZERO raw Unicode emojis in cleaner subview', () => {

@@ -5,6 +5,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface AIModel {
   id: string;
@@ -50,7 +51,7 @@ export default function ModelsPage(): JSX.Element {
       setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch('/api/models');
+        const res = await apiFetchRaw('/api/models');
         const data = (await res.json().catch(() => ({}))) as {
           models?: AIModel[];
           error?: string;

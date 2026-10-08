@@ -161,6 +161,38 @@ describe('sanitizeEmailHtml', () => {
     expect(sanitizeEmailHtml('<script>alert(1)</script><p>Safe</p>')).toBe('');
   });
 
+  it('strips inline background/color styles so mail follows dark mode (QM-UIUX-041)', () => {
+    const result = sanitizeEmailHtml(
+      '<div style="background:#ffffff"><p style="color:#333">Hi</p></div>',
+    );
+    expect(result).not.toContain('background');
+    expect(result).not.toContain('color');
+    expect(result).toContain('Hi');
+  });
+
+  it('keeps other inline styles when stripping dark-mode-hostile colors', () => {
+    const result = sanitizeEmailHtml(
+      '<p style="color:#333;font-size:14px;padding:8px">Hi</p>',
+    );
+    expect(result).not.toContain('color');
+    expect(result).toContain('font-size');
+    expect(result).toContain('padding');
+  });
+
+  it('removes the style attribute entirely when nothing survives the strip', () => {
+    const result = sanitizeEmailHtml('<p style="background-color:#fff">Hi</p>');
+    expect(result).not.toContain('style=');
+    expect(result).toContain('Hi');
+  });
+
+  it('strips background-image too (common newsletter banner trick)', () => {
+    const result = sanitizeEmailHtml(
+      '<div style="background-image:url(https://img.example/b.png)">Hi</div>',
+    );
+    expect(result).not.toContain('background-image');
+    expect(result).toContain('Hi');
+  });
+
   it('returns empty string for empty input', () => {
     expect(sanitizeEmailHtml('')).toBe('');
   });

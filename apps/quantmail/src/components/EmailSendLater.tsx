@@ -64,6 +64,8 @@ export function EmailSendLater({ onSchedule, onCancel }: EmailSendLaterProps) {
         <div className="send-later-custom-inputs">
           <input
             type="date"
+            id="send-later-custom-date"
+            aria-label="Custom send date"
             className="send-later-date"
             value={customDate}
             onChange={(e) => setCustomDate(e.target.value)}
@@ -71,6 +73,8 @@ export function EmailSendLater({ onSchedule, onCancel }: EmailSendLaterProps) {
           />
           <input
             type="time"
+            id="send-later-custom-time"
+            aria-label="Custom send time"
             className="send-later-time"
             value={customTime}
             onChange={(e) => setCustomTime(e.target.value)}

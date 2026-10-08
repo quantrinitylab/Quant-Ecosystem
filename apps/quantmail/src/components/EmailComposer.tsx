@@ -17,6 +17,7 @@ import { loadDefaultSignatureHtml } from '../lib/email-signature-preference';
 import { useSafeEmailHtml } from '../lib/safe-html';
 import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
+import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
 import { RecipientChipInput, parseEmailString, type RecipientOption } from './RecipientChipInput';
 import {
   IconArrowRight,
@@ -37,6 +38,7 @@ import { useContacts } from '../hooks/useContacts';
 import { useConfirm } from '../hooks/useConfirm';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { apiClient } from '../services/api-client';
+import { apiFetchRaw } from '@quant/api-client';
 
 /**
  * The composer's three heavy overlays, split out of its chunk.
@@ -870,7 +872,11 @@ export function EmailComposer({
   };
 
   // Save Draft Handler
-  const handleSaveDraft = async () => {
+  //
+  // The actual server write, shared by the manual "Save draft" button and the
+  // autosave timer below. Returns true on success. Quiet by design — toasts
+  // and mascot reactions are the manual handler's job, not the timer's.
+  const saveDraftToServer = async (): Promise<boolean> => {
     const { bodyText, bodyHtml } = buildOutgoingBodies();
     const toList = to
       .split(/[,;\s]+/)
@@ -889,7 +895,6 @@ export function EmailComposer({
           .map((email) => ({ email }))
       : undefined;
 
-    setIsSaving(true);
     try {
       if (onSaveDraft) {
         await onSaveDraft({
@@ -904,7 +909,7 @@ export function EmailComposer({
           inReplyTo: inReplyTo || initialReplyToId,
         });
       } else {
-        await fetch('/api/emails/drafts', {
+        await apiFetchRaw('/api/emails/drafts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -917,14 +922,79 @@ export function EmailComposer({
           }),
         });
       }
-      // `mail:draftSaved` is the sheet's quietest reaction on purpose — `calm`, at ambient
-      // priority for 1.2s. A draft save happens on a timer and on every close; announcing it
-      // as loudly as a send would make the mascot a flicker instead of a signal.
-      quantyReact('mail:draftSaved');
-      showToast({ text: 'Draft saved', type: 'success' });
+      return true;
     } catch {
-      quantyReact('sys:error');
-      showToast({ text: 'Failed to save draft', type: 'error' });
+      return false;
+    }
+  };
+
+  // Draft autosave: 10s after the last edit, only when dirty, only with content.
+  // The indicator in the header always tells the truth about the last attempt.
+  const draftSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        to,
+        cc,
+        bcc,
+        subject,
+        greeting,
+        opening,
+        body,
+        closing,
+        signoff,
+        senderName,
+        customDetails,
+        attachments: attachments.map((a) => a.id ?? a.filename),
+      }),
+    [
+      to,
+      cc,
+      bcc,
+      subject,
+      greeting,
+      opening,
+      body,
+      closing,
+      signoff,
+      senderName,
+      customDetails,
+      attachments,
+    ],
+  );
+  const draftHasContent = useMemo(
+    () =>
+      Boolean(
+        to.trim() || subject.trim() || body.trim() || attachments.length > 0,
+      ),
+    [to, subject, body, attachments],
+  );
+  const {
+    saveState: draftSaveState,
+    notifyManualSave: notifyDraftSaved,
+  } = useDraftAutosave({
+    snapshot: draftSnapshot,
+    hasContent: draftHasContent,
+    save: saveDraftToServer,
+    enabled: !isSending,
+  });
+  const draftSaveLabel = draftSaveStateLabel(draftSaveState);
+
+  const handleSaveDraft = async () => {
+    setIsSaving(true);
+    try {
+      const ok = await saveDraftToServer();
+      if (ok) {
+        // `mail:draftSaved` is the sheet's quietest reaction on purpose — `calm`, at ambient
+        // priority for 1.2s. Manual saves announce once; the autosave timer below stays
+        // silent so the mascot is a signal, not a flicker.
+        quantyReact('mail:draftSaved');
+        showToast({ text: 'Draft saved', type: 'success' });
+        notifyDraftSaved(true);
+      } else {
+        quantyReact('sys:error');
+        showToast({ text: 'Failed to save draft', type: 'error' });
+        notifyDraftSaved(false);
+      }
     } finally {
       setIsSaving(false);
       setShowSendOptionsDropdown(false);
@@ -1008,6 +1078,28 @@ export function EmailComposer({
                 <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-[#282C35] border border-[#3A404D] text-[10px] text-[#A1A4AC] font-mono">
                   C
                 </kbd>
+                {/* Honest autosave indicator: shows the real state of the last save attempt. */}
+                {draftSaveLabel && (
+                  <span
+                    aria-live="polite"
+                    className={`text-[11px] font-medium ${
+                      draftSaveState === 'error'
+                        ? 'text-[#FF6B6B]'
+                        : draftSaveState === 'saved'
+                          ? 'text-[#4ADE80]'
+                          : 'text-[#A1A4AC]'
+                    }`}
+                  >
+                    {draftSaveState === 'saving' ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="size-2.5 rounded-full border-2 border-[#A1A4AC]/30 border-t-[#A1A4AC] animate-spin" aria-hidden="true" />
+                        {draftSaveLabel}
+                      </span>
+                    ) : (
+                      draftSaveLabel
+                    )}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -1288,7 +1380,7 @@ export function EmailComposer({
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="Subject of the email"
-                className="flex-1 min-w-0 min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm font-semibold text-white placeholder-[#A1A4AC] focus:outline-none"
+                className="flex-1 min-w-0 min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm font-semibold text-white placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded"
               />
             </div>
 
@@ -1339,7 +1431,7 @@ export function EmailComposer({
                     value={greeting}
                     onChange={(e) => setGreeting(e.target.value)}
                     placeholder="Dear Sir/Madam,"
-                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none"
+                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   />
                 </div>
 
@@ -1357,7 +1449,7 @@ export function EmailComposer({
                     value={opening}
                     onChange={(e) => setOpening(e.target.value)}
                     placeholder="Reason for writing / brief opening statement..."
-                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none"
+                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   />
                 </div>
               </div>
@@ -1524,7 +1616,7 @@ export function EmailComposer({
                     value={closing}
                     onChange={(e) => setClosing(e.target.value)}
                     placeholder="Thank you for your time."
-                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none"
+                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   />
                 </div>
 
@@ -1557,7 +1649,7 @@ export function EmailComposer({
                         value={signoff}
                         onChange={(e) => setSignoff(e.target.value)}
                         placeholder="Best regards,"
-                        className="w-28 sm:w-36 shrink-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[#282C35] pb-0.5"
+                        className="w-28 sm:w-36 shrink-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[#282C35] pb-0.5 focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       />
                       <input
                         id="composer-sender-name"
@@ -1566,7 +1658,7 @@ export function EmailComposer({
                         value={senderName}
                         onChange={(e) => setSenderName(e.target.value)}
                         placeholder="Your Name"
-                        className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[#282C35] pb-0.5"
+                        className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[#282C35] pb-0.5 focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       />
                     </div>
                   </div>
@@ -1584,7 +1676,7 @@ export function EmailComposer({
                         value={detail}
                         onChange={(e) => handleUpdateDetail(idx, e.target.value)}
                         placeholder="Designation / Company / Contact..."
-                        className="flex-1 min-w-0 bg-transparent text-xs text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[#282C35]/80 pb-0.5"
+                        className="flex-1 min-w-0 bg-transparent text-xs text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[#282C35]/80 pb-0.5 focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       />
                       <button
                         type="button"

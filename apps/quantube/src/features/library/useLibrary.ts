@@ -5,7 +5,7 @@
 // The ONLY sanctioned call path from the QuantTube Library UI surface to the
 // backend: typed react-query hooks over the same-origin Next proxy paths
 // (`/api/interactions/history`, `/api/playlists`, `/api/playlists/watch-later`)
-// — never an inline fetch (Req 8.7). The proxy forwards the bearer +
+// — never an inline fetch call — Req 8.7. The proxy forwards the bearer +
 // x-request-id to the backend (Layer 4), which reaches the decorated
 // HistoryService / PlaylistService (Req 8.5, 8.6).
 //

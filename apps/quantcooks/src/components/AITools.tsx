@@ -6,6 +6,7 @@
 // ============================================================================
 
 import React, { useState, useCallback } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface AITool {
   id: string;
@@ -95,7 +96,7 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({ clipId, creditsRemaining })
     setActiveResults((prev) => [...prev, result]);
     setShowCaptionForm(false);
     try {
-      const res = await fetch('/api/ai/captions', {
+      const res = await apiFetchRaw('/api/ai/captions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transcript, style: captionStyle }),

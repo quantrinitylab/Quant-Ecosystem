@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Space {
   id: string;
@@ -67,7 +68,7 @@ const SpacesPage: React.FC = () => {
   const fetchSpaces = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/spaces');
+      const res = await apiFetchRaw('/api/spaces');
       if (!res.ok) throw new Error('Failed to load spaces');
       const data = await res.json();
       setSpaces(data.live || []);
@@ -88,7 +89,7 @@ const SpacesPage: React.FC = () => {
 
   const handleJoinSpace = useCallback(async (spaceId: string) => {
     try {
-      const res = await fetch(`/api/spaces/${spaceId}/join`, { method: 'POST' });
+      const res = await apiFetchRaw(`/api/spaces/${spaceId}/join`, { method: 'POST' });
       if (!res.ok) throw new Error('Failed to join space');
       const data = await res.json();
       setActiveSpace(data);
@@ -100,7 +101,7 @@ const SpacesPage: React.FC = () => {
   const handleLeaveSpace = useCallback(async () => {
     if (!activeSpace) return;
     try {
-      await fetch(`/api/spaces/${activeSpace.id}/leave`, { method: 'POST' });
+      await apiFetchRaw(`/api/spaces/${activeSpace.id}/leave`, { method: 'POST' });
       setActiveSpace(null);
     } catch {}
   }, [activeSpace]);
@@ -108,7 +109,7 @@ const SpacesPage: React.FC = () => {
   const toggleMic = useCallback(async () => {
     if (!activeSpace) return;
     setActiveSpace((prev) => (prev ? { ...prev, isMicOn: !prev.isMicOn } : null));
-    await fetch(`/api/spaces/${activeSpace.id}/mic`, {
+    await apiFetchRaw(`/api/spaces/${activeSpace.id}/mic`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ muted: activeSpace.isMicOn }),
@@ -118,14 +119,14 @@ const SpacesPage: React.FC = () => {
   const raiseHand = useCallback(async () => {
     if (!activeSpace) return;
     setActiveSpace((prev) => (prev ? { ...prev, hasRaisedHand: !prev.hasRaisedHand } : null));
-    await fetch(`/api/spaces/${activeSpace.id}/hand`, { method: 'POST' });
+    await apiFetchRaw(`/api/spaces/${activeSpace.id}/hand`, { method: 'POST' });
   }, [activeSpace]);
 
   const sendReaction = useCallback(
     async (reaction: string) => {
       if (!activeSpace) return;
       setReactionCounts((prev) => ({ ...prev, [reaction]: (prev[reaction] || 0) + 1 }));
-      await fetch(`/api/spaces/${activeSpace.id}/react`, {
+      await apiFetchRaw(`/api/spaces/${activeSpace.id}/react`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reaction }),
@@ -146,7 +147,7 @@ const SpacesPage: React.FC = () => {
     if (!createForm.title.trim()) return;
     setCreating(true);
     try {
-      const res = await fetch('/api/spaces', {
+      const res = await apiFetchRaw('/api/spaces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(createForm),

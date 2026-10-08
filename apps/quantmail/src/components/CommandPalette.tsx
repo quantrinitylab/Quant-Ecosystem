@@ -205,7 +205,8 @@ export function CommandPalette() {
                 id="command-palette-input"
                 name="commandQuery"
                 ref={inputRef}
-                className="min-w-0 flex-1 bg-transparent text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none"
+                aria-label="Command palette search"
+                className="min-w-0 flex-1 bg-transparent text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded"
                 type="text"
                 placeholder="Type a command, or jump to a workspace…"
                 value={query}
@@ -215,7 +216,6 @@ export function CommandPalette() {
                 aria-expanded="true"
                 aria-controls="command-palette-list"
                 aria-activedescendant={flatOrder[activeIndex]?.id}
-                aria-label="Search commands"
                 autoComplete="off"
                 spellCheck={false}
               />

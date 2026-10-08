@@ -450,6 +450,8 @@ describe('MailFilterService', () => {
           isRead: true,
           isStarred: true,
           folderId: 'fld-archive',
+          // QM-BACK-002: system writes keep the version column truthful.
+          version: { increment: 1 },
         },
       });
     });

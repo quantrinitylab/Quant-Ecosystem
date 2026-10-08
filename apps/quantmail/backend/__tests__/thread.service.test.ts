@@ -8,6 +8,9 @@ function createMockPrisma() {
       findMany: vi.fn(),
       count: vi.fn(),
       update: vi.fn(),
+      // QM-BACK-002: versionedUpdate runs a conditional updateMany;
+      // default { count: 1 } so guarded writes succeed unless a test says otherwise.
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     email: {
       findFirst: vi.fn(),
@@ -156,10 +159,12 @@ describe('ThreadService', () => {
       const result = await service.muteThread('thread-1', 'user-1');
 
       expect(result.preferences.isMuted).toBe(true);
-      // Mute is now durably persisted on the EmailThread row.
-      expect(prisma.emailThread.update).toHaveBeenCalledWith({
+      // Mute is now durably persisted on the EmailThread row via a
+      // QM-BACK-002 conditional update (version bump, no expectedVersion here
+      // so no version predicate).
+      expect(prisma.emailThread.updateMany).toHaveBeenCalledWith({
         where: { id: 'thread-1' },
-        data: { isMuted: true },
+        data: { isMuted: true, version: { increment: 1 } },
       });
       // Verify preferences are stored and retrievable from the DB.
       await expect(service.getThreadPreferences('thread-1')).resolves.toEqual({ isMuted: true });
@@ -200,10 +205,11 @@ describe('ThreadService', () => {
       const result = await service.snoozeThread('thread-1', 'user-1', snoozeDate);
 
       expect(result.preferences.snoozedUntil).toEqual(snoozeDate.toISOString());
-      // Snooze is now durably persisted on the EmailThread row.
-      expect(prisma.emailThread.update).toHaveBeenCalledWith({
+      // Snooze is now durably persisted on the EmailThread row via a
+      // QM-BACK-002 conditional update.
+      expect(prisma.emailThread.updateMany).toHaveBeenCalledWith({
         where: { id: 'thread-1' },
-        data: { snoozedUntil: snoozeDate },
+        data: { snoozedUntil: snoozeDate, version: { increment: 1 } },
       });
       // Verify preferences are stored and retrievable from the DB.
       await expect(service.getThreadPreferences('thread-1')).resolves.toEqual({
@@ -245,9 +251,11 @@ describe('ThreadService', () => {
       expect(result.marked).toBe(2);
       expect(typeof result.readAt).toBe('string');
       // Only the viewer's unread received messages are touched.
+      // QM-BACK-002: read reconciliation bumps versions so the column stays
+      // truthful for later guarded writes.
       expect(prisma.email.updateMany).toHaveBeenCalledWith({
         where: { id: { in: ['email-1', 'email-2'] } },
-        data: { isRead: true, readAt: expect.any(Date) },
+        data: { isRead: true, readAt: expect.any(Date), version: { increment: 1 } },
       });
       // readAt propagates to the senders' sent copies via the shared messageId.
       expect(prisma.email.updateMany).toHaveBeenCalledWith({
@@ -257,7 +265,7 @@ describe('ThreadService', () => {
           readAt: null,
           deletedAt: null,
         },
-        data: { readAt: expect.any(Date) },
+        data: { readAt: expect.any(Date), version: { increment: 1 } },
       });
     });
 

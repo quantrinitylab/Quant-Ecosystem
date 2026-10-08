@@ -1117,7 +1117,8 @@ export function useMail(options?: UseInboxOptions & UseMailMutationsOptions) {
 // ============================================================================
 
 /**
- * Instant local SQLite FTS5 search hook (sub-5ms execution).
+ * Instant local SQLite FTS5 search hook (local index query only;
+ * end-to-end results are hydrated from the server).
  */
 export function useLocalFts5Search(query: string, options?: Fts5SearchOptions) {
   const [results, setResults] = useState<Fts5SearchResult[]>([]);
@@ -1246,7 +1247,7 @@ export function matchesSearchFilters(
 
 /**
  * Superhuman local-first email search hook.
- * Instantly queries local SQLite FTS5 index (sub-5ms display),
+ * Instantly queries local SQLite FTS5 index,
  * while concurrently querying the background server search and unifying hits.
  */
 export function useSearchEmails(params: Partial<SearchEmailRequest> | null) {
@@ -1279,7 +1280,7 @@ export function useSearchEmails(params: Partial<SearchEmailRequest> | null) {
     !!filterDateFrom?.trim() ||
     !!filterDateTo?.trim();
 
-  // Synchronous instant sub-5ms local SQLite FTS5 search
+  // Synchronous instant local SQLite FTS5 search (local index only)
   const localHits = useMemo(() => {
     if (!queryText) return [];
     const indexer = getFts5Indexer();

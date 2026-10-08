@@ -7,13 +7,15 @@ import { SuppressionService } from '../services/suppression.service';
 import { createMockSuppressionDb } from './helpers/suppression-doubles';
 
 function createMockPrisma() {
-  return {
+  const mock = {
     email: {
       create: vi.fn(),
       findUnique: vi.fn(),
       findMany: vi.fn(),
       count: vi.fn(),
       update: vi.fn(),
+      // QM-BACK-002: versionedUpdate runs a conditional updateMany inside the tx.
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       delete: vi.fn(),
     },
     emailFolder: {
@@ -36,7 +38,20 @@ function createMockPrisma() {
     label: {
       findMany: vi.fn(),
     },
+    // K1: mail mutations run inside `prisma.$transaction`; the double hands the
+    // callback the mock itself as the tx client and records outbox writes.
+    outboxEvent: {
+      create: vi.fn(async (args: { data: Record<string, unknown> }) => ({
+        id: 'outbox-1',
+        publishedAt: null,
+        createdAt: new Date(),
+        ...args.data,
+      })),
+    },
+    $transaction: null as unknown as ReturnType<typeof vi.fn>,
   };
+  mock.$transaction = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mock));
+  return mock;
 }
 
 describe('Integration: Email Flows', () => {
@@ -137,7 +152,7 @@ describe('Integration: Email Flows', () => {
       });
       expect(composed.isDraft).toBe(true);
 
-      prisma.email.findUnique.mockResolvedValue(composed);
+      prisma.email.findUnique.mockResolvedValueOnce(composed);
       const sentEmail = {
         ...composed,
         isDraft: false,
@@ -145,7 +160,7 @@ describe('Integration: Email Flows', () => {
         folderId: 'sent',
         sentAt: new Date(),
       };
-      prisma.email.update.mockResolvedValue(sentEmail);
+      prisma.email.findUnique.mockResolvedValueOnce(sentEmail);
 
       const sent = await emailService.send('user-1', composed.id, 'sent');
       expect(sent.isSent).toBe(true);
@@ -178,13 +193,13 @@ describe('Integration: Email Flows', () => {
         inReplyTo: 'draft-1',
       });
 
-      prisma.email.findUnique.mockResolvedValue(receivedReply);
-      prisma.email.update.mockResolvedValue({ ...receivedReply, isRead: true });
+      prisma.email.findUnique.mockResolvedValueOnce(receivedReply);
+      prisma.email.findUnique.mockResolvedValueOnce({ ...receivedReply, isRead: true });
       const readReply = await emailService.markRead(receivedReply.id, 'user-1');
       expect(readReply.isRead).toBe(true);
 
-      prisma.email.findUnique.mockResolvedValue(readReply);
-      prisma.email.update.mockResolvedValue({ ...readReply, folderId: 'archive' });
+      prisma.email.findUnique.mockResolvedValueOnce(readReply);
+      prisma.email.findUnique.mockResolvedValueOnce({ ...readReply, folderId: 'archive' });
       const archived = await emailService.moveToFolder(readReply.id, 'archive', 'user-1');
       expect(archived.folderId).toBe('archive');
     });
@@ -274,18 +289,18 @@ describe('Integration: Email Flows', () => {
         folderId: 'inbox',
       };
 
-      prisma.email.findUnique.mockResolvedValue(email);
-      prisma.email.update.mockResolvedValue({ ...email, isStarred: true });
+      prisma.email.findUnique.mockResolvedValueOnce(email);
+      prisma.email.findUnique.mockResolvedValueOnce({ ...email, isStarred: true });
       const starred = await emailService.markStarred('email-1', 'user-1');
       expect(starred.isStarred).toBe(true);
 
-      prisma.email.findUnique.mockResolvedValue(starred);
-      prisma.email.update.mockResolvedValue({ ...starred, labels: ['important'] });
+      prisma.email.findUnique.mockResolvedValueOnce(starred);
+      prisma.email.findUnique.mockResolvedValueOnce({ ...starred, labels: ['important'] });
       const labeled = await emailService.applyLabel('email-1', 'important', 'user-1');
       expect((labeled as unknown as { labels: string[] }).labels).toContain('important');
 
-      prisma.email.findUnique.mockResolvedValue(labeled);
-      prisma.email.update.mockResolvedValue({ ...labeled, folderId: 'custom-folder' });
+      prisma.email.findUnique.mockResolvedValueOnce(labeled);
+      prisma.email.findUnique.mockResolvedValueOnce({ ...labeled, folderId: 'custom-folder' });
       const moved = await emailService.moveToFolder('email-1', 'custom-folder', 'user-1');
       expect(moved.folderId).toBe('custom-folder');
     });
@@ -294,8 +309,8 @@ describe('Integration: Email Flows', () => {
   describe('Trash and Recovery Flow', () => {
     it('soft deletes email, then can find it in trash', async () => {
       const email = { id: 'email-1', userId: 'user-1', folderId: 'inbox', isTrash: false };
-      prisma.email.findUnique.mockResolvedValue(email);
-      prisma.email.update.mockResolvedValue({ ...email, isTrash: true, deletedAt: new Date() });
+      prisma.email.findUnique.mockResolvedValueOnce(email);
+      prisma.email.findUnique.mockResolvedValueOnce({ ...email, isTrash: true, deletedAt: new Date() });
 
       const trashed = await emailService.trashEmail('email-1', 'user-1');
       expect(trashed.isTrash).toBe(true);
@@ -310,13 +325,14 @@ describe('Integration: Email Flows', () => {
 
     it('records permanent deletion without erasing history', async () => {
       const email = { id: 'email-1', userId: 'user-1', isTrash: true };
-      prisma.email.findUnique.mockResolvedValue(email);
-      prisma.email.update.mockResolvedValue({ ...email, deletedAt: new Date() });
+      prisma.email.findUnique.mockResolvedValueOnce(email);
+      prisma.email.findUnique.mockResolvedValueOnce({ ...email, deletedAt: new Date() });
 
       await emailService.delete('email-1', 'user-1', true);
-      expect(prisma.email.update).toHaveBeenCalledWith({
+      // QM-BACK-002: hard delete is a conditional updateMany with a version bump.
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
         where: { id: 'email-1' },
-        data: { deletedAt: expect.any(Date) },
+        data: { deletedAt: expect.any(Date), version: { increment: 1 } },
       });
       expect(prisma.email.delete).not.toHaveBeenCalled();
     });
@@ -353,17 +369,18 @@ describe('Integration: Email Flows', () => {
     it('handles multiple label applications without duplication', async () => {
       const email = { id: 'email-1', userId: 'user-1', labels: [] };
 
-      prisma.email.findUnique.mockResolvedValue(email);
-      prisma.email.update.mockResolvedValue({ ...email, labels: ['label-a'] });
+      prisma.email.findUnique.mockResolvedValueOnce(email);
+      prisma.email.findUnique.mockResolvedValueOnce({ ...email, labels: ['label-a'] });
       await emailService.applyLabel('email-1', 'label-a', 'user-1');
 
-      prisma.email.findUnique.mockResolvedValue({ ...email, labels: ['label-a'] });
-      prisma.email.update.mockResolvedValue({ ...email, labels: ['label-a', 'label-b'] });
+      prisma.email.findUnique.mockResolvedValueOnce({ ...email, labels: ['label-a'] });
+      prisma.email.findUnique.mockResolvedValueOnce({ ...email, labels: ['label-a', 'label-b'] });
       await emailService.applyLabel('email-1', 'label-b', 'user-1');
 
       prisma.email.findUnique.mockResolvedValue({ ...email, labels: ['label-a', 'label-b'] });
       const result = await emailService.applyLabel('email-1', 'label-a', 'user-1');
-      expect(prisma.email.update).toHaveBeenCalledTimes(2);
+      // QM-BACK-002: applyLabel writes via a conditional updateMany now.
+expect(prisma.email.updateMany).toHaveBeenCalledTimes(2);
     });
   });
 });

@@ -6,7 +6,7 @@ import 'package:quant_ui/quant_ui.dart';
 ///
 /// Features 5 context sub-views:
 /// 1. Contacts: Complete A-Z indexed contacts list with quick-jump rail, search filter, and verified beacons.
-/// 2. VIPs: Executive luminary cards (Sundar Pichai, Satya Nadella, Linus Torvalds) with 1-tap call/email.
+/// 2. VIPs: executive cards with 1-tap call/email (wired to real contacts API).
 /// 3. Companies: Enterprise organization groupings with member rosters and domain mapping.
 /// 4. AI Dedup: Smart identity merge wizard with side-by-side comparison and 98% confidence scoring.
 /// 5. Circles: Cryptographically isolated enterprise circles with key-exchange status.
@@ -32,129 +32,10 @@ class _ContactsPillarViewState extends State<ContactsPillarView> {
   bool _isMerged = false;
 
   // Contact Models & Mock Datasets
-  final List<Map<String, dynamic>> _allContacts = [
-    {
-      'name': 'Ada Lovelace',
-      'role': 'Chief Algorithm Architect',
-      'company': 'Quant Trinity Lab',
-      'email': 'ada@quantrinity.in',
-      'phone': '+1 (415) 555-0101',
-      'isVip': true,
-      'isVerified': true,
-      'circle': 'Core Engineers',
-      'avatarGradient': [Color(0xFF6366F1), Color(0xFFA855F7)],
-    },
-    {
-      'name': 'Demis Hassabis',
-      'role': 'CEO & Co-Founder',
-      'company': 'Alphabet Inc.',
-      'email': 'demis@deepmind.google',
-      'phone': '+44 20 7946 0912',
-      'isVip': true,
-      'isVerified': true,
-      'circle': 'Executive Board',
-      'avatarGradient': [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
-    },
-    {
-      'name': 'Guido van Rossum',
-      'role': 'Distinguished Engineer',
-      'company': 'Microsoft Corp.',
-      'email': 'guido@python.org',
-      'phone': '+1 (425) 555-0145',
-      'isVip': false,
-      'isVerified': true,
-      'circle': 'Core Engineers',
-      'avatarGradient': [Color(0xFF10B981), Color(0xFF059669)],
-    },
-    {
-      'name': 'Jensen Huang',
-      'role': 'CEO & President',
-      'company': 'NVIDIA Corp.',
-      'email': 'jensen@nvidia.internal',
-      'phone': '+1 (408) 555-0199',
-      'isVip': true,
-      'isVerified': true,
-      'circle': 'Executive Board',
-      'avatarGradient': [Color(0xFF22C55E), Color(0xFF15803D)],
-    },
-    {
-      'name': 'Linus Torvalds',
-      'role': 'Fellow & Kernel Lead',
-      'company': 'Linux Foundation',
-      'email': 'torvalds@linux-foundation.org',
-      'phone': '+1 (503) 555-0128',
-      'isVip': true,
-      'isVerified': true,
-      'circle': 'Core Engineers',
-      'avatarGradient': [Color(0xFFF59E0B), Color(0xFFD97706)],
-    },
-    {
-      'name': 'Mira Murati',
-      'role': 'Chief Technology Officer',
-      'company': 'Quant Trinity Lab',
-      'email': 'mira@quantrinity.in',
-      'phone': '+1 (415) 555-0177',
-      'isVip': true,
-      'isVerified': true,
-      'circle': 'Executive Board',
-      'avatarGradient': [Color(0xFFEC4899), Color(0xFFBE185D)],
-    },
-    {
-      'name': 'Sam Altman',
-      'role': 'CEO',
-      'company': 'OpenAI Alliance',
-      'email': 'sam@openai.internal',
-      'phone': '+1 (415) 555-0150',
-      'isVip': true,
-      'isVerified': true,
-      'circle': 'Product Council',
-      'avatarGradient': [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
-    },
-    {
-      'name': 'Satya Nadella',
-      'role': 'Chairman & CEO',
-      'company': 'Microsoft Corp.',
-      'email': 'satyan@microsoft.com',
-      'phone': '+1 (425) 882-8080',
-      'isVip': true,
-      'isVerified': true,
-      'circle': 'Executive Board',
-      'avatarGradient': [Color(0xFF0284C7), Color(0xFF0369A1)],
-    },
-    {
-      'name': 'Sundar Pichai',
-      'role': 'CEO',
-      'company': 'Alphabet Inc.',
-      'email': 'sundar@google.com',
-      'phone': '+1 (650) 253-0000',
-      'isVip': true,
-      'isVerified': true,
-      'circle': 'Executive Board',
-      'avatarGradient': [Color(0xFFEA4335), Color(0xFFFBBC05)],
-    },
-    {
-      'name': 'Tim Cook',
-      'role': 'Chief Executive Officer',
-      'company': 'Apple Inc.',
-      'email': 'tcook@apple.internal',
-      'phone': '+1 (408) 996-1010',
-      'isVip': true,
-      'isVerified': true,
-      'circle': 'Executive Board',
-      'avatarGradient': [Color(0xFF64748B), Color(0xFF334155)],
-    },
-    {
-      'name': 'Yann LeCun',
-      'role': 'Chief AI Scientist',
-      'company': 'Meta FAIR',
-      'email': 'yann@meta.internal',
-      'phone': '+1 (650) 555-0182',
-      'isVip': true,
-      'isVerified': true,
-      'circle': 'Core Engineers',
-      'avatarGradient': [Color(0xFF06B6D4), Color(0xFF0891B2)],
-    },
-  ];
+  // Contact Models & Mock Datasets
+  // QM-UIUX-059: removed fake contacts using real public figures' names
+  // (web PR #631 standard). Empty until wired to the real contacts API.
+  final List<Map<String, dynamic>> _allContacts = [];
 
   final List<String> _alphabetList = [
     'ALL',
@@ -677,7 +558,7 @@ class _ContactsPillarViewState extends State<ContactsPillarView> {
   }
 
   // ---------------------------------------------------------------------------
-  // 2. VIPS SUB-VIEW (Sundar Pichai, Satya Nadella, Linus Torvalds Executive Cards)
+  // 2. VIPS SUB-VIEW (executive cards from real contacts)
   // ---------------------------------------------------------------------------
   Widget _buildVipsSubView() {
     final vips = _allContacts.where((c) => c['isVip'] == true).toList();
@@ -1017,63 +898,9 @@ class _ContactsPillarViewState extends State<ContactsPillarView> {
   // 3. COMPANIES SUB-VIEW (Alphabet, Microsoft, Linux Foundation, Quant Trinity Lab)
   // ---------------------------------------------------------------------------
   Widget _buildCompaniesSubView() {
-    final companies = [
-      {
-        'name': 'Alphabet Inc.',
-        'domain': 'google.com · alphabet.com',
-        'hq': 'Mountain View, California',
-        'membersCount': 48,
-        'accentColor': const Color(0xFFEA4335),
-        'icon': Icons.language_rounded,
-        'members': [
-          {'name': 'Sundar Pichai', 'role': 'CEO', 'initials': 'SP'},
-          {'name': 'Demis Hassabis', 'role': 'CEO, Google DeepMind', 'initials': 'DH'},
-          {'name': 'Ruth Porat', 'role': 'President & CIO', 'initials': 'RP'},
-          {'name': 'Jeff Dean', 'role': 'Chief Scientist', 'initials': 'JD'},
-        ],
-      },
-      {
-        'name': 'Microsoft Corp.',
-        'domain': 'microsoft.com · azure.com',
-        'hq': 'Redmond, Washington',
-        'membersCount': 36,
-        'accentColor': const Color(0xFF0284C7),
-        'icon': Icons.window_rounded,
-        'members': [
-          {'name': 'Satya Nadella', 'role': 'Chairman & CEO', 'initials': 'SN'},
-          {'name': 'Guido van Rossum', 'role': 'Distinguished Engineer', 'initials': 'GR'},
-          {'name': 'Kevin Scott', 'role': 'Chief Technology Officer', 'initials': 'KS'},
-          {'name': 'Amy Hood', 'role': 'Chief Financial Officer', 'initials': 'AH'},
-        ],
-      },
-      {
-        'name': 'Linux Foundation',
-        'domain': 'linuxfoundation.org · kernel.org',
-        'hq': 'San Francisco, California',
-        'membersCount': 19,
-        'accentColor': const Color(0xFFF59E0B),
-        'icon': Icons.terminal_rounded,
-        'members': [
-          {'name': 'Linus Torvalds', 'role': 'Fellow & Linux Creator', 'initials': 'LT'},
-          {'name': 'Jim Zemlin', 'role': 'Executive Director', 'initials': 'JZ'},
-          {'name': 'Greg Kroah-Hartman', 'role': 'Kernel Stable Maintainer', 'initials': 'GK'},
-        ],
-      },
-      {
-        'name': 'Quant Trinity Lab',
-        'domain': 'quantrinity.in · sovereign.internal',
-        'hq': 'Autonomous Swarm Enclave',
-        'membersCount': 12,
-        'accentColor': QuantColors.emeraldMatrix,
-        'icon': Icons.hub_rounded,
-        'members': [
-          {'name': 'Ada Lovelace', 'role': 'Chief Algorithm Architect', 'initials': 'AL'},
-          {'name': 'Mira Murati', 'role': 'Chief Technology Officer', 'initials': 'MM'},
-          {'name': 'Antigravity Node A', 'role': 'IDE Lead & GitHub Parity', 'initials': 'NA'},
-          {'name': 'Antigravity Node B', 'role': 'ChatGPT Agent OS Lead', 'initials': 'NB'},
-        ],
-      },
-    ];
+    // QM-UIUX-059: removed fake companies with real people's names.
+    // Empty until wired to the real contacts API.
+    final companies = <Map<String, dynamic>>[];
 
     return ListView(
       physics: const BouncingScrollPhysics(),
@@ -1297,398 +1124,40 @@ class _ContactsPillarViewState extends State<ContactsPillarView> {
   // 4. AI DEDUP SUB-VIEW (Smart duplicate contact cleaner wizard)
   // ---------------------------------------------------------------------------
   Widget _buildDedupSubView() {
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      children: [
-        // Duplicate detection banner
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF14241C), Color(0xFF0F1A15)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    // QM-UIUX-059: removed hardcoded fake dedup demo using a real person's name.
+    // Honest empty state until wired to the real dedup engine.
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.auto_fix_high_rounded, size: 48, color: QuantColors.textSecondary),
+            SizedBox(height: 16),
+            Text(
+              'No duplicates found',
+              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
             ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: QuantColors.emeraldMatrix.withOpacity(0.5),
-              width: 1.2,
+            SizedBox(height: 8),
+            Text(
+              'Duplicate detection runs when contacts are available.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: QuantColors.textSecondary, fontSize: 13),
             ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: QuantColors.emeraldMatrix.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.auto_fix_high_rounded,
-                      color: QuantColors.emeraldMatrix,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '2 Potential Duplicates Detected',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          '98% Match Confidence · FastVector Local AI Scan',
-                          style: TextStyle(
-                            color: QuantColors.emeraldMatrix,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Quant AI scanned 2,842 contacts in 3.2ms. The following two records share cross-referenced cryptographic telemetry, name tokens, and organizational mapping.',
-                style: TextStyle(
-                  color: QuantColors.textSecondary,
-                  fontSize: 12,
-                  height: 1.4,
-                ),
-              ),
-            ],
-          ),
+          ],
         ),
-        const SizedBox(height: 16),
-
-        if (_isMerged) ...[
-          // Success State Banner
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: QuantColors.darkSlateCard,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: QuantColors.emeraldMatrix.withOpacity(0.5)),
-            ),
-            child: Column(
-              children: [
-                const Icon(
-                  Icons.check_circle_rounded,
-                  color: QuantColors.emeraldMatrix,
-                  size: 48,
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Contacts Successfully Merged!',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Unified record for "Sundar Pichai" created with both corporate and personal communication channels. Sovereign keyring updated.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: QuantColors.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: () => setState(() => _isMerged = false),
-                  icon: const Icon(Icons.undo_rounded, size: 14),
-                  label: const Text('Undo Merge (Z)'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: QuantColors.emeraldMatrix,
-                    side: const BorderSide(color: QuantColors.emeraldMatrix),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ] else ...[
-          // Side-by-Side Comparison Card
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: QuantColors.darkSlateCard,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: QuantColors.hairlineBorder),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Candidate Match Comparison',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      'AI Confidence: 98.4%',
-                      style: TextStyle(
-                        color: QuantColors.emeraldMatrix,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // Side by side columns
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Left Record
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: QuantColors.darkSlateSurface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: QuantColors.hairlineBorder),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'Record A · Corporate',
-                                style: TextStyle(
-                                  color: Colors.blueAccent,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Sundar Pichai (Google)',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            _buildDedupField('Role', 'Chief Executive Officer'),
-                            _buildDedupField('Company', 'Alphabet Inc.'),
-                            _buildDedupField('Email', 'sundar@google.com'),
-                            _buildDedupField('Phone', '+1 (650) 253-0000'),
-                            _buildDedupField('Source', 'Google Workspace'),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-
-                    // Right Record
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: QuantColors.darkSlateSurface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: QuantColors.hairlineBorder),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.purple.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'Record B · Personal VIP',
-                                style: TextStyle(
-                                  color: QuantColors.obsidianPurple,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Sundar Pichai (Personal)',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            _buildDedupField('Role', 'Executive Member'),
-                            _buildDedupField('Company', 'Alphabet Board'),
-                            _buildDedupField('Email', 'sundar.pichai@alphabet-vip.internal'),
-                            _buildDedupField('Phone', '+1 (650) 898-1122'),
-                            _buildDedupField('Source', 'Sovereign Keyring'),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Merge Outcome Preview
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: QuantColors.emeraldMatrix.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: QuantColors.emeraldMatrix.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.merge_type_rounded,
-                        color: QuantColors.emeraldMatrix,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 10),
-                      const Expanded(
-                        child: Text(
-                          'Merged result will preserve 2 distinct emails, 2 phone lines, and assign Executive VIP priority.',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Merge Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 44,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: QuantColors.emeraldMatrix,
-                      foregroundColor: Colors.black,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: () {
-                      setState(() => _isMerged = true);
-                      _showActionFeedback('Merged 2 contacts into single unified sovereign identity.');
-                    },
-                    icon: const Icon(Icons.call_merge_rounded, size: 18),
-                    label: const Text(
-                      'Merge 2 Contacts',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildDedupField(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: QuantColors.textMuted,
-              fontSize: 9,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: QuantColors.textPrimary,
-              fontSize: 11,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
       ),
     );
   }
+
 
   // ---------------------------------------------------------------------------
   // 5. CIRCLES SUB-VIEW (Enterprise Circles view)
   // ---------------------------------------------------------------------------
   Widget _buildCirclesSubView() {
-    final circles = [
-      {
-        'title': 'Executive Board',
-        'subtitle': 'C-Suite, Voting Directors & Strategic Advisory',
-        'membersCount': 8,
-        'color': QuantColors.sunsetGold,
-        'icon': Icons.account_balance_rounded,
-        'members': ['Sundar Pichai', 'Satya Nadella', 'Jensen Huang', 'Mira Murati'],
-      },
-      {
-        'title': 'Core Engineers',
-        'subtitle': 'Quant Kernel, Impeller Pipeline & Autonomous Swarm',
-        'membersCount': 24,
-        'color': QuantColors.emeraldMatrix,
-        'icon': Icons.code_rounded,
-        'members': ['Linus Torvalds', 'Guido van Rossum', 'Ada Lovelace', 'Yann LeCun'],
-      },
-      {
-        'title': 'Product Council',
-        'subtitle': 'UI/UX Architecture, Sovereign Spec & Product Leads',
-        'membersCount': 15,
-        'color': QuantColors.sovereignCyan,
-        'icon': Icons.palette_rounded,
-        'members': ['Sam Altman', 'Tim Cook', 'Demis Hassabis'],
-      },
-      {
-        'title': 'Security & Cryptography',
-        'subtitle': 'Post-Quantum Lattice, Zero-Knowledge Keys & E2EE',
-        'membersCount': 7,
-        'color': QuantColors.obsidianPurple,
-        'icon': Icons.security_rounded,
-        'members': ['Ada Lovelace', 'Linus Torvalds'],
-      },
-    ];
+    // QM-UIUX-059: removed fake circles with real people's names.
+    // Empty until wired to the real contacts API.
+    final circles = <Map<String, dynamic>>[];
 
     return ListView(
       physics: const BouncingScrollPhysics(),

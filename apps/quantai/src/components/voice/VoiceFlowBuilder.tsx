@@ -5,6 +5,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 export type VoiceNodeType = 'greeting' | 'intent' | 'knowledge' | 'webhook' | 'hangup';
 
@@ -360,7 +361,7 @@ export function VoiceFlowBuilder() {
 
   const handleValidateFlow = async () => {
     try {
-      const res = await fetch('/api/voice-flows/validate', {
+      const res = await apiFetchRaw('/api/voice-flows/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ graph: { nodes, edges, entryNodeId, name: flowName } }),

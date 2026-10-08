@@ -401,8 +401,14 @@ async function deliverStoredMessage(
   let delivered = 0;
   for (const user of users) {
     try {
-      await inboundIngest.ingest(raw, { userId: user.id, verdict, quarantine });
+      const email = await inboundIngest.ingest(raw, { userId: user.id, verdict, quarantine });
       delivered += 1;
+      // QM-UIUX-052: new inbound mail → in-app notification so the bell fires.
+      // Quarantined (spam/virus/DMARC-fail) mail never notifies — same as Gmail.
+      // A notification failure must never lose mail, so it is contained here.
+      if (!quarantine) {
+        await createNewMailNotification(log, user.id, email);
+      }
     } catch (error) {
       failures.push(user.id);
       log.error({ err: error, key, userId: user.id }, '[inbound] ingest failed for recipient');
@@ -413,6 +419,59 @@ async function deliverStoredMessage(
   }
   log.info({ key, delivered, quarantine, dmarc: verdict.dmarc }, '[inbound] delivered');
   return { key, delivered };
+}
+
+/**
+ * QM-UIUX-052: persist an in-app notification for a newly arrived email.
+ *
+ * Idempotent on SNS redelivery: `ingest()` returns the existing row when the
+ * Message-ID was already stored, and we refuse to create a second notification
+ * for the same `(userId, emailId)`.
+ *
+ * Deliberately bypasses `CrossAppDispatcher`: its `fanout()` only returns
+ * routing decisions and never persists anything (see QM-UIUX-054), so calling
+ * it here would be theater. Push delivery is QM-UIUX-053, not this task.
+ */
+async function createNewMailNotification(
+  log: FastifyInstance['log'],
+  userId: string,
+  email: { id: string; threadId: string | null; subject: string; fromName: string | null; fromAddress: string; snippet: string | null },
+): Promise<void> {
+  try {
+    const db = prisma as unknown as {
+      notification: {
+        findFirst(args: unknown): Promise<{ id: string } | null>;
+        create(args: unknown): Promise<unknown>;
+      };
+    };
+    const existing = await db.notification.findFirst({
+      where: { userId, type: 'new_email', sourceEntityId: email.id },
+      select: { id: true },
+    });
+    if (existing) {
+      return;
+    }
+    const sender = email.fromName?.trim()
+      ? `${email.fromName.trim()} <${email.fromAddress}>`
+      : email.fromAddress;
+    await db.notification.create({
+      data: {
+        userId,
+        type: 'new_email',
+        title: `New email from ${sender}`,
+        body: email.subject || '(no subject)',
+        sourceApp: 'quantmail',
+        sourceEntityId: email.id,
+        actionUrl: email.threadId ? `/thread/${email.threadId}` : '/inbox',
+        data: { emailId: email.id, threadId: email.threadId, snippet: email.snippet },
+      },
+    });
+  } catch (error) {
+    log.error(
+      { err: error, userId, emailId: email.id },
+      '[inbound] notification create failed — mail already delivered, continuing',
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

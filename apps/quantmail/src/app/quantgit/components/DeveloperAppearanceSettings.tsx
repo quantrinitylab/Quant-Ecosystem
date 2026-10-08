@@ -106,12 +106,12 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
 
         {/* Tab Size Preference */}
         <div className="space-y-1.5">
-          <label className="font-semibold text-xs text-[#E6EDF3] block">Tab size preference</label>
+          <label htmlFor="dev-tab-size" className="font-semibold text-xs text-[#E6EDF3] block">Tab size preference</label>
           <p className="text-[#8D96A0]">
             Choose the number of spaces a tab is equal to when rendering code.
           </p>
           <select
-            value={tabSize}
+            id="dev-tab-size" value={tabSize}
             onChange={(e) => setTabSize(Number(e.target.value))}
             className="bg-[#161B22] border border-[#30363D] rounded-md py-1.5 px-3 text-xs text-[#E6EDF3] outline-none"
           >

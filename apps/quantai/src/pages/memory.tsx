@@ -5,6 +5,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface MemoryAccess {
   accessedAt: number;
@@ -63,7 +64,7 @@ const API_BASE = '/memory';
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T | null> {
   try {
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await apiFetchRaw(`${API_BASE}${path}`, {
       headers: { 'Content-Type': 'application/json' },
       ...options,
     });
@@ -203,7 +204,7 @@ export default function MemoryPage(): JSX.Element {
 
   const handleExport = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/export?format=json`);
+      const res = await apiFetchRaw(`${API_BASE}/export?format=json`);
       if (!res.ok) return;
       const data = await res.text();
       if (data) {

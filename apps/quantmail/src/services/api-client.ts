@@ -45,6 +45,20 @@ import type {
 // Re-export shared types used by settings and other surfaces.
 export type { EmailLabel } from '../types';
 
+/** A synced mail folder from the backend `/folders` API. */
+export interface EmailFolder {
+  id: string;
+  userId: string;
+  name: string;
+  type: 'INBOX' | 'SENT' | 'DRAFTS' | 'SPAM' | 'TRASH' | 'ARCHIVE' | 'CUSTOM';
+  color: string | null;
+  icon: string | null;
+  emailCount: number;
+  unreadCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -445,6 +459,35 @@ export class QuantMailApiClient {
     }) as Promise<PaginatedResponse<Email>>;
   }
 
+  /**
+   * Omni cross-app search: emails + drive files + collaborative documents in one
+   * backend call. Backs Universal Search (K10/M13). The Next app has a dedicated
+   * `/api/search/all` route file that forwards to the backend `/search/all`.
+   *
+   * `files` are raw drive-file rows (id, name, mimeType, size, updatedAt, …),
+   * `documents` are document rows (id, title, updatedAt, snapshotStorageKey).
+   * All are the user's own — the backend scopes every leg by userId.
+   */
+  async searchAll(
+    query: string,
+    limit = 8,
+  ): Promise<
+    ApiResponse<{
+      query: string;
+      emails: Email[];
+      files: Array<{
+        id: string;
+        name: string;
+        mimeType?: string;
+        size?: number;
+        updatedAt?: string;
+      }>;
+      documents: Array<{ id: string; title: string; updatedAt?: string }>;
+    }>
+  > {
+    return this.get('/search/all', { params: { q: query, limit } as any });
+  }
+
   async composeEmail(data: ComposeEmailRequest): Promise<ApiResponse<Email>> {
     return this.post('/emails/compose', data);
   }
@@ -638,6 +681,32 @@ export class QuantMailApiClient {
 
   async deleteLabel(id: string): Promise<ApiResponse<EmailLabel>> {
     return this.delete(`/labels/${id}`);
+  }
+
+  // --------------------------------------------------------------------------
+  // Folders API — synced cross-device via the backend `/folders` CRUD.
+  // --------------------------------------------------------------------------
+
+  async getFolders(): Promise<ApiResponse<EmailFolder[]>> {
+    return this.get('/folders');
+  }
+
+  async createFolder(input: {
+    name: string;
+    color?: string;
+  }): Promise<ApiResponse<EmailFolder>> {
+    return this.post('/folders', { name: input.name, type: 'CUSTOM', color: input.color });
+  }
+
+  async updateFolder(
+    id: string,
+    data: { name?: string; color?: string },
+  ): Promise<ApiResponse<EmailFolder>> {
+    return this.put(`/folders/${id}`, data);
+  }
+
+  async deleteFolder(id: string): Promise<ApiResponse<EmailFolder>> {
+    return this.delete(`/folders/${id}`);
   }
 
   async getEmailSignatures(): Promise<ApiResponse<EmailSignaturePreference[]>> {
@@ -918,6 +987,36 @@ export class QuantMailApiClient {
     return this.delete(url);
   }
 
+  /**
+   * One event by id — backs the in-app event-detail screen (M09/K10).
+   * The backend answers 404 EVENT_NOT_FOUND for somebody else's event.
+   */
+  async getEvent(id: string): Promise<ApiResponse<CalendarEvent>> {
+    return this.get(`/events/${encodeURIComponent(id)}`);
+  }
+
+  /**
+   * RSVP to an event the caller was invited to.
+   * status is one of 'accepted' | 'declined' | 'tentative' | 'pending'.
+   */
+  async rsvpEvent(
+    id: string,
+    status: 'accepted' | 'declined' | 'tentative' | 'pending',
+  ): Promise<ApiResponse<CalendarEvent>> {
+    return this.post(`/events/${encodeURIComponent(id)}/rsvp`, { status });
+  }
+
+  /**
+   * Text search over the user's events (title, description, location).
+   * K10: real calendar backend endpoint for Universal Search.
+   */
+  async searchCalendarEvents(
+    query: string,
+    limit = 10,
+  ): Promise<ApiResponse<CalendarEvent[]>> {
+    return this.get('/events', { params: { q: query, limit } as any });
+  }
+
   async findAvailableSlots(
     date: string,
     duration: number,
@@ -974,6 +1073,15 @@ export class QuantMailApiClient {
     return this.get('/contacts/frequent', { params: { limit } });
   }
 
+  /**
+   * Text search over the user's contacts — backs Universal Search (K10/M13).
+   * Through the Next proxy this is `/api/contacts/search` (dedicated route
+   * file), which forwards `/contacts/search` to the backend verbatim.
+   */
+  async searchContacts(query: string): Promise<ApiResponse<Contact[]>> {
+    return this.get('/contacts/search', { params: { q: query } as any });
+  }
+
   async createContact(data: Partial<Contact>): Promise<ApiResponse<Contact>> {
     return this.post('/contacts', data);
   }
@@ -1012,7 +1120,7 @@ export class QuantMailApiClient {
    * exports every contact, not just the current 20-row page.
    */
   async exportContactsVCard(): Promise<Response> {
-    // Raw fetch (not JSON) — the backend streams the full address book as
+    // Raw response (not JSON) — the backend streams the full address book as
     // text/vcard. Uses the authenticated browser request helper so the
     // session token is attached.
     return browserApiRequest('/api/contacts/export/vcard');
@@ -1271,22 +1379,65 @@ export class QuantMailApiClient {
 
   async aiSuggestReplies(
     emailId: string,
-  ): Promise<ApiResponse<{ emailId: string; suggestions: string[] }>> {
+  ): Promise<
+    ApiResponse<{
+      emailId: string;
+      suggestions: Array<{
+        content: string;
+        confidence: number;
+        evidence: Array<{
+          label: string;
+          quote?: string;
+          quoteTruncated?: boolean;
+          deepLink?: string;
+          resourceRef: { resourceId: string; resourceType: string; appId: string };
+        }>;
+      }>;
+      provenance: {
+        producedBy: string;
+        capabilityId: string;
+        capabilityVersion: number;
+        contextBytes: number;
+        contextTruncated: boolean;
+        sourceCount: number;
+      };
+      cost: { credits: number; meter: string; quoteRequired: boolean; estimated: boolean };
+    }>
+  > {
     // The reply-suggestions route lives on the AI router mounted at /emails
     // (backend/routes/ai.ts: GET /:id/reply-suggestions), not under /ai — the
     // old GET /ai/replies/:id path was never allow-listed and 404ed, so the UI
-    // silently fell back to canned replies. The backend returns ReplySuggestion[]
-    // ({ content, confidence }); flatten it to the string[] the component renders.
-    const response = await this.get<Array<{ content: string; confidence: number }>>(
-      `/emails/${emailId}/reply-suggestions`,
-    );
-    if (!response.success || !response.data) {
-      return { ...response, data: undefined };
-    }
-    return {
-      ...response,
-      data: { emailId, suggestions: response.data.map((reply) => reply.content) },
-    };
+    // silently fell back to canned replies.
+    // QM-QUANTY-002: the backend now returns the full envelope (suggestions
+    // with evidence refs, provenance, cost) — passed through untouched.
+    return this.get(`/emails/${emailId}/reply-suggestions`);
+  }
+
+  /**
+   * QM-QUANTY-002 — preview before mutation. Returns the exact
+   * MutationPreview the user reviews before POST /emails/:id/send runs.
+   * Read-only: never queues or sends.
+   */
+  async aiSendPreview(emailId: string): Promise<
+    ApiResponse<{
+      capabilityId: string;
+      capabilityVersion: number;
+      summary: string;
+      changes: Array<{ description: string; detail?: Record<string, unknown> }>;
+      requiresApproval: boolean;
+      approvalReason?: string;
+      cost: { credits: number; meter: string; quoteRequired: boolean; estimated: boolean };
+      reversibility: {
+        reversible: boolean;
+        undoCapabilityId?: string;
+        undoToken?: string;
+        note: string;
+      };
+      idempotencyKey: string;
+      createdAt: string;
+    }>
+  > {
+    return this.post(`/emails/${emailId}/send-preview`, {});
   }
 
   // --------------------------------------------------------------------------
@@ -1546,11 +1697,19 @@ export class QuantMailApiClient {
 
       return (await response.json()) as ApiResponse<T>;
     } catch (error) {
+      // A timed-out request (see FETCH_TIMEOUT_MS in browser-auth-session)
+      // rejects with our Error reason; a caller-cancelled one rejects with a
+      // DOMException. Surface timeouts distinctly so UIs can say "timed out"
+      // instead of a generic network error.
+      const message = error instanceof Error ? error.message : 'Network request failed';
+      const timedOut =
+        error instanceof Error &&
+        (/timed out/i.test(error.message) || error.name === 'TimeoutError');
       return {
         success: false,
         error: {
-          code: 'NETWORK_ERROR',
-          message: error instanceof Error ? error.message : 'Network request failed',
+          code: timedOut ? 'TIMEOUT' : 'NETWORK_ERROR',
+          message: timedOut ? 'Request timed out. Please try again.' : message,
           statusCode: 0,
         },
       };

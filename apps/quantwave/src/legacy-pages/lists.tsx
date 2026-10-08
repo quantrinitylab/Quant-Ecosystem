@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface UserList {
   id: string;
@@ -52,9 +53,9 @@ const ListsPage: React.FC = () => {
     try {
       setLoading(true);
       const [ownRes, followRes, discoverRes] = await Promise.all([
-        fetch('/api/lists'),
-        fetch('/api/lists/following'),
-        fetch('/api/lists/discover'),
+        apiFetchRaw('/api/lists'),
+        apiFetchRaw('/api/lists/following'),
+        apiFetchRaw('/api/lists/discover'),
       ]);
       if (ownRes.ok) setLists((await ownRes.json()).lists || []);
       if (followRes.ok) setFollowingLists((await followRes.json()).lists || []);
@@ -74,7 +75,7 @@ const ListsPage: React.FC = () => {
   const fetchListPosts = useCallback(async (listId: string) => {
     setPostsLoading(true);
     try {
-      const res = await fetch(`/api/lists/${listId}/posts`);
+      const res = await apiFetchRaw(`/api/lists/${listId}/posts`);
       if (res.ok) {
         const data = await res.json();
         setListPosts(data.posts || []);
@@ -89,7 +90,7 @@ const ListsPage: React.FC = () => {
     if (!createName.trim()) return;
     setCreating(true);
     try {
-      const res = await fetch('/api/lists', {
+      const res = await apiFetchRaw('/api/lists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: createName, description: createDesc, isPublic: createPublic }),
@@ -111,16 +112,16 @@ const ListsPage: React.FC = () => {
       items.map((l) => (l.id === listId ? { ...l, isFollowing: !l.isFollowing } : l));
     setDiscoverLists(updateList);
     setFollowingLists(updateList);
-    await fetch(`/api/lists/${listId}/follow`, { method: 'POST' });
+    await apiFetchRaw(`/api/lists/${listId}/follow`, { method: 'POST' });
   }, []);
 
   const handlePinList = useCallback(async (listId: string) => {
     setLists((prev) => prev.map((l) => (l.id === listId ? { ...l, isPinned: !l.isPinned } : l)));
-    await fetch(`/api/lists/${listId}/pin`, { method: 'POST' });
+    await apiFetchRaw(`/api/lists/${listId}/pin`, { method: 'POST' });
   }, []);
 
   const handleDeleteList = useCallback(async (listId: string) => {
-    await fetch(`/api/lists/${listId}`, { method: 'DELETE' });
+    await apiFetchRaw(`/api/lists/${listId}`, { method: 'DELETE' });
     setLists((prev) => prev.filter((l) => l.id !== listId));
   }, []);
 

@@ -56,10 +56,11 @@ export function CalendarModals({
       >
         <div className="space-y-4 text-xs text-white">
           <div>
-            <label className="block text-[#A1A4AC] mb-1 font-semibold">
+            <label htmlFor="cal-period-length" className="block text-[#A1A4AC] mb-1 font-semibold">
               Period Length ({formState.periodDays} days)
             </label>
             <input
+              id="cal-period-length"
               type="range"
               min="2"
               max="8"
@@ -72,10 +73,11 @@ export function CalendarModals({
           </div>
 
           <div>
-            <label className="block text-[#A1A4AC] mb-1 font-semibold">
+            <label htmlFor="cal-cycle-length" className="block text-[#A1A4AC] mb-1 font-semibold">
               Cycle Length ({formState.cycleLength} days)
             </label>
             <input
+              id="cal-cycle-length"
               type="range"
               min="21"
               max="36"
@@ -88,10 +90,11 @@ export function CalendarModals({
           </div>
 
           <div>
-            <label className="block text-[#A1A4AC] mb-1 font-semibold">
+            <label htmlFor="cal-cycle-day" className="block text-[#A1A4AC] mb-1 font-semibold">
               Current Cycle Day ({formState.currentCycleDay})
             </label>
             <input
+              id="cal-cycle-day"
               type="number"
               min="1"
               max={formState.cycleLength}
@@ -184,6 +187,8 @@ export function CalendarModals({
 
           <input
             type="range"
+            id="cal-notif-slider"
+            aria-label="Notification time"
             min="0"
             max={NOTIFICATION_SLIDER_VALUES.length - 1}
             value={notifSliderIndex}

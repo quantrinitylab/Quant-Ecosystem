@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card, Button, LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
 import { useAuth } from '@quant/shared-ui';
+import { apiFetchRaw } from '@quant/api-client';
 
 // ============================================================================
 // QuantAds - Economy Overview (real credits-ledger balance)
@@ -26,7 +27,7 @@ export default function EconomyOverviewPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/economy/wallet/${encodeURIComponent(userId)}`);
+      const res = await apiFetchRaw(`/api/economy/wallet/${encodeURIComponent(userId)}`);
       const body = await res.json().catch(() => ({}));
       if (!res.ok || body?.success === false) {
         throw new Error(body?.error?.message ?? `Failed to load balance (${res.status})`);

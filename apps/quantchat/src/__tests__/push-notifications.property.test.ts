@@ -254,7 +254,7 @@ describe('Push notifications — Property 22 (deep-link resolution)', () => {
       case 'MESSAGES':
         return id ? `/chat/${id}` : '/chat';
       case 'CALLS':
-        return '/call';
+        return '/notifications';
       case 'STORIES':
         return id ? `/stories/${id}` : '/stories';
       case 'REELS':

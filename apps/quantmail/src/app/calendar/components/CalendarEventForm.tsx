@@ -470,7 +470,7 @@ export function CalendarEventForm({
                           setFormState({ ...formState, attendeeInput: e.target.value })
                         }
                         onKeyDown={handleAddAttendee}
-                        className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
+                        className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       />
                     </div>
                     {formState.attendees.length > 0 && (
@@ -503,7 +503,7 @@ export function CalendarEventForm({
                         placeholder="Add location or QuantChat room"
                         value={formState.location}
                         onChange={(e) => setFormState({ ...formState, location: e.target.value })}
-                        className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
+                        className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       />
                     </div>
                     <div className="flex items-center gap-1.5 pl-7">
@@ -561,7 +561,7 @@ export function CalendarEventForm({
                       placeholder="Add description, meeting agenda…"
                       value={formState.description}
                       onChange={(e) => setFormState({ ...formState, description: e.target.value })}
-                      className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
+                      className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     />
                   </div>
 
@@ -573,7 +573,7 @@ export function CalendarEventForm({
                         placeholder="Attach QuantDrive file URL or link"
                         value={formState.driveLink}
                         onChange={(e) => setFormState({ ...formState, driveLink: e.target.value })}
-                        className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
+                        className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       />
                     </div>
                   </div>
@@ -697,7 +697,7 @@ export function CalendarEventForm({
                       placeholder="Add task notes or instructions…"
                       value={formState.description}
                       onChange={(e) => setFormState({ ...formState, description: e.target.value })}
-                      className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
+                      className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     />
                   </div>
                 </div>
@@ -768,7 +768,7 @@ export function CalendarEventForm({
                       placeholder="Gift ideas, party venue, wishlist notes…"
                       value={formState.description}
                       onChange={(e) => setFormState({ ...formState, description: e.target.value })}
-                      className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
+                      className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     />
                   </div>
                 </div>
@@ -1166,7 +1166,7 @@ export function CalendarEventForm({
                             setFormState({ ...formState, customTagInput: e.target.value })
                           }
                           onKeyDown={handleAddCustomTag}
-                          className="w-full min-h-[44px] sm:min-h-0 bg-[#1e1e24] border border-[#282C35] rounded-2xl p-2.5 text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
+                          className="w-full min-h-[44px] sm:min-h-0 bg-[#1e1e24] border border-[#282C35] rounded-2xl p-2.5 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                         />
                         {formState.customTags.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 pt-1">
@@ -1244,10 +1244,11 @@ export function CalendarEventForm({
 
                       <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-[#1e1e24] border border-[#282C35] text-[11px]">
                         <div>
-                          <label className="block text-[#A1A4AC] mb-1">
+                          <label htmlFor="evt-period-length" className="block text-[#A1A4AC] mb-1">
                             Period Length ({formState.periodDays}d)
                           </label>
                           <input
+                            id="evt-period-length"
                             type="range"
                             min="2"
                             max="8"
@@ -1262,10 +1263,11 @@ export function CalendarEventForm({
                           />
                         </div>
                         <div>
-                          <label className="block text-[#A1A4AC] mb-1">
+                          <label htmlFor="evt-cycle-length" className="block text-[#A1A4AC] mb-1">
                             Cycle Length ({formState.cycleLength}d)
                           </label>
                           <input
+                            id="evt-cycle-length"
                             type="range"
                             min="21"
                             max="36"

@@ -13,14 +13,14 @@
 -- adding such a column is a security bug — review accordingly.
 
 CREATE TABLE "e2ee_relay_bundles" (
-  "id" "TEXT" NOT NULL,
-  "userId" "TEXT" NOT NULL,
-  "deviceId" "TEXT" NOT NULL,
-  "identityKey" "TEXT" NOT NULL,
-  "signedPreKey" "TEXT" NOT NULL,
-  "signedPreKeySignature" "TEXT" NOT NULL,
-  "oneTimePreKey" "TEXT",
-  "registrationId" "INTEGER" NOT NULL,
+  "id" TEXT NOT NULL,
+  "userId" TEXT NOT NULL,
+  "deviceId" TEXT NOT NULL,
+  "identityKey" TEXT NOT NULL,
+  "signedPreKey" TEXT NOT NULL,
+  "signedPreKeySignature" TEXT NOT NULL,
+  "oneTimePreKey" TEXT,
+  "registrationId" INTEGER NOT NULL,
   "publishedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -31,18 +31,18 @@ CREATE UNIQUE INDEX "e2ee_relay_bundles_userId_deviceId_key" ON "e2ee_relay_bund
 CREATE INDEX "e2ee_relay_bundles_userId_idx" ON "e2ee_relay_bundles"("userId");
 
 CREATE TABLE "e2ee_relay_envelopes" (
-  "id" "TEXT" NOT NULL,
-  "senderId" "TEXT" NOT NULL,
-  "recipientId" "TEXT" NOT NULL,
-  "sessionId" "TEXT",
-  "ciphertext" "TEXT" NOT NULL,
-  "nonce" "TEXT" NOT NULL,
-  "tag" "TEXT" NOT NULL,
-  "algorithm" "TEXT" NOT NULL,
-  "senderFingerprint" "TEXT" NOT NULL,
-  "recipientFingerprint" "TEXT" NOT NULL,
+  "id" TEXT NOT NULL,
+  "senderId" TEXT NOT NULL,
+  "recipientId" TEXT NOT NULL,
+  "sessionId" TEXT,
+  "ciphertext" TEXT NOT NULL,
+  "nonce" TEXT NOT NULL,
+  "tag" TEXT NOT NULL,
+  "algorithm" TEXT NOT NULL,
+  "senderFingerprint" TEXT NOT NULL,
+  "recipientFingerprint" TEXT NOT NULL,
   "payloadTimestamp" TIMESTAMP(3) NOT NULL,
-  "version" "INTEGER" NOT NULL,
+  "version" INTEGER NOT NULL,
   "relayedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   CONSTRAINT "e2ee_relay_envelopes_pkey" PRIMARY KEY ("id")
