@@ -1406,3 +1406,17 @@ Finding: Backend seeds fake engagement (starCount 342/128/95/76); MCP Registry s
 Required: seed with zero counts (real starring is Prisma-backed) or honest unknown; wire MCP install to real API or remove button.
 Scope: QuantGit backend seeds + MCP Registry.
 Dependencies: none.
+
+## QM-UIUX-069 — Delete or wire fake AICodeSearch
+Status: [ ] TODO
+Finding: `AICodeSearch.tsx` has deliberate 600ms simulated delay, hardcoded mock results, and fake "We have SEMANTIC search" claim. Dead code — zero mounts. A real backend exists (AICodeSearchService at POST /code-search). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/search-code-audit.md`.
+Required: delete the fake component or wire it to the real backend.
+Scope: QuantGit/QuantMail code search.
+Dependencies: none.
+
+## QM-UIUX-070 — Remove unused /api/search/parse proxy
+Status: [ ] TODO
+Finding: `/api/search/parse` proxy route exists but is unused by the frontend — dead API surface. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/search-code-audit.md`.
+Required: remove the dead route or wire it up.
+Scope: QuantMail search API routes.
+Dependencies: none.
