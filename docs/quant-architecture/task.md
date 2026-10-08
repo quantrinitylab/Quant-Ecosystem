@@ -1246,7 +1246,7 @@ Dependencies: QM-SCREEN-038; Drive upload/storage architecture; durable job/stat
 Validation: source audit on 2026-10-08 confirmed reserveQuota() calls checkQuota() before StorageQuotaService.reservations.set(), while the reservations are a process-local static Map; the source comment explicitly claims atomic parallel-upload protection. No remediation implementation claim yet.
 
 ## QM-UIUX-055 — QuantChat: fix typing indicators (protocol mismatch)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS — Owner: 7b8c9d0e-1f2a-3b4c-5d6e-7f8a9b0c1d2e; Branch: fix/qm-uiux-055-typing
 Finding: `useRealtimeChat` publishes `{type:'typing:start'}` frames the backend silently ignores (backend only handles `type:'typing'`), and subscribes to `chat:<id>` channel the backend never sends to. `typingUsers` always empty — typing indicators never render. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantchat-realtime-audit.md`.
 Required: align frontend/backend typing protocol; verify indicators render.
 Scope: `apps/quantchat/src/` realtime hooks.
