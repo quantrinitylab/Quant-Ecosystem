@@ -373,6 +373,12 @@ html {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* QM-M39-007: file details side panel entrance */
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 @keyframes scaleIn {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
@@ -389,6 +395,11 @@ html {
 
 .animate-slide-up {
   animation: slideUp var(--brand-transition-moderate) var(--brand-ease-out) forwards;
+}
+
+/* QM-M39-007: file details side panel entrance */
+.animate-slide-in-right {
+  animation: slideInRight 0.2s ease-out forwards;
 }
 
 .animate-scale-in {

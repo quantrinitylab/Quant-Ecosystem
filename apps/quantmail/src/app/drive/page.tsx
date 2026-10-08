@@ -17,6 +17,7 @@ import {
   FileShareModal,
   FilePermissionsViewer,
   FileScanDetail,
+  FileDetailsPanel,
   type DriveSubTab,
   type RecentItem,
   type AiMemoryItem,
@@ -514,6 +515,10 @@ function DrivePageContent() {
   const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
   // QM-M39-005: read-only access viewer target (separate from the share-change modal)
   const [accessTarget, setAccessTarget] = useState<{ id: string; name: string } | null>(null);
+
+  // QM-M39-007 — file details panel (M39 screen 24). Opened from the preview
+  // lightbox so every tab funnels through the same single entry point.
+  const [detailsTarget, setDetailsTarget] = useState<DriveItem | null>(null);
 
   const [textPreviewContent, setTextPreviewContent] = useState<string | null>(null);
   const [isLoadingTextPreview, setIsLoadingTextPreview] = useState(false);
@@ -1716,6 +1721,25 @@ function DrivePageContent() {
           title={previewItem?.name || 'File Preview'}
         >
           <div className="p-4 space-y-4 text-center">
+            {/* QM-M39-007: details panel entry — one button for the full file
+                identity (owner, location, sharing, scan state, versions). */}
+            {previewItem && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setDetailsTarget(previewItem)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1E293B] border border-[#232938] text-xs font-medium text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[#38BDF8]/50 transition-colors"
+                  title="Show file details: owner, location, sharing, security scan state, versions"
+                >
+                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 16v-4" />
+                    <path d="M12 8h.01" />
+                  </svg>
+                  Details
+                </button>
+              </div>
+            )}
             {/* QM-M39-009: security scan state — details context. 'unknown'
                 renders as "Not scanned", never as safe. */}
             {previewItem && (
@@ -1981,6 +2005,24 @@ function DrivePageContent() {
             </div>
           </div>
         </Modal>
+
+        {/* QM-M39-007 — file details side panel (M39 screen 24). Rendered
+            above the preview lightbox (z-110 > modal z-100). */}
+        {detailsTarget && (
+          <FileDetailsPanel
+            item={{ id: detailsTarget.id, name: detailsTarget.name }}
+            onClose={() => setDetailsTarget(null)}
+            onOpenVersionHistory={(id, name) => {
+              setDetailsTarget(null);
+              setVersionHistoryFile({ id, name } as any);
+            }}
+            onNavigateToFolder={(folderId, folderName) => {
+              setDetailsTarget(null);
+              handleClosePreview();
+              navigateToFolder(folderId, folderName);
+            }}
+          />
+        )}
 
         {/* New Folder Modal */}
         <Modal
