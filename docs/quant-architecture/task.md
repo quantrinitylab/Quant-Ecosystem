@@ -255,7 +255,8 @@ Required: export/deletion/retention/legal-hold events; derived-index invalidatio
 Dependencies: QM-BACK-001; universal search.
 
 Owner: Muse
-Branch: TBD (agent worktree, PR-only to main)
+Branch: feat/qm-back-006-data-lifecycle-events
+Notes: claimed 2026-10-08; PR #611 OPEN (agent complete 2026-10-08): 10 versioned lifecycle events via K1 outbox spine, lifecycle_operations + projector_checkpoints verified completion, hold-guard 423, search-indexer invalidation (Meili+Qdrant), migration 0083; tests 12/12 + 7/7 green locally, CI typecheck green; main merged in (review_by fix); awaiting gate → merge
 Notes: claimed 2026-10-08; Data lifecycle events; dep QM-BACK-001 met via #597
 ## QM-BACK-007 — Dependency health / degraded modes
 Status: [x] DONE
