@@ -122,19 +122,6 @@ export function DesktopAppRail({
 
           return (
             <div key={tile.id} className="relative group w-full flex items-center justify-center">
-              {/* Active indicator on the right edge (rail sits on the right) */}
-              {isActive && (
-                <span
-                  data-testid={`desktop-app-rail-active-${tile.id}`}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-l-full pointer-events-none"
-                  style={{
-                    backgroundColor: tile.accentColor,
-                    boxShadow: `0 0 10px ${tile.accentColor}, 0 0 20px ${tile.accentColor}40`,
-                  }}
-                  aria-hidden="true"
-                />
-              )}
-
               <button
                 type="button"
                 role="tab"
@@ -143,29 +130,11 @@ export function DesktopAppRail({
                 aria-label={`${tile.label} (${tile.shortcutNumber})`}
                 title={`${tile.label} (${isMac ? `⌘${tile.shortcutNumber}` : `Ctrl+${tile.shortcutNumber}`})`}
                 onClick={() => handlePillarClick(tile)}
-                className={`relative flex size-10 items-center justify-center rounded-xl transition-all duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
-                  isActive
-                    ? 'scale-105 border'
-                    : 'border border-transparent hover:scale-105 hover:bg-[#141722] hover:border-[#232938] text-[#8E95A5] hover:text-white'
+                className={`relative flex size-10 items-center justify-center rounded-xl transition-opacity duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 ${
+                  isActive ? '' : 'hover:bg-[#141722] opacity-60 hover:opacity-100'
                 }`}
-                style={
-                  isActive
-                    ? {
-                        backgroundColor: `${tile.accentColor}26`,
-                        borderColor: `${tile.accentColor}59`,
-                        boxShadow: `0 0 16px ${tile.accentColor}33`,
-                      }
-                    : undefined
-                }
               >
-                <span
-                  className="flex items-center justify-center transition-transform duration-200 group-hover:scale-110"
-                  style={{
-                    filter: isActive ? `drop-shadow(0 0 8px ${tile.accentColor}99)` : undefined,
-                  }}
-                >
-                  {tile.renderIcon(isActive)}
-                </span>
+                <span className="flex items-center justify-center">{tile.renderIcon(isActive)}</span>
 
                 {badgeCount !== undefined && badgeCount > 0 && (
                   <span

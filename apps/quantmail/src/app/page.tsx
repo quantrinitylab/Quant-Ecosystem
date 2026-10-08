@@ -1065,7 +1065,7 @@ function ArchivedFolderRow({
       type="button"
       onClick={onToggle}
       aria-expanded={isViewing}
-      className="w-full min-h-[44px] flex items-center justify-between gap-3 px-4 py-3 bg-[#111318] hover:bg-[#16181D] border-b border-[#282C35] transition-colors select-none group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-inset"
+      className="w-full min-h-[44px] flex items-center justify-between gap-3 px-4 py-3 bg-[#111318] md:bg-black hover:bg-[#16181D] md:hover:bg-[#0A0B0D] border-b md:border-b-0 border-[#282C35] transition-colors select-none group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-inset"
     >
       <span className="flex items-center gap-3 min-w-0">
         <span className="size-8 shrink-0 rounded-full bg-[#16181D] border border-[#282C35] flex items-center justify-center text-[#A1A4AC] group-hover:text-[#FF8C42] transition-colors">
@@ -2778,7 +2778,7 @@ export default function InboxPage() {
            * subtree into the positioned layer, where the z-indexes mean what
            * they say. Any popover added to this row inherits the fix.
            */}
-          <div className="relative z-30 flex items-center gap-2 py-2 px-3 sm:px-4 border-b border-[#282C35] bg-[#090A0C]/95 backdrop-blur-md">
+          <div className="relative z-30 flex items-center gap-2 py-2 px-3 sm:px-4 border-b md:border-b-0 border-[#282C35] bg-[#090A0C]/95 md:bg-black/95 backdrop-blur-md">
             {/*
               One pill holds the four lenses and the spam link, because they are
               one row of destinations to a reader. The tablist is a nested group
@@ -3200,8 +3200,8 @@ export default function InboxPage() {
               </div>
             )}
             {!isLoading && !isSearching && !error && showGroupsView && (
-              <section aria-label="Your groups" className="w-full border-b border-[#282C35]">
-                <header className="flex items-center justify-between gap-3 border-b border-[#282C35] bg-[#0B0C0F] px-4 py-3">
+              <section aria-label="Your groups" className="w-full border-b md:border-b-0 border-[#282C35]">
+                <header className="flex items-center justify-between gap-3 border-b md:border-b-0 border-[#282C35] bg-[#0B0C0F] md:bg-black px-4 py-3">
                   <div>
                     <h2 className="text-sm font-bold text-[#F5F5F5]">Groups</h2>
                     <p className="mt-0.5 text-[11px] text-[#A1A4AC]">
@@ -3275,7 +3275,7 @@ export default function InboxPage() {
                     </button>
                   </div>
                 ) : (
-                  <ul role="list" className="m-0 list-none divide-y divide-[#282C35] p-0">
+                  <ul role="list" className="m-0 list-none divide-y divide-[#282C35] md:divide-y-0 md:space-y-1 p-0">
                     {savedGroups.map((group) => {
                       const matchingThread = findGroupThread(group);
                       const latestMessage = matchingThread?.latestEmail;
@@ -3387,7 +3387,7 @@ export default function InboxPage() {
                     <div
                       role="list"
                       aria-label="Other group conversations"
-                      className="divide-y divide-[#282C35]"
+                      className="divide-y divide-[#282C35] md:divide-y-0 md:space-y-1"
                     >
                       {unmatchedGroupThreads.map((thread) => {
                         const displayIndex = displayThreads.findIndex(
