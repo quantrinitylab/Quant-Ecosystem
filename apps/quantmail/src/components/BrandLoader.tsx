@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { QuantMailLogo } from './QuantMailLogo';
+import { BubbleAvatar } from '@quant/shared-ui';
 
 interface BrandLoaderProps {
   variant?: 'splash' | 'inline';
@@ -19,7 +19,7 @@ const inlineCss = `
 
 /**
  * QuantMail Apple/Google-tier luxury loader:
- * - Living mascot badge with subtle breathing amber glow.
+ * - White Quanty ghost badge (DOM+CSS, paints on first paint).
  * - Precision smooth orbital spinner ring.
  * - Modern, clean typographic hierarchy with letterspaced QUANTRINITY branding.
  */
@@ -61,9 +61,13 @@ export function BrandLoader({
           */}
           <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#FF8C42] border-r-[#FF9B5A]/70 animate-[spin_1s_cubic-bezier(0.4,0,0.2,1)_infinite]" />
 
-          {/* Center Mascot Logo */}
+          {/* Center Mascot Logo — white Quanty ghost (DOM+CSS, paints on first
+              paint). The canvas QuantMailLogo painted nothing until its first
+              rAF frame, leaving an empty box on the splash. */}
           <div className="relative z-10 flex items-center justify-center size-14 sm:size-16 rounded-2xl bg-[#090A0C]/80 border border-[#282C35]/90 shadow-2xl">
-            <QuantMailLogo size={42} interactive={false} />
+            <span aria-hidden="true">
+              <BubbleAvatar size={42} state="idle" />
+            </span>
           </div>
         </div>
 
