@@ -659,3 +659,17 @@ Finding: the shared QuantMail pillar header advertises `Search events, meetings,
 Required: remove the absolute performance claim or replace it with an evidence-backed product promise. Search UX must expose loading/degraded states and server-authoritative results, with performance budgets measured separately from marketing copy.
 Scope: apps/quantmail/src/components/QuantPillarTopBar.tsx; Calendar search implementation/tests.
 Dependencies: QM-SCREEN-007/008; search architecture.
+
+## QM-TRUST-003 — QuantMail/Drive platform copy must not imply unverified vault, quota or health state
+Status: [ ] TODO
+Finding: the Flutter QuantMail design/account surfaces describe an AES-256 E2EE/zero-knowledge Drive vault, a fixed 100 GB quota with 85.8 GB free, and a healthy backend with <24ms latency. The audited repository does not establish these as authoritative runtime facts for every user/session. Product copy must not turn design targets or seeded telemetry into user-trust claims.
+Required: classify each security/storage/health value as authoritative backend state, device-local capability, measured telemetry, or design target; render only the first three when actually available; otherwise show honest unavailable/estimated states. Any true client-side encrypted vault must have a separately reviewed cryptographic contract and key lifecycle before claiming E2EE/zero-knowledge.
+Scope: docs/design/QUANTMAIL_FLUTTER_WEB_CONNECT_DESIGN.md; flutter_apps/apps/quant_mail account/Drive surfaces; QuantDrive security/quota/health contracts.
+Dependencies: QM-SCREEN-010/016; QuantDrive architecture; QM-PLAT-006.
+
+## QM-SCREEN-027 — QuantDrive storage/quota and security indicators must be authoritative across platforms
+Status: [ ] TODO
+Finding: Web and Flutter QuantMail expose Drive/storage indicators through different presentation paths, while the Flutter design includes hard-coded-looking quota/telemetry examples. The screen contract needs one authoritative quota/ACL/security state and platform adapters must not invent values.
+Required: define quota response/version, used/available/pending-delete states, storage-pressure behavior, upload limits, sharing/ACL state, encryption state, malware-scan state and degraded/offline behavior. Web, Tauri, Capacitor and Flutter must render the same domain semantics even when visual presentation differs.
+Acceptance: empty account, quota exhausted, upload in progress, scan pending/rejected, permission revoked, offline and stale-cache cases are tested; no seeded quota/health values reach production UI.
+Dependencies: QM-SCREEN-010/011; QM-PLAT-006; QuantDrive architecture.
