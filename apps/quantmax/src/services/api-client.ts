@@ -33,10 +33,16 @@ class QuantMaxApiClient {
   private async request<T>(method: string, path: string, body?: unknown): Promise<ApiResponse<T>> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+    // apiFetchRaw has NO default timeout (native fetch semantics). Without an
+    // explicit timeout a hung backend leaves every QuantMax page on its loading
+    // skeleton forever (QM-UIUX-002 blank-page class). 15s fails the request
+    // into react-query's error path instead, where pages render branded
+    // error/empty states with a retry affordance.
     const res = await apiFetchRaw(`${API_BASE}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
+      timeout: 15000,
     });
     return res.json();
   }
