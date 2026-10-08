@@ -51,6 +51,28 @@ const EMAIL_FORBID_ATTR = [
 ] as const;
 
 /**
+ * Inline `style` properties that fight the app's dark theme. HTML mail authors
+ * hardcode light-mode colors (`background:#ffffff`, `color:#333`), which render
+ * as unreadable white boxes on a dark UI. Stripping them lets the body inherit
+ * the app's own dark-mode text/background styles. Every other inline property
+ * (font-size, padding, …) is left untouched.
+ */
+const DARK_MODE_STRIP_PROPS = [
+  'color',
+  'background',
+  'background-color',
+  'background-image',
+] as const;
+
+function stripDarkModeHostileStyles(root: ParentNode): void {
+  for (const el of Array.from(root.querySelectorAll('[style]'))) {
+    const style = (el as HTMLElement).style;
+    for (const prop of DARK_MODE_STRIP_PROPS) style.removeProperty(prop);
+    if (!style.length) el.removeAttribute('style');
+  }
+}
+
+/**
  * Sanitizes a received email body for rendering.
  *
  * Stricter than {@link sanitizeHtmlContent}: mail arrives from third parties over
@@ -83,6 +105,9 @@ export function sanitizeEmailHtml(html: string): string {
     image.setAttribute('decoding', 'async');
     image.setAttribute('referrerpolicy', 'no-referrer');
   }
+
+  // QM-UIUX-041: drop hardcoded light-mode colors so the body follows dark mode.
+  stripDarkModeHostileStyles(fragment);
 
   const host = document.createElement('div');
   host.appendChild(fragment);
