@@ -17,6 +17,7 @@ import { loadDefaultSignatureHtml } from '../lib/email-signature-preference';
 import { useSafeEmailHtml } from '../lib/safe-html';
 import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
+import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
 import { RecipientChipInput, parseEmailString, type RecipientOption } from './RecipientChipInput';
 import {
   IconArrowRight,
@@ -871,7 +872,11 @@ export function EmailComposer({
   };
 
   // Save Draft Handler
-  const handleSaveDraft = async () => {
+  //
+  // The actual server write, shared by the manual "Save draft" button and the
+  // autosave timer below. Returns true on success. Quiet by design — toasts
+  // and mascot reactions are the manual handler's job, not the timer's.
+  const saveDraftToServer = async (): Promise<boolean> => {
     const { bodyText, bodyHtml } = buildOutgoingBodies();
     const toList = to
       .split(/[,;\s]+/)
@@ -890,7 +895,6 @@ export function EmailComposer({
           .map((email) => ({ email }))
       : undefined;
 
-    setIsSaving(true);
     try {
       if (onSaveDraft) {
         await onSaveDraft({
@@ -918,14 +922,79 @@ export function EmailComposer({
           }),
         });
       }
-      // `mail:draftSaved` is the sheet's quietest reaction on purpose — `calm`, at ambient
-      // priority for 1.2s. A draft save happens on a timer and on every close; announcing it
-      // as loudly as a send would make the mascot a flicker instead of a signal.
-      quantyReact('mail:draftSaved');
-      showToast({ text: 'Draft saved', type: 'success' });
+      return true;
     } catch {
-      quantyReact('sys:error');
-      showToast({ text: 'Failed to save draft', type: 'error' });
+      return false;
+    }
+  };
+
+  // Draft autosave: 10s after the last edit, only when dirty, only with content.
+  // The indicator in the header always tells the truth about the last attempt.
+  const draftSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        to,
+        cc,
+        bcc,
+        subject,
+        greeting,
+        opening,
+        body,
+        closing,
+        signoff,
+        senderName,
+        customDetails,
+        attachments: attachments.map((a) => a.id ?? a.filename),
+      }),
+    [
+      to,
+      cc,
+      bcc,
+      subject,
+      greeting,
+      opening,
+      body,
+      closing,
+      signoff,
+      senderName,
+      customDetails,
+      attachments,
+    ],
+  );
+  const draftHasContent = useMemo(
+    () =>
+      Boolean(
+        to.trim() || subject.trim() || body.trim() || attachments.length > 0,
+      ),
+    [to, subject, body, attachments],
+  );
+  const {
+    saveState: draftSaveState,
+    notifyManualSave: notifyDraftSaved,
+  } = useDraftAutosave({
+    snapshot: draftSnapshot,
+    hasContent: draftHasContent,
+    save: saveDraftToServer,
+    enabled: !isSending,
+  });
+  const draftSaveLabel = draftSaveStateLabel(draftSaveState);
+
+  const handleSaveDraft = async () => {
+    setIsSaving(true);
+    try {
+      const ok = await saveDraftToServer();
+      if (ok) {
+        // `mail:draftSaved` is the sheet's quietest reaction on purpose — `calm`, at ambient
+        // priority for 1.2s. Manual saves announce once; the autosave timer below stays
+        // silent so the mascot is a signal, not a flicker.
+        quantyReact('mail:draftSaved');
+        showToast({ text: 'Draft saved', type: 'success' });
+        notifyDraftSaved(true);
+      } else {
+        quantyReact('sys:error');
+        showToast({ text: 'Failed to save draft', type: 'error' });
+        notifyDraftSaved(false);
+      }
     } finally {
       setIsSaving(false);
       setShowSendOptionsDropdown(false);
@@ -1009,6 +1078,28 @@ export function EmailComposer({
                 <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-[#282C35] border border-[#3A404D] text-[10px] text-[#A1A4AC] font-mono">
                   C
                 </kbd>
+                {/* Honest autosave indicator: shows the real state of the last save attempt. */}
+                {draftSaveLabel && (
+                  <span
+                    aria-live="polite"
+                    className={`text-[11px] font-medium ${
+                      draftSaveState === 'error'
+                        ? 'text-[#FF6B6B]'
+                        : draftSaveState === 'saved'
+                          ? 'text-[#4ADE80]'
+                          : 'text-[#A1A4AC]'
+                    }`}
+                  >
+                    {draftSaveState === 'saving' ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="size-2.5 rounded-full border-2 border-[#A1A4AC]/30 border-t-[#A1A4AC] animate-spin" aria-hidden="true" />
+                        {draftSaveLabel}
+                      </span>
+                    ) : (
+                      draftSaveLabel
+                    )}
+                  </span>
+                )}
               </div>
             </div>
 

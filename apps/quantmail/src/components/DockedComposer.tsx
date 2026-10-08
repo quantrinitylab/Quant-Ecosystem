@@ -8,6 +8,8 @@ import { useContacts } from '../hooks/useContacts';
 import { useConfirm } from '../hooks/useConfirm';
 import { apiClient } from '../services/api-client';
 import { useUndoSend } from './UndoSendCountdownBar';
+import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
+import { apiFetchRaw } from '@quant/api-client';
 import { composeMessageBodies } from '../lib/email-body';
 import { loadDefaultSignatureHtml } from '../lib/email-signature-preference';
 import type { Attachment } from './EmailComposer';
@@ -358,6 +360,58 @@ export function DockedComposer({
       active = false;
     };
   }, []);
+
+  // Draft autosave: the docked composer previously had no draft saving at all —
+  // work was lost if the user closed it without sending. Now a real timer saves
+  // 10s after the last edit, only when dirty, only with content.
+  const saveDraftToServer = async (): Promise<boolean> => {
+    const { bodyText } = composeMessageBodies(body.trim(), signatureHtml);
+    try {
+      await apiFetchRaw('/api/emails/drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: to.trim(),
+          cc: cc.trim() || undefined,
+          bcc: bcc.trim() || undefined,
+          subject: subject.trim(),
+          body: bodyText,
+          attachments,
+          inReplyTo: replyToId,
+        }),
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const draftSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        to,
+        cc,
+        bcc,
+        subject,
+        body,
+        attachments: attachments.map((a) => (a as any).id ?? a.filename),
+      }),
+    [to, cc, bcc, subject, body, attachments],
+  );
+  const draftHasContent = useMemo(
+    () =>
+      Boolean(
+        to.trim() || subject.trim() || body.trim() || attachments.length > 0,
+      ),
+    [to, subject, body, attachments],
+  );
+  const { saveState: draftSaveState } = useDraftAutosave({
+    snapshot: draftSnapshot,
+    hasContent: draftHasContent,
+    save: saveDraftToServer,
+    enabled: !isSending,
+  });
+  const draftSaveLabel = draftSaveStateLabel(draftSaveState);
 
   // Sync initials when props change
   useEffect(() => {
@@ -750,6 +804,21 @@ export function DockedComposer({
           <h3 className="text-xs font-bold text-white truncate tracking-wide">
             {subject.trim() || 'New Message'}
           </h3>
+          {/* Honest autosave indicator: the real state of the last save attempt. */}
+          {draftSaveLabel && (
+            <span
+              aria-live="polite"
+              className={`text-[10px] font-medium shrink-0 ${
+                draftSaveState === 'error'
+                  ? 'text-[#FF6B6B]'
+                  : draftSaveState === 'saved'
+                    ? 'text-[#4ADE80]'
+                    : 'text-[#A1A4AC]'
+              }`}
+            >
+              {draftSaveLabel}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1">
