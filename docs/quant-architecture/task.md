@@ -206,13 +206,13 @@ Validation: CI gate green; 2,687 tests green incl. outbox emission tests; merged
 Commit SHA: 80dbc55e
 Notes: Staging deploy verification pending next deploy cycle.
 ## QM-BACK-002 — Optimistic concurrency + request IDs
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Required: expectedVersion on thread/mail mutations, VERSION_CONFLICT errors, requestId/correlation propagation.
 Dependencies: QM-BACK-001.
 
 Owner: Muse
 Branch: feat/qm-back-002-optimistic-concurrency
-Notes: claimed 2026-10-08; PR #614 OPEN (agent complete 2026-10-08): expectedVersion on mail/thread mutations, atomic conditional updateMany + VERSION_CONFLICT 409 with recovery details, requestId from x-request-id through services into outbox payloads; migration 0084 (renamed from 0083 to avoid #611 collision); tests 16/16 green locally, verified by main agent; main merged in, CI re-running
+Notes: claimed 2026-10-08; PR #614 MERGED 2026-10-08 (gate green): expectedVersion on mail/thread mutations, atomic conditional updateMany + VERSION_CONFLICT 409 with recovery details, requestId from x-request-id through services into outbox payloads; migration 0084 (renamed from 0083 to avoid #611 collision); tests 16/16 green, verified by main agent; main merged in to resolve conflict
 ## QM-BACK-003 — Global idempotency middleware
 Status: [x] DONE
 Required: Idempotency-Key for mutation routes, durable result replay, bounded retention, scope by actor/tenant/route.
