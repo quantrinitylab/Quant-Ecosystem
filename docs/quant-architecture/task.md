@@ -1006,13 +1006,14 @@ Dependencies: none.
 ## QM-UIUX-037 — App switcher: single accent-color source of truth
 Status: [~] IN_PROGRESS — Owner: a5aee1ae-9aa5-4a6c-9d4f-3ae1e1e5a2b1; Branch: fix/qm-uiux-037-accents
 PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/638
+Note 2026-10-08: rebased onto main after #639 merged (DesktopPillarRail deleted); PILLAR_ACCENTS now wired into shared pillarTiles.tsx; 34/34 tests pass; CI re-running.
 Finding: mobile and desktop use DIFFERENT accent colors for the same apps (Drive: #34A853 green on mobile vs #F59E0B amber on desktop; all 5 apps differ). Two switchers, two color systems. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/appswitcher-audit.md`.
 Required: single `PILLAR_ACCENTS` source of truth used by both mobile and desktop switchers. (The final per-app color mapping still needs the user's confirmation — this task only unifies the two systems to whatever mapping is decided.)
 Scope: app switcher components (mobile + desktop).
 Dependencies: none.
 
 ## QM-UIUX-038 — Delete dead DesktopPillarRail with banned glow
-Status: [~] IN_PROGRESS
+Status: [x] DONE — PR #639 merged 2026-10-08 (deleted 491-line dead DesktopPillarRail; tile defs in shared pillarTiles.tsx; 2/2 tests pass)
 PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/639
 Note: overlaps #638 (both touch DesktopPillarRail) — rebase #639 after #638 merges if conflict appears.
 Owner: f2f8c3d4-1a2b-4c5d-8e9f-0a1b2c3d4e5f
