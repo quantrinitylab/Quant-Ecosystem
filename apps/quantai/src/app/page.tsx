@@ -31,6 +31,7 @@ import {
   type AuthUser,
 } from '../lib/auth';
 import { OnboardingHero } from '../components/OnboardingHero';
+import { QuantAIPageErrorBoundary } from '../components/QuantAIPageErrorBoundary';
 import type { WorkCanvasDocument } from '../components/WorkCanvasPanel';
 import type { CanvasArtifact } from '../types/agent-mode';
 // P1-3 (slow first paint): interaction-only heavy panels are code-split out of
@@ -143,6 +144,16 @@ export default function AIPage() {
     } catch {}
     setHasCheckedAuth(true);
   }, []);
+
+  // P0 (blank white page): safety net — if the auth check effect above never
+  // fires (e.g. a render-phase error earlier in the tree, or a hung module),
+  // force the auth gate open after 5s so anonymous users deterministically
+  // see the sign-in UI instead of a dead blank surface.
+  useEffect(() => {
+    if (hasCheckedAuth) return;
+    const t = setTimeout(() => setHasCheckedAuth(true), 5000);
+    return () => clearTimeout(t);
+  }, [hasCheckedAuth]);
 
   const handleNavigateToLogin = useCallback(() => {
     // Preserve current chat state so returning after login maintains full conversation
@@ -371,6 +382,11 @@ export default function AIPage() {
         theme={resolvedTheme}
         sidebar={<Sidebar items={[]} header={<h2 className="text-lg font-semibold">{brandName}</h2>} />}
       >
+        <QuantAIPageErrorBoundary
+          brandName={brandName}
+          onSignIn={handleNavigateToLogin}
+          onQuantSSO={handleQuantSSO}
+        >
         <div className="flex flex-col h-full">
           <div className="p-4 border-b border-[var(--quant-border)]">
             <LoadingSkeleton variant="model-card" count={1} />
@@ -379,6 +395,7 @@ export default function AIPage() {
             <LoadingSkeleton variant="chat-message" count={3} />
           </div>
         </div>
+        </QuantAIPageErrorBoundary>
       </AppShell>
     );
   }
@@ -389,6 +406,11 @@ export default function AIPage() {
         theme={resolvedTheme}
         sidebar={<Sidebar items={[]} header={<h2 className="text-lg font-semibold">{brandName}</h2>} />}
       >
+        <QuantAIPageErrorBoundary
+          brandName={brandName}
+          onSignIn={handleNavigateToLogin}
+          onQuantSSO={handleQuantSSO}
+        >
         <div className="flex flex-col items-center justify-center h-full space-y-4">
           <ErrorState message={error} onRetry={() => window.location.reload()} />
           <button
@@ -399,6 +421,7 @@ export default function AIPage() {
             Sign In
           </button>
         </div>
+        </QuantAIPageErrorBoundary>
       </AppShell>
     );
   }
@@ -527,11 +550,20 @@ export default function AIPage() {
       <Sidebar items={sidebarItems} header={sidebarHeader} footer={sidebarFooter} />
     );
 
+  // P0 (blank white page): the entire page content sits inside a dedicated
+  // error boundary. Any render-phase exception in the chat UI (hooks, motion,
+  // dynamic panels) renders an honest branded sign-in surface instead of a
+  // dead blank page. Anonymous users always see *something* actionable.
   return (
     <AppShell
         theme={resolvedTheme}
       sidebar={sidebar}
     >
+      <QuantAIPageErrorBoundary
+        brandName={brandName}
+        onSignIn={handleNavigateToLogin}
+        onQuantSSO={handleQuantSSO}
+      >
       <AnimatedPage>
         <motion.div
           className="flex flex-col h-full"
@@ -932,6 +964,7 @@ export default function AIPage() {
           />
         </motion.div>
       </AnimatedPage>
+      </QuantAIPageErrorBoundary>
     </AppShell>
   );
 }
