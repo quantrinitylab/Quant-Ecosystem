@@ -40,6 +40,14 @@ const MEMORY_APP_LABELS: Record<string, string> = {
   quantgit: 'QuantGit',
 };
 const MEMORY_SHARED_SESSIONS = new Set(['user-style', 'user-contacts']);
+// Canonical short-form app ids exposed as `sourceApp`. Declared metadata may
+// use the long "quant*" form; the API normalizes to the canonical short form
+// so clients can rely on one stable identifier per app.
+const MEMORY_APP_CANONICAL: Record<string, string> = {
+  quantcalendar: 'calendar',
+  quantgit: 'git',
+  quantcontacts: 'contacts',
+};
 const AI_FILE_SCHEMA = z.object({ fileId: z.string().min(1) });
 const AI_SEARCH_SCHEMA = z.object({
   fileId: z.string().min(1).optional(),
@@ -372,7 +380,7 @@ function metaStringArray(metadata: unknown, ...keys: string[]): string[] {
   for (const key of keys) {
     const value = record[key];
     if (Array.isArray(value)) {
-      return value.filter((item): item is string => typeof item === 'string' && item.trim()).map((item) => item.trim());
+      return value.filter((item): item is string => typeof item === 'string' && item.trim() !== '').map((item) => item.trim());
     }
   }
   return [];
@@ -386,12 +394,18 @@ function memoryConfidence(metadata: unknown): number | null {
 
 function memorySource(metadata: unknown): { app: string; label: string } {
   const declared = (metaStr(metadata, 'app') || metaStr(metadata, 'sourceApp') || '').toLowerCase();
-  if (MEMORY_APP_LABELS[declared]) return { app: declared, label: MEMORY_APP_LABELS[declared] };
+  if (MEMORY_APP_LABELS[declared]) {
+    const app = MEMORY_APP_CANONICAL[declared] ?? declared;
+    return { app, label: MEMORY_APP_LABELS[declared] };
+  }
   const session = metaStr(metadata, 'session');
   if (session) {
     if (MEMORY_SHARED_SESSIONS.has(session)) return { app: 'shared', label: 'Shared across apps' };
     const prefix = session.split('-')[0]?.toLowerCase() ?? '';
-    if (MEMORY_APP_LABELS[prefix]) return { app: prefix, label: MEMORY_APP_LABELS[prefix] };
+    if (MEMORY_APP_LABELS[prefix]) {
+      const app = MEMORY_APP_CANONICAL[prefix] ?? prefix;
+      return { app, label: MEMORY_APP_LABELS[prefix] };
+    }
   }
   return declared
     ? { app: declared, label: declared }
