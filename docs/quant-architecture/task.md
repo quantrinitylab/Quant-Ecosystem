@@ -1166,7 +1166,7 @@ Scope: `apps/quantmail/src/app/compose/page.tsx`.
 Dependencies: none.
 
 ## QM-UIUX-051 — Draft autosave (no autosave today; comment lies)
-Status: [~] IN_PROGRESS — Owner: 5f6a7b8c-9d0e-1f2a-3b4c-5d6e7f8a9b0c; Branch: fix/qm-uiux-051-autosave
+Status: [x] DONE — PR #646 merged 2026-10-08 (real 10s debounced draft autosave; 14/14 tests)
 PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/646
 Finding: zero `setInterval` in EmailComposer/DockedComposer — draft saving is manual-only. But `handleSaveDraft`'s comment claims "A draft save happens on a timer". False. Work is lost if user navigates away without pressing Save. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/drafts-schedule-audit.md`.
 Required: real autosave on a timer + honest save-state indicator; fix/remove the lying comment.
@@ -1248,7 +1248,7 @@ Dependencies: QM-SCREEN-038; Drive upload/storage architecture; durable job/stat
 Validation: source audit on 2026-10-08 confirmed reserveQuota() calls checkQuota() before StorageQuotaService.reservations.set(), while the reservations are a process-local static Map; the source comment explicitly claims atomic parallel-upload protection. No remediation implementation claim yet.
 
 ## QM-UIUX-055 — QuantChat: fix typing indicators (protocol mismatch)
-Status: [~] IN_PROGRESS — Owner: 7b8c9d0e-1f2a-3b4c-5d6e-7f8a9b0c1d2e; Branch: fix/qm-uiux-055-typing
+Status: [x] DONE — PR #648 merged 2026-10-08 (typing protocol aligned to backend; 42/42 tests)
 PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/648
 Finding: `useRealtimeChat` publishes `{type:'typing:start'}` frames the backend silently ignores (backend only handles `type:'typing'`), and subscribes to `chat:<id>` channel the backend never sends to. `typingUsers` always empty — typing indicators never render. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantchat-realtime-audit.md`.
 Required: align frontend/backend typing protocol; verify indicators render.
@@ -1256,7 +1256,7 @@ Scope: `apps/quantchat/src/` realtime hooks.
 Dependencies: none.
 
 ## QM-UIUX-056 — QuantChat: failed sends vanish silently
-Status: [~] IN_PROGRESS — Owner: 8c9d0e1f-2a3b-4c5d-6e7f-8a9b0c1d2e3f; Branch: fix/qm-uiux-056-failedsend
+Status: [x] DONE — PR #650 merged 2026-10-08 (failed-send error UI + retry; 1197/1197 tests)
 PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/650
 Finding: `handleSend` calls `sendMessage.mutate()` with no `onError` and no error UI. No optimistic message — on REST failure the user's text just disappears. No retry, no "failed" state. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantchat-realtime-audit.md`.
 Required: error UI + retry for failed sends; don't lose user text.
@@ -1278,7 +1278,7 @@ Scope: `apps/quantmail/src/app/page.tsx:1269`.
 Dependencies: none.
 
 ## QM-UIUX-059 — Flutter: purge fake data (contacts, stats, claims)
-Status: [~] IN_PROGRESS — Owner: 9d0e1f2a-3b4c-5d6e-7f8a-9b0c1d2e3f4a; Branch: fix/qm-uiux-059-flutter-fakes
+Status: [x] DONE — PR #649 merged 2026-10-08 (Flutter fake contacts/stats/claims/streaming purged)
 PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/649
 Finding: Flutter QuantMail still ships fake contacts with real people's names (Demis Hassabis etc., `isVerified: true`), fake QuantGit stats ('14.8k stars'), `<5ms FTS5` claims, fake "Quanty AI" simulated streaming, `MailHeaderSecurity` defaulting every mail to 'Kyber-1024 + AES-256-GCM' with SPF/DKIM/DMARC 'PASS', hardcoded unread badges and infra claims. Web purged all of these; Flutter didn't. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/flutter-parity-audit.md`.
 Required: remove all fake data/claims from Flutter app (same purge standard as web).
