@@ -15,7 +15,7 @@
     "build": "turbo build",
     "build:ci": "turbo build --concurrency=3",
     "build:cold": "rm -rf .turbo node_modules/.cache && turbo build --concurrency=3",
-    "format": "prettier --write .",15.5.25
+    "format": "prettier --write .",
     "format:check": "prettier --check .",
     "validate": "pnpm install --frozen-lockfile && pnpm typecheck && pnpm test && pnpm build && pnpm lint",
     "validate:fast": "turbo typecheck test lint --filter=...[HEAD~1]",
