@@ -15,108 +15,6 @@ export interface SovereignContact {
   isStarred: boolean;
 }
 
-export const SOVEREIGN_DEFAULT_CONTACTS: SovereignContact[] = [
-  {
-    id: 'c1',
-    name: 'Sundar Pichai',
-    email: 'sundar@google.com',
-    phone: '+1 (650) 253-0000',
-    company: 'Alphabet Inc.',
-    role: 'CEO',
-    tag: 'VIP',
-    isVip: true,
-    isStarred: true,
-  },
-  {
-    id: 'c2',
-    name: 'Satya Nadella',
-    email: 'satya@microsoft.com',
-    phone: '+1 (425) 882-8080',
-    company: 'Microsoft Corp.',
-    role: 'CEO',
-    tag: 'VIP',
-    isVip: true,
-    isStarred: true,
-  },
-  {
-    id: 'c3',
-    name: 'Sam Altman',
-    email: 'sam@openai.com',
-    phone: '+1 (415) 555-0199',
-    company: 'OpenAI',
-    role: 'CEO',
-    tag: 'VIP',
-    isVip: true,
-    isStarred: true,
-  },
-  {
-    id: 'c4',
-    name: 'Astra Executive AI',
-    email: 'astra@quantrinity.in',
-    phone: '+91 98765 43210',
-    company: 'Quant Trinity Lab',
-    role: 'Quant Tripartite Swarm Lead',
-    tag: 'Leadership',
-    isVip: true,
-    isStarred: true,
-  },
-  {
-    id: 'c5',
-    name: 'Dev Sentinel',
-    email: 'dev-sentinel@quantmail.in',
-    phone: '+1 (555) 234-5678',
-    company: 'Quant Trinity Lab',
-    role: 'Lead QA & Security Engineer',
-    tag: 'Engineering',
-    isVip: false,
-    isStarred: false,
-  },
-  {
-    id: 'c6',
-    name: 'Sarah Chen',
-    email: 'sarah@quantmail.in',
-    phone: '+1 (415) 555-0188',
-    company: 'Quant Trinity Lab',
-    role: 'Principal Frontend Architect',
-    tag: 'Design',
-    isVip: false,
-    isStarred: false,
-  },
-  {
-    id: 'c7',
-    name: 'Linus Torvalds',
-    email: 'linus@kernel.org',
-    phone: '+1 (503) 555-0199',
-    company: 'Linux Foundation',
-    role: 'Chief Architect',
-    tag: 'Engineering',
-    isVip: true,
-    isStarred: true,
-  },
-  {
-    id: 'c8',
-    name: 'Alex Rivera',
-    email: 'alex.rivera@quantmail.in',
-    phone: '+1 (415) 555-0142',
-    company: 'Enterprise Cloud Inc',
-    role: 'VP Enterprise Infrastructure',
-    tag: 'Customers',
-    isVip: false,
-    isStarred: false,
-  },
-  {
-    id: 'c9',
-    name: 'Demis Hassabis',
-    email: 'demis@deepmind.com',
-    phone: '+44 20 7946 0991',
-    company: 'Alphabet Inc.',
-    role: 'CEO · Google DeepMind',
-    tag: 'Engineering',
-    isVip: true,
-    isStarred: true,
-  },
-];
-
 export function getInitials(name?: string | null): string {
   const parts = (name || '').trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) {
@@ -176,29 +74,17 @@ export function VipContactsSubView({
   onEmail,
   onToggleStar,
 }: VipContactsSubViewProps) {
-  // Filter for VIP executives: Sundar Pichai, Satya Nadella, Linus Torvalds, Sam Altman, Astra Executive AI, Demis Hassabis
+  // Filter for VIP contacts: flagged via isVip, isStarred, or the VIP tag.
   const vipList = React.useMemo(() => {
     const list = contacts.filter((c) => {
       const isStarred = 'isStarred' in c ? c.isStarred : (c as any).isFavorite;
       const isVip = 'isVip' in c ? c.isVip : false;
       const tag = 'tag' in c ? c.tag : ((c as any).tags?.[0] || '');
-      const name = c.name || '';
-      return (
-        isVip ||
-        isStarred ||
-        tag.toLowerCase() === 'vip' ||
-        name.toLowerCase().includes('sundar') ||
-        name.toLowerCase().includes('satya') ||
-        name.toLowerCase().includes('linus') ||
-        name.toLowerCase().includes('altman') ||
-        name.toLowerCase().includes('hassabis') ||
-        name.toLowerCase().includes('astra')
-      );
+      return isVip || isStarred || tag.toLowerCase() === 'vip';
     });
 
-    // Ensure sovereign VIPs are present
+    // Dedupe real contacts by email (or id for phone-only records).
     const map = new Map<string, any>();
-    SOVEREIGN_DEFAULT_CONTACTS.filter((s) => s.isVip).forEach((s) => map.set(s.email.toLowerCase(), s));
     list.forEach((c) => {
       // Contacts without an email (phone-only records) still render — key by id.
       const key = (c.email || '').toLowerCase() || `id:${c.id}`;
@@ -232,6 +118,14 @@ export function VipContactsSubView({
       </div>
 
       {/* Grid of Prominent Gold Star Cards */}
+      {vipList.length === 0 ? (
+        <div className="text-center py-12 px-4 space-y-2 rounded-2xl border border-[#232938] bg-[#141822]">
+          <p className="text-xs font-bold text-white">No VIP contacts yet</p>
+          <p className="text-[11px] text-[#A1A4AC]">
+            Star a contact or tag them VIP to feature them here.
+          </p>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {vipList.map((contact) => {
           const initials = getInitials(contactDisplayName(contact));
@@ -333,6 +227,7 @@ export function VipContactsSubView({
           );
         })}
       </div>
+      )}
     </div>
   );
 }
@@ -354,11 +249,9 @@ export function CompaniesSubView({
   onCall,
   onEmail,
 }: CompaniesSubViewProps) {
-  // Predefined organization groupings matching specification:
-  // Alphabet Inc. (2 members), Microsoft Corp. (1 member), Linux Foundation (1 member), Quant Trinity Lab (3 members)
   const companyGroups = React.useMemo(() => {
-    // Merge contacts with sovereign default contacts
-    const all = [...SOVEREIGN_DEFAULT_CONTACTS];
+    // Build from the user's real contacts only — no seeded defaults.
+    const all: SovereignContact[] = [];
     contacts.forEach((c) => {
       // Email may be absent on phone-only records — compare case-insensitively only when present.
       const emailLower = (c.email || '').toLowerCase();
