@@ -293,7 +293,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
         className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-[var(--quant-surface-subtle)] border border-[var(--quant-surface-elevated)] shadow-2xl overflow-hidden z-10 text-[var(--quant-foreground)] animate-in fade-in zoom-in-95 duration-150"
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--quant-surface-elevated)]/80 bg-[#0c0c0f]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--quant-surface-elevated)]/80 bg-black">
           <div className="flex items-center gap-3">
             <div className="size-9 rounded-xl bg-[var(--quant-primary)]/10 border border-[var(--quant-primary)]/20 flex items-center justify-center text-[var(--quant-primary)] text-lg font-bold">
               <IconLink size={18} />
@@ -619,7 +619,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-3 border-t border-[var(--quant-surface-elevated)]/80 bg-[#0c0c0f] flex items-center justify-between text-xs text-[var(--quant-muted-foreground)]">
+        <div className="px-6 py-3 border-t border-[var(--quant-surface-elevated)]/80 bg-black flex items-center justify-between text-xs text-[var(--quant-muted-foreground)]">
           <span className="flex items-center gap-1.5">
             Host: <span className="font-semibold text-white">{userEmail}</span>
           </span>
