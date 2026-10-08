@@ -1,0 +1,4 @@
+import type { QuantyNavigationRequest } from '@quant/quanty-contracts';
+export interface PlatformCapabilities { platform:'web'|'android'|'ios'|'tauri'|'desktop'; voiceAgent:boolean; persistentSurface:boolean; backgroundWork:boolean; deepNavigation:boolean; }
+export interface PlatformAdapter { capabilities:PlatformCapabilities; navigate(request:QuantyNavigationRequest):Promise<{ok:true}|{ok:false;reason:string}>; presentConfirmation(input:{title:string;body:string}):Promise<boolean>; }
+export class CapabilityMatrix { constructor(private readonly adapters:Map<PlatformCapabilities['platform'],PlatformAdapter>){} get(platform:PlatformCapabilities['platform']){return this.adapters.get(platform);} }

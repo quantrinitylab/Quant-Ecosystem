@@ -1,0 +1,4 @@
+export type QuantyTaskStatus = 'planned' | 'waiting' | 'executing' | 'verifying' | 'completed' | 'partial' | 'failed' | 'paused' | 'cancelled' | 'unknown';
+export type QuantyTaskNodeKind = 'read' | 'draft' | 'navigate' | 'mutate' | 'wait_for_user' | 'wait_for_event' | 'background_job' | 'verify' | 'compensate';
+export interface QuantyTask { taskId:string; sessionId:string; goal:string; status:QuantyTaskStatus; priority:number; foregroundNodeId?:string; createdAt:string; updatedAt:string; deadlineAt?:string; cancellationRequestedAt?:string; verificationState:'pending'|'verified'|'unknown'; }
+export interface QuantyTaskNode { nodeId:string; taskId:string; kind:QuantyTaskNodeKind; status:QuantyTaskStatus; dependsOn:string[]; capability:string; resourceRefs:string[]; inputRef?:string; outputRef?:string; riskTier:0|1|2|3|4; approvalId?:string; idempotencyKey:string; verificationRef?:string; retryPolicy:{maxAttempts:number;backoffMs:number}; compensationRef?:string; }

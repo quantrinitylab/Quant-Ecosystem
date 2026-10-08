@@ -1,0 +1,1 @@
+export interface QuantyContextRequest { purpose:string; requesterAgent:string; resourceRefs:string[]; requestedFields:string[]; sensitivityClass:'normal'|'sensitive'|'restricted'; maxAgeMs:number; outputScope:string; }

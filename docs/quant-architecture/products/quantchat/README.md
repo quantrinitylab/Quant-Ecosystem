@@ -30,6 +30,11 @@ QuantChat owns communication state. It may consume other product projections thr
 - `15-api-event-websocket-contract.md` — endpoint-level API, event and WebSocket contract: envelopes, auth, pagination, idempotency, E2EE boundaries, reconnect/gap repair, Quanty tools, cross-app handoffs, rate limits and contract/load/security testing.
 - `16-e2ee-multidevice-cryptographic-architecture.md` — E2EE and multi-device security: device identities, prekeys, session establishment, ratchet/group-key lifecycle, encrypted media, verification, recovery, local search, Quanty plaintext boundary, threat model and cryptographic test plan.
 - `17-webrtc-sfu-quantmeet-media-architecture.md` — WebRTC/SFU media plane for Calls + QuantMeet: STUN/TURN, simulcast/SVC, adaptive quality, screen share, breakouts, captions/translation, recording, device handoff, AR/3D, scaling, observability and failure recovery.
+- `18-offline-first-sync-multidevice-architecture.md` — Offline-first sync and multi-device convergence: encrypted local state, command journal, idempotency, cursor/delta sync, event gap repair, conflicts, resumable media, reconnect, storage pressure, E2EE sync and cross-app invalidation.
+- `19-search-discovery-recommendation-architecture.md` — Search/discovery architecture: local E2EE search, Meilisearch/Qdrant retrieval, authorization-aware indexing, federated ecosystem search, semantic retrieval, recommendation boundaries, invalidation, offline search and Quanty evidence retrieval.
+- `20-notification-presence-social-graph-architecture.md` — Unified notification, presence and social-graph architecture: relationship edges, block/mute/restrict, TTL presence, multi-device state, notification intents, priority/grouping/routing, cross-app fanout, affinity decay, privacy, Quanty triage and reliability.
+- `21-media-content-processing-safety-architecture.md` — Media lifecycle: resumable R2 uploads, E2EE/server-readable boundaries, validation, malware scanning, derivatives, transcoding, Stories/Spotlight publication, quarantine/review, AR asset safety, signed delivery, retention/deletion, QuantMeet recordings, Quanty integration, cross-app handoffs and test/performance contracts.
+- `22-bots-mini-apps-integrations-architecture.md` — Bot identities, scoped installations, commands, webhooks, OAuth, isolated Mini Apps, sandboxing, interactive messages, credits, Quanty tools, cross-app actions, moderation, reliability and security.
 
 ### Shared ecosystem contracts
 Muse MUST read these before implementing cross-app behavior:
@@ -126,51 +131,3 @@ Before every implementation slice:
 10. record remaining gaps
 
 Never use fake data to make a screen appear complete. Never claim production readiness without fresh evidence.
-
----
-
-## Per-screen spec index (K14)
-
-App: `apps/quantchat`
-Routers: Next.js app router + pages router (legacy /settings, /calls, /discover, /bitmoji)
-
-Role: ecosystem real-time communication layer (WhatsApp + Telegram + Snapchat + Discord + QuantMeet in one product). Owns conversation/message state; consumes other product projections through typed contracts. Target-state architecture lives in the existing deep docs (see below); the per-screen specs here describe IMPLEMENTED REALITY against that target.
-
-Mobile: Flutter app at `flutter_apps/apps/quant_chat` plus responsive web.
-
-Desktop: no native desktop client in the repo; desktop is the responsive web build.
-
-## Existing deep docs
-
-- `01-unified-social-messaging-meeting-architecture.md` … `17-webrtc-sfu-quantmeet-media-architecture.md` — target-state deep architecture (already in this directory).
-- Where a screen below is MISSING, the corresponding deep-dive doc is the target spec, not a description of built code.
-
-## Screen inventory (from `docs/quant-architecture/12-screen-inventory.md`)
-
-| ID | Screen | Status | Route |
-|----|--------|--------|-------|
-| C01 | Inbox | IMPLEMENTED | `/` |
-| C02 | 1:1 Chat | IMPLEMENTED | `/chat/[id]` |
-| C03 | Group Chat | PARTIAL | `/chat/[id] (group threads)` |
-| C04 | Community | MISSING | `(none)` |
-| C05 | Channel | IMPLEMENTED | `/channels` |
-| C06 | Media | IMPLEMENTED | `/camera, /stories, /spotlight, /reels` |
-| C07 | Call | IMPLEMENTED | `/call, /calls (history)` |
-| C08 | Meeting | MISSING | `(none)` |
-| C09 | Search | MISSING | `(none)` |
-| C10 | Quanty | EMBEDDED | `(panels in /chat/[id])` |
-| C11 | Notifications | MISSING | `(none)` |
-| C12 | Settings | IMPLEMENTED | `/settings (pages router), panels in /profile` |
-| C13 | Admin | MISSING | `(none)` |
-
-Status meanings: IMPLEMENTED = real UI + real data path; PARTIAL = incomplete;
-EMBEDDED = panel inside another screen; MISSING = no UI in the repo.
-
-## Layout
-
-- `screens/` — per-screen spec: purpose, route, data contract, states, permissions, reality
-- `desktop/` — desktop adaptation notes (responsive web; no native client)
-- `mobile/` — mobile notes (Flutter app where it exists + responsive web)
-- `web/` — web route, shell, auth boundary
-- `security/` — per-screen security contract
-- `testing/` — per-screen test plan

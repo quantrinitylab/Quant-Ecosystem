@@ -177,8 +177,10 @@ describe('GET /drive/memory', () => {
         metadata: { session: 'quantmail-sendtime' },
       }),
       row({ logicalId: 'style', content: 'x', metadata: { session: 'user-style' } }),
-      row({ logicalId: 'chat', content: 'y', metadata: { app: 'quantchat' } }),
-      row({ logicalId: 'bare', content: 'z' }),
+      row({ logicalId: 'calendar', content: 'y', metadata: { app: 'quantcalendar' } }),
+      row({ logicalId: 'git', content: 'z2', metadata: { app: 'quantgit' } }),
+      row({ logicalId: 'contacts', content: 'z', metadata: { app: 'quantcontacts' } }),
+      row({ logicalId: 'bare', content: 'z2' }),
     ];
 
     const app = await buildApp();
@@ -190,13 +192,61 @@ describe('GET /drive/memory', () => {
       sourceApp: 'quantmail',
       sourceLabel: 'QuantMail',
     });
-    expect(byId.get('chat')).toMatchObject({ sourceApp: 'quantchat', sourceLabel: 'QuantChat' });
+    expect(byId.get('calendar')).toMatchObject({ sourceApp: 'calendar', sourceLabel: 'QuantCalendar' });
+    expect(byId.get('git')).toMatchObject({ sourceApp: 'git', sourceLabel: 'QuantGit' });
+    expect(byId.get('contacts')).toMatchObject({ sourceApp: 'contacts', sourceLabel: 'QuantContacts' });
     // Written by whichever app noticed first — claiming one would be a guess.
     expect(byId.get('style')).toMatchObject({
       sourceApp: 'shared',
       sourceLabel: 'Shared across apps',
     });
-    expect(byId.get('bare')).toMatchObject({ sourceApp: 'shared' });
+    expect(byId.get('bare')).toMatchObject({ sourceApp: 'shared', sourceLabel: 'Shared across apps' });
+    await app.close();
+  });
+
+  it('projects governed metadata without inventing missing values', async () => {
+    rows = [
+      row({
+        logicalId: 'governed',
+        content: 'prefers concise technical answers',
+        metadata: {
+          app: 'quantgit',
+          confidence: 0.94,
+          sensitivity: 'normal',
+          explicitness: 'confirmed',
+          policyVersion: 'memory-v2',
+          provenanceSummary: 'QuantGit repository settings',
+          sourceObjectId: 'repo-1',
+          extractedFacts: ['Concise technical answers are preferred.'],
+          entityGraphLinks: ['repo:quant-ecosystem'],
+        },
+      }),
+      row({
+        logicalId: 'unscored',
+        content: 'observed context',
+        metadata: { app: 'quantmail' },
+      }),
+    ];
+
+    const app = await buildApp();
+    const body = (await app.inject({ method: 'GET', url: '/drive/memory' })).json();
+    const governed = body.memories.find((m: { id: string }) => m.id === 'governed');
+    const unscored = body.memories.find((m: { id: string }) => m.id === 'unscored');
+
+    expect(governed).toMatchObject({
+      sourceApp: 'git',
+      confidenceScore: 94,
+      sensitivity: 'normal',
+      explicitness: 'confirmed',
+      policyVersion: 'memory-v2',
+      provenance: 'QuantGit repository settings',
+      sourceObjectId: 'repo-1',
+      extractedFacts: ['Concise technical answers are preferred.'],
+      entityGraphLinks: ['repo:quant-ecosystem'],
+    });
+    expect(unscored.confidenceScore).toBeNull();
+    expect(unscored.extractedFacts).toEqual([]);
+    expect(unscored.entityGraphLinks).toEqual([]);
     await app.close();
   });
 
