@@ -981,16 +981,19 @@ Scope: Contacts, QuantGit, Settings, Search components.
 Dependencies: QM-UIUX-005 (type scale covers e).
 
 ## QM-UIUX-032 — QuantChat /call page simulates a call connection
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: muse-main
 Branch: fix/qm-uiux-032-quantchat-call-simulation
+PR: #635 merged 2026-10-08 (simulated /call route already deleted on main; claim was stale)
 Finding: `apps/quantchat/src/app/call/page.tsx:56` has the comment `// Simulate connection (in production, LiveKit SDK would handle this)` — it fakes a 1.5s "connecting" state then shows a connected call UI with zero participants and a running timer. No WebRTC, no media. This is a reachable route. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantchat-auth-audit.md`.
 Required: wire to the real LiveKit path (`/meet/[roomId]` already does real `livekit-client` with server tokens), or delete the route. Never simulate a call.
 Scope: `apps/quantchat/src/app/call/`.
 Dependencies: none.
 
 ## QM-UIUX-033 — Delete dead VideoCall.tsx theater code
-Status: [ ] TODO
+Status: [x] DONE
+Owner: muse-main
+PR: #635 merged 2026-10-08 (VideoCall.tsx already absent on main)
 Finding: `apps/quantchat/src/components/VideoCall.tsx` — 170 lines, no `RTCPeerConnection`/`getUserMedia`, fake "HD" indicator, local-only state toggles. Zero references outside its own file. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantchat-auth-audit.md`.
 Required: delete the file before someone wires it up thinking it works.
 Scope: `apps/quantchat/src/components/VideoCall.tsx`.
