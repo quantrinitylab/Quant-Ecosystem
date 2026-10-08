@@ -1005,6 +1005,7 @@ Dependencies: none.
 
 ## QM-UIUX-037 — App switcher: single accent-color source of truth
 Status: [~] IN_PROGRESS — Owner: a5aee1ae-9aa5-4a6c-9d4f-3ae1e1e5a2b1; Branch: fix/qm-uiux-037-accents
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/638
 Finding: mobile and desktop use DIFFERENT accent colors for the same apps (Drive: #34A853 green on mobile vs #F59E0B amber on desktop; all 5 apps differ). Two switchers, two color systems. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/appswitcher-audit.md`.
 Required: single `PILLAR_ACCENTS` source of truth used by both mobile and desktop switchers. (The final per-app color mapping still needs the user's confirmation — this task only unifies the two systems to whatever mapping is decided.)
 Scope: app switcher components (mobile + desktop).
