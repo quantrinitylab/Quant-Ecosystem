@@ -1,0 +1,1 @@
+{"compilerOptions":{"composite":true,"outDir":"./dist","rootDir":"./src"},"exclude":["node_modules","dist"],"extends":"../../tsconfig.json","include":["src/**/*"],"references":[{"path":"../app-registry"},{"path":"../ecosystem-contracts"}]}

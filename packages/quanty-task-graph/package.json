@@ -1,0 +1,1 @@
+{"dependencies":{"@quant/app-registry":"workspace:*","@quant/ecosystem-contracts":"workspace:*"},"devDependencies":{"typescript":"~5.5.0","vitest":"4.1.11"},"main":"src/index.ts","name":"@quant/quanty-task-graph","private":true,"scripts":{"build":"tsc","lint":"eslint .","test":"vitest run","typecheck":"tsc --noEmit"},"type":"module","types":"src/index.ts","version":"1.0.0"}
