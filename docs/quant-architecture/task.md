@@ -1665,3 +1665,23 @@ Scope: apps/quantmail/src/components/ContextBottomNavBar.tsx; apps/quantmail/src
 Dependencies: QM-SCREEN-054; QM-SCREEN-055; QM-SCREEN-056; QM-PLAT-002/003.
 
 Validation: source audit on 2026-10-08 verified the Mail bottom-nav tab set is Inbox/Teams/Agents/Archive, but AppShell supplies only Inbox and Teams numeric overrides; Archive has no numeric badge and Agents has a static AI badge. The Inbox page independently derives archive, lens, thread and unread counts from client-side collections. No unified count projection contract was found.
+
+## QM-SCREEN-058 — QuantDrive folder rename must update the full descendant path atomically
+
+Status: [ ] TODO
+
+Finding: the live QuantDrive folder rename path updates the root folder and every descendant folder as separate database writes. In `apps/quantmail/backend/routes/drive.ts`, `PUT /drive/files/:id` first calls `prisma.folder.update()` for the renamed root, then queries descendants with `path.startsWith(`${oldPath}/`)`, and loops over them calling `prisma.folder.update()` one at a time. There is no surrounding database transaction covering the root update plus descendant path rewrite. A mid-loop database error, worker failure, timeout, or concurrent folder mutation can therefore leave a partially rewritten hierarchy: the root can have the new name/path while some descendants still carry the old path, or different descendants can reflect different generations of the path.
+
+This is not the same failure mode as QM-SCREEN-046. QM-SCREEN-046 covers folder MOVE hierarchy validation and atomicity; this task covers the separate RENAME/path-cascade contract. Path is persisted denormalized hierarchy state and is consumed by other Drive operations, so a partial rename is an integrity defect even when parentId relationships remain correct.
+
+Required: treat a folder rename as one authoritative hierarchy mutation. Validate the requested name, parent state, ownership, collision policy and resulting path before changing anything. Snapshot the complete descendant set from the parentId hierarchy rather than relying only on the current path prefix; this lets the operation detect and repair an already inconsistent path tree instead of silently propagating corruption. Compute every resulting descendant path from the new root path and immutable relative suffixes. Apply the root and all descendant path changes in one database transaction with deterministic ordering/locking appropriate for concurrent folder operations. If the hierarchy is too large for one transaction, implement a durable path-rewrite operation/state machine with a visible pending state and reconciliation, but never expose a half-renamed hierarchy as a completed mutation. Do not use a best-effort loop followed by `{ ok: true }`.
+
+The rename contract must define how files are affected: file.folderId remains authoritative for membership, while any file path/index/search projection that derives from folder paths must be updated or invalidated consistently. Define behavior for renamed folders containing deleted/trash descendants and for concurrent rename/move/restore operations. Preserve idempotency so a retried rename cannot apply a second path transformation. Add audit/event emission only after the transactionally authoritative state exists.
+
+Tests: rename a root with 0, 1, 100+, and deeply nested descendants; inject failure at every descendant update boundary and assert no partial committed hierarchy; concurrent rename-vs-move and double-submit retries; pre-existing path inconsistency; deleted/trash descendants; same-name sibling collision; authorization/ownership; path prefix collision such as `/foo` versus `/foobar`; and post-rename search/list/breadcrumb consistency.
+
+Scope: `apps/quantmail/backend/routes/drive.ts` folder rename handler; Drive folder/path domain service; Prisma folder transaction/indexes; file/search/index projections if path-derived; realtime/audit events; Web and Flutter Drive clients; backend and integration tests.
+
+Dependencies: QM-SCREEN-046; QM-SCREEN-050; QM-SCREEN-051; existing Drive folder/path contract.
+
+Validation: source audit on 2026-10-08 against `main` verified the rename handler updates the root folder first, then finds descendants by `path.startsWith(`${oldPath}/`)`, then performs one `folder.update()` per descendant outside a transaction, and finally returns `{ ok: true }`. No transaction or durable rewrite state surrounds the full root+descendant path mutation.
