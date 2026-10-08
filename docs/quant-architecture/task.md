@@ -1388,9 +1388,10 @@ Scope: Contacts views.
 Dependencies: none.
 
 ## QM-UIUX-063 — QuantGit: sidebar shows fabricated stats
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: muse-main
 Branch: fix/qm-uiux-063-quantgit-fabricated-stats
+Merged: PR #683 (merge commit 9840b0cb, 2026-10-08). Sidebar stats were already fixed by PR #677; #683 removed the fabricated branch/tag selector fallbacks (fake branches feat/speech-telemetry, feat/mcp-registry; hardcoded tags v1.0.5/v1.0.4/v1.0.0) — selector now shows real data or honest empty states.
 Finding: `CodeTab.tsx:2502-2520` — `starsCount={selectedRepo.stars || 111000}` — a repo with 0 stars renders "111,000 stars". Also hardcoded releasesCount={28144}, usedByCount="110K", latestReleaseTag="v1.0.5", fake language breakdown. Always shown. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
 Required: show real counts or honest unknown states; remove fabricated fallbacks.
 Scope: QuantGit CodeTab.
@@ -1406,7 +1407,9 @@ Scope: QuantGit ActionsTab.
 Dependencies: none.
 
 ## QM-UIUX-065 — QuantGit: NotificationsInbox is 100% fake
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-065-quantgit-fake-notifications
 Finding: `NotificationsInbox.tsx` — SAMPLE_NOTIFICATIONS hardcoded as initial state, zero API calls. Fabricated notifications about merged PRs and test suites. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
 Required: wire to real notification API or remove the inbox.
 Scope: QuantGit NotificationsInbox.
