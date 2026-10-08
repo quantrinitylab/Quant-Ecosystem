@@ -275,6 +275,24 @@ function ShareIcon({ className = 'size-4' }: { className?: string }) {
   );
 }
 
+function EyeIcon({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
 function StarIcon({ className = 'size-4' }: { className?: string }) {
   return (
     <svg
@@ -1381,6 +1399,8 @@ export interface DriveFeedSubViewProps {
   onPreviewItem?: (item: DriveFeedItem) => void;
   onDownloadFile?: (id: string, name: string) => void;
   onShareItem?: (item: DriveFeedItem) => void;
+  /** QM-M39-005: open the read-only access viewer for the item. */
+  onViewAccessItem?: (item: DriveFeedItem) => void;
   className?: string;
   /** Real media files from the Drive. When provided, the feed renders these
    * instead of placeholder content. */
@@ -1398,6 +1418,7 @@ export function DriveFeedSubView({
   onPreviewItem,
   onDownloadFile,
   onShareItem,
+  onViewAccessItem,
   className = '',
   files: realFiles,
 }: DriveFeedSubViewProps) {
@@ -1706,6 +1727,14 @@ export function DriveFeedSubView({
                   title="Share File"
                 >
                   <ShareIcon className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onViewAccessItem?.(lightboxItem)}
+                  className="p-2 rounded-xl border border-[#232938] bg-[#12151E] text-[#94A3B8] hover:text-white hover:border-[#38BDF8]"
+                  title="View who has access"
+                >
+                  <EyeIcon className="size-4" />
                 </button>
                 <button
                   type="button"

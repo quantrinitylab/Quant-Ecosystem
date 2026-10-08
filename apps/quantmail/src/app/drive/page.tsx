@@ -15,6 +15,7 @@ import {
   DriveFeedSubView,
   DriveAiMemorySubView,
   FileShareModal,
+  FilePermissionsViewer,
   FileScanDetail,
   type DriveSubTab,
   type RecentItem,
@@ -508,6 +509,8 @@ function DrivePageContent() {
   const [aiSummaryFile, setAiSummaryFile] = useState<DriveItem | null>(null);
   const [isDuplicateCleanerOpen, setIsDuplicateCleanerOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
+  // QM-M39-005: read-only access viewer target (separate from the share-change modal)
+  const [accessTarget, setAccessTarget] = useState<{ id: string; name: string } | null>(null);
 
   const [textPreviewContent, setTextPreviewContent] = useState<string | null>(null);
   const [isLoadingTextPreview, setIsLoadingTextPreview] = useState(false);
@@ -1630,6 +1633,7 @@ function DrivePageContent() {
               }
               onDownloadFile={downloadFile}
               onShareItem={(item) => setShareTarget({ id: item.id, name: item.name })}
+              onViewAccessItem={(item) => setAccessTarget({ id: item.id, name: item.name })}
             />
           )}
 
@@ -1683,6 +1687,22 @@ function DrivePageContent() {
             onClose={() => setShareTarget(null)}
             fileId={shareTarget.id}
             fileName={shareTarget.name}
+          />
+        )}
+
+        {/* QM-M39-005: read-only access viewer — current collaborators, roles,
+            link scope/audience/expiry. Changes happen via Manage sharing. */}
+        {accessTarget && (
+          <FilePermissionsViewer
+            isOpen={!!accessTarget}
+            onClose={() => setAccessTarget(null)}
+            fileId={accessTarget.id}
+            fileName={accessTarget.name}
+            onManageSharing={() => {
+              const target = accessTarget;
+              setAccessTarget(null);
+              setShareTarget(target);
+            }}
           />
         )}
 
