@@ -1559,7 +1559,7 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
           select: { id: true, name: true, mimeType: true, size: true, updatedAt: true },
         })
       : [];
-    const fileMap = new Map(files.map((f: any) => [f.id, f]));
+    const fileMap: Map<string, any> = new Map(files.map((f: any) => [f.id, f]));
 
     const folderIds = [...new Set<string>(shares.map((s: any) => s.folderId).filter(Boolean))];
     const folders = folderIds.length
@@ -1568,7 +1568,7 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
           select: { id: true, name: true, path: true, updatedAt: true },
         })
       : [];
-    const folderMap = new Map(folders.map((f: any) => [f.id, f]));
+    const folderMap: Map<string, any> = new Map(folders.map((f: any) => [f.id, f]));
 
     // Active public-link state per owned file (latest link wins). The token is
     // never exposed — only what the owner needs to know: role, expiry, gate.
