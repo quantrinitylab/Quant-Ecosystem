@@ -139,9 +139,9 @@ describe('QuantMailSuperAppHeader — Amazon/Flipkart-Class Super-App Command He
 
       const driveHtml = renderToStaticMarkup(<QuantMailSuperAppHeader activePillar="drive" />);
       expect(driveHtml).toContain('aria-selected="true" aria-label="Drive Pillar (E2EE)"');
-      // Underline glow color for Drive (Cyan #38BDF8)
-      expect(driveHtml).toContain('#38BDF8');
-      expect(driveHtml).toContain('rgba(56, 189, 248, 0.25)');
+      // Underline glow color for Drive (canonical PILLAR_ACCENTS.drive #34A853, QM-UIUX-037)
+      expect(driveHtml).toContain('#34A853');
+      expect(driveHtml).toContain('rgba(52, 168, 83, 0.25)');
     });
   });
 

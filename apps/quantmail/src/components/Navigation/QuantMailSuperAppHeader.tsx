@@ -9,6 +9,8 @@
 import React, { useState, useEffect, useRef, useCallback, type KeyboardEvent } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { quantSymbolDark } from '@quant/brand';
+// QM-UIUX-037: single accent-color source of truth (mobile values canonical).
+import { PILLAR_ACCENTS } from '../pillar-accents';
 
 // ============================================================================
 // Types & Contracts
@@ -414,8 +416,8 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
     path: '/',
     badge: 12,
     badgeTone: 'amber',
-    accentColor: '#FF8C42',
-    glowColor: 'rgba(255, 140, 66, 0.25)',
+    accentColor: PILLAR_ACCENTS.mail,
+    glowColor: 'rgba(255, 107, 53, 0.25)',
     icon: MailPillarSvg,
   },
   {
@@ -424,8 +426,8 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
     path: '/calendar',
     badge: 2,
     badgeTone: 'amber',
-    accentColor: '#F59E0B',
-    glowColor: 'rgba(245, 158, 11, 0.25)',
+    accentColor: PILLAR_ACCENTS.calendar,
+    glowColor: 'rgba(66, 133, 244, 0.25)',
     icon: CalendarPillarSvg,
   },
   {
@@ -434,8 +436,8 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
     path: '/drive',
     badge: 'E2EE',
     badgeTone: 'cyan',
-    accentColor: '#38BDF8',
-    glowColor: 'rgba(56, 189, 248, 0.25)',
+    accentColor: PILLAR_ACCENTS.drive,
+    glowColor: 'rgba(52, 168, 83, 0.25)',
     icon: DrivePillarSvg,
   },
   {
@@ -444,8 +446,8 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
     path: '/contacts',
     badge: 8,
     badgeTone: 'emerald',
-    accentColor: '#10B981',
-    glowColor: 'rgba(16, 185, 129, 0.25)',
+    accentColor: PILLAR_ACCENTS.contacts,
+    glowColor: 'rgba(138, 180, 248, 0.25)',
     icon: ContactsPillarSvg,
   },
   {
@@ -454,8 +456,8 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
     path: '/quantgit',
     badge: 1,
     badgeTone: 'purple',
-    accentColor: '#A78BFA',
-    glowColor: 'rgba(167, 139, 250, 0.25)',
+    accentColor: PILLAR_ACCENTS.quantgit,
+    glowColor: 'rgba(168, 85, 247, 0.25)',
     icon: QuantGitPillarSvg,
   },
 ];
