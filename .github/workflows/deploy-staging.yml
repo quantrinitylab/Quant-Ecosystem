@@ -427,7 +427,25 @@ jobs:
                 - name: migrate
                   image: $IMMUTABLE_IMAGE
                   imagePullPolicy: IfNotPresent
-                  command: ["node", "packages/database/node_modules/prisma/build/index.js", "migrate", "deploy", "--schema=packages/database/prisma/schema.prisma"]
+                  # 2026-10-09 repair: 0087_drive_share_link_scope_audience failed
+                  # on staging (the table it ALTERed never existed; the FAILED row
+                  # makes every `migrate deploy` die with P3009 and blocks ALL
+                  # deploys). The migration is rewritten as CREATE TABLE IF NOT
+                  # EXISTS; the resolve below clears the old FAILED row first.
+                  # Steady-state no-op: resolve exits non-zero when 0087 is not in
+                  # failed state, which we tolerate — `migrate deploy` remains the
+                  # real gate and still fails loudly on genuine DB errors.
+                  # NOTE: this block is generated through an unquoted bash heredoc
+                  # (<<EOF), so the inner $ must be escaped as \$ to survive until
+                  # the Job's shell runs.
+                  command:
+                  - sh
+                  - -c
+                  - |
+                    set -eu
+                    PRISMA_BIN="node packages/database/node_modules/prisma/build/index.js --schema=packages/database/prisma/schema.prisma"
+                    \$PRISMA_BIN migrate resolve --rolled-back '0087_drive_share_link_scope_audience' || echo 'resolve skipped: 0087 not in failed state'
+                    \$PRISMA_BIN migrate deploy
                   env:
                   - name: DATABASE_URL
                     valueFrom:
