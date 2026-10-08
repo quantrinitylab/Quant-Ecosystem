@@ -1595,3 +1595,70 @@ Required: route every quota-consuming upload/copy operation through the durable 
 Scope: apps/quantmail/backend/routes/drive.ts POST /drive/upload and Drive copy path; apps/quantmail/backend/services/storage-quota.service.ts; durable quota reservation schema/worker; File/FileVersion persistence; object-storage cleanup; upload/copy tests.
 Dependencies: QM-SCREEN-043; QM-SCREEN-050; durable quota/upload operation infrastructure.
 Validation: source audit on 2026-10-08 verified POST /drive/upload calls checkQuota() directly and never reserveQuota(), while checkQuota only reads aggregate File usage plus process-local reservations. The same audit verified the copy route calls checkQuota() before File.create(). No remediation implementation claim yet.
+
+
+## QM-SCREEN-054 — QuantMail archived shelf must show a compact live message badge, not a conversation-count sentence
+
+Status: [ ] TODO
+
+Finding: the live Inbox implementation already has the agreed top-of-list Archived shelf (ArchivedFolderRow), but its current contract is still conversation-count based. ArchivedFolderRow receives count from currentArchivedThreads.length, renders the secondary sentence "{count} archived conversation(s)", and renders the same raw count as the orange badge. This is the wrong product metric for the agreed design: the shelf should remain a compact shortcut inside the Inbox, with the primary numeric affordance representing the number of archived messages, capped visually at 99+. The current value is also derived from the client-side archived rows rather than an authoritative mailbox aggregate, so it can describe only the loaded page/window rather than the complete archive.
+
+The shelf must not become a second Archive page. Keep the top Archived shelf as the quick-access affordance already present in the Inbox, but make it visually compact: Archive icon/label + one numeric badge, with no "3 archived conversations" prose. The badge presentation must be deterministic: 0/unknown -> no numeric badge; 1..99 -> exact count; >=100 -> 99+. The underlying authoritative count must never be truncated. Accessibility text must expose the real full count while the visual badge uses the capped representation.
+
+Required: replace the current conversation-count presentation with a canonical archived-message-count field supplied by the mailbox-count contract from QM-SCREEN-055; render the visual badge with the 99+ cap; remove the redundant count sentence from the shelf; preserve the tap behavior that opens/toggles the Archive workspace; keep loading/unknown/error states distinct from a genuine zero; make the badge update after archive/unarchive, send/receive, delete/restore, mark-read changes where the chosen metric is affected; add responsive visual tests for 0, 1, 99, 100, 1000+ and accessibility assertions for the uncapped accessible name/description.
+
+Scope: apps/quantmail/src/app/page.tsx (ArchivedFolderRow, archive query/count derivation and render); shared mailbox-count DTO/query contract; QuantMail Inbox visual tests; accessibility tests.
+
+Dependencies: QM-SCREEN-055; QM-SCREEN-056.
+
+Validation: source audit on 2026-10-08 verified the current shelf renders count twice (the secondary "{count} archived conversation(s)" sentence and the orange badge), with count={currentArchivedThreads.length}. No 99+ message-count contract exists in the inspected live code.
+
+## QM-SCREEN-055 — QuantMail needs an authoritative mailbox message-count model split by MAIL and CHAT
+
+Status: [ ] TODO
+
+Finding: QuantMail now deliberately stores two message kinds in the same Email model: Prisma Email.messageKind is MAIL | CHAT, the client exposes MessageKind = 'mail' | 'chat', and thread grouping exposes kindMix = 'mail' | 'chat' | 'mixed'. However, the persistent EmailThread.messageCount is only one undifferentiated integer, while EmailFolder has emailCount/unreadCount without a MAIL-vs-CHAT breakdown. The client ConversationThread.count is likewise just messages.length, and kindMix is derived from the loaded messages rather than accompanied by authoritative per-kind counts. The result cannot support the agreed product requirement that QuantMail distinguish message counts across email and chat wherever counts are surfaced.
+
+The current Inbox/Archive list is also paginated: GET /emails calculates total and unreadCount for the selected mailbox predicate, but the Inbox page's Archived shelf does not consume those aggregates. Instead it fetches folderType=ARCHIVE, groups the returned page into client-side threads, and uses currentArchivedThreads.length. Therefore a mailbox with more rows than the loaded page can display an incorrect archive count. The backend also has no inspected authoritative archive-count response containing total messages, unread messages, MAIL messages and CHAT messages together.
+
+Required: define one canonical mailbox-count contract scoped by authenticated user/mailbox/folder/filter semantics. At minimum expose total message count, unread message count, MAIL count, CHAT count, unread MAIL count and unread CHAT count for Inbox/Archive/Spam/Sent/Drafts and any other surfaces that need the metric. Define explicitly whether a "message" means a stored mailbox row, a logical send after duplicate-delivery collapse, or another canonical unit; apply the same rule to counts and list/thread grouping. Do not use paginated list length as a global count. Do not infer MAIL/CHAT from body shape, subject, HTML presence or UI labels; use persisted messageKind. If conversation counts are also required, expose them as a separate metric (conversationCount) rather than overloading messageCount.
+
+Make the count source authoritative and concurrency-safe. A durable aggregate table/counter is acceptable only if every mail/chat mutation updates it transactionally; otherwise compute from indexed canonical rows through a dedicated aggregate query/service with bounded performance and consistent predicates. Archive/unarchive, inbound delivery, outbound send/internal delivery, chat send, trash/restore, spam rescue, folder moves, deduplicated delivery copies and hard deletion must update/recompute the correct counters exactly once. Add migration/backfill/reconciliation tooling for existing Email, EmailThread and EmailFolder data, including rows with the default MAIL kind. Add invariant tests proving: total = MAIL + CHAT; unread = unread MAIL + unread CHAT; archive counts exclude Trash; moving a message between Inbox and Archive changes both mailbox totals without changing its kind; duplicate delivery copies do not double-count a logical send when the product's canonical counting rule says they are one; and concurrent mutations cannot drift counters.
+
+Scope: packages/database/prisma/schema.prisma (Email.messageKind, EmailThread.messageCount, EmailFolder.emailCount/unreadCount); apps/quantmail/backend/routes/emails.ts GET /emails and mailbox mutations; apps/quantmail/backend/services/email.service.ts; thread/realtime services; count/aggregate service and migration/reconciliation; apps/quantmail/src/types/index.ts; apps/quantmail/src/lib/threading.ts; apps/quantmail/src/services/api-client.ts.
+
+Dependencies: QM-BACK-001/002/003; QM-SCREEN-054; existing mail/chat delivery and threading contracts.
+
+Validation: source audit on 2026-10-08 verified persisted Email.messageKind and client ThreadKindMix, but only one EmailThread.messageCount, folder-level emailCount/unreadCount, and client ConversationThread.count. GET /emails returns page-local total/unreadCount; the archived shelf ignores those aggregates and derives its count from grouped client rows. No authoritative MAIL-vs-CHAT mailbox counter DTO was found.
+
+## QM-SCREEN-056 — QuantMail mailbox counts must update in real time, not only through 30-second polling
+
+Status: [ ] TODO
+
+Finding: the current Inbox uses useInbox({ folderType: 'INBOX' }) and useInbox({ folderType: 'ARCHIVE' }). The canonical useInbox query is configured with refetchInterval: 30_000, refetchOnWindowFocus: true, and refetchIntervalInBackground: false. The inspected Inbox page has no mailbox realtime subscription of its own, even though the backend mail routes already publish thread realtime events for new messages. Consequently an archive badge/count can remain stale for up to the polling interval when another device, another tab, an inbound message, or another client archives/unarchives a message. Backgrounded tabs intentionally stop polling, making "real-time" even less true.
+
+Required: connect authoritative mailbox-count changes to the existing event/outbox/realtime architecture. Define versioned events for mailbox membership/count-affecting mutations (inbound message, chat message, send/delivery copy, archive/unarchive, folder move, spam/trash/restore, read/unread and deletion as applicable). The event must be scoped to the affected user/mailbox and carry enough information for the client to update or invalidate the canonical count query without guessing. The client must subscribe through the authenticated realtime transport, update/invalidate the mailbox-count query immediately, and fall back to cursor/poll reconciliation after reconnect or an event gap. Do not make the visual badge optimistic without authoritative confirmation for cross-device changes. Preserve offline behavior: cached counts may be shown as stale/unknown, but must not be presented as freshly authoritative after reconnect until reconciliation completes.
+
+Add tests for same-device mutation, second-tab mutation, second-device mutation, inbound mail, chat send, archive/unarchive, mark read/unread, reconnect after missed events, duplicate event delivery, out-of-order events and background/foreground transitions. Measure that the count changes after the authoritative event rather than waiting for the 30-second poll.
+
+Scope: apps/quantmail/src/hooks/useMail.ts; apps/quantmail/src/app/page.tsx; mailbox-count query/cache; thread-realtime/mail event publisher and outbox consumers; WebSocket/SSE client transport; offline mailbox snapshot/reconciliation; realtime and cross-device tests.
+
+Dependencies: QM-BACK-001; QM-BACK-007; QM-SCREEN-055; existing thread realtime architecture.
+
+Validation: source audit on 2026-10-08 verified the Inbox mailbox hooks use a 30-second polling interval and no direct realtime subscription in page.tsx/useMail.ts. Backend emails.ts does broadcast thread-level realtime events for sent/replied messages, but the inspected Inbox count path does not consume those events to update the mailbox count.
+
+## QM-SCREEN-057 — QuantMail bottom navigation and all count surfaces must consume the same canonical counters
+
+Status: [ ] TODO
+
+Finding: the current live ContextBottomNavBar correctly defines the agreed Mail tabs as Inbox, Teams, Agents, Archive, but its badge wiring is incomplete for the agreed count architecture. AppShell passes only inbox: unreadCount and teams: mailLensCounts.teams; there is no Archive numeric override, and the Agents tab uses a static badgeText: 'AI' rather than a live workload count. The Inbox page itself independently derives lensCounts, turnCounts, filterCounts, thread count, thread unreadCount, and the Archived shelf count from different client-side populations. This creates multiple competing definitions of "count" and makes it possible for bottom-nav, chip, shelf and thread counts to disagree.
+
+Required: define a single count vocabulary and projection contract for every QuantMail count surface. At minimum distinguish conversationCount, messageCount, unreadMessageCount, mailMessageCount, chatMessageCount, unreadMailMessageCount, and unreadChatMessageCount; define which one each surface displays. The bottom nav should use the product-defined metric for each tab and apply the same visual cap (99+) where a numeric badge is used. The Inbox tab should not silently mix unread messages with conversation totals; Archive should use the canonical archive metric from QM-SCREEN-055; Teams should use an authoritative team/unread metric rather than an inbox lens-derived approximation; Agents should show a numeric badge only when there is a real pending agent workload, otherwise no fabricated number/badge. Top Inbox lenses, Archive shelf, folder pages, thread rows, notifications and app-shell badges must all resolve from the same canonical count service/query family.
+
+Define update semantics for every count-affecting mutation and make cross-surface invalidation atomic from the user's perspective. Ensure the 99+ visual cap is presentation-only and accessibility exposes the full count. Add a count-matrix test suite that compares the same mailbox state across desktop/mobile shell, top lenses, Archive shelf, bottom nav, folder pages and thread rows, including mixed MAIL+CHAT conversations. Empty state must be zero/hidden rather than a stale previous badge.
+
+Scope: apps/quantmail/src/components/ContextBottomNavBar.tsx; apps/quantmail/src/components/AppShell.tsx; apps/quantmail/src/app/page.tsx; QuantPillarTopBar; mailbox count/query service; notifications; Web/Flutter/other QuantMail clients that surface mailbox counts.
+
+Dependencies: QM-SCREEN-054; QM-SCREEN-055; QM-SCREEN-056; QM-PLAT-002/003.
+
+Validation: source audit on 2026-10-08 verified the Mail bottom-nav tab set is Inbox/Teams/Agents/Archive, but AppShell supplies only Inbox and Teams numeric overrides; Archive has no numeric badge and Agents has a static AI badge. The Inbox page independently derives archive, lens, thread and unread counts from client-side collections. No unified count projection contract was found.
