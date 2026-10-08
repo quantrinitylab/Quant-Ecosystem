@@ -188,8 +188,8 @@ class _QuantGitPillarViewState extends State<QuantGitPillarView> {
         'desc': 'Sovereign Omni-Platform Monorepo for Quant Unified Enterprise Ecosystem.',
         'language': 'Dart / Flutter',
         'langColor': const Color(0xFF38BDF8),
-        'stars': '14.8k',
-        'forks': '3.2k',
+        'stars': '—',
+        'forks': '—',
         'branch': 'main',
         'isProtected': true,
         'lastPush': '2m ago',
@@ -199,8 +199,8 @@ class _QuantGitPillarViewState extends State<QuantGitPillarView> {
         'desc': 'Zero-latency Sovereign Microkernel with hardware-accelerated memory enclaves.',
         'language': 'Rust / Assembly',
         'langColor': const Color(0xFFF97316),
-        'stars': '8.4k',
-        'forks': '1.1k',
+        'stars': '—',
+        'forks': '—',
         'branch': 'feat/sovereign',
         'isProtected': true,
         'lastPush': '14m ago',
@@ -210,8 +210,8 @@ class _QuantGitPillarViewState extends State<QuantGitPillarView> {
         'desc': 'Autonomous Tripartite Swarm Engine, FastVector embeddings & local ONNX runtime.',
         'language': 'Python / C++',
         'langColor': const Color(0xFF10B981),
-        'stars': '22.1k',
-        'forks': '5.6k',
+        'stars': '—',
+        'forks': '—',
         'branch': 'main',
         'isProtected': true,
         'lastPush': '1h ago',
@@ -221,8 +221,8 @@ class _QuantGitPillarViewState extends State<QuantGitPillarView> {
         'desc': 'Superhuman & Gmail Sovereign Competitor with 120Hz Impeller graphics pipeline.',
         'language': 'Dart / Impeller',
         'langColor': QuantColors.moltenAmber,
-        'stars': '5.2k',
-        'forks': '820',
+        'stars': '—',
+        'forks': '—',
         'branch': 'feat/super-app',
         'isProtected': true,
         'lastPush': '4m ago',
@@ -922,7 +922,7 @@ class _QuantGitPillarViewState extends State<QuantGitPillarView> {
       },
       {
         'id': '#114',
-        'title': 'Sub-5ms FTS5 SQLite Search Query Planner optimization for Inbox Lenses',
+        'title': 'FTS5 SQLite Search Query Planner optimization for Inbox Lenses',
         'priority': 'P3 Low',
         'priorityColor': QuantColors.statusInfo,
         'labels': ['database', 'mail'],
@@ -1147,160 +1147,25 @@ class _QuantGitPillarViewState extends State<QuantGitPillarView> {
   // 4. ACTIONS SUB-VIEW (Real-time CI/CD Pipeline Streaming View)
   // ---------------------------------------------------------------------------
   Widget _buildActionsSubView() {
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      children: [
-        // CI/CD Gate Status
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: QuantColors.darkSlateCard,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: QuantColors.statusSuccess.withOpacity(0.4),
-              width: 1.2,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: QuantColors.statusSuccess.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.check_circle_rounded,
-                      color: QuantColors.statusSuccess,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Master CI Gate on main',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Commit d7192416 · Ran in 42s · 100% Green Matrix',
-                          style: TextStyle(
-                            color: QuantColors.statusSuccess,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              // Job Breakdown
-              const Text(
-                'Workflow Job Breakdown:',
-                style: TextStyle(
-                  color: QuantColors.textMuted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              _buildCiJobItem('lint', 'pass', '4s', QuantColors.statusSuccess),
-              _buildCiJobItem('typecheck', 'pass', '12s', QuantColors.statusSuccess),
-              _buildCiJobItem('vitest', '317/317 pass', '26s', QuantColors.statusSuccess),
-              _buildCiJobItem('impeller-bench', '120.0 FPS locked (0 frames dropped)', 'Instant', QuantColors.sovereignCyan),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-
-        // Workflow Run 2: Post-Quantum Lattice Cryptography Audit
-        _buildCiRunCard(
-          title: 'Post-Quantum Lattice Cryptography Audit',
-          commit: 'f389a12c',
-          duration: '1m 15s',
-          branch: 'main',
-          jobs: [
-            {'name': 'pq-signatures (Dilithium-5)', 'status': 'pass', 'time': '34s'},
-            {'name': 'e2ee-key-exchange (Kyber-1024)', 'status': 'pass', 'time': '41s'},
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        // Workflow Run 3: Flutter Multiplatform Release Build
-        _buildCiRunCard(
-          title: 'Flutter Multiplatform Release Build (Android APK, Linux)',
-          commit: '8e40bb11',
-          duration: '2m 40s',
-          branch: 'feat/super-app',
-          jobs: [
-            {'name': 'apk-build (quant-mail.apk)', 'status': 'pass (34MB)', 'time': '1m 12s'},
-            {'name': 'linux-appimage', 'status': 'pass', 'time': '48s'},
-            {'name': 'aot-snapshot-verification', 'status': 'pass', 'time': '40s'},
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCiJobItem(String jobName, String status, String duration, Color statusColor) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: QuantColors.darkSlateSurface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: QuantColors.hairlineBorder),
-        ),
-        child: Row(
+    // QM-UIUX-059: removed fabricated CI workflow runs (fake SHAs, job names,
+    // pass statuses). Honest empty state until wired to the real CI API.
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.check_rounded,
-              size: 14,
-              color: statusColor,
-            ),
-            const SizedBox(width: 8),
+            Icon(Icons.bolt_rounded, size: 48, color: QuantColors.textSecondary),
+            SizedBox(height: 16),
             Text(
-              jobName,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontFamily: 'monospace',
-                fontWeight: FontWeight.w600,
-              ),
+              'No workflow runs',
+              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
             ),
-            const Spacer(),
+            SizedBox(height: 8),
             Text(
-              status,
-              style: TextStyle(
-                color: statusColor,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              duration,
-              style: const TextStyle(
-                color: QuantColors.textMuted,
-                fontSize: 11,
-              ),
+              'CI/CD runs will appear here when connected.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: QuantColors.textSecondary, fontSize: 13),
             ),
           ],
         ),
@@ -1308,74 +1173,7 @@ class _QuantGitPillarViewState extends State<QuantGitPillarView> {
     );
   }
 
-  Widget _buildCiRunCard({
-    required String title,
-    required String commit,
-    required String duration,
-    required String branch,
-    required List<Map<String, String>> jobs,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: QuantColors.darkSlateCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: QuantColors.hairlineBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.check_circle_outline_rounded,
-                size: 18,
-                color: QuantColors.statusSuccess,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Commit $commit on $branch · Duration $duration',
-            style: const TextStyle(
-              color: QuantColors.textSecondary,
-              fontSize: 11,
-            ),
-          ),
-          const SizedBox(height: 10),
-          ...jobs.map((j) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  children: [
-                    const Icon(Icons.subdirectory_arrow_right_rounded, size: 12, color: QuantColors.textMuted),
-                    const SizedBox(width: 6),
-                    Text(
-                      j['name']!,
-                      style: const TextStyle(color: QuantColors.textSecondary, fontSize: 11),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${j['status']} (${j['time']})',
-                      style: const TextStyle(color: QuantColors.statusSuccess, fontSize: 11, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-              )),
-        ],
-      ),
-    );
-  }
+
 
   // ---------------------------------------------------------------------------
   // 5. COPILOT SUB-VIEW (In-Repo Quanty AI Copilot Interactive Panel)
@@ -1625,7 +1423,7 @@ class _QuantGitPillarViewState extends State<QuantGitPillarView> {
           '• Render Engine: Pure Impeller Metal/Vulkan backend';
     } else {
       response =
-          'Quanty AI analyzed "$prompt": Sovereign AST parsed across 4 repos. All systems nominal with sub-5ms query response.';
+          'Quanty AI analyzed "$prompt": Sovereign AST parsed across 4 repos. All systems nominal.';
     }
 
     Future.delayed(const Duration(milliseconds: 300), () {

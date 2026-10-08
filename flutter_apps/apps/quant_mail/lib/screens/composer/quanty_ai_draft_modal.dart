@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
@@ -40,8 +39,9 @@ enum QuantyTone {
 
 /// Quanty AI Smart Draft Synthesis Modal
 ///
-/// Hardware-accelerated draft synthesis modal utilizing local ONNX
-/// streaming emulation, quick prompt chips, tone selection, and molten glowing beacon.
+/// Draft template modal with quick prompt chips and tone selection.
+/// QM-UIUX-059: removed simulated word-by-word streaming theater.
+/// Templates are local and shown immediately; not live AI output.
 /// Strictly ZERO raw Unicode emojis and ZERO Skia clipPath calls.
 class QuantyAiDraftModal extends StatefulWidget {
   final String? initialPrompt;
@@ -71,7 +71,6 @@ class _QuantyAiDraftModalState extends State<QuantyAiDraftModal> {
   QuantyTone _selectedTone = QuantyTone.professional;
   String _generatedText = '';
   bool _isGenerating = false;
-  Timer? _streamingTimer;
 
   static const List<Map<String, dynamic>> _quickPrompts = [
     {
@@ -111,35 +110,15 @@ class _QuantyAiDraftModalState extends State<QuantyAiDraftModal> {
 
   @override
   void dispose() {
-    _streamingTimer?.cancel();
     _promptController.dispose();
     super.dispose();
   }
 
   void _startSynthesis(String promptText) {
-    _streamingTimer?.cancel();
+    // QM-UIUX-059: show template immediately. No simulated streaming theater.
     setState(() {
-      _isGenerating = true;
-      _generatedText = '';
-    });
-
-    final targetText = _resolveSynthesizedText(promptText, _selectedTone);
-    final words = targetText.split(' ');
-    int currentWordIndex = 0;
-
-    // Simulated word-by-word streaming of the local demo template.
-    _streamingTimer = Timer.periodic(const Duration(milliseconds: 28), (timer) {
-      if (currentWordIndex < words.length) {
-        setState(() {
-          _generatedText += (currentWordIndex == 0 ? '' : ' ') + words[currentWordIndex];
-          currentWordIndex++;
-        });
-      } else {
-        timer.cancel();
-        setState(() {
-          _isGenerating = false;
-        });
-      }
+      _isGenerating = false;
+      _generatedText = _resolveSynthesizedText(promptText, _selectedTone);
     });
   }
 

@@ -9,8 +9,8 @@ void main() {
 
 /// Sovereign QuantMail Flutter Application
 ///
-/// Features Impeller 120Hz zero-allocation rendering, sub-5ms local FTS5 search,
-/// quantum-resistant E2EE envelope security, Superhuman keyboard workflow,
+/// Features Impeller 120Hz zero-allocation rendering, local FTS5 search,
+/// Superhuman keyboard workflow,
 /// and unified 5-pillar enterprise productivity super-app orchestration.
 class QuantMailApp extends StatelessWidget {
   const QuantMailApp({super.key});
