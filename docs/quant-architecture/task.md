@@ -1533,7 +1533,7 @@ Dependencies: none.
 Validation: 2 fakes removed — (1) hardcoded '4.8 GB duplicate storage reclaimed via FastCDC 64KB CAS' toast in drive/page.tsx cleaner tab (dead onReclaimComplete; prop also removed from DriveCleanerSubView interface); (2) invented 0.95 AI-search score default in DriveAISearchBar (score now number|null; '% Match' badge hidden when backend reports none). Verified real: StorageQuotaBar (DB-aggregated quota, 'Calculating…' until loaded), shared/starred counts (real receivedShares/starred items), FileShareModal (no fake collaborators), AI memory vault (no demo records, real /api/drive/memory), feed (real media or empty), upload toasts (real counts), search (real APIs), doc collab (real socket, empty default), version history + AI summary (real APIs). All 9 drive vitest suites pass: 152/152 incl. new null-score test. tsc unavailable in this env (repo typechecks via CI); edited files transform cleanly under vitest.
 
 ## QM-M39-014 — Drive: large-collection performance (virtualization + pagination)
-Status: [~] IN_PROGRESS — Owner: Muse, Branch: fix/qm-m39-014-drive-virtualization
+Status: [x] DONE — PR #666 (virtualization + cursor pagination, tests green, unmerged)
 Finding: M39 requires desktop virtualized list/grid + cursor pagination, mobile progressive loading with compact metadata; sorting/filtering server-compatible and restorable. DriveFilesSubView (545 lines) implementation of this is unverified.
 Required: verify or implement virtualization for large folders; cursor pagination on files API; mobile progressive loading; restore sort/filter state; no client-only fake pagination.
 Scope: apps/quantmail drive files API + DriveFilesSubView.
