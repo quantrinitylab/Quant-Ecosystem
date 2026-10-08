@@ -545,6 +545,12 @@ export function DriveFilesSubView({
                         e.stopPropagation();
                         onDownloadFile?.(file.id, file.name);
                       }}
+                      disabled={file.scanStatus === 'quarantined'}
+                      title={
+                        file.scanStatus === 'quarantined'
+                          ? 'Quarantined — download disabled. Open the file to see the security notice.'
+                          : 'Download'
+                      }
                       className="px-2.5 py-1 rounded-lg bg-[var(--quant-surface-elevated)] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Download
