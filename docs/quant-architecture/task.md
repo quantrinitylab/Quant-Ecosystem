@@ -694,3 +694,20 @@ Finding: Web and Flutter QuantMail expose Drive/storage indicators through diffe
 Required: define quota response/version, used/available/pending-delete states, storage-pressure behavior, upload limits, sharing/ACL state, encryption state, malware-scan state and degraded/offline behavior. Web, Tauri, Capacitor and Flutter must render the same domain semantics even when visual presentation differs.
 Acceptance: empty account, quota exhausted, upload in progress, scan pending/rejected, permission revoked, offline and stale-cache cases are tested; no seeded quota/health values reach production UI.
 Dependencies: QM-SCREEN-010/011; QM-PLAT-006; QuantDrive architecture.
+
+
+## QM-SCREEN-028 — Mail reactions are local-only UI state, not durable domain state
+Status: [ ] TODO
+Finding: `ConversationalThreadView` reads and writes message reactions under `localStorage` (`quantmail:reactions:<threadId>`) because the mail backend currently has no message-reaction endpoint. This means reactions do not converge across devices, are lost outside the browser profile, are not represented in the mail domain/outbox/event stream, and can disagree with the thread shown on another platform.
+Required: either remove reactions from production UI until a mail-domain contract exists, or implement durable reaction state with authorization, idempotent mutation, outbox event, realtime/offline reconciliation and cross-device convergence. Do not use localStorage as the source of truth for collaborative message state.
+Scope: apps/quantmail/src/components/ConversationalThreadView.tsx; mail backend message/reaction contract; offline sync/events.
+Dependencies: QM-WORK-004; QM-BACK-001; ecosystem event-spine/offline-sync contracts.
+Validation: source search confirmed localStorage read/write and an inline comment explicitly states there is no backend reaction endpoint; no implementation claim yet.
+
+## QM-QUANTY-005 — Quanty conversation history must not become an uncontrolled browser plaintext store
+Status: [ ] TODO
+Finding: `QuantyCopilotDrawer` persists its transcript/history under `localStorage` (`quantmail_quanty_chats_v1`). Because the history contains user/assistant message text and the drawer can be opened with email context, this creates a durable browser-side plaintext copy outside the governed QuantDrive memory/session boundary and outside the product retention/export/deletion controls.
+Required: classify Quanty chat history explicitly as ephemeral session state, governed durable history, or user-exportable product data. If durable, store it through the governed Quanty/session data contract with retention, deletion/export, device synchronization and sensitive-content policy; if ephemeral, keep it memory-only or in an explicitly bounded encrypted local store with clear lifecycle semantics. Never silently treat browser localStorage as canonical memory.
+Scope: apps/quantmail/src/components/QuantyCopilotDrawer.tsx; Quanty session/history APIs; memory/data lifecycle contracts.
+Dependencies: QM-QUANTY-001/002; QM-BACK-006; Quanty memory architecture.
+Validation: source audit confirmed `STORAGE_KEY = 'quantmail_quanty_chats_v1'` and localStorage persistence of chat history; no remediation implementation claim yet.
