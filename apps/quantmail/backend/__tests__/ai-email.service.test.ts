@@ -244,9 +244,11 @@ describe('AIEmailService', () => {
 
       const result = await service.suggestReplies('email-1', 'user-1');
 
-      expect(result).toHaveLength(3);
-      expect(result[0].content).toBe('Sounds great!');
-      expect(result[2].content).toContain('next week');
+      expect(result.suggestions).toHaveLength(3);
+      expect(result.suggestions[0].content).toBe('Sounds great!');
+      expect(result.suggestions[2].content).toContain('next week');
+      expect(result.provenance).toBeDefined();
+      expect(result.cost).toBeDefined();
       expect(mailAI.suggestReplies).toHaveBeenCalledWith(
         {
           subject: 'Lunch tomorrow?',
@@ -271,6 +273,8 @@ describe('AIEmailService', () => {
       // Newest-first from the database, like the service requests.
       prisma.email.findMany.mockResolvedValue([
         {
+          id: 'email-2',
+          subject: 'Re: Lunch tomorrow?',
           fromName: null,
           fromAddress: 'me@test.com',
           bodyPlain: 'Noon works for me.',
@@ -278,6 +282,8 @@ describe('AIEmailService', () => {
           isSent: true,
         },
         {
+          id: 'email-0',
+          subject: 'Lunch tomorrow?',
           fromName: 'Friend',
           fromAddress: 'friend@test.com',
           bodyPlain: 'Want to grab lunch tomorrow at noon?',
@@ -302,8 +308,8 @@ describe('AIEmailService', () => {
       );
       const context = mailAI.suggestReplies.mock.calls[0][2];
       expect(context).toEqual([
-        { from: 'Friend', body: 'Want to grab lunch tomorrow at noon?', isMine: false },
-        { from: 'me@test.com', body: 'Noon works for me.', isMine: true },
+        { id: 'email-0', from: 'Friend', body: 'Want to grab lunch tomorrow at noon?', isMine: false },
+        { id: 'email-2', from: 'me@test.com', body: 'Noon works for me.', isMine: true },
       ]);
     });
 

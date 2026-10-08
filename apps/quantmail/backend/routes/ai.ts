@@ -97,4 +97,19 @@ export default async function aiRoutes(fastify: FastifyInstance) {
 
     return reply.send({ success: true, data: result });
   });
+
+  // POST /emails/:id/send-preview — QM-QUANTY-002 preview before mutation.
+  // Returns the exact MutationPreview the user reviews before
+  // POST /emails/:id/send runs. Read-only: never queues or sends.
+  fastify.post<{ Params: { id: string } }>('/:id/send-preview', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const service = getAIService();
+    const preview = await service.prepareSendPreview(request.params.id, userId);
+
+    return reply.send({ success: true, data: preview });
+  });
 }
