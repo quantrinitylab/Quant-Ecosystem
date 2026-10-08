@@ -7,7 +7,12 @@ export interface AISearchResultItem {
   fileId: string;
   fileName: string;
   mimeType: string;
-  score: number;
+  /**
+   * Backend-provided relevance score (0..1). Null when the backend did not
+   * report one — the UI hides the match badge instead of inventing a score
+   * (QM-M39-013: a missing score must never render as "95% Match").
+   */
+  score: number | null;
   snippet: string;
   matchedLine?: number;
 }
@@ -188,7 +193,7 @@ export class DriveAISearchManager {
               ? item.score
               : typeof item.relevanceScore === 'number'
                 ? item.relevanceScore
-                : 0.95,
+                : null,
           snippet: item.snippet || item.matchSnippet || '',
           matchedLine: item.matchedLine ?? item.line,
         }));
@@ -230,7 +235,7 @@ export class DriveAISearchManager {
                   ? item.score
                   : typeof item.relevanceScore === 'number'
                     ? item.relevanceScore
-                    : 1.0,
+                    : null,
               snippet: item.snippet || item.matchSnippet || '',
               matchedLine: item.matchedLine ?? item.line,
             }));
@@ -661,12 +666,16 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
                       )}
                     </div>
 
-                    <span
-                      data-testid="result-match-badge"
-                      className="px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide shrink-0 bg-[#FF8C42]/15 text-[#FF8C42] border border-[#FF8C42]/30"
-                    >
-                      {matchPercentage(result.score)}
-                    </span>
+                    {/* Match badge only when the backend reported a real score.
+                        No score → no badge, never an invented "95% Match". */}
+                    {result.score != null && (
+                      <span
+                        data-testid="result-match-badge"
+                        className="px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide shrink-0 bg-[#FF8C42]/15 text-[#FF8C42] border border-[#FF8C42]/30"
+                      >
+                        {matchPercentage(result.score)}
+                      </span>
+                    )}
                   </div>
 
                   {/* Bottom Line: Highlighted Snippet */}
