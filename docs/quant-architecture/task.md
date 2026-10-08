@@ -1852,7 +1852,8 @@ Scope: apps/quantmail/src/lib/canvas-color.ts (new); canvas call sites listed ab
 Dependencies: QM-UIUX-004.
 
 ## QM-UIUX-072 — Pure-black background, zero divider lines (QuantMail first, then all apps)
-Status: [~] IN_PROGRESS
+Status: [x] DONE
+Completed: 2026-10-09 — PR #682: 7 files in apps/quantmail/src; dark surface tokens -> #000000, border tokens -> transparent; next build + eslint + vitest 9/9 + typecheck clean; mobile/desktop before-after screenshots verified.
 Owner: pureblack-agent
 Branch: fix/qm-uiux-072-pureblack
 Finding: User reference (Gmail mobile dark, 2026-10-09): pure black #000000 backgrounds, no divider lines/borders/separators between rows and cards, no visual noise. Hierarchy must come from typography + spacing, never lines. Current QuantMail surfaces use dark-gray surfaces (#0a0a0a-ish) with visible borders/dividers between email rows, cards, and sections.
