@@ -8,6 +8,8 @@ export * from './DriveVaultSubView';
 export * from './DriveStarredSubView';
 export * from './DriveCleanerSubView';
 export * from './FileShareModal';
+export * from './FilePermissionsViewer';
+export * from './file-access-api';
 export * from './FileScanBadge';
 export {
   DriveHomeSubView,

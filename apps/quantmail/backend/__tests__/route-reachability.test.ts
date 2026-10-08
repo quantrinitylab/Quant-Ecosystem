@@ -57,6 +57,9 @@ describe('Phase Q: Route Reachability & Proxy Invariant Suite (Task Q07)', () =>
     { method: 'GET', url: '/drive/files' },
     { method: 'GET', url: '/drive/trash' },
     { method: 'GET', url: '/drive/shares/received' },
+    // QM-M39-005: read-only access viewer — owner-only upstream, fails closed.
+    { method: 'GET', url: '/drive/files/file-1/links' },
+    { method: 'GET', url: '/drive/files/file-1/share' },
     // Contacts
     { method: 'GET', url: '/contacts' },
     { method: 'GET', url: '/contact-groups' },

@@ -938,6 +938,37 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       })),
     });
   });
+  // ============================================================================
+  // QM-M39-005: read-only access viewer — list a file's public share links.
+  // Owner-only (same gate as GET /drive/files/:id/share). Returns each link's
+  // scope (role + audience), password protection, and expiry state from real
+  // driveShare rows. The token and password hash are never exposed; only the
+  // share URL the owner was already given at creation time.
+  // ============================================================================
+  fastify.get<{ Params: { id: string } }>('/drive/files/:id/links', async (request, reply) => {
+    const userId = requireUserId(request);
+    const file = await fileAccess(prisma, request.params.id, userId);
+    if (file.userId !== userId)
+      throw createAppError('Only the owner can manage sharing', 403, 'FORBIDDEN');
+    const links = await prisma.driveShare.findMany({
+      where: { fileId: file.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    const now = Date.now();
+    return reply.send({
+      links: links.map((link: any) => ({
+        id: link.id,
+        role: link.role,
+        // Scope is fixed: the share URL grants access to anyone who holds it.
+        audience: 'anyone_with_link',
+        requiresPassword: Boolean(link.password),
+        expiresAt: link.expiresAt,
+        expired: link.expiresAt ? new Date(link.expiresAt).getTime() < now : false,
+        createdAt: link.createdAt,
+        shareUrl: `/drive/share/${link.token}`,
+      })),
+    });
+  });
   fastify.post<{ Params: { id: string } }>('/drive/files/:id/share', async (request, reply) => {
     const parsed = shareSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;

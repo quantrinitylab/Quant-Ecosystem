@@ -87,6 +87,17 @@ interface ShareRow {
   createdAt: Date;
 }
 
+interface DriveLinkRow {
+  id: string;
+  fileId: string;
+  createdById: string;
+  token: string;
+  role: string;
+  password: string | null;
+  expiresAt: Date | null;
+  createdAt: Date;
+}
+
 interface FileVersionRow {
   id: string;
   fileId: string;
@@ -103,6 +114,7 @@ let users: UserRow[] = [];
 let files: FileRow[] = [];
 let folders: FolderRow[] = [];
 let shares: ShareRow[] = [];
+let driveLinks: DriveLinkRow[] = [];
 let fileVersions: FileVersionRow[] = [];
 
 function matches(record: any, where: any): boolean {
@@ -191,6 +203,12 @@ function createFakePrisma() {
         const initial = shares.length;
         shares = shares.filter((s) => !matches(s, where));
         return { count: initial - shares.length };
+      },
+    },
+    driveShare: {
+      findMany: async ({ where, orderBy }: { where?: any; orderBy?: any }) => {
+        void orderBy;
+        return driveLinks.filter((l) => matches(l, where));
       },
     },
     file: {
@@ -360,6 +378,7 @@ describe('QuantDrive Parity & Integrity (Wave 5 Phase D)', () => {
     files = [];
     folders = [];
     shares = [];
+    driveLinks = [];
     fileVersions = [];
   });
 
@@ -617,6 +636,141 @@ describe('QuantDrive Parity & Integrity (Wave 5 Phase D)', () => {
       expect(item.permission).toBe('view');
 
       await recipientApp.close();
+    });
+  });
+
+  // QM-M39-005: GET /drive/files/:id/links - read-only link access listing
+  describe('QM-M39-005: GET /drive/files/:id/links (access viewer)', () => {
+    const seedFileAndLinks = () => {
+      const now = new Date();
+      files.push({
+        id: 'file-with-links',
+        name: 'Board_Deck.pdf',
+        mimeType: 'application/pdf',
+        size: 4096,
+        folderId: null,
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        encryptedContent: 'k',
+        encryptionIV: 'iv',
+        encryptionAuthTag: 'tag',
+        encryptionKey: 'key',
+        contentHash: 'hash',
+        userId: 'user-owner',
+        createdAt: now,
+        updatedAt: now,
+      });
+      driveLinks.push(
+        {
+          id: 'link-active',
+          fileId: 'file-with-links',
+          createdById: 'user-owner',
+          token: 'tok-active-secret',
+          role: 'viewer',
+          password: null,
+          expiresAt: new Date(now.getTime() + 7 * 86_400_000),
+          createdAt: now,
+        },
+        {
+          id: 'link-expired-locked',
+          fileId: 'file-with-links',
+          createdById: 'user-owner',
+          token: 'tok-expired-secret',
+          role: 'editor',
+          password: '$argon2id$v=19$m=65536,t=3,p=4$hash',
+          expiresAt: new Date(now.getTime() - 86_400_000),
+          createdAt: now,
+        },
+        {
+          id: 'link-other-file',
+          fileId: 'some-other-file',
+          createdById: 'user-owner',
+          token: 'tok-other-secret',
+          role: 'viewer',
+          password: null,
+          expiresAt: null,
+          createdAt: now,
+        },
+      );
+    };
+
+    it('returns the file links with scope, audience, and expiry - never the token or password hash', async () => {
+      seedFileAndLinks();
+      const app = await buildApp('user-owner');
+      const res = await app.inject({ method: 'GET', url: '/drive/files/file-with-links/links' });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.links).toHaveLength(2);
+
+      const active = body.links.find((l: any) => l.id === 'link-active');
+      expect(active.role).toBe('viewer');
+      expect(active.audience).toBe('anyone_with_link');
+      expect(active.requiresPassword).toBe(false);
+      expect(active.expired).toBe(false);
+      expect(new Date(active.expiresAt).getTime()).toBeGreaterThan(Date.now());
+      expect(active.shareUrl).toBe('/drive/share/tok-active-secret');
+
+      const expired = body.links.find((l: any) => l.id === 'link-expired-locked');
+      expect(expired.role).toBe('editor');
+      expect(expired.requiresPassword).toBe(true);
+      expect(expired.expired).toBe(true);
+
+      // Secrets must never leak through the listing: no raw token field and
+      // no password hash. The shareUrl embeds the token (as it does in the
+      // create-link response) because the owner needs the URL to copy it.
+      for (const link of body.links) {
+        expect(link.token).toBeUndefined();
+        expect(link.password).toBeUndefined();
+        expect(JSON.stringify(link)).not.toContain('argon2');
+        expect(link.shareUrl).toMatch(/^\/drive\/share\//);
+      }
+
+      await app.close();
+    });
+
+    it('returns an empty list when the file has no links', async () => {
+      const now = new Date();
+      files.push({
+        id: 'file-no-links',
+        name: 'Private_Notes.txt',
+        mimeType: 'text/plain',
+        size: 128,
+        folderId: null,
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        encryptedContent: 'k',
+        encryptionIV: 'iv',
+        encryptionAuthTag: 'tag',
+        encryptionKey: 'key',
+        contentHash: 'hash',
+        userId: 'user-owner',
+        createdAt: now,
+        updatedAt: now,
+      });
+      const app = await buildApp('user-owner');
+      const res = await app.inject({ method: 'GET', url: '/drive/files/file-no-links/links' });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().links).toEqual([]);
+      await app.close();
+    });
+
+    it('rejects a non-owner with 403', async () => {
+      seedFileAndLinks();
+      const app = await buildApp('user-other');
+      const res = await app.inject({ method: 'GET', url: '/drive/files/file-with-links/links' });
+      expect(res.statusCode).toBe(403);
+      await app.close();
+    });
+
+    it('returns 404 for a missing file', async () => {
+      const app = await buildApp('user-owner');
+      const res = await app.inject({ method: 'GET', url: '/drive/files/no-such-file/links' });
+      expect(res.statusCode).toBe(404);
+      await app.close();
     });
   });
 
