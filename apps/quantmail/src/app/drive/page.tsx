@@ -1366,17 +1366,7 @@ function DrivePageContent() {
             />
           )}
 
-          {activeTab === 'cleaner' && (
-            <DriveCleanerSubView
-              onReclaimComplete={() => {
-                showToast({
-                  text: '4.8 GB duplicate storage reclaimed via FastCDC 64KB CAS',
-                  type: 'success',
-                });
-                fetchFiles(currentFolderId);
-              }}
-            />
-          )}
+          {activeTab === 'cleaner' && <DriveCleanerSubView />}
 
           {(activeTab === 'home' || activeTab === 'files') && activeFilter === 'trash' && (
             <div className="space-y-4">

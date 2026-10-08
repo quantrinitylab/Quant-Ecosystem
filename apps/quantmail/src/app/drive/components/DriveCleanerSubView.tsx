@@ -22,9 +22,21 @@ export interface DuplicateCluster {
 
 export interface DriveCleanerSubViewProps {
   clusters?: DuplicateCluster[];
-  onReclaimComplete?: () => void;
 }
 
+/**
+ * Storage Cleaner — duplicate scan results.
+ *
+ * NOTE (QM-M39-013 fake-data purge): the interactive duplicate scan + reclaim
+ * flow lives in `AIDuplicateCleanerModal` (real `/api/drive/ai/duplicates`
+ * scan, real `/api/drive/files/trash` cleanup, real byte counts). This view
+ * renders clusters only — it previously accepted an `onReclaimComplete`
+ * callback whose page-level handler fired a hardcoded
+ * "4.8 GB duplicate storage reclaimed" toast that was pure fabrication
+ * (nothing ever reclaimed anything; the callback was never even invoked).
+ * The dead callback and the fake toast were removed. Never reintroduce a
+ * reclaim message here that does not carry real removedCount/savedBytes.
+ */
 export function DriveCleanerSubView({ clusters = [] }: DriveCleanerSubViewProps) {
   return (
     <div

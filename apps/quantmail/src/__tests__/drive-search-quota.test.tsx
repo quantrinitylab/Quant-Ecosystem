@@ -194,6 +194,35 @@ describe('DriveAISearch & StorageQuota Architect Test Suite', () => {
       expect(state.isSearching).toBe(false);
     });
 
+    it('does not invent a match score when the backend reports none (QM-M39-013)', async () => {
+      const mockApiFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          results: [
+            {
+              fileId: 'f-noscore',
+              fileName: 'Notes.md',
+              mimeType: 'text/markdown',
+              snippet: 'a matching passage',
+            },
+          ],
+        }),
+      });
+
+      const manager = new DriveAISearchManager({
+        apiFetch: mockApiFetch as any,
+        debounceMs: 0,
+      });
+
+      await manager.search('notes');
+
+      const state = manager.getState();
+      expect(state.results.length).toBe(1);
+      // Previously this defaulted to 0.95, rendering a fabricated "95% Match"
+      // badge for a score the backend never reported.
+      expect(state.results[0].score).toBeNull();
+    });
+
     it('manages keyboard navigation selection index and wrapping', () => {
       const manager = new DriveAISearchManager();
       manager.setResults(sampleSearchResults);
