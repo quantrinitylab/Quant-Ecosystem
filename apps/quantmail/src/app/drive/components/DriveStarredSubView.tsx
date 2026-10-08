@@ -23,36 +23,6 @@ export interface DriveStarredSubViewProps {
   onDeleteItem?: (id: string, name: string, e?: React.MouseEvent) => void;
 }
 
-const DEFAULT_DEMO_STARRED: StarredItem[] = [
-  {
-    id: 'star-1',
-    name: 'Sovereign_Cloud_Key_Management_RFC.pdf',
-    type: 'file',
-    mimeType: 'application/pdf',
-    size: 6400000,
-    modifiedAt: '2026-10-01T12:00:00Z',
-    isStarred: true,
-  },
-  {
-    id: 'star-2',
-    name: 'Q3_Financial_Projections_Final.xlsx',
-    type: 'file',
-    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    size: 2800000,
-    modifiedAt: '2026-09-30T15:30:00Z',
-    isStarred: true,
-  },
-  {
-    id: 'star-3',
-    name: 'FastCDC_Deduplication_Specification.md',
-    type: 'file',
-    mimeType: 'text/markdown',
-    size: 450000,
-    modifiedAt: '2026-09-29T09:10:00Z',
-    isStarred: true,
-  },
-];
-
 export function DriveStarredSubView({
   items,
   loading = false,
@@ -61,7 +31,7 @@ export function DriveStarredSubView({
   onDownloadFile,
   onDeleteItem,
 }: DriveStarredSubViewProps) {
-  const activeItems = items.length > 0 ? items : DEFAULT_DEMO_STARRED;
+  const activeItems = items;
 
   return (
     <div
@@ -84,15 +54,26 @@ export function DriveStarredSubView({
               </span>
             </div>
             <p className="text-xs text-[#94A3B8] mt-0.5">
-              Priority bookmarks and quick-access sovereign assets
+              Priority bookmarks and quick-access files
             </p>
           </div>
         </div>
       </div>
 
       {/* Starred Files Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
-        {activeItems.map((item) => (
+      {activeItems.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#232938] bg-[#12151E] px-6 py-12 text-center">
+          <div className="size-10 rounded-xl bg-[#090A0E] border border-[#232938] flex items-center justify-center text-[#64748B]">
+            <StarFilledIcon className="size-5" />
+          </div>
+          <p className="text-sm font-semibold text-[#F8FAFC]">No starred files yet</p>
+          <p className="text-xs text-[#94A3B8]">
+            Star a file to pin it here for quick access.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+          {activeItems.map((item) => (
           <div
             key={item.id}
             onClick={() => onPreviewItem?.(item)}
@@ -127,7 +108,7 @@ export function DriveStarredSubView({
             </div>
 
             <div className="pt-2 border-t border-[#232938] flex items-center justify-between text-[11px]">
-              <span className="text-[#64748B] font-mono text-[10px]">FastCDC Verified</span>
+              <span className="text-[#64748B] font-mono text-[10px]">Pinned</span>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
@@ -153,7 +134,8 @@ export function DriveStarredSubView({
             </div>
           </div>
         ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
