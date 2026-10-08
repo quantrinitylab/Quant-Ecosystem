@@ -125,6 +125,27 @@ export function getSendBlockReason(to: string, subject: string, body: string): s
   return null;
 }
 
+/**
+ * Which Quanty reaction a blocked send announces (QM-UIUX-025).
+ *
+ * Mirrors `getSendBlockReason` field-for-field and in the same order, so the
+ * mascot, the error toast and the Send button's disabled state can never
+ * disagree about what is missing. Before this, every block — missing subject
+ * and missing body included — fired `mail:noRecipients`, a copy-paste bug
+ * that made Quanty react "no recipients" to problems that had nothing to do
+ * with recipients. Returns `null` exactly when `getSendBlockReason` does.
+ */
+export function getSendBlockReaction(
+  to: string,
+  subject: string,
+  body: string,
+): 'mail:noRecipients' | 'mail:noSubject' | 'mail:noBody' | null {
+  if (!to.trim()) return 'mail:noRecipients';
+  if (!subject.trim()) return 'mail:noSubject';
+  if (!body.trim()) return 'mail:noBody';
+  return null;
+}
+
 export interface EmailComposerProps {
   initialTo?: string | Array<{ email: string; name?: string }>;
   initialSubject?: string;
@@ -673,12 +694,16 @@ export function EmailComposer({
   //
   // Every exit announces itself to Quanty as well as to the toast rail, and the two are not
   // redundant: a toast is a sentence that appears and leaves, the mascot is a face that is
-  // already on screen and holds. `mail:noRecipients` deliberately is not an error event — an
-  // unfinished draft is `worried`, not `error`, because the user has not done anything wrong yet.
+  // already on screen and holds. The block reactions (`mail:noRecipients` /
+  // `mail:noSubject` / `mail:noBody`, picked by `getSendBlockReaction`)
+  // deliberately are not error events — an unfinished draft is `worried`, not
+  // `error`, because the user has not done anything wrong yet.
   // Send Handler with 10s Recall Window & Undo-Send Integration
   const handleSend = async (scheduledAt?: string) => {
     if (sendBlockReason) {
-      quantyReact('mail:noRecipients');
+      // QM-UIUX-025: announce the field that is actually missing — subject
+      // and body blocks must not fire the recipients reaction.
+      quantyReact(getSendBlockReaction(to, subject, body) ?? 'mail:noRecipients');
       showToast({ text: sendBlockReason, type: 'error' });
       return;
     }
@@ -816,9 +841,14 @@ export function EmailComposer({
         }
 
         // The host page (e.g. `/compose`) owns the confirmation toast on its
-        // path — it shows "Message sent" with the 10-second undo action — so
-        // the composer does not stack a second one here. The exception is a
-        // scheduled send, which the page persists without toasting.
+        // path — it shows "Sending… (10s to undo)" for the 10-second recall
+        // window (QM-UIUX-025: it must not claim "Message sent" while the
+        // send can still be undone) — so the composer does not stack a
+        // second one here. The exception is a scheduled send, which the page
+        // persists without toasting. The composer's own "Message sent" below
+        // only fires after the awaited send has actually completed (on the
+        // modal path `sendNow` runs as queueSend's post-countdown callback),
+        // so that copy is true when it appears.
         const pageOwnsToast = Boolean(onSend) && !draftSnapshot.scheduledAt;
 
         quantyReact(draftSnapshot.scheduledAt ? 'mail:scheduled' : 'mail:sent');
@@ -837,8 +867,8 @@ export function EmailComposer({
     };
 
     if (isFullPageCompose) {
-      // Send first, navigate after: the "Message sent" confirmation toast is
-      // on screen before the route changes.
+      // Send first, navigate after: the host page's "Sending… (10s to undo)"
+      // toast is on screen before the route changes.
       await sendNow();
       router.push('/');
       return;
@@ -1065,7 +1095,11 @@ export function EmailComposer({
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
           className={
             modal
-              ? `fixed bottom-0 right-4 sm:right-8 z-50 flex flex-col w-full sm:w-[600px] h-[580px] max-h-[90vh] rounded-t-2xl shadow-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-subtle)] text-white select-text overflow-hidden box-border print:static print:h-auto print:max-h-none print:bg-white print:text-black ${className || ''}`
+              ? // QM-UIUX-025: on mobile this was `right-4 w-full` — width 100%
+                // plus a 1rem right offset overflowed the viewport by 1rem.
+                // `inset-x-4 w-auto` pins both edges instead; sm+ restores the
+                // anchored 600px panel (`left-auto` undoes the mobile left pin).
+                `fixed bottom-0 inset-x-4 w-auto sm:left-auto sm:right-8 z-50 flex flex-col sm:w-[600px] h-[580px] max-h-[90vh] rounded-t-2xl shadow-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-subtle)] text-white select-text overflow-hidden box-border print:static print:h-auto print:max-h-none print:bg-white print:text-black ${className || ''}`
               : `flex flex-col h-[100dvh] max-h-[100dvh] w-full max-w-full bg-[var(--quant-surface-subtle)] text-white select-text overflow-hidden box-border print:h-auto print:max-h-none print:bg-white print:text-black print:overflow-visible ${className || ''}`
           }
         >

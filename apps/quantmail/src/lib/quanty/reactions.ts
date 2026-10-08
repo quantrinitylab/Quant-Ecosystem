@@ -50,6 +50,8 @@ export type QuantyEvent =
   | 'mail:inboxZero'
   | 'mail:newMail'
   | 'mail:noRecipients'
+  | 'mail:noSubject'
+  | 'mail:noBody'
   // ---- the assistant ----
   | 'ai:thinking'
   | 'ai:streaming'
@@ -128,6 +130,11 @@ export const REACTIONS = {
   'mail:newMail': { face: 'curious', ms: 1400, priority: PRIORITY.ambient },
   // Not an error — the user has not finished yet. Worried, not cross.
   'mail:noRecipients': { face: 'worried', ms: 1800, priority: PRIORITY.outcome },
+  // QM-UIUX-025: missing subject/body get their own events, not a reused
+  // 'mail:noRecipients' — a mascot that reacts "no recipients" to an empty
+  // subject reads as fake. Same worried family: still just an unfinished draft.
+  'mail:noSubject': { face: 'worried', ms: 1800, priority: PRIORITY.outcome },
+  'mail:noBody': { face: 'worried', ms: 1800, priority: PRIORITY.outcome },
 
   'ai:thinking': { face: 'thinking', ms: 25_000, priority: PRIORITY.state },
   'ai:streaming': { face: 'focused', ms: 25_000, priority: PRIORITY.state },
