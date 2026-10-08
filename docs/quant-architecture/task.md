@@ -1463,28 +1463,28 @@ Scope: apps/quantmail DriveFilePreview + doc editor.
 Dependencies: QM-M39-009.
 
 ## QM-M39-005 — Drive: permissions/access viewer (screen 21)
-Status: [ ] TODO
+Status: [x] DONE — PR #670 open (read-only drive permissions/access viewer, screen 21), wave-4 agent reported tests green
 Finding: M39 screen 21 (permissions/access viewer) is missing — FileShareModal covers share changes but there is no read view of current access. Sharing principle: UI must separate CURRENT access from PROPOSED changes.
 Required: read-only access viewer showing current collaborators, roles, link scope/audience/expiry; distinct from the share-change flow; real backend data only.
 Scope: apps/quantmail drive shares API + FileShareModal/page.
 Dependencies: QM-M39-001.
 
 ## QM-M39-006 — Drive: link sharing with scope/audience/expiry + authoritative confirmation (screen 22)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS (Owner: muse-m39-wave5, Branch: fix/qm-m39-006-link-sharing)
 Finding: M39 screen 22 requires link sharing that exposes scope, audience, expiry, permission — and saving a share change requires authoritative confirmation. shares/link route exists; full scope/audience/expiry UI + confirmation is unverified.
 Required: link dialog with scope (anyone/org/specific), audience, expiry picker, permission; confirmation step before save; backend enforces expiry; honest states (never claim a link exists when it doesn't).
 Scope: apps/quantmail drive shares/link + UI.
 Dependencies: QM-M39-005.
 
 ## QM-M39-007 — Drive: file details panel (screen 24)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS (Owner: muse-m39-wave5, Branch: fix/qm-m39-007-details-panel)
 Finding: M39 screen 24 (file details) missing. File identity rule: every file surface must make name, type, owner, modified time, location, sharing state, scan/availability state, and version context understandable when relevant.
 Required: details panel (side or modal) with all identity fields from real backend data; location breadcrumb; sharing summary; version count; scan state; no fabricated metadata.
 Scope: apps/quantmail drive page + files API.
 Dependencies: QM-M39-009.
 
 ## QM-M39-008 — Drive: activity/history view (screen 25)
-Status: [ ] TODO
+Status: [x] DONE — PR #669 open (drive per-file activity/history view, screen 25), wave-4 agent reported tests green
 Finding: M39 screen 25 (activity/history) missing — no per-file event log surface exists.
 Required: backend event log for file actions (upload, rename, move, share change, version restore); UI timeline per file; honest empty state; no fake activity entries.
 Scope: apps/quantmail drive backend + drive page.
@@ -1501,21 +1501,21 @@ Scope: apps/quantmail drive backend + UI.
 Dependencies: none.
 
 ## QM-M39-010 — Drive: mail attachment handoff (screen 30)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS (Owner: muse-m39-wave5, Branch: fix/qm-m39-010-mail-handoff)
 Finding: M39 screen 30: Mail attachment → Drive preview/save → canonical Drive file. Drive owns file objects; mail attachment references must not be duplicate Drive objects. No such handoff exists.
 Required: "Save to Drive" on mail attachments creating a canonical Drive object with dedupe (content-hash based, not duplicate rows); preview via Drive preview; return-to-Mail context.
 Scope: apps/quantmail mail attachment UI + drive backend.
 Dependencies: QM-M39-004.
 
 ## QM-M39-011 — Drive: Quanty file workspace (screen 31)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS (Owner: muse-m39-wave5, Branch: fix/qm-m39-011-quanty-workspace)
 Finding: M39 screen 31 (Quanty file workspace) missing — FileAISummaryDrawer gives one-shot summaries, not a workspace where Quanty helps organize (move/copy suggestions, dedupe, find files).
 Required: Quanty-assisted file operations surface wired to real Quanty tools (search files, suggest destination, summarize); every action must execute real backend ops and report real results; no simulated Quanty streaming (already banned pattern).
 Scope: apps/quantmail drive + Quanty integration.
 Dependencies: QM-M39-004, QM-M39-008.
 
 ## QM-M39-012 — Drive: settings handoff (screen 32)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS (Owner: muse-m39-wave5, Branch: fix/qm-m39-012-drive-settings)
 Finding: M39 screen 32 (Drive settings handoff) missing — no Drive settings surface (storage management, offline, sync preferences, default sharing).
 Required: Drive settings surface with real, working controls only; every toggle must persist via backend; remove or never-add decorative controls.
 Scope: apps/quantmail drive page + backend.
