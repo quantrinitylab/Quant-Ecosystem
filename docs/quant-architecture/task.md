@@ -1480,7 +1480,7 @@ Scope: apps/quantmail drive shares/link + UI.
 Dependencies: QM-M39-005.
 
 ## QM-M39-007 — Drive: file details panel (screen 24)
-Status: [~] IN_PROGRESS (Owner: muse-m39-wave5, Branch: fix/qm-m39-007-details-panel)
+Status: [x] DONE — PR #672 open (drive file details panel: GET /drive/files/:id/details + FileDetailsPanel slide-over, real DB data, scan state wired); backend 6/6 + frontend 11/11 new tests green, existing suites green, frontend tsc clean, build green (backend tsc: 70 pre-existing errors in packages/auth+database, none in touched files)
 Finding: M39 screen 24 (file details) missing. File identity rule: every file surface must make name, type, owner, modified time, location, sharing state, scan/availability state, and version context understandable when relevant.
 Required: details panel (side or modal) with all identity fields from real backend data; location breadcrumb; sharing summary; version count; scan state; no fabricated metadata.
 Scope: apps/quantmail drive page + files API.
