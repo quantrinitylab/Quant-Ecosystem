@@ -185,7 +185,7 @@ export function DesktopContextSidebar({
               )}
               {tab.badgeText && (
                 <span
-                  className="flex h-[16px] items-center rounded border border-[#2A3144] bg-[#141722] px-1.5 text-[9px] font-extrabold uppercase tracking-tight text-[#94A3B8]"
+                  className="flex h-[16px] items-center rounded border border-[#2A3144] bg-[#141722] px-1.5 text-[var(--q-type-xs)] font-extrabold uppercase tracking-tight text-[#94A3B8]"
                   aria-hidden="true"
                 >
                   {tab.badgeText}

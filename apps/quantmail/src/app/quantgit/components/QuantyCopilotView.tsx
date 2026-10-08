@@ -553,7 +553,7 @@ export function QuantyCopilotView({
                     <div>
                       <div className="flex items-center gap-1.5">
                         <span className="font-semibold text-white">Create image or diagram</span>
-                        <span className="text-[9px] font-bold px-1.5 py-px rounded bg-[#58A6FF]/20 text-[#58A6FF]">
+                        <span className="text-[var(--q-type-xs)] font-bold px-1.5 py-px rounded bg-[#58A6FF]/20 text-[#58A6FF]">
                           New
                         </span>
                       </div>
@@ -806,7 +806,7 @@ export function QuantyCopilotView({
                             <div className="pr-2 min-w-0 flex-1">
                               <div className="flex items-center gap-1.5">
                                 <span
-                                  className={`px-1.5 py-px rounded text-[9px] font-bold ${sk.catColor}`}
+                                  className={`px-1.5 py-px rounded text-[var(--q-type-xs)] font-bold ${sk.catColor}`}
                                 >
                                   {sk.cat}
                                 </span>
@@ -1073,7 +1073,7 @@ export function QuantyCopilotView({
                     >
                       + Add sources
                     </button>
-                    <span className="text-[9px] text-[#7D8590]">Sources scoped</span>
+                    <span className="text-[var(--q-type-xs)] text-[#7D8590]">Sources scoped</span>
                   </div>
                   <p className="text-[10px] text-[#7D8590] leading-relaxed">
                     Quanty AI will only search information from the sources selected here.

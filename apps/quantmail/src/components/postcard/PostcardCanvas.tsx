@@ -62,7 +62,7 @@ function VintagePostageStamp({
       <div className="absolute -left-16 -top-3.5 z-20 pointer-events-none flex items-center gap-1.5 opacity-90">
         {/* Dual Ring Circular Postmark */}
         <div
-          className="relative size-14 rounded-full border border-dashed flex flex-col items-center justify-center text-[7px] font-bold uppercase tracking-wider text-center p-1"
+          className="relative size-14 rounded-full border border-dashed flex flex-col items-center justify-center text-[var(--q-type-xs)] font-bold uppercase tracking-wider text-center p-1"
           style={{
             borderColor: postmarkColor,
             color: postmarkColor,
@@ -133,7 +133,7 @@ function VintagePostageStamp({
           </div>
 
           {/* Stamp Bottom Text */}
-          <span className="text-[6px] font-bold tracking-widest text-[#6B6E76] dark:text-[#FF8C42]/80 uppercase">
+          <span className="text-[var(--q-type-xs)] font-bold tracking-widest text-[#6B6E76] dark:text-[#FF8C42]/80 uppercase">
             QUANT TRINITY
           </span>
         </div>
@@ -279,7 +279,7 @@ export function PostcardCanvas({
                 >
                   Post Card
                 </span>
-                <span className="hidden sm:inline-block text-[9px] font-mono tracking-widest uppercase text-[#6B6E76] dark:text-[#A1A4AC]">
+                <span className="hidden sm:inline-block text-[var(--q-type-xs)] font-mono tracking-widest uppercase text-[#6B6E76] dark:text-[#A1A4AC]">
                   · QuantMail Postal Transmission ·
                 </span>
               </div>
@@ -353,7 +353,7 @@ export function PostcardCanvas({
                     }}
                   >
                     <span
-                      className="text-[9px] font-mono uppercase tracking-widest mr-2 opacity-70"
+                      className="text-[var(--q-type-xs)] font-mono uppercase tracking-widest mr-2 opacity-70"
                       style={{ color: template.inkColor }}
                     >
                       To:
@@ -374,7 +374,7 @@ export function PostcardCanvas({
                     }}
                   >
                     <span
-                      className="text-[9px] font-mono uppercase tracking-widest mr-2 opacity-70"
+                      className="text-[var(--q-type-xs)] font-mono uppercase tracking-widest mr-2 opacity-70"
                       style={{ color: template.inkColor }}
                     >
                       Addr:
@@ -386,7 +386,7 @@ export function PostcardCanvas({
 
                   {/* Encrypted Transit Hash Line */}
                   <div
-                    className="border-b border-dashed pb-0.5 flex items-center justify-between text-[8px] font-mono opacity-70"
+                    className="border-b border-dashed pb-0.5 flex items-center justify-between text-[var(--q-type-xs)] font-mono opacity-70"
                     style={{
                       borderColor: isDark ? 'rgba(245,158,11,0.3)' : 'rgba(140,109,82,0.4)',
                       color: template.inkColor,

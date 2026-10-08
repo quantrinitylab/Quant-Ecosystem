@@ -178,7 +178,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                 </div>
               ))}
               {collaborators.length > 4 && (
-                <div className="w-6 h-6 rounded-full border-2 border-[#0D1117] bg-[#21262D] text-[#8B949E] flex items-center justify-center text-[9px] font-semibold">
+                <div className="w-6 h-6 rounded-full border-2 border-[#0D1117] bg-[#21262D] text-[#8B949E] flex items-center justify-center text-[var(--q-type-xs)] font-semibold">
                   +{collaborators.length - 4}
                 </div>
               )}

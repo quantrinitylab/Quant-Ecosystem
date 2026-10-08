@@ -382,11 +382,11 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
                 >
                   <span>{selectedModel.name}</span>
                   {selectedModel.badge && (
-                    <span className="px-1 py-0.1 rounded text-[9px] bg-purple-500/30 text-purple-300">
+                    <span className="px-1 py-0.1 rounded text-[var(--q-type-xs)] bg-purple-500/30 text-purple-300">
                       {selectedModel.badge}
                     </span>
                   )}
-                  <span className="text-[9px] text-[#8D96A0]">▼</span>
+                  <span className="text-[var(--q-type-xs)] text-[#8D96A0]">▼</span>
                 </button>
 
                 {isModelMenuOpen && (
@@ -412,7 +412,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
                           <div className="font-medium text-xs flex items-center gap-1.5">
                             <span>{m.name}</span>
                             {m.badge && (
-                              <span className="px-1 py-0.1 rounded text-[9px] bg-purple-500/30 text-purple-300">
+                              <span className="px-1 py-0.1 rounded text-[var(--q-type-xs)] bg-purple-500/30 text-purple-300">
                                 {m.badge}
                               </span>
                             )}

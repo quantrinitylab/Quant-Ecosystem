@@ -1145,7 +1145,7 @@ export function ContextBottomNavBar({
               {/* Number Badge */}
               {currentBadgeCount !== undefined && currentBadgeCount > 0 && (
                 <span
-                  className={`absolute -top-1.5 -right-3.5 flex min-w-[15px] h-[15px] items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none shadow-sm transition-colors ${
+                  className={`absolute -top-1.5 -right-3.5 flex min-w-[15px] h-[15px] items-center justify-center rounded-full px-1 text-[var(--q-type-xs)] font-bold leading-none shadow-sm transition-colors ${
                     isActive
                       ? pillarConfig.badgeStyle
                       : 'bg-[#282C35] text-[#E2E8F0] border border-[#3A404D]'
@@ -1158,7 +1158,7 @@ export function ContextBottomNavBar({
               {/* Text Badge (e.g. E2EE, CDC, CI/CD) */}
               {tab.badgeText && (
                 <span
-                  className={`absolute -top-1.5 -right-4 flex h-[13px] items-center justify-center rounded px-1 text-[7px] font-extrabold uppercase tracking-tight leading-none shadow-sm border transition-colors ${
+                  className={`absolute -top-1.5 -right-4 flex h-[13px] items-center justify-center rounded px-1 text-[var(--q-type-xs)] font-extrabold uppercase tracking-tight leading-none shadow-sm border transition-colors ${
                     isActive
                       ? `${pillarConfig.activeContainerStyle} ${pillarConfig.activeTextStyle}`
                       : 'bg-[#161922] text-[#94A3B8] border-[#232938]'

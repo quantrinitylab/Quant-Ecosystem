@@ -223,7 +223,7 @@ export function RecipientChipInput({
             <IdentityAvatar
               name={recipient.name || recipient.email}
               size="sm"
-              className="!size-4 !text-[8px]"
+              className="!size-4 !text-[var(--q-type-xs)]"
             />
             <span className="font-medium text-white text-[11px] truncate max-w-[120px] sm:max-w-[200px]">
               {recipient.name || recipient.email}

@@ -389,7 +389,7 @@ export function IssuesTab({
                   className="px-2.5 py-1 rounded-md bg-[#161B22] hover:bg-[#21262D] border border-[#30363D] text-[#8D96A0] hover:text-[#E6EDF3] flex items-center gap-1 transition-colors"
                 >
                   <span>{flt}</span>
-                  <span className="text-[9px]">▼</span>
+                  <span className="text-[var(--q-type-xs)]">▼</span>
                 </button>
               ),
             )}

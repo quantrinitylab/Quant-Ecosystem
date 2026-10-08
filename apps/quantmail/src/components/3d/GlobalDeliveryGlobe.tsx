@@ -371,7 +371,7 @@ export function GlobalDeliveryFallback({
                 <text x={n.x} y={n.y - 12} fill="#e2e8f0" fontSize="10" fontWeight="600" textAnchor="middle" fontFamily="monospace">
                   {n.label}
                 </text>
-                <text x={n.x} y={n.y + 18} fill="#34d399" fontSize="9" textAnchor="middle" fontFamily="monospace">
+                <text x={n.x} y={n.y + 18} fill="#34d399" fontSize="10" textAnchor="middle" fontFamily="monospace">
                   {n.ping}
                 </text>
               </g>
@@ -398,7 +398,7 @@ export function GlobalDeliveryFallback({
                 <span>{node.city}</span>
                 <span className="font-mono text-emerald-400 text-[10px]">{node.pingMs}ms</span>
               </div>
-              <div className="text-[9px] font-mono text-slate-400 truncate mt-0.5">{node.region}</div>
+              <div className="text-[var(--q-type-xs)] font-mono text-slate-400 truncate mt-0.5">{node.region}</div>
             </button>
           );
         })}
