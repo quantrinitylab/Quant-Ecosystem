@@ -1828,3 +1828,12 @@ Tests: every advertised tool has an executable handler and valid schema; destruc
 Validation: source audit on 2026-10-08 verified the planner TODO/fallback path, one-time Gmail tools/list cache, and browser connector declarations; browser execution gap is independently established by QM-QUANTY-006.
 Scope: apps/quantmail/backend/services/quanty-agent/planner.ts; apps/quantmail/backend/services/quanty-agent/mcp/*; apps/quantai/backend/services/mcp-bridge.service.ts; connector catalog; canonical capability registry; model tool projection; schema/policy/availability tests.
 Dependencies: QM-QUANTY-001; QM-QUANTY-006; QM-QUANTY-010; connector permission model.
+
+## QM-UIUX-071 — P0: canvas addColorStop crashes on raw CSS var() tokens (login page down)
+Status: [~] IN_PROGRESS
+Owner: canvas-crash-fix-agent
+Branch: fix/canvas-cssvar-crash
+Finding: The QM-UIUX-004 color-token codemod (PR #660) leaked raw `var(--quant-*)` strings into Canvas 2D calls. `addColorStop` cannot parse CSS variables — `SyntaxError: Failed to execute 'addColorStop' on 'CanvasGradient'` — which trips the error boundary and shows "QuantMail couldn't open this view" on /login. Offending sites in apps/quantmail/src: components/TitaniumGridCanvas.tsx (114-116), lib/marks/canvas-mark.ts (MARK_COLORS.ember/emberDeep + literal stops + RING_FINISHES mixHex path), components/QuantMailLogo.tsx (223), components/QuantGitLogo.tsx (121/150/151), components/QuantDriveLogo.tsx (96/127/179 + shadowColor 226), components/AgentOfficeCanvas.tsx (263), components/Interactive3DLogo.tsx (256/330), app/lab/marks/DinosaurMarkCandidate.tsx (75/85).
+Required: (1) new shared helper `apps/quantmail/src/lib/canvas-color.ts` `resolveCanvasColor()` — resolves `var(--token)` via `getComputedStyle(document.documentElement)` at draw time (theme-safe), with design-system literal fallbacks and a no-DOM path so SSR/tests never throw; (2) wrap EVERY canvas addColorStop/fillStyle/strokeStyle/shadowColor call site passing a var() string, plus harden `mixHex` against non-hex input; (3) login page renders with no error boundary.
+Scope: apps/quantmail/src/lib/canvas-color.ts (new); canvas call sites listed above.
+Dependencies: QM-UIUX-004.
