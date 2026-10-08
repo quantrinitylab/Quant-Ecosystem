@@ -599,26 +599,59 @@ export function AppShell({
     }
   }, [router]);
 
-  // Swiggy-grade app-switch transition: a brief blur+scale+fade on <main>
+  // Swiggy-grade app-switch transition: a brief scale+fade on <main>
   // while the new pillar's route loads, so the switch feels instant and
   // premium instead of a hard cut. Fires on the same `quant:pillar-change`
-  // event the top switcher already dispatches.
+  // event the top switcher already dispatches (detail carries the target path).
+  //
+  // Load-tied, not timer-tied (QM-UIUX-044): the transition lifts when the
+  // target route has committed AND painted (double rAF after usePathname()
+  // matches the target), so fast routes clear instantly and slow routes stay
+  // covered until content is on screen. The 380ms timer is a max fallback
+  // only — never the primary signal.
   const [isSwitching, setIsSwitching] = useState(false);
   const switchTimer = useRef<number | null>(null);
+  const pendingPath = useRef<string | null>(null);
+  const clearSwitching = useCallback(() => {
+    if (switchTimer.current) window.clearTimeout(switchTimer.current);
+    switchTimer.current = null;
+    pendingPath.current = null;
+    setIsSwitching(false);
+  }, []);
   useEffect(() => {
-    const onPillarChange = () => {
+    const onPillarChange = (event: Event) => {
+      const targetPath =
+        (event as CustomEvent<{ path?: string }>).detail?.path ?? null;
+      pendingPath.current = targetPath;
       setIsSwitching(true);
       if (switchTimer.current) window.clearTimeout(switchTimer.current);
-      // Slightly longer than the route transition so the blur lifts exactly
-      // as the new content settles — never a flash of unstyled content.
-      switchTimer.current = window.setTimeout(() => setIsSwitching(false), 380);
+      // Max fallback: never leave the UI dimmed if the route never settles
+      // (blocked navigation, redirect away from target, unmounted, etc.).
+      switchTimer.current = window.setTimeout(clearSwitching, 380);
     };
     window.addEventListener('quant:pillar-change', onPillarChange);
     return () => {
       window.removeEventListener('quant:pillar-change', onPillarChange);
       if (switchTimer.current) window.clearTimeout(switchTimer.current);
     };
-  }, []);
+  }, [clearSwitching]);
+
+  // Lift the transition once the target route has committed and painted.
+  // Same-path re-tap (refresh, no navigation) clears on the next paint.
+  useEffect(() => {
+    if (!isSwitching) return;
+    const target = pendingPath.current;
+    if (!target || pathname === target) {
+      let raf2 = 0;
+      const raf1 = window.requestAnimationFrame(() => {
+        raf2 = window.requestAnimationFrame(clearSwitching);
+      });
+      return () => {
+        window.cancelAnimationFrame(raf1);
+        window.cancelAnimationFrame(raf2);
+      };
+    }
+  }, [isSwitching, pathname, clearSwitching]);
 
   // Per-app color theming: the whole UI's accent color animates smoothly
   // when switching apps (Mail=orange, Calendar=blue, Drive=green,
@@ -995,14 +1028,15 @@ export function AppShell({
               tabIndex={-1}
               className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
               style={{
-                // App-switch blur transition (issue #2): brief cinematic
-                // blur+scale while the new pillar loads. GPU-composited only.
-                filter: isSwitching ? 'blur(10px) saturate(1.15)' : 'none',
+                // App-switch transition: brief scale+fade while the new pillar
+                // settles. transform + opacity are GPU-composited; a
+                // filter: blur() on the full <main> is NOT — it repaints the
+                // whole list every frame — so it stays off this element.
                 transform: isSwitching ? 'scale(0.985)' : 'scale(1)',
                 opacity: isSwitching ? 0.65 : 1,
                 transition: isSwitching
-                  ? 'filter 0.18s ease-out, transform 0.18s ease-out, opacity 0.18s ease-out'
-                  : 'filter 0.32s cubic-bezier(0.25, 1, 0.5, 1), transform 0.32s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.32s ease-out',
+                  ? 'transform 0.18s ease-out, opacity 0.18s ease-out'
+                  : 'transform 0.32s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.32s ease-out',
               }}
             >
               {animated ? <PageTransition>{children}</PageTransition> : children}
