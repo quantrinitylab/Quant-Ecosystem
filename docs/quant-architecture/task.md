@@ -1487,7 +1487,9 @@ Scope: apps/quantmail drive backend + drive page.
 Dependencies: none.
 
 ## QM-M39-009 — Drive: security/scanning state surface (screen 29)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: Muse
+Branch: fix/qm-m39-009-drive-scan-state
 Finding: M39 screen 29 (security/scanning state) missing. Files have no visible scan/availability state; preview principle depends on it.
 Required: backend scan-job states (pending/scanning/clean/quarantined/unknown); UI state indicators on files and in details; "unknown" must render as unknown, never as safe.
 Scope: apps/quantmail drive backend + UI.
