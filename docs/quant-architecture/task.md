@@ -2034,7 +2034,9 @@ Dependencies: none.
 Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 3: D-P1-2).
 
 ## QM-UIUX-087 — P1: Quick-reply sends instantly with no undo safety net
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-087-quick-reply-undo
 Finding: Customer audit 2026-10-09 (inbox-triage journey): in-thread quick-reply sends are instant with NO undo, while composer sends get a 10s undo countdown — the hasty reply path has no safety net.
 Required: quick-reply must offer the same undo window as compose sends (or a matching safeguard).
 Scope: apps/quantmail thread quick-reply.
