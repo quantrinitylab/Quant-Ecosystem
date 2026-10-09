@@ -56,6 +56,7 @@ export interface RecentFilesPage {
   totalCount: number;
   nextCursor: string | null;
   hasMore: boolean;
+}
 // QM-M39-001 — "Shared by me": one record per owned file/folder the user has
 // shared, as returned by GET /api/drive/shares/sent.
 export interface SentShareRecipient {

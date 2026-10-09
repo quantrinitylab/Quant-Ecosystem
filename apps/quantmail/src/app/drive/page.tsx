@@ -1522,7 +1522,7 @@ function DrivePageContent() {
               <div
                 role="tablist"
                 aria-label="Shared direction"
-                className="inline-flex items-center gap-1 rounded-xl border border-[#232938] bg-[#12151E] p-1"
+                className="inline-flex items-center gap-1 rounded-xl border border-[#232938] bg-[var(--quant-surface)] p-1"
               >
                 <button
                   type="button"
