@@ -12,7 +12,6 @@ export interface MCPServerEntry {
   author: string;
   description: string;
   icon: string;
-  isInstalled?: boolean;
   category: 'devtools' | 'data' | 'automation' | 'creative' | 'integration';
 }
 
@@ -32,7 +31,6 @@ export const OFFICIAL_MCP_CATALOG: MCPServerEntry[] = [
     description:
       'MCP server for Chrome DevTools: live DOM snapshots, accessibility tree inspection, clicks, navigation.',
     icon: '🌐',
-    isInstalled: true,
     category: 'devtools',
   },
   {
@@ -51,7 +49,6 @@ export const OFFICIAL_MCP_CATALOG: MCPServerEntry[] = [
     description:
       'Connect AI assistants to GitHub — manage repos, issues, PRs, and workflows through natural language.',
     icon: '🐙',
-    isInstalled: true,
     category: 'integration',
   },
   {
@@ -84,20 +81,11 @@ export const OFFICIAL_MCP_CATALOG: MCPServerEntry[] = [
 export interface MCPRegistryTabProps {
   repoOwner?: string;
   repoName?: string;
-  onInstallServer?: (server: MCPServerEntry) => void;
 }
 
-export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = ({
-  repoOwner,
-  repoName,
-  onInstallServer,
-}) => {
+export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [installedServers, setInstalledServers] = useState<Record<string, boolean>>({
-    'chrome-devtools': true,
-    github: true,
-  });
 
   const filteredServers = useMemo(() => {
     return OFFICIAL_MCP_CATALOG.filter((s) => {
@@ -109,12 +97,6 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = ({
       return matchesSearch && matchesCat;
     });
   }, [searchQuery, activeCategory]);
-
-  const handleInstallToggle = (server: MCPServerEntry) => {
-    const isNowInstalled = !installedServers[server.id];
-    setInstalledServers((prev) => ({ ...prev, [server.id]: isNowInstalled }));
-    onInstallServer?.(server);
-  };
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6 text-[#E6EDF3] py-4">
@@ -185,7 +167,6 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = ({
       {/* Server Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredServers.map((server) => {
-          const isInstalled = !!installedServers[server.id];
           return (
             <div
               key={server.id}
@@ -205,39 +186,18 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = ({
                     </div>
                   </div>
 
-                  {/* Install Button with Dropdown (Screens 59–60) */}
+                  {/* No install API exists yet, so there is no working install
+                      action to offer — show an honest disabled state instead of
+                      a button that only flips local state. */}
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => handleInstallToggle(server)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                        isInstalled
-                          ? 'bg-[#238636] text-white'
-                          : 'bg-[#21262D] hover:bg-[#30363D] text-[#E6EDF3] border border-[#30363D]'
-                      }`}
+                      type="button"
+                      disabled
+                      aria-disabled="true"
+                      title="MCP server installation is not available in QuantGit yet"
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 bg-[#21262D] text-[#8D96A0] border border-[#30363D] opacity-60 cursor-not-allowed"
                     >
-                      {isInstalled ? (
-                        <>
-                          <svg
-                            className="w-3.5 h-3.5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2.5}
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                          <span>Installed</span>
-                        </>
-                      ) : (
-                        <span>Install</span>
-                      )}
-                    </button>
-                    <button className="p-1.5 rounded-lg bg-[#21262D] hover:bg-[#30363D] text-[#8D96A0] hover:text-[#E6EDF3] border border-[#30363D] text-xs">
-                      ▼
+                      <span>Install unavailable</span>
                     </button>
                   </div>
                 </div>
