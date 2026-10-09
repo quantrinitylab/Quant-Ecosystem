@@ -1024,9 +1024,8 @@ Finding: (a) 127 animations ignore `prefers-reduced-motion` (WCAG 2.3.3) — add
 Dependencies: QM-UIUX-013 (gray consolidation covers c); QM-UIUX-034 (same area).
 
 ## QM-UIUX-036 — AI error honesty + global fetch timeout
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-036-ai-error-honesty-fetch-timeout
+Status: [x] DONE — PR #736 merged 2026-10-09 (premise re-verified: sanitizer + general timeout already existed; real gaps closed — sanitizer pass-through leaked URLs/IPs/JWT/API-keys, now hardened in src/lib/ai-error.ts with redaction; auth post() had NO timeout, now 30s AbortController + distinct TIMEOUT error; 22/22 targeted + negative controls + blast 108/108)
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/736
 Finding: (a) `AIAssistant.tsx:171` catches errors and shows generic "Something went wrong" — the real exception is discarded; (b) no global fetch timeout — if the backend hangs forever, the spinner never resolves (PR #621 added 10s AbortController for auth; the same pattern is needed at the API layer). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/empty-error-states-audit.md`.
 Required: surface sanitized `err.message` in AI errors; add a global fetch timeout so hung requests land on the honest ErrorState + retry.
 Scope: `AIAssistant.tsx`; API fetch layer.
