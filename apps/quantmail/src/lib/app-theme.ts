@@ -23,21 +23,21 @@ export interface AppTheme {
 export const APP_THEMES: Record<AppThemeId, AppTheme> = {
   mail: {
     id: 'mail',
-    accent: 'var(--quant-primary)',
+    accent: '#FF8C42',
     glow: 'rgba(255, 140, 66, 0.25)',
     bgWash: 'linear-gradient(180deg, var(--quant-accent-faint) 0%, transparent 32%)',
     ring: 'var(--quant-primary)',
   },
   calendar: {
     id: 'calendar',
-    accent: 'var(--quant-info)',
+    accent: '#4285F4',
     glow: 'rgba(59, 130, 246, 0.25)',
     bgWash: 'linear-gradient(180deg, rgba(59, 130, 246, 0.06) 0%, transparent 32%)',
     ring: 'var(--quant-info)',
   },
   drive: {
     id: 'drive',
-    accent: 'var(--quant-success)',
+    accent: '#34A853',
     glow: 'rgba(34, 197, 94, 0.25)',
     bgWash: 'linear-gradient(180deg, rgba(34, 197, 94, 0.06) 0%, transparent 32%)',
     ring: 'var(--quant-success)',
@@ -51,10 +51,10 @@ export const APP_THEMES: Record<AppThemeId, AppTheme> = {
   },
   quantgit: {
     id: 'quantgit',
-    accent: '#A855F7',
-    glow: 'rgba(168, 85, 247, 0.25)',
-    bgWash: 'linear-gradient(180deg, rgba(168, 85, 247, 0.06) 0%, transparent 32%)',
-    ring: '#A855F7',
+    accent: '#8B5CF6',
+    glow: 'rgba(139, 92, 246, 0.22)',
+    bgWash: 'linear-gradient(180deg, rgba(139, 92, 246, 0.05) 0%, transparent 32%)',
+    ring: '#8B5CF6',
   },
 };
 
