@@ -371,6 +371,22 @@ export default function LoginPage(props: LoginPageProps) {
           </button>
         </div>
 
+        {/* New-account path: Quant accounts are created on QuantMail — the
+            same identity host the SSO button above sends existing users to.
+            Its /register page is the real registration flow (POST
+            /api/auth/register); after registering, "Continue with Quant
+            Account" brings the new user straight back here via SSO. */}
+        <p className="mb-5 text-center text-sm text-slate-400">
+          New to Quant?{' '}
+          <a
+            href={`${SSO_BASE_URL}/register`}
+            data-testid="quant-signup-link"
+            className="font-medium text-emerald-400 underline underline-offset-2 transition-colors hover:text-emerald-300"
+          >
+            Create account
+          </a>
+        </p>
+
         {/* Subtle secondary fallback: password login, expanded inline */}
         <div
           className="flex items-center gap-3 mb-2"
