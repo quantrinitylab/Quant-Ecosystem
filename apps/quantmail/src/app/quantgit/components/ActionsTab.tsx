@@ -1,7 +1,9 @@
 'use client';
 
 // ============================================================================
-// QuantGit — Real GitHub Actions CI Pipeline with Live Streaming Terminal (Screens 91–98)
+// QuantGit — Actions CI Pipeline with Terminal Log Viewer (Screens 91–98)
+// Steps render from the run's real job data; logs only when the backend
+// provides them. Never fabricate runner output.
 // ============================================================================
 
 import React, { useState, useMemo } from 'react';
@@ -33,9 +35,7 @@ export function ActionsTab({
   const [activeRun, setActiveRun] = useState<WorkflowRunItem | null>(initialSelectedRun);
   const [autoScroll, setAutoScroll] = useState<boolean>(true);
   const [copied, setCopied] = useState<boolean>(false);
-  const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>({
-    'step-4': true, // Run test suite expanded by default
-  });
+  const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>({});
 
   const workflows = [
     'All workflows',
@@ -62,88 +62,30 @@ export function ActionsTab({
     });
   }, [displayActions, searchQuery, statusFilter]);
 
-  // Generate real workflow steps based on selected run status
+  // Honest workflow steps: derived ONLY from the run's real job data.
+  // There is no backend log stream for workflow runs, so logs are never
+  // invented here — steps render with an honest "No logs available" state.
   const runSteps = useMemo<WorkflowStepItem[]>(() => {
     if (!activeRun) return [];
-    const isFail = activeRun.status === 'failed';
-
-    return [
-      {
-        id: 'step-1',
-        name: 'Set up job',
-        status: 'success',
-        duration: '2s',
-        logs: [
-          '2026-09-26T10:45:00.102Z [INFO] Current runner version: 2.319.1',
-          '2026-09-26T10:45:00.205Z [INFO] Operating System: Linux ubuntu-22.04-x64-quant-hypervisor',
-          '2026-09-26T10:45:01.012Z [INFO] Virtual Environment: Node.js 22.14.0, pnpm 9.15.4',
-          '2026-09-26T10:45:02.100Z ✓ Completed job setup in 2.1s',
-        ],
-      },
-      {
-        id: 'step-2',
-        name: 'Run actions/checkout@v4',
-        status: 'success',
-        duration: '3s',
-        logs: [
-          '2026-09-26T10:45:02.341Z Syncing repository: quantrinitylab/Quant-Ecosystem',
-          '2026-09-26T10:45:03.119Z Getting Git version info',
-          '2026-09-26T10:45:04.050Z Initialized empty Git repository in /home/runner/work/repo/.git/',
-          `2026-09-26T10:45:05.120Z ✓ Checked out commit ${activeRun.commitSha || 'unknown'} to refs/heads/${activeRun.branch || 'main'}`,
-        ],
-      },
-      {
-        id: 'step-3',
-        name: 'Run pnpm install',
-        status: 'success',
-        duration: '18s',
-        logs: [
-          '2026-09-26T10:45:05.500Z Scope: all 24 workspace packages',
-          '2026-09-26T10:45:08.200Z Resolving dependencies using pnpm-lock.yaml...',
-          '2026-09-26T10:45:15.300Z Packages are hard linked from the content-addressable store to the virtual store.',
-          '2026-09-26T10:45:22.000Z Already up to date. Progress: resolved 1482, reused 1482, downloaded 0.',
-          '2026-09-26T10:45:23.400Z ✓ Successfully installed workspace dependencies in 18.2s',
-        ],
-      },
-      {
-        id: 'step-4',
-        name: 'Run test suite',
-        status: isFail ? 'failed' : 'success',
-        duration: isFail ? '9s' : '42s',
-        logs: isFail
-          ? [
-              '2026-09-26T10:45:24.000Z > @quant/quantmail@1.0.0 test',
-              '2026-09-26T10:45:25.100Z RUN v4.1.11 /home/runner/work/Quant-Ecosystem/apps/quantmail',
-              '2026-09-26T10:45:28.400Z ✕ src/app/quantgit/telemetry.test.ts (1 failed, 4 passed)',
-              '2026-09-26T10:45:29.000Z FAIL src/app/quantgit/telemetry.test.ts > Speech telemetry socket hook',
-              '2026-09-26T10:45:29.050Z Error: Expected status 200 but received 500 internal server error',
-              '2026-09-26T10:45:30.000Z ✕ Command failed with exit code 1.',
-            ]
-          : [
-              '2026-09-26T10:45:24.000Z > @quant/quantmail@1.0.0 test',
-              '2026-09-26T10:45:25.100Z RUN v4.1.11 /home/runner/work/Quant-Ecosystem/apps/quantmail',
-              '2026-09-26T10:45:30.400Z ✓ src/app/quantgit/__tests__/GitHubSovereignParity.test.tsx (10 tests)',
-              '2026-09-26T10:45:35.800Z ✓ src/app/quantgit/__tests__/PullRequestsAndActionsParity.test.tsx (8 tests)',
-              '2026-09-26T10:45:42.200Z ✓ src/app/quantgit/__tests__/BuildTerminal.test.tsx (4 tests)',
-              '2026-09-26T10:46:05.000Z Test Files 3 passed (3), Tests 22 passed (22)',
-              '2026-09-26T10:46:06.100Z ✓ All test suites verified green in 42.1s',
-            ],
-      },
-      {
-        id: 'step-5',
-        name: 'Complete job',
-        status: isFail ? 'failed' : 'success',
-        duration: '1s',
-        logs: [
-          '2026-09-26T10:46:06.200Z Cleaning up orphaned background workers and containers',
-          '2026-09-26T10:46:07.100Z Writing workflow run telemetry metrics to Redis PubSub',
-          isFail
-            ? '2026-09-26T10:46:07.400Z ✕ Complete job finished with status code 1'
-            : '2026-09-26T10:46:07.400Z ✓ Complete job finished with status code 0',
-        ],
-      },
-    ];
+    const jobs = activeRun.jobs || [];
+    return jobs.map((job, idx) => ({
+      id: `step-${idx + 1}`,
+      name: job.name,
+      status:
+        job.status === 'in_progress'
+          ? 'in_progress'
+          : job.status === 'failed'
+            ? 'failed'
+            : job.status === 'pending'
+              ? 'queued'
+              : 'success',
+      duration: job.duration,
+      logs: [],
+    }));
   }, [activeRun]);
+
+  // Only offer "copy logs" when at least one real log line exists.
+  const hasAnyLogs = runSteps.some((s) => s.logs.length > 0);
 
   const toggleStep = (stepId: string) => {
     setExpandedSteps((prev) => ({
@@ -267,20 +209,35 @@ export function ActionsTab({
                   <span>Auto-scroll: {autoScroll ? 'ON' : 'OFF'}</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleCopyFullLogs}
-                  data-testid="copy-full-logs-btn"
-                  className="px-3 py-1.5 rounded-lg bg-[#21262D] hover:bg-[#30363D] border border-[#30363D] text-[#E6EDF3] font-semibold text-xs transition-colors cursor-pointer"
-                >
-                  {copied ? 'Copied full logs!' : 'Copy full logs'}
-                </button>
+                {hasAnyLogs && (
+                  <button
+                    type="button"
+                    onClick={handleCopyFullLogs}
+                    data-testid="copy-full-logs-btn"
+                    className="px-3 py-1.5 rounded-lg bg-[#21262D] hover:bg-[#30363D] border border-[#30363D] text-[#E6EDF3] font-semibold text-xs transition-colors cursor-pointer"
+                  >
+                    {copied ? 'Copied full logs!' : 'Copy full logs'}
+                  </button>
+                )}
               </div>
             </div>
 
             {/* Step-by-Step Accordion List */}
             <div className="space-y-2" data-testid="workflow-steps-accordion">
-              {runSteps.map((step) => {
+              {runSteps.length === 0 ? (
+                <div
+                  data-testid="workflow-steps-empty"
+                  className="border border-[#30363D] rounded-xl bg-[#0D1117] p-10 text-center"
+                >
+                  <p className="text-sm font-medium text-[#E6EDF3]">
+                    No steps recorded for this run
+                  </p>
+                  <p className="mt-1 text-xs text-[#8D96A0]">
+                    Step data is only shown when the CI backend provides it.
+                  </p>
+                </div>
+              ) : (
+                runSteps.map((step) => {
                 const isExpanded = Boolean(expandedSteps[step.id]);
                 const isStepSuccess = step.status === 'success';
                 const isStepFailed = step.status === 'failed';
@@ -327,8 +284,13 @@ export function ActionsTab({
                         data-testid={`terminal-logs-${step.id}`}
                         className="p-3 bg-[#0D1117] font-mono text-xs overflow-x-auto border-t border-[#30363D]"
                       >
-                        <div className="space-y-1">
-                          {step.logs.map((logLine, lineIdx) => {
+                        {step.logs.length === 0 ? (
+                          <p className="px-1 py-6 text-center text-[#7D8590] font-sans">
+                            No logs available for this step.
+                          </p>
+                        ) : (
+                          <div className="space-y-1">
+                            {step.logs.map((logLine, lineIdx) => {
                             const isGreen =
                               logLine.includes('✓') ||
                               logLine.includes('PASS') ||
@@ -369,12 +331,14 @@ export function ActionsTab({
                               </div>
                             );
                           })}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 );
-              })}
+                })
+              )}
             </div>
           </div>
         ) : (
