@@ -348,24 +348,24 @@ export const PILLAR_TILES: PillarTile[] = [
     id: 'contacts',
     label: 'Contacts',
     path: '/contacts',
-    accentColor: '#8B5CF6',
-    borderColor: 'border-[#8B5CF6]/50',
-    glowColor: 'shadow-[0_0_12px_rgba(139,92,246,0.18)]',
+    accentColor: '#F59E0B',
+    borderColor: 'border-[#F59E0B]/50',
+    glowColor: 'shadow-[0_0_12px_rgba(245,158,11,0.18)]',
     searchPlaceholder: 'Search VIPs, contacts, companies…',
-    themeBg: 'linear-gradient(180deg, rgba(139,92,246,0.08) 0%, transparent 40%)',
-    themeGlow: 'rgba(139,92,246,0.15)',
+    themeBg: 'linear-gradient(180deg, rgba(245,158,11,0.08) 0%, transparent 40%)',
+    themeGlow: 'rgba(245,158,11,0.15)',
     icon: ContactsLogoIcon,
   },
   {
     id: 'quantgit',
     label: 'QuantGit',
     path: '/quantgit',
-    accentColor: '#F59E0B',
-    borderColor: 'border-[#F59E0B]/50',
-    glowColor: 'shadow-[0_0_12px_rgba(245,158,11,0.18)]',
+    accentColor: '#8B5CF6',
+    borderColor: 'border-[#8B5CF6]/50',
+    glowColor: 'shadow-[0_0_12px_rgba(139,92,246,0.18)]',
     searchPlaceholder: 'Search repositories, pull requests, commits…',
-    themeBg: 'linear-gradient(180deg, rgba(245,158,11,0.08) 0%, transparent 40%)',
-    themeGlow: 'rgba(245,158,11,0.15)',
+    themeBg: 'linear-gradient(180deg, rgba(139,92,246,0.08) 0%, transparent 40%)',
+    themeGlow: 'rgba(139,92,246,0.15)',
     icon: QuantGitLogoIcon,
   },
 ];
@@ -1141,17 +1141,19 @@ export function QuantPillarTopBar({
           }}
         >
           {/*
-            Raised-slot swoosh — the active bay's tab, physically connected to
-            the screen (user-approved reference 2026-10-09: the selected slot
-            rises above the capsule like a tab with luminous rim lighting).
-            A single element that SLIDES between slots (left/width measured
-            from the active tab, 300ms ease-out). It rises 13px above the
-            capsule top and settles 6px below it — asymmetric, so the tab
-            reads as lifting off the dock while staying visually connected
-            downward to the active screen. Carries the active pillar's OWN
-            accent color (never uniform orange), replays a settle animation
-            on every pillar change (key={currentPillar}). Restrained: rim
-            light over bloom, no neon border.
+            Raised TAB — the active bay's tab, physically connected from below
+            to the active screen (user reference 2026-10-09: the selected slot
+            rises above the bar like a folder tab). A single element that
+            SLIDES between slots (left/width measured from the active tab,
+            300ms ease-out) while the inner tab RISES (quantTabRise, keyed on
+            currentPillar) — one smooth slide+rise motion per switch.
+            The tab protrudes 18px above the capsule and its base extends
+            12px INTO the bar with no bottom edge, so it reads as growing out
+            of the dock — the "neeche se connected" feel. Carries the active
+            pillar's OWN accent color as a clean 1.5px edge (Mail #FF6B35,
+            Calendar #4285F4, Drive #34A853, Contacts amber #F59E0B, QuantGit
+            purple #8B5CF6). Restrained by user rule: NO glow, NO bloom, NO
+            neon — just the colored edge on near-black.
           */}
           <span
             aria-hidden="true"
@@ -1159,28 +1161,22 @@ export function QuantPillarTopBar({
             style={{
               left: lineLeft,
               width: lineWidth,
-              top: -13,
-              bottom: -6,
+              top: -18,
+              bottom: 12,
               transition:
                 'left 0.3s ease-out, width 0.3s ease-out',
             }}
           >
             <span
               key={currentPillar}
-              className="block w-full h-full animate-[quantSwooshIn_0.3s_ease-out]"
+              className="block w-full h-full animate-[quantTabRise_0.3s_ease-out]"
               style={{
-                borderRadius: 20,
-                border: `1px solid ${activeTile.accentColor}88`,
-                background: [
-                  `radial-gradient(ellipse 72% 62% at 50% 38%, ${activeTile.accentColor}59 0%, ${activeTile.accentColor}26 55%, transparent 78%)`,
-                  `linear-gradient(180deg, ${activeTile.accentColor}4D 0%, ${activeTile.accentColor}1F 55%, ${activeTile.accentColor}38 100%)`,
-                ].join(', '),
-                boxShadow: [
-                  `0 0 18px ${activeTile.accentColor}66`,
-                  `0 0 40px ${activeTile.accentColor}28`,
-                  'inset 0 2px 1px rgba(255,255,255,0.45)',
-                  `inset 0 -8px 16px ${activeTile.accentColor}30`,
-                ].join(', '),
+                borderRadius: '18px 18px 0 0',
+                borderTop: `1.5px solid ${activeTile.accentColor}`,
+                borderLeft: `1.5px solid ${activeTile.accentColor}`,
+                borderRight: `1.5px solid ${activeTile.accentColor}`,
+                // No bottom border — the tab base merges into the bar.
+                background: `linear-gradient(180deg, ${activeTile.accentColor}1F 0%, rgba(9,10,13,0.98) 55%)`,
               }}
             />
           </span>
@@ -1224,9 +1220,9 @@ export function QuantPillarTopBar({
                   className={isSpinning ? 'animate-[quantLogoSpin_0.6s_ease-in-out]' : undefined}
                   style={{
                     display: 'block',
-                    // Per-app theme glow (NOT all orange!) — each logo glows its own color
-                    filter: isActive ? `drop-shadow(0 0 6px ${tile.accentColor}66)` : undefined,
-                    transition: 'transform 200ms ease-out, filter 0.2s ease-out',
+                    // No glow on the marks (user rule: logo on dark, no light
+                    // effects) — active state reads through opacity only.
+                    transition: 'transform 200ms ease-out',
                     opacity: isActive ? 1 : 0.75,
                   }}
                 >
@@ -1276,10 +1272,9 @@ export function QuantPillarTopBar({
       </div>
 
       <style>{`
-        @keyframes quantSwooshIn {
-          0% { transform: scaleX(0.82) scaleY(0.94); opacity: 0.55; }
-          60% { transform: scaleX(1.04) scaleY(1.01); opacity: 1; }
-          100% { transform: scaleX(1) scaleY(1); opacity: 1; }
+        @keyframes quantTabRise {
+          0% { transform: translateY(14px); opacity: 0.4; }
+          100% { transform: translateY(0); opacity: 1; }
         }
         @keyframes quantLogoSpin {
           0% { transform: rotate(0deg); }

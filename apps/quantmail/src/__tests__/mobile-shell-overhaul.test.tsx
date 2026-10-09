@@ -213,22 +213,23 @@ describe('Mobile Shell Overhaul — Worker A', () => {
       expect(html).toContain('aria-label="Sub-category lenses"');
     });
 
-    it('marks the active tile with aria-selected and the swoosh indicator', () => {
+    it('marks the active tile with aria-selected and the raised-tab indicator', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" />);
 
       expect(html).toContain('data-testid="pillar-tile-contacts"');
       // Active tile announces itself…
       expect(html).toContain('aria-selected="true"');
-      // …and carries the raised-slot swoosh in the pillar's own color
-      // (Contacts violet, user-confirmed 2026-10-09) — the old sliding line is gone.
-      expect(html).toContain('1px solid #8B5CF688');
-      expect(html).toContain('drop-shadow(0 0 6px #8B5CF666)');
+      // …and carries the raised tab's clean colored edge in the pillar's own
+      // color (Contacts amber, user correction 2026-10-09 ~11:00 IST) — the
+      // old sliding line is gone, and there is no glow anywhere by user rule.
+      expect(html).toContain('border-top:1.5px solid #F59E0B');
+      expect(html).not.toContain('drop-shadow(0 0 6px');
       // …and the active tile keeps the snappy premium transition (not the old 350ms).
       expect(html).toContain('transition-transform duration-150 ease-out');
       expect(html).not.toContain('0.35s cubic-bezier(0.34, 1.3, 0.64, 1)');
-      // Raised-slot treatment (refinement 2026-10-09): active slot rises
-      // above the capsule and lifts off the dock.
-      expect(html).toContain('top:-13px');
+      // Raised-tab treatment (2026-10-09): active tab rises 18px above the
+      // capsule like a folder tab, base merging into the bar from below.
+      expect(html).toContain('top:-18px');
       expect(html).toContain('-translate-y-0.5');
     });
 
