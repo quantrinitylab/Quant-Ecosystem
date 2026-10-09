@@ -18,6 +18,7 @@ import { AddMemberModal } from './AddMemberModal';
 import { AnchoredMenu } from './AnchoredMenu';
 import { ThreadBubbleShell } from './ThreadBubbleGestures';
 import { showToast } from './InboxToast';
+import { useUndoSend } from './UndoSendCountdownBar';
 import { SmartReplySuggestions } from './SmartReplySuggestions';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
@@ -168,34 +169,6 @@ export function autoExpandedIndices(msgs: Email[]): Set<number> {
     expanded.add(msgs.length - 1);
   }
   return expanded;
-}
-
-/**
- * QM-UIUX-087: drop the quick-reply bubble after undo-send pulls it back to
- * Drafts. No match → array returned unchanged (undo racing a realtime update).
- *
- * Exported for unit tests.
- */
-export function removeMessageById(messages: Email[], id: string): Email[] {
-  const idx = messages.findIndex((m) => m.id === id);
-  if (idx === -1) return messages;
-  return messages.filter((_, i) => i !== idx);
-}
-
-/**
- * QM-UIUX-087: re-seat expanded indices after the row at `removedIndex` is
- * gone — indices below it stay, indices above shift down one, and the removed
- * row's own expansion is dropped.
- *
- * Exported for unit tests.
- */
-export function reseatExpandedAfterRemoval(expanded: Set<number>, removedIndex: number): Set<number> {
-  const next = new Set<number>();
-  expanded.forEach((i) => {
-    if (i === removedIndex) return;
-    next.add(i > removedIndex ? i - 1 : i);
-  });
-  return next;
 }
 
 function findActiveGroup(
@@ -524,6 +497,13 @@ export function ConversationalThreadView({
   const [isQuantyOpen, setIsQuantyOpen] = useState(false);
   const showQuanty = useDeferredMount(isQuantyOpen);
   const [replyError, setReplyError] = useState<string | null>(null);
+  /*
+   * The shared undo-send queue from AppShell's UndoSendProvider — the same
+   * 10-second recall window the composers send through. Quick reply used to
+   * fire its API call the instant Send was pressed, so the fastest send path
+   * in the app was the only one with no way back (QM-UIUX-087).
+   */
+  const { queueSend } = useUndoSend();
 
   /*
    * The face on the reply bar's copilot trigger. `mail` and `sys` only: this bar writes and
@@ -1407,10 +1387,17 @@ export function ConversationalThreadView({
     setPendingAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Send quick reply
-  const handleSendReply = useCallback(async () => {
+  // Send quick reply — through the shared undo-send queue (QM-UIUX-087).
+  //
+  // This used to call `apiClient.replyToEmail` the moment Send was pressed:
+  // the reply was gone before its success toast faded, while a composer send
+  // gets a 10-second recall window. The hasty path now goes through the same
+  // `UndoSendManager` the composers use — the API call lives in `onSendNow`
+  // and only runs when the countdown closes (or Send Now is pressed), the
+  // optimistic bubble lands at that same moment, and Undo hands the words
+  // back to the bar with nothing sent.
+  const handleSendReply = useCallback(() => {
     if ((!quickReplyText.trim() && pendingAttachments.length === 0) || isSendingQuickReply) return;
-    setIsSendingQuickReply(true);
     setReplyError(null);
     // A latch, cleared by whichever outcome arrives below. The reply bar has no spinner of
     // its own beyond the button label going to `…`, so the mascot beside it is the only
@@ -1418,9 +1405,12 @@ export function ConversationalThreadView({
     quantyReact('mail:sending');
 
     const replyContent = quickReplyText.trim();
+    const attachmentsSnapshot = pendingAttachments;
+    const quotedSnapshot = quotedMessage;
     // A quoted reply answers the message the gesture targeted; otherwise the
     // latest message, as before.
-    const replyTarget = quotedMessage?.id || (messages.length > 0 ? messages[messages.length - 1].id : threadId);
+    const replyTarget =
+      quotedSnapshot?.id || (messages.length > 0 ? messages[messages.length - 1].id : threadId);
 
     // Email-chat P0-3: a client-generated id so the realtime `message.new`
     // broadcast reconciles this send instead of landing as a duplicate bubble.
@@ -1431,150 +1421,153 @@ export function ConversationalThreadView({
     const optimisticId = `reply-${Date.now()}`;
     optimisticIdsRef.current.set(clientMessageId, optimisticId);
 
-    try {
-      // `'chat'` is the whole point of the bar: what is typed here is a line in the
-      // conversation, and the server records that so the mark on it is a fact rather
-      // than a guess about its length.
-      const res = await apiClient.replyToEmail(replyTarget, replyContent, undefined, 'chat', clientMessageId);
-      if (!res.success) {
-        optimisticIdsRef.current.delete(clientMessageId);
-        quantyReact('mail:sendFailed');
-        setReplyError(res.error?.message || 'Failed to send reply');
-        showToast({ text: res.error?.message || 'Failed to send reply', type: 'error' });
-        return;
-      }
+    // Put the words back in the bar — shared by Undo and by a failed send, so
+    // a reply is never silently eaten. The guards keep a restore from
+    // clobbering a newer reply the user started typing during the window.
+    const restoreToReplyBar = () => {
+      setQuickReplyText((prev) => (prev.trim() ? prev : replyContent));
+      setPendingAttachments((prev) => (prev.length > 0 ? prev : attachmentsSnapshot));
+      if (quotedSnapshot) setQuotedMessage((prev) => prev ?? quotedSnapshot);
+    };
 
-      const targetTo = messages[0]?.from ? [messages[0].from] : [];
+    const performSend = async () => {
+      setIsSendingQuickReply(true);
+      try {
+        // `'chat'` is the whole point of the bar: what is typed here is a line in the
+        // conversation, and the server records that so the mark on it is a fact rather
+        // than a guess about its length.
+        const res = await apiClient.replyToEmail(replyTarget, replyContent, undefined, 'chat', clientMessageId);
+        if (!res.success) {
+          optimisticIdsRef.current.delete(clientMessageId);
+          quantyReact('mail:sendFailed');
+          setReplyError(res.error?.message || 'Failed to send reply');
+          showToast({ text: res.error?.message || 'Failed to send reply', type: 'error' });
+          restoreToReplyBar();
+          return;
+        }
 
-      // Optimistic update: inject the sent reply into the active conversation timeline.
-      // If the realtime broadcast already delivered the persisted row (it can beat
-      // the HTTP response), this copy is skipped — no duplicate bubble.
-      const serverId = (res.data as { id?: string } | undefined)?.id;
-      const newReplyMsg: Email = {
-        id: serverId || optimisticId,
-        threadId: res.data?.threadId || messages[messages.length - 1]?.threadId || threadId,
-        userId: '',
-        subject: res.data?.subject || threadSubject,
-        inReplyTo: res.data?.inReplyTo || replyTarget,
-        bodyText: replyContent,
-        // `plainTextToHtml` rather than a local `replace(/\n/g, '<br/>')`: this is
-        // the second place that conversion was hand-written, and the hand-written
-        // copy did not escape, so a reply containing `<` lost its middle on screen.
-        bodyHtml: plainTextToHtml(replyContent),
-        snippet: replyContent.slice(0, 100),
-        // Carried on the optimistic copy so the message keeps its mark for the
-        // moment it is on screen before the refetch replaces it with the server's
-        // row. Without this the row would render as a letter — the field would be
-        // absent and `messageKindOf` defaults to `mail` — and then visibly flip.
-        messageKind: 'chat',
-        from: { name: 'You', email: 'me@quantmail.in' },
-        to: targetTo,
-        cc: [],
-        bcc: [],
-        priority: 'normal',
-        category: 'primary',
-        status: 'sent',
-        isRead: true,
-        isStarred: false,
-        isArchived: false,
-        isDraft: false,
-        labels: [],
-        references: [],
-        headers: {},
-        receivedAt: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        attachments: pendingAttachments.map((a, i) => ({
-          id: `att-${i}`,
-          emailId: `reply-${Date.now()}`,
-          filename: a.name,
-          mimeType: a.type,
-          size: a.size,
-          url: a.dataUrl,
-          isInline: false,
+        const targetTo = messages[0]?.from ? [messages[0].from] : [];
+
+        // Optimistic update: inject the sent reply into the active conversation timeline.
+        // If the realtime broadcast already delivered the persisted row (it can beat
+        // the HTTP response), this copy is skipped — no duplicate bubble.
+        const serverId = (res.data as { id?: string } | undefined)?.id;
+        const newReplyMsg: Email = {
+          id: serverId || optimisticId,
+          threadId: res.data?.threadId || messages[messages.length - 1]?.threadId || threadId,
+          userId: '',
+          subject: res.data?.subject || threadSubject,
+          inReplyTo: res.data?.inReplyTo || replyTarget,
+          bodyText: replyContent,
+          // `plainTextToHtml` rather than a local `replace(/\n/g, '<br/>')`: this is
+          // the second place that conversion was hand-written, and the hand-written
+          // copy did not escape, so a reply containing `<` lost its middle on screen.
+          bodyHtml: plainTextToHtml(replyContent),
+          snippet: replyContent.slice(0, 100),
+          // Carried on the optimistic copy so the message keeps its mark for the
+          // moment it is on screen before the refetch replaces it with the server's
+          // row. Without this the row would render as a letter — the field would be
+          // absent and `messageKindOf` defaults to `mail` — and then visibly flip.
+          messageKind: 'chat',
+          from: { name: 'You', email: 'me@quantmail.in' },
+          to: targetTo,
+          cc: [],
+          bcc: [],
+          priority: 'normal',
+          category: 'primary',
+          status: 'sent',
+          isRead: true,
+          isStarred: false,
+          isArchived: false,
+          isDraft: false,
+          labels: [],
+          references: [],
+          headers: {},
+          receivedAt: new Date(),
           createdAt: new Date(),
           updatedAt: new Date(),
-        })),
-      };
+          attachments: attachmentsSnapshot.map((a, i) => ({
+            id: `att-${i}`,
+            emailId: `reply-${Date.now()}`,
+            filename: a.name,
+            mimeType: a.type,
+            size: a.size,
+            url: a.dataUrl,
+            isInline: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })),
+        };
 
-      setMessages((prev) => {
-        if (serverId && prev.some((m) => m.id === serverId)) return prev;
-        const next = [...prev, newReplyMsg];
-        setExpandedIndices(new Set([...Array.from(expandedIndices), next.length - 1]));
-        return next;
-      });
-      // The mapping served its purpose: with a server id the optimistic row is the
-      // server row. Without one it stays so the late broadcast can reconcile it.
-      if (serverId) optimisticIdsRef.current.delete(clientMessageId);
-
-      setQuickReplyText('');
-      stopOwnTyping();
-      setPendingAttachments([]);
-      // A quoted reply is one-shot: the chip clears once the answer is away.
-      setQuotedMessage(null);
-      quantyReact('mail:sent');
-
-      // Index of the reply bubble we just appended (or the realtime-delivered row
-      // when the broadcast beat the HTTP response). Captured now so the Undo path
-      // can drop the right row and re-seat expanded indices without a stale closure.
-      const addedIndex =
-        serverId && messages.some((m) => m.id === serverId)
-          ? messages.findIndex((m) => m.id === serverId)
-          : messages.length;
-
-      if (serverId) {
-        // QM-UIUX-087: Gmail-style Undo for quick replies. The reply goes out
-        // immediately; the backend `undo-send` pulls it back to Drafts while the
-        // window is open — the same mechanism as the full composer's undo toast,
-        // so the global keyboard Undo (`z`) reverses this too via the toast bus.
-        showToast({
-          text: 'Reply sent',
-          type: 'success',
-          duration: 10_000,
-          countdown: 10,
-          undoAction: async () => {
-            try {
-              const undoRes = await apiClient.undoSend(serverId);
-              if (undoRes.success) {
-                // Drop the reply bubble — it is a draft again, not a sent line.
-                setMessages((prev) => removeMessageById(prev, serverId));
-                setExpandedIndices((prev) => reseatExpandedAfterRemoval(prev, addedIndex));
-                // Hand the words back to the reply bar so nothing the user
-                // typed is lost; the attachments live on in the draft.
-                setQuickReplyText(replyContent);
-                showToast({ text: 'Reply sending undone. Message restored to Drafts.', type: 'info' });
-                invalidateMailLists(queryClient);
-              } else {
-                showToast({ text: undoRes.error?.message || 'Could not undo send.', type: 'warning' });
-                invalidateMailLists(queryClient);
-              }
-            } catch {
-              showToast({ text: 'Could not undo send.', type: 'error' });
-            }
-          },
+        setMessages((prev) => {
+          if (serverId && prev.some((m) => m.id === serverId)) return prev;
+          const next = [...prev, newReplyMsg];
+          setExpandedIndices(new Set([...Array.from(expandedIndices), next.length - 1]));
+          return next;
         });
-      } else {
-        // No server id for this send — nothing the backend could pull back, so
-        // a plain confirmation instead of a dead Undo button.
+        // The mapping served its purpose: with a server id the optimistic row is the
+        // server row. Without one it stays so the late broadcast can reconcile it.
+        if (serverId) optimisticIdsRef.current.delete(clientMessageId);
+
+        quantyReact('mail:sent');
         showToast({ text: 'Reply sent successfully', type: 'success' });
+
+        // The conversation has a new message, so every mailbox list showing this
+        // thread is now wrong — including the inbox behind this pane, which is where
+        // the user goes looking for what they just sent.
+        invalidateMailLists(queryClient);
+
+        // Scroll to bottom
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      } catch {
+        quantyReact('mail:sendFailed');
+        setReplyError('Failed to send reply');
+        showToast({ text: 'Failed to send reply', type: 'error' });
+        restoreToReplyBar();
+      } finally {
+        setIsSendingQuickReply(false);
       }
+    };
 
-      // The conversation has a new message, so every mailbox list showing this
-      // thread is now wrong — including the inbox behind this pane, which is where
-      // the user goes looking for what they just sent.
-      invalidateMailLists(queryClient);
+    // Who the countdown bar names: the conversation's other party, read the
+    // same way `openFullComposer` reads it — the first message's sender, or
+    // its recipient when that first message is one of ours.
+    const primary = messages[0];
+    const primaryIsOutbound =
+      primary &&
+      Boolean(
+        (primary as any).isOutbound ||
+          (primary as any).folder === 'SENT' ||
+          (primary as any).folder === 'sent' ||
+          (primary as any).folderType === 'SENT',
+      );
+    const recipientLabel = primaryIsOutbound
+      ? primary?.to?.[0]?.email || primary?.to?.[0]?.name || 'recipient'
+      : primary?.from?.email || primary?.from?.name || 'recipient';
 
-      // Scroll to bottom
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    } catch {
-      quantyReact('mail:sendFailed');
-      setReplyError('Failed to send reply');
-      showToast({ text: 'Failed to send reply', type: 'error' });
-    } finally {
-      setIsSendingQuickReply(false);
-    }
+    queueSend({
+      to: recipientLabel,
+      body: replyContent,
+      onSendNow: performSend,
+      onUndo: () => {
+        // Nothing was sent — the API call only exists inside `performSend`.
+        // Drop the reconciliation id and hand the words back to the bar.
+        optimisticIdsRef.current.delete(clientMessageId);
+        restoreToReplyBar();
+        quantyReact('mail:undone');
+        requestAnimationFrame(() => quickReplyInputRef.current?.focus());
+      },
+    });
+
+    // The box clears the moment Send is pressed, exactly like the composer
+    // closing on Send: the countdown bar owns the in-flight state from here,
+    // and Undo (or a failed send) restores the words via `restoreToReplyBar`.
+    setQuickReplyText('');
+    stopOwnTyping();
+    setPendingAttachments([]);
+    setQuotedMessage(null);
   }, [
     quickReplyText,
     pendingAttachments,
@@ -1585,6 +1578,8 @@ export function ConversationalThreadView({
     threadSubject,
     expandedIndices,
     queryClient,
+    queueSend,
+    stopOwnTyping,
   ]);
 
   /**
