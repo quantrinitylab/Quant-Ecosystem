@@ -2006,7 +2006,7 @@ Dependencies: none.
 Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 2: M-P1-3).
 
 ## QM-UIUX-084 — P1: Aggressive self-threading merges unrelated subjects
-Status: [ ] TODO
+Status: [x] DONE — PR #732 merged (distinct-subject self-sends thread separately; paud lane)
 Finding: Personal deep audit 2026-10-09: a sent self-email with a unique subject was merged into one giant "You Mail" self-thread containing all prior self-emails with unrelated subjects; the inbox row shows only the latest subject.
 Required: threading must respect subject/message boundaries — unrelated subjects must not merge into one thread.
 Scope: apps/quantmail threading model.
