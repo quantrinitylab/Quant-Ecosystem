@@ -10,7 +10,13 @@ import { apiClient } from '../services/api-client';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
 import { apiFetchRaw } from '@quant/api-client';
-import { composeMessageBodies } from '../lib/email-body';
+import {
+  adjustRangesForEdit,
+  applyInlineFormat,
+  composeMessageBodies,
+  type InlineFormatKind,
+  type InlineFormatRange,
+} from '../lib/email-body';
 import { loadDefaultSignatureHtml } from '../lib/email-signature-preference';
 import type { Attachment } from './EmailComposer';
 
@@ -334,6 +340,11 @@ export function DockedComposer({
   const [body, setBody] = useState(initialBody);
 
   // Formatting & Attachments
+  // QM-UIUX-081: formatting is a set of ranges over `body`, never characters
+  // inside it — the old Bold button wrapped the selection in literal `**`,
+  // which then leaked into bodyText, snippets and previews as raw Markdown.
+  // `composeMessageBodies` renders these ranges as real HTML on send/save.
+  const [bodyFormats, setBodyFormats] = useState<InlineFormatRange[]>([]);
   const [showFormatting, setShowFormatting] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isSending, setIsSending] = useState(false);
@@ -365,7 +376,7 @@ export function DockedComposer({
   // work was lost if the user closed it without sending. Now a real timer saves
   // 10s after the last edit, only when dirty, only with content.
   const saveDraftToServer = async (): Promise<boolean> => {
-    const { bodyText } = composeMessageBodies(body.trim(), signatureHtml);
+    const { bodyText } = composeMessageBodies(body, signatureHtml, { inline: bodyFormats });
     try {
       await apiFetchRaw('/api/emails/drafts', {
         method: 'POST',
@@ -423,7 +434,12 @@ export function DockedComposer({
   }, [initialSubject]);
 
   useEffect(() => {
-    if (initialBody) setBody(initialBody);
+    if (initialBody) {
+      setBody(initialBody);
+      // A freshly supplied body has no format ranges yet; stale ranges from
+      // an earlier draft would format words the user never selected.
+      setBodyFormats([]);
+    }
   }, [initialBody]);
 
   // Reset window state when the composer is closed, so reopening always starts
@@ -541,7 +557,12 @@ export function DockedComposer({
       // "Make Concise" rewrites the draft in place; other presets append.
       if (promptType === 'concise' && body) {
         setBody(generated);
+        // The old text is gone, so its format ranges would point at words
+        // that no longer exist — drop them rather than misformat the rewrite.
+        setBodyFormats([]);
       } else {
+        // Appending after the existing text leaves every existing range
+        // pointing at the same words, so the ranges survive untouched.
         setBody((prev) => (prev ? `${prev}\n\n${generated}` : generated));
       }
       showToast({ text: 'Template inserted', type: 'success' });
@@ -553,25 +574,35 @@ export function DockedComposer({
     }
   };
 
-  // Format action helpers
+  // Format action helpers (QM-UIUX-081)
+  //
+  // Formatting is recorded as ranges over the plain body text and rendered as
+  // real HTML (`<strong>`, `<em>`, `<u>`, `<ul>`) by `composeMessageBodies` at
+  // send/save time. The previous implementation wrapped the selection in
+  // literal `**` / `*` / `<u>` characters inside the text itself, so the raw
+  // markers were stored in bodyText and surfaced in list snippets, thread
+  // previews and Contacts mail history. A <textarea> cannot paint per-range
+  // styles, so the selection stays highlighted after a press and the button
+  // toggles the range off again — the formatting itself is real where it
+  // counts: in the message that is sent.
   const applyFormatting = (tag: string) => {
     const textarea = bodyRef.current;
     if (!textarea) return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selected = body.substring(start, end);
-    let wrapped = '';
-
-    if (tag === 'b') wrapped = `**${selected || 'bold text'}**`;
-    else if (tag === 'i') wrapped = `*${selected || 'italic text'}*`;
-    else if (tag === 'u') wrapped = `<u>${selected || 'underlined text'}</u>`;
-    else if (tag === 'list') wrapped = `\n• ${selected || 'list item'}`;
-
-    const newText = body.substring(0, start) + wrapped + body.substring(end);
-    setBody(newText);
+    const kind: InlineFormatKind | null =
+      tag === 'b' ? 'bold' : tag === 'i' ? 'italic' : tag === 'u' ? 'underline' : tag === 'list' ? 'list' : null;
+    if (!kind) return;
+    const result = applyInlineFormat(
+      body,
+      bodyFormats,
+      textarea.selectionStart ?? 0,
+      textarea.selectionEnd ?? 0,
+      kind,
+    );
+    setBody(result.text);
+    setBodyFormats(result.ranges);
     setTimeout(() => {
       textarea.focus();
-      textarea.setSelectionRange(start + wrapped.length, start + wrapped.length);
+      textarea.setSelectionRange(result.selectionStart, result.selectionEnd);
     }, 50);
   };
 
@@ -590,7 +621,7 @@ export function DockedComposer({
       return;
     }
 
-    const { bodyText, bodyHtml } = composeMessageBodies(body.trim(), signatureHtml);
+    const { bodyText, bodyHtml } = composeMessageBodies(body, signatureHtml, { inline: bodyFormats });
 
     const draftSnapshot = {
       to: to.trim(),
@@ -598,6 +629,7 @@ export function DockedComposer({
       bcc: bcc.trim(),
       subject: subject.trim(),
       body: body.trim(),
+      bodyFormats: [...bodyFormats],
       bodyText,
       bodyHtml,
       attachments: [...attachments],
@@ -619,6 +651,7 @@ export function DockedComposer({
         setBcc(draftSnapshot.bcc);
         setSubject(draftSnapshot.subject);
         setBody(draftSnapshot.body);
+        setBodyFormats(draftSnapshot.bodyFormats);
         setAttachments(draftSnapshot.attachments);
         showToast({ text: 'Send cancelled. Draft restored.', type: 'info' });
       },
@@ -991,10 +1024,14 @@ export function DockedComposer({
               // The placeholder promises "Type '++' for writing-assistant templates" —
               // honour it: strip the trigger and open the templates menu.
               if (next.endsWith('++')) {
-                setBody(next.slice(0, -2));
+                const stripped = next.slice(0, -2);
+                setBodyFormats((prev) => adjustRangesForEdit(prev, body, stripped));
+                setBody(stripped);
                 setShowAssistMenu(true);
                 return;
               }
+              // Keep format ranges glued to their words as the text changes.
+              setBodyFormats((prev) => adjustRangesForEdit(prev, body, next));
               setBody(next);
             }}
             placeholder="Write your email here... Type '++' for writing-assistant templates."
