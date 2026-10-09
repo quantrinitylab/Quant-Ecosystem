@@ -312,14 +312,19 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       expect(linkCreateRoute?.methods).toEqual(['POST']);
     });
 
-    it('R-V1 Pattern: search/emails and search/parse resolve GET in route table', () => {
+    it('R-V1 Pattern: search/emails resolves GET in route table; search/parse is no longer proxied (QM-UIUX-070)', () => {
       const searchEmails = resolveRoute('search/emails');
       expect(searchEmails).toBeDefined();
       expect(searchEmails?.methods).toEqual(['GET']);
 
+      // QM-UIUX-070: /api/search/parse was a dead Next proxy surface — a repo-
+      // wide sweep found no web caller (the web search UI posts to
+      // /emails/search and reads /search/all). The route file and this allow-
+      // list entry were removed, so the proxy must NOT resolve it. The backend
+      // endpoint GET /search/parse itself is untouched: the Flutter client
+      // calls it directly on the backend (quant_core SearchApi.parseQuery).
       const searchParse = resolveRoute('search/parse');
-      expect(searchParse).toBeDefined();
-      expect(searchParse?.methods).toEqual(['GET']);
+      expect(searchParse).toBeUndefined();
     });
 
     it('R11: folders, attachments, and settings-tokens routes resolve expected methods', () => {
