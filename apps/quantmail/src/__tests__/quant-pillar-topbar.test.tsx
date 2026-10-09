@@ -56,6 +56,18 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+// Mock auth: the mobile avatar mounts the real AccountBadge menu, which reads
+// the current user from the auth provider.
+vi.mock('../providers/auth-provider', () => ({
+  useOptionalAuth: () => ({
+    user: { id: 'u1', email: 'test@quantmail.in', displayName: 'Test User', username: 'test' },
+    logout: vi.fn(),
+  }),
+  useAuth: () => {
+    throw new Error('useAuth must be used within an AuthProvider');
+  },
+}));
+
 describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -94,8 +106,10 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
     it('applies Gmail-style Orange/Red active styling to Mail tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
 
-      // Professional subtle background #0D0D12 with blur
-      expect(html).toContain('rgba(13,13,18,0.96)');
+      // QM-UIUX-072/073: pure-black header bar (--quant-background is
+      // #000000 in dark theme), no blur tint, no dividers.
+      expect(html).toContain('background:var(--quant-background)');
+      expect(html).not.toContain('rgba(13,13,18,0.96)');
       // Active-only markers: these strings render ONLY when Mail is active —
       // the Swiggy-style sliding line gradient and the active logo glow.
       // (Bare 'var(--quant-primary)' / '#FF6B35' are global: AI capsule, search ring and the
@@ -107,7 +121,10 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
     it('applies professional Blue active styling to Calendar tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="calendar" />);
 
-      expect(html).toContain('rgba(13,13,18,0.96)');
+      // QM-UIUX-072/073: pure-black header bar (--quant-background is
+      // #000000 in dark theme), no blur tint, no dividers.
+      expect(html).toContain('background:var(--quant-background)');
+      expect(html).not.toContain('rgba(13,13,18,0.96)');
       // Active-only: sliding line + glow in Calendar's blue.
       expect(html).toContain('linear-gradient(90deg, #4285F4, #4285F4CC)');
       expect(html).toContain('drop-shadow(0 0 6px #4285F466)');
@@ -116,7 +133,10 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
     it('applies Google Drive-style colors to Drive tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="drive" />);
 
-      expect(html).toContain('rgba(13,13,18,0.96)');
+      // QM-UIUX-072/073: pure-black header bar (--quant-background is
+      // #000000 in dark theme), no blur tint, no dividers.
+      expect(html).toContain('background:var(--quant-background)');
+      expect(html).not.toContain('rgba(13,13,18,0.96)');
       // Active-only: sliding line + glow in Drive's green.
       expect(html).toContain('linear-gradient(90deg, #34A853, #34A853CC)');
       expect(html).toContain('drop-shadow(0 0 6px #34A85366)');
@@ -125,7 +145,10 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
     it('applies Grey/Blue active styling to Contacts tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" />);
 
-      expect(html).toContain('rgba(13,13,18,0.96)');
+      // QM-UIUX-072/073: pure-black header bar (--quant-background is
+      // #000000 in dark theme), no blur tint, no dividers.
+      expect(html).toContain('background:var(--quant-background)');
+      expect(html).not.toContain('rgba(13,13,18,0.96)');
       // Active-only: sliding line + glow in Contacts' grey-blue.
       expect(html).toContain('linear-gradient(90deg, #8AB4F8, #8AB4F8CC)');
       expect(html).toContain('drop-shadow(0 0 6px #8AB4F866)');
@@ -134,7 +157,10 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
     it('applies distinct Purple active styling to QuantGit tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="quantgit" />);
 
-      expect(html).toContain('rgba(13,13,18,0.96)');
+      // QM-UIUX-072/073: pure-black header bar (--quant-background is
+      // #000000 in dark theme), no blur tint, no dividers.
+      expect(html).toContain('background:var(--quant-background)');
+      expect(html).not.toContain('rgba(13,13,18,0.96)');
       // Active-only: sliding line + glow in QuantGit's purple.
       expect(html).toContain('linear-gradient(90deg, #A855F7, #A855F7CC)');
       expect(html).toContain('drop-shadow(0 0 6px #A855F766)');
@@ -567,6 +593,58 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       expect(html).toContain('<svg');
       expect(html).toContain('viewBox="0 0 24 24"');
       expect(html).toContain('aria-hidden="true"');
+    });
+  });
+
+  describe('QM-UIUX-073 mobile chrome fixes', () => {
+    it('collapses the switcher with a grid-rows animation (zero space when hidden, no blank gap)', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="drive" />);
+      // The collapse wrapper animates grid-template-rows; it must NOT hold a
+      // constant measured height (that left a blank gap on scroll).
+      expect(html).toContain('grid-rows-[1fr]');
+      expect(html).toContain('transition-[grid-template-rows]');
+      expect(html).not.toContain('translateY(-105%)');
+    });
+
+    it('renders the sticky bar in pure black with no divider lines', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
+      // --quant-background is #000000 in the dark theme (QM-UIUX-072 law).
+      expect(html).toContain('background:var(--quant-background)');
+      expect(html).not.toContain('rgba(13,13,18,0.96)');
+      expect(html).not.toContain('rgba(19,20,26');
+    });
+
+    it('always renders the Quanty ghost next to the search bar (never scroll-conditional)', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
+      // The ghost trigger is always in the DOM at full size — the old
+      // scroll-conditional button collapsed to zero size until scrolled.
+      expect(html).toContain('aria-label="Ask Quanty"');
+      expect(html).toContain('size-10');
+    });
+
+    it('renders the account menu trigger instead of a direct-to-settings avatar', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
+      // AccountBadge compact trigger opens the real menu (switch account,
+      // settings, sign out) — the old avatar pushed straight to /settings.
+      expect(html).toContain('aria-haspopup="menu"');
+      expect(html).toContain('Account menu:');
+      expect(html).not.toContain('open settings');
+    });
+
+    it('gives every pillar tile its own per-app accent tint behind the logo', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="calendar" />);
+      // Calendar tile must carry the blue accent tint (bug: it disappeared).
+      expect(html).toContain('#4285F4');
+      // Mail tile keeps its orange tint.
+      expect(html).toContain('#FF6B35');
+    });
+
+    it('removes the pill container behind the switcher logos', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
+      // No rounded dock pill with border/shadow behind the logos (React
+      // serializes borderRadius:16 as border-radius:16px).
+      expect(html).not.toContain('border-radius:16px');
+      expect(html).not.toContain('0 2px 12px rgba(0,0,0,0.35)');
     });
   });
 });
