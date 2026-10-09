@@ -585,7 +585,7 @@ export function SingleEnterpriseStorageGauge({
               {usedFormatted} <span className="text-[#64748B] font-normal">/ {totalFormatted}</span>
             </div>
             <p className="text-[11px] text-[#38BDF8] font-medium mt-0.5">
-              {percentage}% used · {remainingFormatted}
+              {percentage}% used{' '}·{' '}{remainingFormatted}
             </p>
           </div>
 

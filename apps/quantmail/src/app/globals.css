@@ -2360,6 +2360,24 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* SIA-P2-5: recipient chip for sent rows. */
+.sent-row-to-chip {
+  flex: none;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.35rem;
+  border: 1px solid var(--quant-border-subtle);
+  background: var(--quant-surface-elevated);
+  color: var(--quant-muted-foreground);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* SIA-P2-5: the faint grid texture behind rows lowered contrast on the
+   Sent view — remove it here (other workspace pages keep it). */
+.sent-workspace::before {
+  display: none;
+}
 .sent-row-time {
   margin-left: auto;
   color: #A1A4AC;

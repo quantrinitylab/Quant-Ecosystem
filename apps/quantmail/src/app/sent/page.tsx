@@ -292,6 +292,9 @@ export default function SentPage() {
                   />
                   <div className="sent-row-content">
                     <div className="sent-row-meta">
+                      {/* SIA-P2-5: explicit recipient chip — self-sent rows used
+                          to show only a bare name with no "To" context. */}
+                      <span className="sent-row-to-chip">To</span>
                       <span className="sent-row-recipients">
                         {email.to?.map((t) => t.name || t.email).join(', ') || 'Unknown'}
                       </span>

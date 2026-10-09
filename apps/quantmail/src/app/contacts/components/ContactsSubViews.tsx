@@ -1341,7 +1341,9 @@ export function ContactDetailSheet({
                 </div>
 
                 <span className="text-[10px] font-mono text-[#6B7280] shrink-0">
-                  {mail.receivedAt ? new Date(mail.receivedAt).toLocaleDateString() : 'Recent'}
+                  {mail.receivedAt
+                    ? new Date(mail.receivedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                    : 'Recent'}
                 </span>
               </div>
             ))}

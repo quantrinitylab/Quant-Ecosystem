@@ -14,7 +14,8 @@ const APP_TITLES: Record<string, { brand: string; name: string }> = {
   drive: { brand: 'Quant', name: 'Drive' },
   contacts: { brand: 'Quant', name: 'Contacts' },
   // The app *id* stays `code` (it owns the `/codehub` route); only the
-  // user-visible name is QuantGit.
+  // user-visible name is QuantGit — rendered as one word (no gap between
+  // "Quant" and "Git") to match the switcher label (SIA-P2-11).
   code: { brand: 'Quant', name: 'Git' },
 };
 
@@ -32,7 +33,11 @@ export function appDisplayName(app: string): string {
 }
 
 /**
- * World-Class Instagram-Style Signature Wordmark
+ * World-Class Instagram-Style Signature Wordmark.
+ *
+ * The app name follows the per-app accent (`--app-accent`: Mail orange,
+ * Calendar blue, Drive green, Contacts amber, QuantGit purple) so the
+ * wordmark always matches the active app's theme (SIA-P2-9).
  */
 export function BrandWordmark({
   app = 'mail',
@@ -51,13 +56,15 @@ export function BrandWordmark({
   };
 
   const chosenSize = fontSizes[size] || 'text-[20px]';
+  // QuantGit reads as one word like the switcher label (SIA-P2-11).
+  const tight = app === 'code' ? 'gap-0' : 'gap-1.5';
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap select-none font-semibold tracking-tight ${chosenSize} ${className}`}
+      className={`inline-flex items-center whitespace-nowrap select-none font-semibold tracking-tight ${chosenSize} ${tight} ${className}`}
     >
       <span className="text-[var(--quant-foreground)] font-bold tracking-tight">{item.brand}</span>
-      <span className="text-[var(--quant-primary)] font-semibold tracking-tight">{item.name}</span>
+      <span className="text-[var(--app-accent)] font-semibold tracking-tight">{item.name}</span>
     </span>
   );
 }

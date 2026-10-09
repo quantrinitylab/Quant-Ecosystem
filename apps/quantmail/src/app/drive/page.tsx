@@ -41,6 +41,7 @@ import {
   IconStar,
   IconStarFilled,
   IconUpload,
+  IconChevronDown,
 } from '../../components/icons';
 import { FileVersionHistoryModal } from '../../components/drive/FileVersionHistoryModal';
 import { FileActivityModal } from '../../components/drive/FileActivityModal';
@@ -527,6 +528,11 @@ function DrivePageContent() {
   // QM-M39-011: Quanty file workspace (M39 screen 31).
   const [isQuantyWorkspaceOpen, setIsQuantyWorkspaceOpen] = useState(false);
   const [quantyWorkspaceFile, setQuantyWorkspaceFile] = useState<DriveItem | null>(null);
+  // SIA-P1-6: one primary "Upload / New" split button; New Doc / New Folder /
+  // Quanty / Duplicates live in the caret's overflow menu instead of five
+  // competing CTAs.
+  const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
+  const createMenuRef = useRef<HTMLDivElement>(null);
   const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
   // QM-M39-005: read-only access viewer target (separate from the share-change modal)
   const [accessTarget, setAccessTarget] = useState<{ id: string; name: string } | null>(null);
@@ -894,6 +900,23 @@ function DrivePageContent() {
     window.addEventListener('quant:drive:upload', handler);
     return () => window.removeEventListener('quant:drive:upload', handler);
   }, [handleUploadTrigger]);
+
+  // SIA-P1-6: dismiss the create overflow menu on outside-press / Escape.
+  useEffect(() => {
+    if (!isCreateMenuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!createMenuRef.current?.contains(event.target as Node)) setIsCreateMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsCreateMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isCreateMenuOpen]);
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
@@ -1270,85 +1293,115 @@ function DrivePageContent() {
               ))}
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                const docId = 'doc_' + Math.random().toString(36).substring(2, 9);
-                router.push(`/drive/doc/${docId}`);
-              }}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--app-accent)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-white/[0.04] hover:shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_10%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
-              aria-label="New document"
-            >
-              <IconFile size={14} />
-              <span className="hidden md:inline">New Doc</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowNewFolderModal(true)}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--quant-foreground)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-white/[0.04] hover:shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_10%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
-              aria-label="New folder"
-            >
-              <IconFolderPlus size={14} />
-              <span className="hidden md:inline">New Folder</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setQuantyWorkspaceFile(null);
-                setIsQuantyWorkspaceOpen(true);
-              }}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--quant-foreground)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-white/[0.04] hover:shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_10%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] md:px-3"
-              aria-label="Open the Quanty file workspace"
-            >
-              <svg
-                className="size-3.5 text-[var(--app-accent)]"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"
-                />
-              </svg>
-              <span className="hidden md:inline">Quanty</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsDuplicateCleanerOpen(true)}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--quant-foreground)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-white/[0.04] hover:shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_10%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] md:px-3"
-              aria-label="Find and clean duplicate files"
-            >
-              <svg
-                className="size-3.5 text-[var(--app-accent)]"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
-                />
-              </svg>
-              <span className="hidden md:inline">Duplicates</span>
-            </button>
-
-            {/* Desktop only: on mobile this action belongs to the FAB alone. */}
-            <button
-              type="button"
-              onClick={handleUploadTrigger}
-              className="hidden h-8 items-center gap-1.5 rounded-lg bg-[var(--app-accent)] px-3 text-xs font-semibold text-[#111111] transition-colors hover:bg-[var(--app-accent-hover)] active:bg-[var(--quant-primary-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] md:inline-flex"
-            >
-              <IconUpload size={14} />
-              <span>Upload</span>
-            </button>
+            {/* SIA-P1-6: one primary "Upload / New" split button. The main
+                segment uploads files; the caret opens an overflow menu with
+                New Doc / New Folder / Quanty workspace / Find duplicates —
+                previously five competing CTAs in this cluster. */}
+            <div ref={createMenuRef} className="relative">
+              <div className="inline-flex items-stretch">
+                <button
+                  type="button"
+                  onClick={handleUploadTrigger}
+                  aria-label="Upload files"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-l-lg rounded-r-none bg-[var(--app-accent)] px-3 text-xs font-semibold text-[#111111] transition-colors hover:bg-[var(--app-accent-hover)] active:bg-[var(--quant-primary-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)]"
+                >
+                  <IconUpload size={14} />
+                  <span className="hidden md:inline">Upload</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateMenuOpen((open) => !open)}
+                  aria-haspopup="menu"
+                  aria-expanded={isCreateMenuOpen}
+                  aria-label="More create actions"
+                  className="inline-flex h-9 items-center justify-center rounded-l-none rounded-r-lg border-l border-[#111111]/25 bg-[var(--app-accent)] px-2 text-[#111111] transition-colors hover:bg-[var(--app-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)]"
+                >
+                  <IconChevronDown size={14} />
+                </button>
+              </div>
+              {isCreateMenuOpen && (
+                <div
+                  role="menu"
+                  aria-label="Create actions"
+                  className="absolute right-0 top-full z-50 mt-1.5 min-w-48 overflow-hidden rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] p-1 shadow-[0_8px_32px_rgba(0,0,0,0.6)]"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsCreateMenuOpen(false);
+                      const docId = 'doc_' + Math.random().toString(36).substring(2, 9);
+                      router.push(`/drive/doc/${docId}`);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-semibold text-[var(--quant-foreground)] hover:bg-white/[0.06] focus-visible:bg-white/[0.06] focus-visible:outline-none"
+                  >
+                    <IconFile size={14} />
+                    <span>New Doc</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsCreateMenuOpen(false);
+                      setShowNewFolderModal(true);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-semibold text-[var(--quant-foreground)] hover:bg-white/[0.06] focus-visible:bg-white/[0.06] focus-visible:outline-none"
+                  >
+                    <IconFolderPlus size={14} />
+                    <span>New Folder</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsCreateMenuOpen(false);
+                      setQuantyWorkspaceFile(null);
+                      setIsQuantyWorkspaceOpen(true);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-semibold text-[var(--quant-foreground)] hover:bg-white/[0.06] focus-visible:bg-white/[0.06] focus-visible:outline-none"
+                  >
+                    <svg
+                      className="size-3.5 text-[var(--app-accent)]"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"
+                      />
+                    </svg>
+                    <span>Quanty workspace</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsCreateMenuOpen(false);
+                      setIsDuplicateCleanerOpen(true);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-semibold text-[var(--quant-foreground)] hover:bg-white/[0.06] focus-visible:bg-white/[0.06] focus-visible:outline-none"
+                  >
+                    <svg
+                      className="size-3.5 text-[var(--app-accent)]"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+                      />
+                    </svg>
+                    <span>Find duplicates</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

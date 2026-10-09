@@ -94,15 +94,15 @@ export function DesktopAppRail({
 
   // Global keyboard shortcuts: Ctrl+1..5 / ⌘1..5 and 1..5
   useShortcut('mod+1', () => navigatePillar('/', 'mail'), { label: 'Go to Mail', allowInInput: true });
-  useShortcut('1', () => navigatePillar('/', 'mail'), { label: 'Go to Mail (1)', allowInInput: false });
+  useShortcut('1', () => navigatePillar('/', 'mail'), { label: 'Go to Mail', allowInInput: false });
   useShortcut('mod+2', () => navigatePillar('/calendar', 'calendar'), { label: 'Go to Calendar', allowInInput: true });
-  useShortcut('2', () => navigatePillar('/calendar', 'calendar'), { label: 'Go to Calendar (2)', allowInInput: false });
+  useShortcut('2', () => navigatePillar('/calendar', 'calendar'), { label: 'Go to Calendar', allowInInput: false });
   useShortcut('mod+3', () => navigatePillar('/drive', 'drive'), { label: 'Go to Drive', allowInInput: true });
-  useShortcut('3', () => navigatePillar('/drive', 'drive'), { label: 'Go to Drive (3)', allowInInput: false });
+  useShortcut('3', () => navigatePillar('/drive', 'drive'), { label: 'Go to Drive', allowInInput: false });
   useShortcut('mod+4', () => navigatePillar('/contacts', 'contacts'), { label: 'Go to Contacts', allowInInput: true });
-  useShortcut('4', () => navigatePillar('/contacts', 'contacts'), { label: 'Go to Contacts (4)', allowInInput: false });
+  useShortcut('4', () => navigatePillar('/contacts', 'contacts'), { label: 'Go to Contacts', allowInInput: false });
   useShortcut('mod+5', () => navigatePillar('/quantgit', 'quantgit'), { label: 'Go to QuantGit', allowInInput: true });
-  useShortcut('5', () => navigatePillar('/quantgit', 'quantgit'), { label: 'Go to QuantGit (5)', allowInInput: false });
+  useShortcut('5', () => navigatePillar('/quantgit', 'quantgit'), { label: 'Go to QuantGit', allowInInput: false });
 
   return (
     <aside
@@ -127,10 +127,10 @@ export function DesktopAppRail({
                 role="tab"
                 data-testid={`desktop-app-rail-tile-${tile.id}`}
                 aria-selected={isActive}
-                aria-label={`${tile.label} (${tile.shortcutNumber})`}
-                title={`${tile.label} (${isMac ? `⌘${tile.shortcutNumber}` : `Ctrl+${tile.shortcutNumber}`})`}
+                aria-label={tile.label}
+                title={`${tile.label} — ${isMac ? `⌘${tile.shortcutNumber}` : `Ctrl+${tile.shortcutNumber}`}`}
                 onClick={() => handlePillarClick(tile)}
-                className={`relative flex size-10 items-center justify-center rounded-xl transition-opacity duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 ${
+                className={`relative flex size-11 items-center justify-center rounded-xl transition-opacity duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 ${
                   isActive ? '' : 'hover:bg-[var(--quant-surface-elevated)] opacity-60 hover:opacity-100'
                 }`}
               >

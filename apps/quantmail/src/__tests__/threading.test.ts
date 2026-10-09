@@ -190,7 +190,7 @@ describe('groupEmailsIntoThreads', () => {
     );
 
     expect(thread.count).toBe(2);
-    expect(thread.participantsSummary).toBe('You');
+    expect(thread.participantsSummary).toBe('me');
   });
 
   it('ignores case and reply prefixes when separating self-notes', () => {
@@ -718,14 +718,14 @@ describe('groupEmailsIntoThreads', () => {
     );
 
     expect(thread.participants).toEqual([]);
-    expect(thread.participantsSummary).toBe('You');
+    expect(thread.participantsSummary).toBe('me');
   });
 
-  it('says You for a conversation with nobody else in it', () => {
+  it('says me for a conversation with nobody else in it', () => {
     const [thread] = groupEmailsIntoThreads([email({ subject: 'Sent thing', status: 'sent' })]);
 
     // No signed-in address to compare against: `status: 'sent'` is enough.
-    expect(thread.participantsSummary).toBe('You');
+    expect(thread.participantsSummary).toBe('me');
   });
 
   it('falls back to the local part, then to Sender, for a message with no display name', () => {
