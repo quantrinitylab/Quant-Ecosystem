@@ -2057,28 +2057,36 @@ Scope: apps/quantchat AIAssistant + api-client.
 Dependencies: none.
 
 ## QM-UIUX-089 — QuantChat has no signup path (new customers cannot register)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-089-quantchat-signup-path
 Finding: Deep-customer-audit run 4 (2026-10-09): QuantChat's login page and the SSO page (quantmail.in/sso?client_id=quantchat) both lack any Create account / Register link, and /register redirects to /login. A first-time customer cannot create a Quant account via QuantChat at all. Evidence: goal workspace hidden_files/ledger-ops/customer-audit/findings.md run 4 + shots/2026-10-09/run-1953-quantchat-journey/.
 Required: a visible signup path from QuantChat login (and consistent SSO behavior) that lands on the real registration flow; verify the flow end-to-end.
 Scope: apps/quantchat login + SSO handoff.
 Dependencies: none.
 
 ## QM-UIUX-090 — QuantMail ai-error sanitizer: close the two residual gaps
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-090-ai-error-gaps
 Finding: Zero-defect run-37 audit of PR #736 (apps/quantmail/src/lib/ai-error.ts) found 2 residual P2 gaps: (1) bare internal hostnames leak (e.g. *.internal suffixes, host:port patterns); (2) extended credential classes leak (github_pat_, gho_/ghu_, Slack xox tokens, Basic credentials, PEM markers). The hardened implementation closing both now exists in QuantChat's src/lib/sanitize-error.ts (PR #751) — port those two closings back to QuantMail's ai-error.ts with matching tests.
 Required: ai-error.ts redacts bare internal hostnames and the extended credential classes; regression tests prove both (fail on current, pass on fix).
 Scope: apps/quantmail/src/lib/ai-error.ts + its tests.
 Dependencies: none.
 
 ## QM-UIUX-091 — Wire a real data-export UI to the QM-BACK-006 export backend
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-091-export-ui
 Finding: QM-BACK-006 delivered a real backend export center (apps/quantmail/backend/routes/data-lifecycle.ts: POST /exports, POST /exports/:id/build, GET /exports, GET /exports/:id, backed by requestDataExport/completeDataExport/failDataExport with tests), but NO frontend surface references these routes (zero hits in apps/quantmail/src/). Users have no way to request an export even though the backend exists. Found during QM-UIUX-027 verification (2026-10-10).
 Required: a settings/account export control wired through a frontend proxy route to the real /exports endpoints, with honest pending/building/ready/failed states and NO invented timelines or delivery promises. Tests prove the control calls the real endpoints and surfaces failures honestly.
 Scope: apps/quantmail settings/account surface + proxy route.
 Dependencies: none (backend exists).
 
 ## QM-UIUX-092 — Delete dead AIMemoryPanel component + useAIMemory hook
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-092-dead-memory-panel
 Finding: apps/quantmail/src/components/AIMemoryPanel.tsx and its useAIMemory hook have zero importers on current main (verified 2026-10-10 during QM-UIUX-047). The panel was superseded by DriveAiMemorySubView (Drive aimemory tab); its mount was deliberately removed in a1ebad82e. Dead code duplicates live memory logic and drifts.
 Required: delete AIMemoryPanel.tsx and useAIMemory.ts after re-verifying zero references (code + tests); run the full QuantMail suite.
 Scope: apps/quantmail/src/components/AIMemoryPanel.tsx, useAIMemory hook file.
