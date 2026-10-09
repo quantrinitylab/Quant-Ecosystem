@@ -665,7 +665,9 @@ function EmailRow({
               isRead={thread.isRead}
               isStarred={email.isStarred}
               isPinned={(email as { isPinned?: boolean }).isPinned}
+              isArchived={isArchiveView || email.isArchived === true}
               onArchive={onArchive}
+              onUnarchive={onUnarchive}
               onDelete={onDelete}
               onMarkRead={onMarkRead}
               onMarkUnread={onMarkUnread}
@@ -2602,13 +2604,13 @@ export default function InboxPage() {
   }, [allSpamThreads, refetchSpam]);
 
   const batchAction = useCallback(
-    async (action: 'archive' | 'delete') => {
+    async (action: 'archive' | 'delete' | 'unarchive') => {
       const ids = Array.from(selectedIds);
       setSelectedIds(new Set());
       // `ids.length` is the number of conversations, which is what the toast counts;
       // the request list is every message inside them.
       await mutations.batch(
-        action === 'archive' ? 'archive' : 'trash',
+        action === 'delete' ? 'trash' : action,
         ids.flatMap(conversationIds),
         ids.length,
       );
@@ -2890,6 +2892,8 @@ export default function InboxPage() {
       onMarkUnread={() => void batchMarkRead(Array.from(selectedIds), false)}
       onMoveToCategory={(category) => void moveSelectedToCategory(category)}
       onArchive={() => void batchAction('archive')}
+      onUnarchive={() => void batchAction('unarchive')}
+      isArchiveView={showArchivedView}
       onDelete={() => void batchAction('delete')}
       onSnooze={(until) => void batchSnooze(until)}
     />

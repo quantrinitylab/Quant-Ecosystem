@@ -13,6 +13,8 @@
 // controls stay on the bar:
 //
 //   [x] N selected                    [Archive] [Delete] [Snooze] [More]
+// In the Archive view the Archive slot swaps to "Move to inbox" (unarchive);
+// an Archive button on already-archived rows is a false affordance.
 //
 // Left 12 + 44 + 8 + ~70 = 134; right 4x44 + 3x4 = 188; total 334 <= 375, with
 // ~41px of slack under `justify-between`. Overflow is made structurally
@@ -56,6 +58,8 @@ export interface SelectionHeaderProps {
   totalVisible: number;
   /** Drives Pin/Unpin, which is one toggle rather than two menu rows. */
   allPinned: boolean;
+  /** When true, the Archive control becomes "Move to inbox" (unarchive). */
+  isArchiveView?: boolean;
   onDeselectAll: () => void;
   onSelectAllVisible: () => void;
   onTogglePin: () => void;
@@ -64,6 +68,7 @@ export interface SelectionHeaderProps {
   /** Available for one selected conversation; teaches future sender sorting. */
   onMoveToCategory?: (category: InboxCategory) => void;
   onArchive: () => void;
+  onUnarchive?: () => void;
   onDelete: () => void;
   onSnooze: (until: Date) => void;
 }
@@ -72,6 +77,7 @@ export function SelectionHeader({
   count,
   totalVisible,
   allPinned,
+  isArchiveView,
   onDeselectAll,
   onSelectAllVisible,
   onTogglePin,
@@ -79,6 +85,7 @@ export function SelectionHeader({
   onMarkUnread,
   onMoveToCategory,
   onArchive,
+  onUnarchive,
   onDelete,
   onSnooze,
 }: SelectionHeaderProps) {
@@ -108,15 +115,27 @@ export function SelectionHeader({
       </div>
 
       <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
-        <button
-          type="button"
-          onClick={onArchive}
-          className={`${ACTION_BUTTON} hover:bg-[var(--quant-surface-elevated)] hover:text-emerald-400`}
-          aria-label={`Archive ${count} selected`}
-          title="Archive"
-        >
-          <MailIcon name="archive" className="size-5" />
-        </button>
+        {isArchiveView && onUnarchive ? (
+          <button
+            type="button"
+            onClick={onUnarchive}
+            className={`${ACTION_BUTTON} hover:bg-[var(--quant-surface-elevated)] hover:text-emerald-400`}
+            aria-label={`Move ${count} selected back to inbox`}
+            title="Move to inbox"
+          >
+            <MailIcon name="mail" className="size-5" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onArchive}
+            className={`${ACTION_BUTTON} hover:bg-[var(--quant-surface-elevated)] hover:text-emerald-400`}
+            aria-label={`Archive ${count} selected`}
+            title="Archive"
+          >
+            <MailIcon name="archive" className="size-5" />
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setConfirmDelete(true)}

@@ -325,6 +325,13 @@ export interface ConversationalThreadViewProps {
    * nothing at all as a result: its handler only navigated back to the inbox.
    */
   onArchive?: (messageIds: string[]) => void;
+  /**
+   * Called with the same conversation-wide id list as `onArchive` when the
+   * conversation reads as archived and the reader chooses "Move to inbox".
+   * Mirrors `onArchive` honestly: the backend contract is the same outbox
+   * `unarchive` kind the row hover actions and the Archive bulk toolbar use.
+   */
+  onUnarchive?: (messageIds: string[]) => void;
   onDelete?: (messageIds: string[]) => void;
   onStarToggle?: (starred: boolean) => void;
   isStarred?: boolean;
@@ -349,6 +356,7 @@ export function ConversationalThreadView({
   subject = '(No Subject)',
   onClose,
   onArchive,
+  onUnarchive,
   onDelete,
   onStarToggle,
   isStarred = false,
@@ -689,6 +697,15 @@ export function ConversationalThreadView({
     const ids = messageRowIds(messages);
     return ids.length > 0 ? ids : [threadId].filter(Boolean);
   }, [messages, threadId]);
+
+  /**
+   * Whether the conversation reads as archived: every message in it carries
+   * `isArchived`. Drives the Archive → "Move to inbox" swap in the header and
+   * the "More conversation actions" menu — an Archive button on an archived
+   * conversation is a false affordance (PAUD-P0-2 / QM-UIUX-075).
+   */
+  const conversationIsArchived =
+    messages.length > 0 && messages.every((m) => m.isArchived === true);
 
   const isQuarantined =
     isSpam || messages.some((m) => (m as any).isSpam || (m as any).folderId === 'SPAM');
@@ -1731,14 +1748,14 @@ export function ConversationalThreadView({
             </button>
           )}
 
-          {/* 5. Archive */}
-          {onArchive && (
+          {/* 5. Archive — or "Move to inbox" when the conversation is archived */}
+          {conversationIsArchived && onUnarchive ? (
             <button
               type="button"
-              onClick={() => onArchive(conversationMessageIds)}
+              onClick={() => onUnarchive(conversationMessageIds)}
               className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[var(--quant-muted-foreground)] transition-all hover:bg-[var(--quant-surface-elevated)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)] sm:min-h-0 sm:min-w-0"
-              title="Archive conversation (E)"
-              aria-label="Archive conversation"
+              title="Move conversation back to inbox"
+              aria-label="Move conversation back to inbox"
             >
               <svg
                 className="size-[18px]"
@@ -1747,11 +1764,32 @@ export function ConversationalThreadView({
                 stroke="currentColor"
                 strokeWidth="2"
               >
-                <rect width="20" height="5" x="2" y="3" rx="1" />
-                <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
-                <path d="M10 12h4" />
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <path d="m3 7 9 6 9-6" />
               </svg>
             </button>
+          ) : (
+            onArchive && (
+              <button
+                type="button"
+                onClick={() => onArchive(conversationMessageIds)}
+                className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[var(--quant-muted-foreground)] transition-all hover:bg-[var(--quant-surface-elevated)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)] sm:min-h-0 sm:min-w-0"
+                title="Archive conversation (E)"
+                aria-label="Archive conversation"
+              >
+                <svg
+                  className="size-[18px]"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <rect width="20" height="5" x="2" y="3" rx="1" />
+                  <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+                  <path d="M10 12h4" />
+                </svg>
+              </button>
+            )
           )}
 
           {/* 6. Not Spam (Rescue) */}
@@ -1871,6 +1909,32 @@ export function ConversationalThreadView({
                   </svg>
                   Print conversation
                 </button>
+
+                {conversationIsArchived && onUnarchive && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    tabIndex={-1}
+                    onClick={() => {
+                      close();
+                      onUnarchive(conversationMessageIds);
+                    }}
+                    className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                  >
+                    <svg
+                      className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden="true"
+                    >
+                      <rect x="3" y="5" width="18" height="14" rx="2" />
+                      <path d="m3 7 9 6 9-6" />
+                    </svg>
+                    Move to inbox
+                  </button>
+                )}
 
                 {onDelete && (
                   <button

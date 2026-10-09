@@ -84,11 +84,11 @@ export interface MailMutations {
    */
   snooze: (ids: string | string[], until: Date, unitCount?: number) => Promise<void>;
   /**
-   * Batch archive or trash: one optimistic update, one request per id, one toast.
-   * `unitCount` is what the toast counts — the number of *conversations* selected,
-   * which is not `ids.length` once each one expands to its messages.
+   * Batch archive, unarchive, or trash: one optimistic update, one request per id,
+   * one toast. `unitCount` is what the toast counts — the number of *conversations*
+   * selected, which is not `ids.length` once each one expands to its messages.
    */
-  batch: (kind: 'archive' | 'trash', ids: string[], unitCount?: number) => Promise<void>;
+  batch: (kind: 'archive' | 'trash' | 'unarchive', ids: string[], unitCount?: number) => Promise<void>;
 }
 
 export interface UseMailMutationsOptions {
@@ -535,9 +535,19 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
   );
 
   const batch = useCallback(
-    (kind: 'archive' | 'trash', ids: string[], unitCount?: number) => {
+    (kind: 'archive' | 'trash' | 'unarchive', ids: string[], unitCount?: number) => {
       const list = idList(ids);
       const noun = conversationNoun(unitCount ?? list.length);
+      if (kind === 'unarchive') {
+        return run({
+          kind: 'unarchive',
+          ids: list,
+          patch: { isArchived: false },
+          toast: `${noun} moved back to inbox`,
+          undo: { kind: 'archive', patch: { isArchived: true } },
+          removesFromView: true,
+        });
+      }
       return kind === 'archive'
         ? run({
             kind: 'archive',

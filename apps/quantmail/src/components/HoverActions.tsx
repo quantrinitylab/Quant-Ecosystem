@@ -9,7 +9,10 @@ interface HoverActionsProps {
   isRead: boolean;
   isStarred?: boolean;
   isPinned?: boolean;
+  /** When true, the Archive button becomes "Move to inbox" (unarchive). */
+  isArchived?: boolean;
   onArchive: () => void;
+  onUnarchive?: () => void;
   onDelete: () => void;
   onMarkRead: () => void;
   onMarkUnread: () => void;
@@ -23,7 +26,8 @@ interface HoverActionsProps {
 
 /**
  * Gmail-style hover action bar that appears on the right side of an email row.
- * Shows: Pin, Star, Archive, Delete, Mark Read/Unread, Snooze, Label, and Not Spam rescue.
+ * Shows: Pin, Star, Archive (or Unarchive for archived mail), Delete,
+ * Mark Read/Unread, Snooze, Label, and Not Spam rescue.
  * Hidden on touch/coarse-pointer devices via shell.css.
  */
 export const HoverActions = memo(function HoverActions({
@@ -31,7 +35,9 @@ export const HoverActions = memo(function HoverActions({
   isRead,
   isStarred,
   isPinned,
+  isArchived,
   onArchive,
+  onUnarchive,
   onDelete,
   onMarkRead,
   onMarkUnread,
@@ -131,26 +137,48 @@ export const HoverActions = memo(function HoverActions({
           </svg>
         </button>
       )}
-      <button
-        type="button"
-        className="hover-action-btn"
-        onClick={onArchive}
-        aria-label="Archive"
-        title="Archive (E)"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+      {isArchived && onUnarchive ? (
+        <button
+          type="button"
+          className="hover-action-btn"
+          onClick={onUnarchive}
+          aria-label="Move to inbox"
+          title="Move to inbox"
         >
-          <path d="M21 8v13H3V8" />
-          <path d="M1 3h22v5H1z" />
-          <path d="M10 12h4" />
-        </svg>
-      </button>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="3" y="5" width="18" height="14" rx="2" />
+            <path d="m3 7 9 6 9-6" />
+          </svg>
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="hover-action-btn"
+          onClick={onArchive}
+          aria-label="Archive"
+          title="Archive (E)"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21 8v13H3V8" />
+            <path d="M1 3h22v5H1z" />
+            <path d="M10 12h4" />
+          </svg>
+        </button>
+      )}
       <button
         type="button"
         className="hover-action-btn"
