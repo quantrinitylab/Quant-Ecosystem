@@ -887,7 +887,7 @@ Scope: QuanTube mobile feed.
 Dependencies: none.
 
 ## QM-UIUX-019 — Drive tabs unreachable on mobile
-Status: [ ] TODO
+Status: [x] DONE-superseded — verified 2026-10-10 on current main: DriveMobileTabStrip exists and is rendered in app/drive/page.tsx (import line 7, render line 1387); the dead quant:subtab-change listener is gone. The mobile tab UI was rebuilt under a new component name after the audit; no separate fix needed.
 Finding: `DriveContextTabsHeader` is `hidden md:flex` (desktop only); the mobile replacement `MobileSubTabStrip` was deleted — the file does not exist. No mobile tab UI in `app/drive/page.tsx`. Users are stuck on the default tab; 7 of 8 Drive surfaces unreachable on phones. Dead code: `page.tsx:316` listens for `quant:subtab-change` from a component that no longer exists. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/drive-audit.md`.
 Required: restore/build a mobile tab strip for Drive (swipeable pills or bottom sheet); remove the dead event listener.
 Scope: `apps/quantmail/src/app/drive/`.
@@ -911,7 +911,7 @@ Scope: Drive Vault tab.
 Dependencies: QM-TRUST-003; QM-UIUX-020 (same files; fix together).
 
 ## QM-UIUX-022 — Calendar dead code: delete ~1,630 lines of unreferenced views
-Status: [ ] TODO
+Status: [x] DONE-superseded — verified 2026-10-10 on current main: CalendarMonthView.tsx, CalendarAgendaView.tsx and CalendarViews.tsx are all absent from the tree and have zero references. The deletion already landed; no separate fix needed.
 Finding: `CalendarMonthView.tsx` (483 lines, zero references), `CalendarAgendaView.tsx` (446 lines, zero references), `CalendarViews.tsx` (701 lines, imported but never rendered). Live views are the `*SubView` components. Dead files duplicate month-grid logic with divergent styling. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/calendar-audit.md`.
 Required: delete the three dead files; verify no imports break; run Calendar tests.
 Scope: `apps/quantmail/src/components/CalendarMonthView.tsx`, `CalendarAgendaView.tsx`, `CalendarViews.tsx`.
@@ -2055,4 +2055,18 @@ Branch: fix/qm-uiux-088-quantchat-ai-error-timeout
 Finding: Discovered 2026-10-09 during QM-UIUX-036: QuantChat's AIAssistant silently swallows AI failures (no error state; misleading 'No suggestions available' on failure) and its api-client lacks a request timeout/sanitized error mapping. A partial draft exists (preserved at hidden_files/ledger-ops/qm-uiux-036-foreign-quantchat/ in the goal workspace) — usable as a starting point ONLY after hardening its sanitizer to the ai-error.ts redaction standard (URLs/IPs/tokens/JWT) and adding two-direction regression tests; the draft itself has zero tests and must not be merged as-is.
 Required: honest QuantChat AI error states + retry; shared api-client timeout with sanitized error mapping.
 Scope: apps/quantchat AIAssistant + api-client.
+Dependencies: none.
+
+## QM-UIUX-089 — QuantChat has no signup path (new customers cannot register)
+Status: [ ] TODO
+Finding: Deep-customer-audit run 4 (2026-10-09): QuantChat's login page and the SSO page (quantmail.in/sso?client_id=quantchat) both lack any Create account / Register link, and /register redirects to /login. A first-time customer cannot create a Quant account via QuantChat at all. Evidence: goal workspace hidden_files/ledger-ops/customer-audit/findings.md run 4 + shots/2026-10-09/run-1953-quantchat-journey/.
+Required: a visible signup path from QuantChat login (and consistent SSO behavior) that lands on the real registration flow; verify the flow end-to-end.
+Scope: apps/quantchat login + SSO handoff.
+Dependencies: none.
+
+## QM-UIUX-090 — QuantMail ai-error sanitizer: close the two residual gaps
+Status: [ ] TODO
+Finding: Zero-defect run-37 audit of PR #736 (apps/quantmail/src/lib/ai-error.ts) found 2 residual P2 gaps: (1) bare internal hostnames leak (e.g. *.internal suffixes, host:port patterns); (2) extended credential classes leak (github_pat_, gho_/ghu_, Slack xox tokens, Basic credentials, PEM markers). The hardened implementation closing both now exists in QuantChat's src/lib/sanitize-error.ts (PR #751) — port those two closings back to QuantMail's ai-error.ts with matching tests.
+Required: ai-error.ts redacts bare internal hostnames and the extended credential classes; regression tests prove both (fail on current, pass on fix).
+Scope: apps/quantmail/src/lib/ai-error.ts + its tests.
 Dependencies: none.
