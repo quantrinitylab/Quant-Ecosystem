@@ -250,11 +250,9 @@ export function ChevronRightIcon({ className }: { className?: string }) {
 // ============================================================================
 // Real approved app marks for the pillar tiles — NO generic glyphs.
 //
-// QuantMail, QuantCalendar and QuantContacts are the user-approved finals, so
-// they mount here exactly as approved. QuantDrive (v3 lava palette) and
-// QuantGit are NOT final-approved yet: they mount the best-available mark so
-// the dock never falls back to a generic icon, and each carries a
-// TODO(LOGO-PENDING) marker so the pending swap is greppable.
+// All five marks are the user-approved finals (Mail, Calendar blue live-date
+// logo PR #696, Drive green folder mascot PR #697, Contacts, QuantGit purple
+// voxel frog PR #698): they mount here exactly as approved.
 // The marks are canvas-painted and supersampled from a 100-unit buffer, so
 // they stay crisp at the 28px tile size; each tile button already carries an
 // aria-label, so the marks mount decoratively (QuantMailLogo interactive=false).
@@ -268,9 +266,8 @@ function CalendarLogoIcon() {
   return <QuantCalendarLogo size={32} />;
 }
 
-// TODO(LOGO-PENDING): QuantDrive's v3 lava-palette mark is not final-approved
-// yet — this is the best-available QuantDriveLogo. Swap in the approved final
-// the moment design signs it off; never fall back to the generic folder glyph.
+// QuantDrive's official green cloud-folder mascot (approved 2026-10-09,
+// PR #697) — canvas-painted live mark with genuine blink animation.
 function DriveLogoIcon() {
   return <QuantDriveLogo size={32} />;
 }
@@ -279,9 +276,8 @@ function ContactsLogoIcon() {
   return <QuantContactsLogo size={32} />;
 }
 
-// TODO(LOGO-PENDING): QuantGit's mark is not final-approved yet — this is the
-// best-available QuantGitLogo. Swap in the approved final when it lands; never
-// fall back to the generic code-brackets glyph.
+// QuantGit's official purple voxel-frog mascot (approved 2026-10-09,
+// PR #698) — genuine 3D voxel data on the canvas live-mark pipeline.
 function QuantGitLogoIcon() {
   return <QuantGitLogo size={32} />;
 }
@@ -1145,11 +1141,17 @@ export function QuantPillarTopBar({
           }}
         >
           {/*
-            Swoosh — the glowing ribbon of light wrapping the active bay.
+            Raised-slot swoosh — the active bay's tab, physically connected to
+            the screen (user-approved reference 2026-10-09: the selected slot
+            rises above the capsule like a tab with luminous rim lighting).
             A single element that SLIDES between slots (left/width measured
-            from the active tab, 300ms ease-out). It bulges 8px beyond the
-            capsule top/bottom, carries the active pillar's accent color, and
-            replays a settle animation on every pillar change (key={currentPillar}).
+            from the active tab, 300ms ease-out). It rises 13px above the
+            capsule top and settles 6px below it — asymmetric, so the tab
+            reads as lifting off the dock while staying visually connected
+            downward to the active screen. Carries the active pillar's OWN
+            accent color (never uniform orange), replays a settle animation
+            on every pillar change (key={currentPillar}). Restrained: rim
+            light over bloom, no neon border.
           */}
           <span
             aria-hidden="true"
@@ -1157,8 +1159,8 @@ export function QuantPillarTopBar({
             style={{
               left: lineLeft,
               width: lineWidth,
-              top: -8,
-              bottom: -8,
+              top: -13,
+              bottom: -6,
               transition:
                 'left 0.3s ease-out, width 0.3s ease-out',
             }}
@@ -1167,17 +1169,17 @@ export function QuantPillarTopBar({
               key={currentPillar}
               className="block w-full h-full animate-[quantSwooshIn_0.3s_ease-out]"
               style={{
-                borderRadius: 22,
-                border: `1px solid ${activeTile.accentColor}66`,
+                borderRadius: 20,
+                border: `1px solid ${activeTile.accentColor}88`,
                 background: [
-                  `radial-gradient(ellipse 72% 62% at 50% 42%, ${activeTile.accentColor}59 0%, ${activeTile.accentColor}26 55%, transparent 78%)`,
+                  `radial-gradient(ellipse 72% 62% at 50% 38%, ${activeTile.accentColor}59 0%, ${activeTile.accentColor}26 55%, transparent 78%)`,
                   `linear-gradient(180deg, ${activeTile.accentColor}4D 0%, ${activeTile.accentColor}1F 55%, ${activeTile.accentColor}38 100%)`,
                 ].join(', '),
                 boxShadow: [
-                  `0 0 22px ${activeTile.accentColor}73`,
-                  `0 0 48px ${activeTile.accentColor}30`,
-                  'inset 0 1px 0 rgba(255,255,255,0.38)',
-                  `inset 0 -10px 18px ${activeTile.accentColor}2E`,
+                  `0 0 18px ${activeTile.accentColor}66`,
+                  `0 0 40px ${activeTile.accentColor}28`,
+                  'inset 0 2px 1px rgba(255,255,255,0.45)',
+                  `inset 0 -8px 16px ${activeTile.accentColor}30`,
                 ].join(', '),
               }}
             />
@@ -1208,7 +1210,7 @@ export function QuantPillarTopBar({
                 onPointerLeave={cancelLongPress}
                 onPointerCancel={cancelLongPress}
                 onContextMenu={(e) => e.preventDefault()}
-                className="relative flex flex-col items-center justify-center w-12 h-12 min-[400px]:w-14 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35] shrink-0 transition-transform duration-150 ease-out active:scale-110"
+                className={`relative flex flex-col items-center justify-center w-12 h-12 min-[400px]:w-14 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35] shrink-0 transition-transform duration-150 ease-out active:scale-110 ${isActive ? '-translate-y-0.5' : ''}`}
                 style={{
                   animation: `quantStaggerIn 0.4s cubic-bezier(0.22,1,0.36,1) ${idx * 0.05}s both`,
                   transition: 'transform 200ms ease-out, background-color 0.2s ease-out',
@@ -1278,11 +1280,6 @@ export function QuantPillarTopBar({
           0% { transform: scaleX(0.82) scaleY(0.94); opacity: 0.55; }
           60% { transform: scaleX(1.04) scaleY(1.01); opacity: 1; }
           100% { transform: scaleX(1) scaleY(1); opacity: 1; }
-        }
-        @keyframes quantLineExpand {
-          0% { transform: scaleX(0.2); opacity: 0.3; }
-          60% { transform: scaleX(1.15); opacity: 1; }
-          100% { transform: scaleX(1); opacity: 1; }
         }
         @keyframes quantLogoSpin {
           0% { transform: rotate(0deg); }
