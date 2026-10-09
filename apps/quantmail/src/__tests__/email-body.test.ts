@@ -129,6 +129,38 @@ describe('composeMessageBodies', () => {
     expect(bodyText).toBe(`\n\n${SIGNATURE_DELIMITER}\nKundan`);
     expect(bodyHtml).toBe('<hr />\n<p>Kundan</p>');
   });
+
+  it('renders a bulleted list as <ul> with "• " plain-text prefixes', () => {
+    const { bodyText, bodyHtml } = composeMessageBodies('First\nSecond\n\nThird', '', {
+      list: 'bullet',
+    });
+    expect(bodyHtml).toBe('<ul><li>First</li><li>Second</li><li>Third</li></ul>');
+    expect(bodyText).toBe('• First\n• Second\n• Third');
+  });
+
+  it('renders a numbered list as <ol> with "1. " plain-text prefixes', () => {
+    const { bodyText, bodyHtml } = composeMessageBodies('First\nSecond', '', {
+      list: 'numbered',
+    });
+    expect(bodyHtml).toBe('<ol><li>First</li><li>Second</li></ol>');
+    expect(bodyText).toBe('1. First\n2. Second');
+  });
+
+  it('escapes HTML inside list items', () => {
+    const { bodyHtml } = composeMessageBodies('<b>bold</b>', '', { list: 'bullet' });
+    expect(bodyHtml).toBe('<ul><li>&lt;b&gt;bold&lt;/b&gt;</li></ul>');
+  });
+
+  it('ignores whole-message list when inline ranges exist', () => {
+    // The docked composer's range-based lists own their lines; the
+    // whole-message list must not rewrite them.
+    const { bodyText, bodyHtml } = composeMessageBodies('First\nSecond', '', {
+      list: 'numbered',
+      inline: [{ start: 0, end: 5, kind: 'list' }],
+    });
+    expect(bodyHtml).not.toContain('<ol>');
+    expect(bodyText).not.toContain('1. First');
+  });
 });
 
 describe('stripTrailingSignature', () => {

@@ -222,6 +222,13 @@ export interface MessageFormatting {
   fontFamily?: string;
   fontSizePx?: number;
   textAlign?: 'left' | 'center' | 'right';
+  /**
+   * Whole-message list mode (full composer toolbar). Each non-empty line
+   * becomes one list item. Only the two literal values are honored — anything
+   * else is ignored, never interpolated, so a formatting state can never
+   * become a markup-injection vector.
+   */
+  list?: 'bullet' | 'numbered';
 }
 
 const FORMAT_PLACEHOLDER: Record<InlineFormatKind, string> = {
@@ -597,10 +604,26 @@ export function composeMessageBodies(
   if (formatting?.underline) wholeKinds.add('underline');
   if (formatting?.strikethrough) wholeKinds.add('strikethrough');
   const style = formatting ? formattingStyle(formatting) : '';
-  const hasFormatting = ranges.length > 0 || wholeKinds.size > 0 || style !== '';
+  const listMode = formatting?.list === 'bullet' || formatting?.list === 'numbered' ? formatting.list : undefined;
+  const hasFormatting = ranges.length > 0 || wholeKinds.size > 0 || style !== '' || listMode !== undefined;
 
-  const plainBody = hasFormatting ? applyListBullets(text, ranges) : text;
+  let plainBody = hasFormatting ? applyListBullets(text, ranges) : text;
   let htmlBody = hasFormatting ? formattedTextToHtml(text, ranges, wholeKinds) : plainTextToHtml(text);
+  if (listMode && ranges.length === 0) {
+    // Whole-message list (full composer toolbar): every non-empty line is one
+    // item. Inline-range lists (docked composer) keep their own renderer above.
+    const items = text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (items.length > 0) {
+      const tag = listMode === 'numbered' ? 'ol' : 'ul';
+      htmlBody = `<${tag}>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</${tag}>`;
+      plainBody = items
+        .map((item, idx) => (listMode === 'numbered' ? `${idx + 1}. ${item}` : `• ${item}`))
+        .join('\n');
+    }
+  }
   if (style && htmlBody) {
     htmlBody = `<div style="${style}">${htmlBody}</div>`;
   }

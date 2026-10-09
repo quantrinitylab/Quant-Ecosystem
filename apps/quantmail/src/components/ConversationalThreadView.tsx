@@ -579,7 +579,13 @@ export function ConversationalThreadView({
     const res = await apiClient.aiSummarizeThread(payload);
     const data = res.data;
     if (!res.success || !data?.summary) {
-      throw new Error('Summarization failed');
+      // BB-P1-5: carry the backend error code so the card can tell "AI is not
+      // available here" apart from a transient failure. Never fabricate.
+      const err = new Error(res.error?.message || 'Summarization failed') as Error & {
+        code?: string;
+      };
+      err.code = res.error?.code;
+      throw err;
     }
     return {
       summary: data.summary,
