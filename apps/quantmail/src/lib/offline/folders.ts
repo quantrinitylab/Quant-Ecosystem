@@ -58,6 +58,13 @@ export function belongsInFolder(email: Email, folderType: string | undefined): b
       return isTrashed;
     case 'ARCHIVE':
       return !isTrashed && email.isArchived === true;
+    case 'SPAM':
+      // Spam is a flag (`isSpam`), not a folder. Falling through to `default`
+      // would admit every non-trashed message — including a message whose
+      // archive is still optimistic — into the cached spam list (PAUD-P0-1:
+      // archiving a row briefly showed it in Spam with a "Not spam" rescue
+      // button, contradicting the "archived" toast).
+      return !isTrashed && email.isSpam === true;
     case 'SNOOZED':
       return !isTrashed && Boolean(email.snoozedUntil);
     case 'INBOX':
