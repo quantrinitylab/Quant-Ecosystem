@@ -1976,7 +1976,9 @@ Dependencies: none.
 Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 5: S-P0-1); screenshots f9bbce7f, 3566a74a.
 
 ## QM-UIUX-081 — P1: Bold formatting leaks literal markdown into message text
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-081-bold-markdown-leak
 Finding: Personal deep audit 2026-10-09: selecting text in compose and clicking Bold wrapped it in literal "**" asterisks as plain text — not rendered bold. This is the source of raw "**…**" seen in list snippets, thread previews, and Contacts mail history.
 Required: formatting buttons must produce real rich text (or be removed); no raw markdown may leak into bodies, snippets, or previews. Regression test.
 Scope: apps/quantmail composer formatting.
