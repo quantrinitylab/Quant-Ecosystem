@@ -16,17 +16,8 @@ import { QuantDriveLogo } from './QuantDriveLogo';
 import { QuantContactsLogo } from './QuantContactsLogo';
 import { QuantGitLogo } from './QuantGitLogo';
 import { QuantGitUserIdModal } from './QuantGitUserIdModal';
-import { useAuth } from '../providers/auth-provider';
-
-// Safe auth hook that returns null user when outside AuthProvider (tests, SSR edge cases)
-// This keeps the component resilient — the profile avatar just shows a fallback initial.
-function useOptionalAuth() {
-  try {
-    return useAuth();
-  } catch {
-    return { user: null } as { user: null };
-  }
-}
+import { Quanty } from './Quanty';
+import { AccountBadge } from './AccountBadge';
 
 export type PillarId = 'mail' | 'calendar' | 'drive' | 'contacts' | 'quantgit';
 
@@ -270,29 +261,29 @@ export function ChevronRightIcon({ className }: { className?: string }) {
 // ============================================================================
 
 function MailLogoIcon() {
-  return <QuantMailLogo size={28} interactive={false} showBadge={false} />;
+  return <QuantMailLogo size={32} interactive={false} showBadge={false} />;
 }
 
 function CalendarLogoIcon() {
-  return <QuantCalendarLogo size={28} />;
+  return <QuantCalendarLogo size={32} />;
 }
 
 // TODO(LOGO-PENDING): QuantDrive's v3 lava-palette mark is not final-approved
 // yet — this is the best-available QuantDriveLogo. Swap in the approved final
 // the moment design signs it off; never fall back to the generic folder glyph.
 function DriveLogoIcon() {
-  return <QuantDriveLogo size={28} />;
+  return <QuantDriveLogo size={32} />;
 }
 
 function ContactsLogoIcon() {
-  return <QuantContactsLogo size={28} />;
+  return <QuantContactsLogo size={32} />;
 }
 
 // TODO(LOGO-PENDING): QuantGit's mark is not final-approved yet — this is the
 // best-available QuantGitLogo. Swap in the approved final when it lands; never
 // fall back to the generic code-brackets glyph.
 function QuantGitLogoIcon() {
-  return <QuantGitLogo size={28} />;
+  return <QuantGitLogo size={32} />;
 }
 
 /**
@@ -589,7 +580,6 @@ export function QuantPillarTopBar({
 }: QuantPillarTopBarProps) {
   const router = useRouter();
   const pathname = usePathname() ?? '/';
-  const { user } = useOptionalAuth();
 
   // Internal search state when not controlled
   const effectiveQuery = searchValue ?? searchQuery ?? '';
@@ -813,9 +803,82 @@ export function QuantPillarTopBar({
   // ==========================================================================
   const dockRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const innerHeaderRef = useRef<HTMLElement>(null);
   const [headerHidden, setHeaderHidden] = useState(false);
-  const [headerHeight, setHeaderHeight] = useState<number | undefined>(undefined);
+  // Hide-on-scroll: the switcher section collapses with a grid-rows
+  // animation (0fr <-> 1fr) so it takes ZERO space when hidden — no blank
+  // gap at the top (QM-UIUX-073.1). The search row + Quanty ghost below are
+  // separate and never hide; they ride to the very top when the switcher
+  // collapses.
+  //
+  // Reveal policy: hide on DELIBERATE scroll-down (delta > 8px, past 120px —
+  // tiny jitters never hide it); reveal on scroll-UP (delta < -12px) or at the
+  // absolute top.
+  //
+  // Scroll events are coalesced through requestAnimationFrame: a fast fling
+  // fires dozens of events per frame. The listener is on `document` in the
+  // capture phase so inner scroll containers (the app shell is fixed-height;
+  // content scrolls inside it) are caught too, with per-scroller position
+  // tracking via WeakMap.
+  useEffect(() => {
+    const positions = new WeakMap<object, number>();
+    let rafId: number | null = null;
+    let pendingTarget: EventTarget | null = null;
+
+    const processScroll = () => {
+      rafId = null;
+      const target = pendingTarget;
+      pendingTarget = null;
+      if (!target) return;
+      let key: object | null = null;
+      let scrollTop = 0;
+      if (target === document || target === document.documentElement) {
+        key = document;
+        scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+      } else if (target instanceof HTMLElement) {
+        if (target.scrollHeight <= target.clientHeight + 40) return;
+        key = target;
+        scrollTop = target.scrollTop;
+      }
+      if (!key) return;
+      const last = positions.get(key) ?? 0;
+      const delta = scrollTop - last;
+      positions.set(key, scrollTop);
+      // The scroller that fired must be at 0 while the DOCUMENT itself is also
+      // at 0 — otherwise a nested container hitting 0 mid-page would wrongly
+      // reveal the switcher while the page is still scrolled.
+      const docTop = window.scrollY || document.documentElement.scrollTop || 0;
+      if (scrollTop === 0 && docTop === 0) {
+        setHeaderHidden(false);
+        setSearchCompact(false);
+      } else if (delta > 8 && scrollTop > 120) {
+        setHeaderHidden(true);
+        setSearchCompact(true);
+      } else if (delta < -12) {
+        // Scroll-up reveals the switcher (it no longer waits for the top).
+        setHeaderHidden(false);
+      } else if (scrollTop > 0 && scrollTop <= 120) {
+        // Small scroll: keep switcher visible but compact the search.
+        setSearchCompact(true);
+      }
+    };
+
+    const onScroll = (e: Event) => {
+      pendingTarget = e.target;
+      if (rafId === null) {
+        rafId = requestAnimationFrame(processScroll);
+      }
+    };
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener('scroll', onScroll, { capture: true });
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, []);
+
+  // New pillar = fresh content at the top → always reveal the switcher.
+  useEffect(() => {
+    setHeaderHidden(false);
+  }, [currentPillar]);
   // Sliding LINE indicator (Swiggy-style): wraps the active tab, animates
   // from center-expand then slides with spring physics. Replaces the old dot.
   const [lineLeft, setLineLeft] = useState(0);
@@ -869,26 +932,10 @@ export function QuantPillarTopBar({
     };
   }, [measureLine]);
 
-  // Keep the collapse wrapper's height synced with the real header height
-  // (the lens strip shows/hides per pillar; breakpoints change layout).
-  useEffect(() => {
-    const el = innerHeaderRef.current;
-    if (!el) return;
-    const sync = () => setHeaderHeight(el.offsetHeight || undefined);
-    sync();
-    const ro = new ResizeObserver(sync);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [showLensStrip, currentPillar]);
-
-  // Hide-on-scroll: Swiggy-smooth, GPU-composited.
-  //
-  // The old implementation animated `height` (0 <-> measured), which forces a
-  // layout reflow on every frame — that is the jank the user saw. This version
-  // keeps the wrapper at a constant measured height and slides the header with
-  // `transform: translateY`, which the compositor handles without touching
-  // layout: 60fps, zero jank.
-  //
+  // Hide-on-scroll: the switcher section collapses with a grid-rows
+  // animation (0fr <-> 1fr) so it takes ZERO space when hidden — no blank
+  // gap, no layout reflow per frame. The search row below is separate and
+  // never hides.
   // Reveal policy: hide on DELIBERATE scroll-down (delta > 8px, past 120px —
   // tiny jitters never hide it); reveal on scroll-UP (delta < -12px) or at the
   // absolute top. The search bar below is separate and never hides.
@@ -1034,10 +1081,6 @@ export function QuantPillarTopBar({
     handleTileClick(tile);
   };
 
-  // User profile avatar: initial from email/username, gradient background
-  const userInitial = (user?.displayName?.[0] || user?.username?.[0] || user?.email?.[0] || 'U').toUpperCase();
-  const userName = user?.displayName || user?.username || user?.email?.split('@')[0] || 'User';
-
   return (
     <>
     {/*
@@ -1050,63 +1093,40 @@ export function QuantPillarTopBar({
     <div
       className="sticky top-0 z-30 w-full"
       style={{
-        background: 'rgba(13,13,18,0.96)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        // QM-UIUX-072 pure-black law: the header bar uses the pure-black
+        // theme token, no dividers, no blur tint.
+        background: 'var(--quant-background)',
       }}
     >
+    {/*
+      Switcher collapse wrapper — grid-rows animation (0fr <-> 1fr).
+      When the switcher hides on scroll it takes ZERO space: the search row
+      below slides up to the very top with no blank gap.
+    */}
     <div
       aria-hidden={headerHidden}
-      style={{
-        // Constant measured height — never animated. The header slides inside
-        // it with a GPU-composited transform (see below): no layout reflow,
-        // no jank. `overflow: hidden` clips the slide.
-        height: headerHeight ?? 'auto',
-        overflow: 'hidden',
-      }}
+      className={`grid motion-reduce:transition-none transition-[grid-template-rows] duration-300 ease-out ${
+        headerHidden ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
+      }`}
     >
+    <div className="min-h-0 overflow-hidden">
     <header
-      ref={innerHeaderRef}
       className={`w-full flex flex-col gap-2 px-3 pt-2.5 pb-2 select-none ${className}`}
       aria-label="Super-App 5-Pillar Navigation Bar"
-      style={{
-        // Swiggy-grade slide: spring cubic-bezier, ~320ms, transform+opacity
-        // only (compositor thread). translateY(-105%) fully clears the
-        // wrapper; opacity avoids a ghost edge mid-slide.
-        transform: headerHidden ? 'translateY(-105%)' : 'translateY(0)',
-        opacity: headerHidden ? 0 : 1,
-        transition:
-          'transform 0.32s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.28s ease-out',
-        willChange: 'transform, opacity',
-        // PROFESSIONAL: subtle, minimal — no flashy gradients.
-        // Clean enterprise feel like Gmail/Outlook, not a game.
-        // Background lives on the sticky bar above; this keeps the hairline
-        // separating the switcher from the search row.
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-      }}
     >
       {/*
-        Super-App Switcher — sleek logo pill, Swiggy-grade.
-        - Logos LEFT-aligned, user profile avatar on the RIGHT
-        - Sliding LINE indicator wraps active tab (NO dot!)
-        - 56px, subtle professional styling
+        Super-App Switcher — logos float directly on the black header, NO
+        pill container behind them (user decision 2026-10-09). Each tile
+        keeps its own per-app accent tint behind the logo (calendar blue,
+        drive green, …). Sliding LINE indicator wraps the active tab.
       */}
       <div className="w-full flex justify-center">
         <div
           ref={dockRef}
           role="tablist"
           aria-label="Application Suites"
-          className="relative flex items-center w-full max-w-5xl px-2"
-          style={{
-            height: 56,
-            background: 'rgba(19,20,26,0.9)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.35)',
-            borderRadius: 16,
-          }}
+          className="relative flex items-center w-full max-w-5xl"
+          style={{ height: 56 }}
         >
           {/* Logos: LEFT-aligned group */}
           <div className="flex items-center gap-0.5 flex-1">
@@ -1137,7 +1157,10 @@ export function QuantPillarTopBar({
                 className="relative flex flex-col items-center justify-center w-12 h-12 min-[400px]:w-14 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35] shrink-0 transition-transform duration-150 ease-out active:scale-110"
                 style={{
                   animation: `quantStaggerIn 0.4s cubic-bezier(0.22,1,0.36,1) ${idx * 0.05}s both`,
-                  transition: 'transform 200ms ease-out',
+                  transition: 'transform 200ms ease-out, background-color 0.2s ease-out',
+                  // Per-app accent tint behind the logo (restored 2026-10-09:
+                  // the calendar's blue background must not disappear).
+                  backgroundColor: `${tile.accentColor}${isActive ? '2E' : '14'}`,
                 }}
                 aria-current={isActive ? 'page' : undefined}
               >
@@ -1182,23 +1205,12 @@ export function QuantPillarTopBar({
           })}
           </div>
 
-          {/* User profile avatar: RIGHT side of the pill (NOT Quant AI!) */}
-          <button
-            type="button"
-            onClick={() => {
-              triggerHapticTap(10);
-              router.push('/settings');
-            }}
-            className="relative flex items-center justify-center w-10 h-10 rounded-full shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35] transition-transform duration-150 hover:scale-105 active:scale-95 ml-1"
-            aria-label={`${userName} — open settings`}
-            title={userName}
-            style={{
-              background: 'linear-gradient(135deg, #FF6B35 0%, #A78BFA 100%)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-            }}
-          >
-            <span className="text-sm font-bold text-white">{userInitial}</span>
-          </button>
+          {/* User profile avatar: RIGHT side. Opens the real account menu
+              (switch account, add account, settings, security, sign out) —
+              never jumps straight to settings. */}
+          <div className="ml-1 shrink-0">
+            <AccountBadge compact={true} size="lg" />
+          </div>
 
           {/*
             Sliding LINE indicator — Swiggy-style.
@@ -1252,11 +1264,12 @@ export function QuantPillarTopBar({
         }
       `}</style>
     </header>
-    </div>
+    </div>{/* min-h-0 overflow-hidden (grid-rows collapse clip) */}
+    </div>{/* switcher collapse wrapper */}
 
     {/*
       SEARCH BAR — pinned to the SAME sticky bar above, NEVER hides on scroll.
-      Compacts (48px → 40px) when scrolled; Quant AI icon appears beside it.
+      Compacts (48px → 40px) when scrolled; Quanty ghost always beside it.
     */}
     <div
       className="w-full px-3"
@@ -1313,24 +1326,19 @@ export function QuantPillarTopBar({
           </button>
         </div>
 
-        {/* Quant AI quick-access: appears when search compacts on scroll */}
+        {/*
+          Quanty — the white ghost — sits next to the search bar on EVERY
+          screen, ALWAYS. Its visibility never changes on scroll (user
+          decision 2026-10-09): it is the permanent way into Quant AI.
+        */}
         <button
           type="button"
           onClick={handleLiveCapsuleClick}
-          className="flex items-center justify-center rounded-xl shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] transition-all duration-200 hover:scale-105 active:scale-95"
-          style={{
-            width: searchCompact ? 40 : 0,
-            height: searchCompact ? 40 : 0,
-            opacity: searchCompact ? 1 : 0,
-            overflow: 'hidden',
-            background: 'linear-gradient(135deg, rgba(255,107,53,0.15), rgba(167,139,250,0.15))',
-            border: '1px solid rgba(255,140,66,0.3)',
-            transition: 'width 0.25s ease-out, height 0.25s ease-out, opacity 0.2s ease-out',
-          }}
-          title="Open Quant AI Assistant"
-          aria-label="Open Quant AI Assistant"
+          className="flex items-center justify-center rounded-xl shrink-0 size-10 outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] transition-transform duration-200 hover:scale-105 active:scale-95"
+          title="Ask Quanty"
+          aria-label="Ask Quanty"
         >
-          <SparklesIcon className="size-4 text-[var(--quant-primary)]" />
+          <Quanty size={26} bob={false} />
         </button>
       </div>
     </div>

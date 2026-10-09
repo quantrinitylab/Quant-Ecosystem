@@ -60,7 +60,14 @@ function initials(name: string): string {
 }
 
 /** Signed-in identity block for the active sidebar footer with Multi-Account switching. */
-export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
+export function AccountBadge({
+  compact = false,
+  size = 'sm',
+}: {
+  compact?: boolean;
+  /** 'lg' renders a larger (44px) trigger — used in the mobile switcher bar. */
+  size?: 'sm' | 'lg';
+} = {}) {
   const auth = useOptionalAuth();
   const user = auth?.user ?? null;
   const logout = auth?.logout ?? (async () => {});
@@ -260,14 +267,18 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
         aria-controls={open ? 'account-badge-menu' : undefined}
         className={
           compact
-            ? 'flex size-8 items-center justify-center rounded-full border border-[var(--quant-surface-elevated)] hover:border-[var(--quant-primary)]/50 hover:bg-[#161922] transition-all outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]'
+            ? `flex items-center justify-center rounded-full border border-[var(--quant-surface-elevated)] hover:border-[var(--quant-primary)]/50 hover:bg-[#161922] transition-all outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
+                size === 'lg' ? 'size-11' : 'size-8'
+              }`
             : 'flex w-full items-center gap-2.5 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-2.5 py-2 text-left transition-colors hover:bg-[var(--quant-muted)]'
         }
       >
         <span
           className={
             compact
-              ? 'flex size-7 flex-none items-center justify-center rounded-full text-[11px] font-semibold text-white shadow-sm'
+              ? `flex flex-none items-center justify-center rounded-full font-semibold text-white shadow-sm ${
+                  size === 'lg' ? 'size-9 text-sm' : 'size-7 text-[11px]'
+                }`
               : 'flex h-9 w-9 flex-none items-center justify-center rounded-full text-[13px] font-semibold text-white shadow-sm'
           }
           style={{ background: gradientFor(address) }}

@@ -2542,12 +2542,6 @@ function QuantGitContent() {  const router = useRouter();
 
 
 
-      {/* Dark bottom safeguard — covers any light safe-area strip between content and bottom nav */}
-      <div
-        aria-hidden="true"
-        className="fixed bottom-0 inset-x-0 h-[80px] bg-[var(--quant-background)] pointer-events-none z-20"
-      />
-
       {/* Floating Toast Notification — above the single bottom nav */}
       {toastMessage && (
         <div className="fixed left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-[var(--quant-surface)]/90 backdrop-blur-xl border border-[var(--quant-primary)]/35 text-[var(--quant-primary)] text-xs font-semibold shadow-[0_8px_32px_rgba(0,0,0,0.8),inset_0_1px_0_0_rgba(255,255,255,0.08),0_0_20px_rgba(255,140,66,0.15)] animate-in fade-in slide-in-from-bottom-3 bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)]">
