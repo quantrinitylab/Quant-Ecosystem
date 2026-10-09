@@ -272,8 +272,9 @@ function LoginForm() {
                 </div>
                 <input
                   id="login-id"
-                  type="text"
+                  type="email"
                   required
+                  inputMode="email"
                   autoComplete="username"
                   autoCapitalize="none"
                   spellCheck={false}
