@@ -94,28 +94,16 @@ function cloudPath(
   ctx.closePath();
 }
 
-export function QuantDriveLogo({
-  size = 32,
-  className = '',
-  title = 'QuantDrive',
-}: QuantLogoProps) {
-  const blinkRef = useRef<BlinkState>({ nextBlinkAt: 2 + Math.random() * 3, blinkStart: -1, successAt: 0 });
-
-  useEffect(() => {
-    const onUploadComplete = () => {
-      blinkRef.current.successAt = Date.now();
-    };
-    window.addEventListener(DRIVE_UPLOAD_COMPLETE_EVENT, onUploadComplete);
-    return () => window.removeEventListener(DRIVE_UPLOAD_COMPLETE_EVENT, onUploadComplete);
-  }, []);
-
-  const paint = useCallback(
-    ({ ctx, cx, cy, time, tiltX, tiltY, hover, press, reduced }: MarkFrame) => {
-      const t = reduced ? 0 : time;
-      const blink = blinkRef.current;
-      const closed = blinkPhase(blink, time, reduced);
-      const openness = 1 - closed;
-      const success = !reduced && Date.now() - blink.successAt < SUCCESS_WINDOW_MS;
+/**
+ * The mascot artwork, extracted from the component so it can be rendered
+ * headlessly (screenshots, visual regression) without React.
+ */
+export function paintDriveMascotMark(frame: MarkFrame, blink: BlinkState): void {
+  const { ctx, cx, cy, time, tiltX, tiltY, hover, press, reduced } = frame;
+  const t = reduced ? 0 : time;
+  const closed = blinkPhase(blink, time, reduced);
+  const openness = 1 - closed;
+  const success = !reduced && Date.now() - blink.successAt < SUCCESS_WINDOW_MS;
       const breathe = reduced ? 0 : Math.sin(t * 0.9);
 
       ctx.save();
@@ -148,12 +136,13 @@ export function QuantDriveLogo({
       const oy = cy + 3;
 
       // ── 3. Pearl cloud (behind folder) ───────────────────────────────
+      // Larger than the folder so its lobes frame the mascot like the reference.
       ctx.save();
       ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
       ctx.shadowBlur = 8;
       ctx.shadowOffsetY = 4;
-      cloudPath(ctx, ox, oy - 12, 1);
-      const cloudFill = ctx.createLinearGradient(ox - 28, oy - 30, ox + 28, oy + 4);
+      cloudPath(ctx, ox, oy - 15, 1.18);
+      const cloudFill = ctx.createLinearGradient(ox - 34, oy - 36, ox + 34, oy + 2);
       cloudFill.addColorStop(0, '#FFFFFF');
       cloudFill.addColorStop(0.4, '#F2FBF6');
       cloudFill.addColorStop(0.75, '#CFEEDD');
@@ -163,17 +152,18 @@ export function QuantDriveLogo({
       ctx.restore();
 
       // Cloud edge light: thin mint stroke on the upper lobes
-      cloudPath(ctx, ox, oy - 12, 1);
+      cloudPath(ctx, ox, oy - 15, 1.18);
       ctx.lineWidth = 1;
       ctx.strokeStyle = 'rgba(190, 245, 215, 0.7)';
       ctx.stroke();
 
       // ── 4. File edges peeking from behind the folder ─────────────────
+      // Kept short so the cloud lobes stay visible between them.
       const files: Array<{ x: number; w: number; h: number; c: string; tilt: number }> = [
-        { x: -14, w: 16, h: 22, c: '#FEF9EC', tilt: -0.1 },
-        { x: -2, w: 16, h: 25, c: '#D9F7E8', tilt: 0.04 },
-        { x: 10, w: 15, h: 21, c: '#FEF3C7', tilt: 0.12 },
-        { x: 20, w: 13, h: 18, c: '#CFFAFE', tilt: 0.2 },
+        { x: -14, w: 16, h: 17, c: '#FEF9EC', tilt: -0.1 },
+        { x: -2, w: 16, h: 20, c: '#D9F7E8', tilt: 0.04 },
+        { x: 10, w: 15, h: 16, c: '#FEF3C7', tilt: 0.12 },
+        { x: 20, w: 13, h: 14, c: '#CFFAFE', tilt: 0.2 },
       ];
       for (const f of files) {
         ctx.save();
@@ -308,6 +298,26 @@ export function QuantDriveLogo({
       ctx.restore(); // squircle clip
 
       strokeMarkBezel(ctx, cx, cy);
+}
+
+export function QuantDriveLogo({
+  size = 32,
+  className = '',
+  title = 'QuantDrive',
+}: QuantLogoProps) {
+  const blinkRef = useRef<BlinkState>({ nextBlinkAt: 2 + Math.random() * 3, blinkStart: -1, successAt: 0 });
+
+  useEffect(() => {
+    const onUploadComplete = () => {
+      blinkRef.current.successAt = Date.now();
+    };
+    window.addEventListener(DRIVE_UPLOAD_COMPLETE_EVENT, onUploadComplete);
+    return () => window.removeEventListener(DRIVE_UPLOAD_COMPLETE_EVENT, onUploadComplete);
+  }, []);
+
+  const paint = useCallback(
+    (frame: MarkFrame) => {
+      paintDriveMascotMark(frame, blinkRef.current);
     },
     [],
   );
