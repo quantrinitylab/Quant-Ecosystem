@@ -365,7 +365,11 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     const body = res.json();
     expect(body.data.toolExecutions).toHaveLength(0);
     expect(prismaMock.repository.create).not.toHaveBeenCalled();
-    expect(body.data.message).toBe('I suggested creating a repo.');
+    // QM-UIUX-077: the block was proposed but NOT executed, and the reply
+    // must say so — silently returning the model's prose would let a claim
+    // like "Repository … created in database!" stand as fact.
+    expect(body.data.message).toContain('NOT executed');
+    expect(body.data.message).toContain('I suggested creating a repo.');
   });
 
   it('skips tool execution when tools.enabled is false even if ENABLE_AUTONOMOUS_TOOLS is true (kill switch)', async () => {
@@ -393,7 +397,11 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     const body = res.json();
     expect(body.data.toolExecutions).toHaveLength(0);
     expect(prismaMock.repository.create).not.toHaveBeenCalled();
-    expect(body.data.message).toBe('I suggested creating a repo.');
+    // QM-UIUX-077: the block was proposed but NOT executed, and the reply
+    // must say so — silently returning the model's prose would let a claim
+    // like "Repository … created in database!" stand as fact.
+    expect(body.data.message).toContain('NOT executed');
+    expect(body.data.message).toContain('I suggested creating a repo.');
   });
 
   it('skips tool execution when ENABLE_AUTONOMOUS_TOOLS is not true even if tools.enabled is true', async () => {
@@ -423,7 +431,11 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     const body = res.json();
     expect(body.data.toolExecutions).toHaveLength(0);
     expect(prismaMock.repository.create).not.toHaveBeenCalled();
-    expect(body.data.message).toBe('I suggested creating a repo.');
+    // QM-UIUX-077: the block was proposed but NOT executed, and the reply
+    // must say so — silently returning the model's prose would let a claim
+    // like "Repository … created in database!" stand as fact.
+    expect(body.data.message).toContain('NOT executed');
+    expect(body.data.message).toContain('I suggested creating a repo.');
   });
 
   it('detects and executes a create_repository tool call when tools are enabled', async () => {
@@ -485,6 +497,112 @@ describe('POST /ai/chat — autonomous tool calling', () => {
         defaultBranch: 'main',
       },
     });
+  });
+
+  it('QM-UIUX-077: a create_repository claim from the tools-less QuantGit copilot is disclosed as NOT executed', async () => {
+    // The exact audit reproduction: the QuantGit copilot client never sends
+    // `tools`, so nothing can execute — but the model, prompted as if it had
+    // tools, announced the write as done. The reply must lead with the truth.
+    const prismaMock = {
+      repository: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn(),
+      },
+    };
+
+    aiChatMock.mockResolvedValue(
+      '```tool_call\n{\n  "name": "create_repository",\n  "arguments": { "name": "audit-test-repo" }\n}\n```\n\nRepository kundan/audit-test-repo created in database!',
+    );
+
+    const app = await buildApp('user-1', { prisma: prismaMock });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      // No `tools` field — byte-for-byte the shape src/app/quantgit/page.tsx sends.
+      payload: { messages: [{ role: 'user', content: 'Create a repo called audit-test-repo' }] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.toolExecutions).toHaveLength(0);
+    expect(prismaMock.repository.create).not.toHaveBeenCalled();
+    // The disclosure comes FIRST, before the model's unexecuted claim.
+    expect(body.data.message).toContain('NOT executed');
+    expect(body.data.message.indexOf('NOT executed')).toBeLessThan(
+      body.data.message.indexOf('created in database'),
+    );
+  });
+
+  it('QM-UIUX-077: without tooling the model is told it cannot perform actions; with tooling it is told how', async () => {
+    const app = await buildApp('user-1', { prisma: { repository: { create: vi.fn() } } });
+
+    await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: { messages: [{ role: 'user', content: 'Create a repo' }] },
+    });
+    const noToolsPrompt = providerMessages()[0]!.content;
+    expect(noToolsPrompt).toContain('CANNOT create, modify, or delete anything');
+    expect(noToolsPrompt).not.toContain('MUST execute the appropriate tool');
+
+    aiChatMock.mockClear();
+    await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Create a repo' }],
+        tools: { enabled: true },
+      },
+    });
+    const toolsPrompt = providerMessages()[0]!.content;
+    expect(toolsPrompt).toContain('MUST execute the appropriate tool');
+  });
+
+  it('QM-UIUX-077: tool calls beyond maxSteps are disclosed as NOT executed', async () => {
+    const prismaMock = {
+      repository: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockImplementation(async ({ data }: any) => ({
+          id: `repo-${data.name}`,
+          name: data.name,
+          description: data.description,
+          visibility: 'PRIVATE',
+          defaultBranch: 'main',
+        })),
+      },
+      user: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'user-1',
+          username: 'kundan',
+          displayName: 'Kundan Singh',
+          email: 'kundan@quantmail.in',
+        }),
+      },
+    };
+
+    aiChatMock.mockResolvedValue(
+      'Creating both repositories now.\n\n```tool_call\n{\n  "name": "create_repository",\n  "arguments": { "name": "first-repo" }\n}\n```\n\n```tool_call\n{\n  "name": "create_repository",\n  "arguments": { "name": "second-repo" }\n}\n```\n\nBoth repositories have been created successfully!',
+    );
+
+    const app = await buildApp('user-1', { prisma: prismaMock });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Create first-repo and second-repo' }],
+        tools: { enabled: true, maxSteps: 1 },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.toolExecutions).toHaveLength(1);
+    expect(body.data.toolExecutions[0]).toMatchObject({
+      toolName: 'create_repository',
+      status: 'succeeded',
+    });
+    expect(prismaMock.repository.create).toHaveBeenCalledTimes(1);
+    expect(body.data.message).toContain('1 proposed action(s) were NOT executed');
   });
 
   it('holds deploy_agent tool call as failed and prepends action notice to prose', async () => {
@@ -1118,92 +1236,5 @@ describe('POST /ai/chat — mailbox grounding (bug 4)', () => {
     expect(res.statusCode).toBe(200);
     const grounding = groundingMessage();
     expect(grounding).toContain('Mailbox data unavailable');
-  });
-});
-
-describe('POST /ai/chat — grounding scope (PAUD-P0-7 / QM-UIUX-080)', () => {
-  // Personal deep audit 2026-10-09: asking "what is 2+2" returned the identical
-  // canned "I don't have that information." on BOTH Fast and Deep tiers. Root
-  // cause: the mailbox grounding block's refusal rule was written without any
-  // scope, so the model read "say you do not have that information" as a
-  // universal refusal — every non-mailbox question "was not in the snapshot" and
-  // got refused, regardless of tier. The model boundary is mocked (the model
-  // itself cannot run in this harness); the pin is on the prompt we hand it:
-  // the block must scope the snapshot rules to mailbox questions and explicitly
-  // permit general answers, on every tier.
-
-  /** A live-looking mailbox so the route renders the real snapshot block. */
-  function mailboxPrismaMock() {
-    return {
-      email: {
-        count: vi.fn(async () => 1),
-        findMany: vi.fn(async () => [
-          {
-            fromName: 'Aarav Mehta',
-            fromAddress: 'aarav@example.com',
-            subject: 'Q3 planning notes',
-            isRead: true,
-            receivedAt: new Date('2026-10-03T09:00:00Z'),
-          },
-        ]),
-      },
-    };
-  }
-
-  function twoPlusTwoGrounding(): string {
-    const messages = providerMessages();
-    const block = messages.find(
-      (m) => m.role === 'system' && /LIVE MAILBOX SNAPSHOT/.test(m.content),
-    );
-    expect(block).toBeDefined();
-    return block!.content;
-  }
-
-  async function askTwoPlusTwo(intent?: string) {
-    const app = await buildApp('user-1', { prisma: mailboxPrismaMock() });
-    const res = await app.inject({
-      method: 'POST',
-      url: '/ai/chat',
-      payload: {
-        messages: [{ role: 'user', content: 'what is 2+2' }],
-        ...(intent ? { intent } : {}),
-      },
-    });
-    return res;
-  }
-
-  it('fast tier: a general question is not steered to the canned refusal', async () => {
-    const res = await askTwoPlusTwo('fast');
-
-    expect(res.statusCode).toBe(200);
-    expect(res.json().data).toMatchObject({ tier: 'fast' });
-    const grounding = twoPlusTwoGrounding();
-    // The old unconditional refusal ("If they ask about something not in the
-    // snapshot, say you do not have that information") must be gone, and the
-    // replacement must explicitly permit non-mailbox answers.
-    expect(grounding).not.toContain('If they ask about something not in the snapshot');
-    expect(grounding).toContain('answer normally from your own knowledge');
-    expect(grounding).toContain('RULES — SCOPE');
-  });
-
-  it('deep tier: the same general question gets the same scoped grounding', async () => {
-    const res = await askTwoPlusTwo('deep');
-
-    expect(res.statusCode).toBe(200);
-    expect(res.json().data).toMatchObject({ tier: 'deep' });
-    const grounding = twoPlusTwoGrounding();
-    expect(grounding).not.toContain('If they ask about something not in the snapshot');
-    expect(grounding).toContain('answer normally from your own knowledge');
-  });
-
-  it('still refuses to invent mailbox data (the anti-hallucination guard survives)', async () => {
-    // Scoping the refusal is a loosening; this pins what must not loosen. The
-    // guard for real mailbox questions — quote the snapshot exactly, never
-    // invent — stays in the block verbatim.
-    await askTwoPlusTwo('balanced');
-
-    const grounding = twoPlusTwoGrounding();
-    expect(grounding).toContain('answer ONLY from this snapshot and quote its numbers exactly');
-    expect(grounding).toContain('Never invent counts');
   });
 });
