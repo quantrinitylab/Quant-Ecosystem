@@ -1360,8 +1360,8 @@ function QuantGitContent() {  const router = useRouter();
           visibility,
         }),
       });
-      const json = await res.json();
-      if (res.ok && json.success) {
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.success) {
         const r = json.data;
         const newRepo: Repo = {
           id: r.id || name,
@@ -1388,16 +1388,22 @@ function QuantGitContent() {  const router = useRouter();
         setNewRepoName('');
         setNewRepoDesc('');
         setModalState('none');
-        showToast(`Repository ${slug} created in database!`);
+        showToast(`Repository ${slug} created.`);
         emitQuantGitMascotEvent('repo');
         return;
       }
+      // Truthful error: surface the server's own message when it provides one.
+      const serverMessage =
+        typeof json?.error?.message === 'string' && json.error.message
+          ? json.error.message
+          : typeof json?.message === 'string' && json.message
+            ? json.message
+            : null;
+      showToast(serverMessage || 'Failed to create repository. Please try again.');
     } catch {
-      // Fallback
+      // Network/transport failure — never create phantom repos or lie about success.
+      showToast('Failed to create repository. Please try again.');
     }
-
-    // No fake fallback — never create phantom repos or lie about success.
-    showToast('Failed to create repository. Please try again.');
   };
 
   const handleStarRepo = async () => {
