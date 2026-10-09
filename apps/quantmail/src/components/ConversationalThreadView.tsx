@@ -32,6 +32,7 @@ import { IconChat, IconMail } from './icons';
 import {
   findConversation,
   groupEmailsIntoThreads,
+  isFromMe,
   messageKindOf,
   messageRowIds,
   sanitizeSnippetText,
@@ -738,6 +739,20 @@ export function ConversationalThreadView({
     return ids.length > 0 ? ids : [threadId].filter(Boolean);
   }, [messages, threadId]);
 
+  /*
+   * REG-2: the inbox rows gate their read toggle on this (BB-P1-1) because an
+   * all-self conversation is definitionally read — the thread grouper reads
+   * `every(m => m.isRead || isFromMe(m))`, so "Mark unread" on such a thread
+   * flips rows the list can never show. The More menu shipped the item
+   * ungated: the toast claimed success while the inbox could never change.
+   * Gate it the same way — a dead control with a lying toast is worse than
+   * no control.
+   */
+  const canToggleRead = useMemo(
+    () => messages.some((m) => !isFromMe(m, currentEmail)),
+    [messages, currentEmail],
+  );
+
   /**
    * Whether the conversation reads as archived: every message in it carries
    * `isArchived`. Drives the Archive → "Move to inbox" swap in the header and
@@ -1376,7 +1391,11 @@ export function ConversationalThreadView({
     if (ids.length === 0) return;
     try {
       await Promise.all(ids.map((id) => apiClient.markAsUnread(id)));
-      setMessages((prev) => prev.map((m) => ({ ...m, isRead: false })));
+      // Only after every POST resolved: flip exactly the rows the server
+      // accepted, so a partial failure never leaves a lying local state.
+      setMessages((prev) =>
+        prev.map((m) => (ids.includes(m.id) ? { ...m, isRead: false } : m)),
+      );
       showToast({ text: 'Marked as unread', type: 'info' });
       invalidateMailLists(queryClient);
     } catch {
@@ -2105,7 +2124,10 @@ export function ConversationalThreadView({
                 </button>
 
                 {/* BB-P1-3: standard conversation actions, each wired to the
-                    real endpoint the inbox row/bulk actions use. */}
+                    real endpoint the inbox row/bulk actions use.
+                    REG-2: hidden on all-self conversations — see canToggleRead
+                    above. */}
+                {canToggleRead && (
                 <button
                   type="button"
                   role="menuitem"
@@ -2129,6 +2151,7 @@ export function ConversationalThreadView({
                   </svg>
                   Mark unread
                 </button>
+                )}
 
                 <button
                   type="button"

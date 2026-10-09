@@ -1331,7 +1331,20 @@ export default function InboxPage() {
    */
   const lensChipRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const turnRowRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  /*
+   * REG-3: the inbox header search filters inline and never touched the URL,
+   * so ?q= stayed bare quantmail.in/ (BB-P1-10's fix only covered the
+   * dedicated /search page). Seed from ?q= at mount and keep it in sync on
+   * the debounced value — replace, not push, so typing doesn't stack
+   * history entries. Seeded via the state initializer (SSR-safe) instead of
+   * a mount-only useEffect, so no react-hooks/exhaustive-deps disable
+   * comment is needed (that plugin isn't configured in this repo).
+   */
+  const [searchQuery, setSearchQuery] = useState<string>(() =>
+    typeof window === 'undefined'
+      ? ''
+      : (new URLSearchParams(window.location.search).get('q') ?? ''),
+  );
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [showArchivedView, setShowArchivedView] = useState(false);
   /**
@@ -1740,6 +1753,16 @@ export default function InboxPage() {
     const timer = window.setTimeout(() => setDebouncedQuery(searchQuery.trim()), 260);
     return () => window.clearTimeout(timer);
   }, [searchQuery]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const current = url.searchParams.get('q') ?? '';
+    const next = debouncedQuery.trim();
+    if (current === next) return;
+    if (next) url.searchParams.set('q', next);
+    else url.searchParams.delete('q');
+    router.replace(url.pathname + url.search, { scroll: false });
+  }, [debouncedQuery, router]);
 
   const { user: currentUser } = useAuth();
   const currentEmail = currentUser?.email || '';

@@ -469,6 +469,38 @@ export function EmailComposer({
   // BB-P1-8: emoji picker popover for the formatting bar.
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiTriggerRef = useRef<HTMLButtonElement>(null);
+  const emojiPanelRef = useRef<HTMLDivElement>(null);
+
+  /*
+   * REG-P1-1: the picker used to render as a single-column strip with
+   * overlapping tiles (its Tailwind grid never took effect in the built CSS),
+   * so taps hit the wrong emoji; it also had no Escape/outside dismiss and a
+   * full-screen backdrop that blocked the toolbar toggle and the composer
+   * Close button. Dismiss now listens for Escape and outside pointer-down —
+   * no backdrop, so nothing else on the screen is ever covered.
+   */
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowEmojiPicker(false);
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (
+        target &&
+        !emojiPanelRef.current?.contains(target) &&
+        !emojiTriggerRef.current?.contains(target)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [showEmojiPicker]);
 
   /**
    * One tab stop for the alignment trio, so `radiogroup` is not a lie.
@@ -2277,33 +2309,52 @@ export function EmailComposer({
                     </span>
                   </button>
                   {showEmojiPicker && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-30"
-                        onClick={() => setShowEmojiPicker(false)}
-                      />
-                      <div
-                        id="composer-emoji-panel"
-                        role="group"
-                        aria-label="Emoji picker"
-                        className="absolute left-0 bottom-full mb-1.5 p-2 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] shadow-2xl z-40 grid grid-cols-8 gap-1 max-w-[calc(100vw-2rem)]"
-                      >
-                        {COMPOSER_EMOJIS.map((emoji) => (
-                          <button
-                            key={emoji}
-                            type="button"
-                            onClick={() => {
-                              insertEmojiAtCursor(emoji);
-                              setShowEmojiPicker(false);
-                            }}
-                            className="flex items-center justify-center min-h-[44px] min-w-[44px] text-lg rounded-lg hover:bg-[var(--quant-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
-                            aria-label={`Insert ${emoji} emoji`}
-                          >
-                            <span aria-hidden="true">{emoji}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </>
+                    <div
+                      id="composer-emoji-panel"
+                      ref={emojiPanelRef}
+                      role="group"
+                      aria-label="Emoji picker"
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        bottom: 'calc(100% + 6px)',
+                        width: 'min(360px, calc(100vw - 2rem))',
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(8, minmax(0, 1fr))',
+                        gap: 4,
+                        padding: 8,
+                        borderRadius: 12,
+                        zIndex: 50,
+                        background: 'var(--quant-surface-elevated)',
+                        border: '1px solid var(--quant-surface-elevated)',
+                        boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
+                      }}
+                    >
+                      {COMPOSER_EMOJIS.map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => {
+                            insertEmojiAtCursor(emoji);
+                            setShowEmojiPicker(false);
+                          }}
+                          style={{
+                            width: '100%',
+                            aspectRatio: '1',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 20,
+                            lineHeight: 1,
+                            borderRadius: 8,
+                          }}
+                          className="hover:bg-[var(--quant-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                          aria-label={`Insert ${emoji} emoji`}
+                        >
+                          <span aria-hidden="true">{emoji}</span>
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
 
