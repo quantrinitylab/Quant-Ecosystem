@@ -48,6 +48,6 @@ describe('app-theme', () => {
     // Green family for drive
     expect(APP_THEMES.drive.accent).toMatch(/^var\(--quant-success\)|^#22|^#34/i);
     // Purple family for quantgit
-    expect(APP_THEMES.quantgit.accent).toMatch(/^#A/i);
+    expect(APP_THEMES.quantgit.accent).toBe('#8B5CF6');
   });
 });
