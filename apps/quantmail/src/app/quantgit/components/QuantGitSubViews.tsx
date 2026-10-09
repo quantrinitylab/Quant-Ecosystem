@@ -325,6 +325,14 @@ export interface QuantGitReposSubViewProps {
   onNewRepo?: () => void;
   searchQuery?: string;
   onSearchChange?: (val: string) => void;
+  /**
+   * BB-P1-9: the /quantgit page already renders a global search (AppShell
+   * header on desktop, pillar top bar on mobile) bound to the same query.
+   * Hiding this in-view field removes the duplicated second box; the shared
+   * query state stays the single source of truth. Defaults to false so the
+   * sub-view keeps its own field when used standalone.
+   */
+  hideSearchField?: boolean;
 }
 
 export function QuantGitReposSubView({
@@ -333,6 +341,7 @@ export function QuantGitReposSubView({
   onNewRepo,
   searchQuery: externalSearchQuery,
   onSearchChange: externalOnSearchChange,
+  hideSearchField = false,
 }: QuantGitReposSubViewProps) {
   const [internalSearchQuery, setInternalSearchQuery] = useState('');
   const searchQuery =
@@ -395,15 +404,20 @@ export function QuantGitReposSubView({
             The search field and the selects share a single scroll lane so the
             filter layer is always exactly one row tall on mobile. */}
         <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1">
-          <div className="flex-1 min-w-[240px] shrink-0">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Find a repository..."
-              className="w-full bg-[var(--quant-surface)] border border-[#232938] rounded-xl px-3.5 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] focus:outline-none focus:border-[#A78BFA] transition-colors"
-            />
-          </div>
+          {/* BB-P1-9: hidden on /quantgit — the page's global search field
+              (AppShell header / pillar top bar) already drives this query. */}
+          {!hideSearchField && (
+            <div className="flex-1 min-w-[240px] shrink-0">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Find a repository..."
+                aria-label="Find a repository"
+                className="w-full bg-[var(--quant-surface)] border border-[#232938] rounded-xl px-3.5 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] focus:outline-none focus:border-[#A78BFA] transition-colors"
+              />
+            </div>
+          )}
           <div className="flex items-center gap-2 shrink-0">
             <select
               aria-label="Filter by type" value={typeFilter}
@@ -1303,6 +1317,8 @@ export interface QuantGitSubViewsProps {
   showToast?: (msg: string) => void;
   searchQuery?: string;
   onSearchChange?: (val: string) => void;
+  /** BB-P1-9: forwarded to the repos sub-view (see QuantGitReposSubViewProps). */
+  hideSearchField?: boolean;
 }
 
 export function QuantGitSubViews({
@@ -1317,6 +1333,7 @@ export function QuantGitSubViews({
   showToast,
   searchQuery,
   onSearchChange,
+  hideSearchField = false,
 }: QuantGitSubViewsProps) {
   return (
     <div data-testid="quantgit-subviews-container" className="flex-1 w-full min-h-0 flex flex-col">
@@ -1330,6 +1347,7 @@ export function QuantGitSubViews({
           onNewRepo={onNewRepo}
           searchQuery={searchQuery}
           onSearchChange={onSearchChange}
+          hideSearchField={hideSearchField}
         />
       )}
 

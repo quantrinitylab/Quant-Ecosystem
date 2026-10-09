@@ -56,21 +56,33 @@ export function ThreadSummaryCard({ onSummarize }: ThreadSummaryCardProps) {
   const [result, setResult] = useState<ThreadSummaryResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * BB-P1-5: honest disabled state. When the backend reports AI_UNAVAILABLE
+   * (503 — no AI provider credentials on this host), retry can never help, so
+   * the card says so plainly and offers no Retry button. Any other failure
+   * keeps the retryable error state.
+   */
+  const [unavailable, setUnavailable] = useState(false);
 
   const handleSummarize = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setUnavailable(false);
     try {
       const r = await onSummarize();
       setResult(r);
-    } catch {
-      setError('Could not generate summary. Try again.');
+    } catch (e) {
+      if ((e as { code?: string } | null)?.code === 'AI_UNAVAILABLE') {
+        setUnavailable(true);
+      } else {
+        setError('Could not generate summary. Try again.');
+      }
     } finally {
       setLoading(false);
     }
   }, [onSummarize]);
 
-  if (!result && !loading && !error) {
+  if (!result && !loading && !error && !unavailable) {
     return (
       <button
         type="button"
@@ -83,6 +95,19 @@ export function ThreadSummaryCard({ onSummarize }: ThreadSummaryCardProps) {
         </span>
         Summarize thread
       </button>
+    );
+  }
+
+  if (unavailable) {
+    return (
+      <div className="ai-summary-card" role="status">
+        <div className="ai-summary-error">
+          <span className="inline-flex items-center gap-1.5">
+            <IconWarning size={12} />
+            AI summaries aren&apos;t available right now.
+          </span>
+        </div>
+      </div>
     );
   }
 

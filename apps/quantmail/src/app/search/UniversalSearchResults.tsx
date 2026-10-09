@@ -336,7 +336,7 @@ export function UniversalSearchResults({
   return (
     <div className="p-4">
       <p className="mb-3 px-1 text-xs text-[var(--quant-muted-foreground)]">
-        {totalHits} result{totalHits !== 1 ? 's' : ''} for “{results.query}”
+        {totalHits}{' '}result{totalHits !== 1 ? 's' : ''}{' '}for “{results.query}”
         {anyError ? ' — some sources could not be searched' : ''} across mail, people, calendar, drive.
       </p>
       {sections}

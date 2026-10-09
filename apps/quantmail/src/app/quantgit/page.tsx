@@ -2116,6 +2116,9 @@ function QuantGitContent() {  const router = useRouter();
             activeTab={activeContextSubTab}
             searchQuery={repoSearchQuery}
             onSearchChange={setRepoSearchQuery}
+            // BB-P1-9: the AppShell header (desktop) / pillar top bar (mobile)
+            // already renders this same search field — hide the in-view copy.
+            hideSearchField
             onSelectTab={(tab) => {
               setActiveContextSubTab(tab);
               router.push(`/quantgit?tab=${tab}`);

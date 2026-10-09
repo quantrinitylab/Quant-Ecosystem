@@ -227,6 +227,18 @@ const TEXT_COLORS = [
 ];
 
 /**
+ * BB-P1-8: curated emoji set for the composer emoji picker. Kept small and
+ * neutral (no skin-tone or flag sequences) so insertion is one code point and
+ * caret math stays exact.
+ */
+const COMPOSER_EMOJIS = [
+  '😊', '😂', '😍', '🥳', '😎', '🤔', '😅', '🙏',
+  '👍', '👎', '👏', '🙌', '💪', '✌️', '👀', '💯',
+  '❤️', '🔥', '⭐', '🎉', '✅', '❌', '⚠️', '💡',
+  '📎', '📅', '💼', '🚀', '☕', '🎯', '📌', '✨',
+];
+
+/**
  * The alignment trio as data, so it can be one control instead of three.
  *
  * It was three hand-inlined buttons whose only state channel was an accent
@@ -446,9 +458,17 @@ export function EmailComposer({
   const [isStrikethrough, setIsStrikethrough] = useState(false);
   const [textColor, setTextColor] = useState(TEXT_COLORS[0]);
   const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('left');
+  // BB-P1-8: whole-message list mode — each non-empty line becomes one item in
+  // the sent HTML (see composeMessageBodies `list`). Bullet/numbered are
+  // mutually exclusive; 'none' is the default so existing messages are
+  // byte-identical to before.
+  const [listMode, setListMode] = useState<'none' | 'bullet' | 'numbered'>('none');
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showFontPicker, setShowFontPicker] = useState(false);
   const [showSizePicker, setShowSizePicker] = useState(false);
+  // BB-P1-8: emoji picker popover for the formatting bar.
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiTriggerRef = useRef<HTMLButtonElement>(null);
 
   /**
    * One tab stop for the alignment trio, so `radiogroup` is not a lie.
@@ -710,7 +730,32 @@ export function EmailComposer({
       ...(selectedFont.id !== 'sans' ? { fontFamily: selectedFont.stack } : {}),
       ...(selectedSize.id !== 'base' ? { fontSizePx: selectedSize.px } : {}),
       ...(textAlign !== 'left' ? { textAlign } : {}),
+      ...(listMode !== 'none' ? { list: listMode } : {}),
     });
+
+  /**
+   * BB-P1-8: insert an emoji at the caret (or append when the body has no
+   * focus). The caret is restored after the inserted emoji so typing continues
+   * naturally. Pure DOM cursor math — no formatting model involved.
+   */
+  const insertEmojiAtCursor = useCallback(
+    (emoji: string) => {
+      const el = bodyTextareaRef.current;
+      if (!el) {
+        setBody((prev) => prev + emoji);
+        return;
+      }
+      const start = el.selectionStart ?? body.length;
+      const end = el.selectionEnd ?? body.length;
+      setBody(body.slice(0, start) + emoji + body.slice(end));
+      requestAnimationFrame(() => {
+        el.focus();
+        const pos = start + emoji.length;
+        el.setSelectionRange(pos, pos);
+      });
+    },
+    [body],
+  );
 
   // QM-UIUX-024: the Send button's disabled state mirrors this exactly, so a
   // tap can never reach handleSend while validation would reject it.
@@ -2174,6 +2219,94 @@ export function EmailComposer({
                   })}
                 </div>
 
+                {/* BB-P1-8: Lists + Emoji. List mode is whole-message (each non-empty
+                    line becomes one item in the sent HTML); bullet and numbered
+                    are mutually exclusive toggles, matching the B/I/U/S style. */}
+                <div className="h-4 w-px bg-[var(--quant-surface-elevated)] mx-1" />
+
+                {/* Bulleted List */}
+                <button
+                  type="button"
+                  onClick={() => setListMode((prev) => (prev === 'bullet' ? 'none' : 'bullet'))}
+                  aria-pressed={listMode === 'bullet'}
+                  aria-label="Bulleted list"
+                  className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg text-xs ${
+                    listMode === 'bullet'
+                      ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)] border border-[var(--quant-primary)]/40'
+                      : 'text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)]'
+                  }`}
+                  title="Bulleted list"
+                >
+                  <span aria-hidden="true" className="leading-none text-sm">
+                    •≡
+                  </span>
+                </button>
+
+                {/* Numbered List */}
+                <button
+                  type="button"
+                  onClick={() => setListMode((prev) => (prev === 'numbered' ? 'none' : 'numbered'))}
+                  aria-pressed={listMode === 'numbered'}
+                  aria-label="Numbered list"
+                  className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg text-xs ${
+                    listMode === 'numbered'
+                      ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)] border border-[var(--quant-primary)]/40'
+                      : 'text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)]'
+                  }`}
+                  title="Numbered list"
+                >
+                  <span aria-hidden="true" className="leading-none text-sm">
+                    1.≡
+                  </span>
+                </button>
+
+                {/* Emoji Picker */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    ref={emojiTriggerRef}
+                    onClick={() => setShowEmojiPicker((prev) => !prev)}
+                    aria-expanded={showEmojiPicker}
+                    aria-controls={showEmojiPicker ? 'composer-emoji-panel' : undefined}
+                    aria-label="Insert emoji"
+                    className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    title="Insert emoji"
+                  >
+                    <span aria-hidden="true" className="text-base leading-none">
+                      &#x1F60A;
+                    </span>
+                  </button>
+                  {showEmojiPicker && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-30"
+                        onClick={() => setShowEmojiPicker(false)}
+                      />
+                      <div
+                        id="composer-emoji-panel"
+                        role="group"
+                        aria-label="Emoji picker"
+                        className="absolute left-0 bottom-full mb-1.5 p-2 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] shadow-2xl z-40 grid grid-cols-8 gap-1 max-w-[calc(100vw-2rem)]"
+                      >
+                        {COMPOSER_EMOJIS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => {
+                              insertEmojiAtCursor(emoji);
+                              setShowEmojiPicker(false);
+                            }}
+                            className="flex items-center justify-center min-h-[44px] min-w-[44px] text-lg rounded-lg hover:bg-[var(--quant-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                            aria-label={`Insert ${emoji} emoji`}
+                          >
+                            <span aria-hidden="true">{emoji}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 {/* Reset / Clear Formatting */}
                 <button
                   type="button"
@@ -2184,6 +2317,7 @@ export function EmailComposer({
                     setIsItalic(false);
                     setIsUnderline(false);
                     setIsStrikethrough(false);
+                    setListMode('none');
                     setTextColor(TEXT_COLORS[0]);
                     setTextAlign('left');
                   }}

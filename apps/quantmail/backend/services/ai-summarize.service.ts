@@ -28,6 +28,25 @@ export type SingleSummarizeResult = z.infer<typeof SingleSummarizeResultSchema>;
 export class AISummarizeService {
   constructor(private readonly ai: AIEngine) {}
 
+  /**
+   * BB-P1-5: the endpoint is wired end-to-end; on hosts with no AI provider
+   * credentials `ai.infer` throws a "not configured" error. That used to
+   * surface as a generic 500/INTERNAL_ERROR ("Could not generate summary. Try
+   * again."), which is a lie when retry can never help. Reclassify it as a
+   * 503 AI_UNAVAILABLE so the client can render an honest disabled state.
+   */
+  private static toHonestError(err: unknown): never {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/not configured/i.test(message)) {
+      throw createAppError(
+        'AI summarization is not available on this server',
+        503,
+        'AI_UNAVAILABLE',
+      );
+    }
+    throw err;
+  }
+
   async summarizeThread(messages: ThreadMessage[], userId: string): Promise<SummarizeResult> {
     const validated = messages.map((m) => ThreadMessageSchema.parse(m));
 
@@ -35,7 +54,9 @@ export class AISummarizeService {
       .map((m, i) => `[${i + 1}] From: ${m.from}\nSubject: ${m.subject}\n${m.body}`)
       .join('\n---\n');
 
-    const response = await this.ai.infer({
+    let response: Awaited<ReturnType<AIEngine['infer']>>;
+    try {
+      response = await this.ai.infer({
       prompt: `Summarize this email thread of ${validated.length} messages into a concise summary.
 
 Thread:
@@ -55,7 +76,10 @@ Respond ONLY with valid JSON:
       feature: 'email-summarize',
       temperature: 0.3,
       maxTokens: 512,
-    });
+      });
+    } catch (err) {
+      AISummarizeService.toHonestError(err);
+    }
 
     let parsed: unknown;
     try {
@@ -75,7 +99,9 @@ Respond ONLY with valid JSON:
   async summarizeSingle(email: ThreadMessage, userId: string): Promise<SingleSummarizeResult> {
     const validated = ThreadMessageSchema.parse(email);
 
-    const response = await this.ai.infer({
+    let response: Awaited<ReturnType<AIEngine['infer']>>;
+    try {
+      response = await this.ai.infer({
       prompt: `Summarize this email concisely.
 
 From: ${validated.from}
@@ -94,7 +120,10 @@ Respond ONLY with valid JSON:
       feature: 'email-summarize',
       temperature: 0.3,
       maxTokens: 256,
-    });
+      });
+    } catch (err) {
+      AISummarizeService.toHonestError(err);
+    }
 
     let parsed: unknown;
     try {

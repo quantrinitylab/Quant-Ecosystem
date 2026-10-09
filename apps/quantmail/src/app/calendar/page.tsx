@@ -663,6 +663,23 @@ function CalendarPageContent() {
       if (tab === 'week' || tab === 'day') {
         setActiveContextTab(targets.contextTab);
         selectView(targets.view);
+        // P2: week/day used to skip the URL update that every other view does,
+        // so ?tab= went stale (and back/refresh lost the view). ?tab=week and
+        // ?tab=day are already understood by the sync effects above.
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          url.searchParams.set('tab', tab);
+          window.history.pushState(null, '', url.toString());
+          window.dispatchEvent(
+            new CustomEvent('quant:subtab-change', {
+              detail: {
+                pillar: 'calendar',
+                tabId: tab,
+                queryParam: { key: 'tab', value: tab },
+              },
+            }),
+          );
+        }
         return;
       }
       handleSelectContextTab(targets.contextTab);

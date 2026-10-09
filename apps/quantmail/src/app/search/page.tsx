@@ -164,14 +164,26 @@ export default function SearchPage() {
     isLoading: universalLoading,
   } = useUniversalSearch(universalQuery);
 
-  const runSearchString = useCallback((search: string) => {
-    const trimmed = search.trim();
-    if (!trimmed) return;
-    setQuery(trimmed);
-    setHasSearched(true);
-    saveRecentSearch(trimmed);
-    setRecentSearches(getRecentSearches());
-  }, []);
+  const runSearchString = useCallback(
+    (search: string) => {
+      const trimmed = search.trim();
+      if (!trimmed) return;
+      setQuery(trimmed);
+      setHasSearched(true);
+      saveRecentSearch(trimmed);
+      setRecentSearches(getRecentSearches());
+      // BB-P1-10: the page seeds from ?q= on mount but never wrote it back,
+      // so the URL went stale (back button / copy-link / refresh lost the
+      // query). Keep it in sync; replace (not push) so typing one search
+      // doesn't stack history entries.
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.searchParams.set('q', trimmed);
+        router.replace(url.pathname + url.search, { scroll: false });
+      }
+    },
+    [router],
+  );
 
   const handleSearch = useCallback(() => {
     runSearchString(query);
@@ -267,7 +279,14 @@ export default function SearchPage() {
     setActiveFilters([]);
     setEditingFilter(null);
     setFilterInput('');
-  }, []);
+    // BB-P1-10: clear ?q= with the query so the URL never claims a search
+    // that isn't running.
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('q');
+      router.replace(url.pathname + url.search, { scroll: false });
+    }
+  }, [router]);
 
   const clearRecent = useCallback(() => {
     try {
@@ -610,7 +629,7 @@ export default function SearchPage() {
               className="p-4"
             >
               <p className="mb-2 px-1 text-xs text-[var(--quant-muted-foreground)]">
-                {results.length} result{results.length !== 1 ? 's' : ''} for “{query}”
+                {results.length}{' '}result{results.length !== 1 ? 's' : ''}{' '}for “{query}”
               </p>
               <div className="overflow-hidden rounded-xl border border-[var(--quant-border)]">
                 {results.map((email) => {

@@ -419,7 +419,14 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                         </div>
 
                         <div className="pt-1 flex items-center gap-1.5 text-xs text-[#58A6FF] font-mono select-all">
-                          <span className="truncate">/calendar/booking/{link.slug}</span>
+                          {/* P2: display the absolute URL, not a relative path —
+                              select-all copying must yield a link that works
+                              outside this page. Matches what Copy Link writes
+                              to the clipboard. */}
+                          <span className="truncate">
+                            {(typeof window !== 'undefined' ? window.location.origin : 'https://quantmail.in')}
+                            /calendar/booking/{link.slug}
+                          </span>
                         </div>
                       </div>
 

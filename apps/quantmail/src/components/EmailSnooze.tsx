@@ -56,9 +56,15 @@ const SNOOZE_OPTIONS = [
   {
     label: 'Later today',
     getDate: () => {
-      const d = new Date();
-      d.setHours(d.getHours() + 3);
-      return d;
+      // BB-P1-7: "+3h" alone rolls past midnight (22:30 -> 01:30 next day),
+      // which is tomorrow, not "later today". Stay today when +3h is still
+      // today; otherwise fall back to tomorrow 09:00 (same as `Tomorrow`).
+      const now = new Date();
+      const later = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+      if (later.getDate() !== now.getDate()) {
+        return snoozeUntilNextMorning();
+      }
+      return later;
     },
   },
   {
