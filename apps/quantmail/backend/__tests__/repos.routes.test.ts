@@ -744,6 +744,58 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     );
   });
 
+  it('GET /repos dev seeding creates sample repos with zero engagement counts (QM-UIUX-068)', async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousSeeding = process.env.ENABLE_DEV_REPO_SEEDING;
+
+    process.env.NODE_ENV = 'development';
+    process.env.ENABLE_DEV_REPO_SEEDING = 'true';
+
+    try {
+      const app = await buildApp();
+      // Empty database: the dev seeding path must run.
+      prisma.repository.count.mockResolvedValue(0);
+
+      const res = await app.inject({ method: 'GET', url: '/repos' });
+      expect(res.statusCode).toBe(200);
+
+      // The four dev-fixture repos are still seeded…
+      expect(prisma.repository.create).toHaveBeenCalledTimes(4);
+      const seededNames = (prisma.repository.create as any).mock.calls.map(
+        (call: any) => call[0].data.name,
+      );
+      expect(seededNames).toEqual([
+        'Quant-Ecosystem',
+        'quantmail-core',
+        'quantchat-meet',
+        'quant-mobile-android',
+      ]);
+
+      // …but never with fabricated engagement. starCount/forkCount must be
+      // absent (Prisma @default(0)) or explicitly 0 — real counts only ever
+      // come from Prisma-backed RepositoryStar rows and real forks.
+      for (const call of (prisma.repository.create as any).mock.calls) {
+        const data = call[0].data;
+        expect(data.starCount ?? 0).toBe(0);
+        expect(data.forkCount ?? 0).toBe(0);
+        expect([342, 128, 95, 76]).not.toContain(data.starCount);
+        expect([48, 19, 12, 8]).not.toContain(data.forkCount);
+      }
+    } finally {
+      if (previousNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = previousNodeEnv;
+      }
+
+      if (previousSeeding === undefined) {
+        delete process.env.ENABLE_DEV_REPO_SEEDING;
+      } else {
+        process.env.ENABLE_DEV_REPO_SEEDING = previousSeeding;
+      }
+    }
+  });
+
   it('POST /repos creates a new repository with default branch', async () => {
     const app = await buildApp();
     const res = await app.inject({

@@ -16,6 +16,8 @@ import type {
 } from './types';
 
 // Initial Mock Repositories
+// Engagement (stars/forks/watching) is intentionally zero here: real counts
+// come from the Prisma-backed /api/repos data — never invented fixture numbers.
 export const INITIAL_REPOS: Repo[] = [
   {
     id: 'quant-ecosystem',
@@ -24,9 +26,9 @@ export const INITIAL_REPOS: Repo[] = [
     description: 'Next-gen sovereign workspace, autonomous AI swarm, Git hub & Android client.',
     visibility: 'public',
     language: 'TypeScript',
-    stars: 128,
-    forks: 24,
-    watching: 12,
+    stars: 0,
+    forks: 0,
+    watching: 0,
     cloneUrl: 'https://quantmail.in/quantgit/Quant-Ecosystem.git',
     sshUrl: 'git@quantmail.in:Quant-Ecosystem.git',
     defaultBranch: 'main',
@@ -57,9 +59,9 @@ export const INITIAL_REPOS: Repo[] = [
       'Ultra-fast sovereign mail client with inline triage lenses & local ONNX semantic search.',
     visibility: 'private',
     language: 'TypeScript',
-    stars: 42,
-    forks: 5,
-    watching: 8,
+    stars: 0,
+    forks: 0,
+    watching: 0,
     cloneUrl: 'https://quantmail.in/quantgit/quantmail-core.git',
     sshUrl: 'git@quantmail.in:quantmail-core.git',
     defaultBranch: 'main',
@@ -81,9 +83,9 @@ export const INITIAL_REPOS: Repo[] = [
     description: 'LiveKit WebRTC gateway, SFU, voice AI agent, and calendar proactive alerts.',
     visibility: 'private',
     language: 'TypeScript',
-    stars: 35,
-    forks: 3,
-    watching: 4,
+    stars: 0,
+    forks: 0,
+    watching: 0,
     cloneUrl: 'https://quantmail.in/quantgit/quantchat-meet.git',
     sshUrl: 'git@quantmail.in:quantchat-meet.git',
     defaultBranch: 'main',
@@ -106,9 +108,9 @@ export const INITIAL_REPOS: Repo[] = [
       'Native Jetpack Compose Android client with hardware-accelerated WebView and offline resilience.',
     visibility: 'public',
     language: 'Kotlin',
-    stars: 89,
-    forks: 14,
-    watching: 19,
+    stars: 0,
+    forks: 0,
+    watching: 0,
     cloneUrl: 'https://quantmail.in/quantgit/quant-mobile-android.git',
     sshUrl: 'git@quantmail.in:quant-mobile-android.git',
     defaultBranch: 'main',
