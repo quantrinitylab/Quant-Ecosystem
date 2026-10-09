@@ -3,7 +3,7 @@
 // Video platform home with category tabs, video grid, infinite scroll
 // ============================================================================
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { spring } from '@quant/brand';
 import { LoadingState, EmptyState } from '@quant/shared-ui';
@@ -82,6 +82,34 @@ function VideoThumbnail({ src, alt }: { src?: string; alt: string }) {
 
 const HomePage: React.FC = () => {  const { isAuthenticated } = useAuth();
   const [activeCategory, setActiveCategory] = useState<string>('all');
+
+  // QM-UIUX-018: scroll affordance for the category pill row. On mobile the
+  // row overflows horizontally and the last pill was cut off at the right
+  // edge with no hint the row scrolls. Edge fades are derived from the row's
+  // real scroll metrics: the right fade shows only while more pills are
+  // hidden to the right, the left fade only after scrolling — both vanish
+  // when there is nothing more to reveal in that direction.
+  const categoryNavRef = useRef<HTMLElement | null>(null);
+  const [categoryFade, setCategoryFade] = useState({ left: false, right: false });
+
+  const updateCategoryFade = useCallback(() => {
+    const el = categoryNavRef.current;
+    if (!el) return;
+    const maxScrollLeft = el.scrollWidth - el.clientWidth;
+    const next = {
+      left: el.scrollLeft > 1,
+      right: maxScrollLeft > 1 && el.scrollLeft < maxScrollLeft - 1,
+    };
+    setCategoryFade((prev) =>
+      prev.left === next.left && prev.right === next.right ? prev : next,
+    );
+  }, []);
+
+  useEffect(() => {
+    updateCategoryFade();
+    window.addEventListener('resize', updateCategoryFade);
+    return () => window.removeEventListener('resize', updateCategoryFade);
+  }, [updateCategoryFade]);
 
   const categoryParam = activeCategory === 'all' ? undefined : activeCategory;
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
@@ -182,11 +210,15 @@ const HomePage: React.FC = () => {  const { isAuthenticated } = useAuth();
         {/* Engaging Guest / Unauthenticated Welcome Banner */}
         {isGuestMode && <GuestHeroBanner catalogEmpty={showingSamples} />}
 
-        {/* Category Tabs */}
-        <nav
-          className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-none"
-          aria-label="Content categories"
-        >
+        {/* Category Tabs — QM-UIUX-018: edge fades hint that the pill row
+            scrolls when it overflows; each fade hides at its scroll end. */}
+        <div className="relative mb-6" data-testid="category-scroll-wrap">
+          <nav
+            ref={categoryNavRef}
+            onScroll={updateCategoryFade}
+            className="flex gap-2 overflow-x-auto pb-2 scrollbar-none"
+            aria-label="Content categories"
+          >
           {CATEGORIES.map((cat) => (
             <button
               key={cat.id}
@@ -209,7 +241,22 @@ const HomePage: React.FC = () => {  const { isAuthenticated } = useAuth();
               )}
             </button>
           ))}
-        </nav>
+          </nav>
+          {categoryFade.left && (
+            <div
+              aria-hidden="true"
+              data-testid="category-fade-left"
+              className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10 bg-gradient-to-r from-[var(--quant-background)] to-transparent"
+            />
+          )}
+          {categoryFade.right && (
+            <div
+              aria-hidden="true"
+              data-testid="category-fade-right"
+              className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-[var(--quant-background)] to-transparent"
+            />
+          )}
+        </div>
 
         {/* P0-2 honesty notice: samples are labeled, never passed off as real */}
         {showingSamples && videos.length > 0 && (
