@@ -336,7 +336,7 @@ export function BranchesTab({
                       <span>
                         Updated {branch.lastCommitTime || 'recently'} by{' '}
                         <strong className="text-white">
-                          {branch.lastCommitAuthor || 'Developer 6'}
+                          {branch.lastCommitAuthor || 'Unknown'}
                         </strong>
                       </span>
                       {branch.lastCommitMessage && (

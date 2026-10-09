@@ -733,7 +733,7 @@ function QuantGitContent() {  const router = useRouter();
               commentsCount: item.commentsCount || 0,
               createdAt: item.createdAt || 'recently',
               body: item.body || '',
-              assignee: item.assignee || 'Developer 6',
+              assignee: item.assignee || 'Unassigned',
             }));
             setIssues(mappedIssues);
           }
@@ -1114,7 +1114,6 @@ function QuantGitContent() {  const router = useRouter();
             : [{ name: label, color: label === 'bug' ? '#D73A4A' : '#1D76DB' }],
           commentsCount: 0,
           createdAt: 'just now',
-          assignee: 'Developer 6',
         };
         setIssues((prev) => [created, ...prev]);
         setNewIssueTitle('');
