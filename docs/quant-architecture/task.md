@@ -1426,7 +1426,7 @@ Scope: QuantGit NotificationsInbox.
 Dependencies: none.
 
 ## QM-UIUX-066 — QuantGit: InsightsTab hardcoded
-Status: [~] IN_PROGRESS
+Status: [x] DONE (PR #690 merged)
 Owner: muse-main
 Branch: fix/qm-uiux-066-quantgit-fake-insights
 Finding: Entire 39-line file: "48 Commits", "100% CI Health", "11 GitHub Actions workflows green", fake bar chart. Takes zero props. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
@@ -1442,7 +1442,9 @@ Scope: QuantGit backend + UI.
 Dependencies: none.
 
 ## QM-UIUX-068 — QuantGit: seed engagement + MCP fake counts
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-068-quantgit-fake-engagement
 Finding: Backend seeds fake engagement (starCount 342/128/95/76); MCP Registry shows fake install counts (186715 etc.) with "Install" button that only toggles local state. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
 Required: seed with zero counts (real starring is Prisma-backed) or honest unknown; wire MCP install to real API or remove button.
 Scope: QuantGit backend seeds + MCP Registry.
