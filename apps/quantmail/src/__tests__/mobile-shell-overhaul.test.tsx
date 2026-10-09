@@ -218,7 +218,7 @@ describe('Mobile Shell Overhaul — Worker A', () => {
       expect(byId.mail).toBe('#FF6B35');
       expect(byId.calendar).toBe('#4285F4');
       expect(byId.drive).toBe('#34A853');
-      expect(byId.contacts).toBe('#D97757');
+      expect(byId.contacts).toBe('#14B8A6');
       expect(byId.quantgit).toBe('#8B5CF6');
     });
 
@@ -230,8 +230,8 @@ describe('Mobile Shell Overhaul — Worker A', () => {
       expect(html).toContain('aria-selected="true"');
       // …and carries the raised-slot swoosh in the pillar's own color
       // (Contacts violet, user-confirmed 2026-10-09) — the old sliding line is gone.
-      expect(html).toContain('1px solid #D9775766');
-      expect(html).toContain('drop-shadow(0 0 6px #D9775766)');
+      expect(html).toContain('1px solid #14B8A666');
+      expect(html).toContain('drop-shadow(0 0 6px #14B8A666)');
       // …and the active tile keeps the snappy premium transition (not the old 350ms).
       expect(html).toContain('transition-transform duration-150 ease-out');
       expect(html).not.toContain('0.35s cubic-bezier(0.34, 1.3, 0.64, 1)');
