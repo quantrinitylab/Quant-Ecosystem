@@ -490,16 +490,9 @@ export function SsoChooserContent({
 
       {/* Central Superhuman / Linear Executive SSO Card */}
       <div className="relative z-10 w-full max-w-md rounded-2xl bg-[#0E1015]/90 backdrop-blur-2xl border border-white/[0.08] shadow-[0_24px_48px_-12px_rgba(0,0,0,0.85),inset_0_1px_0_0_rgba(255,255,255,0.08),0_0_0_1px_rgba(255,255,255,0.02)] p-8 sm:p-10 flex flex-col items-center transition-all">
-        {/* Brand Header with Precision Faceted Envelope Crease Mark */}
+        {/* Brand Header — bare logo, same tile rendering as the login page */}
         <div className="mb-6 flex flex-col items-center">
-          <div className="w-14 h-14 flex items-center justify-center p-1 rounded-2xl bg-white/[0.03] border border-white/[0.08] shadow-[0_8px_24px_-8px_rgba(0,0,0,0.8)]">
-            <QuantMailLogo size={48} showBadge={false} interactive={false} />
-          </div>
-          <div className="mt-3.5 flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-[11px] font-mono tracking-wider uppercase text-zinc-300">
-            <span className="font-semibold text-white">QUANT ID</span>
-            <span className="text-zinc-600">/</span>
-            <span className="text-[var(--quant-primary)] font-semibold">SOVEREIGN SSO</span>
-          </div>
+          <QuantMailLogo size={48} showBadge={false} interactive={false} />
         </div>
 
         {/* Title & Client Destination Subtitle */}

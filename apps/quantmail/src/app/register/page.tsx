@@ -104,7 +104,11 @@ export default function RegisterPage() {
               New account
             </p>
             <h1 className="text-[28px] font-semibold tracking-[-0.035em] text-[var(--quant-foreground)] sm:text-[30px]">
-              Create your QuantMail
+              Create your{' '}
+              <span className="signin-wordmark" aria-label="QuantMail">
+                <span className="wm-quant">Quant</span>
+                <span className="wm-mail">Mail</span>
+              </span>
             </h1>
             <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
               Pick the handle for your QuantMail address.
