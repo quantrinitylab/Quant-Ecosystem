@@ -50,6 +50,16 @@ export function AuthBrandPanel({ eyebrow, title, subtitle }: AuthBrandPanelProps
               title="AI triage"
               copy="Quant AI surfaces what's urgent and drafts the reply."
             />
+            {/*
+              Verified claim (audit 2026-10-09): both halves are provably true.
+              - In transit: nginx ingress forces TLS (ssl-redirect + force-ssl-redirect)
+                and HSTS (max-age 31536000) — infra/helm/quant-platform/values-production.yaml,
+                infra/k8s/ingress-quantmail.yaml; Cloudflare fronts the domain.
+              - At rest: RDS storage_encrypted=true with a customer KMS key
+                (kms_key_id = aws_kms_key.rds.arn) — infra/terraform/modules/rds/main.tf.
+              "Stays private" is shorthand; the settings page states the honest
+              boundary (your session and the delivery pipeline can read mail).
+            */}
             <FeatureCard
               icon={
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
