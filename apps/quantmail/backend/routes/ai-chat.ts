@@ -73,8 +73,13 @@ export interface ToolExecutionCard {
   durationMs: number;
 }
 
+const SYSTEM_PROMPT_PERSONA =
+  'You are QuantAI (Quanty), the sovereign agentic operating AI built into the Quantrinity workspace (QuantMail: mail, calendar, contacts, drive, and QuantGit developer hub).';
+
+// Prompt for requests where the tool dispatcher will actually run. The model
+// is told to emit tool calls because a dispatcher is listening.
 const SYSTEM_PROMPT = [
-  'You are QuantAI (Quanty), the sovereign agentic operating AI built into the Quantrinity workspace (QuantMail: mail, calendar, contacts, drive, and QuantGit developer hub).',
+  SYSTEM_PROMPT_PERSONA,
   'You have tools that perform real, authenticated actions in this workspace.',
   'When the user instructs you to build, create a repo, write code, or commit a file, you MUST execute the appropriate tool by emitting a JSON block formatted exactly as:',
   '```tool_call\n{\n  "name": "<tool_name>",\n  "arguments": { ... }\n}\n```',
@@ -85,6 +90,20 @@ const SYSTEM_PROMPT = [
   'You can emit multiple tool calls sequentially for multi-step tasks.',
   'Never claim to have performed an action or created a resource that the tool did not explicitly return, and never claim a write succeeded before the dispatcher reports succeeded.',
   'Always include a concise, empowering summary in your response explaining what was created or executed.',
+].join(' ');
+
+// Prompt for requests where tool execution is disabled (the client did not
+// enable tools, or the ENABLE_AUTONOMOUS_TOOLS kill switch is off — the
+// QuantGit copilot client never enables tools). QM-UIUX-077: this used to be
+// the tools prompt above, so the model emitted tool calls nobody executed and
+// then announced the writes as done ("Repository … created in database!")
+// while nothing was persisted. With no dispatcher listening, the model must
+// not claim — or offer to perform — any write at all.
+const SYSTEM_PROMPT_NO_TOOLS = [
+  SYSTEM_PROMPT_PERSONA,
+  'In this chat you CANNOT create, modify, or delete anything: tool execution is disabled for this request, so nothing you describe will actually happen.',
+  'Never claim that you created, updated, committed, deployed, or deleted a resource, and never announce a write as done or as about to happen.',
+  'If the user asks you to create a repository or change code, say honestly that you cannot do it from this chat and point them to the app\u2019s own controls (for example the "New repository" button in QuantGit). You may still explain, plan, and draft content for the user to apply themselves.',
 ].join(' ');
 
 async function executeAutonomousTool(
@@ -522,22 +541,8 @@ function buildMailboxSystemBlock(snapshot: MailboxSnapshot): string {
   } else {
     lines.push('The inbox is currently empty — there are no messages to list.');
   }
-  // PAUD-P0-7 (QM-UIUX-080, 2026-10-09): the scoping used to say "if they ask
-  // about something not in the snapshot, say you do not have that information
-  // rather than guessing" with no qualification at all. The model read that as
-  // a universal refusal rule — "what is 2+2" is not in the snapshot, so it
-  // answered "I don't have that information." on BOTH the Fast and Deep tiers,
-  // making the assistant useless for any non-mailbox question. The grounding
-  // is an anti-hallucination guard for MAILBOX questions only; a general
-  // question (math, general knowledge, writing help) must be answered from the
-  // model's own knowledge with no reference to this snapshot.
   lines.push(
-    'RULES — SCOPE: these rules apply ONLY when the user is asking about their inbox, mail, messages, or unread counts. ' +
-      'For such mailbox questions, answer ONLY from this snapshot and quote its numbers exactly. ' +
-      'Never invent counts, senders, subjects, dates, or content not listed here. ' +
-      'If a mailbox question asks about something not in the snapshot, say you do not have that information rather than guessing. ' +
-      'For ANY question that is NOT about the mailbox — general knowledge, calculations like "what is 2+2", writing help, anything else — ' +
-      'answer normally from your own knowledge; this snapshot does not constrain those answers and must never be a reason to refuse one.',
+    'RULES: when the user asks about their inbox, mail, messages, or unread counts, answer ONLY from this snapshot and quote its numbers exactly. Never invent counts, senders, subjects, dates, or content not listed here. If they ask about something not in the snapshot, say you do not have that information rather than guessing.',
   );
   return lines.join('\n');
 }
@@ -574,8 +579,13 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
     // anything the client asserts about itself.
     const plan = resolveAIIntent(intent, measureAISignals(messages, context));
 
+    // Decided before the prompt is composed: the model is only told it has
+    // tools when a dispatcher will actually execute them (QM-UIUX-077).
+    const isToolCallingEnabled =
+      tools?.enabled === true && process.env.ENABLE_AUTONOMOUS_TOOLS === 'true';
+
     const modelMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: isToolCallingEnabled ? SYSTEM_PROMPT : SYSTEM_PROMPT_NO_TOOLS },
       { role: 'system', content: plan.directive },
     ];
     if (contextBlock) {
@@ -601,10 +611,16 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
       // Autonomous Tool Calling Dispatcher:
       // Scan for ```tool_call blocks emitted by the model
       const toolExecutions: ToolExecutionCard[] = [];
-      const isToolCallingEnabled =
-        tools?.enabled === true && process.env.ENABLE_AUTONOMOUS_TOOLS === 'true';
 
       const toolCallRegex = /```(?:tool_call|json:tool_call)\s*([\s\S]*?)```/g;
+
+      // Count every block the model emitted, executed or not. A block that
+      // never produces an execution card — tooling disabled, over the
+      // per-reply step limit, or unparseable — must be disclosed to the user
+      // below: the model's prose may claim the write happened (QM-UIUX-077),
+      // and silently stripping the block would present that claim as fact.
+      const emittedToolCallCount = (rawMessage.match(toolCallRegex) ?? []).length;
+      toolCallRegex.lastIndex = 0;
 
       if (isToolCallingEnabled) {
         const maxSteps = tools?.maxSteps ?? 2;
@@ -653,13 +669,29 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
       const failedTools = toolExecutions.filter((t) => t.status === 'failed');
       let cleanMessage = rawMessage.replace(toolCallRegex, '').trim();
 
+      const notices: string[] = [];
       if (failedTools.length > 0) {
-        const failureNotices = failedTools
-          .map((t) => `${t.toolName}: ${t.error?.message || 'Execution failed'}`)
-          .join('; ');
-        cleanMessage = cleanMessage
-          ? `[Action Notice: ${failureNotices}]\n\n${cleanMessage}`
-          : `[Action Notice: ${failureNotices}]`;
+        notices.push(
+          failedTools
+            .map((t) => `${t.toolName}: ${t.error?.message || 'Execution failed'}`)
+            .join('; '),
+        );
+      }
+      const unexecutedToolCalls = emittedToolCallCount - toolExecutions.length;
+      if (unexecutedToolCalls > 0) {
+        // The model proposed action(s) that never ran — because tooling is
+        // disabled for this chat (the QuantGit copilot never enables it), the
+        // step limit was hit, or a block could not be parsed. Say so plainly
+        // at the top of the reply: whatever the prose below claims, nothing
+        // was created, changed, or deleted by those proposals (QM-UIUX-077).
+        notices.push(
+          `${unexecutedToolCalls} proposed action(s) were NOT executed — nothing was created, changed, or deleted by them`,
+        );
+      }
+
+      if (notices.length > 0) {
+        const noticeText = `[Action Notice: ${notices.join('; ')}]`;
+        cleanMessage = cleanMessage ? `${noticeText}\n\n${cleanMessage}` : noticeText;
       } else if (!cleanMessage && toolExecutions.length > 0) {
         cleanMessage = `Executed ${toolExecutions.length} autonomous action(s) successfully.`;
       }
