@@ -502,7 +502,9 @@ function NodeLinkIcon({ className = 'size-4' }: { className?: string }) {
 export interface DriveItem {
   id: string;
   name: string;
-  type: 'file' | 'folder';
+  // QM-UIUX-079: 'document' items are the /drive/files projection of
+  // doc-editor documents (backend id `doc:<documentId>`).
+  type: 'file' | 'folder' | 'document';
   mimeType: string;
   size: number;
   modifiedAt: string;

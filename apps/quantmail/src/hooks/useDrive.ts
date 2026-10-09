@@ -12,7 +12,9 @@ import { getUploadBatchError } from '../lib/drive-upload-results';
 export interface DriveFile {
   id: string;
   name: string;
-  type: 'file' | 'folder';
+  // QM-UIUX-079: the /drive/files projection of doc-editor documents
+  // (backend id `doc:<documentId>`) flows through the same listings.
+  type: 'file' | 'folder' | 'document';
   mimeType: string;
   size: number;
   path: string;
