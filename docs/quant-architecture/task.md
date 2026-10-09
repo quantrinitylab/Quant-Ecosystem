@@ -1960,7 +1960,7 @@ Dependencies: none.
 Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 3: C-P0-1); screenshot cb1c0dd1.
 
 ## QM-UIUX-079 — P0: Drive created documents invisible in all listings
-Status: [ ] TODO
+Status: [x] DONE (superseded by PR #722 merged 2026-10-09 — verified on main)
 Finding: Personal deep audit 2026-10-09: a document created via "New document" (doc_vbokyqc, content autosaved) loads via direct URL but appears NOWHERE — Home RECENT ITEMS (0), Documents category "0 items / No documents found", and Drive search backend reports "Search results for 'audit' (1 item)" while the list still renders "No documents found".
 Required: created/uploaded documents must appear in Home/Recent/category listings and search results consistently. Regression test: create -> listed + searchable.
 Scope: apps/quantmail Drive listings + files API.
