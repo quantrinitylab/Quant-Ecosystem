@@ -14,9 +14,14 @@
  * Coordinate space: the family's 100-unit mark space. Voxels are VOXEL units on
  * a side; x is right, y is UP, z is toward the viewer. The painter sorts runs
  * back-to-front (z ascending, y descending) so faces overlap correctly.
+ *
+ * CLEAN PASS (2026-10-09): no smoke, no glow, no rim light, no gloss, no
+ * particles — the frog sits on a plain dark plate, per the user's explicit
+ * direction ("just the logo on a dark background"). The laptop stays: it is
+ * part of the character, not an effect.
  */
 
-import { markSquirclePath, paintGlossSweep } from '../../lib/marks/canvas-mark';
+import { markSquirclePath } from '../../lib/marks/canvas-mark';
 import type { MarkFrame } from './useLiveMark';
 
 // ---------------------------------------------------------------------------
@@ -289,64 +294,8 @@ export function blinkAmount(
 }
 
 // ---------------------------------------------------------------------------
-// Smoke — precomputed value-noise blobs, drifted per frame. No per-frame
-// allocation: two canvases built once, drawn with offsets.
-// ---------------------------------------------------------------------------
-
-let smokeA: HTMLCanvasElement | null = null;
-let smokeB: HTMLCanvasElement | null = null;
-
-function makeSmoke(tintTop: string, tintBottom: string, seed: number): HTMLCanvasElement {
-  const S = 180;
-  const canvas = document.createElement('canvas');
-  canvas.width = S;
-  canvas.height = S;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return canvas;
-  // Low-res random field, blurred up — organic blobs, not circles.
-  let s = seed;
-  const rand = (): number => {
-    s = (s * 16807) % 2147483647;
-    return s / 2147483647;
-  };
-  const N = 14;
-  const field = document.createElement('canvas');
-  field.width = N;
-  field.height = N;
-  const fctx = field.getContext('2d');
-  if (fctx) {
-    const img = fctx.createImageData(N, N);
-    for (let i = 0; i < N * N; i++) {
-      const v = rand();
-      img.data[i * 4] = 255;
-      img.data[i * 4 + 1] = 255;
-      img.data[i * 4 + 2] = 255;
-      img.data[i * 4 + 3] = Math.round(40 + v * 160);
-    }
-    fctx.putImageData(img, 0, 0);
-  }
-  ctx.filter = 'blur(10px)';
-  ctx.drawImage(field, 0, 0, S, S);
-  ctx.filter = 'none';
-  // Tint through the noise alpha; fade the edges so layers tile invisibly.
-  ctx.globalCompositeOperation = 'source-in';
-  const g = ctx.createLinearGradient(0, 0, 0, S);
-  g.addColorStop(0, tintTop);
-  g.addColorStop(1, tintBottom);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, S, S);
-  return canvas;
-}
-
-function smokeCanvases(): { a: HTMLCanvasElement; b: HTMLCanvasElement } | null {
-  if (typeof document === 'undefined') return null;
-  if (!smokeA) smokeA = makeSmoke('rgba(139,92,246,0.85)', 'rgba(76,29,149,0.55)', 1234567);
-  if (!smokeB) smokeB = makeSmoke('rgba(109,40,217,0.7)', 'rgba(46,16,101,0.5)', 7654321);
-  return { a: smokeA, b: smokeB };
-}
-
-// ---------------------------------------------------------------------------
-// Projection + painting.
+// Projection + painting. No smoke, no glow, no rim light, no gloss — the frog
+// sits on a plain dark plate, the way the user asked: just the logo.
 // ---------------------------------------------------------------------------
 
 const VOXEL = 4.1; // mark units per voxel
@@ -371,7 +320,6 @@ function project(
 interface SceneParams {
   tiltX: number;
   tiltY: number;
-  hover: number;
   press: number;
   /** 0 = eyes open, 1 = fully shut. */
   lid: number;
@@ -437,7 +385,9 @@ function drawRun(
   }
 }
 
-function paintPlate(ctx: CanvasRenderingContext2D, cx: number, cy: number, smokeT: number): void {
+function paintPlate(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+  // Plain dark plate — no smoke, no vignette, no rim light. Just the logo on
+  // a dark background, as requested.
   markSquirclePath(ctx, cx, cy);
   ctx.save();
   ctx.clip();
@@ -446,40 +396,7 @@ function paintPlate(ctx: CanvasRenderingContext2D, cx: number, cy: number, smoke
   g.addColorStop(1, C.plateB);
   ctx.fillStyle = g;
   ctx.fillRect(5, 5, 90, 90);
-
-  // Animated smoke, two layers at different speeds and directions.
-  const smoke = smokeCanvases();
-  if (smoke) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-    ctx.globalAlpha = 0.3;
-    const ax = 50 - 90 + Math.sin(smokeT * 0.1) * 16 + Math.sin(smokeT * 0.043 + 1.7) * 8;
-    const ay = 50 - 90 + Math.cos(smokeT * 0.083) * 12;
-    ctx.drawImage(smoke.a, ax, ay, 180, 180);
-    ctx.globalAlpha = 0.2;
-    const bx = 50 - 90 + Math.cos(smokeT * 0.071 + 0.6) * 18;
-    const by = 50 - 90 + Math.sin(smokeT * 0.052 + 2.9) * 14;
-    ctx.drawImage(smoke.b, bx, by, 180, 180);
-    ctx.restore();
-  }
-
-  // Vignette keeps the smoke dark at the edges — the frog stays the focus.
-  const v = ctx.createRadialGradient(50, 52, 18, 50, 52, 62);
-  v.addColorStop(0, 'rgba(4,2,8,0)');
-  v.addColorStop(1, 'rgba(4,2,8,0.6)');
-  ctx.fillStyle = v;
-  ctx.fillRect(5, 5, 90, 90);
   ctx.restore();
-
-  // Restrained violet rim — the reference's glass edge, not a neon border.
-  markSquirclePath(ctx, cx, cy);
-  const rim = ctx.createLinearGradient(10, 10, 90, 90);
-  rim.addColorStop(0, 'rgba(167,139,250,0.55)');
-  rim.addColorStop(0.4, 'rgba(139,92,246,0.16)');
-  rim.addColorStop(1, 'rgba(76,29,149,0.4)');
-  ctx.strokeStyle = rim;
-  ctx.lineWidth = 1.6;
-  ctx.stroke();
 }
 
 /**
@@ -487,28 +404,20 @@ function paintPlate(ctx: CanvasRenderingContext2D, cx: number, cy: number, smoke
  * `ackT` is the 0..1 progress of a success acknowledgement, 0 when idle.
  */
 export function paintFrog(frame: MarkFrame, blink: BlinkState, ackT: number): void {
-  const { ctx, cx, cy, time, tiltX, tiltY, hover, press, reduced } = frame;
+  const { ctx, cx, cy, time, tiltX, tiltY, press, reduced } = frame;
   const t = reduced ? 0 : time;
 
   ctx.save();
-  paintPlate(ctx, cx, cy, t);
+  paintPlate(ctx, cx, cy);
 
   // The scene lives inside the plate.
   ctx.save();
   markSquirclePath(ctx, cx, cy);
   ctx.clip();
 
-  // Success acknowledgement: a short lift, a contented squint, a soft glow.
-  // Restrained — the frog notices the win, it does not celebrate it.
+  // Success acknowledgement: a short lift and a contented squint. No glow —
+  // the frog notices the win, it does not celebrate it.
   const lift = ackT > 0 ? Math.sin(Math.min(1, ackT) * Math.PI) * 2.4 : 0;
-  if (ackT > 0) {
-    const glow = ctx.createRadialGradient(50, 56, 6, 50, 56, 46);
-    const a = Math.sin(Math.min(1, ackT) * Math.PI) * 0.22;
-    glow.addColorStop(0, `rgba(167,139,250,${a.toFixed(3)})`);
-    glow.addColorStop(1, 'rgba(167,139,250,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(5, 5, 90, 90);
-  }
 
   const lid = reduced ? 0 : blinkAmount(blink, t);
   // The ack squint composes with blinking — both are lid motions.
@@ -520,7 +429,6 @@ export function paintFrog(frame: MarkFrame, blink: BlinkState, ackT: number): vo
   const params: SceneParams = {
     tiltX,
     tiltY,
-    hover,
     press,
     lid: Math.min(1, lid + squint),
     ackT,
@@ -534,19 +442,6 @@ export function paintFrog(frame: MarkFrame, blink: BlinkState, ackT: number): vo
   const p0 = { ...params, oy: params.oy - breathe };
 
   for (const run of FROG_RUNS) drawRun(ctx, run, p0);
-
-  // Hover warmth, on the family's shared curve weight.
-  if (hover > 0.01 && !reduced) {
-    const hg = ctx.createRadialGradient(50, 55, 8, 50, 55, 48);
-    hg.addColorStop(0, `rgba(139,92,246,${(0.14 * hover).toFixed(3)})`);
-    hg.addColorStop(1, 'rgba(139,92,246,0)');
-    ctx.fillStyle = hg;
-    ctx.fillRect(5, 5, 90, 90);
-  }
-
-  // A whisper of gloss over the glass, shared with the other marks.
-  const sweep = reduced ? 0.34 : (t * 0.05) % 1;
-  paintGlossSweep(ctx, 5, 5, 90, 90, sweep, 0.05);
 
   ctx.restore(); // plate clip
   ctx.restore(); // entry save

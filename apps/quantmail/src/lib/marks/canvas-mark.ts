@@ -877,24 +877,7 @@ export function paintCalendarMark(
   paintCalendarRings(ctx, fx);
   paintCalendarDate(ctx, art);
 
-  // Idle: a barely-there gloss drift, frozen when reduced motion is on.
-  ctx.save();
-  roundRectPath(ctx, 18, 20, 64, 64, 12);
-  ctx.clip();
-  const sweep = 0.32 + Math.sin(fx.time * 0.5) * 0.06 + fx.tiltX * 0.12 + fx.hover * 0.18;
-  paintGlossSweep(ctx, 18, 20, 64, 64, sweep, 0.1);
-  ctx.restore();
-
-  // Bezel: hairline light edge so the mark lifts off dark UI.
-  ctx.save();
-  ctx.lineWidth = 1;
-  const bez = ctx.createLinearGradient(9, 11, 91, 93);
-  bez.addColorStop(0, 'rgba(170, 195, 245, 0.35)');
-  bez.addColorStop(0.5, 'rgba(170, 195, 245, 0.10)');
-  bez.addColorStop(1, 'rgba(170, 195, 245, 0.22)');
-  ctx.strokeStyle = bez;
-  markSquirclePath(ctx, 50, 52, 41, 20);
-  ctx.stroke();
-  ctx.restore();
+  // CLEAN PASS (2026-10-09): no gloss drift, no bezel light edge — the
+  // calendar sits plain on its dark frame, per the user's explicit direction.
   ctx.restore();
 }

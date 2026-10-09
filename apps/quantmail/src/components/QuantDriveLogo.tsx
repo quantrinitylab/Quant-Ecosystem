@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { QuantLogoProps } from './AppMark';
 import { useLiveMark, type MarkFrame } from './marks/useLiveMark';
-import { markSquirclePath, strokeMarkBezel } from '../lib/marks/canvas-mark';
+import { markSquirclePath } from '../lib/marks/canvas-mark';
 
 /**
- * QuantDrive's official mark — a premium 3D folder mascot with expressive
+ * QuantDrive's official mark — a clean folder mascot with expressive
  * blinking eyes, a pearl cloud-storage motif behind it, and a green-led
- * palette on a dark glass badge.
+ * palette on a plain dark badge. No glow, no rim light, no gloss — just the
+ * logo on a dark background (clean pass 2026-10-09).
  *
  * Rendered with the family's shared `useLiveMark` Canvas 2D pipeline (no
  * WebGL/Three.js — the production logo system is Canvas; see marks/useLiveMark).
@@ -110,20 +111,14 @@ export function paintDriveMascotMark(frame: MarkFrame, blink: BlinkState): void 
       markSquirclePath(ctx, cx, cy);
       ctx.clip();
 
-      // ── 1. Dark glass badge ──────────────────────────────────────────
+      // ── 1. Dark badge ────────────────────────────────────────────────
+      // Plain dark background behind the logo — no rim light, no glow.
       const badge = ctx.createLinearGradient(cx - 45, cy - 45, cx + 45, cy + 45);
       badge.addColorStop(0, '#0D1512');
       badge.addColorStop(0.5, '#070B09');
       badge.addColorStop(1, '#0A120E');
       ctx.fillStyle = badge;
       ctx.fillRect(cx - 50, cy - 50, 100, 100);
-
-      // Rim light: cool mint kiss on the top edge
-      const rim = ctx.createLinearGradient(cx, cy - 46, cx, cy - 30);
-      rim.addColorStop(0, 'rgba(140, 240, 195, 0.35)');
-      rim.addColorStop(1, 'rgba(140, 240, 195, 0)');
-      ctx.fillStyle = rim;
-      ctx.fillRect(cx - 42, cy - 46, 84, 16);
 
       // ── 2. Shared tilt / float / press transform ─────────────────────
       const lift = hover * 2 - press * 1.4;
@@ -150,12 +145,6 @@ export function paintDriveMascotMark(frame: MarkFrame, blink: BlinkState): void 
       ctx.fillStyle = cloudFill;
       ctx.fill();
       ctx.restore();
-
-      // Cloud edge light: thin mint stroke on the upper lobes
-      cloudPath(ctx, ox, oy - 15, 1.18);
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = 'rgba(190, 245, 215, 0.7)';
-      ctx.stroke();
 
       // ── 4. File edges peeking from behind the folder ─────────────────
       // Kept short so the cloud lobes stay visible between them.
@@ -210,7 +199,7 @@ export function paintDriveMascotMark(frame: MarkFrame, blink: BlinkState): void 
       ctx.fill();
       ctx.restore();
 
-      // Darker green side faces for depth (left + bottom)
+      // Darker green shading at the bottom for depth — no light bevel, no outline.
       ctx.save();
       roundRect(ctx, fx, fy, fw, fh, 7);
       ctx.clip();
@@ -219,19 +208,7 @@ export function paintDriveMascotMark(frame: MarkFrame, blink: BlinkState): void 
       sideGrad.addColorStop(1, 'rgba(4, 60, 42, 0.55)');
       ctx.fillStyle = sideGrad;
       ctx.fillRect(fx, fy, fw, fh);
-      // Top bevel highlight
-      const bevel = ctx.createLinearGradient(fx, fy, fx, fy + 8);
-      bevel.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
-      bevel.addColorStop(1, 'rgba(255, 255, 255, 0)');
-      ctx.fillStyle = bevel;
-      ctx.fillRect(fx, fy, fw, 8);
       ctx.restore();
-
-      // Folder outline
-      roundRect(ctx, fx, fy, fw, fh, 7);
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = 'rgba(220, 255, 238, 0.35)';
-      ctx.stroke();
 
       // ── 6. Face inset ────────────────────────────────────────────────
       const faceW = 30;
@@ -257,7 +234,7 @@ export function paintDriveMascotMark(frame: MarkFrame, blink: BlinkState): void 
       // ── 7. Eyes ──────────────────────────────────────────────────────
       // Genuine geometry animation: the eye shapes squash vertically through
       // the blink; success morphs them into happy arches. Never hidden/flashed.
-      const eyeGlow = success ? 0.95 : 0.75 + hover * 0.2;
+      // No glow — flat mint shapes on the dark face inset.
       const eyeY = faceY + faceH / 2;
       const eyeDX = 8;
       const eyeW = 7;
@@ -273,21 +250,13 @@ export function paintDriveMascotMark(frame: MarkFrame, blink: BlinkState): void 
           ctx.lineWidth = 2.6;
           ctx.lineCap = 'round';
           ctx.strokeStyle = '#A7F3D0';
-          ctx.shadowColor = `rgba(110, 231, 183, ${eyeGlow})`;
-          ctx.shadowBlur = 6;
           ctx.stroke();
         } else {
-          // Open eye: soft vertical capsule, squashed by blink openness
+          // Open eye: flat mint capsule, squashed by blink openness
           const h = Math.max(0.8, eyeH * openness);
           ctx.beginPath();
           ctx.ellipse(0, 0, eyeW / 2, h / 2, 0, 0, Math.PI * 2);
-          const eg = ctx.createRadialGradient(0, -h / 4, 0.5, 0, 0, eyeW / 2);
-          eg.addColorStop(0, '#D8FCE9');
-          eg.addColorStop(0.6, '#8FF0C0');
-          eg.addColorStop(1, '#4ADE9E');
-          ctx.fillStyle = eg;
-          ctx.shadowColor = `rgba(110, 231, 183, ${eyeGlow * openness})`;
-          ctx.shadowBlur = 5;
+          ctx.fillStyle = '#8FF0C0';
           ctx.fill();
         }
         ctx.restore();
@@ -296,8 +265,6 @@ export function paintDriveMascotMark(frame: MarkFrame, blink: BlinkState): void 
       drawEye(ox + eyeDX);
 
       ctx.restore(); // squircle clip
-
-      strokeMarkBezel(ctx, cx, cy);
 }
 
 export function QuantDriveLogo({

@@ -18,8 +18,8 @@ import {
  *
  * A blocky purple frog (pale lavender belly, big pixel eyes with dark pupils)
  * sits behind a dark charcoal laptop with restrained silver pixel accents,
- * purple smoke drifting behind it on a near-black plate. The scene is stored
- * as genuine 3D voxel data and projected per frame — the eyes genuinely blink
+ * on a plain near-black plate — no smoke, no glow, no rim light. The scene
+ * is stored as genuine 3D voxel data and projected per frame — the eyes genuinely blink
  * (a lid motion driven by a randomised state machine, never a flash), the
  * whole scene parallaxes a few degrees with the pointer, and a confirmed git
  * operation plays one short, restrained acknowledgement.
@@ -55,7 +55,6 @@ function QuantGitFrogStatic({ size, title }: { size: number; title: string }) {
       className="h-full w-full"
     >
       <rect x="5" y="5" width="90" height="90" rx="22" fill="#0F0919" />
-      <rect x="5" y="5" width="90" height="90" rx="22" fill="none" stroke="#8B5CF6" strokeOpacity="0.4" strokeWidth="1.6" />
       {/* head */}
       <rect x="26" y="24" width="48" height="26" rx="4" fill="#8B46D9" />
       {/* eye sockets + whites + pupils */}

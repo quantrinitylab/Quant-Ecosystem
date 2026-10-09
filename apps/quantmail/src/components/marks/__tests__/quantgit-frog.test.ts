@@ -307,9 +307,11 @@ describe('paintFrog rendering', () => {
     expect(fills.length).toBeGreaterThan(FROG_RUNS.length);
   });
 
-  it('renders the acknowledgement glow without throwing', () => {
+  it('renders the acknowledgement lift-and-squint without throwing', () => {
     const { ctx } = createMockContext();
     stubDocument(ctx);
+    // ackT = 0.5 mid-acknowledgement: no glow is painted anymore (clean pass),
+    // just the lift + squint motion.
     expect(() => paintFrog(baseFrame(ctx, 10), { nextBlinkAt: 9999, blinkStart: -1 }, 0.5)).not.toThrow();
   });
 });
