@@ -275,6 +275,15 @@ Finding: outbound delivery worker exists but inspected deployment manifests do n
 Required: deployment/queue worker config, health, drain/retry/DKIM/MX failure behavior and operational evidence.
 Dependencies: infra owner.
 
+## QM-BACK-010 — Delayed-send internal delivery (P0: /compose sends vanish)
+Status: [~] IN PROGRESS
+Owner: Muse
+Branch: fix/send-worker-internal-delivery
+PR: #691 (open)
+Finding (live-reproduced 2026-10-09 ~06:10 IST as kundan@quantmail.in): /compose send → no durable toast, navigated to /, nothing in Sent, nothing in inbox, draft cleared as if accepted. Root cause: /compose sends with delayMs=10000 (10s undo window); the `/:id/send` route skips deliverInternally for delayed sends, the BullMQ job is picked up by DeliveryWorker.processDelivery which had NO internal-delivery path — only SES/SMTP. Internal @quantmail.in mail was queued, never mailbox-delivered, ended in deferred limbo.
+Required: worker splits recipients internal vs external (mirroring EmailService.send user matching); internal → EmailService.deliverInternally inbox copies; external → SES/SMTP only (no internal addresses looping through SES). 3 regression tests added. Merge on green → backend deploy → live /compose send verification (Sent + inbox).
+Dependencies: QM-BACK-008.
+
 ---
 # P1 — Quanty Integration into QuantMail
 
