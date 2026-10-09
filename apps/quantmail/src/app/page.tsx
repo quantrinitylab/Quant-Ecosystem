@@ -1741,6 +1741,29 @@ export default function InboxPage() {
     return () => window.clearTimeout(timer);
   }, [searchQuery]);
 
+  /*
+   * REG-3: the inbox header search filters inline and never touched the URL,
+   * so ?q= stayed bare quantmail.in/ (BB-P1-10's fix only covered the
+   * dedicated /search page). Seed from ?q= on mount and keep it in sync on
+   * the debounced value — replace, not push, so typing doesn't stack
+   * history entries.
+   */
+  useEffect(() => {
+    const seed = new URLSearchParams(window.location.search).get('q');
+    if (seed && !searchQuery) setSearchQuery(seed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const current = url.searchParams.get('q') ?? '';
+    const next = debouncedQuery.trim();
+    if (current === next) return;
+    if (next) url.searchParams.set('q', next);
+    else url.searchParams.delete('q');
+    router.replace(url.pathname + url.search, { scroll: false });
+  }, [debouncedQuery, router]);
+
   const { user: currentUser } = useAuth();
   const currentEmail = currentUser?.email || '';
 

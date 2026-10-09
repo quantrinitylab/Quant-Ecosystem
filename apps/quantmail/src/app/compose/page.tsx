@@ -15,6 +15,16 @@ import type { MessageKind } from '../../types';
 import { UndoSendProvider } from '../../components/UndoSendCountdownBar';
 import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
 
+/**
+ * REG-1: the prefill used to strip *every* "Re:" via /^(Re:\s*)+/i, so a reply
+ * link carrying ?subject=Re:… rendered with a bare subject. Normalize stacked
+ * prefixes down to exactly ONE "Re: " — never zero, never two.
+ */
+function normalizeReplySubject(subject: string): string {
+  const base = subject.replace(/^(Re:\s*)+/i, '').trim();
+  return base ? `Re: ${base}` : '';
+}
+
 export default function ComposePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -289,7 +299,7 @@ export default function ComposePage() {
           initialTo={draftData?.to ?? prefillTo ?? undefined}
           initialSubject={
             draftData?.subject ??
-            (prefillSubject ? prefillSubject.replace(/^(Re:\s*)+/i, '').trim() : '')
+            (prefillSubject ? normalizeReplySubject(prefillSubject) : '')
           }
           initialBody={draftData?.body ?? prefillBody ?? undefined}
           inReplyTo={replyTo || undefined}
