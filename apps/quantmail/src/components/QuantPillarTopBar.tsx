@@ -1115,8 +1115,8 @@ export function QuantPillarTopBar({
         Super-App Switcher — dark glass capsule with rim-light (user-approved
         2026-10-09, reference: glowing swoosh active indicator). The 5 bays
         mount the ORIGINAL app logos exactly as-is; the active bay is wrapped
-        by a glowing swoosh ribbon in the app's accent color that bulges
-        slightly beyond the capsule top/bottom and SLIDES between slots
+        by a restrained accent ribbon in the app's brand color that connects
+        the active bay to the content below and SLIDES between slots
         (300ms ease-out) on pillar change.
       */}
       <div className="w-full flex justify-center">
@@ -1214,7 +1214,7 @@ export function QuantPillarTopBar({
                   animation: `quantStaggerIn 0.4s cubic-bezier(0.22,1,0.36,1) ${idx * 0.05}s both`,
                   transition: 'transform 200ms ease-out, background-color 0.2s ease-out',
                   // Per-app accent tint behind the logo (restored 2026-10-09:
-                  // the calendar's blue background must not disappear).
+                  // the calendar's blue background must remain recognisable).
                   backgroundColor: `${tile.accentColor}${isActive ? '18' : '0A'}`,
                 }}
                 aria-current={isActive ? 'page' : undefined}
