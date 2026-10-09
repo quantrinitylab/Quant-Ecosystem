@@ -57,6 +57,32 @@ export interface RecentFilesPage {
   nextCursor: string | null;
   hasMore: boolean;
 }
+// QM-M39-001 — "Shared by me": one record per owned file/folder the user has
+// shared, as returned by GET /api/drive/shares/sent.
+export interface SentShareRecipient {
+  name: string;
+  email: string;
+  permission: 'view' | 'edit' | 'admin';
+  status: string;
+  sharedAt: string;
+}
+
+export interface SentShareItem {
+  id: string;
+  name: string;
+  type: 'file' | 'folder';
+  mimeType: string;
+  size: number;
+  updatedAt: string;
+  sharedCount: number;
+  sharedWith: SentShareRecipient[];
+  linkShare: {
+    role: string;
+    requiresPassword: boolean;
+    expiresAt: string | null;
+    createdAt?: string;
+  } | null;
+}
 
 interface UploadProgress {
   fileId: string;
@@ -109,6 +135,7 @@ export interface UseDriveReturn {
   fetchReceivedShares: () => Promise<ReceivedShare[]>;
   fetchRecentFiles: (cursor?: string | null) => Promise<RecentFilesPage>;
   recordFileOpen: (fileId: string) => Promise<void>;
+  fetchSentShares: () => Promise<SentShareItem[]>;
   fetchTrashFiles: () => Promise<DriveFile[]>;
   restoreFile: (fileId: string) => Promise<void>;
   purgeFile: (fileId: string) => Promise<void>;
@@ -700,6 +727,24 @@ export function useDrive(): UseDriveReturn {
     }
   }, []);
 
+  // QM-M39-001 — "Shared by me": owned items the user has shared, grouped per
+  // item with recipients, permissions and link state from GET /api/drive/shares/sent.
+  const fetchSentShares = useCallback(async (): Promise<SentShareItem[]> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await apiRequest('/api/drive/shares/sent');
+      if (!response.ok) throw new Error('Failed to fetch sent shares');
+      const data = await response.json();
+      return data.items || [];
+    } catch (err) {
+      setError(getDriveErrorMessage(err, 'Failed to load shared-by-me items'));
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const fetchTrashFiles = useCallback(async (): Promise<DriveFile[]> => {
     setLoading(true);
     setError(null);
@@ -776,6 +821,7 @@ export function useDrive(): UseDriveReturn {
     fetchReceivedShares,
     fetchRecentFiles,
     recordFileOpen,
+    fetchSentShares,
     fetchTrashFiles,
     restoreFile,
     purgeFile,

@@ -4,6 +4,7 @@ export * from './DriveMobileTabStrip';
 export * from './DriveFilesSubView';
 export * from './DriveSharedSubView';
 export * from './DriveRecentSubView';
+export * from './DriveSharedByMeSubView';
 export * from './DriveVaultSubView';
 export * from './DriveStarredSubView';
 export * from './DriveCleanerSubView';

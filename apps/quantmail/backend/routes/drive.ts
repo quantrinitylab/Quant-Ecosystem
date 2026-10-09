@@ -1520,6 +1520,131 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       }),
     });
   });
+  // ==========================================================================
+  // GET /drive/shares/sent — "Shared by me" (QM-M39-001, M39 screen 5).
+  //
+  // One record per file/folder the current user OWNS and has shared, grouped
+  // from the underlying share rows. Each record carries the real recipient
+  // list (name, email, permission, status, sharedAt), a real sharedCount, and
+  // the active public-link state for the item (role / expiry / password gate).
+  // Link tokens are never exposed. Revoked shares and deleted / unowned
+  // targets are excluded — the view only ever shows what is really shared.
+  // ==========================================================================
+  fastify.get('/drive/shares/sent', async (request, reply) => {
+    const userId = requireUserId(request);
+    const shares = await prisma.share.findMany({
+      where: { ownerUserId: userId, status: { not: 'revoked' } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!shares.length) return reply.send({ items: [] });
+
+    const recipientIds = [...new Set<string>(shares.map((s: any) => s.sharedWithUserId))];
+    const recipients = recipientIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: recipientIds } },
+          select: { id: true, email: true, displayName: true },
+        })
+      : [];
+    const recipientMap = new Map<string, { name: string; email: string }>(
+      recipients.map((u: any) => [
+        u.id,
+        { name: u.displayName || u.email.split('@')[0], email: u.email },
+      ]),
+    );
+
+    const fileIds = [...new Set<string>(shares.map((s: any) => s.fileId).filter(Boolean))];
+    const files = fileIds.length
+      ? await prisma.file.findMany({
+          where: { id: { in: fileIds }, userId, isDeleted: false },
+          select: { id: true, name: true, mimeType: true, size: true, updatedAt: true },
+        })
+      : [];
+    const fileMap: Map<string, any> = new Map(files.map((f: any) => [f.id, f]));
+
+    const folderIds = [...new Set<string>(shares.map((s: any) => s.folderId).filter(Boolean))];
+    const folders = folderIds.length
+      ? await prisma.folder.findMany({
+          where: { id: { in: folderIds }, userId, isDeleted: false },
+          select: { id: true, name: true, path: true, updatedAt: true },
+        })
+      : [];
+    const folderMap: Map<string, any> = new Map(folders.map((f: any) => [f.id, f]));
+
+    // Active public-link state per owned file (latest link wins). The token is
+    // never exposed — only what the owner needs to know: role, expiry, gate.
+    const linkRows = fileIds.length
+      ? await prisma.driveShare.findMany({
+          where: { fileId: { in: fileIds }, createdById: userId },
+          select: { fileId: true, role: true, password: true, expiresAt: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+        })
+      : [];
+    const linkMap = new Map<string, { role: string; requiresPassword: boolean; expiresAt: Date | null }>();
+    for (const row of linkRows as any[]) {
+      if (!linkMap.has(row.fileId)) {
+        linkMap.set(row.fileId, {
+          role: row.role,
+          requiresPassword: Boolean(row.password),
+          expiresAt: row.expiresAt,
+        });
+      }
+    }
+
+    type GroupedItem = {
+      id: string;
+      name: string;
+      type: 'file' | 'folder';
+      mimeType: string;
+      size: number;
+      updatedAt: Date;
+      sharedWith: Array<{
+        name: string;
+        email: string;
+        permission: 'view' | 'edit' | 'admin';
+        status: string;
+        sharedAt: Date;
+      }>;
+      linkShare: { role: string; requiresPassword: boolean; expiresAt: Date | null } | null;
+    };
+    const byItem = new Map<string, GroupedItem>();
+    for (const share of shares as any[]) {
+      const key = share.fileId ? `file:${share.fileId}` : share.folderId ? `folder:${share.folderId}` : null;
+      if (!key) continue;
+      const target = share.fileId ? fileMap.get(share.fileId) : folderMap.get(share.folderId);
+      // A share whose target was deleted or is no longer owned by the caller
+      // is not "shared by me" anymore — skip it instead of showing a ghost.
+      if (!target) continue;
+      let grouped = byItem.get(key);
+      if (!grouped) {
+        grouped = {
+          id: target.id,
+          name: target.name,
+          type: share.fileId ? 'file' : 'folder',
+          mimeType: share.fileId ? target.mimeType : '',
+          size: share.fileId ? target.size : 0,
+          updatedAt: target.updatedAt,
+          sharedWith: [],
+          linkShare: share.fileId ? (linkMap.get(share.fileId) ?? null) : null,
+        };
+        byItem.set(key, grouped);
+      }
+      const recipient = recipientMap.get(share.sharedWithUserId) ?? { name: 'Unknown', email: '' };
+      grouped.sharedWith.push({
+        name: recipient.name,
+        email: recipient.email,
+        permission: frontendPermission(share.permission),
+        status: share.status,
+        sharedAt: share.createdAt,
+      });
+    }
+
+    return reply.send({
+      items: [...byItem.values()].map((item) => ({
+        ...item,
+        sharedCount: item.sharedWith.length,
+      })),
+    });
+  });
   fastify.post<{ Params: { id: string } }>('/drive/shares/:id/accept', async (request, reply) => {
     const userId = requireUserId(request);
     const share = await prisma.share.findFirst({
