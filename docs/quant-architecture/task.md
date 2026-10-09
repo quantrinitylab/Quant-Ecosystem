@@ -857,9 +857,8 @@ Scope: `apps/quantmail/src/**`.
 Dependencies: QM-UIUX-004.
 
 ## QM-UIUX-015 — QuantGram: stray mic button on the welcome page
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-015-gram-mic-button
+Status: [x] DONE — PR #745 merged 2026-10-09 (VoiceCommandHost now renders nothing until a session exists — gate inside the component via useAuth, so anonymous visitors no longer see the unexplained mic FAB; post-login behavior unchanged; full quantgram suite 402/402 + negative control)
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/745
 Finding: a blue mic FAB sits bottom-right on the QuantGram welcome page before sign-in; its purpose is unclear to an anonymous user. Screenshot: `~/workspace/audits/2026-10-08-uiux-deep/gram-mobile.png`.
 Required: hide until authenticated or remove; do not show unexplained controls to anonymous users.
 Scope: QuantGram welcome page.
@@ -880,8 +879,7 @@ Scope: QuantCooks sign-in.
 Dependencies: QM-UIUX-016 (same page; fix together).
 
 ## QM-UIUX-018 — QuanTube: category pill cut off with no scroll affordance
-Status: [~] IN_PROGRESS
-Owner: muse-main
+Status: [x] DONE — PR #745 merged 2026-10-09 (VoiceCommandHost now renders nothing until a session exists — gate inside the component via useAuth, so anonymous visitors no longer see the unexplained mic FAB; post-login behavior unchanged; full quantgram suite 402/402 + negative control)
 Branch: fix/qm-uiux-018-tube-category-scroll
 Finding: the "Sport" category pill is cut off at the right edge with no visible scroll affordance. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/satellite-audit.md`.
 Required: edge fade or scroll hint on the pill row.
@@ -920,8 +918,7 @@ Scope: `apps/quantmail/src/components/CalendarMonthView.tsx`, `CalendarAgendaVie
 Dependencies: none.
 
 ## QM-UIUX-023 — Calendar P1s: duplicate navigation, small touch targets
-Status: [~] IN_PROGRESS
-Owner: muse-main
+Status: [x] DONE — PR #745 merged 2026-10-09 (VoiceCommandHost now renders nothing until a session exists — gate inside the component via useAuth, so anonymous visitors no longer see the unexplained mic FAB; post-login behavior unchanged; full quantgram suite 402/402 + negative control)
 Branch: fix/qm-uiux-023-calendar-nav-touch
 Finding: (a) page-level `CalendarHeader` AND `CalendarMonthSubView` toolbar both render prev/next chevrons + "Today" — two "Today" buttons on one screen; (b) touch targets below 44px on mobile — month chevrons `size-8` (32px), "Today" `h-8`, split-button chevron `px-1.5` (~28px). Week view already uses `min-h-[44px]` — follow that pattern. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/calendar-audit.md`.
 Required: single navigation source; all touch targets >= 44px on mobile.
