@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { emitQuantGitMascotEvent } from '../../../components/marks/quantgit-mascot-events';
 import type { Repo, CommitItem, CommitFileDiff } from '../types';
 
 export interface CommitsTabProps {
@@ -109,6 +110,7 @@ export function CommitsTab({
                 setSelectedBranch(e.target.value);
                 onSelectBranch?.(e.target.value);
                 showToast(`Switched to branch: ${e.target.value}`);
+                emitQuantGitMascotEvent('branch');
               }}
               className="bg-transparent border-none text-white font-semibold focus:outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
