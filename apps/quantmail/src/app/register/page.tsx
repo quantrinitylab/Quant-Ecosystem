@@ -296,7 +296,17 @@ export default function RegisterPage() {
                   className="mt-0.5 h-4 w-4 rounded border-[var(--quant-border)] accent-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#121215]"
                 />
                 <span className="text-xs leading-5 text-[var(--quant-muted-foreground)]">
-                  I acknowledge the terms required to create an account.
+                  I acknowledge the{' '}
+                  <Link
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(event) => event.stopPropagation()}
+                    className="font-medium text-[var(--brand-primary)] underline underline-offset-2 hover:brightness-110 focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                  >
+                    terms
+                  </Link>{' '}
+                  required to create an account.
                 </span>
               </label>
               {fieldErrors.terms ? (
