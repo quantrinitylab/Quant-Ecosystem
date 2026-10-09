@@ -102,7 +102,7 @@ type SettingsTab =
   | 'appearance'
   | 'keyboard';
 type Theme = 'light' | 'dark' | 'system';
-type Density = 'comfortable' | 'compact';
+type Density = 'comfortable' | 'cozy' | 'compact';
 
 interface AIModelOption {
   id: AIIntent;
@@ -238,6 +238,11 @@ const DENSITY_OPTIONS: readonly SettingsChoiceOption<Density>[] = [
     description: 'Sender, subject and preview with room around them.',
   },
   {
+    value: 'cozy',
+    label: 'Cozy',
+    description: 'A middle step — tighter rows, still easy to scan.',
+  },
+  {
     value: 'compact',
     label: 'Compact',
     description: 'Shorter rows — roughly four more conversations per screen.',
@@ -316,7 +321,10 @@ export default function SettingsPage() {
         stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'dark';
       if (stored !== next) localStorage.setItem('quant-theme', next);
       setTheme(next);
-      setDensity(localStorage.getItem('quant-density') === 'compact' ? 'compact' : 'comfortable');
+      const storedDensity = localStorage.getItem('quant-density');
+      setDensity(
+        storedDensity === 'compact' || storedDensity === 'cozy' ? storedDensity : 'comfortable',
+      );
       const storedIntent = localStorage.getItem(AI_INTENT_STORAGE_KEY);
       // Same migration shape as the theme above, for the same reason. Browsers
       // that used the app before this key had any reader hold `auto-router` (the
@@ -494,7 +502,12 @@ export default function SettingsPage() {
     }
     document.documentElement.setAttribute('data-density', next);
     showToast({
-      text: next === 'compact' ? 'Rows are compact' : 'Rows are comfortable',
+      text:
+        next === 'compact'
+          ? 'Rows are compact'
+          : next === 'cozy'
+            ? 'Rows are cozy'
+            : 'Rows are comfortable',
       type: 'info',
     });
   }, []);
@@ -1035,7 +1048,7 @@ export default function SettingsPage() {
                   value={density}
                   options={DENSITY_OPTIONS}
                   onChange={changeDensity}
-                  columns={2}
+                  columns={3}
                 />
               </SettingsSection>
             </>
