@@ -1952,7 +1952,7 @@ Dependencies: none.
 Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 1: QG-P0-2); screenshot a99d8103.
 
 ## QM-UIUX-078 — P0: Calendar event creation shows success but does not persist
-Status: [ ] TODO
+Status: [x] DONE (superseded by PR #723 merged 2026-10-09 — verified on main)
 Finding: Personal deep audit 2026-10-09: creating an event ("audit test", Oct 10 10:00–11:00 AM) showed success toast "Event 'audit test' saved" but the event exists nowhere — absent from month cell, date inspector, Week view, and calendar search.
 Required: event creation must persist via the real backend contract and render in all views; on failure show a truthful error, never a fake success. Regression test: create -> visible in month + week + search.
 Scope: apps/quantmail Calendar event creation + backend contract.
