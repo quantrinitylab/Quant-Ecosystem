@@ -242,17 +242,10 @@ export function QuantGitHeader({
                     className="absolute right-0 mt-1.5 w-48 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-xl py-1 z-50 text-xs text-[#E6EDF3] divide-y divide-[#21262D] animate-in fade-in"
                   >
                     <div className="py-1">
-                      <button
-                        type="button"
-                        data-testid="dropdown-new-repo-btn"
-                        onClick={() => {
-                          setIsCreateMenuOpen(false);
-                          setModalState('new-repo');
-                        }}
-                        className="w-full text-left px-3 py-1.5 hover:bg-[#21262D] hover:text-white flex items-center gap-2"
-                      >
-                        <span className="text-[#A78BFA] font-bold">+</span> New repository
-                      </button>
+                      {/* SIA-P1-7: "New repository" lives as the single primary
+                          CTA on the repos view — it is intentionally not
+                          duplicated here. This menu keeps Import repository,
+                          New pull request and New issue. */}
                       <button
                         type="button"
                         data-testid="dropdown-import-repo-btn"
