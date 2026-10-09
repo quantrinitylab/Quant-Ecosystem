@@ -73,6 +73,15 @@ let refreshInFlight: Promise<AuthResponse<BrowserAccessSession>> | null = null;
 const endpoint = (path: string): string => `${AUTH_BASE_URL}${path}`;
 
 const post = async <T>(path: string, body?: unknown): Promise<AuthResponse<T>> => {
+  // The session-establishing calls (login/register/refresh/2FA/logout) get
+  // the same global timeout as authenticatedFetch: an auth backend that
+  // accepts the connection and never answers must not leave the sign-in
+  // spinner hanging forever.
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new Error('Request timed out after 30 seconds')),
+    FETCH_TIMEOUT_MS,
+  );
   try {
     const response = await fetch(endpoint(path), {
       method: 'POST',
@@ -82,6 +91,7 @@ const post = async <T>(path: string, body?: unknown): Promise<AuthResponse<T>> =
       // which used to break /auth/refresh and log users out on every reload.
       headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: controller.signal,
     });
     const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
     const isJson = contentType.includes('application/json') || contentType.includes('+json');
@@ -108,7 +118,22 @@ const post = async <T>(path: string, body?: unknown): Promise<AuthResponse<T>> =
       };
     }
     return payload;
-  } catch {
+  } catch (error) {
+    // A timeout abort rejects with our reason (or a TimeoutError); surface it
+    // distinctly — mirroring api-client's TIMEOUT code — so sign-in UIs can
+    // say "timed out" instead of a generic network failure.
+    const timedOut =
+      error instanceof Error && (/timed out/i.test(error.message) || error.name === 'TimeoutError');
+    if (timedOut) {
+      return {
+        success: false,
+        error: {
+          code: 'TIMEOUT',
+          message: 'The authentication service timed out. Please try again.',
+          statusCode: 0,
+        },
+      };
+    }
     return {
       success: false,
       error: {
@@ -117,6 +142,8 @@ const post = async <T>(path: string, body?: unknown): Promise<AuthResponse<T>> =
         statusCode: 0,
       },
     };
+  } finally {
+    clearTimeout(timer);
   }
 };
 
