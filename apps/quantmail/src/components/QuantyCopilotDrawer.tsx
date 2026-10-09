@@ -9,6 +9,7 @@ import { IconX } from './icons';
 import { browserAuthSession } from '../services/browser-auth-session';
 import { readAIIntent, clientTimeoutForIntent } from '../lib/ai-intent-preference';
 import type { Email } from '../types';
+import { useI18n } from '../i18n';
 
 export interface QuantyEmailAction {
   to?: string;
@@ -327,6 +328,14 @@ export function QuantyCopilotDrawer({
   const [messages, setMessages] = useState<ChatTurn[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  // BB-P1-11: the drawer previously hardcoded a Hindi summary prompt for every
+  // user. Suggestion copy now follows the app locale (English default).
+  const { locale } = useI18n();
+  const summaryPrompt =
+    locale === 'hi'
+      ? 'कृपया इस ईमेल का हिंदी में मुख्य सारांश (Summary) बताएं।'
+      : 'Summarize the key points of this email in English.';
+  const summaryLabel = locale === 'hi' ? 'Hindi Summary' : 'Summarize';
   /**
    * Deliberately not cleared when the drawer closes. A failed turn leaves the
    * user's own prompt as the last thing in the transcript, so on reopening,
@@ -744,9 +753,7 @@ export function QuantyCopilotDrawer({
                       <button
                         type="button"
                         onClick={() =>
-                          void handleSend(
-                            'कृपया इस ईमेल का हिंदी में मुख्य सारांश (Summary) बताएं।',
-                          )
+                          void handleSend(summaryPrompt)
                         }
                         className="flex-1 flex items-center gap-2 p-2.5 rounded-lg bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] text-left transition-all text-xs text-[var(--quant-muted-foreground)] font-medium"
                       >
@@ -763,7 +770,7 @@ export function QuantyCopilotDrawer({
                             d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"
                           />
                         </svg>
-                        <span className="truncate">Hindi Summary</span>
+                        <span className="truncate">{summaryLabel}</span>
                       </button>
                     </div>
                   </>

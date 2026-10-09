@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { formatBytes } from '../../../lib/format-bytes';
+import { isDocumentDriveId } from '../../../lib/drive-ids';
 import { ClockIcon, StarFilledIcon, StarIcon, HardDriveIcon } from './DriveIcons';
 
 export interface RecentItem {
@@ -205,8 +206,9 @@ export function DriveRecentSubView({
                           onDownloadFile?.(item.id, item.name);
                         }}
                         className="px-2.5 py-1 rounded-lg bg-[var(--quant-surface-elevated)] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium"
+                        title={isDocumentDriveId(item.id) ? 'Open in editor' : 'Download'}
                       >
-                        Download
+                        {isDocumentDriveId(item.id) ? 'Open' : 'Download'}
                       </button>
                       <button
                         type="button"
