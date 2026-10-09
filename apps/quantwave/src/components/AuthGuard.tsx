@@ -101,7 +101,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // to a monitor, and if the client-side redirect below never runs the visitor
   // is stranded on an empty page. AuthPending always renders text and a real
   // link to /login.
-  if (isLoading) return <AuthPending state="verifying" loginPath="/login" />;
+  // Fail-safe (R3-P1-6): even if the provider's session restore wedges,
+  // `verifying` flips to an honest "sign in to continue" screen with a
+  // working login link after 10s — never a permanent black interstitial.
+  if (isLoading) return <AuthPending state="verifying" loginPath="/login" appName="QuantWave" timeoutMs={10000} />;
   // Signed out: drive the real SSO flow instead of sitting on a static page.
   // The router.replace above is kept as a first attempt (it lands on /login,
   // which holds the same working SSO button); SsoPendingRedirect starts the
