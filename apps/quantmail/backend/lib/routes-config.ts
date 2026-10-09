@@ -87,10 +87,12 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^mail-filters(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE'] },
 
   // ── Operator search ────────────────────────────────────────────────────────
-  // searchRoutes is registered with prefix '/search', so these are correct as
-  // the sprint plan states them. /search/parse powers the query chips.
+  // searchRoutes is registered with prefix '/search', so this is correct as
+  // the sprint plan states it. The Next proxy deliberately does NOT expose
+  // /search/parse (QM-UIUX-070): no web caller ever used it — the web search
+  // UI posts to /emails/search and reads /search/all. The backend endpoint
+  // itself stays; the Flutter client calls it directly on the backend.
   { pattern: /^search\/emails$/, methods: ['GET'] },
-  { pattern: /^search\/parse$/, methods: ['GET'] },
   { pattern: /^workspaces$/, methods: ['GET', 'POST'] },
   { pattern: /^workspaces\/[^/]+$/, methods: ['GET', 'PATCH', 'DELETE'] },
   { pattern: /^workspaces\/[^/]+\/members$/, methods: ['GET'] },
