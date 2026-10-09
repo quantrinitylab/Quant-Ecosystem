@@ -1331,7 +1331,20 @@ export default function InboxPage() {
    */
   const lensChipRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const turnRowRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  /*
+   * REG-3: the inbox header search filters inline and never touched the URL,
+   * so ?q= stayed bare quantmail.in/ (BB-P1-10's fix only covered the
+   * dedicated /search page). Seed from ?q= at mount and keep it in sync on
+   * the debounced value — replace, not push, so typing doesn't stack
+   * history entries. Seeded via the state initializer (SSR-safe) instead of
+   * a mount-only useEffect, so no react-hooks/exhaustive-deps disable
+   * comment is needed (that plugin isn't configured in this repo).
+   */
+  const [searchQuery, setSearchQuery] = useState<string>(() =>
+    typeof window === 'undefined'
+      ? ''
+      : (new URLSearchParams(window.location.search).get('q') ?? ''),
+  );
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [showArchivedView, setShowArchivedView] = useState(false);
   /**
@@ -1740,19 +1753,6 @@ export default function InboxPage() {
     const timer = window.setTimeout(() => setDebouncedQuery(searchQuery.trim()), 260);
     return () => window.clearTimeout(timer);
   }, [searchQuery]);
-
-  /*
-   * REG-3: the inbox header search filters inline and never touched the URL,
-   * so ?q= stayed bare quantmail.in/ (BB-P1-10's fix only covered the
-   * dedicated /search page). Seed from ?q= on mount and keep it in sync on
-   * the debounced value — replace, not push, so typing doesn't stack
-   * history entries.
-   */
-  useEffect(() => {
-    const seed = new URLSearchParams(window.location.search).get('q');
-    if (seed && !searchQuery) setSearchQuery(seed);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     const url = new URL(window.location.href);
