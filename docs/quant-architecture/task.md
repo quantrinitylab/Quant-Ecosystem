@@ -1986,7 +1986,9 @@ Dependencies: none.
 Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 2: M-P1-1); screenshot f1de02f0.
 
 ## QM-UIUX-082 — P1: No Sent folder in navigation
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-082-sent-folder-nav
 Finding: Personal deep audit 2026-10-09: left nav has only Inbox/Archive — there is no Sent folder, so sent mail cannot be browsed and the Sent copy of the compose-send flow cannot be verified by the user.
 Required: add a real Sent folder backed by the real sent-mail query. (Related: QM-BACK-010 send-pipeline proof needs the Sent copy verifiable.)
 Scope: apps/quantmail navigation + sent query.
