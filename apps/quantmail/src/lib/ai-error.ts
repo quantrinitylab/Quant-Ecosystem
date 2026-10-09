@@ -4,6 +4,13 @@
  * user can act on it, while stripping stack traces, file paths, URLs, internal
  * hosts, and credentials — anything that leaks internals or secrets. Never
  * returns an empty string.
+ *
+ * Also closes the two residual gaps the zero-defect run-37 audit filed
+ * against this pipeline (P2-736-1/-2), matching the hardening landed in
+ * QuantChat's sanitize-error.ts (PR #751): bare internal hostnames with no
+ * scheme/IP (quantmail-backend.internal:4000, ai-service:9000) and the
+ * credential shapes outside the original enumerated list (github_pat_,
+ * gho_/ghu_/…, Slack xox…, HTTP Basic credentials, PEM block markers).
  */
 export function sanitizeAiError(error: unknown): string {
   if (!(error instanceof Error)) {
@@ -17,14 +24,24 @@ export function sanitizeAiError(error: unknown): string {
   const cleaned = error.message
     .split('\n')[0]
     .replace(/\b(?:https?|wss?):\/\/[^\s'"<>\]]+/gi, '[link]')
+    .replace(/-----BEGIN [A-Z ]*-----/g, '[redacted]')
     .replace(/\bBearer\s+\S+/gi, 'Bearer [redacted]')
+    .replace(/\bBasic\s+[A-Za-z0-9+/=]{8,}/gi, 'Basic [redacted]')
     .replace(
       /\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|token|secret|password)\s*[:=]\s*\S+/gi,
       '[redacted]',
     )
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[redacted]')
-    .replace(/\b(?:sk-[A-Za-z0-9_-]{8,}|ghp_[A-Za-z0-9_]{8,}|AKIA[0-9A-Z]{12,})\b/g, '[redacted]')
+    .replace(
+      /\b(?:sk-[A-Za-z0-9_-]{8,}|gh[opusr]_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{8,}|xox[baprs]-[A-Za-z0-9-]{8,}|AKIA[0-9A-Z]{12,})\b/g,
+      '[redacted]',
+    )
     .replace(/\b(?:localhost|(?:\d{1,3}\.){3}\d{1,3})(?::\d+)?(?:\/[^\s'"<>\]]*)?/gi, '[host]')
+    .replace(
+      /\b(?:[a-zA-Z0-9-]+\.)+(?:internal|local|lan|corp|intranet|home|svc|cluster)(?::\d+)?(?:\/[^\s'"<>\]]*)?/gi,
+      '[host]',
+    )
+    .replace(/\b[a-zA-Z][a-zA-Z0-9]*(?:-[a-zA-Z0-9]+)+:\d{2,5}(?:\/[^\s'"<>\]]*)?/g, '[host]')
     .replace(/\/[\w\-./]+\.(ts|tsx|js|jsx|py|go)/g, '[file]')
     .replace(/[A-Za-z]:\\[\w\-.\\]+/g, '[file]')
     .trim()
