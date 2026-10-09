@@ -251,7 +251,9 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           userId?: string;
           role?: string;
           timestamp?: string;
-          createdAt?: string;
+          // createdAt arrives as a Date on typed Message records and as a
+          // string on raw JSON wire payloads — accept both.
+          createdAt?: string | Date;
           status?: string;
           type?: string;
           imageUrl?: string;
