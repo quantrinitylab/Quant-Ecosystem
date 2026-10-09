@@ -156,6 +156,44 @@ describe('sanitizeEmailHtml', () => {
     expect(result).toContain('Hello');
   });
 
+  it('strips class attributes so mail cannot borrow the app shell utility classes (QM-UIUX-043)', () => {
+    const result = sanitizeEmailHtml(
+      '<div class="bg-white text-black"><p class="fixed inset-0 z-50">Hello</p>' +
+        '<table><tr><td class="bg-white p-4">cell</td></tr></table></div>',
+    );
+    expect(result).not.toContain('class=');
+    expect(result).not.toContain('bg-white');
+    expect(result).not.toContain('text-black');
+    expect(result).toContain('Hello');
+    expect(result).toContain('<td>cell</td>');
+  });
+
+  it('strips class from links and images while keeping the hardened attributes (QM-UIUX-043)', () => {
+    const result = sanitizeEmailHtml(
+      '<a class="btn-primary underline" href="https://example.com/offer">Offer</a>' +
+        '<img class="w-full h-auto" src="https://img.example/x.png" alt="pic">',
+    );
+    expect(result).not.toContain('class=');
+    expect(result).toContain('href="https://example.com/offer"');
+    expect(result).toContain('target="_blank"');
+    expect(result).toContain('rel="noopener noreferrer nofollow"');
+    expect(result).toContain('src="https://img.example/x.png"');
+    expect(result).toContain('alt="pic"');
+    expect(result).toContain('loading="lazy"');
+    expect(result).toContain('referrerpolicy="no-referrer"');
+  });
+
+  it('keeps id and non-color inline styles while stripping class (QM-UIUX-043)', () => {
+    const result = sanitizeEmailHtml(
+      '<p id="intro" class="lead" style="font-size:14px;padding:8px">Hi</p>',
+    );
+    expect(result).not.toContain('class=');
+    expect(result).toContain('id="intro"');
+    expect(result).toContain('font-size');
+    expect(result).toContain('padding');
+    expect(result).toContain('Hi');
+  });
+
   it('returns empty string when window is undefined (SSR, fail-closed)', () => {
     vi.stubGlobal('window', undefined);
     expect(sanitizeEmailHtml('<script>alert(1)</script><p>Safe</p>')).toBe('');
