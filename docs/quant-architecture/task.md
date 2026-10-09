@@ -1379,7 +1379,7 @@ Scope: `apps/quantchat/src/`.
 Dependencies: QM-UIUX-057 (PR #654) merged first.
 
 ## QM-UIUX-061 — Contacts: "AI Duplicate Contact Cleaner" wizard is theater
-Status: [~] IN_PROGRESS
+Status: [x] DONE (superseded by QM-UIUX-026 / PR #675 + PR #713 — verified on main 2026-10-09)
 Owner: muse-main
 Branch: fix/qm-uiux-061-contacts-dedup-theater
 Finding: `DedupWizardSubView` shows hardcoded "Detected Collision: Sundar Pichai" + fake "98% Match Confidence". Merge/Rescan buttons only flip local state — zero API calls. The real `ContactsDedupeModal` (real getContactDuplicates/merge APIs) exists but is bypassed. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/contacts-audit.md`.
