@@ -24,7 +24,6 @@ import type {
   GitHubTab,
   BuildMode,
   Effort,
-  CloneProtocol,
   Repo,
   FileNode,
   IssueItem,
@@ -233,8 +232,6 @@ function QuantGitContent() {  const router = useRouter();
     return baseRepos.map((r) => ({
       ...r,
       fullName: `${currentUsername}/${r.name}`,
-      cloneUrl: `https://quantmail.in/quantgit/${currentUsername}/${r.name}.git`,
-      sshUrl: `git@quantmail.in:${currentUsername}/${r.name}.git`,
     }));
   }, [baseRepos, currentUsername]);
   const [files, setFiles] = useState<FileNode[]>([]);
@@ -248,7 +245,6 @@ function QuantGitContent() {  const router = useRouter();
 
   // Modals & Drawers
   const [modalState, setModalState] = useState<ModalState>('none');
-  const [cloneProtocol, setCloneProtocol] = useState<CloneProtocol>('https');
   const [selectedActionRun, setSelectedActionRun] = useState<WorkflowRunItem | null>(null);
   const [selectedPr, setSelectedPr] = useState<PRItem | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<IssueItem | null>(null);
@@ -558,9 +554,7 @@ function QuantGitContent() {  const router = useRouter();
             stars: typeof r.stars === 'number' ? r.stars : (r.starCount ?? 0),
             forks: typeof r.forks === 'number' ? r.forks : (r.forkCount ?? 0),
             watching: typeof r.watching === 'number' ? r.watching : 0,
-            cloneUrl:
-              r.cloneUrl || `https://quantmail.in/quantgit/${currentUsername}/${r.name}.git`,
-            sshUrl: r.sshUrl || `git@quantmail.in:${currentUsername}/${r.name}.git`,
+            cloneUrl: r.cloneUrl || '',
             defaultBranch: r.defaultBranch || 'main',
             latestCommit: r.latestCommit || '',
             latestCommitSha: r.latestCommitSha || '',
@@ -1367,8 +1361,7 @@ function QuantGitContent() {  const router = useRouter();
           stars: typeof r.stars === 'number' ? r.stars : 0,
           forks: typeof r.forks === 'number' ? r.forks : 0,
           watching: 0,
-          cloneUrl: `https://quantmail.in/quantgit/${slug}.git`,
-          sshUrl: `git@quantmail.in:${slug}.git`,
+          cloneUrl: r.cloneUrl || '',
           defaultBranch: r.defaultBranch || 'main',
           latestCommit: r.latestCommit || '',
           latestCommitSha: r.latestCommitSha || '',
@@ -2450,8 +2443,6 @@ function QuantGitContent() {  const router = useRouter();
         setViewingFile={setViewingFile}
         viewingFile={viewingFile}
         selectedRepo={selectedRepo}
-        cloneProtocol={cloneProtocol}
-        setCloneProtocol={setCloneProtocol}
         viewingBlobSha={viewingBlobSha}
         closeBlobEditor={closeBlobEditor}
         handleCommitBlob={handleCommitBlob}
@@ -2527,7 +2518,6 @@ function QuantGitContent() {  const router = useRouter();
             forks: imported.forkCount ?? 0,
             watching: 0,
             cloneUrl: imported.cloneUrl,
-            sshUrl: imported.sshUrl,
             defaultBranch: imported.defaultBranch || 'main',
             latestCommit: imported.latestCommit || '',
             latestCommitSha: imported.latestCommitSha || '',

@@ -74,7 +74,6 @@ export interface ImportedRepoRecord {
   visibility: 'public' | 'private';
   defaultBranch: string;
   cloneUrl: string;
-  sshUrl: string;
   branches: string[];
   commitCount: number;
   starCount?: number;
@@ -772,8 +771,7 @@ REDIS_URL=redis://localhost:6379
       description: `Imported from ${input.provider.toUpperCase()} (${input.sourceUrl})`,
       visibility: input.isPrivate ? 'private' : 'public',
       defaultBranch: 'main',
-      cloneUrl: `https://quantmail.in/git/${encodeURIComponent(targetOwner)}/${encodeURIComponent(cleanTargetName)}.git`,
-      sshUrl: `git@quantmail.in:${targetOwner}/${cleanTargetName}.git`,
+      cloneUrl: `${(process.env['NEXT_PUBLIC_APP_URL'] ?? 'https://quantmail.in').replace(/\/$/, '')}/api/code/gitd/repos/${encodeURIComponent(targetOwner)}/${encodeURIComponent(cleanTargetName)}.git`,
       branches: discoveredBranches,
       commitCount,
       starCount: 0,

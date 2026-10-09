@@ -53,45 +53,39 @@ describe('QuantGit 159-Screen GitHub Sovereign Parity Components', () => {
   });
 
   describe('CloneCodespacesMenu (Screens 111–114)', () => {
-    it('renders local clone protocols and codespaces launcher', () => {
+    // QM-UIUX-067: the menu used to fabricate four clone transports (SSH with
+    // no SSH server, `gh repo clone`, a nonexistent @quant/cli, and a /git/
+    // URL the git server never served) plus a toast-only Codespaces tab. It
+    // now offers only the real HTTPS clone URL the repository API returns.
+    const REAL_CLONE_URL =
+      'https://quantmail.in/api/code/gitd/repos/quantrinitylab/Quant-Ecosystem.git';
+
+    it('renders the API-provided HTTPS clone URL and git clone command only', () => {
       const html = renderToStaticMarkup(
-        <CloneCodespacesMenu
-          isOpen={true}
-          onClose={vi.fn()}
-          repoOwner="quantrinitylab"
-          repoName="Quant-Ecosystem"
-          currentBranch="main"
-        />,
+        <CloneCodespacesMenu isOpen={true} onClose={vi.fn()} cloneUrl={REAL_CLONE_URL} />,
       );
 
-      expect(html).toContain('Clone');
-      expect(html).toContain('Codespaces');
-      expect(html).toContain('HTTPS');
-      expect(html).toContain('SSH');
-      expect(html).toContain('GitHub CLI');
-      expect(html).toContain('Quant CLI');
-      expect(html).toContain('Sovereign @quant/cli');
-      expect(html).toContain('quant repo clone quantrinitylab/Quant-Ecosystem');
-      expect(html).toContain('1-Click Copy');
-      expect(html).toContain('https://quantmail.in/git/quantrinitylab/Quant-Ecosystem.git');
-      expect(html).toContain('Download ZIP');
-      expect(html).toContain('Open in Quant Copilot App');
+      expect(html).toContain('Clone with HTTPS');
+      expect(html).toContain(REAL_CLONE_URL);
+      expect(html).toContain(`git clone ${REAL_CLONE_URL}`);
+      expect(html).not.toContain('Codespaces');
+      expect(html).not.toContain('SSH');
+      expect(html).not.toContain('GitHub CLI');
+      expect(html).not.toContain('Quant CLI');
+      expect(html).not.toContain('quant repo clone');
+      expect(html).not.toContain('gh repo clone');
+      expect(html).not.toContain('git@quantmail.in');
+      expect(html).not.toContain('Download ZIP');
     });
 
-    it('renders 1-click sovereign quant repo clone terminal copy command and feedback', () => {
+    it('shows an honest notice instead of a URL when the API provided none', () => {
       const html = renderToStaticMarkup(
-        <CloneCodespacesMenu
-          isOpen={true}
-          onClose={vi.fn()}
-          repoOwner="quantrinitylab"
-          repoName="Quant-Ecosystem"
-          currentBranch="main"
-        />,
+        <CloneCodespacesMenu isOpen={true} onClose={vi.fn()} cloneUrl="" />,
       );
 
-      expect(html).toContain('quant repo clone quantrinitylab/Quant-Ecosystem');
-      expect(html).toContain('1-Click Copy');
-      expect(html).toContain('Sovereign @quant/cli');
+      expect(html).toContain('available for this repository yet');
+      expect(html).not.toContain('aria-label="Clone URL"');
+      expect(html).not.toContain('.git');
     });
   });
 

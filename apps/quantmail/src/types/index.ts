@@ -219,7 +219,6 @@ export interface Repository extends BaseEntity {
   license?: string;
   homepageUrl?: string;
   cloneUrl: string;
-  sshUrl: string;
   lastPushAt?: Date;
 }
 

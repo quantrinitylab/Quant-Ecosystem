@@ -777,7 +777,6 @@ function toDto(r: RepoRow, ownerHandle?: string) {
     cloneUrl: `${appUrl}/api/code/gitd/repos/${encodeURIComponent(
       r.ownerId,
     )}/${encodeURIComponent(r.name)}.git`,
-    sshUrl: `git@quantmail.in:${slug}.git`,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };

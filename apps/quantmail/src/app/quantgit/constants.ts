@@ -29,8 +29,7 @@ export const INITIAL_REPOS: Repo[] = [
     stars: 0,
     forks: 0,
     watching: 0,
-    cloneUrl: 'https://quantmail.in/quantgit/Quant-Ecosystem.git',
-    sshUrl: 'git@quantmail.in:Quant-Ecosystem.git',
+    cloneUrl: '',
     defaultBranch: 'main',
     latestCommit:
       'feat(quantgit): restore 4 bottom deck tabs, repos overview & publish android testing apk',
@@ -62,8 +61,7 @@ export const INITIAL_REPOS: Repo[] = [
     stars: 0,
     forks: 0,
     watching: 0,
-    cloneUrl: 'https://quantmail.in/quantgit/quantmail-core.git',
-    sshUrl: 'git@quantmail.in:quantmail-core.git',
+    cloneUrl: '',
     defaultBranch: 'main',
     latestCommit: 'refactor(core): unify Bayesian spam classifier with isolated tenant indexes',
     latestCommitSha: '7f9104b2',
@@ -86,8 +84,7 @@ export const INITIAL_REPOS: Repo[] = [
     stars: 0,
     forks: 0,
     watching: 0,
-    cloneUrl: 'https://quantmail.in/quantgit/quantchat-meet.git',
-    sshUrl: 'git@quantmail.in:quantchat-meet.git',
+    cloneUrl: '',
     defaultBranch: 'main',
     latestCommit: 'feat(webrtc): LiveKit SFU cluster resilience and proactive voice call dispatch',
     latestCommitSha: '4fcec52e',
@@ -111,8 +108,7 @@ export const INITIAL_REPOS: Repo[] = [
     stars: 0,
     forks: 0,
     watching: 0,
-    cloneUrl: 'https://quantmail.in/quantgit/quant-mobile-android.git',
-    sshUrl: 'git@quantmail.in:quant-mobile-android.git',
+    cloneUrl: '',
     defaultBranch: 'main',
     latestCommit: 'release(android): Quant v1.0 universal APK build (targetSdk 36)',
     latestCommitSha: 'fa303afb',
@@ -778,7 +774,7 @@ A unified sovereign operating ecosystem built for high-performance computing, in
 
 \`\`\`bash
 # Clone the unified monorepo
-git clone https://quantmail.in/quantgit/Quant-Ecosystem.git
+git clone <repository-clone-url>
 
 # Install dependencies and start development
 pnpm install && pnpm dev
