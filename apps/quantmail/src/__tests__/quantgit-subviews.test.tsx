@@ -3,17 +3,30 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   QuantGitSubViews,
+  QuantGitFeedSubView,
   QuantGitReposSubView,
   QuantGitPrsSubView,
   QuantGitIssuesSubView,
   QuantGitActionsSubView,
   QuantGitCopilotSubView,
+  type FeedEventItem,
   type RepositoryItem,
   type PullRequestItem,
   type IssueTrackItem,
   type WorkflowRun,
   type ContextSubViewTab,
 } from '../app/quantgit/components/QuantGitSubViews';
+
+// Explicit test fixtures (passed as props — never fabricated component defaults).
+const FIXTURE_FEED_EVENTS: FeedEventItem[] = [
+  {
+    id: 'feed-test-1',
+    actor: 'tester',
+    action: 'pushed to',
+    target: 'test-repo-alpha/main',
+    createdAt: '10 mins ago',
+  },
+];
 
 // Explicit test fixtures (passed as props — never fabricated component defaults).
 const FIXTURE_REPOS: RepositoryItem[] = [
@@ -98,6 +111,34 @@ describe('QuantGit Context Sub-Views — no fabricated defaults', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  // ==========================================================================
+  // 0. Activity Feed (`feed`)
+  // ==========================================================================
+  describe('0. Activity Feed (`feed`)', () => {
+    it('renders provided events with actor, action, and target', () => {
+      const html = renderToStaticMarkup(<QuantGitFeedSubView events={FIXTURE_FEED_EVENTS} />);
+
+      expect(html).toContain('data-testid="quantgit-feed-subview"');
+      expect(html).toContain('Activity Feed');
+      expect(html).toContain('tester');
+      expect(html).toContain('pushed to');
+      expect(html).toContain('test-repo-alpha/main');
+      expect(html).toContain('1 EVENTS');
+      expect(html).not.toContain('data-testid="quantgit-feed-empty"');
+    });
+
+    it('shows an honest empty state when no events are provided (no fabricated activity)', () => {
+      const html = renderToStaticMarkup(<QuantGitFeedSubView />);
+
+      expect(html).toContain('data-testid="quantgit-feed-subview"');
+      expect(html).toContain('data-testid="quantgit-feed-empty"');
+      expect(html).toContain('No activity yet');
+      expect(html).toContain('0 EVENTS');
+      expect(html).not.toContain('pushed to');
+      expect(html).not.toContain('merged pull request');
+    });
   });
 
   // ==========================================================================
@@ -221,7 +262,7 @@ describe('QuantGit Context Sub-Views — no fabricated defaults', () => {
   // 6. Master Context Sub-Views Coordinator Synchronization
   // ==========================================================================
   describe('6. Master Sub-Views Container (`QuantGitSubViews`)', () => {
-    const tabs: ContextSubViewTab[] = ['repos', 'prs', 'issues', 'actions', 'copilot'];
+    const tabs: ContextSubViewTab[] = ['feed', 'repos', 'prs', 'issues', 'actions', 'copilot'];
 
     tabs.forEach((tab) => {
       it(`renders correctly when tab="${tab}" is active`, () => {
@@ -229,7 +270,12 @@ describe('QuantGit Context Sub-Views — no fabricated defaults', () => {
 
         expect(html).toContain('data-testid="quantgit-subviews-container"');
 
-        if (tab === 'repos') {
+        if (tab === 'feed') {
+          expect(html).toContain('data-testid="quantgit-feed-subview"');
+          expect(html).toContain('data-testid="quantgit-feed-empty"');
+          expect(html).toContain('No activity yet');
+          expect(html).not.toContain('data-testid="quantgit-repos-subview"');
+        } else if (tab === 'repos') {
           expect(html).toContain('data-testid="quantgit-repos-subview"');
           // Honest empty state — no fabricated repos when none provided
           expect(html).toContain('data-testid="quantgit-repos-empty"');

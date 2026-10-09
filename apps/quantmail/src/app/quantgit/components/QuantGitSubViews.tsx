@@ -6,7 +6,7 @@ import React, { useState, useMemo } from 'react';
 // Types & Interfaces
 // ============================================================================
 
-export type ContextSubViewTab = 'repos' | 'prs' | 'issues' | 'actions' | 'copilot';
+export type ContextSubViewTab = 'feed' | 'repos' | 'prs' | 'issues' | 'actions' | 'copilot';
 
 export interface RepositoryItem {
   id: string;
@@ -214,6 +214,104 @@ function SvgMessageIcon({ className }: { className?: string }) {
     <svg className={className || 'size-3.5'} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
+  );
+}
+
+function SvgFeedIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className || 'size-4'} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 11a9 9 0 0 1 9 9" />
+      <path d="M4 4a16 16 0 0 1 16 16" />
+      <circle cx="5" cy="19" r="1.2" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+// ============================================================================
+// Sub-View 0: Activity Feed (`feed`)
+// Events are passed in explicitly as props — this view never fabricates
+// activity. With no events it renders an honest empty state.
+// ============================================================================
+
+export interface FeedEventItem {
+  id: string;
+  actor: string;
+  action: string;
+  target: string;
+  createdAt: string;
+}
+
+export interface QuantGitFeedSubViewProps {
+  events?: FeedEventItem[];
+  showToast?: (msg: string) => void;
+}
+
+export function QuantGitFeedSubView({ events = [] }: QuantGitFeedSubViewProps) {
+  return (
+    <div
+      data-testid="quantgit-feed-subview"
+      className="flex-1 w-full min-h-0 overflow-y-auto bg-[var(--quant-background)] text-[#E6EDF3] p-4 sm:p-6 lg:p-8"
+    >
+      <div className="max-w-7xl mx-auto space-y-6 min-h-full flex flex-col">
+        {/* Header Hero */}
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
+          <div className="flex items-center gap-3">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+              <SvgFeedIcon className="size-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Activity Feed</h1>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30">
+                  {events.length} EVENTS
+                </span>
+              </div>
+              <p className="text-xs text-[#8B949E] mt-0.5">
+                Latest activity across your repositories
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Honest empty state — no fabricated activity events */}
+        {events.length === 0 && (
+          <div
+            data-testid="quantgit-feed-empty"
+            className="py-16 text-center rounded-2xl border border-dashed border-[#232938] bg-[var(--quant-surface-subtle)]/40"
+          >
+            <p className="text-sm font-semibold text-[#C9D1D9]">No activity yet</p>
+            <p className="text-xs text-[#6E7681] mt-1">
+              Push a commit, open a pull request, or comment on an issue to see activity here.
+            </p>
+          </div>
+        )}
+
+        {/* Explicitly-provided events only */}
+        {events.length > 0 && (
+          <div className="space-y-3">
+            {events.map((event) => (
+              <div
+                key={event.id}
+                data-testid={`quantgit-feed-event-${event.id}`}
+                className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-4 flex items-start gap-3"
+              >
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#A78BFA]/15 border border-[#A78BFA]/30 text-[#A78BFA] text-xs font-bold uppercase">
+                  {event.actor.trim().charAt(0) || '?'}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm text-[#E6EDF3]">
+                    <span className="font-bold text-white">{event.actor}</span>
+                    <span className="text-[#8B949E]"> {event.action} </span>
+                    <span className="font-semibold text-[#A78BFA]">{event.target}</span>
+                  </p>
+                  <p className="text-xs text-[#6E7681] mt-1">{event.createdAt}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1222,6 +1320,10 @@ export function QuantGitSubViews({
 }: QuantGitSubViewsProps) {
   return (
     <div data-testid="quantgit-subviews-container" className="flex-1 w-full min-h-0 flex flex-col">
+      {activeTab === 'feed' && (
+        <QuantGitFeedSubView showToast={showToast} />
+      )}
+
       {activeTab === 'repos' && (
         <QuantGitReposSubView
           onSelectRepo={onSelectRepo}
