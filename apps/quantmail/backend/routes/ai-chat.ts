@@ -541,8 +541,22 @@ function buildMailboxSystemBlock(snapshot: MailboxSnapshot): string {
   } else {
     lines.push('The inbox is currently empty — there are no messages to list.');
   }
+  // PAUD-P0-7 (QM-UIUX-080, 2026-10-09): the scoping used to say "if they ask
+  // about something not in the snapshot, say you do not have that information
+  // rather than guessing" with no qualification at all. The model read that as
+  // a universal refusal rule — "what is 2+2" is not in the snapshot, so it
+  // answered "I don't have that information." on BOTH the Fast and Deep tiers,
+  // making the assistant useless for any non-mailbox question. The grounding
+  // is an anti-hallucination guard for MAILBOX questions only; a general
+  // question (math, general knowledge, writing help) must be answered from the
+  // model's own knowledge with no reference to this snapshot.
   lines.push(
-    'RULES: when the user asks about their inbox, mail, messages, or unread counts, answer ONLY from this snapshot and quote its numbers exactly. Never invent counts, senders, subjects, dates, or content not listed here. If they ask about something not in the snapshot, say you do not have that information rather than guessing.',
+    'RULES — SCOPE: these rules apply ONLY when the user is asking about their inbox, mail, messages, or unread counts. ' +
+      'For such mailbox questions, answer ONLY from this snapshot and quote its numbers exactly. ' +
+      'Never invent counts, senders, subjects, dates, or content not listed here. ' +
+      'If a mailbox question asks about something not in the snapshot, say you do not have that information rather than guessing. ' +
+      'For ANY question that is NOT about the mailbox — general knowledge, calculations like "what is 2+2", writing help, anything else — ' +
+      'answer normally from your own knowledge; this snapshot does not constrain those answers and must never be a reason to refuse one.',
   );
   return lines.join('\n');
 }
