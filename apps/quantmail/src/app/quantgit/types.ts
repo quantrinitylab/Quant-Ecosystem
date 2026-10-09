@@ -18,8 +18,6 @@ export type GitHubTab =
 
 export type BuildMode = 'plan' | 'build' | 'auto';
 export type Effort = 'fast' | 'deep';
-export type CloneProtocol = 'https' | 'ssh' | 'cli' | 'quant';
-
 export type Repo = {
   id: string;
   name: string;
@@ -31,7 +29,6 @@ export type Repo = {
   forks: number;
   watching: number;
   cloneUrl: string;
-  sshUrl: string;
   defaultBranch: string;
   latestCommit: string;
   latestCommitSha: string;
