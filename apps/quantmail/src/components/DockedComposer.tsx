@@ -412,10 +412,33 @@ export function DockedComposer({
   const draftHasContent = useMemo(
     () =>
       Boolean(
-        to.trim() || subject.trim() || body.trim() || attachments.length > 0,
+        to.trim() ||
+          cc.trim() ||
+          bcc.trim() ||
+          subject.trim() ||
+          body.trim() ||
+          attachments.length > 0,
       ),
-    [to, subject, body, attachments],
+    [to, cc, bcc, subject, body, attachments],
   );
+
+  // QM-UIUX-083: every X close path routes through the exact same
+  // discard-confirmation as the explicit Discard button. Closing a composer
+  // with typed content asks first instead of silently hiding it.
+  const requestCloseComposer = useCallback(async () => {
+    if (draftHasContent) {
+      const discard = await confirm({
+        title: 'Discard draft?',
+        message: 'You have unsaved changes. Discard this draft?',
+        confirmLabel: 'Discard',
+        cancelLabel: 'Keep editing',
+        variant: 'destructive',
+      });
+      if (!discard) return;
+    }
+    onDiscard?.();
+    onClose();
+  }, [draftHasContent, confirm, onDiscard, onClose]);
   const { saveState: draftSaveState } = useDraftAutosave({
     snapshot: draftSnapshot,
     hasContent: draftHasContent,
@@ -755,7 +778,7 @@ export function DockedComposer({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onClose();
+              void requestCloseComposer();
             }}
             aria-label="Close composer"
             className="p-1 text-[var(--quant-muted-foreground)] hover:text-red-400 rounded-lg transition-colors"
@@ -873,7 +896,7 @@ export function DockedComposer({
           {/* Close / Discard */}
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestCloseComposer}
             aria-label="Close composer"
             className="p-1.5 text-[var(--quant-muted-foreground)] hover:text-red-400 rounded-lg hover:bg-white/5 transition-colors"
             title="Close"
@@ -1158,30 +1181,10 @@ export function DockedComposer({
           </div>
         </div>
 
-        {/* Discard Draft */}
+        {/* Discard Draft — same close path as X (QM-UIUX-083) */}
         <button
           type="button"
-          onClick={async () => {
-            const hasContent =
-              to.trim().length > 0 ||
-              cc.trim().length > 0 ||
-              bcc.trim().length > 0 ||
-              subject.trim().length > 0 ||
-              body.trim().length > 0 ||
-              attachments.length > 0;
-            if (hasContent) {
-              const discard = await confirm({
-                title: 'Discard draft?',
-                message: 'You have unsaved changes. Discard this draft?',
-                confirmLabel: 'Discard',
-                cancelLabel: 'Keep editing',
-                variant: 'destructive',
-              });
-              if (!discard) return;
-            }
-            onDiscard?.();
-            onClose();
-          }}
+          onClick={requestCloseComposer}
           className="p-2 rounded-xl text-[#6B7280] hover:text-red-400 hover:bg-white/5 transition-colors flex-shrink-0"
           title="Discard draft"
         >
