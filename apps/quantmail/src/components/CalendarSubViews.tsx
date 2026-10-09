@@ -1263,9 +1263,9 @@ export function CalendarTrackersSubView({
           {/* Card Body */}
           {isDiscreetMode ? (
             <div className="p-4 rounded-xl bg-[var(--quant-surface-subtle)] border border-rose-900/30 text-center space-y-2">
-              <span className="text-xs font-bold text-rose-300 block">Cycle Protocol Alpha · Active</span>
+              <span className="text-xs font-bold text-rose-300 block">Discreet Mode · On</span>
               <p className="text-[11px] text-[var(--quant-muted-foreground)]">
-                Phase: Optimal energy window · Next milestone in 6 days
+                Cycle details are masked. Turn Discreet Mode off to view your own data.
               </p>
               <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] bg-rose-950/40 text-rose-300 border border-rose-800/40">
                 Biometric Mask Active
