@@ -5,7 +5,6 @@ import React, { useState, useMemo } from 'react';
 export interface MarkdownPreviewProps {
   content: string;
   repoName: string;
-  cloneUrl?: string;
   defaultBranch?: string;
   onEdit?: () => void;
 }
@@ -259,7 +258,6 @@ function renderInlineMarkdown(text: string): React.ReactNode {
 export function MarkdownPreview({
   content,
   repoName,
-  cloneUrl,
   defaultBranch = 'main',
   onEdit,
 }: MarkdownPreviewProps) {

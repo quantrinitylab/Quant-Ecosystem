@@ -900,13 +900,14 @@ export function CodeTab({
 ${selectedRepo.description || 'Sovereign workspace, autonomous AI swarm, Git hub & Android client.'}
 
 \`\`\`bash
-# Clone with Sovereign Quant CLI:
-quant repo clone ${selectedRepo.fullName || selectedRepo.name}
-
-# Or clone via Git:
+${
+  selectedRepo.cloneUrl
+    ? `# Clone via Git (HTTPS):
 git clone ${selectedRepo.cloneUrl}
 
-# Install dependencies and start development
+`
+    : ''
+}# Install dependencies and start development
 pnpm install && pnpm dev
 \`\`\`
 
@@ -1429,7 +1430,6 @@ pnpm install && pnpm dev
                   <MarkdownPreview
                     content={editingFile.content || ''}
                     repoName={selectedRepo.name}
-                    cloneUrl={selectedRepo.cloneUrl}
                     defaultBranch={currentBranch}
                     onEdit={() => setEditorMode('edit')}
                   />
@@ -2254,12 +2254,7 @@ pnpm install && pnpm dev
               <CloneCodespacesMenu
                 isOpen={isCodeMenuOpen}
                 onClose={() => setIsCodeMenuOpen(false)}
-                repoOwner={
-                  selectedRepo.fullName ? selectedRepo.fullName.split('/')[0] : 'quantrinitylab'
-                }
-                repoName={selectedRepo.name}
-                currentBranch={currentBranch}
-                onLaunchCodespace={(b) => showToast(`Launching cloud Codespace on ${b}...`)}
+                cloneUrl={selectedRepo.cloneUrl}
                 showToast={showToast}
               />
             </div>
@@ -2526,7 +2521,6 @@ pnpm install && pnpm dev
         <MarkdownPreview
           content={defaultReadmeContent}
           repoName={selectedRepo.name}
-          cloneUrl={selectedRepo.cloneUrl}
           defaultBranch={selectedRepo.defaultBranch || 'main'}
           onEdit={() => {
             if (readmeFile) {
