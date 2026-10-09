@@ -114,12 +114,11 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       // the swoosh ribbon border/glow and the active logo glow.
       // (Bare 'var(--quant-primary)' / '#FF6B35' are global: AI capsule, search ring and the
       // profile avatar all carry them, so they prove nothing per-pillar.)
-      expect(html).toContain('1px solid #FF6B3588');
+      expect(html).toContain('1px solid #FF6B3566');
       expect(html).toContain('drop-shadow(0 0 6px #FF6B3566)');
-      // Raised-slot treatment (refinement 2026-10-09): the active tab rises
-      // above the capsule like a tab (-13px) and settles below it (-6px),
-      // physically connecting the slot to the screen.
-      expect(html).toContain('top:-13px');
+      // Compact raised-slot treatment keeps the active app connected without
+      // allowing its capsule to overpower the surrounding icons.
+      expect(html).toContain('top:-4px');
       expect(html).toContain('-translate-y-0.5');
     });
 
@@ -131,7 +130,7 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
       // Active-only: swoosh + glow in Calendar's blue.
-      expect(html).toContain('1px solid #4285F488');
+      expect(html).toContain('1px solid #4285F466');
       expect(html).toContain('drop-shadow(0 0 6px #4285F466)');
     });
 
@@ -143,23 +142,23 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
       // Active-only: swoosh + glow in Drive's green.
-      expect(html).toContain('1px solid #34A85388');
+      expect(html).toContain('1px solid #34A85366');
       expect(html).toContain('drop-shadow(0 0 6px #34A85366)');
     });
 
-    it('applies Violet active styling to Contacts tile when active', () => {
+    it('applies Teal active styling to Contacts tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" />);
 
       // QM-UIUX-072/073: pure-black header bar (--quant-background is
       // #000000 in dark theme), no blur tint, no dividers.
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
-      // Active-only: compact accent slot and glow follow the active app's brand color.
+      // Active-only: compact slot and glow use the Contacts teal accent.
       expect(html).toContain('1px solid #14B8A666');
       expect(html).toContain('drop-shadow(0 0 6px #14B8A666)');
     });
 
-    it('applies distinct Amber active styling to QuantGit tile when active', () => {
+    it('applies Violet active styling to QuantGit tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="quantgit" />);
 
       // QM-UIUX-072/073: pure-black header bar (--quant-background is
