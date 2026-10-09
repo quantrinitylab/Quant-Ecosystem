@@ -1463,7 +1463,9 @@ Scope: QuantGit/QuantMail code search.
 Dependencies: none.
 
 ## QM-UIUX-070 — Remove unused /api/search/parse proxy
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-070-dead-search-parse-proxy
 Finding: `/api/search/parse` proxy route exists but is unused by the frontend — dead API surface. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/search-code-audit.md`.
 Required: remove the dead route or wire it up.
 Scope: QuantMail search API routes.
