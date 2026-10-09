@@ -1442,16 +1442,19 @@ Scope: QuantGit backend + UI.
 Dependencies: none.
 
 ## QM-UIUX-068 — QuantGit: seed engagement + MCP fake counts
-Status: [~] IN_PROGRESS
+Status: [x] DONE — PR #695 merged (merge commit 713d757f7249433e5ada628aaaf97b32a354f8a2, merged_at 2026-10-09T02:16:45Z)
 Owner: muse-main
 Branch: fix/qm-uiux-068-quantgit-fake-engagement
+Merged: PR #695 (merge commit 713d757f7249433e5ada628aaaf97b32a354f8a2, merged_at 2026-10-09T02:16:45Z)
 Finding: Backend seeds fake engagement (starCount 342/128/95/76); MCP Registry shows fake install counts (186715 etc.) with "Install" button that only toggles local state. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
 Required: seed with zero counts (real starring is Prisma-backed) or honest unknown; wire MCP install to real API or remove button.
 Scope: QuantGit backend seeds + MCP Registry.
 Dependencies: none.
 
 ## QM-UIUX-069 — Delete or wire fake AICodeSearch
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-069-fake-ai-code-search
 Finding: `AICodeSearch.tsx` has deliberate 600ms simulated delay, hardcoded mock results, and fake "We have SEMANTIC search" claim. Dead code — zero mounts. A real backend exists (AICodeSearchService at POST /code-search). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/search-code-audit.md`.
 Required: delete the fake component or wire it to the real backend.
 Scope: QuantGit/QuantMail code search.
