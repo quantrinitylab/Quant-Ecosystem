@@ -178,6 +178,33 @@ export function threadKindMix(messages: Email[] = []): ThreadKindMix {
 }
 
 /**
+ * Remove Markdown / raw-HTML formatting markers from a snippet's text
+ * (QM-UIUX-081).
+ *
+ * A snippet is plain text by definition — it is painted into a one-line list
+ * row — but bodies that arrived (or were once composed) as Markdown carry
+ * `**bold**`, `` `code` `` and even literal `<u>…</u>` tags, and every one of
+ * them used to print verbatim in list rows and thread previews. The reader
+ * renders that Markdown properly; the snippet's job is only to stop showing
+ * the markers. Paired delimiters only, at word boundaries where the reader's
+ * own renderer requires them, so ordinary prose ("2 * 3 = 6",
+ * "call_mom_later", "if x < 3") survives untouched.
+ */
+export function stripFormattingMarkersForSnippet(text: string): string {
+  return text
+    .replace(/<\/?[a-zA-Z][^>]*>/g, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/~~([^~]+)~~/g, '$1')
+    .replace(/(?<!\w)\*([^*\n]+)\*(?!\w)/g, '$1')
+    .replace(/(?<!\w)_([^_\n]+)_(?!\w)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)\s]+\)/g, '$1')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s{0,3}>\s?/gm, '');
+}
+
+/**
  * Repair mojibake and collapse whitespace in text destined for a single line.
  *
  * The `escape`/`decodeURIComponent` pair round-trips UTF-8 that arrived decoded as
@@ -208,7 +235,7 @@ export function sanitizeSnippetText(text?: string): string {
       .replace(/â€“|â€”/g, '—')
       .replace(/â€¦/g, '…');
   }
-  return clean
+  return stripFormattingMarkersForSnippet(clean)
     .replace(/Â[\u00A0\s]?/g, ' ')
     .replace(/\u00A0/g, ' ')
     .replace(/\s+/g, ' ')

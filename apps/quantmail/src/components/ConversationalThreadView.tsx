@@ -32,10 +32,12 @@ import {
   groupEmailsIntoThreads,
   messageKindOf,
   messageRowIds,
+  sanitizeSnippetText,
   summarizeParticipants,
   threadKindMix,
   threadParticipants,
 } from '../lib/threading';
+import { looksLikeMarkdown, useSafeMarkdownHtml } from '../lib/markdown';
 import { invalidateMailLists } from '../lib/offline/folders';
 import { plainTextToHtml } from '../lib/email-body';
 import { ThreadSummaryCard, messagesToSummaryPayload, type ThreadSummaryResult } from './ThreadSummaryCard';
@@ -347,6 +349,27 @@ export interface ConversationalThreadViewProps {
    * `/thread/<id>` itself.
    */
   onNavigateToThread?: (threadId: string) => void;
+}
+
+/**
+ * QM-UIUX-081: a chat bubble is a body surface. Bodies authored with the
+ * composer's rich-text ranges (or received as Markdown) must render their
+ * emphasis, never show raw "**" markers as literal text — the same rule
+ * the letter view (EmailLetterCard) already follows.
+ */
+function ChatBubbleBody({ text }: { text: string }) {
+  const markdownHtml = useSafeMarkdownHtml(text, looksLikeMarkdown(text));
+  if (markdownHtml) {
+    return (
+      <div
+        className="break-words text-sm leading-relaxed [&_p]:mb-1 [&_p:last-child]:mb-0"
+        dangerouslySetInnerHTML={{ __html: markdownHtml }}
+      />
+    );
+  }
+  return (
+    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{text}</div>
+  );
 }
 
 export function ConversationalThreadView({
@@ -2230,7 +2253,10 @@ export function ConversationalThreadView({
                         </span>
 
                         <span className="text-xs text-[var(--quant-muted-foreground)] truncate max-w-xs sm:max-w-md">
-                          — {message.snippet || message.bodyText?.slice(0, 80) || '(No preview)'}
+                          —{' '}
+                          {sanitizeSnippetText(
+                            message.snippet || message.bodyText?.slice(0, 80),
+                          ) || '(No preview)'}
                         </span>
                       </span>
                     </span>
@@ -2294,9 +2320,9 @@ export function ConversationalThreadView({
                         {msgFromName}
                       </p>
                     )}
-                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                      {message.bodyText || message.snippet || '(No content)'}
-                    </div>
+                    <ChatBubbleBody
+                      text={message.bodyText || message.snippet || '(No content)'}
+                    />
                     {hasAtt && (
                       <p
                         className={`mt-1.5 text-[11px] ${
@@ -2685,7 +2711,9 @@ export function ConversationalThreadView({
                   'message'}
               </p>
               <p className="truncate text-xs text-[var(--quant-muted-foreground)]">
-                {quotedMessage.snippet || quotedMessage.bodyText?.slice(0, 80) || '(No preview)'}
+                {sanitizeSnippetText(
+                  quotedMessage.snippet || quotedMessage.bodyText?.slice(0, 80),
+                ) || '(No preview)'}
               </p>
             </div>
             <button

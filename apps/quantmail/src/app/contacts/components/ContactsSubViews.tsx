@@ -2,6 +2,7 @@
 
 import React from 'react';
 import type { Contact } from '../../../types';
+import { sanitizeSnippetText } from '../../../lib/threading';
 
 export interface SovereignContact {
   id: string;
@@ -1334,7 +1335,8 @@ export function ContactDetailSheet({
                     </h4>
                   </div>
                   <p className="text-[11px] text-[#9CA3AF] truncate mt-0.5">
-                    {mail.snippet || mail.bodyText || 'Click to view conversation thread'}
+                    {sanitizeSnippetText(mail.snippet || mail.bodyText) ||
+                      'Click to view conversation thread'}
                   </p>
                 </div>
 
