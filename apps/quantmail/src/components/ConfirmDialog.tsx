@@ -1,6 +1,7 @@
 'use client';
 
-import { useId } from 'react';
+import { useEffect, useId, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useFocusTrap } from '@quant/shared-ui';
 
@@ -42,6 +43,18 @@ export function ConfirmDialog({
   const baseId = useId();
   const titleId = `${baseId}-title`;
   const messageId = `${baseId}-message`;
+  // Portal guard: the dialog is rendered to document.body (see below) so it
+  // escapes any ancestor stacking context — e.g. AppShell's <main> carries a
+  // `transform: scale(...)` for its app-switch transition, which traps an
+  // inline fixed overlay inside its own stacking context and lets a portaled
+  // surface (like the event-detail Modal, z-100) paint above it. That is why
+  // the calendar delete-confirmation's "Delete entry" button was unclickable
+  // by mouse: the confirmation rendered BEHIND the detail dialog. `mounted`
+  // mirrors the shared-ui Modal's SSR guard.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   /**
    * The trap, the Escape handler and the focus restore were all hand-rolled here
@@ -57,7 +70,13 @@ export function ConfirmDialog({
    */
   const panelRef = useFocusTrap<HTMLDivElement>({ active: isOpen, onEscape: onCancel });
 
-  return (
+  /*
+   * Rendered through a portal to document.body (once mounted) so the overlay
+   * escapes ancestor stacking contexts and always paints above portaled
+   * surfaces like the shared-ui Modal (z-[100]) — its own z-index 10001 then
+   * decides the order at the document level, not inside a transformed parent.
+   */
+  const content = (
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -118,4 +137,12 @@ export function ConfirmDialog({
       )}
     </AnimatePresence>
   );
+
+  // SSR/first-paint guard: the portal target does not exist during server
+  // rendering; render inline until hydration flips `mounted` (isOpen only ever
+  // becomes true from a client-side click anyway).
+  if (mounted && typeof document !== 'undefined') {
+    return createPortal(content, document.body);
+  }
+  return content;
 }
