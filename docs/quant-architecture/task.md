@@ -1089,9 +1089,8 @@ Scope: email body renderer (`EmailLetterCard.tsx`, `useSafeEmailHtml`).
 Dependencies: none.
 
 ## QM-UIUX-043 — HTML email: forbid class attribute
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-043-html-email-class
+Status: [x] DONE — PR #761 merged 2026-10-10: 'class' added to EMAIL_FORBID_ATTR in packages/shared-ui sanitize.ts (email bodies render in the app DOM, so sender classes no longer resolve against the app shell's utility stylesheet); 3 regression tests (fail on original, 30/30 with fix; full shared-ui suite 651/651).
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/761
 Finding: email HTML renders inside the app DOM, so `class="bg-white text-black"` applies real Tailwind utilities to attacker-controlled markup — breaks the black UI. Not XSS, but visual breakage. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/html-email-audit.md`.
 Required: add `'class'` to `EMAIL_FORBID_ATTR` (one line).
 Scope: email sanitizer config.
