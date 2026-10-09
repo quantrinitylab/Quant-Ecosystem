@@ -860,6 +860,9 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         });
 
         if (totalExisting === 0) {
+          // Engagement counts are intentionally omitted here: starCount and
+          // forkCount default to 0 and only move through real Prisma-backed
+          // starring/forking — never seeded with invented numbers.
           const seedRepos = [
             {
               name: 'Quant-Ecosystem',
@@ -867,8 +870,6 @@ export default async function reposRoutes(fastify: FastifyInstance) {
                 'The unified ecosystem monorepo — 10 apps, 1 identity, shared AI operating system.',
               visibility: 'PUBLIC',
               defaultBranch: 'main',
-              starCount: 342,
-              forkCount: 48,
             },
             {
               name: 'quantmail-core',
@@ -876,8 +877,6 @@ export default async function reposRoutes(fastify: FastifyInstance) {
                 'High-performance email client with offline sync, Bayesian spam filtering, and SES/SMTP pipeline.',
               visibility: 'PUBLIC',
               defaultBranch: 'main',
-              starCount: 128,
-              forkCount: 19,
             },
             {
               name: 'quantchat-meet',
@@ -885,8 +884,6 @@ export default async function reposRoutes(fastify: FastifyInstance) {
                 'Real-time messaging, WebRTC calling via LiveKit, SFU gateway, and voice bot alarms.',
               visibility: 'PUBLIC',
               defaultBranch: 'main',
-              starCount: 95,
-              forkCount: 12,
             },
             {
               name: 'quant-mobile-android',
@@ -894,8 +891,6 @@ export default async function reposRoutes(fastify: FastifyInstance) {
                 'Capacitor launcher shell & native Android SDK bridges for the entire Quant platform.',
               visibility: 'PUBLIC',
               defaultBranch: 'main',
-              starCount: 76,
-              forkCount: 8,
             },
           ];
 
@@ -908,8 +903,6 @@ export default async function reposRoutes(fastify: FastifyInstance) {
                   description: seedRepo.description,
                   visibility: seedRepo.visibility as any,
                   defaultBranch: seedRepo.defaultBranch,
-                  starCount: seedRepo.starCount,
-                  forkCount: seedRepo.forkCount,
                 },
               })
               .catch(() => {});
