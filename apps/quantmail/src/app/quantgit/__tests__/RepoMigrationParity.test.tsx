@@ -197,8 +197,8 @@ env:
       expect(result.importedCommits).toBeGreaterThan(0);
       expect(result.convertedPipelines.length).toBeGreaterThan(0);
       expect(result.importedEnvVars.length).toBeGreaterThan(0);
-      expect(result.repo.cloneUrl).toContain('/git/kundan/linux-sovereign.git');
-      expect(result.repo.sshUrl).toContain('git@quantmail.in:kundan/linux-sovereign.git');
+      expect(result.repo.cloneUrl).toContain('/api/code/gitd/repos/kundan/linux-sovereign.git');
+      expect(result.repo).not.toHaveProperty('sshUrl');
     });
   });
 
