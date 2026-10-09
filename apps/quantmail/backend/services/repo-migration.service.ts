@@ -776,7 +776,7 @@ REDIS_URL=redis://localhost:6379
       sshUrl: `git@quantmail.in:${targetOwner}/${cleanTargetName}.git`,
       branches: discoveredBranches,
       commitCount,
-      starCount: 1,
+      starCount: 0,
       forkCount: 0,
       createdAt: now,
       updatedAt: now,
@@ -804,7 +804,7 @@ REDIS_URL=redis://localhost:6379
             description: repoRecord.description,
             visibility: input.isPrivate ? 'PRIVATE' : 'PUBLIC',
             defaultBranch: 'main',
-            starCount: 1,
+            starCount: 0,
             forkCount: 0,
           },
         });
