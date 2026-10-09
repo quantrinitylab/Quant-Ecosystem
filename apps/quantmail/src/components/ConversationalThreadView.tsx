@@ -170,6 +170,34 @@ export function autoExpandedIndices(msgs: Email[]): Set<number> {
   return expanded;
 }
 
+/**
+ * QM-UIUX-087: drop the quick-reply bubble after undo-send pulls it back to
+ * Drafts. No match → array returned unchanged (undo racing a realtime update).
+ *
+ * Exported for unit tests.
+ */
+export function removeMessageById(messages: Email[], id: string): Email[] {
+  const idx = messages.findIndex((m) => m.id === id);
+  if (idx === -1) return messages;
+  return messages.filter((_, i) => i !== idx);
+}
+
+/**
+ * QM-UIUX-087: re-seat expanded indices after the row at `removedIndex` is
+ * gone — indices below it stay, indices above shift down one, and the removed
+ * row's own expansion is dropped.
+ *
+ * Exported for unit tests.
+ */
+export function reseatExpandedAfterRemoval(expanded: Set<number>, removedIndex: number): Set<number> {
+  const next = new Set<number>();
+  expanded.forEach((i) => {
+    if (i === removedIndex) return;
+    next.add(i > removedIndex ? i - 1 : i);
+  });
+  return next;
+}
+
 function findActiveGroup(
   groups: ContactGroup[],
   messages: Email[],
@@ -1485,7 +1513,51 @@ export function ConversationalThreadView({
       // A quoted reply is one-shot: the chip clears once the answer is away.
       setQuotedMessage(null);
       quantyReact('mail:sent');
-      showToast({ text: 'Reply sent successfully', type: 'success' });
+
+      // Index of the reply bubble we just appended (or the realtime-delivered row
+      // when the broadcast beat the HTTP response). Captured now so the Undo path
+      // can drop the right row and re-seat expanded indices without a stale closure.
+      const addedIndex =
+        serverId && messages.some((m) => m.id === serverId)
+          ? messages.findIndex((m) => m.id === serverId)
+          : messages.length;
+
+      if (serverId) {
+        // QM-UIUX-087: Gmail-style Undo for quick replies. The reply goes out
+        // immediately; the backend `undo-send` pulls it back to Drafts while the
+        // window is open — the same mechanism as the full composer's undo toast,
+        // so the global keyboard Undo (`z`) reverses this too via the toast bus.
+        showToast({
+          text: 'Reply sent',
+          type: 'success',
+          duration: 10_000,
+          countdown: 10,
+          undoAction: async () => {
+            try {
+              const undoRes = await apiClient.undoSend(serverId);
+              if (undoRes.success) {
+                // Drop the reply bubble — it is a draft again, not a sent line.
+                setMessages((prev) => removeMessageById(prev, serverId));
+                setExpandedIndices((prev) => reseatExpandedAfterRemoval(prev, addedIndex));
+                // Hand the words back to the reply bar so nothing the user
+                // typed is lost; the attachments live on in the draft.
+                setQuickReplyText(replyContent);
+                showToast({ text: 'Reply sending undone. Message restored to Drafts.', type: 'info' });
+                invalidateMailLists(queryClient);
+              } else {
+                showToast({ text: undoRes.error?.message || 'Could not undo send.', type: 'warning' });
+                invalidateMailLists(queryClient);
+              }
+            } catch {
+              showToast({ text: 'Could not undo send.', type: 'error' });
+            }
+          },
+        });
+      } else {
+        // No server id for this send — nothing the backend could pull back, so
+        // a plain confirmation instead of a dead Undo button.
+        showToast({ text: 'Reply sent successfully', type: 'success' });
+      }
 
       // The conversation has a new message, so every mailbox list showing this
       // thread is now wrong — including the inbox behind this pane, which is where
