@@ -847,7 +847,7 @@ html {
   --app-color: #FF8C42;
   /* Per-app accent defaults (overridden per-route by AppShell). */
   --app-accent: var(--quant-primary);
-  --app-accent-hover: var(--quant-primary-hover, #FF9B5A);
+  --app-accent-hover: var(--quant-primary-hover, var(--brand-primary-hover));
   --app-accent-pressed: #E8752F;
   --app-accent-soft: rgba(255, 140, 66, 0.12);
   --app-glow: rgba(255, 140, 66, 0.25);
