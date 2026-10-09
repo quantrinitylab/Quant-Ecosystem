@@ -750,6 +750,14 @@ export function DockedComposer({
   // --------------------------------------------------------------------------
   if (isMinimized) {
     return (
+      <>
+      {/* QM-UIUX-083 follow-up: the shared discard confirmation must be
+          mounted in this branch too — the badge X routes through
+          requestCloseComposer, whose confirm() promise can never resolve
+          while the dialog is absent from the tree, so the click looked
+          dead until the composer was restored. It renders as a SIBLING of
+          the badge div so backdrop clicks (cancel) cannot bubble into the
+          badge's restore-on-click handler. */}
       <div
         data-testid="docked-composer-minimized"
         onClick={() => setIsMinimized(false)}
@@ -787,6 +795,8 @@ export function DockedComposer({
           </button>
         </div>
       </div>
+      {confirmDialog}
+      </>
     );
   }
 
