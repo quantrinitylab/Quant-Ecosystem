@@ -229,6 +229,11 @@ const NAV_GROUPS: Array<{
      * not a route, so it never touches the `/spam` redirect shim.
      */
     lens?: string;
+    /**
+     * SIA-P1-5: tab items live on `/` with `?tab=` set. Archive is the inbox
+     * page's archived view (`/archive` redirects to `/?tab=archive`).
+     */
+    tab?: string;
     shortcut?: string;
     desktopOnly?: boolean;
   }>;
@@ -239,6 +244,7 @@ const NAV_GROUPS: Array<{
       { id: 'inbox', label: 'Mail', icon: 'inbox', path: '/' },
       { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
       { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
+      { id: 'archive', label: 'Archive', icon: 'archive', path: '/?tab=archive', tab: 'archive' },
       { id: 'spam', label: 'Spam', icon: 'spam', path: '/?lens=spam', lens: 'spam' },
       { id: 'trash', label: 'Trash', icon: 'trash', path: '/trash' },
     ],
@@ -285,8 +291,11 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
     if (item.lens) {
       return pathname === '/' && currentLens === item.lens;
     }
+    if (item.tab) {
+      return pathname === '/' && searchParams.get('tab') === item.tab;
+    }
     if (item.path === '/') {
-      return pathname === '/' && !currentLens;
+      return pathname === '/' && !currentLens && !searchParams.get('tab');
     }
     return pathname.startsWith(item.path);
   };

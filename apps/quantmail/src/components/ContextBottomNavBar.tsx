@@ -140,6 +140,60 @@ function ArchiveIcon({ className }: { className?: string; active?: boolean }) {
   );
 }
 
+// SIA-P1-5: folder icons matching the drawer glyph set, same 1.8 stroke.
+function DraftsIcon({ className }: { className?: string; active?: boolean }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+    </svg>
+  );
+}
+
+function SpamIcon({ className }: { className?: string; active?: boolean }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 2 2 12l10 10 10-10L12 2z" />
+      <path d="M12 8v5M12 16h.01" />
+    </svg>
+  );
+}
+
+function TrashIcon({ className }: { className?: string; active?: boolean }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
 function SwarmAgentIcon({ className }: { className?: string; active?: boolean }) {
   return (
     <svg
@@ -747,10 +801,31 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         targetPath: '/sent',
       },
       {
+        // SIA-P1-5: one folder list everywhere — Inbox, Sent, Drafts,
+        // Archive, Spam, Trash — matching the drawer and desktop nav.
+        id: 'drafts',
+        label: 'Drafts',
+        icon: DraftsIcon,
+        targetPath: '/drafts',
+      },
+      {
         id: 'archive',
         label: 'Archive',
         icon: ArchiveIcon,
         targetPath: '/archive',
+      },
+      {
+        id: 'spam',
+        label: 'Spam',
+        icon: SpamIcon,
+        targetPath: '/',
+        queryParam: { key: 'lens', value: 'spam' },
+      },
+      {
+        id: 'trash',
+        label: 'Trash',
+        icon: TrashIcon,
+        targetPath: '/trash',
       },
     ],
   },
@@ -898,6 +973,9 @@ export function resolveActiveTab(
   if (pillar === 'mail') {
     if (pathname.startsWith('/sent') || tabParam === 'sent') return 'sent';
     if (pathname.startsWith('/archive') || tabParam === 'archive') return 'archive';
+    if (pathname.startsWith('/drafts') || tabParam === 'drafts') return 'drafts';
+    if (pathname.startsWith('/trash') || tabParam === 'trash') return 'trash';
+    if (lensParam === 'spam') return 'spam';
     if (lensParam === 'important' || tabParam === 'priority') return 'priority';
     return 'inbox';
   }

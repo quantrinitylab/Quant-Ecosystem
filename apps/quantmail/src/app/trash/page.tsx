@@ -256,7 +256,7 @@ export default function TrashPage() {
                     <div className="flex items-start gap-3">
                       <input
                         type="checkbox"
-                        aria-label={`Select email from ${email.from || 'sender'}`}
+                        aria-label={`Select email from ${email.from?.name || email.from?.email || 'sender'}: ${email.subject || '(no subject)'}`}
                         checked={selectedIds.has(email.id)}
                         onChange={() => handleToggleSelect(email.id)}
                         className="mt-1 w-4 h-4 rounded border-[var(--quant-border)]"
