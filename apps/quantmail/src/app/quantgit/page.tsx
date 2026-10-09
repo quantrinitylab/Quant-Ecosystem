@@ -81,7 +81,7 @@ function QuantGitContent() {  const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams?.get('tab');
   const initialSubTab: ContextSubViewTab =
-    tabParam && ['repos', 'prs', 'issues', 'actions', 'copilot'].includes(tabParam)
+    tabParam && ['feed', 'repos', 'prs', 'issues', 'actions', 'copilot'].includes(tabParam)
       ? (tabParam as ContextSubViewTab)
       : 'repos';
 
@@ -89,7 +89,7 @@ function QuantGitContent() {  const router = useRouter();
 
   // Sync with ?tab=... query param
   useEffect(() => {
-    if (tabParam && ['repos', 'prs', 'issues', 'actions', 'copilot'].includes(tabParam)) {
+    if (tabParam && ['feed', 'repos', 'prs', 'issues', 'actions', 'copilot'].includes(tabParam)) {
       setActiveContextSubTab(tabParam as ContextSubViewTab);
       if (tabParam !== 'repos') {
         setSelectedRepo(null);
@@ -120,7 +120,7 @@ function QuantGitContent() {  const router = useRouter();
       const custom = e as CustomEvent<{ pillar?: string; tabId?: string }>;
       if (custom.detail?.pillar === 'quantgit' && custom.detail?.tabId) {
         const tabId = custom.detail.tabId as ContextSubViewTab;
-        if (['repos', 'prs', 'issues', 'actions', 'copilot'].includes(tabId)) {
+        if (['feed', 'repos', 'prs', 'issues', 'actions', 'copilot'].includes(tabId)) {
           setActiveContextSubTab(tabId);
           if (tabId !== 'repos') {
             setSelectedRepo(null);
