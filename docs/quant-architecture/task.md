@@ -1435,7 +1435,9 @@ Scope: QuantGit InsightsTab.
 Dependencies: none.
 
 ## QM-UIUX-067 — QuantGit: no git server (clone/push/pull theater)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-067-quantgit-no-git-server
 Finding: No git-upload-pack/git-receive-pack//info/refs handler anywhere in backend. Clone menu copies https://quantmail.in/quantgit/<repo>.git URLs that `git clone` cannot use. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
 Required: implement smart-HTTP git server OR remove/honestly label the clone menu.
 Scope: QuantGit backend + UI.
