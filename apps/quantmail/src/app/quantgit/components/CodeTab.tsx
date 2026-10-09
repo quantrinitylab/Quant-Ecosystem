@@ -2338,19 +2338,12 @@ pnpm install && pnpm dev
         {/* 3. Latest Commit Banner */}
         <div className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-t-md p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="w-5 h-5 rounded-full bg-[var(--quant-primary)] text-black font-bold flex items-center justify-center text-[10px] shrink-0">
-              K
-            </span>
-            <span className="font-semibold text-white">Developer 6</span>
             <span className="text-[#7D8590] truncate max-w-md" title={selectedRepo.latestCommit}>
               {selectedRepo.latestCommit}
             </span>
           </div>
 
           <div className="flex items-center gap-3 shrink-0 text-[#7D8590]">
-            <span className="px-1.5 py-px rounded border border-[#238636] text-[#3FB950] text-[10px] font-semibold flex items-center gap-1">
-              ✓ Verified
-            </span>
             <button
               type="button"
               onClick={() =>

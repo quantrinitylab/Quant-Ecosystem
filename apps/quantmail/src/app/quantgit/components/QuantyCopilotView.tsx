@@ -1039,10 +1039,6 @@ export function QuantyCopilotView({
                   <div className="space-y-2">
                     {[
                       { key: 'all', label: 'All sources I can access' },
-                      {
-                        key: 'dev6',
-                        label: 'Developer 6 with gpt 5.6 sol , opus 5 and kimi k3',
-                      },
                       { key: 'helpCenter', label: 'Quant Help Center' },
                       { key: 'webAccess', label: 'Web access' },
                     ].map((item) => (
