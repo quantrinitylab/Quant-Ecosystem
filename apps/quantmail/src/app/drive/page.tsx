@@ -1527,7 +1527,10 @@ function DrivePageContent() {
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
               <span>
-                Search results for{' '}
+                {/* Non-breaking space: a regular {' '} here can be eaten by JSX
+                    line trimming / HTML whitespace collapsing, which rendered
+                    'Search results for"QA"' with no visible gap. */}
+                {'Search results for\u00A0'}
                 <span className="font-semibold text-[var(--quant-foreground)]">
                   &ldquo;{searchQuery.trim()}&rdquo;
                 </span>
