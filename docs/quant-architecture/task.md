@@ -1932,7 +1932,7 @@ Dependencies: none.
 Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 2: M-P0-2).
 
 ## QM-UIUX-076 — P0: QuantGit Feed tab never renders
-Status: [~] IN_PROGRESS
+Status: [x] DONE (superseded by PR #718 merged 2026-10-09 — verified on main)
 Owner: muse-main
 Branch: fix/qm-uiux-076-feed-tab-never-renders
 Finding: Personal deep audit 2026-10-09: clicking the Feed tab changes the URL to ?tab=feed but the main pane keeps showing the previously rendered view (Repos/Issues); Feed never gets an active state and never renders.
