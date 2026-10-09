@@ -19,68 +19,13 @@ export interface AIModel {
   requiresUserKey?: boolean;
 }
 
+// Platform-served models only. Third-party provider models (OpenAI, Anthropic,
+// Meta, Google) were listed here as bring-your-own-key options, but there is
+// no provider-key entry UI and the backend cannot serve them — listing them
+// implied Quant serves models it does not. They are intentionally NOT in this
+// list. (The BYOM model registry still exists server-side for a future
+// key-entry flow; it is filtered out of the picker in useModels.)
 export const AVAILABLE_MODELS: AIModel[] = [
-  {
-    id: 'gpt-4o',
-    name: 'GPT-4o',
-    provider: 'openai',
-    contextWindow: 128000,
-    capabilities: ['reasoning', 'vision', 'code', 'tools'],
-    icon: '⭐',
-    description: 'Most capable OpenAI model',
-    isDefault: true,
-    requiresUserKey: true,
-  },
-  {
-    id: 'gpt-4',
-    name: 'GPT-4',
-    provider: 'openai',
-    contextWindow: 128000,
-    capabilities: ['reasoning', 'code', 'tools'],
-    icon: '⚡',
-    description: 'Powerful reasoning model',
-    requiresUserKey: true,
-  },
-  {
-    id: 'claude-3.5-sonnet',
-    name: 'Claude 3.5 Sonnet',
-    provider: 'anthropic',
-    contextWindow: 200000,
-    capabilities: ['reasoning', 'code', 'vision', 'tools', 'analysis'],
-    icon: '✨',
-    description: 'Best for nuanced tasks',
-    requiresUserKey: true,
-  },
-  {
-    id: 'claude-3-opus',
-    name: 'Claude 3 Opus',
-    provider: 'anthropic',
-    contextWindow: 200000,
-    capabilities: ['reasoning', 'creative', 'analysis'],
-    icon: '🎵',
-    description: 'Creative & analytical powerhouse',
-    requiresUserKey: true,
-  },
-  {
-    id: 'llama-3-70b',
-    name: 'Llama 3 70B',
-    provider: 'meta',
-    contextWindow: 8192,
-    capabilities: ['reasoning', 'code', 'multilingual'],
-    icon: '🦙',
-    description: 'Open-source excellence',
-    requiresUserKey: true,
-  },
-  {
-    id: 'gemini-pro',
-    name: 'Gemini Pro',
-    provider: 'google',
-    contextWindow: 1000000,
-    capabilities: ['reasoning', 'vision', 'code', 'multimodal'],
-    icon: '💎',
-    description: 'Google multimodal AI',
-    requiresUserKey: true,
-  },
   {
     id: 'quant-1',
     name: 'Quant-1',
@@ -89,6 +34,7 @@ export const AVAILABLE_MODELS: AIModel[] = [
     capabilities: ['ecosystem', 'automation', 'tools', 'cross-app'],
     icon: '🚀',
     description: 'Native Quant ecosystem model',
+    isDefault: true,
   },
 ];
 

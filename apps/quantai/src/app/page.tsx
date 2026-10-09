@@ -70,10 +70,11 @@ export default function AIPage() {
     setFeedback,
     retryLastMessage,
     stopStreaming,
+    aiUnavailable,
   // Defensive: currentModel is guaranteed non-null by useModelSelector, but
   // optional chaining here ensures a future regression can never again throw
   // "Cannot read properties of undefined" during render (P0 Sept 2026 crash).
-  } = useAIChat({ defaultModel: currentModel?.id ?? 'gpt-4o' });
+  } = useAIChat({ defaultModel: currentModel?.id ?? 'quant-1' });
 
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceRecording, setVoiceRecording] = useState(false);
@@ -739,7 +740,7 @@ export default function AIPage() {
                       ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-rose-950/30'
                       : 'bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-violet-400/30 shadow-violet-950/20'
                   }`}
-                  title="Real-Time Advanced Voice Mode (ChatGPT Parity)"
+                  title="Start Voice Mode"
                 >
                   <span className="flex items-center gap-0.5 h-3.5" aria-hidden="true">
                     <span className="w-0.5 h-2 rounded-full bg-current animate-pulse" />
@@ -956,7 +957,7 @@ export default function AIPage() {
             )}
           </div>
 
-          {/* Real-Time Advanced Voice Mode Parity (Sovereign Personas + 3D Animated Orb) */}
+          {/* Real-Time Voice Mode (Sovereign Personas + 3D Animated Orb) */}
           <VoiceModeModal
             isOpen={voiceActive}
             onClose={() => setVoiceActive(false)}
@@ -1425,10 +1426,10 @@ function ChatInput({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask anything…"
+              placeholder={aiUnavailable ? "AI chat isn't available right now" : "Ask anything…"}
               aria-label="Message Quanty"
               aria-describedby="composer-hint"
-              disabled={isStreaming}
+              disabled={isStreaming || aiUnavailable}
               rows={1}
               className="w-full bg-transparent resize-none outline-none px-5 pt-3.5 pb-1
                 text-base text-[var(--foreground)] placeholder-[var(--foreground-secondary)]
@@ -1457,8 +1458,8 @@ function ChatInput({
               <button
                 type={trailingState === 'send' ? 'submit' : 'button'}
                 onClick={trailingState === 'send' ? undefined : handleTrailingClick}
-                disabled={trailingState === 'send' && !input.trim()}
-                aria-label={trailingState === 'stop' ? 'Stop generating' : trailingState === 'send' ? 'Send message' : 'Voice input'}
+                disabled={aiUnavailable || (trailingState === 'send' && !input.trim())}
+                aria-label={aiUnavailable ? 'AI chat unavailable' : trailingState === 'stop' ? 'Stop generating' : trailingState === 'send' ? 'Send message' : 'Voice input'}
                 className={`size-9 rounded-full grid place-items-center shrink-0 transition-all active:scale-95 ${
                   trailingState === 'send'
                     ? 'bg-[var(--foreground)] text-[var(--quant-background)]'

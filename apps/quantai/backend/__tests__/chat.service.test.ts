@@ -158,6 +158,22 @@ describe('ChatService', () => {
       );
     });
 
+    it('throws honest AI_UNAVAILABLE 503 (not 500) when no engine is configured', async () => {
+      const engineLess = new ChatService(prisma as never, undefined);
+      prisma.aISession.findUnique.mockResolvedValue({
+        id: 'session-1',
+        userId: 'user-1',
+        model: 'quant-1',
+        systemPrompt: null,
+      });
+
+      const err = await engineLess
+        .sendMessage('session-1', 'user-1', 'Hello')
+        .catch((e: unknown) => e as { statusCode?: number; code?: string; message?: string });
+      expect(err.code).toBe('AI_UNAVAILABLE');
+      expect(err.statusCode).toBe(503);
+    });
+
     it('includes attachments in user message', async () => {
       prisma.aISession.findUnique.mockResolvedValue({
         id: 'session-1',

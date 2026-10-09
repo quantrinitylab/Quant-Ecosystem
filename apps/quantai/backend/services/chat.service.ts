@@ -110,7 +110,10 @@ export class ChatService {
 
   private requireEngine(): AIEngineInterface {
     if (!this.engine) {
-      throw createAppError('AI engine not configured', 500, 'ENGINE_NOT_CONFIGURED');
+      // Honest 503 (not 500): the server is reachable but no AI provider is
+      // configured, so inference can never succeed. Clients surface this as
+      // an "AI unavailable" state rather than a generic error.
+      throw createAppError('AI engine not configured', 503, 'AI_UNAVAILABLE');
     }
     return this.engine;
   }

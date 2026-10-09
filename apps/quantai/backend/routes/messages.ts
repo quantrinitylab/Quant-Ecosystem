@@ -90,7 +90,20 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
       }
     } catch (err) {
       const e = err as { statusCode?: number; code?: string; message?: string };
-      write({ error: e.message ?? 'Stream failed', code: e.code ?? 'STREAM_ERROR' });
+      const message = e.message ?? 'Stream failed';
+      // Honest signal: no AI provider is configured on this server, so the
+      // flow can never succeed. Emit a stable code so the client can show
+      // an honest disabled state instead of a generic "error" bubble.
+      const unavailable =
+        e.code === 'AI_UNAVAILABLE' ||
+        e.code === 'ENGINE_NOT_CONFIGURED' ||
+        /not configured/i.test(message);
+      write({
+        error: unavailable
+          ? "AI chat isn't available right now — no AI provider is configured on this server."
+          : message,
+        code: unavailable ? 'AI_UNAVAILABLE' : (e.code ?? 'STREAM_ERROR'),
+      });
     } finally {
       raw.write('data: [DONE]\n\n');
       raw.end();

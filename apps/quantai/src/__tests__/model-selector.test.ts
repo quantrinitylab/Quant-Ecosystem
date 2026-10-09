@@ -3,8 +3,12 @@ import { AVAILABLE_MODELS, PROVIDER_COLORS } from '../types/models';
 import type { AIModel } from '../types/models';
 
 describe('AVAILABLE_MODELS', () => {
-  it('should have at least 5 models', () => {
-    expect(AVAILABLE_MODELS.length).toBeGreaterThanOrEqual(5);
+  it('should list only platform-served models (no third-party names)', () => {
+    expect(AVAILABLE_MODELS.length).toBeGreaterThanOrEqual(1);
+    for (const model of AVAILABLE_MODELS) {
+      expect(model.provider).toBe('quant');
+      expect(model.requiresUserKey).not.toBe(true);
+    }
   });
 
   it('should have all required fields on every model', () => {
@@ -22,7 +26,7 @@ describe('AVAILABLE_MODELS', () => {
   it('should have exactly one default model', () => {
     const defaults = AVAILABLE_MODELS.filter((m) => m.isDefault);
     expect(defaults.length).toBe(1);
-    expect(defaults[0].id).toBe('gpt-4o');
+    expect(defaults[0].id).toBe('quant-1');
   });
 
   it('should have unique ids', () => {
@@ -62,20 +66,20 @@ describe('useModelSelector', () => {
   it('should read default model when localStorage is empty', () => {
     const defaultModel = AVAILABLE_MODELS.find((m) => m.isDefault);
     expect(defaultModel).toBeDefined();
-    expect(defaultModel!.id).toBe('gpt-4o');
+    expect(defaultModel!.id).toBe('quant-1');
   });
 
-  it('should fall back to gpt-4o if localStorage model is invalid', () => {
+  it('should fall back to quant-1 if localStorage model is invalid', () => {
     localStorage.setItem('quantai-model', 'invalid-model-id');
     // After re-initialization, should fall back to default
     const stored = localStorage.getItem('quantai-model');
     const isValid = AVAILABLE_MODELS.some((m) => m.id === stored);
     const resolvedId = isValid ? stored : AVAILABLE_MODELS.find((m) => m.isDefault)?.id;
-    expect(resolvedId).toBe('gpt-4o');
+    expect(resolvedId).toBe('quant-1');
   });
 
   it('should resolve a valid stored model', () => {
-    localStorage.setItem('quantai-model', 'claude-3.5-sonnet');
+    localStorage.setItem('quantai-model', 'quant-1');
     const stored = localStorage.getItem('quantai-model');
     const isValid = AVAILABLE_MODELS.some((m) => m.id === stored);
     expect(isValid).toBe(true);

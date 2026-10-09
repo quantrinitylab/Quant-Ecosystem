@@ -18,13 +18,13 @@ const STORAGE_KEY = 'quantai-model';
  * models API returned an empty list before #397).
  */
 const FALLBACK_MODEL: AIModel = {
-  id: 'gpt-4o',
-  name: 'GPT-4o',
-  provider: 'openai',
-  contextWindow: 128000,
-  capabilities: ['reasoning', 'code'],
-  icon: '⭐',
-  description: 'Default model',
+  id: 'quant-1',
+  name: 'Quant-1',
+  provider: 'quant',
+  contextWindow: 256000,
+  capabilities: ['ecosystem', 'automation', 'tools', 'cross-app'],
+  icon: '🚀',
+  description: 'Native Quant ecosystem model',
   isDefault: true,
 };
 
@@ -52,7 +52,7 @@ function getDefaultModelId(): string {
     }
   }
   const defaultModel = AVAILABLE_MODELS.find((m) => m.isDefault);
-  return defaultModel?.id || 'gpt-4o';
+  return defaultModel?.id || 'quant-1';
 }
 
 export function useModelSelector() {

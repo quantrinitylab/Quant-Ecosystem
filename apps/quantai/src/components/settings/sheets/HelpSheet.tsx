@@ -20,7 +20,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: 'Which AI models can I use?',
-    a: 'Open the model picker in chat to switch models. Third-party models (marked "Your key") need your own provider API key; Quant-1 is served by the platform.',
+    a: 'Open the model picker in chat to see the model. Quant-1 is served by the platform.',
   },
   {
     q: 'Is my data used for training?',

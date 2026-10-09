@@ -36,28 +36,33 @@ export function useModels(): UseModelsReturn {
       const data = await response.json();
       const raw: unknown[] = Array.isArray(data) ? data : data?.models || data?.data || [];
       // Normalize BYOM registry entries (backend shape) to the AIModel shape.
-      // Everything from the bring-your-own-model registry requires the user's
-      // own provider key — mark it so the picker never implies it is served.
-      const fetched: AIModel[] = (raw as Record<string, unknown>[]).map((entry) => {
-        const caps = entry.capabilities as Record<string, unknown> | undefined;
-        const provider = String(entry.provider || 'quant');
-        return {
-          id: String(entry.id || ''),
-          name: String(entry.displayName || entry.name || entry.id || 'Model'),
-          provider: (['openai', 'anthropic', 'meta', 'google', 'quant'].includes(provider)
-            ? provider
-            : 'quant') as AIModel['provider'],
-          contextWindow: Number(entry.maxContextLength || entry.contextWindow || 4096),
-          capabilities: caps
-            ? Object.keys(caps).filter((k) => caps[k] === true)
-            : ((entry.capabilities as string[]) || []),
-          icon: String(entry.icon || '🤖'),
-          description: String(
-            entry.description || 'Bring your own API key to use this model.',
-          ),
-          requiresUserKey: provider !== 'quant',
-        };
-      });
+      // The picker lists ONLY platform-served models ('quant'). Third-party
+      // provider entries are filtered out here: they require the user's own
+      // provider API key, and there is currently no key-entry UI — listing
+      // them implied Quant serves models it does not. (Revisit when the
+      // BYOM key-entry flow ships.)
+      const fetched: AIModel[] = (raw as Record<string, unknown>[])
+        .map((entry) => {
+          const caps = entry.capabilities as Record<string, unknown> | undefined;
+          const provider = String(entry.provider || 'quant');
+          return {
+            id: String(entry.id || ''),
+            name: String(entry.displayName || entry.name || entry.id || 'Model'),
+            provider: (['openai', 'anthropic', 'meta', 'google', 'quant'].includes(provider)
+              ? provider
+              : 'quant') as AIModel['provider'],
+            contextWindow: Number(entry.maxContextLength || entry.contextWindow || 4096),
+            capabilities: caps
+              ? Object.keys(caps).filter((k) => caps[k] === true)
+              : ((entry.capabilities as string[]) || []),
+            icon: String(entry.icon || '🤖'),
+            description: String(
+              entry.description || 'Native Quant ecosystem model.',
+            ),
+            requiresUserKey: false,
+          };
+        })
+        .filter((m) => m.provider === 'quant' && m.id);
       if (fetched.length > 0) {
         setModels(fetched);
       }

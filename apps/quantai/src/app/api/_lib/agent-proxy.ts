@@ -97,16 +97,18 @@ export async function proxyAgentRequest(
       );
     }
     if (path === '/models') {
+      // Fallback when the backend is unreachable: platform-served model only.
+      // Third-party provider models are intentionally NOT listed here — they
+      // require the user's own provider key and there is no key-entry UI.
       return NextResponse.json(
         {
           success: true,
           data: [
-            { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', contextWindow: 128000 },
             {
-              id: 'claude-3-5-sonnet',
-              name: 'Claude 3.5 Sonnet',
-              provider: 'anthropic',
-              contextWindow: 200000,
+              id: 'quant-1',
+              name: 'Quant-1',
+              provider: 'quant',
+              contextWindow: 256000,
             },
           ],
         },
