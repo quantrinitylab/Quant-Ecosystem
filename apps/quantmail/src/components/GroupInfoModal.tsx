@@ -299,7 +299,7 @@ function MembersTab({
   );
 }
 
-function Inspector({
+export function Inspector({
   open,
   title,
   subtitle,

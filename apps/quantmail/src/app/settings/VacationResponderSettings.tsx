@@ -82,6 +82,17 @@ export function VacationResponderSettings() {
   const [loaded, setLoaded] = useState<Draft>(EMPTY);
   const [status, setStatus] = useState<Status>('loading');
   const [requestError, setRequestError] = useState('');
+  /**
+   * Optimistic toggle state (BB-P0-2). The switch used to be fully
+   * server-driven (`checked={responder?.enabled}`), so a slow or failed
+   * disable request left it visually stuck ON with no sign of the user's
+   * intent — the reported "uncheck stayed ON, took a 3rd click" behavior.
+   * `pendingEnabled` reflects the click immediately; the server response
+   * reconciles below, and a failure rolls back to the last known server
+   * state instead of leaving the toggle stuck.
+   */
+  const [pendingEnabled, setPendingEnabled] = useState<boolean | null>(null);
+  const shownEnabled = pendingEnabled ?? responder?.enabled ?? false;
 
   const changed = useMemo(() => JSON.stringify(draft) !== JSON.stringify(loaded), [draft, loaded]);
   const validationError = useMemo(() => {
@@ -144,18 +155,21 @@ export function VacationResponderSettings() {
   const toggle = useCallback(
     async (enabled: boolean) => {
       if (status === 'saving' || (enabled && validationError)) return;
+      setPendingEnabled(enabled);
       setStatus('saving');
       setRequestError('');
 
       if (enabled) {
         const saved = await apiClient.upsertVacationResponder(payloadFrom(draft));
         if (!saved.success || !saved.data) {
+          setPendingEnabled(null);
           setRequestError(saved.error?.message || 'Vacation responder could not be saved.');
           setStatus('error');
           return;
         }
         apply(saved.data);
         const response = await apiClient.enableVacationResponder();
+        setPendingEnabled(null);
         if (response.success && response.data) {
           apply(response.data);
           setStatus('saved');
@@ -167,10 +181,12 @@ export function VacationResponderSettings() {
       }
 
       if (!responder) {
+        setPendingEnabled(null);
         setStatus('idle');
         return;
       }
       const response = await apiClient.disableVacationResponder();
+      setPendingEnabled(null);
       if (response.success && response.data) {
         apply(response.data);
         setStatus('saved');
@@ -199,7 +215,7 @@ export function VacationResponderSettings() {
     >
       <SettingsToggleRow
         label="Turn on auto-reply"
-        checked={responder?.enabled ?? false}
+        checked={shownEnabled}
         disabled={busy || (status === 'error' && !responder)}
         onChange={(next) => void toggle(next)}
       />
