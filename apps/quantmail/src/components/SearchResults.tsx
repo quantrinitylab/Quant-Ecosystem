@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import type { Email, Repository, Issue, PullRequest } from '../types';
+import { sanitizeSnippetText } from '../lib/threading';
 
 export type SearchResultType = 'email' | 'repo' | 'issue' | 'pull_request' | 'file' | 'contact';
 
@@ -184,7 +185,7 @@ export function SearchResults(props: SearchResultsProps): React.ReactElement {
               </div>
               <div className="result-subtitle">{result.subtitle}</div>
               <div className="result-snippet">
-                {highlightMatch(result.snippet, query)}
+                {highlightMatch(sanitizeSnippetText(result.snippet), query)}
               </div>
             </div>
             <div className="result-meta">
