@@ -45,17 +45,17 @@ export interface FabAction {
  * Two ember rows arrived here with two different fills — `#2B1A11` on Task and
  * an off-palette `#2a1b10` on Event — which is a difference no one chose. Both
  * now use the Brand Soft token, and the hotter `#FFB875` type sits on it with
- * more value separation than `var(--quant-primary)` did.
+ * more value separation than `var(--app-accent)` did.
  */
 const TONE: Record<FabTone, string> = {
   ember:
-    'bg-[var(--quant-primary)]/15 hover:bg-[var(--quant-primary)]/25 text-[var(--quant-primary)] border-[var(--quant-primary)]/40 shadow-[0_0_16px_rgba(255,140,66,0.15)]',
+    'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] text-[var(--app-accent)] border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] shadow-[0_0_16px_color-mix(in_srgb,var(--app-accent)_15%,transparent)]',
   emerald: 'bg-emerald-950/90 hover:bg-emerald-900 text-emerald-200 border-emerald-500/50',
   rose: 'bg-rose-950/90 hover:bg-rose-900 text-rose-200 border-rose-500/50',
 };
 
 const ROW_CLASS =
-  'flex w-max items-center gap-2.5 rounded-2xl border px-4 py-2.5 min-h-touch text-xs font-extrabold backdrop-blur-xl transition-all active:scale-95 shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]';
+  'flex w-max items-center gap-2.5 rounded-2xl border px-4 py-2.5 min-h-touch text-xs font-extrabold backdrop-blur-xl transition-all active:scale-95 shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]';
 
 export interface QuantFabProps {
   /** Empty renders nothing — that is how a route opts out. */
@@ -232,10 +232,10 @@ export function QuantFab({ actions, label = 'Create' }: QuantFabProps) {
         type="button"
         onClick={() => (isDial ? setIsOpen((open) => !open) : actions[0]?.onSelect())}
         style={{
-          background: 'linear-gradient(135deg, var(--quant-primary-hover) 0%, var(--quant-primary) 55%, var(--brand-primary-pressed) 100%)',
+          background: 'linear-gradient(135deg, var(--app-accent-hover) 0%, var(--app-accent) 55%, var(--app-accent-pressed) 100%)',
           boxShadow: '0 4px 16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.18)',
         }}
-        className={`flex size-14 items-center justify-center rounded-full font-black text-[#111111] transition-transform duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)] ${
+        className={`flex size-14 items-center justify-center rounded-full font-black text-[#111111] transition-transform duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)] ${
           isOpen ? 'rotate-45' : ''
         }`}
         aria-label={isDial ? label : (actions[0]?.label ?? label)}

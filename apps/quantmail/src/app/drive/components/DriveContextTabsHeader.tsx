@@ -110,7 +110,7 @@ export function DriveContextTabsHeader({
             className={`group inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-medium transition-all duration-150 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] select-none ${
               isActive
                 ? 'bg-[var(--quant-surface)] text-[#38BDF8] border border-[#38BDF8]/40 shadow-[0_0_16px_rgba(56,189,248,0.12),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
-                : 'bg-transparent text-[#94A3B8] border border-transparent hover:bg-[var(--quant-surface)]/60 hover:text-[#F8FAFC] hover:border-[#232938]'
+                : 'bg-transparent text-[#94A3B8] border hover:bg-[var(--quant-surface)]/60 hover:text-[#F8FAFC] hover:border-[#232938]'
             }`}
           >
             <Icon

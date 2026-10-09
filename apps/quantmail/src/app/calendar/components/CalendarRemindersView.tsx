@@ -201,10 +201,10 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-[var(--quant-warning)]">
+              <span className="text-xs font-bold uppercase tracking-wider text-[var(--app-accent)]">
                 Task Reminders
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--quant-warning)]/20 text-[var(--quant-warning)] border border-[var(--quant-warning)]/40">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)]">
                 Action Items
               </span>
             </div>
@@ -217,7 +217,7 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
           </div>
 
           {/* Counts Badge */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--quant-background)] border border-[#232938] text-xs font-mono text-[var(--quant-warning)] shadow-inner">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--quant-background)] border border-[#232938] text-xs font-mono text-[var(--app-accent)] shadow-inner">
             <span className="font-semibold text-white">{pendingCount}</span> pending
             <span className="text-[#232938]">·</span>
             <span className="font-semibold text-emerald-400">{completedCount}</span> completed
@@ -231,7 +231,7 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder="Add a new reminder…"
-            className="flex-1 bg-[var(--quant-background)] border border-[#232938] rounded-xl px-3.5 py-2.5 text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)]/60 focus:outline-none focus:border-[var(--quant-warning)] transition-colors"
+            className="flex-1 bg-[var(--quant-background)] border border-[#232938] rounded-xl px-3.5 py-2.5 text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)]/60 focus:outline-none focus:border-[var(--app-accent)] transition-colors"
           />
 
           <input
@@ -239,13 +239,13 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
             value={newDueTime}
             onChange={(e) => setNewDueTime(e.target.value)}
             placeholder="Due time (e.g. Today, 5:00 PM)"
-            className="w-full sm:w-44 bg-[var(--quant-background)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[var(--quant-foreground)] focus:outline-none focus:border-[var(--quant-warning)]"
+            className="w-full sm:w-44 bg-[var(--quant-background)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[var(--quant-foreground)] focus:outline-none focus:border-[var(--app-accent)]"
           />
 
           <select
             aria-label="Reminder priority" value={newPriority}
             onChange={(e) => setNewPriority(e.target.value as any)}
-            className="bg-[var(--quant-background)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[var(--quant-foreground)] focus:outline-none focus:border-[var(--quant-warning)] cursor-pointer"
+            className="bg-[var(--quant-background)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[var(--quant-foreground)] focus:outline-none focus:border-[var(--app-accent)] cursor-pointer"
           >
             <option value="urgent" className="bg-[var(--quant-surface)]">
               Urgent
@@ -261,7 +261,7 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
           <button
             type="submit"
             disabled={!newTitle.trim()}
-            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[var(--quant-warning)] hover:bg-[#D97706] disabled:opacity-50 text-black text-xs font-bold transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)]"
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] disabled:opacity-50 text-black text-xs font-bold transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
           >
             <PlusIcon className="size-3.5 text-black" />
             <span>Add Reminder</span>
@@ -280,8 +280,8 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
                 onClick={() => setFilterMode(mode)}
                 className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition-all focus-visible:outline-none ${
                   filterMode === mode
-                    ? 'bg-[var(--quant-warning)]/20 text-[var(--quant-warning)] border border-[var(--quant-warning)]/40 font-semibold'
-                    : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] border border-transparent'
+                    ? 'bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] font-semibold'
+                    : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] border'
                 }`}
               >
                 {mode}
@@ -312,7 +312,7 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
                   className={`p-3.5 rounded-xl border transition-all flex items-center justify-between gap-3 cursor-pointer select-none group focus-visible:outline-none ${
                     reminder.completed
                       ? 'bg-[var(--quant-background)]/60 border-[#232938]/60 opacity-60'
-                      : 'bg-[var(--quant-background)] border-[#232938] hover:border-[var(--quant-warning)]/40 hover:bg-[var(--quant-surface-elevated)]'
+                      : 'bg-[var(--quant-background)] border-[#232938] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)]'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -325,12 +325,12 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
                         e.stopPropagation();
                         toggleReminder(reminder.id);
                       }}
-                      className="text-[var(--quant-warning)] hover:scale-110 transition-transform focus-visible:outline-none"
+                      className="text-[var(--app-accent)] hover:scale-110 transition-transform focus-visible:outline-none"
                     >
                       {reminder.completed ? (
-                        <CheckSquareIcon className="size-5 text-[var(--quant-warning)]" />
+                        <CheckSquareIcon className="size-5 text-[var(--app-accent)]" />
                       ) : (
-                        <SquareIcon className="size-5 text-[var(--quant-muted-foreground)] group-hover:text-[var(--quant-warning)]" />
+                        <SquareIcon className="size-5 text-[var(--quant-muted-foreground)] group-hover:text-[var(--app-accent)]" />
                       )}
                     </button>
 
@@ -339,14 +339,14 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
                         className={`text-sm font-semibold truncate transition-all ${
                           reminder.completed
                             ? 'line-through text-[var(--quant-muted-foreground)]'
-                            : 'text-[var(--quant-foreground)] group-hover:text-[var(--quant-warning)]'
+                            : 'text-[var(--quant-foreground)] group-hover:text-[var(--app-accent)]'
                         }`}
                       >
                         {reminder.title}
                       </p>
 
                       <p className="text-xs text-[var(--quant-muted-foreground)] flex items-center gap-1.5 mt-0.5">
-                        <ClockIcon className="size-3 text-[var(--quant-warning)]" />
+                        <ClockIcon className="size-3 text-[var(--app-accent)]" />
                         <span>Due: {reminder.dueTime}</span>
                       </p>
                     </div>

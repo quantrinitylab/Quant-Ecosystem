@@ -308,12 +308,12 @@ export function QuantGitHeader({
               onClick={() => setIsCopilotDrawerOpen?.((prev) => !prev)}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-semibold transition-all ${
                 isCopilotDrawerOpen
-                  ? 'bg-[var(--quant-primary)]/20 border-[var(--quant-primary)] text-[var(--quant-primary)]'
+                  ? 'bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] border-[var(--app-accent)] text-[var(--app-accent)]'
                   : 'bg-[#21262D] border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D]'
               }`}
               title="Toggle Quanty Copilot"
             >
-              <svg className="size-3.5 text-[var(--quant-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg className="size-3.5 text-[var(--app-accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
                 <path d="M5 3v4" />
                 <path d="M19 17v4" />
@@ -325,7 +325,7 @@ export function QuantGitHeader({
 
             <div className="flex items-center gap-1.5 pl-1 border-l border-[#30363D]">
               <BubbleAvatar state="coding" size={24} />
-              <span className="hidden md:inline text-[11px] font-bold text-[var(--quant-primary)]">
+              <span className="hidden md:inline text-[11px] font-bold text-[var(--app-accent)]">
                 Astra Swarm
               </span>
             </div>
@@ -382,8 +382,8 @@ export function QuantGitHeader({
               {/* Pinned Chats Section */}
               {pinnedSessionIds.length > 0 && (
                 <div className="space-y-1">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--quant-primary)] px-2 flex items-center gap-1.5">
-                    <svg className="size-3 text-[var(--quant-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--app-accent)] px-2 flex items-center gap-1.5">
+                    <svg className="size-3 text-[var(--app-accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <line x1="12" y1="17" x2="12" y2="22" />
                       <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
                     </svg>
@@ -437,7 +437,7 @@ export function QuantGitHeader({
                                   setEditingSessionId(null);
                                 }}
                                 autoFocus
-                                className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-2 py-0.5 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                                className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-2 py-0.5 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                               />
                             ) : (
                               <>
@@ -464,7 +464,7 @@ export function QuantGitHeader({
                                       );
                                       showToast('Chat unpinned');
                                     }}
-                                    className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-[#30363D] text-[var(--quant-primary)] hover:text-white"
+                                    className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-[#30363D] text-[var(--app-accent)] hover:text-white"
                                     title="Unpin chat"
                                     aria-label="Unpin chat"
                                   >
@@ -579,7 +579,7 @@ export function QuantGitHeader({
                                 setEditingSessionId(null);
                               }}
                               autoFocus
-                              className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-2 py-0.5 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                              className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-2 py-0.5 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                             />
                           ) : (
                             <>

@@ -1312,7 +1312,7 @@ export const AGENT_FLEET_CATALOG: DeployedAgent[] = [
     currentTask:
       'Enforcing 1:1 GitHub parity, two-column layout, and zero-hallucination verification.',
     initial: 'A',
-    color: 'var(--quant-primary)',
+    color: 'var(--app-accent)',
     steps: [
       'Audited GitHub dark UI tokens',
       'Verified 10 repository tabs',

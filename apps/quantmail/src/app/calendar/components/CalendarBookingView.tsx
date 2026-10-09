@@ -153,10 +153,10 @@ export function CalendarBookingView({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-[var(--quant-warning)]">
+              <span className="text-xs font-bold uppercase tracking-wider text-[var(--app-accent)]">
                 Public Booking Engine
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--quant-warning)]/20 text-[var(--quant-warning)] border border-[var(--quant-warning)]/40">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)]">
                 Calendly-Class
               </span>
             </div>
@@ -180,7 +180,7 @@ export function CalendarBookingView({
 
         {/* Link Display & Copy Link Pill */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 bg-[var(--quant-background)] border border-[#232938] rounded-xl p-2.5">
-          <div className="flex-1 font-mono text-xs sm:text-sm text-[var(--quant-warning)] px-3 py-1.5 truncate select-all">
+          <div className="flex-1 font-mono text-xs sm:text-sm text-[var(--app-accent)] px-3 py-1.5 truncate select-all">
             {bookingUrl}
           </div>
 
@@ -189,7 +189,7 @@ export function CalendarBookingView({
             <button
               type="button"
               onClick={handleCopyLink}
-              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--quant-warning)] hover:bg-[#D97706] text-black text-xs font-bold transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)]"
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-black text-xs font-bold transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
             >
               {copied ? (
                 <>
@@ -222,7 +222,7 @@ export function CalendarBookingView({
       <div className="bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-5 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <label className="text-sm font-bold text-[var(--quant-foreground)] flex items-center gap-2">
-            <ClockIcon className="size-4 text-[var(--quant-warning)]" />
+            <ClockIcon className="size-4 text-[var(--app-accent)]" />
             <span>Meeting Duration</span>
           </label>
           <span className="text-xs text-[var(--quant-muted-foreground)]">Select duration chip for public slots</span>
@@ -236,10 +236,10 @@ export function CalendarBookingView({
                 key={duration}
                 type="button"
                 onClick={() => setSelectedDuration(duration)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)] ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                   isSelected
-                    ? 'bg-[var(--quant-warning)] text-black shadow-[0_0_16px_rgba(245,158,11,0.3)] scale-105'
-                    : 'bg-[var(--quant-background)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] border border-[#232938] hover:border-[var(--quant-warning)]/40'
+                    ? 'bg-[var(--app-accent)] text-black shadow-[0_0_16px_color-mix(in_srgb,var(--app-accent)_30%,transparent)] scale-105'
+                    : 'bg-[var(--quant-background)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] border border-[#232938] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)]'
                 }`}
               >
                 {duration}
@@ -258,7 +258,7 @@ export function CalendarBookingView({
               Live CalDAV free/busy calculations · Instant double-booking prevention
             </p>
           </div>
-          <span className="text-xs font-medium text-[var(--quant-warning)]">
+          <span className="text-xs font-medium text-[var(--app-accent)]">
             {4 - bookedSlots.length} open slots
           </span>
         </div>
@@ -276,8 +276,8 @@ export function CalendarBookingView({
                   isBooked
                     ? 'bg-[var(--quant-background)]/50 border-[#232938] opacity-60 cursor-not-allowed'
                     : isSelected
-                    ? 'bg-[var(--quant-warning)]/10 border-2 border-[var(--quant-warning)] shadow-[0_0_16px_rgba(245,158,11,0.15)]'
-                    : 'bg-[var(--quant-background)] border-[#232938] hover:border-[var(--quant-warning)]/50 hover:bg-[var(--quant-surface-elevated)]'
+                    ? 'bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border-2 border-[var(--app-accent)] shadow-[0_0_16px_color-mix(in_srgb,var(--app-accent)_15%,transparent)]'
+                    : 'bg-[var(--quant-background)] border-[#232938] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[var(--quant-surface-elevated)]'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -308,8 +308,8 @@ export function CalendarBookingView({
                     isBooked
                       ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
                       : isSelected
-                      ? 'bg-[var(--quant-warning)] hover:bg-[#D97706] text-black shadow-sm'
-                      : 'bg-[var(--quant-surface-elevated)] hover:bg-[#1f2230] text-[var(--quant-warning)] border border-[#232938]'
+                      ? 'bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-black shadow-sm'
+                      : 'bg-[var(--quant-surface-elevated)] hover:bg-[#1f2230] text-[var(--app-accent)] border border-[#232938]'
                   }`}
                 >
                   {isBooked ? 'Reserved' : 'Reserve Slot'}

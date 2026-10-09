@@ -1172,7 +1172,7 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
               value={inputVal}
               onChange={(e) => setInputVal(e.target.value)}
               placeholder="Ask Quanty about repositories, PR diffs, or architecture..."
-              className="flex-1 bg-transparent px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="flex-1 bg-transparent px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
             />
             <button
               type="submit"

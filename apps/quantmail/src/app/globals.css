@@ -48,6 +48,18 @@
   --brand-app-color: #FF8C42;
   --app-color: #FF8C42;
 
+  /* Per-app accent defaults (overridden per-route by AppShell's --app-accent*).
+     Default = Mail orange so routes outside the shell (e.g. public booking
+     pages) keep a working accent. Components in Calendar/Drive/Contacts/
+     QuantGit must use var(--app-accent*) instead of the orange tokens so the
+     whole UI follows the active app's user-locked accent. */
+  --app-accent: var(--quant-primary);
+  --app-accent-hover: var(--quant-primary-hover);
+  --app-accent-pressed: var(--brand-primary-pressed);
+  --app-accent-soft: var(--quant-accent-soft);
+  --app-glow: rgba(255, 140, 66, 0.25);
+  --app-ring: var(--quant-ring);
+
   /* Official Dark Foundation Tokens — QM-UIUX-072 pure-black law (2026-10-09):
      every surface is pure black, zero visible borders/dividers. Hierarchy
      comes from typography + spacing only. */
@@ -62,10 +74,10 @@
   --quant-surface-hover: rgba(255, 255, 255, 0.06);
   --quant-muted: #000000;
   --quant-muted-foreground: #A1A4AC;
-  --quant-text-muted: #6B6E76;
-  --quant-border: transparent;
-  --quant-border-subtle: transparent;
-  --quant-border-strong: transparent;
+  --quant-text-muted: #8E939E;
+  --quant-border: rgba(255, 255, 255, 0.1);
+  --quant-border-subtle: rgba(255, 255, 255, 0.07);
+  --quant-border-strong: rgba(255, 255, 255, 0.16);
   --quant-ring: #FF8C42;
   --quant-radius: 0.5rem;
   --quant-card: #000000;
@@ -122,10 +134,10 @@
   --quant-surface-hover: rgba(255, 255, 255, 0.06);
   --quant-muted: #000000;
   --quant-muted-foreground: #A1A4AC;
-  --quant-text-muted: #6B6E76;
-  --quant-border: transparent;
-  --quant-border-subtle: transparent;
-  --quant-border-strong: transparent;
+  --quant-text-muted: #8E939E;
+  --quant-border: rgba(255, 255, 255, 0.1);
+  --quant-border-subtle: rgba(255, 255, 255, 0.07);
+  --quant-border-strong: rgba(255, 255, 255, 0.16);
   --brand-soft: rgba(255, 140, 66, 0.12);
   --brand-soft-border: rgba(255, 140, 66, 0.28);
   --brand-subtle: rgba(255, 140, 66, 0.05);
@@ -142,28 +154,34 @@
 }
 
 /*
- * Pure-black law (QM-UIUX-072, user decision 2026-10-09, Gmail mobile dark
- * reference). Supersedes the 2026-10-07 desktop-only override: on EVERY
- * viewport, in dark theme, every surface is pure black and NO
- * border or divider line is visible anywhere. Visual hierarchy comes from
- * typography scale and spacing only — never from lines.
+ * Readability revision (user direction 2026-10-09, supersedes QM-UIUX-072):
+ * pure black stays, but tab / chip / card BOUNDS must be visible — illegible
+ * tabs ("kuch pata hi nahi chalta kya likha hai") are not acceptable. Borders
+ * render as subtle hairlines from the --quant-border* tokens: visible and
+ * premium, never harsh.
  *
  * Implementation:
- * - Border *widths* are preserved, so there is zero layout shift; only the
- *   ink is removed (border-color: transparent). This single rule neutralizes
- *   every Tailwind `border-*` / `divide-*` and every `<hr>` in the app, because
- *   unlayered author CSS beats Tailwind's `@layer utilities`.
- * - Token borders (--quant-border*) are already transparent above, so plain
- *   CSS using `border: 1px solid var(--quant-border)` is covered too.
+ * - Border *widths* are preserved, so there is zero layout shift; the ink is
+ *   the subtle token instead of transparent.
+ * - The rule lives in @layer base (not unlayered) so explicit Tailwind
+ *   border-color utilities — e.g. an active tab's accent border — win over it.
+ *   Utilities beat base in the cascade, regardless of specificity.
  * - Exceptions are usability, not decoration:
- *     input/textarea/select keep their borders (form affordance);
+ *     input/textarea/select keep their own borders (form affordance);
  *     [class*='animate-spin'] keeps the two-tone spinner borders;
  *     .composer-drop-message keeps its dashed drop-target outline.
  * - Keyboard focus rings use outline / box-shadow (ring-*) and are untouched.
  */
-:root[data-theme='dark'] :not(input):not(textarea):not(select):not([class*='animate-spin']):not(.composer-drop-message),
-.dark :not(input):not(textarea):not(select):not([class*='animate-spin']):not(.composer-drop-message) {
-  border-color: transparent;
+@layer base {
+  /*
+   * Zero-specificity via :where() so this is a TRUE base: any explicit
+   * Tailwind border-color utility (e.g. an active tab's accent border)
+   * overrides it by specificity, no !important needed.
+   */
+  :where(:root[data-theme='dark'] :not(input):not(textarea):not(select):not([class*='animate-spin']):not(.composer-drop-message)),
+  :where(.dark :not(input):not(textarea):not(select):not([class*='animate-spin']):not(.composer-drop-message)) {
+    border-color: var(--quant-border-subtle);
+  }
 }
 
 :root[data-theme='light'] {
@@ -827,6 +845,13 @@ html {
   --brand-accent-hover: #FFD1A3;
   --brand-app-color: #FF8C42;
   --app-color: #FF8C42;
+  /* Per-app accent defaults (overridden per-route by AppShell). */
+  --app-accent: var(--quant-primary);
+  --app-accent-hover: var(--quant-primary-hover, #FF9B5A);
+  --app-accent-pressed: #E8752F;
+  --app-accent-soft: rgba(255, 140, 66, 0.12);
+  --app-glow: rgba(255, 140, 66, 0.25);
+  --app-ring: #FF8C42;
   --quant-primary: #FF8C42;
   --quant-secondary: #138808;
   --quant-background: #000000;
@@ -837,9 +862,12 @@ html {
   --quant-surface-hover: rgba(255, 255, 255, 0.06);
   --quant-muted: #000000;
   --quant-muted-foreground: #A1A4AC;
-  --quant-border: transparent;
-  --quant-border-subtle: transparent;
-  --quant-border-strong: transparent;
+  /* Readability revision (user direction 2026-10-09, supersedes the pure-black
+   * "no lines" law): borders are subtle hairlines so tab / chip / card bounds
+   * stay visible on black. Premium, never harsh. */
+  --quant-border: rgba(255, 255, 255, 0.1);
+  --quant-border-subtle: rgba(255, 255, 255, 0.07);
+  --quant-border-strong: rgba(255, 255, 255, 0.16);
   --quant-ring: #FF8C42;
   --quant-card: #000000;
   --quant-card-foreground: #F5F5F5;

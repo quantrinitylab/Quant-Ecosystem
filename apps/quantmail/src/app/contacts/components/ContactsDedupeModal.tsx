@@ -174,7 +174,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] border border-[var(--quant-primary)]/20">
+                        <span className="rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_20%,transparent)]">
                           {cluster.reason === 'email' ? 'Identical Email' : 'Identical Name'}
                         </span>
                         <span className="text-xs text-[var(--quant-muted-foreground)]">
@@ -202,7 +202,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                             onClick={() => handleSelectPrimary(cIdx, contact.id)}
                             className={`cursor-pointer rounded-lg border p-3 transition-all ${
                               isSelectedPrimary
-                                ? 'border-[var(--quant-primary)]/50 bg-[var(--quant-primary)]/10 ring-1 ring-[var(--quant-primary)]/50 shadow-[0_0_16px_rgba(255,140,66,0.12),inset_0_1px_0_0_rgba(255,255,255,0.06)]'
+                                ? 'border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] shadow-[0_0_16px_color-mix(in_srgb,var(--app-accent)_12%,transparent),inset_0_1px_0_0_rgba(255,255,255,0.06)]'
                                 : 'border-white/[0.08] bg-[var(--quant-surface)] hover:border-white/[0.14] hover:bg-white/[0.03]'
                             }`}
                           >
@@ -219,7 +219,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                                       {contact.name || 'Unnamed'}
                                     </span>
                                     {isSelectedPrimary && (
-                                      <span className="rounded bg-[var(--quant-primary)] px-1 py-px text-[var(--q-type-xs)] font-bold text-[#111111]">
+                                      <span className="rounded bg-[var(--app-accent)] px-1 py-px text-[var(--q-type-xs)] font-bold text-[#111111]">
                                         PRIMARY
                                       </span>
                                     )}
@@ -235,7 +235,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                                 name={`primary-${cIdx}`}
                                 checked={isSelectedPrimary}
                                 onChange={() => handleSelectPrimary(cIdx, contact.id)}
-                                className="mt-1 h-3.5 w-3.5 accent-[var(--quant-primary)]"
+                                className="mt-1 h-3.5 w-3.5 accent-[var(--app-accent)]"
                               />
                             </div>
 

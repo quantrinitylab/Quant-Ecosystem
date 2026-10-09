@@ -808,7 +808,7 @@ export default function ContactsPage() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search contacts…"
-                    className="w-full pl-9 pr-7 py-1.5 rounded-xl border border-[#232938] bg-[var(--quant-surface-elevated)] text-xs text-white placeholder-[#6B7280] focus:outline-none focus:border-[var(--quant-primary)] transition-colors"
+                    className="w-full pl-9 pr-7 py-1.5 rounded-xl border border-[#232938] bg-[var(--quant-surface-elevated)] text-xs text-white placeholder-[#6B7280] focus:outline-none focus:border-[var(--app-accent)] transition-colors"
                   />
                   {searchQuery && (
                     <button
@@ -833,7 +833,7 @@ export default function ContactsPage() {
                       onClick={() => handleTabChange('all')}
                       className={`flex-1 flex items-center justify-center py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         activeTab === 'all' && !selectedGroupId
-                          ? 'bg-[var(--quant-primary)] text-black font-bold shadow-sm'
+                          ? 'bg-[var(--app-accent)] text-black font-bold shadow-sm'
                           : 'text-[var(--quant-muted-foreground)] hover:text-white'
                       }`}
                     >
@@ -845,7 +845,7 @@ export default function ContactsPage() {
                       onClick={() => handleTabChange('favorites')}
                       className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         activeTab === 'favorites'
-                          ? 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] border border-[var(--quant-primary)]/40 shadow-sm'
+                          ? 'bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] shadow-sm'
                           : 'text-[var(--quant-muted-foreground)] hover:text-white'
                       }`}
                     >
@@ -863,7 +863,7 @@ export default function ContactsPage() {
                       setEditingGroup(null);
                       setShowGroupModal(true);
                     }}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-dashed border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-xs font-semibold text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] hover:border-[var(--quant-primary)]/40 transition-colors shrink-0"
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-dashed border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-xs font-semibold text-[var(--quant-muted-foreground)] hover:text-[var(--app-accent)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] transition-colors shrink-0"
                     title="Add Folder / Group"
                   >
                     <span>+ Group</span>
@@ -906,13 +906,13 @@ export default function ContactsPage() {
                           }}
                           className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-medium border transition-colors shrink-0 ${
                             isSelected
-                              ? 'border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/15 text-[var(--quant-primary)] font-semibold'
+                              ? 'border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] font-semibold'
                               : 'border-white/[0.08] bg-white/[0.03] text-[var(--quant-muted-foreground)] hover:text-white'
                           }`}
                         >
                           <span
                             className="size-1.5 rounded-full"
-                            style={{ backgroundColor: grp.color || 'var(--quant-primary)' }}
+                            style={{ backgroundColor: grp.color || 'var(--app-accent)' }}
                           />
                           <span className="truncate max-w-[90px]">{grp.name}</span>
                           <span className="text-[var(--q-type-xs)] text-[#6B7280]">({(grp.emails || []).length})</span>
@@ -952,7 +952,7 @@ export default function ContactsPage() {
                     <button
                       type="button"
                       onClick={() => setShowDedupeModal(true)}
-                      className="px-2 py-1 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-[11px] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] transition-colors"
+                      className="px-2 py-1 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-[11px] text-[var(--quant-muted-foreground)] hover:text-[var(--app-accent)] transition-colors"
                       title="Merge duplicates"
                     >
                       Dedupe
@@ -962,7 +962,7 @@ export default function ContactsPage() {
                   <button
                     type="button"
                     onClick={handleOpenCreate}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-black text-xs font-bold transition-all shadow-sm"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-black text-xs font-bold transition-all shadow-sm"
                   >
                     <span>+ New</span>
                   </button>
@@ -1024,7 +1024,7 @@ export default function ContactsPage() {
                     <div className="space-y-4">
                       {groupedContacts.map((group) => (
                         <div key={group.letter} id={`letter-${group.letter}`} className="space-y-1">
-                          <div className="sticky top-0 z-10 bg-black/95 backdrop-blur-sm px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[var(--quant-primary)] border-b border-[#1E2536]">
+                          <div className="sticky top-0 z-10 bg-black/95 backdrop-blur-sm px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[var(--app-accent)] border-b border-[#1E2536]">
                             {group.letter} ({group.contacts.length})
                           </div>
 
@@ -1039,7 +1039,7 @@ export default function ContactsPage() {
                                   onClick={() => handleSelectContact(contact)}
                                   className={`group flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
                                     isSelected
-                                      ? 'bg-[var(--quant-primary)]/15 border-[var(--quant-primary)]/50 text-white shadow-sm'
+                                      ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] text-white shadow-sm'
                                       : 'border-transparent hover:bg-white/5 text-[#EDEDED]'
                                   }`}
                                 >
@@ -1051,7 +1051,7 @@ export default function ContactsPage() {
                                     />
                                     <div className="min-w-0 flex-1">
                                       <div className="flex items-center gap-1">
-                                        <h4 className="text-xs font-bold truncate group-hover:text-[var(--quant-primary)] transition-colors">
+                                        <h4 className="text-xs font-bold truncate group-hover:text-[var(--app-accent)] transition-colors">
                                           {contactDisplayName(contact)}
                                         </h4>
                                         {contact.isFavorite && (
@@ -1105,11 +1105,11 @@ export default function ContactsPage() {
                           }}
                           aria-current={active ? 'true' : undefined}
                           aria-label={`Jump to ${letter === '#' ? 'other' : letter}`}
-                          className={`flex flex-1 items-center justify-center rounded text-[var(--q-type-xs)] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--quant-primary)] ${
+                          className={`flex flex-1 items-center justify-center rounded text-[var(--q-type-xs)] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--app-accent)] ${
                             active
-                              ? 'text-[var(--quant-primary)]'
+                              ? 'text-[var(--app-accent)]'
                               : exists
-                                ? 'text-[var(--quant-foreground)] hover:text-[var(--quant-primary)]'
+                                ? 'text-[var(--quant-foreground)] hover:text-[var(--app-accent)]'
                                 : 'text-[#6B7280]'
                           }`}
                         >
@@ -1124,7 +1124,7 @@ export default function ContactsPage() {
                 {scrub && (
                   <div
                     aria-hidden="true"
-                    className="pointer-events-none fixed right-10 z-40 grid size-12 place-items-center rounded-2xl bg-[var(--quant-surface-elevated)] text-xl font-black text-[var(--quant-primary)] shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
+                    className="pointer-events-none fixed right-10 z-40 grid size-12 place-items-center rounded-2xl bg-[var(--quant-surface-elevated)] text-xl font-black text-[var(--app-accent)] shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
                     style={{ top: scrub.y - 24 }}
                   >
                     {scrub.letter}
@@ -1219,7 +1219,7 @@ export default function ContactsPage() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Full name"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)]"
                 autoFocus
                 data-autofocus
               />
@@ -1239,7 +1239,7 @@ export default function ContactsPage() {
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="name@example.com"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)]"
               />
             </div>
 
@@ -1258,7 +1258,7 @@ export default function ContactsPage() {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="+91 98765 43210"
-                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]"
+                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)]"
                 />
               </div>
               <div>
@@ -1275,7 +1275,7 @@ export default function ContactsPage() {
                   value={formData.company}
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                   placeholder="Acme Corp"
-                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]"
+                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)]"
                 />
               </div>
             </div>
@@ -1294,7 +1294,7 @@ export default function ContactsPage() {
                 value={formData.tags}
                 onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
                 placeholder="VIP, Executive, Engineering"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)]"
               />
             </div>
 

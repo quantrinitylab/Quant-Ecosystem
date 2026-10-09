@@ -249,7 +249,7 @@ export default function CalendarEventDetailPage() {
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">Title</span>
                   <input
-                    className="h-11 w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm outline-none focus:border-[var(--brand-primary)]/60"
+                    className="h-11 w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm outline-none focus:border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)]"
                     value={form.title}
                     onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                     aria-label="Event title"
@@ -260,7 +260,7 @@ export default function CalendarEventDetailPage() {
                     <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">Starts</span>
                     <input
                       type="datetime-local"
-                      className="h-11 w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm outline-none focus:border-[var(--brand-primary)]/60"
+                      className="h-11 w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm outline-none focus:border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)]"
                       value={form.start}
                       onChange={(e) => setForm((f) => ({ ...f, start: e.target.value }))}
                       aria-label="Event start"
@@ -270,7 +270,7 @@ export default function CalendarEventDetailPage() {
                     <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">Ends</span>
                     <input
                       type="datetime-local"
-                      className="h-11 w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm outline-none focus:border-[var(--brand-primary)]/60"
+                      className="h-11 w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm outline-none focus:border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)]"
                       value={form.end}
                       onChange={(e) => setForm((f) => ({ ...f, end: e.target.value }))}
                       aria-label="Event end"
@@ -280,7 +280,7 @@ export default function CalendarEventDetailPage() {
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">Location</span>
                   <input
-                    className="h-11 w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm outline-none focus:border-[var(--brand-primary)]/60"
+                    className="h-11 w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm outline-none focus:border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)]"
                     value={form.location}
                     onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
                     placeholder="Room, address, or meeting link"
@@ -290,7 +290,7 @@ export default function CalendarEventDetailPage() {
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">Description</span>
                   <textarea
-                    className="min-h-24 w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 py-2 text-sm outline-none focus:border-[var(--brand-primary)]/60"
+                    className="min-h-24 w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 py-2 text-sm outline-none focus:border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)]"
                     value={form.description}
                     onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                     aria-label="Event description"
@@ -301,7 +301,7 @@ export default function CalendarEventDetailPage() {
                     type="checkbox"
                     checked={form.allDay}
                     onChange={(e) => setForm((f) => ({ ...f, allDay: e.target.checked }))}
-                    className="h-4 w-4 accent-[var(--brand-primary)]"
+                    className="h-4 w-4 accent-[var(--app-accent)]"
                   />
                   All-day event
                 </label>
@@ -357,7 +357,7 @@ export default function CalendarEventDetailPage() {
                         href={event.location}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[var(--brand-primary)] px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                        className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[var(--app-accent)] px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
                       >
                         <Icon name="link" className="h-4 w-4" />
                         Join meeting

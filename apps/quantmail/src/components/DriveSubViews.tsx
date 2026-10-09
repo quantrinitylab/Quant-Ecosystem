@@ -1030,7 +1030,7 @@ export function DriveHomeSubView({
                 {folders.map((folder) => (
                   <div
                     key={folder.id}
-                    className="group relative flex items-center gap-1 p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[var(--quant-primary)]/50 hover:bg-[var(--quant-primary)]/5 transition-all"
+                    className="group relative flex items-center gap-1 p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] transition-all"
                   >
                     {/*
                      * A real <button>: keyboard-focusable, announced as a
@@ -1043,13 +1043,13 @@ export function DriveHomeSubView({
                       onClick={() => onNavigateToFolder?.(folder.id, folder.name)}
                       aria-label={`Open folder ${folder.name}`}
                       title={`Open ${folder.name}`}
-                      className="flex flex-1 items-center gap-3 min-w-0 p-1 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                      className="flex flex-1 items-center gap-3 min-w-0 p-1 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                     >
-                      <div className="size-8 rounded-lg bg-[var(--quant-primary)]/15 border border-[var(--quant-primary)]/30 flex items-center justify-center text-[var(--quant-primary)] shrink-0">
+                      <div className="size-8 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
                         <FolderIcon className="size-4" />
                       </div>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[var(--quant-primary)] transition-colors">
+                        <span className="block text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[var(--app-accent)] transition-colors">
                           {folder.name}
                         </span>
                         <span className="block text-[10px] text-[#64748B]">Folder</span>
@@ -1062,7 +1062,7 @@ export function DriveHomeSubView({
                           aria-label={`Rename folder ${folder.name}`}
                           title="Rename"
                           onClick={(e) => onOpenRename(folder, e)}
-                          className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F8FAFC] hover:bg-[#21262D] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                          className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F8FAFC] hover:bg-[#21262D] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                         >
                           <PencilIcon className="size-3.5" />
                         </button>
@@ -1837,9 +1837,9 @@ export function DriveAiMemorySubView({
     () => ({
       QuantMail: {
         name: 'QuantMail',
-        color: 'var(--quant-primary)',
+        color: 'var(--app-accent)',
         icon: MailAppIcon,
-        borderStyle: 'border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)]',
+        borderStyle: 'border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)]',
       },
       QuantCalendar: {
         name: 'QuantCalendar',

@@ -29,7 +29,7 @@ export function DiscussionsTab({
               onClick={() => setDiscussionCategory(cat)}
               className={`px-3 py-1 rounded-md border text-xs font-semibold ${
                 discussionCategory === cat
-                  ? 'bg-[#21262D] border-[var(--quant-primary)] text-white'
+                  ? 'bg-[#21262D] border-[var(--app-accent)] text-white'
                   : 'bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#7D8590]'
               }`}
             >

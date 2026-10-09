@@ -27,7 +27,7 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
         <button
           type="button"
           onClick={() => setModalState('deploy-agent')}
-          className="px-3.5 py-1.5 rounded-md bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-black font-bold transition-colors"
+          className="px-3.5 py-1.5 rounded-md bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-black font-bold transition-colors"
         >
           + Deploy Agent
         </button>
@@ -68,7 +68,7 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
                 {ag.status}
               </span>
             </div>
-            <p className="text-[11px] text-[var(--quant-primary)] font-semibold">{ag.role}</p>
+            <p className="text-[11px] text-[var(--app-accent)] font-semibold">{ag.role}</p>
             <p className="text-[11px] text-[#7D8590] leading-relaxed">{ag.currentTask}</p>
             <div className="bg-[#0D1117] p-2.5 rounded border border-[#21262D] space-y-1 text-[10px]">
               <p className="font-bold text-white">Thought Chain:</p>

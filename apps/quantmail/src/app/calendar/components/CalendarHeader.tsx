@@ -130,12 +130,12 @@ const ENTRY_MENU_ITEMS: Array<{ id: EntryType; label: string; icon: React.ReactN
   {
     id: 'event',
     label: 'Event',
-    icon: <IconCalendar className="size-4 text-[var(--quant-primary)]" />,
+    icon: <IconCalendar className="size-4 text-[var(--app-accent)]" />,
   },
   {
     id: 'task',
     label: 'Task',
-    icon: <IconTarget className="size-4 text-[var(--quant-primary)]" />,
+    icon: <IconTarget className="size-4 text-[var(--app-accent)]" />,
   },
   {
     id: 'birthday',
@@ -181,7 +181,7 @@ function NewEntrySplitButton({
   }, [isOpen]);
 
   const baseActionClass =
-    'bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] active:bg-[var(--brand-primary-pressed)] text-[#111111] shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]';
+    'bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] active:bg-[var(--app-accent-pressed)] text-[#111111] shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]';
 
   return (
     <div
@@ -313,7 +313,7 @@ export function CalendarHeader({
               type="button"
               onClick={() => goMonth(-1)}
               aria-label="Previous month"
-              className="size-8 grid place-items-center rounded-xl border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="size-8 grid place-items-center rounded-xl border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
             >
               <ChevronLeftIcon className="size-4" />
             </button>
@@ -321,7 +321,7 @@ export function CalendarHeader({
               type="button"
               onClick={() => goMonth(1)}
               aria-label="Next month"
-              className="size-8 grid place-items-center rounded-xl border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="size-8 grid place-items-center rounded-xl border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
             >
               <ChevronRightIcon className="size-4" />
             </button>
@@ -335,7 +335,7 @@ export function CalendarHeader({
           <button
             type="button"
             onClick={goToday}
-            className="px-2.5 py-1 text-xs font-medium rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+            className="px-2.5 py-1 text-xs font-medium rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
           >
             Today
           </button>
@@ -345,10 +345,10 @@ export function CalendarHeader({
         <div className="flex items-center gap-3">
           {/* Single Clean IST / PST Pill (Removes duplicate dropdowns & banners) */}
           <div
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-xs font-mono text-[var(--quant-warning)] shadow-inner select-none"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-xs font-mono text-[var(--app-accent)] shadow-inner select-none"
             title="Live Dual World Clocks: India Standard Time (IST) & Pacific Time"
           >
-            <HeaderGlobeIcon className="size-3 text-[var(--quant-warning)]" />
+            <HeaderGlobeIcon className="size-3 text-[var(--app-accent)]" />
             <span className="font-semibold text-white">IST</span>
             <span className="text-[var(--quant-foreground)]">{istTime}</span>
             <span className="text-[#3A404D]" aria-hidden="true">
@@ -363,10 +363,10 @@ export function CalendarHeader({
               type="button"
               onClick={onOpenBookingLinks}
               aria-label="Booking Links"
-              className="px-3 py-1.5 rounded-lg font-medium text-xs text-[var(--quant-foreground)] bg-[var(--quant-surface-elevated)] hover:bg-[#20232B] border border-[var(--quant-surface-elevated)] flex items-center gap-1.5 shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="px-3 py-1.5 rounded-lg font-medium text-xs text-[var(--quant-foreground)] bg-[var(--quant-surface-elevated)] hover:bg-[#20232B] border border-[var(--quant-surface-elevated)] flex items-center gap-1.5 shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
               title="Share Booking Links"
             >
-              <HeaderLinkIcon className="size-3.5 text-[var(--quant-primary)]" />
+              <HeaderLinkIcon className="size-3.5 text-[var(--app-accent)]" />
               <span>Booking Links</span>
             </button>
           )}
@@ -424,10 +424,10 @@ export function CalendarHeader({
         {/* Row 2: Single Clean IST/PST Pill + Booking Links */}
         <div className="flex items-center justify-between gap-2 pt-0.5">
           <div
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-[11px] font-mono text-[var(--quant-warning)] shadow-inner select-none"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-[11px] font-mono text-[var(--app-accent)] shadow-inner select-none"
             title="Live Dual World Clocks (IST & Pacific)"
           >
-            <HeaderGlobeIcon className="size-3 text-[var(--quant-warning)]" />
+            <HeaderGlobeIcon className="size-3 text-[var(--app-accent)]" />
             <span className="font-semibold text-white">IST</span>
             <span className="text-[var(--quant-foreground)]">{istTime}</span>
             <span className="text-[#3A404D]">/</span>
@@ -443,7 +443,7 @@ export function CalendarHeader({
               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium text-[11px] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] bg-[var(--quant-surface-elevated)] hover:bg-[#20232B] border border-[var(--quant-surface-elevated)] transition-all"
               title="Share Booking Links"
             >
-              <HeaderLinkIcon className="size-3 text-[var(--quant-primary)]" />
+              <HeaderLinkIcon className="size-3 text-[var(--app-accent)]" />
               <span>Booking</span>
             </button>
           )}

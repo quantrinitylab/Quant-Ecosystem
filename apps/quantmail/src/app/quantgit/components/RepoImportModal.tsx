@@ -350,7 +350,7 @@ export function RepoImportModal({
                       value={targetRepoName}
                       onChange={(e) => setTargetRepoName(e.target.value)}
                       placeholder="repository-name"
-                      className="w-full bg-transparent px-2.5 py-2 text-xs text-white focus:outline-none font-mono focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                      className="w-full bg-transparent px-2.5 py-2 text-xs text-white focus:outline-none font-mono focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                     />
                   </div>
                 </div>
@@ -558,7 +558,7 @@ export function RepoImportModal({
                     </div>
                     <div className="p-2 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
                       <span className="text-[10px] text-[#7D8590] block">Secrets Extracted</span>
-                      <span className="text-xs font-bold text-[var(--quant-primary)] font-mono">
+                      <span className="text-xs font-bold text-[var(--app-accent)] font-mono">
                         {migrationResult.importedEnvVars?.length || 4} Vars
                       </span>
                     </div>

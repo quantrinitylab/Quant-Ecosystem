@@ -69,7 +69,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
         <div className="flex items-center gap-2 min-w-0">
           <Link
             href="/drive"
-            className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-[#8B949E] hover:text-[var(--quant-primary)] hover:bg-[var(--quant-surface-elevated)] transition-colors shrink-0"
+            className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-[#8B949E] hover:text-[var(--app-accent)] hover:bg-[var(--quant-surface-elevated)] transition-colors shrink-0"
             title="Back to QuantDrive"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -92,7 +92,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                 <React.Fragment key={crumb.id}>
                   <Link
                     href={`/drive/doc/${crumb.id}`}
-                    className="truncate text-xs font-medium text-[#8B949E] hover:text-[var(--quant-primary)] hover:bg-[var(--quant-surface-elevated)] px-1.5 py-0.5 rounded transition-colors max-w-[100px] sm:max-w-[140px]"
+                    className="truncate text-xs font-medium text-[#8B949E] hover:text-[var(--app-accent)] hover:bg-[var(--quant-surface-elevated)] px-1.5 py-0.5 rounded transition-colors max-w-[100px] sm:max-w-[140px]"
                     title={crumb.title || 'Untitled'}
                   >
                     {crumb.title || 'Untitled'}
@@ -116,13 +116,13 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                   if (e.key === 'Enter') setIsEditingTitle(false);
                 }}
                 autoFocus
-                className="w-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-primary)] rounded px-2 py-0.5 text-xs font-semibold text-[#F0F6FC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                className="w-full bg-[var(--quant-surface-elevated)] border border-[var(--app-accent)] rounded px-2 py-0.5 text-xs font-semibold text-[#F0F6FC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
               />
             ) : (
               <button
                 type="button"
                 onClick={() => setIsEditingTitle(true)}
-                className="truncate text-left text-xs font-semibold text-[#F0F6FC] hover:text-[var(--quant-primary)] hover:bg-[var(--quant-surface-elevated)] px-2 py-1 rounded transition-colors block w-full"
+                className="truncate text-left text-xs font-semibold text-[#F0F6FC] hover:text-[var(--app-accent)] hover:bg-[var(--quant-surface-elevated)] px-2 py-1 rounded transition-colors block w-full"
                 title="Click to rename"
               >
                 {title || 'Untitled Document'}
@@ -192,7 +192,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] text-xs font-medium text-[#F0F6FC] transition-colors"
           >
             <svg
-              className="w-3.5 h-3.5 text-[var(--quant-primary)]"
+              className="w-3.5 h-3.5 text-[var(--app-accent)]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"

@@ -129,9 +129,9 @@ export function CalendarModals({
                 setFormState({ ...formState, timezone: tz.value });
                 setIsTimezoneModalOpen(false);
               }}
-              className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)] ${
+              className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--app-accent)] ${
                 formState.timezone === tz.value
-                  ? 'bg-[var(--quant-primary)] text-black font-black'
+                  ? 'bg-[var(--app-accent)] text-black font-black'
                   : 'text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
               }`}
               aria-pressed={formState.timezone === tz.value}
@@ -158,9 +158,9 @@ export function CalendarModals({
                 setFormState({ ...formState, recurrence: rec });
                 setIsRecurrenceModalOpen(false);
               }}
-              className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)] ${
+              className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--app-accent)] ${
                 formState.recurrence === rec
-                  ? 'bg-[var(--quant-primary)] text-black font-black'
+                  ? 'bg-[var(--app-accent)] text-black font-black'
                   : 'text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
               }`}
               aria-pressed={formState.recurrence === rec}
@@ -180,7 +180,7 @@ export function CalendarModals({
       >
         <div className="space-y-4 text-xs text-white">
           <div className="text-center py-2">
-            <span className="text-lg font-black text-[var(--quant-primary)]">
+            <span className="text-lg font-black text-[var(--app-accent)]">
               {NOTIFICATION_SLIDER_VALUES[notifSliderIndex].label}
             </span>
           </div>
@@ -193,7 +193,7 @@ export function CalendarModals({
             max={NOTIFICATION_SLIDER_VALUES.length - 1}
             value={notifSliderIndex}
             onChange={(e) => setNotifSliderIndex(Number(e.target.value))}
-            className="w-full accent-[var(--quant-primary)]"
+            className="w-full accent-[var(--app-accent)]"
           />
 
           <div className="flex items-center justify-between text-[10px] text-[var(--quant-muted-foreground)]">
@@ -229,7 +229,7 @@ export function CalendarModals({
         >
           <div className="space-y-3 text-xs text-[var(--quant-muted-foreground)]">
             <div className="flex items-center gap-2 text-white font-semibold">
-              <IconClock className="size-4 text-[var(--quant-primary)]" />
+              <IconClock className="size-4 text-[var(--app-accent)]" />
               <span>
                 {selectedEvent.allDay
                   ? 'All Day Entry'
@@ -244,10 +244,10 @@ export function CalendarModals({
                     selectedEvent.type === 'period'
                       ? 'bg-rose-500/20 text-rose-300'
                       : selectedEvent.type === 'task'
-                        ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)]'
+                        ? 'bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--brand-accent)]'
                         : selectedEvent.type === 'birthday'
                           ? 'bg-emerald-500/20 text-emerald-300'
-                          : 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)]'
+                          : 'bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-accent)]'
                   }`}
                 >
                   {selectedEvent.type}
@@ -268,7 +268,7 @@ export function CalendarModals({
                     href={selectedEvent.location}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-[var(--quant-primary)] hover:underline font-bold"
+                    className="inline-flex items-center gap-1.5 text-[var(--app-accent)] hover:underline font-bold"
                   >
                     <IconVideoCall size={13} />
                     {selectedEvent.location}
@@ -291,7 +291,7 @@ export function CalendarModals({
                 <button
                   type="button"
                   onClick={() => openEditSheet(selectedEvent)}
-                  className="px-3 py-1.5 rounded-xl bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/30 text-xs font-bold"
+                  className="px-3 py-1.5 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-accent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] text-xs font-bold"
                 >
                   Edit Entry
                 </button>
