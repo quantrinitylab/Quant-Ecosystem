@@ -661,6 +661,14 @@ export function AppShell({
     '--app-accent': appTheme.accent,
     '--app-glow': appTheme.glow,
     '--app-ring': appTheme.ring,
+    '--quant-primary': appTheme.accent,
+    '--quant-primary-hover': appTheme.accent,
+    '--quant-ring': appTheme.ring,
+    '--brand-primary': appTheme.accent,
+    '--brand-primary-hover': appTheme.accent,
+    '--brand-primary-pressed': appTheme.accent,
+    '--brand-app-color': appTheme.accent,
+    '--app-color': appTheme.accent,
   } as React.CSSProperties;
 
   return (
