@@ -33,6 +33,7 @@ import { formatBytes } from '../../lib/format-bytes';
 import { showToast } from '../../components/InboxToast';
 import { useScrollElement, useVirtualizer } from '../../lib/virtual/useVirtualizer';
 import {
+  IconChevronDown,
   IconDownload,
   IconFile,
   IconFolderPlus,
@@ -531,6 +532,8 @@ function DrivePageContent() {
   const [activityFile, setActivityFile] = useState<DriveItem | null>(null);
   const [aiSummaryFile, setAiSummaryFile] = useState<DriveItem | null>(null);
   const [isDuplicateCleanerOpen, setIsDuplicateCleanerOpen] = useState(false);
+  // SIA-P1-6: single primary CTA — the New split-button menu open state.
+  const [isNewMenuOpen, setIsNewMenuOpen] = useState(false);
   // QM-M39-011: Quanty file workspace (M39 screen 31).
   const [isQuantyWorkspaceOpen, setIsQuantyWorkspaceOpen] = useState(false);
   const [quantyWorkspaceFile, setQuantyWorkspaceFile] = useState<DriveItem | null>(null);
@@ -1191,8 +1194,10 @@ function DrivePageContent() {
          * 393px that pushed the actual file listing below the fold, and the
          * ungated "Upload Files" button sat directly above the mobile upload FAB
          * — two controls, same action, both on screen. Everything now shares one
-         * row: breadcrumb, a scrolling pill strip, and a right cluster whose
-         * duplicate Upload is desktop-only.
+         * row: breadcrumb, a scrolling pill strip, and a right cluster with a
+         * single primary New split-button (SIA-P1-6 consolidates New Doc, New
+         * Folder and Upload into it) plus the secondary Quanty / Duplicates
+         * actions.
          */}
         <div className="flex items-center gap-2 border-b border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-2 sm:px-8">
           {/* Breadcrumbs — hidden at root on mobile, where "My Drive" is redundant */}
@@ -1299,29 +1304,86 @@ function DrivePageContent() {
               ))}
             </div>
 
+          {/*
+           * SIA-P1-6: ONE primary CTA per screen. This used to render five
+           * competing buttons here — New Doc, New Folder, Quanty, Duplicates,
+           * and Upload — plus a separate desktop-only Upload. They are now a
+           * single primary "New" split-button whose menu carries Upload files /
+           * New document / New folder. Quanty and Duplicates stay reachable as
+           * secondary (non-primary) actions below.
+           */}
+          <div className="relative">
             <button
               type="button"
-              onClick={() => {
-                setNewDocName('');
-                setShowNewDocModal(true);
-              }}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--app-accent)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-white/[0.04] hover:shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_10%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
-              aria-label="New document"
+              onClick={() => setIsNewMenuOpen((prev) => !prev)}
+              aria-haspopup="menu"
+              aria-expanded={isNewMenuOpen}
+              aria-label="New: upload files, create a document or a folder"
+              className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--app-accent)] px-2 text-xs font-semibold text-[#111111] transition-colors hover:bg-[var(--app-accent-hover)] active:bg-[var(--quant-primary-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] md:px-3"
             >
-              <IconFile size={14} />
-              <span className="hidden md:inline">New Doc</span>
+              <IconUpload size={14} />
+              <span className="hidden md:inline">New</span>
+              <IconChevronDown size={12} />
             </button>
 
-            <button
-              type="button"
-              onClick={() => setShowNewFolderModal(true)}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--quant-foreground)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-white/[0.04] hover:shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_10%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
-              aria-label="New folder"
-            >
-              <IconFolderPlus size={14} />
-              <span className="hidden md:inline">New Folder</span>
-            </button>
+            {isNewMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40 cursor-default"
+                  onClick={() => setIsNewMenuOpen(false)}
+                  aria-hidden="true"
+                />
+                <div
+                  role="menu"
+                  aria-label="New options"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setIsNewMenuOpen(false);
+                  }}
+                  className="absolute right-0 z-50 mt-1.5 w-52 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] py-1 shadow-xl"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsNewMenuOpen(false);
+                      handleUploadTrigger();
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-xs font-medium text-[var(--quant-foreground)] transition-colors hover:bg-white/[0.06] focus-visible:outline-none focus-visible:bg-white/[0.06]"
+                  >
+                    <IconUpload size={14} className="text-[var(--app-accent)]" />
+                    Upload files
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsNewMenuOpen(false);
+                      setNewDocName('');
+                      setShowNewDocModal(true);
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-xs font-medium text-[var(--quant-foreground)] transition-colors hover:bg-white/[0.06] focus-visible:outline-none focus-visible:bg-white/[0.06]"
+                  >
+                    <IconFile size={14} className="text-[var(--app-accent)]" />
+                    New document
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsNewMenuOpen(false);
+                      setShowNewFolderModal(true);
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-xs font-medium text-[var(--quant-foreground)] transition-colors hover:bg-white/[0.06] focus-visible:outline-none focus-visible:bg-white/[0.06]"
+                  >
+                    <IconFolderPlus size={14} className="text-[var(--app-accent)]" />
+                    New folder
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
 
+          {/* Quanty — secondary action, not a primary CTA (SIA-P1-6). */}
             <button
               type="button"
               onClick={() => {
@@ -1369,15 +1431,6 @@ function DrivePageContent() {
               <span className="hidden md:inline">Duplicates</span>
             </button>
 
-            {/* Desktop only: on mobile this action belongs to the FAB alone. */}
-            <button
-              type="button"
-              onClick={handleUploadTrigger}
-              className="hidden h-8 items-center gap-1.5 rounded-lg bg-[var(--app-accent)] px-3 text-xs font-semibold text-[#111111] transition-colors hover:bg-[var(--app-accent-hover)] active:bg-[var(--quant-primary-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] md:inline-flex"
-            >
-              <IconUpload size={14} />
-              <span>Upload</span>
-            </button>
           </div>
         </div>
 

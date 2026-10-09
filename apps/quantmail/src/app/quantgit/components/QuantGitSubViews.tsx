@@ -459,12 +459,16 @@ export function QuantGitReposSubView({
                 repositories will appear here.
               </p>
               {onNewRepo && (
+                // SIA-P1-7: exactly one prominent "+ New Repository" CTA per
+                // screen (the header banner one). The empty state keeps a
+                // subtle text link to the same dialog instead of a second
+                // primary button.
                 <button
                   type="button"
                   onClick={onNewRepo}
-                  className="mt-5 px-4 py-2 rounded-xl bg-[#A78BFA] hover:bg-[#906FFA] text-black font-bold text-xs shadow-lg shadow-[#A78BFA]/20 transition-all"
+                  className="mt-5 text-xs font-semibold text-[#A78BFA] hover:text-white hover:underline transition-colors"
                 >
-                  + New Repository
+                  + Create a new repository
                 </button>
               )}
             </div>
