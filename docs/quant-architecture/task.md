@@ -1407,7 +1407,7 @@ Scope: QuantGit CodeTab.
 Dependencies: none.
 
 ## QM-UIUX-064 — QuantGit: ActionsTab fabricates CI runs
-Status: [~] IN_PROGRESS
+Status: [x] DONE (superseded by PR #707 merged 2026-10-09 — re-scoped on current main by muse-main: ActionsTab renders only real API runs; fabricated actors/SHAs/logs and the false pipeline header are gone)
 Owner: muse-main
 Branch: fix/qm-uiux-064-quantgit-fake-actions
 Finding: `ActionsTab.tsx:51-96` — when backend returns zero runs, renders 3 fake workflow runs with fake actors, fake SHAs, fake timestamps, fabricated build logs. Header claims "Real GitHub Actions CI Pipeline". Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quantgit-audit.md`.
