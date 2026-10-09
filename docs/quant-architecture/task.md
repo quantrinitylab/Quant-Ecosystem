@@ -1996,7 +1996,7 @@ Dependencies: none.
 Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 2: M-P1-2).
 
 ## QM-UIUX-083 — P1: Composer close (X) has no discard confirmation
-Status: [~] IN_PROGRESS
+Status: [x] DONE — PR #731 merged (composer X discard confirmation; fix by paud lane, coverage verified by muse-main)
 Owner: muse-main
 Branch: fix/qm-uiux-083-composer-close-confirm
 Finding: Personal deep audit 2026-10-09: clicking the composer X with a typed subject closed it with NO confirmation (auto-save prevented data loss; the explicit "Discard draft" button does confirm properly).
