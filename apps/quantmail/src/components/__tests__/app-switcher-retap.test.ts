@@ -62,7 +62,7 @@ describe('app-switcher re-tap refresh', () => {
     const push = vi.fn();
     const tab = PILLAR_SUB_CONFIGS['mail'].tabs.find((t) => t.id === 'archive')!;
     executeContextTabClick(tab, 'mail', { pathname: '/', router: { push } });
-    expect(push).toHaveBeenCalledWith('/?tab=archive');
+    expect(push).toHaveBeenCalledWith('/archive');
     expect(dispatchedEvents).not.toContain('quant:refresh');
     expect(dispatchedEvents).toContain('quant:subtab-change');
   });
@@ -84,27 +84,36 @@ describe('app-switcher re-tap refresh', () => {
     expect(dispatchedEvents).toContain('quant:refresh');
   });
 
-  it('executeContextTabClick dispatches quant:copilot:open for the Quanty AI tab', () => {
+  it('executeContextTabClick navigates to the repositories route for the QuantGit tab', () => {
     const push = vi.fn();
-    const tab = PILLAR_SUB_CONFIGS['quantgit'].tabs.find((t) => t.id === 'quanty')!;
-    expect(tab.logoOnly).toBe(true);
-    executeContextTabClick(tab, 'quantgit', { pathname: '/', router: { push } });
-    expect(dispatchedEvents).toContain('quant:copilot:open');
-    expect(push).toHaveBeenCalledWith('/quantgit?tab=copilot');
+    const tab = PILLAR_SUB_CONFIGS['quantgit'].tabs.find((t) => t.id === 'repositories')!;
+    executeContextTabClick(tab, 'quantgit', { pathname: '/quantgit', router: { push } });
+    expect(push).toHaveBeenCalledWith('/quantgit/repositories');
+    expect(dispatchedEvents).toContain('quant:subtab-change');
   });
 
-  it('resolveActiveTab maps copilot param to the Quanty AI tab', () => {
-    expect(
-      resolveActiveTab('quantgit', '/quantgit', { get: (k: string) => (k === 'tab' ? 'copilot' : null) }),
-    ).toBe('quanty');
-    expect(
-      resolveActiveTab('quantgit', '/quantgit', { get: (k: string) => (k === 'tab' ? 'feed' : null) }),
-    ).toBe('feed');
+  it('resolveActiveTab maps quantgit paths to the right tab', () => {
+    expect(resolveActiveTab('quantgit', '/quantgit/repositories', null)).toBe('repositories');
+    expect(resolveActiveTab('quantgit', '/quantgit', null)).toBe('overview');
   });
 
-  it('QuantGit bottom tabs follow the Gemini-approved order', () => {
+  it('resolveActiveTab maps the calendar day tab', () => {
+    expect(
+      resolveActiveTab('calendar', '/calendar', { get: (k: string) => (k === 'tab' ? 'day' : null) }),
+    ).toBe('day');
+  });
+
+  it('QuantGit bottom tabs are Repositories + Overview (user-approved 2026-10-09)', () => {
     const ids = PILLAR_SUB_CONFIGS['quantgit'].tabs.map((t) => t.id);
-    expect(ids).toEqual(['quanty', 'feed', 'repos', 'prs', 'issues']);
+    expect(ids).toEqual(['repositories', 'overview']);
+  });
+
+  it('every bottom tab navigates to a real route (no fake tabs)', () => {
+    for (const cfg of Object.values(PILLAR_SUB_CONFIGS)) {
+      for (const tab of cfg.tabs) {
+        expect(tab.targetPath).toMatch(/^\/(archive|calendar|drive|contacts|quantgit(\/repositories)?)?$/);
+      }
+    }
   });
 
   it('no tab config carries a hardcoded badge count', () => {

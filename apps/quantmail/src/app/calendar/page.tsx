@@ -132,6 +132,12 @@ function CalendarPageContent() {
       setActiveView('week');
       return;
     }
+    if (queryTab === 'day') {
+      // Day tab (bottom nav): agenda context + single-day view.
+      setActiveContextTab('agenda');
+      setActiveView('day');
+      return;
+    }
     if (isValidContextTab(queryTab)) {
       setActiveContextTab(queryTab);
       if (queryTab === 'month') {
@@ -152,6 +158,12 @@ function CalendarPageContent() {
         // Merged Week tab from the bottom nav: agenda context + week grid view.
         setActiveContextTab('agenda');
         setActiveView('week');
+        return;
+      }
+      if (custom.detail.tabId === 'day') {
+        // Day tab from the bottom nav: agenda context + single-day view.
+        setActiveContextTab('agenda');
+        setActiveView('day');
         return;
       }
       if (isValidContextTab(custom.detail.tabId)) {

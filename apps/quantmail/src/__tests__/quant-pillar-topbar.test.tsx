@@ -111,10 +111,10 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
       // Active-only markers: these strings render ONLY when Mail is active —
-      // the Swiggy-style sliding line gradient and the active logo glow.
+      // the swoosh ribbon border/glow and the active logo glow.
       // (Bare 'var(--quant-primary)' / '#FF6B35' are global: AI capsule, search ring and the
       // profile avatar all carry them, so they prove nothing per-pillar.)
-      expect(html).toContain('linear-gradient(90deg, #FF6B35, #FF6B35CC)');
+      expect(html).toContain('1px solid #FF6B3566');
       expect(html).toContain('drop-shadow(0 0 6px #FF6B3566)');
     });
 
@@ -125,8 +125,8 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       // #000000 in dark theme), no blur tint, no dividers.
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
-      // Active-only: sliding line + glow in Calendar's blue.
-      expect(html).toContain('linear-gradient(90deg, #4285F4, #4285F4CC)');
+      // Active-only: swoosh + glow in Calendar's blue.
+      expect(html).toContain('1px solid #4285F466');
       expect(html).toContain('drop-shadow(0 0 6px #4285F466)');
     });
 
@@ -137,33 +137,33 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       // #000000 in dark theme), no blur tint, no dividers.
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
-      // Active-only: sliding line + glow in Drive's green.
-      expect(html).toContain('linear-gradient(90deg, #34A853, #34A853CC)');
+      // Active-only: swoosh + glow in Drive's green.
+      expect(html).toContain('1px solid #34A85366');
       expect(html).toContain('drop-shadow(0 0 6px #34A85366)');
     });
 
-    it('applies Grey/Blue active styling to Contacts tile when active', () => {
+    it('applies Violet active styling to Contacts tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" />);
 
       // QM-UIUX-072/073: pure-black header bar (--quant-background is
       // #000000 in dark theme), no blur tint, no dividers.
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
-      // Active-only: sliding line + glow in Contacts' grey-blue.
-      expect(html).toContain('linear-gradient(90deg, #8AB4F8, #8AB4F8CC)');
-      expect(html).toContain('drop-shadow(0 0 6px #8AB4F866)');
+      // Active-only: swoosh + glow in Contacts' violet (user-confirmed 2026-10-09).
+      expect(html).toContain('1px solid #8B5CF666');
+      expect(html).toContain('drop-shadow(0 0 6px #8B5CF666)');
     });
 
-    it('applies distinct Purple active styling to QuantGit tile when active', () => {
+    it('applies distinct Amber active styling to QuantGit tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="quantgit" />);
 
       // QM-UIUX-072/073: pure-black header bar (--quant-background is
       // #000000 in dark theme), no blur tint, no dividers.
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
-      // Active-only: sliding line + glow in QuantGit's purple.
-      expect(html).toContain('linear-gradient(90deg, #A855F7, #A855F7CC)');
-      expect(html).toContain('drop-shadow(0 0 6px #A855F766)');
+      // Active-only: swoosh + glow in QuantGit's amber (user-confirmed 2026-10-09).
+      expect(html).toContain('1px solid #F59E0B66');
+      expect(html).toContain('drop-shadow(0 0 6px #F59E0B66)');
     });
 
     it('renders unread/count badges when provided in unreadCounts prop', () => {

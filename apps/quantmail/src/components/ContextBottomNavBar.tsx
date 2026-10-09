@@ -15,18 +15,22 @@ import { PILLAR_ACCENTS } from './pillar-accents';
 // ============================================================================
 //
 // REVERSED PR #531 per explicit user decision (2026-10-07): the mobile bottom
-// bar is the CONTEXTUAL per-app tab bar again (Inbox/Teams/Agents/Archive for
-// Mail, per-app sets for the other pillars). The 5-app switcher lives exactly
+// bar is the CONTEXTUAL per-app tab bar again. The 5-app switcher lives exactly
 // ONCE at the top (<QuantPillarTopBar />); the bottom duplicate
 // (<MobilePillarBottomNav />) was removed. The top strip (<MobileSubTabStrip />)
 // was removed as redundant.
 //
-// Tab sets below are the confirmed structure (user-approved 2026-10-07):
-//   Mail: Inbox, Teams, Agents, Archive
-//   Calendar: Feed, Month, Week, Trackers, Schedule
-//   Drive: Home, Feed, AI Memory, Vault
-//   Contacts: Home, Favorites, Groups, Companies, AI Dedup
-//   QuantGit (Gemini-approved): Quanty AI (logo-only) → Feed → Repos → PRs → Issues
+// Tab sets below are the user-approved structure (2026-10-09):
+//   Mail: Inbox (/), Archive (/archive)
+//   Calendar: Day, Week, Month (?tab=day|week|month — real view modes)
+//   Drive: My Drive, Recent, Starred (?tab=home|recent|starred)
+//   Contacts: All, Favorites (?tab=all|favorites)
+//   QuantGit: Repositories (/quantgit/repositories), Overview (/quantgit)
+//
+// Every tab navigates to a REAL existing view — no fake tabs. The active tab
+// carries the same swoosh/glow language as the top switcher (accent-colored),
+// and the tab set cross-fades in sync with the switcher's swoosh slide so the
+// bottom bar feels CONNECTED to the active app.
 //
 // Badges: REAL counts only, wired via the `badgeOverrides` prop from AppShell.
 // Never hardcode badge numbers in this file.
@@ -315,6 +319,66 @@ function WeekGridIcon({ className }: { className?: string; active?: boolean }) {
       <line x1="9" y1="4" x2="9" y2="22" />
       <line x1="15" y1="4" x2="15" y2="22" />
       <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
+function DayAgendaIcon({ className }: { className?: string; active?: boolean }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <line x1="8" y1="14" x2="16" y2="14" />
+      <line x1="8" y1="18" x2="13" y2="18" />
+    </svg>
+  );
+}
+
+function RecentClockIcon({ className }: { className?: string; active?: boolean }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 15.5 14" />
+    </svg>
+  );
+}
+
+function OverviewGridIcon({ className }: { className?: string; active?: boolean }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="3" width="8" height="8" rx="1.5" />
+      <rect x="13" y="3" width="8" height="8" rx="1.5" />
+      <rect x="3" y="13" width="8" height="8" rx="1.5" />
+      <rect x="13" y="13" width="8" height="8" rx="1.5" />
     </svg>
   );
 }
@@ -670,14 +734,12 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         label: 'Inbox',
         icon: InboxIcon,
         targetPath: '/',
-        queryParam: { key: 'lens', value: 'all' },
       },
       {
         id: 'archive',
         label: 'Archive',
         icon: ArchiveIcon,
-        targetPath: '/',
-        queryParam: { key: 'tab', value: 'archive' },
+        targetPath: '/archive',
       },
     ],
   },
@@ -690,20 +752,12 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
     badgeStyle: 'bg-[#4285F4] text-black',
     tabs: [
       {
-        id: 'feed',
-        label: 'Feed',
-        icon: AgendaTimelineIcon,
+        id: 'day',
+        label: 'Day',
+        icon: DayAgendaIcon,
         targetPath: '/calendar',
-        queryParam: { key: 'tab', value: 'feed' },
-        description: 'Upcoming events, milestones & tracker dates',
-      },
-      {
-        id: 'month',
-        label: 'Month',
-        icon: MonthGridIcon,
-        targetPath: '/calendar',
-        queryParam: { key: 'tab', value: 'month' },
-        description: 'Continuous scroll month calendar',
+        queryParam: { key: 'tab', value: 'day' },
+        description: 'Single-day agenda view',
       },
       {
         id: 'week',
@@ -711,23 +765,15 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         icon: WeekGridIcon,
         targetPath: '/calendar',
         queryParam: { key: 'tab', value: 'week' },
-        description: '7-day time grid with drag-to-create',
+        description: '7-day time grid',
       },
       {
-        id: 'events',
-        label: 'Trackers',
-        icon: CalendarEventsTrackerIcon,
+        id: 'month',
+        label: 'Month',
+        icon: MonthGridIcon,
         targetPath: '/calendar',
-        queryParam: { key: 'tab', value: 'events' },
-        description: 'Trackers hub: Period, Health & Life trackers',
-      },
-      {
-        id: 'schedule',
-        label: 'Schedule',
-        icon: ScheduleClockIcon,
-        targetPath: '/calendar',
-        queryParam: { key: 'tab', value: 'schedule' },
-        description: 'Meetings, Clock & Reminders',
+        queryParam: { key: 'tab', value: 'month' },
+        description: 'Month calendar',
       },
     ],
   },
@@ -741,35 +787,24 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
     tabs: [
       {
         id: 'home',
-        label: 'Home',
+        label: 'My Drive',
         icon: FolderFilesIcon,
         targetPath: '/drive',
         queryParam: { key: 'tab', value: 'home' },
       },
       {
-        id: 'feed',
-        label: 'Feed',
-        icon: DriveFeedIcon,
+        id: 'recent',
+        label: 'Recent',
+        icon: RecentClockIcon,
         targetPath: '/drive',
-        queryParam: { key: 'tab', value: 'feed' },
+        queryParam: { key: 'tab', value: 'recent' },
       },
       {
-        id: 'aimemory',
-        label: 'AI Memory',
-        icon: AiMemoryBrainIcon,
-        badgeText: 'AI',
-        ariaLabel: 'AI Memory (Cross-App Relational Vault)',
+        id: 'starred',
+        label: 'Starred',
+        icon: StarredIcon,
         targetPath: '/drive',
-        queryParam: { key: 'tab', value: 'aimemory' },
-      },
-      {
-        id: 'vault',
-        label: 'Vault',
-        icon: VaultLockIcon,
-        badgeText: 'E2EE',
-        ariaLabel: 'Vault (AES-256 E2EE)',
-        targetPath: '/drive',
-        queryParam: { key: 'tab', value: 'vault' },
+        queryParam: { key: 'tab', value: 'starred' },
       },
     ],
   },
@@ -777,17 +812,17 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
     pillar: 'contacts',
     name: 'Contacts',
     accentColor: PILLAR_ACCENTS.contacts,
-    activeContainerStyle: 'bg-[#8AB4F8]/15 border-[#8AB4F8]/40',
-    activeTextStyle: 'text-[#8AB4F8]',
-    badgeStyle: 'bg-[#8AB4F8] text-black',
+    activeContainerStyle: 'bg-[#8B5CF6]/15 border-[#8B5CF6]/40',
+    activeTextStyle: 'text-[#8B5CF6]',
+    badgeStyle: 'bg-[#8B5CF6] text-black',
     tabs: [
       {
-        id: 'home',
-        label: 'Home',
-        ariaLabel: 'Home (All Contacts)',
+        id: 'all',
+        label: 'All',
+        ariaLabel: 'All contacts',
         icon: ContactsDirectoryIcon,
         targetPath: '/contacts',
-        queryParam: { key: 'tab', value: 'home' },
+        queryParam: { key: 'tab', value: 'all' },
       },
       {
         id: 'favorites',
@@ -797,78 +832,31 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         targetPath: '/contacts',
         queryParam: { key: 'tab', value: 'favorites' },
       },
-      {
-        id: 'groups',
-        label: 'Groups',
-        ariaLabel: 'Groups (Add Folder / Add Group)',
-        icon: CirclesNetworkIcon,
-        targetPath: '/contacts',
-        queryParam: { key: 'tab', value: 'groups' },
-      },
-      {
-        id: 'companies',
-        label: 'Companies',
-        icon: CompanyBuildingIcon,
-        targetPath: '/contacts',
-        queryParam: { key: 'tab', value: 'companies' },
-      },
-      {
-        id: 'dedup',
-        label: 'AI Dedup',
-        icon: DedupWandIcon,
-        targetPath: '/contacts',
-        queryParam: { key: 'tab', value: 'dedup' },
-      },
     ],
   },
   quantgit: {
     pillar: 'quantgit',
     name: 'QuantGit',
     accentColor: PILLAR_ACCENTS.quantgit,
-    activeContainerStyle: 'bg-[#A855F7]/15 border-[#A855F7]/40',
-    activeTextStyle: 'text-[#A855F7]',
-    badgeStyle: 'bg-[#A855F7] text-black',
-    // Gemini-approved bottom-nav order (user-confirmed 2026-10-07):
-    // Quanty AI (logo-only, opens the cockpit) → Feed → Repos → PRs → Issues.
+    activeContainerStyle: 'bg-[#F59E0B]/15 border-[#F59E0B]/40',
+    activeTextStyle: 'text-[#F59E0B]',
+    badgeStyle: 'bg-[#F59E0B] text-black',
+    // User-approved 2026-10-09: Repositories + Overview only. Every tab maps
+    // to a real existing route — no fake tabs.
     tabs: [
       {
-        id: 'quanty',
-        label: 'Quanty AI',
-        icon: CopilotQuantyIcon,
-        logoOnly: true,
-        ariaLabel: 'Quanty AI (autonomous developer cockpit)',
-        description: 'Quanty AI autonomous developer cockpit',
-        targetPath: '/quantgit',
-        queryParam: { key: 'tab', value: 'copilot' },
-      },
-      {
-        id: 'feed',
-        label: 'Feed',
-        icon: AgendaTimelineIcon,
-        description: 'Personalized feed: repo activity, commits, PR discussions',
-        targetPath: '/quantgit',
-        queryParam: { key: 'tab', value: 'feed' },
-      },
-      {
-        id: 'repos',
-        label: 'Repos',
+        id: 'repositories',
+        label: 'Repositories',
         icon: RepositoriesIcon,
-        targetPath: '/quantgit',
-        queryParam: { key: 'tab', value: 'repos' },
+        targetPath: '/quantgit/repositories',
+        description: 'All repositories',
       },
       {
-        id: 'prs',
-        label: 'PRs',
-        icon: PullRequestsIcon,
+        id: 'overview',
+        label: 'Overview',
+        icon: OverviewGridIcon,
         targetPath: '/quantgit',
-        queryParam: { key: 'tab', value: 'prs' },
-      },
-      {
-        id: 'issues',
-        label: 'Issues',
-        icon: IssuesIcon,
-        targetPath: '/quantgit',
-        queryParam: { key: 'tab', value: 'issues' },
+        description: 'QuantGit overview',
       },
     ],
   },
@@ -904,6 +892,7 @@ export function resolveActiveTab(
   }
 
   if (pillar === 'calendar') {
+    if (tabParam === 'day') return 'day';
     if (tabParam === 'month') return 'month';
     if (tabParam === 'week') return 'week';
     if (tabParam === 'events') return 'events';
@@ -919,6 +908,8 @@ export function resolveActiveTab(
   }
 
   if (pillar === 'drive') {
+    if (tabParam === 'recent') return 'recent';
+    if (tabParam === 'starred') return 'starred';
     if (tabParam === 'feed') return 'feed';
     if (tabParam === 'aimemory' || tabParam === 'memory') return 'aimemory';
     if (tabParam === 'vault') return 'vault';
@@ -931,15 +922,13 @@ export function resolveActiveTab(
     if (tabParam === 'groups' || tabParam === 'circles' || activeTabOverride === 'groups') return 'groups';
     if (tabParam === 'companies' || activeTabOverride === 'companies') return 'companies';
     if (tabParam === 'dedup' || activeTabOverride === 'dedup') return 'dedup';
-    return 'home';
+    return 'all';
   }
 
   if (pillar === 'quantgit') {
-    if (tabParam === 'prs') return 'prs';
-    if (tabParam === 'issues') return 'issues';
-    if (tabParam === 'copilot') return 'quanty';
-    if (tabParam === 'feed') return 'feed';
-    return 'repos';
+    // Path-based (user-approved 2026-10-09): /quantgit/repositories vs /quantgit.
+    if (pathname.startsWith('/quantgit/repositories')) return 'repositories';
+    return 'overview';
   }
 
   return 'default';
@@ -1101,7 +1090,12 @@ export function ContextBottomNavBar({
       }}
     >
     <nav
-      className="flex h-16 items-center justify-around border-t border-[var(--quant-surface-elevated)] bg-[var(--quant-background)]/95 backdrop-blur-md px-2 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-8px_24px_rgba(0,0,0,0.45)]"
+      // key={pillar}: remounts on app switch so the tab set cross-fades in
+      // sync with the top switcher's swoosh slide (same 300ms ease-out) —
+      // this synchronization is what makes the bottom bar feel CONNECTED
+      // to the active app (user-approved 2026-10-09).
+      key={pillar}
+      className="flex h-16 items-center justify-around border-t border-[var(--quant-surface-elevated)] bg-[var(--quant-background)]/95 backdrop-blur-md px-2 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-8px_24px_rgba(0,0,0,0.45)] animate-[quantBottomTabsIn_0.3s_ease-out]"
       aria-label={`${pillarConfig.name} contextual navigation`}
     >
       {pillarConfig.tabs.map((tab) => {
@@ -1121,6 +1115,16 @@ export function ContextBottomNavBar({
                 ? `${pillarConfig.activeContainerStyle} ${pillarConfig.activeTextStyle} font-bold border shadow-sm`
                 : 'text-[#94A3B8] hover:text-[#F1F5F9] border border-transparent hover:bg-[#161922]/50 font-medium'
             }`}
+            style={
+              isActive
+                ? {
+                    // Swoosh-adjacent glow: the active bottom tab carries the
+                    // same accent-color glow language as the top switcher's
+                    // swoosh, so the two feel like one connected control.
+                    boxShadow: `0 0 18px ${pillarConfig.accentColor}55, 0 0 36px ${pillarConfig.accentColor}26, inset 0 1px 0 ${pillarConfig.accentColor}66`,
+                  }
+                : undefined
+            }
             aria-current={isActive ? 'page' : undefined}
             aria-label={
               tab.ariaLabel ||
@@ -1176,15 +1180,15 @@ export function ContextBottomNavBar({
               </span>
             )}
 
-            {/* Active Pill Indicator — premium glowing bar (was a tiny dot) */}
+            {/* Active Pill Indicator — swoosh-grade glowing bar in the pillar accent */}
             {isActive && (
               <span
                 className="absolute bottom-1 h-1 rounded-full animate-[quantNavPillIn_0.3s_cubic-bezier(0.34,1.56,0.64,1)]"
                 style={{
-                  width: '40%',
-                  minWidth: 24,
-                  background: `linear-gradient(90deg, ${pillarConfig.accentColor}, ${pillarConfig.accentColor}CC)`,
-                  boxShadow: `0 0 10px ${pillarConfig.accentColor}88, 0 0 20px ${pillarConfig.accentColor}44`,
+                  width: '44%',
+                  minWidth: 28,
+                  background: `linear-gradient(90deg, ${pillarConfig.accentColor}00, ${pillarConfig.accentColor} 30%, ${pillarConfig.accentColor} 70%, ${pillarConfig.accentColor}00)`,
+                  boxShadow: `0 0 12px ${pillarConfig.accentColor}AA, 0 0 24px ${pillarConfig.accentColor}55`,
                 }}
                 aria-hidden="true"
               />
@@ -1197,6 +1201,10 @@ export function ContextBottomNavBar({
           0% { transform: scaleX(0.3); opacity: 0; }
           60% { transform: scaleX(1.12); opacity: 1; }
           100% { transform: scaleX(1); opacity: 1; }
+        }
+        @keyframes quantBottomTabsIn {
+          0% { opacity: 0.35; transform: translateY(6px); }
+          100% { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </nav>
