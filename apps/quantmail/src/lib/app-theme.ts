@@ -23,7 +23,7 @@ export interface AppTheme {
 export const APP_THEMES: Record<AppThemeId, AppTheme> = {
   mail: {
     id: 'mail',
-    accent: '#FF8C42',
+    accent: 'var(--quant-primary)',
     glow: 'rgba(255, 140, 66, 0.25)',
     bgWash: 'linear-gradient(180deg, var(--quant-accent-faint) 0%, transparent 32%)',
     ring: 'var(--quant-primary)',
