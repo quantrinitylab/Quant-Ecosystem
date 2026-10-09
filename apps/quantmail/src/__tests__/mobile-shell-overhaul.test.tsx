@@ -228,8 +228,8 @@ describe('Mobile Shell Overhaul — Worker A', () => {
       expect(html).toContain('data-testid="pillar-tile-contacts"');
       // Active tile announces itself…
       expect(html).toContain('aria-selected="true"');
-      // …and carries the raised-slot swoosh in the pillar's own color
-      // (Contacts violet, user-confirmed 2026-10-09) — the old sliding line is gone.
+      // …and carries the compact active-slot treatment in Contacts teal.
+      // The oversized glow is intentionally restrained; the dock geometry stays stable.
       expect(html).toContain('1px solid #14B8A666');
       expect(html).toContain('drop-shadow(0 0 6px #14B8A666)');
       // …and the active tile keeps the snappy premium transition (not the old 350ms).
