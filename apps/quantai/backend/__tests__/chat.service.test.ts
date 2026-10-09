@@ -166,6 +166,10 @@ describe('ChatService', () => {
         model: 'quant-1',
         systemPrompt: null,
       });
+      // The no-engine path is reached only after the user message is stored
+      // and history is fetched — mock both so the flow gets to requireEngine().
+      prisma.aIMessage.create.mockResolvedValue({ id: 'msg-user' });
+      prisma.aIMessage.findMany.mockResolvedValue([]);
 
       const err = await engineLess
         .sendMessage('session-1', 'user-1', 'Hello')
