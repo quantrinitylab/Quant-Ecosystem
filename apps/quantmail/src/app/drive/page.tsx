@@ -49,6 +49,7 @@ import { AIDuplicateCleanerModal } from '../../components/drive/AIDuplicateClean
 import { QuantyFileWorkspace } from '../../components/drive/QuantyFileWorkspace';
 import { StorageQuotaBar } from '../../components/drive/StorageQuotaBar';
 import { apiFetchRaw } from '@quant/api-client';
+import { browserApiRequest } from '../../services/browser-api-request';
 
 type DriveItem = {
   id: string;
@@ -499,6 +500,12 @@ function DrivePageContent() {
   const [previewItem, setPreviewItem] = useState<DriveItem | null>(null);
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  // BB-P0-3: "New document" used to create a doc instantly on click (junk
+  // docs from accidental clicks). It now opens a name dialog first; the doc
+  // is created via the API with the chosen title only on confirm.
+  const [showNewDocModal, setShowNewDocModal] = useState(false);
+  const [newDocName, setNewDocName] = useState('');
+  const [creatingDoc, setCreatingDoc] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [renameTarget, setRenameTarget] = useState<DriveItem | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -916,6 +923,28 @@ function DrivePageContent() {
     }
   };
 
+  const handleCreateDocument = async () => {
+    if (creatingDoc) return;
+    const name = newDocName.trim() || 'Untitled document';
+    setCreatingDoc(true);
+    try {
+      const docId = 'doc_' + Math.random().toString(36).substring(2, 9);
+      const res = await browserApiRequest('/api/documents', {
+        method: 'POST',
+        body: JSON.stringify({ id: docId, title: name }),
+      });
+      if (!res.ok) throw new Error('create failed');
+      setShowNewDocModal(false);
+      setNewDocName('');
+      router.push(`/drive/doc/${docId}`);
+    } catch {
+      // Stay on the page with the dialog open — no junk doc is created.
+      showToast({ text: 'Failed to create document', type: 'error', subject: 'drive-doc' });
+    } finally {
+      setCreatingDoc(false);
+    }
+  };
+
   const handleToggleStar = async (item: DriveItem, e?: React.MouseEvent) => {
     e?.stopPropagation();
     // Keyed on the file, and both messages name it. Previously the unstar toast
@@ -1273,8 +1302,8 @@ function DrivePageContent() {
             <button
               type="button"
               onClick={() => {
-                const docId = 'doc_' + Math.random().toString(36).substring(2, 9);
-                router.push(`/drive/doc/${docId}`);
+                setNewDocName('');
+                setShowNewDocModal(true);
               }}
               className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--app-accent)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-white/[0.04] hover:shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_10%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
               aria-label="New document"
@@ -2222,6 +2251,50 @@ function DrivePageContent() {
               </Button>
               <Button variant="primary" onClick={handleCreateFolder}>
                 Create Folder
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* New Document Modal (BB-P0-3) */}
+        <Modal
+          isOpen={showNewDocModal}
+          onClose={() => setShowNewDocModal(false)}
+          title="New document"
+        >
+          <div className="p-4 space-y-4">
+            <div>
+              <label
+                htmlFor="drive-new-doc-name"
+                className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
+              >
+                Document name
+              </label>
+              <input
+                id="drive-new-doc-name"
+                name="newDocName"
+                type="text"
+                value={newDocName}
+                onChange={(e) => setNewDocName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleCreateDocument();
+                }}
+                placeholder="e.g. Meeting notes, Project plan…"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)] [@media(pointer:coarse)]:min-h-11"
+                autoFocus
+                data-autofocus
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="secondary" onClick={() => setShowNewDocModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => void handleCreateDocument()}
+                disabled={creatingDoc}
+              >
+                {creatingDoc ? 'Creating…' : 'Create document'}
               </Button>
             </div>
           </div>

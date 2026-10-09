@@ -12,7 +12,7 @@ import {
   useUpdateContactGroup,
   useDeleteContactGroup,
 } from '../hooks/useContactGroups';
-import { GroupInfoModal, ContactProfileInspector } from './GroupInfoModal';
+import { GroupInfoModal, ContactProfileInspector, Inspector } from './GroupInfoModal';
 import { GroupEditorModal, type GroupDraft } from './GroupEditorModal';
 import { AddMemberModal } from './AddMemberModal';
 import { AnchoredMenu } from './AnchoredMenu';
@@ -3046,6 +3046,24 @@ export function ConversationalThreadView({
           open={profileOpen}
           email={otherParticipant.email}
           name={otherParticipant.name}
+          messages={messages}
+          onClose={() => setProfileOpen(false)}
+        />
+      )}
+      {/* Self-threads and participant-less threads have no other participant
+          email, so ContactProfileInspector can't render — without this branch
+          the header "details and shared media" button was dead (BB-P0-1).
+          The shared-media panel still exists via Inspector's media/files/links
+          tabs, so wire the button to it instead of removing it. */}
+      {!activeGroup && !otherParticipant.email && (
+        <Inspector
+          open={profileOpen}
+          title={threadSubject || participantSummary || 'Thread details'}
+          subtitle={`${messages.length} ${
+            messages.length === 1 ? 'message' : 'messages'
+          } · shared media & files`}
+          accent="var(--quant-primary)"
+          avatarLabel={threadSubject || participantSummary || 'Thread details'}
           messages={messages}
           onClose={() => setProfileOpen(false)}
         />
