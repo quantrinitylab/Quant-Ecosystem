@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient } from '../services/api-client';
-import type { ContactGroup, Email, EmailAttachment, EmailThread, MessageKind } from '../types';
+import type { ContactGroup, Email, EmailAttachment, EmailLabel, EmailThread, MessageKind } from '../types';
 import {
   useContactGroups,
   useUpdateContactGroup,
@@ -16,6 +16,7 @@ import { GroupInfoModal, ContactProfileInspector, Inspector } from './GroupInfoM
 import { GroupEditorModal, type GroupDraft } from './GroupEditorModal';
 import { AddMemberModal } from './AddMemberModal';
 import { AnchoredMenu } from './AnchoredMenu';
+import { EmailSnooze } from './EmailSnooze';
 import { ThreadBubbleShell } from './ThreadBubbleGestures';
 import { showToast } from './InboxToast';
 import { useUndoSend } from './UndoSendCountdownBar';
@@ -1356,6 +1357,77 @@ export function ConversationalThreadView({
     }
   };
 
+  /*
+   * BB-P1-3: the thread header's "More" menu was missing the standard
+   * conversation actions. Each item below is wired to an existing real
+   * endpoint/handler — the same ones the inbox row and bulk actions use.
+   * Spam, Mute and Move-to are deliberately absent: no mark-spam, mute or
+   * move-to-folder endpoint exists for conversations, and inventing one
+   * would be fabrication.
+   */
+  const handleMarkUnread = useCallback(async () => {
+    const ids = conversationMessageIds;
+    if (ids.length === 0) return;
+    try {
+      await Promise.all(ids.map((id) => apiClient.markAsUnread(id)));
+      setMessages((prev) => prev.map((m) => ({ ...m, isRead: false })));
+      showToast({ text: 'Marked as unread', type: 'info' });
+      invalidateMailLists(queryClient);
+    } catch {
+      showToast({ text: 'Could not mark as unread', type: 'error' });
+    }
+  }, [conversationMessageIds, queryClient]);
+
+  const [snoozeMenuOpen, setSnoozeMenuOpen] = useState(false);
+  const handleSnoozeConversation = useCallback(
+    async (until: Date) => {
+      const ids = conversationMessageIds;
+      if (ids.length === 0) return;
+      try {
+        await Promise.all(ids.map((id) => apiClient.snoozeEmail(id, until)));
+        showToast({
+          text: `Snoozed until ${until.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`,
+          type: 'success',
+        });
+        invalidateMailLists(queryClient);
+      } catch {
+        showToast({ text: 'Could not snooze conversation', type: 'error' });
+      }
+    },
+    [conversationMessageIds, queryClient],
+  );
+
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [labelPickerOpen, setLabelPickerOpen] = useState(false);
+  const [availableLabels, setAvailableLabels] = useState<EmailLabel[]>([]);
+  const [labelsLoading, setLabelsLoading] = useState(false);
+  const openLabelPicker = useCallback(async () => {
+    setLabelPickerOpen(true);
+    setLabelsLoading(true);
+    try {
+      const res = await apiClient.getLabels();
+      if (res.success && res.data) setAvailableLabels(res.data);
+    } catch {
+      // Labels simply won't list; the picker still renders honestly empty.
+    } finally {
+      setLabelsLoading(false);
+    }
+  }, []);
+  const handleApplyLabel = useCallback(
+    async (labelName: string) => {
+      const ids = conversationMessageIds;
+      if (ids.length === 0) return;
+      try {
+        await Promise.all(ids.map((id) => apiClient.addLabel(id, labelName)));
+        showToast({ text: `Label "${labelName}" applied`, type: 'success' });
+        invalidateMailLists(queryClient);
+      } catch {
+        showToast({ text: 'Could not apply label', type: 'error' });
+      }
+    },
+    [conversationMessageIds, queryClient],
+  );
+
   // Attachment upload in quick bar
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -1605,14 +1677,18 @@ export function ConversationalThreadView({
     const recipientEmail = isOut
       ? primary?.to?.[0]?.email || (primary as any)?.toAddresses?.[0] || ''
       : primary?.from?.email || (primary as any)?.fromAddress || '';
-    const cleanSubject =
+    // BB-P1-2: a full-letter reply keeps its "Re:" prefix. The base is
+    // normalized first (no stacked prefixes), then exactly one "Re:" is
+    // restored — the same contract openReplyComposer already keeps.
+    const baseSubject =
       threadSubject?.replace(/^(Re:\s*)+/i, '').trim() ||
       primary?.subject?.replace(/^(Re:\s*)+/i, '').trim() ||
       '';
+    const replySubject = baseSubject ? `Re: ${baseSubject}` : '';
 
     const params = new URLSearchParams();
     if (recipientEmail) params.set('to', recipientEmail);
-    if (cleanSubject) params.set('subject', cleanSubject);
+    if (replySubject) params.set('subject', replySubject);
     if (quickReplyText.trim()) params.set('body', quickReplyText.trim());
     if (primary?.id || threadId) params.set('replyTo', primary?.id || threadId);
 
@@ -1908,6 +1984,14 @@ export function ConversationalThreadView({
           )}
 
           {/* 7. Far Right: More conversation actions (...) */}
+          {/* Hidden snooze picker for the thread header — the More menu's
+              "Snooze" item opens it; the trigger itself stays out of flow. */}
+          <EmailSnooze
+            triggerHidden
+            open={snoozeMenuOpen}
+            onOpenChange={setSnoozeMenuOpen}
+            onSnooze={handleSnoozeConversation}
+          />
           <AnchoredMenu
             icon={
               <svg className="size-[18px]" viewBox="0 0 24 24" fill="currentColor">
@@ -1922,9 +2006,72 @@ export function ConversationalThreadView({
             menuLabel="Conversation actions"
             menuClassName="w-52 overflow-hidden rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] py-1 shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
             scope="thread-header-menu"
-            height={180}
+            height={380}
+            open={moreMenuOpen}
+            onOpenChange={(open) => {
+              setMoreMenuOpen(open);
+              // The label picker is a sub-view of the menu — leaving the
+              // menu resets it so the next open starts at the top level.
+              if (!open) setLabelPickerOpen(false);
+            }}
           >
-            {(close) => (
+            {(close) =>
+              labelPickerOpen ? (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    tabIndex={-1}
+                    onClick={() => setLabelPickerOpen(false)}
+                    className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                  >
+                    <svg
+                      className="size-4 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden="true"
+                    >
+                      <path d="m15 18-6-6 6-6" />
+                    </svg>
+                    Labels
+                  </button>
+                  <div className="mx-3 border-t border-white/10" aria-hidden="true" />
+                  <div className="max-h-56 overflow-y-auto py-1">
+                    {labelsLoading ? (
+                      <div className="px-3.5 py-3 text-[13px] text-[var(--quant-muted-foreground)]">
+                        Loading labels…
+                      </div>
+                    ) : availableLabels.length === 0 ? (
+                      <div className="px-3.5 py-3 text-[13px] text-[var(--quant-muted-foreground)]">
+                        No labels yet — create one in Settings.
+                      </div>
+                    ) : (
+                      availableLabels.map((label) => (
+                        <button
+                          key={label.id}
+                          type="button"
+                          role="menuitem"
+                          tabIndex={-1}
+                          onClick={() => {
+                            close();
+                            void handleApplyLabel(label.name);
+                          }}
+                          className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                        >
+                          <span
+                            className="size-3 shrink-0 rounded-full"
+                            style={{ backgroundColor: label.color || 'var(--quant-muted-foreground)' }}
+                            aria-hidden="true"
+                          />
+                          {label.name}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </>
+              ) : (
               <>
                 <button
                   type="button"
@@ -1950,6 +2097,106 @@ export function ConversationalThreadView({
                   </svg>
                   Reply all
                 </button>
+
+                {/* BB-P1-3: standard conversation actions, each wired to the
+                    real endpoint the inbox row/bulk actions use. */}
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    close();
+                    void handleMarkUnread();
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg
+                    className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <rect x="3" y="5" width="18" height="14" rx="2" />
+                    <path d="m3 7 9 6 9-6" />
+                  </svg>
+                  Mark unread
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    close();
+                    void handleToggleStar();
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg
+                    className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
+                    viewBox="0 0 24 24"
+                    fill={starred ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                  {starred ? 'Unstar' : 'Star'}
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    close();
+                    setSnoozeMenuOpen(true);
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg
+                    className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="13" r="8" />
+                    <path d="M12 9v4l2 2" />
+                  </svg>
+                  Snooze…
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    void openLabelPicker();
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg
+                    className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.42 0l8.58-8.58a1 1 0 0 0 0-1.42L12 2z" />
+                    <circle cx="7" cy="7" r="1.5" />
+                  </svg>
+                  Labels…
+                </button>
+
+                <div className="mx-3 border-t border-white/10" aria-hidden="true" />
 
                 <button
                   type="button"

@@ -251,8 +251,17 @@ function useThreadBubbleGestures({ message, onQuoteReply, onForwardMessage, onDe
     [shouldSuppressClick],
   );
 
+  // BB-P1-4: a reaction toggles. The tray used to only increment, so a
+  // reaction could be added but never removed — a second tap on an active
+  // emoji now clears it instead of stacking another copy.
   const toggleReaction = useCallback((emoji: string) => {
-    setReactions((prev) => ({ ...prev, [emoji]: (prev[emoji] ?? 0) + 1 }));
+    setReactions((prev) => {
+      if ((prev[emoji] ?? 0) > 0) {
+        const { [emoji]: _removed, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [emoji]: 1 };
+    });
   }, []);
 
   const doCopy = useCallback(() => {
@@ -358,6 +367,8 @@ interface ThreadBubbleMenuProps {
   senderName: string;
   onClose: () => void;
   onToggleReaction: (emoji: string) => void;
+  /** BB-P1-4: emojis currently reacted, so the tray can show pressed state. */
+  activeReactions: string[];
   onQuoteReply: () => void;
   onCopy: () => void;
   onForward: () => void;
@@ -370,6 +381,7 @@ function ThreadBubbleMenu({
   senderName,
   onClose,
   onToggleReaction,
+  activeReactions,
   onQuoteReply,
   onCopy,
   onForward,
@@ -408,18 +420,24 @@ function ThreadBubbleMenu({
       >
         {/* Reaction tray — WhatsApp's long-press headline. */}
         <div className="flex items-center justify-between px-3 pb-1.5 pt-1" role="group" aria-label="React to message">
-          {REACTION_EMOJI.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              role="menuitem"
-              aria-label={`React ${emoji}`}
-              onClick={() => onToggleReaction(emoji)}
-              className="rounded-full p-1.5 text-xl leading-none transition-transform hover:scale-125 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
-            >
-              <span aria-hidden="true">{emoji}</span>
-            </button>
-          ))}
+          {REACTION_EMOJI.map((emoji) => {
+            const active = activeReactions.includes(emoji);
+            return (
+              <button
+                key={emoji}
+                type="button"
+                role="menuitem"
+                aria-pressed={active}
+                aria-label={active ? `Remove ${emoji} reaction` : `React ${emoji}`}
+                onClick={() => onToggleReaction(emoji)}
+                className={`rounded-full p-1.5 text-xl leading-none transition-all hover:scale-125 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
+                  active ? 'bg-[var(--quant-primary)]/20 ring-1 ring-[var(--quant-primary)] scale-110' : ''
+                }`}
+              >
+                <span aria-hidden="true">{emoji}</span>
+              </button>
+            );
+          })}
         </div>
         <div className="mx-3 border-t border-[var(--quant-surface-elevated)]" aria-hidden="true" />
         {(
@@ -608,6 +626,7 @@ export function ThreadBubbleShell({
               toggleReaction(emoji);
               closeMenu();
             }}
+            activeReactions={Object.keys(reactions).filter((e) => (reactions[e] ?? 0) > 0)}
             onQuoteReply={doQuoteReply}
             onCopy={doCopy}
             onForward={doForward}
