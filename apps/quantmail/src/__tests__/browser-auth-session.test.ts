@@ -212,4 +212,45 @@ describe('browserAuthSession', () => {
 
     await expect(promise).rejects.toThrow(/cancelled by caller/);
   });
+
+  it('times out a hung login instead of hanging forever', async () => {
+    vi.useFakeTimers();
+    try {
+      // Never-resolving fetch: simulates an auth backend that hangs forever.
+      fetchMock.mockImplementation(
+        (_input: unknown, init?: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => {
+              reject(init.signal?.reason ?? new DOMException('Aborted', 'AbortError'));
+            });
+          }),
+      );
+
+      const promise = browserAuthSession.login('user@example.com', 'password');
+      // Advance past the 30s timeout; post() converts the abort into a
+      // resolved TIMEOUT error rather than a rejection.
+      await vi.advanceTimersByTimeAsync(31_000);
+      const result = await promise;
+
+      expect(result.success).toBe(false);
+      expect(result.error?.code).toBe('TIMEOUT');
+      expect(result.error?.message).toMatch(/timed out/i);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('passes an abort signal on auth posts and returns fast responses unchanged', async () => {
+    fetchMock.mockResolvedValueOnce(
+      authResponse({ accessToken: 'access-login', expiresIn: 900, tokenType: 'Bearer' }),
+    );
+
+    const result = await browserAuthSession.login('user@example.com', 'password');
+
+    expect(result.success).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/auth/login',
+      expect.objectContaining({ method: 'POST', signal: expect.any(AbortSignal) }),
+    );
+  });
 });
