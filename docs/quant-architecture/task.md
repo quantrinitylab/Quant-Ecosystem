@@ -2057,9 +2057,8 @@ Scope: apps/quantchat AIAssistant + api-client.
 Dependencies: none.
 
 ## QM-UIUX-089 — QuantChat has no signup path (new customers cannot register)
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-089-quantchat-signup-path
+Status: [x] DONE — PR #753 merged 2026-10-10: visible 'Create account' link on QuantChat login → real QuantMail registration on the SSO host; new /register server redirect to the real registration (no more login dead-end); honest copy (no automatic-return promise, since QuantMail register ignores returnTo today). 2 pin tests with negative controls; full QuantChat suite 1217/1218 (1 proven contention flake, passes in isolation).
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/753
 Finding: Deep-customer-audit run 4 (2026-10-09): QuantChat's login page and the SSO page (quantmail.in/sso?client_id=quantchat) both lack any Create account / Register link, and /register redirects to /login. A first-time customer cannot create a Quant account via QuantChat at all. Evidence: goal workspace hidden_files/ledger-ops/customer-audit/findings.md run 4 + shots/2026-10-09/run-1953-quantchat-journey/.
 Required: a visible signup path from QuantChat login (and consistent SSO behavior) that lands on the real registration flow; verify the flow end-to-end.
 Scope: apps/quantchat login + SSO handoff.
@@ -2090,4 +2089,11 @@ Branch: fix/qm-uiux-092-dead-memory-panel
 Finding: apps/quantmail/src/components/AIMemoryPanel.tsx and its useAIMemory hook have zero importers on current main (verified 2026-10-10 during QM-UIUX-047). The panel was superseded by DriveAiMemorySubView (Drive aimemory tab); its mount was deliberately removed in a1ebad82e. Dead code duplicates live memory logic and drifts.
 Required: delete AIMemoryPanel.tsx and useAIMemory.ts after re-verifying zero references (code + tests); run the full QuantMail suite.
 Scope: apps/quantmail/src/components/AIMemoryPanel.tsx, useAIMemory hook file.
+Dependencies: none.
+
+## QM-UIUX-093 — Thread view More-menu shows fake success when the API fails
+Status: [ ] TODO
+Finding: Zero-defect run-38 (2026-10-10) found QuantMail web's ConversationalThreadView More-menu actions treat an apiClient {success:false} result as success — the UI confirms actions that the backend rejected. Same fake-success family as QM-UIUX-088 (apiClient never rejects → error branches are dead). Evidence: goal workspace hidden_files zero-defect run-38 w2-landing-verify.md (D38-1).
+Required: More-menu actions must check the result and surface failures honestly (error toast/state, no success confirmation on {success:false}); regression tests prove a failed API result shows failure, a successful one shows success.
+Scope: apps/quantmail ConversationalThreadView + its menu actions.
 Dependencies: none.
