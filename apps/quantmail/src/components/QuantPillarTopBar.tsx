@@ -1319,6 +1319,7 @@ export function QuantPillarTopBar({
         >
           <SearchMagnifierIcon className="size-4 text-[#94A3B8] shrink-0" />
           <input
+            id="quant-pillar-search-input"
             type="search"
             value={internalSearch}
             onChange={handleSearchInputChange}

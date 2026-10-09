@@ -296,6 +296,14 @@ export function AppShell({
     pathname.startsWith('/contacts') ||
     pathname.startsWith('/quantgit');
 
+  /*
+   * SIA-P1-3: on mobile the pillar top bar below owns a pinned search field
+   * wired to the same `onSearchChange` (see QuantPillarTopBar), so the shell's
+   * collapsible mobile search row would be a second box doing the same job.
+   * Desktop keeps the shell's center search (the pillar bar is `md:hidden`).
+   */
+  const pillarSearchVisible = topBar === undefined && isMainSuiteRoute && !customHeader;
+
   const handleLogoClick = useCallback(() => {
     void refetchInbox();
     window.dispatchEvent(new CustomEvent('quant:refresh'));
@@ -461,6 +469,14 @@ export function AppShell({
     if (desktop && desktop.offsetParent !== null) {
       desktop.focus();
       desktop.select();
+      return true;
+    }
+    // SIA-P1-3: on mobile the pillar bar owns the search field (the shell's
+    // collapsible row is suppressed there) — focus it directly.
+    const pillarInput = document.getElementById('quant-pillar-search-input');
+    if (pillarInput instanceof HTMLInputElement && pillarInput.offsetParent !== null) {
+      pillarInput.focus();
+      pillarInput.select();
       return true;
     }
     setIsMobileSearchOpen(true);
@@ -930,7 +946,7 @@ export function AppShell({
           animate both ways, and `inert` keeps a collapsed field out of the tab
           order and out of the accessibility tree while it is closed.
         */}
-            {sidebar && !customHeader && onSearchChange && (
+            {sidebar && !customHeader && onSearchChange && !pillarSearchVisible && (
               <div
                 id={mobileSearchId}
                 inert={!isMobileSearchOpen}

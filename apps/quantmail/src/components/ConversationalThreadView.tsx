@@ -409,7 +409,9 @@ export function ConversationalThreadView({
 
   // Accordion state: Set of message indices that are expanded
   const [expandedIndices, setExpandedIndices] = useState<Set<number>>(new Set());
-  const [expandedDetailsIndices, setExpandedDetailsIndices] = useState<Set<number>>(new Set());
+  // SIA-P1-4: real email headers (From/To/Subject/Date) are visible by default —
+  // the set tracks the ones the reader explicitly collapsed.
+  const [collapsedDetailsIndices, setCollapsedDetailsIndices] = useState<Set<number>>(new Set());
 
   /*
    * Double-tap ❤️ quick react (WhatsApp parity).
@@ -1321,7 +1323,7 @@ export function ConversationalThreadView({
   };
 
   const toggleDetailsExpand = (index: number) => {
-    setExpandedDetailsIndices((prev) => {
+    setCollapsedDetailsIndices((prev) => {
       const next = new Set(prev);
       if (next.has(index)) next.delete(index);
       else next.add(index);
@@ -2156,7 +2158,7 @@ export function ConversationalThreadView({
         {!isLoading &&
           messages.map((message: Email, index: number) => {
             const isExpanded = expandedIndices.has(index);
-            const isDetailsExpanded = expandedDetailsIndices.has(index);
+            const isDetailsExpanded = !collapsedDetailsIndices.has(index);
 
             const msgFromAddr = (
               message.from?.email ||
@@ -2577,6 +2579,12 @@ export function ConversationalThreadView({
                               </span>
                             </div>
                             <div className="flex">
+                              <span className="w-20 text-[var(--quant-muted-foreground)]">Subject:</span>
+                              <span className="font-medium text-[var(--quant-foreground)]">
+                                {message.subject || threadSubject || '(no subject)'}
+                              </span>
+                            </div>
+                            <div className="flex">
                               <span className="w-20 text-[var(--quant-muted-foreground)]">To:</span>
                               <span className="text-[var(--quant-muted-foreground)]">{toDisplay}</span>
                             </div>
@@ -2940,7 +2948,10 @@ export function ConversationalThreadView({
             value={quickReplyText}
             onChange={(e) => handleQuickReplyChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              // SIA-P1-4: plain Enter never SENDS — Cmd/Ctrl+Enter only. Mail
+              // mode keeps Enter-to-open-the-composer (nothing sends from the
+              // bar in mail mode).
+              if (e.key === 'Enter' && (composeMode === 'mail' || e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
                 handleBarSend();
               }
@@ -2950,10 +2961,10 @@ export function ConversationalThreadView({
             }}
             placeholder={
               composeMode === 'mail'
-                ? 'Start the letter — Enter opens the composer…'
-                : 'Message (↵ to send)…'
+                ? 'Write a reply — Enter opens the composer…'
+                : 'Reply… (⌘/Ctrl+Enter to send)'
             }
-            aria-label={composeMode === 'mail' ? 'Start a letter reply' : 'Message'}
+            aria-label={composeMode === 'mail' ? 'Write a reply' : 'Reply'}
             className="min-h-[44px] min-w-0 flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded px-1 sm:px-2 py-1.5 sm:min-h-0"
           />
 

@@ -2476,7 +2476,11 @@ export default function InboxPage() {
     if (showArchivedView) {
       return total === 0 ? 'Nothing archived yet.' : `${conversations} out of the way.`;
     }
-    return unreadCount > 0 ? `${unread} waiting for review.` : 'You are completely caught up.';
+    // SIA-P1-1: "caught up" is a true-zero state only. Conversations on screen
+    // with zero unread are "all read", never "completely caught up".
+    if (unreadCount > 0) return `${unread} waiting for review.`;
+    if (total === 0) return 'You are completely caught up.';
+    return `${conversations}, all read.`;
   }, [activeThreadPool, debouncedQuery, showArchivedView, unreadCount]);
 
   const toggleSelect = useCallback(
@@ -2924,17 +2928,21 @@ export default function InboxPage() {
               <h1>{heroTitle}</h1>
               <p>{heroSummary}</p>
             </div>
+            {/*
+              SIA-P1-2: one primary Compose per screen. The left-nav Compose
+              (docked composer on this route, FAB on mobile) is the primary —
+              the hero keeps only the actions the nav cannot do.
+            */}
             <div className="hero-compose-row">
-              <button
-                type="button"
-                className="hero-compose"
-                onClick={() =>
-                  activeLens === 'groups' ? setGroupEditorTarget('new') : handleOpenCompose()
-                }
-              >
-                <MailIcon name="compose" /> {activeLens === 'groups' ? 'New group' : 'Compose'}
-              </button>
-              {activeLens !== 'groups' && (
+              {activeLens === 'groups' ? (
+                <button
+                  type="button"
+                  className="hero-compose"
+                  onClick={() => setGroupEditorTarget('new')}
+                >
+                  <MailIcon name="compose" /> New group
+                </button>
+              ) : (
                 <button
                   type="button"
                   className="hero-compose hero-compose-chat"

@@ -46,9 +46,9 @@ describe('QM-UIUX-082 — Sent folder in the live navigation', () => {
     vi.restoreAllMocks();
   });
 
-  it('desktop left nav (desktopContextTabs) lists Inbox, Sent, Archive in order', () => {
+  it('desktop left nav (desktopContextTabs) lists Inbox, Sent, Drafts, Archive, Spam, Trash in order', () => {
     const ids = desktop.PILLAR_SUB_CONFIGS.mail.tabs.map((t) => t.id);
-    expect(ids).toEqual(['inbox', 'sent', 'archive']);
+    expect(ids).toEqual(['inbox', 'sent', 'drafts', 'archive', 'spam', 'trash']);
   });
 
   it('desktop Sent tab targets the real /sent route with no fake badge', () => {
@@ -72,9 +72,40 @@ describe('QM-UIUX-082 — Sent folder in the live navigation', () => {
     expect(desktop.resolveContextTab('mail', '/', null)).toBe('inbox');
   });
 
-  it('mobile bottom nav (ContextBottomNavBar) lists Inbox, Sent, Archive in order', () => {
+  it('SIA-P1-5 — desktop resolver marks Drafts/Spam/Trash active', () => {
+    expect(desktop.resolveContextTab('mail', '/drafts', null)).toBe('drafts');
+    expect(desktop.resolveContextTab('mail', '/trash', null)).toBe('trash');
+    expect(
+      desktop.resolveContextTab('mail', '/', { get: (k: string) => (k === 'lens' ? 'spam' : null) }),
+    ).toBe('spam');
+  });
+
+  it('SIA-P1-5 — desktop Drafts/Spam/Trash tabs navigate to the real views', () => {
+    const push = vi.fn();
+    const drafts = desktop.PILLAR_SUB_CONFIGS.mail.tabs.find((t) => t.id === 'drafts')!;
+    desktop.executeContextTabClick(drafts, 'mail', { pathname: '/', router: { push } });
+    expect(push).toHaveBeenCalledWith('/drafts');
+
+    const spam = desktop.PILLAR_SUB_CONFIGS.mail.tabs.find((t) => t.id === 'spam')!;
+    desktop.executeContextTabClick(spam, 'mail', { pathname: '/', router: { push } });
+    expect(push).toHaveBeenCalledWith('/?lens=spam');
+
+    const trash = desktop.PILLAR_SUB_CONFIGS.mail.tabs.find((t) => t.id === 'trash')!;
+    desktop.executeContextTabClick(trash, 'mail', { pathname: '/', router: { push } });
+    expect(push).toHaveBeenCalledWith('/trash');
+  });
+
+  it('SIA-P1-5 — mobile resolver marks Drafts/Spam/Trash active', () => {
+    expect(mobile.resolveActiveTab('mail', '/drafts', null)).toBe('drafts');
+    expect(mobile.resolveActiveTab('mail', '/trash', null)).toBe('trash');
+    expect(
+      mobile.resolveActiveTab('mail', '/', { get: (k: string) => (k === 'lens' ? 'spam' : null) }),
+    ).toBe('spam');
+  });
+
+  it('mobile bottom nav (ContextBottomNavBar) lists Inbox, Sent, Drafts, Archive, Spam, Trash in order', () => {
     const ids = mobile.PILLAR_SUB_CONFIGS.mail.tabs.map((t) => t.id);
-    expect(ids).toEqual(['inbox', 'sent', 'archive']);
+    expect(ids).toEqual(['inbox', 'sent', 'drafts', 'archive', 'spam', 'trash']);
   });
 
   it('mobile Sent tab targets the real /sent route with no fake badge', () => {
