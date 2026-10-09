@@ -858,7 +858,8 @@ function QuantGitContent() {  const router = useRouter();
               // Never claim GPG verification the backend did not assert.
               verified: c.verified ?? false,
               verificationReason: c.verificationReason,
-              stats: c.stats || { totalFiles: 3, additions: 42, deletions: 12 },
+              // Never invent diff stats — only real backend stats, otherwise undefined.
+              stats: c.stats,
               files: c.files,
             }));
             setCommits(mappedCommits);

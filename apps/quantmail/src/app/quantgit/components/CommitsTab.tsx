@@ -201,23 +201,31 @@ export function CommitsTab({
             </div>
           </div>
 
-          {/* Files Changed Summary Bar */}
+          {/* Files Changed Summary Bar — only real stats from the backend, never invented. */}
           <div
             data-testid="files-changed-summary"
             className="flex items-center justify-between text-xs font-medium text-[#E6EDF3] bg-[#0D1117] px-3.5 py-2 rounded-md border border-[#30363D]"
           >
             <span>
-              Showing{' '}
-              <strong className="text-white font-bold">
-                {activeCommit.stats?.totalFiles ?? activeCommit.files?.length ?? 1} changed files
-              </strong>{' '}
-              with{' '}
-              <span className="text-[#3FB950] font-bold">
-                +{activeCommit.stats?.additions ?? 42}
-              </span>{' '}
-              <span className="text-[#F85149] font-bold">
-                -{activeCommit.stats?.deletions ?? 12} lines
-              </span>
+              {activeCommit.stats ? (
+                <>
+                  Showing{' '}
+                  <strong className="text-white font-bold">
+                    {activeCommit.stats.totalFiles ?? activeCommit.files?.length ?? 0} changed
+                    files
+                  </strong>{' '}
+                  with{' '}
+                  <span className="text-[#3FB950] font-bold">
+                    +{activeCommit.stats.additions}
+                  </span>{' '}
+                  <span className="text-[#F85149] font-bold">
+                    -{activeCommit.stats.deletions}
+                  </span>{' '}
+                  lines
+                </>
+              ) : (
+                <span className="text-[#7D8590]">Diff stats unavailable for this commit</span>
+              )}
             </span>
 
             <div className="flex items-center gap-1.5">
@@ -228,47 +236,10 @@ export function CommitsTab({
             </div>
           </div>
 
-          {/* Expandable Per-File Diffs */}
+          {/* Expandable Per-File Diffs — only real diffs from the backend, never invented. */}
           <div className="space-y-3">
-            {(
-              activeCommit.files || [
-                {
-                  filename: 'apps/quantmail/src/app/quantgit/page.tsx',
-                  status: 'modified' as const,
-                  additions: activeCommit.stats?.additions ?? 42,
-                  deletions: activeCommit.stats?.deletions ?? 12,
-                  lines: [
-                    {
-                      type: 'context' as const,
-                      oldLineNumber: 1,
-                      newLineNumber: 1,
-                      content: "import { useState } from 'react';",
-                    },
-                    {
-                      type: 'addition' as const,
-                      newLineNumber: 2,
-                      content: "+import { CommitsTab } from './components/CommitsTab';",
-                    },
-                    {
-                      type: 'addition' as const,
-                      newLineNumber: 3,
-                      content: "+import { BranchesTab } from './components/BranchesTab';",
-                    },
-                    {
-                      type: 'deletion' as const,
-                      oldLineNumber: 2,
-                      content: "-import { LegacyPlaceholder } from './legacy';",
-                    },
-                    {
-                      type: 'context' as const,
-                      oldLineNumber: 3,
-                      newLineNumber: 4,
-                      content: 'export default function QuantGitPage() {',
-                    },
-                  ],
-                },
-              ]
-            ).map((file: CommitFileDiff, fIdx: number) => {
+            {activeCommit.files && activeCommit.files.length > 0 ? (
+              activeCommit.files.map((file: CommitFileDiff, fIdx: number) => {
               const isCollapsed = expandedFiles[file.filename] === false;
               return (
                 <div
@@ -342,7 +313,16 @@ export function CommitsTab({
                   )}
                 </div>
               );
-            })}
+              })
+            ) : (
+              <div
+                data-testid="commit-diff-empty"
+                className="px-4 py-10 text-center text-[#7D8590] text-xs"
+              >
+                <p className="font-semibold text-[#E6EDF3] text-sm">No file diffs available</p>
+                <p className="mt-1">This commit has no diff data from the backend.</p>
+              </div>
+            )}
           </div>
         </div>
       )}
