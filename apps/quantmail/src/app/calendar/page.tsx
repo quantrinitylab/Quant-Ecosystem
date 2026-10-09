@@ -27,6 +27,7 @@ import {
   calculateGrid,
   buildCurrentWeekDays,
   buildMonthWeeks,
+  defaultEventWindow,
 } from './lib/calendar-geometry';
 import { pointerStartsSheetDrag } from './lib/sheet-drag';
 import { CalendarHeader } from './components/CalendarHeader';
@@ -278,14 +279,11 @@ function CalendarPageContent() {
   const activeMonthName = MONTH_NAMES[selectedDate.getMonth()];
   const activeYear = selectedDate.getFullYear();
 
-  const start = useMemo(
-    () => new Date(today.getFullYear(), today.getMonth() - 8, 1).toISOString(),
-    [today],
-  );
-  const end = useMemo(
-    () => new Date(today.getFullYear(), today.getMonth() + 10, 0, 23, 59, 59).toISOString(),
-    [today],
-  );
+  // Prefetch band for GET /events — must stay inside the backend's 365-day
+  // window contract (PAUD-P0-5/QM-UIUX-078: the old month-8 → month+10 band
+  // was ~546 days, so the list query 400'd on every load and the calendar
+  // rendered empty even though saves succeeded).
+  const { start, end } = useMemo(() => defaultEventWindow(today), [today]);
 
   const { data: rawEvents, isLoading, error, refetch } = useCalendarEvents({ start, end });
 
@@ -1121,6 +1119,25 @@ function CalendarPageContent() {
             setIsBookingLinksOpen(true);
           }}
         />
+
+        {/* Honest failure state (PAUD-P0-5/QM-UIUX-078): the events query
+            error used to be swallowed, so a broken list contract rendered as
+            a permanently empty calendar. Surface it with a retry. */}
+        {error && !isInitialLoading && (
+          <div
+            role="alert"
+            className="mx-3 mt-2 flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+          >
+            <span>Couldn't load your events — {(error as Error).message || 'please try again.'}</span>
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="shrink-0 rounded-lg bg-red-500/20 px-3 py-1.5 font-semibold text-red-100 hover:bg-red-500/30 min-h-[44px]"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/*
           The single merged tab row: Agenda/Week/Day/Month/Booking/QuantMeet/

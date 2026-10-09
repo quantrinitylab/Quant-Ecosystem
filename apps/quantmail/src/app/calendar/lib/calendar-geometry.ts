@@ -281,3 +281,25 @@ export function buildMonthWeeks(
   }
   return weeks;
 }
+
+/**
+ * The prefetch window the calendar page asks GET /events for.
+ *
+ * The backend's window query rejects spans over 365 days (WINDOW_TOO_LARGE,
+ * 400). The page used to ask for month-8 → month+10 (≈546 days), so the list
+ * query failed on every load while the page swallowed the error — the
+ * calendar rendered permanently empty and a freshly saved event (POST
+ * succeeded, toast fired) never appeared in month/week/search.
+ *
+ * This band stays strictly inside the 365-day contract: 11 calendar months
+ * (1st of month-5 → last day of month+5) can never exceed ~338 days, leaving
+ * comfortable margin for leap years and long months.
+ */
+export const MAX_EVENT_QUERY_WINDOW_DAYS = 365;
+
+export function defaultEventWindow(today: Date): { start: string; end: string } {
+  const start = new Date(today.getFullYear(), today.getMonth() - 5, 1);
+  // day 0 of month+6 = last day of month+5
+  const end = new Date(today.getFullYear(), today.getMonth() + 6, 0, 23, 59, 59);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
