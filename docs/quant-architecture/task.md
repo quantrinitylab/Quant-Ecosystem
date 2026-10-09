@@ -866,9 +866,7 @@ Scope: QuantGram welcome page.
 Dependencies: none.
 
 ## QM-UIUX-016 — QuantCooks: duplicate/confusing sign-in CTAs
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-016-cooks-signin-cta
+Status: [x] DONE — superseded: already fixed on main by commit e99057c5a (2026-10-07, DC-P1-9: consolidated QuantCooks sign-in to one SSO CTA + email/password fallback); the 2026-10-08 audit screenshot was of a stale staging deploy. Verified firsthand 2026-10-09: 'Continue with Quant SSO' has 0 occurrences in apps/quantcooks; single primary CTA at login.tsx.
 Finding: the QuantCooks sign-in shows both "Continue with Quant Account" (gradient) and "Continue with Quant SSO" (outline) — near-identical actions competing as primaries. Screenshot: `~/workspace/audits/2026-10-08-uiux-deep/cooks-mobile.png`.
 Required: one primary CTA; demote or remove the duplicate.
 Scope: QuantCooks sign-in.
