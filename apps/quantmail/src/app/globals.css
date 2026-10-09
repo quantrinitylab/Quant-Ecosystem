@@ -5145,32 +5145,6 @@ body {
 .refactor-result pre { padding: 0.4rem 0.5rem; font-size: 0.625rem; color: #abb2bf; margin: 0; background: var(--quant-background); max-height: 160px; overflow-y: auto; }
 
 /* ========================================================================== */
-/* AI Code Search (Semantic)                                                  */
-/* ========================================================================== */
-.ai-code-search { margin: 0.5rem 0; }
-.code-search-bar { padding: 0.5rem; border-radius: 0.5rem; border: 1px solid var(--quant-surface-elevated); background: var(--quant-surface-subtle); }
-.code-search-modes { display: flex; gap: 0.2rem; margin-bottom: 0.3rem; }
-.code-search-modes button { padding: 0.2rem 0.4rem; border-radius: 0.3rem; border: 1px solid var(--quant-surface-elevated); background: transparent; color: #888; font-size: 0.625rem; cursor: pointer; }
-.code-search-modes button.is-active { border-color: rgba(255, 140, 66,0.3); background: var(--quant-accent-faint); color: var(--quant-primary); }
-.code-search-input-row { display: flex; gap: 0.3rem; }
-.code-search-input-row input { flex: 1; padding: 0.35rem 0.5rem; border-radius: 0.35rem; border: 1px solid var(--quant-surface-elevated); background: var(--quant-background); color: #F5F5F5; font-size: 0.7rem; outline: none; }
-.code-search-input-row input:focus { border-color: rgba(255, 140, 66,0.4); }
-.code-search-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0.35rem 0.55rem; border-radius: 0.35rem; border: 1px solid rgba(255, 140, 66,0.3); background: var(--quant-accent-faint); color: var(--quant-primary); cursor: pointer; }
-.code-search-btn:focus-visible { outline: 2px solid var(--quant-primary); outline-offset: 2px; }
-.code-search-results { margin-top: 0.4rem; }
-.code-search-count { font-size: 0.625rem; color: #888; margin-bottom: 0.3rem; }
-.code-search-result { display: block; width: 100%; text-align: left; padding: 0.4rem 0.5rem; border-radius: 0.35rem; border: 1px solid transparent; background: transparent; cursor: pointer; margin-bottom: 0.2rem; transition: all 80ms; }
-.code-search-result:hover { background: rgba(255,255,255,0.03); border-color: var(--quant-surface-elevated); }
-.search-result-header { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.15rem; }
-.search-result-file { font-size: 0.625rem; color: #60a5fa; font-family: monospace; }
-.search-result-line { font-size: 0.625rem; color: #A1A4AC; }
-.search-result-badge { font-size: 0.625rem; padding: 0.08rem 0.3rem; border-radius: 1rem; font-weight: 600; }
-.search-result-badge--semantic { background: rgba(255, 140, 66,0.1); color: var(--quant-primary); }
-.search-result-badge--exact { background: rgba(74,222,128,0.1); color: #4ade80; }
-.search-result-badge--regex { background: rgba(167,139,250,0.1); color: #a78bfa; }
-.search-result-content { font-family: monospace; font-size: 0.625rem; color: #999; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* ========================================================================== */
 /* AI API Generator                                                           */
 /* ========================================================================== */
 .ai-api-gen { margin: 0.4rem 0; }
