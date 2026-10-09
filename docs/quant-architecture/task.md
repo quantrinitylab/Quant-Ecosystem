@@ -1911,7 +1911,9 @@ Required: fix all 7 with real-device-behavior verification via mobile Chrome emu
 Scope: apps/quantmail/src (mobile header, app switcher, bottom nav, avatar menu, Drive/QuantGit scroll containers).
 Dependencies: QM-UIUX-072 (pure-black law).
 ## QM-UIUX-074 — P0: Archive row action misroutes to Spam
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-074-archive-misroutes-spam
 Finding: Personal deep audit 2026-10-09 (signed-in browser, kundan@quantmail.in): clicking "Archive" on an inbox row moved the conversation to SPAM (Spam tab 0→1, "Rescue from spam" offered), then it settled into Archive with contradictory toasts ("Rescued from spam — moved to inbox" followed by "Conversation archived").
 Required: Archive must move directly to Archive — never via Spam; single truthful toast. Regression test: archive action asserts folder=ARCHIVE, never SPAM.
 Scope: apps/quantmail inbox row actions.
