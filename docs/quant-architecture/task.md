@@ -1452,7 +1452,7 @@ Scope: QuantGit backend seeds + MCP Registry.
 Dependencies: none.
 
 ## QM-UIUX-069 — Delete or wire fake AICodeSearch
-Status: [~] IN_PROGRESS
+Status: [x] DONE (PR #699 merged)
 Owner: muse-main
 Branch: fix/qm-uiux-069-fake-ai-code-search
 Finding: `AICodeSearch.tsx` has deliberate 600ms simulated delay, hardcoded mock results, and fake "We have SEMANTIC search" claim. Dead code — zero mounts. A real backend exists (AICodeSearchService at POST /code-search). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/search-code-audit.md`.
