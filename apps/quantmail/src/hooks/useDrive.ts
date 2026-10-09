@@ -305,6 +305,11 @@ export function useDrive(): UseDriveReturn {
               u.fileId === uploadId ? { ...u, progress: 100, status: 'complete' as const } : u,
             ),
           );
+          // Honest signal for the Drive mascot's success acknowledgement —
+          // fired only here, after the upload truly completed (never on error).
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('quant:drive:upload-complete'));
+          }
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'Upload failed';
           failures.push(errorMsg);
