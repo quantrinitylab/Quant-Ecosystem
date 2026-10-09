@@ -1238,3 +1238,90 @@ describe('POST /ai/chat — mailbox grounding (bug 4)', () => {
     expect(grounding).toContain('Mailbox data unavailable');
   });
 });
+
+describe('POST /ai/chat — grounding scope (PAUD-P0-7 / QM-UIUX-080)', () => {
+  // Personal deep audit 2026-10-09: asking "what is 2+2" returned the identical
+  // canned "I don't have that information." on BOTH Fast and Deep tiers. Root
+  // cause: the mailbox grounding block's refusal rule was written without any
+  // scope, so the model read "say you do not have that information" as a
+  // universal refusal — every non-mailbox question "was not in the snapshot" and
+  // got refused, regardless of tier. The model boundary is mocked (the model
+  // itself cannot run in this harness); the pin is on the prompt we hand it:
+  // the block must scope the snapshot rules to mailbox questions and explicitly
+  // permit general answers, on every tier.
+
+  /** A live-looking mailbox so the route renders the real snapshot block. */
+  function mailboxPrismaMock() {
+    return {
+      email: {
+        count: vi.fn(async () => 1),
+        findMany: vi.fn(async () => [
+          {
+            fromName: 'Aarav Mehta',
+            fromAddress: 'aarav@example.com',
+            subject: 'Q3 planning notes',
+            isRead: true,
+            receivedAt: new Date('2026-10-03T09:00:00Z'),
+          },
+        ]),
+      },
+    };
+  }
+
+  function twoPlusTwoGrounding(): string {
+    const messages = providerMessages();
+    const block = messages.find(
+      (m) => m.role === 'system' && /LIVE MAILBOX SNAPSHOT/.test(m.content),
+    );
+    expect(block).toBeDefined();
+    return block!.content;
+  }
+
+  async function askTwoPlusTwo(intent?: string) {
+    const app = await buildApp('user-1', { prisma: mailboxPrismaMock() });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'what is 2+2' }],
+        ...(intent ? { intent } : {}),
+      },
+    });
+    return res;
+  }
+
+  it('fast tier: a general question is not steered to the canned refusal', async () => {
+    const res = await askTwoPlusTwo('fast');
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toMatchObject({ tier: 'fast' });
+    const grounding = twoPlusTwoGrounding();
+    // The old unconditional refusal ("If they ask about something not in the
+    // snapshot, say you do not have that information") must be gone, and the
+    // replacement must explicitly permit non-mailbox answers.
+    expect(grounding).not.toContain('If they ask about something not in the snapshot');
+    expect(grounding).toContain('answer normally from your own knowledge');
+    expect(grounding).toContain('RULES — SCOPE');
+  });
+
+  it('deep tier: the same general question gets the same scoped grounding', async () => {
+    const res = await askTwoPlusTwo('deep');
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toMatchObject({ tier: 'deep' });
+    const grounding = twoPlusTwoGrounding();
+    expect(grounding).not.toContain('If they ask about something not in the snapshot');
+    expect(grounding).toContain('answer normally from your own knowledge');
+  });
+
+  it('still refuses to invent mailbox data (the anti-hallucination guard survives)', async () => {
+    // Scoping the refusal is a loosening; this pins what must not loosen. The
+    // guard for real mailbox questions — quote the snapshot exactly, never
+    // invent — stays in the block verbatim.
+    await askTwoPlusTwo('balanced');
+
+    const grounding = twoPlusTwoGrounding();
+    expect(grounding).toContain('answer ONLY from this snapshot and quote its numbers exactly');
+    expect(grounding).toContain('Never invent counts');
+  });
+});
