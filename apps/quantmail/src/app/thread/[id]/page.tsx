@@ -89,6 +89,10 @@ export default function ThreadPage() {
             void mutations.archive(ids);
             leaveThread(true);
           }}
+          onUnarchive={(ids) => {
+            void mutations.unarchive(ids);
+            leaveThread(true);
+          }}
           onDelete={(ids) => {
             void mutations.trash(ids);
             leaveThread(true);
