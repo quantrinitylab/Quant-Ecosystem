@@ -880,7 +880,9 @@ Scope: QuantCooks sign-in.
 Dependencies: QM-UIUX-016 (same page; fix together).
 
 ## QM-UIUX-018 — QuanTube: category pill cut off with no scroll affordance
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-018-tube-category-scroll
 Finding: the "Sport" category pill is cut off at the right edge with no visible scroll affordance. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/satellite-audit.md`.
 Required: edge fade or scroll hint on the pill row.
 Scope: QuanTube mobile feed.
@@ -918,7 +920,9 @@ Scope: `apps/quantmail/src/components/CalendarMonthView.tsx`, `CalendarAgendaVie
 Dependencies: none.
 
 ## QM-UIUX-023 — Calendar P1s: duplicate navigation, small touch targets
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-023-calendar-nav-touch
 Finding: (a) page-level `CalendarHeader` AND `CalendarMonthSubView` toolbar both render prev/next chevrons + "Today" — two "Today" buttons on one screen; (b) touch targets below 44px on mobile — month chevrons `size-8` (32px), "Today" `h-8`, split-button chevron `px-1.5` (~28px). Week view already uses `min-h-[44px]` — follow that pattern. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/calendar-audit.md`.
 Required: single navigation source; all touch targets >= 44px on mobile.
 Scope: Calendar header/subview components.
