@@ -277,7 +277,7 @@ describe('QuantGit GitHub Sovereign Parity: PR 3-Way Merge & Actions Streaming L
       expect(html).toContain('Slack Failure Alert Workflow');
     });
 
-    it('renders step-by-step live terminal streaming log viewer with all 5 accordion steps', () => {
+    it('renders steps derived from the run\'s real job data (no fabricated CI steps)', () => {
       const html = renderToStaticMarkup(
         <ActionsTab
           actions={MOCK_RUNS}
@@ -292,20 +292,27 @@ describe('QuantGit GitHub Sovereign Parity: PR 3-Way Merge & Actions Streaming L
       expect(html).toContain('CI Pipeline &amp; Vitest QA Sentinel');
       expect(html).toContain('#run-901');
 
-      // Verify all 5 workflow steps
+      // Steps come ONLY from the run's real job list (gate, CodeQL) —
+      // never from invented runner steps.
       expect(html).toContain('data-testid="step-accordion-step-1"');
-      expect(html).toContain('Set up job');
+      expect(html).toContain('gate');
+      expect(html).toContain('3m 33s');
       expect(html).toContain('data-testid="step-accordion-step-2"');
-      expect(html).toContain('Run actions/checkout@v4');
-      expect(html).toContain('data-testid="step-accordion-step-3"');
-      expect(html).toContain('Run pnpm install');
-      expect(html).toContain('data-testid="step-accordion-step-4"');
-      expect(html).toContain('Run test suite');
-      expect(html).toContain('data-testid="step-accordion-step-5"');
-      expect(html).toContain('Complete job');
+      expect(html).toContain('CodeQL');
+      expect(html).toContain('1m 12s');
+
+      // No fabricated CI step names or invented runner output
+      expect(html).not.toContain('Set up job');
+      expect(html).not.toContain('Run actions/checkout@v4');
+      expect(html).not.toContain('Run pnpm install');
+      expect(html).not.toContain('Run test suite');
+      expect(html).not.toContain('Complete job');
+      expect(html).not.toContain('data-testid="step-accordion-step-3"');
+      expect(html).not.toContain('data-testid="step-accordion-step-4"');
+      expect(html).not.toContain('data-testid="step-accordion-step-5"');
     });
 
-    it('expands step terminal output with line numbers, duration, and ANSI log styling', () => {
+    it('keeps step terminal output collapsed by default with no fabricated log lines', () => {
       const html = renderToStaticMarkup(
         <ActionsTab
           actions={MOCK_RUNS}
@@ -315,16 +322,16 @@ describe('QuantGit GitHub Sovereign Parity: PR 3-Way Merge & Actions Streaming L
         />,
       );
 
-      // Step 4 (Run test suite) is expanded by default
-      expect(html).toContain('data-testid="terminal-logs-step-4"');
-      expect(html).toContain('42s');
-      expect(html).toContain('RUN v4.1.11 /home/runner/work/Quant-Ecosystem/apps/quantmail');
-      expect(html).toContain('GitHubSovereignParity.test.tsx');
-      expect(html).toContain('All test suites verified green in 42.1s');
-      expect(html).toContain('text-[#3FB950]'); // Green styling
+      // Steps render collapsed — no terminal markup is emitted at all,
+      // and none of the fabricated runner log lines remain.
+      expect(html).not.toContain('data-testid="terminal-logs-step-1"');
+      expect(html).not.toContain('data-testid="terminal-logs-step-2"');
+      expect(html).not.toContain('RUN v4.1.11 /home/runner/work/Quant-Ecosystem/apps/quantmail');
+      expect(html).not.toContain('GitHubSovereignParity.test.tsx');
+      expect(html).not.toContain('All test suites verified green in 42.1s');
     });
 
-    it('displays error highlights in logs when workflow run is failed', () => {
+    it('failed run shows failed status badge and real failed job step (no fabricated error logs)', () => {
       const html = renderToStaticMarkup(
         <ActionsTab
           actions={MOCK_RUNS}
@@ -336,14 +343,36 @@ describe('QuantGit GitHub Sovereign Parity: PR 3-Way Merge & Actions Streaming L
 
       expect(html).toContain('data-testid="workflow-status-badge"');
       expect(html).toContain('failed');
-      expect(html).toContain('data-testid="terminal-logs-step-4"');
-      expect(html).toContain('✕ src/app/quantgit/telemetry.test.ts (1 failed, 4 passed)');
-      expect(html).toContain('FAIL src/app/quantgit/telemetry.test.ts');
-      expect(html).toContain('Command failed with exit code 1.');
-      expect(html).toContain('text-[#F85149]'); // Red error styling
+      expect(html).toContain('text-[#F85149]'); // Failed status badge styling
+      // Real job from the run data: 'test' failed in 9s
+      expect(html).toContain('data-testid="step-accordion-step-1"');
+      expect(html).toContain('test');
+      expect(html).toContain('9s');
+
+      // No fabricated error logs
+      expect(html).not.toContain('terminal-logs-step-4');
+      expect(html).not.toContain('telemetry.test.ts (1 failed, 4 passed)');
+      expect(html).not.toContain('FAIL src/app/quantgit/telemetry.test.ts');
+      expect(html).not.toContain('Command failed with exit code 1.');
     });
 
-    it('renders live monotonic log auto-scroll toggle and "Copy full logs" button', () => {
+    it('shows honest empty state when a run has no step data from the backend', () => {
+      const html = renderToStaticMarkup(
+        <ActionsTab
+          actions={MOCK_RUNS}
+          handleTriggerWorkflow={vi.fn()}
+          setSelectedActionRun={vi.fn()}
+          initialSelectedRun={MOCK_RUNS[2]} // run-903 has no jobs
+        />,
+      );
+
+      expect(html).toContain('data-testid="workflow-run-detail"');
+      expect(html).toContain('data-testid="workflow-steps-empty"');
+      expect(html).toContain('No steps recorded for this run');
+      expect(html).toContain('Step data is only shown when the CI backend provides it.');
+    });
+
+    it('renders auto-scroll toggle; Copy button only appears when real logs exist', () => {
       const html = renderToStaticMarkup(
         <ActionsTab
           actions={MOCK_RUNS}
@@ -355,8 +384,10 @@ describe('QuantGit GitHub Sovereign Parity: PR 3-Way Merge & Actions Streaming L
 
       expect(html).toContain('data-testid="log-autoscroll-toggle"');
       expect(html).toContain('Auto-scroll: ON');
-      expect(html).toContain('data-testid="copy-full-logs-btn"');
-      expect(html).toContain('Copy full logs');
+      // Backend provides no log stream → no fabricated logs to copy,
+      // so the copy button is honestly hidden.
+      expect(html).not.toContain('data-testid="copy-full-logs-btn"');
+      expect(html).not.toContain('Copy full logs');
     });
 
     it('renders live workflow status badges for all run states (success, failed, in_progress, queued)', () => {
