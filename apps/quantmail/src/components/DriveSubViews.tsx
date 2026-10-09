@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { formatBytes } from '../lib/format-bytes';
+import { isDocumentDriveId } from '../lib/drive-ids';
 import { useStorageQuota } from '../hooks/useStorageQuota';
 
 // ============================================================================
@@ -1167,6 +1168,7 @@ export function DriveHomeSubView({
                           onDownloadFile?.(file.id, file.name);
                         }}
                         className="p-1 rounded text-[#64748B] hover:text-[#38BDF8]"
+                        title={isDocumentDriveId(file.id) ? 'Open in editor' : 'Download'}
                       >
                         <DownloadIcon className="size-3.5" />
                       </button>
@@ -1346,7 +1348,8 @@ export function DriveHomeSubView({
                           onDownloadFile?.(item.id, item.name);
                         }}
                         className="p-1 rounded text-[#64748B] hover:text-[#38BDF8] transition-colors"
-                        aria-label="Download"
+                        aria-label={isDocumentDriveId(item.id) ? 'Open' : 'Download'}
+                        title={isDocumentDriveId(item.id) ? 'Open in editor' : 'Download'}
                       >
                         <DownloadIcon className="size-3.5" />
                       </button>
@@ -1720,7 +1723,7 @@ export function DriveFeedSubView({
                   type="button"
                   onClick={() => onDownloadFile?.(lightboxItem.id, lightboxItem.name)}
                   className="p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-[#94A3B8] hover:text-white hover:border-[#38BDF8]"
-                  title="Download File"
+                  title={isDocumentDriveId(lightboxItem.id) ? 'Open in editor' : 'Download File'}
                 >
                   <DownloadIcon className="size-4" />
                 </button>

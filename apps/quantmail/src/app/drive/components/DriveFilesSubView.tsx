@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { formatBytes } from '../../../lib/format-bytes';
+import { isDocumentDriveId } from '../../../lib/drive-ids';
 import { useStorageQuota } from '../../../hooks/useStorageQuota';
 import { FileScanBadge } from './FileScanBadge';
 import {
@@ -468,11 +469,13 @@ export function DriveFilesSubView({
                         title={
                           file.scanStatus === 'quarantined'
                             ? 'Quarantined — download disabled. Open the file to see the security notice.'
-                            : 'Download'
+                            : isDocumentDriveId(file.id)
+                              ? 'Open in editor'
+                              : 'Download'
                         }
                         className="px-2 py-0.5 rounded bg-[var(--quant-surface-elevated)] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-[10px] disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        Download
+                        {isDocumentDriveId(file.id) ? 'Open' : 'Download'}
                       </button>
                       <button
                         type="button"
@@ -549,11 +552,13 @@ export function DriveFilesSubView({
                       title={
                         file.scanStatus === 'quarantined'
                           ? 'Quarantined — download disabled. Open the file to see the security notice.'
-                          : 'Download'
+                          : isDocumentDriveId(file.id)
+                            ? 'Open in editor'
+                            : 'Download'
                       }
                       className="px-2.5 py-1 rounded-lg bg-[var(--quant-surface-elevated)] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      Download
+                      {isDocumentDriveId(file.id) ? 'Open' : 'Download'}
                     </button>
                   </div>
                 </div>

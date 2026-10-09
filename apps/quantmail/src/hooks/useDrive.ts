@@ -176,6 +176,10 @@ const readErrorInstruction = async (response: Response): Promise<string | null> 
   }
 };
 
+// isDocumentDriveId lives in lib/drive-ids.ts (zero-dependency) so
+// presentational components can use it without pulling this module.
+export { isDocumentDriveId } from '../lib/drive-ids';
+
 export function useDrive(): UseDriveReturn {
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [loading, setLoading] = useState<boolean>(false);

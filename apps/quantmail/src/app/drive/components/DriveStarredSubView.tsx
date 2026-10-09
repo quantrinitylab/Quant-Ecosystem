@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { formatBytes } from '../../../lib/format-bytes';
+import { isDocumentDriveId } from '../../../lib/drive-ids';
 import { FileScanBadge } from './FileScanBadge';
 import { StarFilledIcon, HardDriveIcon, FolderIcon } from './DriveIcons';
 
@@ -132,11 +133,13 @@ export function DriveStarredSubView({
                   title={
                     item.scanStatus === 'quarantined'
                       ? 'Quarantined — download disabled. Open the file to see the security notice.'
-                      : 'Download'
+                      : isDocumentDriveId(item.id)
+                        ? 'Open in editor'
+                        : 'Download'
                   }
                   className="px-2.5 py-1 rounded-lg bg-[var(--quant-surface-elevated)] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Download
+                  {isDocumentDriveId(item.id) ? 'Open' : 'Download'}
                 </button>
                 <button
                   type="button"

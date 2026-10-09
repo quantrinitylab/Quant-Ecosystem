@@ -28,7 +28,7 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { QuantDriveLogo } from '../../components/QuantDriveLogo';
 import { useConfirm } from '../../hooks/useConfirm';
-import { useDrive, type ReceivedShare, type SentShareItem } from '../../hooks/useDrive';
+import { useDrive, type ReceivedShare, type SentShareItem, isDocumentDriveId } from '../../hooks/useDrive';
 import { formatBytes } from '../../lib/format-bytes';
 import { showToast } from '../../components/InboxToast';
 import { useScrollElement, useVirtualizer } from '../../lib/virtual/useVirtualizer';
@@ -716,7 +716,7 @@ function DrivePageContent() {
   // Document row id rides on `documentId`; fall back to stripping the prefix.
   const openDocumentItem = useCallback(
     (driveId: string, documentId?: string): boolean => {
-      if (!driveId.startsWith('doc:')) return false;
+      if (!isDocumentDriveId(driveId)) return false;
       router.push(`/drive/doc/${documentId || driveId.slice('doc:'.length)}`);
       return true;
     },
