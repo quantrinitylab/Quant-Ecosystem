@@ -52,7 +52,10 @@ import { apiFetchRaw } from '@quant/api-client';
 type DriveItem = {
   id: string;
   name: string;
-  type: 'file' | 'folder';
+  // QM-UIUX-079: 'document' items are the /drive/files projection of doc-editor
+  // documents (backend id `doc:<documentId>`). They open in the doc editor,
+  // not the file preview — file-only actions (download/star) must not run.
+  type: 'file' | 'folder' | 'document';
   mimeType: string;
   size: number;
   modifiedAt: string;
@@ -60,6 +63,8 @@ type DriveItem = {
   isStarred?: boolean;
   sharedWith?: { email: string; permission: string }[];
   deletedAt?: string;
+  // Real Document row id for 'document' items (editor route target).
+  documentId?: string;
   // QM-M39-009: security scan state from the backend (never rendered as safe).
   scanStatus?: string | null;
   scanReason?: string | null;
@@ -660,15 +665,18 @@ function DrivePageContent() {
       setRecentError(null);
       try {
         const page = await fetchRecentFiles(append ? recentCursorRef.current : null);
+        // QM-UIUX-079: keep the backend's document projection typed so recent
+        // documents open in the editor instead of the file preview.
         const mapped: RecentItem[] = (page.files ?? []).map((f) => ({
           id: f.id,
           name: f.name,
-          type: 'file' as const,
+          type: (f.type === 'document' ? 'document' : 'file') as RecentItem['type'],
           mimeType: f.mimeType,
           size: f.size,
           modifiedAt: f.modifiedAt,
           lastOpenedAt: f.lastOpenedAt ?? null,
           isStarred: f.isStarred,
+          documentId: (f as { documentId?: string }).documentId,
         }));
         setRecentItems((prev) => (append ? [...prev, ...mapped] : mapped));
         recentCursorRef.current = page.nextCursor;
@@ -687,14 +695,41 @@ function DrivePageContent() {
 
   // QM-M39-002 — one funnel for opening a file preview: shows the preview and
   // records the explicit open so the Recent view stays honest. Best-effort.
+  // QM-UIUX-079: document items (backend id `doc:<documentId>`) open in the
+  // doc editor — they have no file bytes to preview or download. The real
+  // Document row id rides on `documentId`; fall back to stripping the prefix.
+  const openDocumentItem = useCallback(
+    (driveId: string, documentId?: string): boolean => {
+      if (!driveId.startsWith('doc:')) return false;
+      router.push(`/drive/doc/${documentId || driveId.slice('doc:'.length)}`);
+      return true;
+    },
+    [router],
+  );
+
+  const handleDownloadFile = useCallback(
+    (id: string, name: string) => {
+      // Documents open in the editor (which owns export) instead of hitting
+      // the file-download endpoint that has no such object.
+      if (openDocumentItem(id)) return;
+      void downloadFile(id, name);
+    },
+    [downloadFile, openDocumentItem],
+  );
+
   const handlePreviewItem = useCallback(
     (item: DriveItem | RecentItem | null) => {
+      const driveItem = item as DriveItem | null;
+      if (driveItem && driveItem.type === 'document' && driveItem.id) {
+        openDocumentItem(driveItem.id, driveItem.documentId);
+        return;
+      }
       setPreviewItem(item as DriveItem | null);
       if (item && (item as DriveItem).type === 'file' && item.id) {
         void recordFileOpen(item.id);
       }
     },
-    [recordFileOpen],
+    [recordFileOpen, openDocumentItem],
   );
 
   // QM-M39-002 — closing a preview may have changed recency (the open was just
@@ -733,6 +768,8 @@ function DrivePageContent() {
         result = result.filter((i) => i.type === 'folder');
       } else if (activeFilter === 'documents') {
         result = result.filter((i) => {
+          // QM-UIUX-079: projected document items always belong in Documents.
+          if (i.type === 'document') return true;
           const m = (i.mimeType || '').toLowerCase();
           return (
             i.type !== 'folder' &&
@@ -1008,7 +1045,8 @@ function DrivePageContent() {
       .map((id) => items.find((i) => i.id === id))
       .filter((item): item is DriveItem => !!item && item.type !== 'folder');
 
-    targets.forEach((item) => downloadFile(item.id, item.name));
+    // QM-UIUX-079: documents open in the editor instead of downloading.
+    targets.forEach((item) => handleDownloadFile(item.id, item.name));
 
     showToast({
       text: targets.length
@@ -1480,7 +1518,7 @@ function DrivePageContent() {
               onAcceptShare={handleAcceptShare}
               onDeclineShare={handleDeclineShare}
               onPreviewItem={(item) => handlePreviewItem(item as any)}
-              onDownloadFile={downloadFile}
+              onDownloadFile={handleDownloadFile}
             />
           )}
 
@@ -1492,7 +1530,7 @@ function DrivePageContent() {
               loading={loading}
               onToggleStar={handleToggleStar}
               onPreviewItem={(item) => handlePreviewItem(item as any)}
-              onDownloadFile={downloadFile}
+              onDownloadFile={handleDownloadFile}
               onDeleteItem={(id, name, e) => handleDeleteItem(id, name, e)}
             />
           )}
@@ -1600,7 +1638,7 @@ function DrivePageContent() {
               selectedIds={selectedIds}
               onToggleSelect={handleToggleSelect}
               onPreviewItem={(item) => handlePreviewItem(item as any)}
-              onDownloadFile={downloadFile}
+              onDownloadFile={handleDownloadFile}
               onToggleStar={handleToggleStar}
               onDeleteItem={(id, name, e) => handleDeleteItem(id, name, e)}
               onOpenRename={handleOpenRename}
@@ -1637,7 +1675,7 @@ function DrivePageContent() {
                 void loadRecent(false);
               }}
               onPreviewItem={(item) => handlePreviewItem(item as any)}
-              onDownloadFile={downloadFile}
+              onDownloadFile={handleDownloadFile}
               onDeleteItem={async (id, name, e) => {
                 await handleDeleteItem(id, name, e);
                 // The trashed file must disappear from Recent immediately —
@@ -1668,7 +1706,7 @@ function DrivePageContent() {
                   isStarred: item.isStarred,
                 } as any)
               }
-              onDownloadFile={downloadFile}
+              onDownloadFile={handleDownloadFile}
               onShareItem={(item) => setShareTarget({ id: item.id, name: item.name })}
               onViewAccessItem={(item) => setAccessTarget({ id: item.id, name: item.name })}
             />
