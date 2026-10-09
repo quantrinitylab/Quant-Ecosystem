@@ -1996,7 +1996,9 @@ Dependencies: none.
 Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 2: M-P1-2).
 
 ## QM-UIUX-083 — P1: Composer close (X) has no discard confirmation
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-083-composer-close-confirm
 Finding: Personal deep audit 2026-10-09: clicking the composer X with a typed subject closed it with NO confirmation (auto-save prevented data loss; the explicit "Discard draft" button does confirm properly).
 Required: closing a dirty composer via X must ask Keep editing / Discard, matching the explicit discard path.
 Scope: apps/quantmail composer.
