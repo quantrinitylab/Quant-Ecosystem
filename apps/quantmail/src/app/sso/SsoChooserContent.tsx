@@ -751,7 +751,7 @@ export function SsoChooserContent({
           <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">
             To continue, Quant will share your profile with{' '}
             <span className="text-zinc-300 font-medium">{clientApp.name}</span>. This happens
-            only when you choose an account above.
+            only when you continue below.
           </p>
         </div>
       </div>

@@ -128,11 +128,11 @@ export default function ForgotEmailPage() {
                 disabled={isSubmitting}
                 className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-sm font-semibold text-[#111111] shadow-[0_10px_30px_rgba(255,140,66,0.2)] transition-[background-color,transform,box-shadow] hover:bg-[var(--brand-primary-hover)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none"
               >
-                {isSubmitting ? 'Looking up…' : 'Find my address'}
+                {isSubmitting ? 'Looking up…' : 'Find my email address'}
               </button>
 
               <p className="text-center text-sm text-[var(--quant-muted-foreground)]">
-                Remember your password?{' '}
+                Remember your email address?{' '}
                 <Link
                   href="/login"
                   className="font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline"

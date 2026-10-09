@@ -150,7 +150,7 @@ export default function RegisterPage() {
                 className={`mt-1.5 text-xs ${fieldErrors.username ? 'text-[var(--quant-destructive)]' : 'text-[var(--quant-muted-foreground)]'}`}
               >
                 {fieldErrors.username ||
-                  (address ? `Your address will be ${address}` : '3–30 supported characters.')}
+                  (address ? `Your address will be ${address}` : '3–30 characters: lowercase letters, numbers, dots, dashes, underscores.')}
               </p>
             </div>
 
@@ -196,7 +196,7 @@ export default function RegisterPage() {
                   required
                   minLength={8}
                   autoComplete="new-password"
-                  placeholder="At least 8 characters"
+                  placeholder="Choose a password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   aria-invalid={Boolean(fieldErrors.password)}
@@ -208,7 +208,7 @@ export default function RegisterPage() {
                   onClick={() => setShowPassword((visible) => !visible)}
                   aria-label={showPassword ? 'Hide passwords' : 'Show passwords'}
                   aria-pressed={showPassword}
-                  className="px-3.5 text-xs font-semibold text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]"
+                  className="min-h-[44px] px-3.5 text-xs font-semibold text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]"
                 >
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
@@ -225,18 +225,31 @@ export default function RegisterPage() {
               <label htmlFor="reg-confirm" className="mb-2 block text-[13px] font-medium">
                 Confirm password
               </label>
-              <input
-                id="reg-confirm"
-                type={showPassword ? 'text' : 'password'}
-                required
-                autoComplete="new-password"
-                placeholder="Re-enter your password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                aria-invalid={Boolean(fieldErrors.confirmPassword)}
-                aria-describedby={fieldErrors.confirmPassword ? 'reg-confirm-error' : undefined}
-                className={`w-full rounded-xl border bg-[var(--quant-surface)] px-3.5 py-3 text-sm outline-none transition-[border-color,box-shadow] placeholder:text-[var(--quant-muted-foreground)] focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 motion-reduce:transition-none ${fieldErrors.confirmPassword ? 'border-[var(--quant-destructive)]' : 'border-[var(--quant-border)]'}`}
-              />
+              <div
+                className={`flex overflow-hidden rounded-xl border bg-[var(--quant-surface)] transition-[border-color,box-shadow] focus-within:border-[var(--brand-primary)] focus-within:ring-2 focus-within:ring-[var(--brand-primary)]/20 motion-reduce:transition-none ${fieldErrors.confirmPassword ? 'border-[var(--quant-destructive)]' : 'border-[var(--quant-border)]'}`}
+              >
+                <input
+                  id="reg-confirm"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  autoComplete="new-password"
+                  placeholder="Re-enter your password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  aria-invalid={Boolean(fieldErrors.confirmPassword)}
+                  aria-describedby={fieldErrors.confirmPassword ? 'reg-confirm-error' : undefined}
+                  className="min-w-0 flex-1 bg-transparent px-3.5 py-3 text-sm outline-none placeholder:text-[var(--quant-muted-foreground)]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  aria-label={showPassword ? 'Hide passwords' : 'Show passwords'}
+                  aria-pressed={showPassword}
+                  className="min-h-[44px] px-3.5 text-xs font-semibold text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
               {fieldErrors.confirmPassword ? (
                 <p
                   id="reg-confirm-error"
@@ -285,7 +298,7 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)]/50 p-3.5">
+              <label className="flex cursor-pointer items-start gap-3 py-1">
                 <input
                   type="checkbox"
                   required
