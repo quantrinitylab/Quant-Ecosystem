@@ -188,6 +188,11 @@ function fakePrisma() {
         ...update,
         isProtected: false,
       })),
+      delete: vi.fn().mockImplementation(async ({ where }: any) => ({
+        id: 'branch-old',
+        repoId: where?.repoId_name?.repoId ?? 'repo-1',
+        name: where?.repoId_name?.name ?? 'feat-old',
+      })),
     },
     user: {
       findUnique: vi.fn().mockImplementation(async ({ where }: any) => {
@@ -1083,6 +1088,129 @@ describe('QuantGit Database-Backed Repos Routes', () => {
         commitSha: uppercaseSha.toLowerCase(),
       },
     });
+  });
+
+  it('POST /repos/:id/branches forks from the named source branch (AUD-P0-G3)', async () => {
+    const app = await buildApp();
+    prisma.branch.findUnique.mockResolvedValueOnce({
+      id: 'branch-develop',
+      repoId: 'repo-1',
+      name: 'develop',
+      commitSha: '5555555555555555555555555555555555555555',
+      isProtected: false,
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-09-01T00:00:00.000Z'),
+    } as never);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/branches',
+      payload: {
+        name: 'feat/from-develop',
+        sourceBranch: 'develop',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({ name: 'feat/from-develop' }),
+      }),
+    );
+    expect(prisma.branch.create).toHaveBeenCalledWith({
+      data: {
+        repoId: 'repo-1',
+        name: 'feat/from-develop',
+        commitSha: '5555555555555555555555555555555555555555',
+      },
+    });
+  });
+
+  it('POST /repos/:id/branches returns 400 when the source branch does not exist (AUD-P0-G3)', async () => {
+    const app = await buildApp();
+    prisma.branch.findUnique.mockResolvedValueOnce(null as never);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/branches',
+      payload: {
+        name: 'feat/ghost-source',
+        sourceBranch: 'no-such-branch',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'BRANCH_NOT_FOUND',
+        }),
+      }),
+    );
+    expect(prisma.branch.create).not.toHaveBeenCalled();
+  });
+
+  it('DELETE /repos/:id/branches/:branch deletes the branch (AUD-P0-G3)', async () => {
+    const app = await buildApp();
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/repos/repo-1/branches/feat-old',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({ deleted: true, name: 'feat-old' }),
+      }),
+    );
+    expect(prisma.branch.delete).toHaveBeenCalledWith({
+      where: { repoId_name: { repoId: 'repo-1', name: 'feat-old' } },
+    });
+  });
+
+  it('DELETE /repos/:id/branches/:branch refuses to delete the default branch (AUD-P0-G3)', async () => {
+    const app = await buildApp();
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/repos/repo-1/branches/main',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'CANNOT_DELETE_DEFAULT_BRANCH',
+        }),
+      }),
+    );
+    expect(prisma.branch.delete).not.toHaveBeenCalled();
+  });
+
+  it('DELETE /repos/:id/branches/:branch returns 404 for an unknown branch (AUD-P0-G3)', async () => {
+    const app = await buildApp();
+    prisma.branch.findUnique.mockResolvedValueOnce(null as never);
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/repos/repo-1/branches/no-such-branch',
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'BRANCH_NOT_FOUND',
+        }),
+      }),
+    );
+    expect(prisma.branch.delete).not.toHaveBeenCalled();
   });
 
   it('POST /repos/:id/pulls/:number/merge marks pull request as merged', async () => {
