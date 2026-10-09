@@ -29,6 +29,12 @@
 | **Agent 7: Subagent C1**        | Resilient OTP & Phone KYC Architect    | QuantMail SSO Resilient OTP dispatch & UI            | **Completed**: 100% green Vitest & backend wiring             |
 | **Agent 8: SSO Fleet**          | Universal SSO & Auth Sentinel          | Cross-app SSO token handoff, exchange & auto-redirect| **Completed**: Wave 84 100% green verified & tested           |
 
+## 🛠️ WAVE 90: PILLAR SWITCHER + PER-APP MOBILE THEME CORRECTIONS (IN PROGRESS)
+
+- [ ] **Task W90-UIUX01**: Correct mobile five-pillar switcher geometry and app identity colours (apps/quantmail/src/components/QuantPillarTopBar.tsx): reduce oversized raised-slot bloom while preserving the selected-app-to-content connection; standardise restrained active treatment; align Calendar blue, Drive green, Contacts teal and QuantGit violet.
+- [ ] **Task W90-THEME01**: Apply the active app's accent to shared primary-action/focus tokens (apps/quantmail/src/lib/app-theme.ts, AppShell.tsx) and remove Calendar's incorrect global amber-as-brand accent (CalendarSubViews.tsx).
+- [ ] **Task W90-VERIFY01**: Run focused mobile shell tests, typecheck/build, inspect the rendered mobile and desktop layouts, and verify staging/live deployment status before marking complete.
+
 ## 🚀 WAVE 89: QUANTMAIL SOVEREIGN UI/UX OVERHAUL & MULTI-VIEWPORT ERGONOMICS (100% COMPLETED)
 
 - [x] **Task W89-DESKTOP-BOTTOMNAV**: Desktop Bottom Navigation Bar Invariant (`apps/quantmail/src/components/ContextBottomNavBar.tsx` & `AppShell.tsx`): Eradicated `md:hidden` so the contextual bottom navigation stays visible and docked on desktop (`md:left-[68px]` offset for left pillar dock, `pb-20` main scroll padding).
