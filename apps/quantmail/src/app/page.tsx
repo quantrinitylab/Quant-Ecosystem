@@ -597,7 +597,7 @@ function EmailRow({
         >
           {groupInfo ? (
             <span
-              className="flex size-7 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm shrink-0"
+              className="mail-row-avatar flex size-7 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm shrink-0"
               style={{ backgroundColor: groupInfo.color || 'var(--quant-primary)' }}
               aria-hidden="true"
             >
@@ -608,7 +608,7 @@ function EmailRow({
                 .join('') || 'GP'}
             </span>
           ) : (
-            <IdentityAvatar name={thread.participants[0] || 'You'} size="sm" />
+            <IdentityAvatar name={thread.participants[0] || 'You'} size="sm" className="mail-row-avatar" />
           )}
         </span>
         <div className="mail-row-copy">

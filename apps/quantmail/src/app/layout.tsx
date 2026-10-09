@@ -50,7 +50,10 @@ const themeBootstrap = `
     // Row density, for the same reason the theme is resolved here: applied after
     // paint it would show one frame of comfortable rows and then jump.
     var density = localStorage.getItem('quant-density');
-    root.setAttribute('data-density', density === 'compact' ? 'compact' : 'comfortable');
+    root.setAttribute(
+      'data-density',
+      density === 'compact' || density === 'cozy' ? density : 'comfortable',
+    );
   } catch (error) {
     document.documentElement.setAttribute('data-theme', 'dark');
     document.documentElement.classList.add('dark');
