@@ -96,9 +96,12 @@ describe('QuantChat SSO-primary Login UI — LoginPage & Page', () => {
   it('renders honest sign-in copy: no unprovable crypto claims', () => {
     const html = renderToString(<LoginPage />);
 
-    // Headline kept; subtitle is a plain instruction
-    expect(html).toContain('QuantChat Sovereign Communications');
+    // Headline is the plain product name; honest encryption note mirrors Terms §4
+    expect(html).toContain('>QuantChat</h1>');
+    expect(html).not.toContain('Sovereign Communications');
+    expect(html).not.toContain('Sovereign');
     expect(html).toContain('Sign in to QuantChat. Use your QuantMail account to continue.');
+    expect(html).toContain('End-to-end encryption is not enabled yet.');
 
     // Unprovable crypto claims must be gone
     expect(html).not.toContain('End-to-End Encrypted · Zero-Knowledge Relay');

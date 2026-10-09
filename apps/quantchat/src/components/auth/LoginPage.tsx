@@ -17,7 +17,7 @@ export interface LoginPageProps {
 }
 
 /* ============================================================================
-   ZERO-EMOJI LUXURY CRYPTOGRAPHIC VECTOR ASSETS (Signal / WhatsApp / Telegram)
+   ZERO-EMOJI LUXURY VECTOR ASSETS (QuantChat login brand mark)
    ============================================================================ */
 
 export function CryptographicBeaconIcon({ className = 'w-10 h-10' }: { className?: string }) {
@@ -48,7 +48,7 @@ export function CryptographicBeaconIcon({ className = 'w-10 h-10' }: { className
       {/* Radial soft core glow */}
       <circle cx="24" cy="24" r="14" fill="url(#beacon-glow)" />
 
-      {/* Signal-class Sovereign Shield Outer Geometry */}
+      {/* Beacon shield outer geometry (brand mark) */}
       <path
         d="M24 3.5L39.5 9.5V23C39.5 32.5 32.5 40.8 24 44.5C15.5 40.8 8.5 32.5 8.5 23V9.5L24 3.5Z"
         stroke="url(#beacon-grad-outer)"
@@ -329,11 +329,13 @@ export default function LoginPage(props: LoginPageProps) {
           </div>
 
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">
-              QuantChat Sovereign Communications
-            </h1>
+            <h1 className="text-2xl font-bold text-white tracking-tight">QuantChat</h1>
             <p className="text-sm text-slate-400 mt-1.5">
               Sign in to QuantChat. Use your QuantMail account to continue.
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              Messages are stored on our servers so we can deliver them.
+              End-to-end encryption is not enabled yet.
             </p>
           </div>
         </div>
@@ -444,7 +446,7 @@ export default function LoginPage(props: LoginPageProps) {
 
       </div>
 
-      {/* Legal Links — WhatsApp / Telegram standard */}
+      {/* Legal links */}
       <div className="mt-8 flex items-center justify-center gap-4 text-[11px] text-slate-500 relative z-10">
         <a href="/terms" className="hover:text-slate-300 transition-colors">
           Terms
