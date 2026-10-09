@@ -16,6 +16,12 @@ interface HoverActionsProps {
   onDelete: () => void;
   onMarkRead: () => void;
   onMarkUnread: () => void;
+  /**
+   * BB-P1-1: when true the mark read/unread button is omitted — the
+   * conversation's read state cannot change (e.g. every message is from the
+   * signed-in user), so the toggle would be a dead control with a lying label.
+   */
+  hideReadToggle?: boolean;
   onSnooze: () => void;
   onToggleStar?: (e: React.MouseEvent) => void;
   onTogglePin?: (e: React.MouseEvent) => void;
@@ -41,6 +47,7 @@ export const HoverActions = memo(function HoverActions({
   onDelete,
   onMarkRead,
   onMarkUnread,
+  hideReadToggle = false,
   onSnooze,
   onToggleStar,
   onTogglePin,
@@ -201,6 +208,12 @@ export const HoverActions = memo(function HoverActions({
           <path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" />
         </svg>
       </button>
+      {/*
+        BB-P1-1: the read toggle is omitted when it cannot change anything —
+        otherwise its label ("Mark unread") would sit frozen on mail whose
+        thread-level read state is definitionally read.
+      */}
+      {!hideReadToggle && (
       <button
         type="button"
         className="hover-action-btn"
@@ -235,6 +248,7 @@ export const HoverActions = memo(function HoverActions({
           </svg>
         )}
       </button>
+      )}
       <button
         type="button"
         className="hover-action-btn"

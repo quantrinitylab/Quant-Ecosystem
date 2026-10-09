@@ -46,6 +46,7 @@ import {
   filterThreadsByQuery,
   findConversation,
   groupEmailsIntoThreads,
+  isFromMe,
   sanitizeSnippetText,
   threadAddresses,
   threadFocus,
@@ -350,6 +351,14 @@ type EmailRowProps = {
   onDelete: () => void;
   onMarkRead: () => void;
   onMarkUnread: () => void;
+  /**
+   * BB-P1-1: false when every message in the conversation is from the
+   * signed-in user. Thread-level read state is definitionally "read" there
+   * (see `groupEmailsIntoThreads`), so the mark read/unread toggle would be
+   * a dead control whose label can never flip — the row hides it instead of
+   * lying about it.
+   */
+  canToggleRead?: boolean;
   onSnooze: (emailId: string, snoozeUntil: Date) => void;
 };
 
@@ -371,6 +380,7 @@ function EmailRow({
   onDelete,
   onMarkRead,
   onMarkUnread,
+  canToggleRead = true,
   onSnooze,
 }: EmailRowProps) {
   const [isHovered, setIsHovered] = useState(false);
@@ -671,6 +681,7 @@ function EmailRow({
               onDelete={onDelete}
               onMarkRead={onMarkRead}
               onMarkUnread={onMarkUnread}
+              hideReadToggle={!canToggleRead}
               onSnooze={() => setShowSnoozeMenu((prev) => !prev)}
               onToggleStar={onToggleStar}
               onTogglePin={onTogglePin}
@@ -819,6 +830,10 @@ function EmailRow({
                     <span>{email.isStarred ? 'Unstar' : 'Star'}</span>
                   </button>
 
+                  {/* BB-P1-1: no read toggle on all-self conversations — the
+                      action cannot change thread-level read state there, so
+                      the item would be a dead control with a lying label. */}
+                  {canToggleRead && (
                   <button
                     type="button"
                     role="menuitem"
@@ -842,6 +857,7 @@ function EmailRow({
                     </svg>
                     <span>{thread.isRead ? 'Mark as unread' : 'Mark as read'}</span>
                   </button>
+                  )}
 
                   <button
                     type="button"
@@ -999,6 +1015,7 @@ const MemoizedEmailRow = memo(
     prev.isFocused === next.isFocused &&
     prev.isSpamMode === next.isSpamMode &&
     prev.savedGroups === next.savedGroups &&
+    prev.canToggleRead === next.canToggleRead &&
     prev.onRescueSpam === next.onRescueSpam &&
     prev.isArchiveView === next.isArchiveView,
 );
@@ -3627,6 +3644,7 @@ export default function InboxPage() {
                               onDelete={() => void deleteEmail(thread.id)}
                               onMarkRead={() => void markRead(thread.id)}
                               onMarkUnread={() => void markUnread(thread.id)}
+                              canToggleRead={thread.messages.some((m) => !isFromMe(m, currentEmail))}
                               onSnooze={snoozeEmail}
                             />
                           </div>
@@ -3903,6 +3921,7 @@ export default function InboxPage() {
                           onDelete={() => void deleteEmail(thread.id)}
                           onMarkRead={() => void markRead(thread.id)}
                           onMarkUnread={() => void markUnread(thread.id)}
+                          canToggleRead={thread.messages.some((m) => !isFromMe(m, currentEmail))}
                           onSnooze={snoozeEmail}
                         />
                       </div>
