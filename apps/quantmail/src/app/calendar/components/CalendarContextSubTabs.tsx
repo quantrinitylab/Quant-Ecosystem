@@ -249,7 +249,7 @@ function RemindersIcon({ className }: { className?: string }) {
   );
 }
 
-const TAB_ICONS: Record<CalendarMergedTab, (props: { className?: string }) => React.ReactNode> = {
+export const TAB_ICONS: Record<CalendarMergedTab, (props: { className?: string }) => React.ReactNode> = {
   feed: AgendaIcon,
   month: MonthIcon,
   events: EventsTrackerIcon,
@@ -262,7 +262,7 @@ const TAB_ICONS: Record<CalendarMergedTab, (props: { className?: string }) => Re
   reminders: RemindersIcon,
 };
 
-const MERGED_TABS: ReadonlyArray<{ key: CalendarMergedTab; label: string; isLegacy?: boolean }> = [
+export const MERGED_TABS: ReadonlyArray<{ key: CalendarMergedTab; label: string; isLegacy?: boolean }> = [
   { key: 'feed', label: 'Feed' },
   { key: 'month', label: 'Month' },
   { key: 'week', label: 'Week' },
@@ -275,6 +275,26 @@ const MERGED_TABS: ReadonlyArray<{ key: CalendarMergedTab; label: string; isLega
   { key: 'quantmeet', label: 'QuantMeet', isLegacy: true },
   { key: 'reminders', label: 'Reminders', isLegacy: true },
 ];
+
+/**
+ * The primary (non-legacy) tabs shown on both desktop and the mobile pill
+ * strip (AUD-P0-C2). Order mirrors the desktop sub-tab row.
+ */
+export const CALENDAR_PRIMARY_TABS: ReadonlyArray<{ key: CalendarMergedTab; label: string }> =
+  MERGED_TABS.filter((t) => !t.isLegacy).map((t) => ({ key: t.key, label: t.label }));
+
+/**
+ * Shared active-state logic: a primary tab reads as active when the merged
+ * selection resolves to it, including its legacy/context-tab aliases.
+ */
+export function isMergedTabActive(activeTab: CalendarMergedTab, key: CalendarMergedTab): boolean {
+  return (
+    activeTab === key ||
+    (key === 'feed' && activeTab === 'agenda') ||
+    (key === 'schedule' &&
+      (activeTab === 'reminders' || activeTab === 'booking' || activeTab === 'quantmeet'))
+  );
+}
 
 export function CalendarContextSubTabs({
   activeTab,
@@ -289,11 +309,7 @@ export function CalendarContextSubTabs({
     >
       <div className="flex items-center gap-1.5 min-w-max">
         {MERGED_TABS.map((tab) => {
-          const isActive =
-            activeTab === tab.key ||
-            (tab.key === 'feed' && activeTab === 'agenda') ||
-            (tab.key === 'schedule' &&
-              (activeTab === 'reminders' || activeTab === 'booking' || activeTab === 'quantmeet'));
+          const isActive = isMergedTabActive(activeTab, tab.key);
           const IconComp = TAB_ICONS[tab.key];
 
           return (

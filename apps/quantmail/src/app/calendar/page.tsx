@@ -40,6 +40,7 @@ import {
   resolveMergedTab,
   type CalendarMergedTab,
 } from './components/CalendarContextSubTabs';
+import { CalendarMobileTabStrip } from './components/CalendarMobileTabStrip';
 import {
   CalendarFeedSubView,
   CalendarMonthSubView,
@@ -1127,6 +1128,14 @@ function CalendarPageContent() {
           context strip) that duplicated Agenda and Month.
         */}
         <CalendarContextSubTabs
+          activeTab={resolveMergedTab(activeContextTab, activeView)}
+          onSelectTab={handleSelectMergedTab}
+        />
+
+        {/* Mobile view switcher (AUD-P0-C2): the desktop tab row above is
+            `hidden md:flex`, so without this strip the Month/Week/Trackers/
+            Schedule views were unreachable on phones. Same wiring, md:hidden. */}
+        <CalendarMobileTabStrip
           activeTab={resolveMergedTab(activeContextTab, activeView)}
           onSelectTab={handleSelectMergedTab}
         />
