@@ -1076,7 +1076,7 @@ export default function ContactsPage() {
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g. Sundar Pichai"
+                placeholder="Full name"
                 className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]"
                 autoFocus
                 data-autofocus
@@ -1096,7 +1096,7 @@ export default function ContactsPage() {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="e.g. sundar@quantmail.in"
+                placeholder="name@example.com"
                 className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]"
               />
             </div>
@@ -1115,7 +1115,7 @@ export default function ContactsPage() {
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+1 (650) 253-0000"
+                  placeholder="+91 98765 43210"
                   className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]"
                 />
               </div>
@@ -1132,7 +1132,7 @@ export default function ContactsPage() {
                   type="text"
                   value={formData.company}
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                  placeholder="Alphabet Inc."
+                  placeholder="Acme Corp"
                   className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]"
                 />
               </div>
