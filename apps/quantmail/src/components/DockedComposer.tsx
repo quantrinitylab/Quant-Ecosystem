@@ -21,7 +21,7 @@ import type { Attachment } from './EmailComposer';
  * - Fixed: bottom-4 right-6 z-40 w-[540px] max-w-[calc(100vw-32px)] rounded-2xl border border-[#232938] bg-[var(--quant-surface-subtle)]/98 backdrop-blur-xl shadow-2xl overflow-hidden
  * - Header bar: title ('New Message'), minimize/collapse button, expand-to-fullscreen button, close button.
  * - Inputs: To, Cc/Bcc toggle, Subject, rich body editor.
- * - Bottom toolbar: Molten amber Send (⌘↵) button, formatting tools, attachment button (with 25MB guard), AI ghostwrite trigger.
+ * - Bottom toolbar: Molten amber Send (⌘↵) button, formatting tools, attachment button (with 25MB guard), writing-assistant (local templates) trigger.
  * - Strictly ZERO raw Unicode emojis - pure SVG vector icons only.
  */
 
@@ -337,8 +337,8 @@ export function DockedComposer({
   const [showFormatting, setShowFormatting] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isSending, setIsSending] = useState(false);
-  const [showAiMenu, setShowAiMenu] = useState(false);
-  const [isGhostwriting, setIsGhostwriting] = useState(false);
+  const [showAssistMenu, setShowAssistMenu] = useState(false);
+  const [isInsertingTemplate, setIsInsertingTemplate] = useState(false);
 
   // Autocomplete suggestions for To:
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -507,24 +507,13 @@ export function DockedComposer({
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   };
 
-  // AI Ghostwrite presets
-  const handleAIGhostwrite = async (promptType: 'draft' | 'formal' | 'concise' | 'followup') => {
-    setShowAiMenu(false);
-    setIsGhostwriting(true);
+  // Writing-assistant presets — local templates only, no AI call.
+  const handleWritingAssist = async (promptType: 'draft' | 'formal' | 'concise' | 'followup') => {
+    setShowAssistMenu(false);
+    setIsInsertingTemplate(true);
 
     try {
-      let promptText = '';
-      if (promptType === 'draft') {
-        promptText = subject ? `Draft a professional email regarding: ${subject}` : 'Draft a polite introductory business email.';
-      } else if (promptType === 'formal') {
-        promptText = body ? `Rewrite formally: ${body}` : 'Draft a formal board communication.';
-      } else if (promptType === 'concise') {
-        promptText = body ? `Make this concise and actionable: ${body}` : 'Draft a concise 2-sentence status update.';
-      } else if (promptType === 'followup') {
-        promptText = subject ? `Draft a polite follow-up email about: ${subject}` : 'Draft a courteous follow-up inquiry.';
-      }
-
-      // Quick local smart expansion fallback or AI endpoint
+      // Insert a local template — never invents facts; 'concise' only condenses the user's own draft.
       let generated = '';
       if (promptType === 'draft') {
         generated = `Dear Team,\n\nI am writing to share an update regarding ${subject || 'our current initiative'}.\n\nPlease review the attached items and let me know if any questions arise.\n\nBest regards,\n`;
@@ -555,12 +544,12 @@ export function DockedComposer({
       } else {
         setBody((prev) => (prev ? `${prev}\n\n${generated}` : generated));
       }
-      showToast({ text: 'Quant AI ghostwrote email draft', type: 'success' });
+      showToast({ text: 'Template inserted', type: 'success' });
       bodyRef.current?.focus();
     } catch {
-      showToast({ text: 'Failed to ghostwrite text', type: 'error' });
+      showToast({ text: 'Failed to insert template', type: 'error' });
     } finally {
-      setIsGhostwriting(false);
+      setIsInsertingTemplate(false);
     }
   };
 
@@ -999,16 +988,16 @@ export function DockedComposer({
             value={body}
             onChange={(e) => {
               const next = e.target.value;
-              // The placeholder promises "Type '++' to trigger AI ghostwriter" —
-              // honour it: strip the trigger and open the ghostwrite menu.
+              // The placeholder promises "Type '++' for writing-assistant templates" —
+              // honour it: strip the trigger and open the templates menu.
               if (next.endsWith('++')) {
                 setBody(next.slice(0, -2));
-                setShowAiMenu(true);
+                setShowAssistMenu(true);
                 return;
               }
               setBody(next);
             }}
-            placeholder="Write your email here... Type '++' to trigger AI ghostwriter."
+            placeholder="Write your email here... Type '++' for writing-assistant templates."
             className="w-full flex-1 bg-transparent text-white placeholder-[#4B5563] resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded text-xs leading-relaxed"
           />
 
@@ -1079,25 +1068,25 @@ export function DockedComposer({
             <IconPaperclip className="size-4" />
           </button>
 
-          {/* AI Ghostwrite Trigger */}
+          {/* Writing-assistant trigger (local templates) */}
           <div className="relative">
             <button
               type="button"
-              onClick={() => setShowAiMenu(!showAiMenu)}
-              disabled={isGhostwriting}
+              onClick={() => setShowAssistMenu(!showAssistMenu)}
+              disabled={isInsertingTemplate}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#A855F7]/40 bg-[#3B0764]/20 text-[#C084FC] hover:bg-[#3B0764]/40 hover:border-[#A855F7] transition-all text-xs font-semibold"
-              title="Quant AI Ghostwriter"
+              title="Writing assistant — local templates, no AI"
             >
               <IconSparkle className="size-3.5 animate-pulse" />
-              <span>AI Ghostwrite</span>
+              <span>Writing assist</span>
             </button>
 
-            {/* AI Ghostwrite Menu */}
-            {showAiMenu && (
+            {/* Writing-assistant menu */}
+            {showAssistMenu && (
               <div className="absolute left-0 bottom-full mb-2 w-56 rounded-2xl border border-[#3B0764] bg-[#130E20] shadow-2xl p-1.5 z-50 space-y-1">
                 <button
                   type="button"
-                  onClick={() => handleAIGhostwrite('draft')}
+                  onClick={() => handleWritingAssist('draft')}
                   className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
                 >
                   <IconSparkle className="size-3.5 text-[#C084FC]" />
@@ -1105,7 +1094,7 @@ export function DockedComposer({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleAIGhostwrite('formal')}
+                  onClick={() => handleWritingAssist('formal')}
                   className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
                 >
                   <IconFormat className="size-3.5 text-[#C084FC]" />
@@ -1113,7 +1102,7 @@ export function DockedComposer({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleAIGhostwrite('concise')}
+                  onClick={() => handleWritingAssist('concise')}
                   className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
                 >
                   <IconMinus className="size-3.5 text-[#C084FC]" />
@@ -1121,7 +1110,7 @@ export function DockedComposer({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleAIGhostwrite('followup')}
+                  onClick={() => handleWritingAssist('followup')}
                   className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
                 >
                   <IconSend className="size-3.5 text-[#C084FC]" />
