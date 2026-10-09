@@ -191,7 +191,7 @@ function NewEntrySplitButton({
       <button
         type="button"
         onClick={() => openDedicatedSheet('event')}
-        className={`inline-flex items-center gap-1.5 rounded-l-lg rounded-r-none font-semibold text-xs ${baseActionClass} ${
+        className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-l-lg rounded-r-none font-semibold text-xs ${baseActionClass} ${
           compact ? 'px-3 py-1.5 gap-1' : 'px-3.5 py-1.5'
         }`}
       >
@@ -205,7 +205,7 @@ function NewEntrySplitButton({
         aria-expanded={isOpen}
         aria-controls={menuId}
         aria-label="Choose entry type"
-        className={`inline-flex items-center justify-center rounded-l-none rounded-r-lg border-l border-[#111111]/25 ${baseActionClass} ${
+        className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-l-none rounded-r-lg border-l border-[#111111]/25 ${baseActionClass} ${
           compact ? 'px-1.5' : 'px-2'
         }`}
       >
@@ -228,7 +228,7 @@ function NewEntrySplitButton({
                 setIsOpen(false);
                 openDedicatedSheet(item.id);
               }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)]/60 focus-visible:bg-[var(--quant-surface-elevated)]/60 focus-visible:outline-none"
+              className="flex min-h-[44px] w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)]/60 focus-visible:bg-[var(--quant-surface-elevated)]/60 focus-visible:outline-none"
             >
               {item.icon}
               <span>{item.label}</span>
@@ -313,7 +313,7 @@ export function CalendarHeader({
               type="button"
               onClick={() => goMonth(-1)}
               aria-label="Previous month"
-              className="size-8 grid place-items-center rounded-xl border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+              className="size-11 grid place-items-center rounded-xl border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
             >
               <ChevronLeftIcon className="size-4" />
             </button>
@@ -321,7 +321,7 @@ export function CalendarHeader({
               type="button"
               onClick={() => goMonth(1)}
               aria-label="Next month"
-              className="size-8 grid place-items-center rounded-xl border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+              className="size-11 grid place-items-center rounded-xl border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
             >
               <ChevronRightIcon className="size-4" />
             </button>
@@ -335,7 +335,7 @@ export function CalendarHeader({
           <button
             type="button"
             onClick={goToday}
-            className="px-2.5 py-1 text-xs font-medium rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+            className="inline-flex min-h-[44px] items-center px-3 py-1 text-xs font-medium rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
           >
             Today
           </button>
@@ -363,7 +363,7 @@ export function CalendarHeader({
               type="button"
               onClick={onOpenBookingLinks}
               aria-label="Booking Links"
-              className="px-3 py-1.5 rounded-lg font-medium text-xs text-[var(--quant-foreground)] bg-[var(--quant-surface-elevated)] hover:bg-[#20232B] border border-[var(--quant-surface-elevated)] flex items-center gap-1.5 shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+              className="min-h-[44px] px-3 py-1.5 rounded-lg font-medium text-xs text-[var(--quant-foreground)] bg-[var(--quant-surface-elevated)] hover:bg-[#20232B] border border-[var(--quant-surface-elevated)] flex items-center gap-1.5 shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
               title="Share Booking Links"
             >
               <HeaderLinkIcon className="size-3.5 text-[var(--app-accent)]" />
@@ -394,7 +394,7 @@ export function CalendarHeader({
                 type="button"
                 onClick={() => goMonth(-1)}
                 aria-label="Previous month"
-                className="size-8 grid place-items-center rounded-lg border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)]/80 hover:text-white"
+                className="size-11 grid place-items-center rounded-lg border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)]/80 hover:text-white"
               >
                 <ChevronLeftIcon className="size-3.5" />
               </button>
@@ -402,14 +402,14 @@ export function CalendarHeader({
                 type="button"
                 onClick={() => goMonth(1)}
                 aria-label="Next month"
-                className="size-8 grid place-items-center rounded-lg border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)]/80 hover:text-white"
+                className="size-11 grid place-items-center rounded-lg border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)]/80 hover:text-white"
               >
                 <ChevronRightIcon className="size-3.5" />
               </button>
               <button
                 type="button"
                 onClick={goToday}
-                className="h-8 rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-2.5 text-[11px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)]"
+                className="h-11 rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-2.5 text-[11px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)]"
               >
                 Today
               </button>
@@ -440,7 +440,7 @@ export function CalendarHeader({
               type="button"
               onClick={onOpenBookingLinks}
               aria-label="Booking Links"
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium text-[11px] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] bg-[var(--quant-surface-elevated)] hover:bg-[#20232B] border border-[var(--quant-surface-elevated)] transition-all"
+              className="inline-flex min-h-[44px] items-center gap-1 px-2.5 py-1 rounded-lg font-medium text-[11px] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] bg-[var(--quant-surface-elevated)] hover:bg-[#20232B] border border-[var(--quant-surface-elevated)] transition-all"
               title="Share Booking Links"
             >
               <HeaderLinkIcon className="size-3 text-[var(--app-accent)]" />

@@ -525,9 +525,14 @@ export function CalendarMonthSubView({
   onSelectEvent,
   className = '',
   viewDate: controlledViewDate,
-  onPrevMonth,
-  onNextMonth,
-  onGoToday,
+  // Month navigation is owned solely by the page-level CalendarHeader
+  // (QM-UIUX-023: single navigation source). These props stay in the
+  // interface for call-site back-compat but are intentionally not rendered
+  // or invoked here — the sub-view must never grow its own month steppers
+  // or "Today" button again.
+  onPrevMonth: _onPrevMonth,
+  onNextMonth: _onNextMonth,
+  onGoToday: _onGoToday,
 }: CalendarMonthSubViewProps) {
   const [internalViewDate, setInternalViewDate] = useState<Date>(
     () => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1),
@@ -541,16 +546,6 @@ export function CalendarMonthSubView({
 
   const viewYear = viewDate.getFullYear();
   const viewMonth = viewDate.getMonth();
-
-  const handlePrevMonth = () => {
-    if (onPrevMonth) onPrevMonth();
-    else setInternalViewDate(new Date(viewYear, viewMonth - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    if (onNextMonth) onNextMonth();
-    else setInternalViewDate(new Date(viewYear, viewMonth + 1, 1));
-  };
 
   const handlePrevWeek = () => {
     const next = new Date(selectedDate);
@@ -568,16 +563,6 @@ export function CalendarMonthSubView({
     if (!isControlled) {
       setInternalViewDate(new Date(next.getFullYear(), next.getMonth(), 1));
     }
-  };
-
-  const handleGoToday = () => {
-    if (onGoToday) {
-      onGoToday();
-      return;
-    }
-    const now = new Date();
-    onSelectDate(now);
-    setInternalViewDate(new Date(now.getFullYear(), now.getMonth(), 1));
   };
 
   // Group events by day key
@@ -806,7 +791,7 @@ export function CalendarMonthSubView({
             type="button"
             onClick={handlePrevWeek}
             aria-label="Previous week"
-            className="size-8 grid place-items-center rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors"
+            className="min-h-[44px] min-w-[44px] grid place-items-center rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors"
           >
             <SvgChevronLeft className="size-4" />
           </button>
@@ -815,7 +800,7 @@ export function CalendarMonthSubView({
             type="button"
             onClick={handleNextWeek}
             aria-label="Next week"
-            className="size-8 grid place-items-center rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors"
+            className="min-h-[44px] min-w-[44px] grid place-items-center rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors"
           >
             <SvgChevronRight className="size-4" />
           </button>
@@ -955,7 +940,7 @@ export function CalendarMonthSubView({
           <button
             type="button"
             onClick={() => openDedicatedSheet('event', selectedDate)}
-            className="px-3 py-1 rounded-lg text-xs font-semibold text-black bg-[var(--quant-warning)] hover:bg-[#D97706] shadow-sm flex items-center gap-1 transition-all"
+            className="min-h-[44px] px-3 py-1 rounded-lg text-xs font-semibold text-black bg-[var(--quant-warning)] hover:bg-[#D97706] shadow-sm flex items-center gap-1 transition-all"
           >
             <SvgPlus className="size-3 text-black" />
             <span>Add Event</span>
