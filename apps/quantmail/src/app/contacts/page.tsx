@@ -23,6 +23,7 @@ import {
 import { useInbox } from '../../hooks/useInbox';
 import { useConfirm } from '../../hooks/useConfirm';
 import { ContactsDedupeModal } from './components/ContactsDedupeModal';
+import type { DuplicateCluster } from './components/ContactsDedupeModal';
 import { ContactGroupModal } from './components/ContactGroupModal';
 import {
   ContactDetailSheet,
@@ -31,11 +32,48 @@ import {
   CirclesSubView,
   contactDisplayName,
 } from './components/ContactsSubViews';
+import type { DedupCollisionPair, DedupCollisionRecord } from './components/ContactsSubViews';
 import type { Contact, ContactGroup } from '../../types';
 import { showToast } from '../../components/InboxToast';
 import { apiClient } from '../../services/api-client';
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
+
+// AUD-P0-N2: compact tab strip rendered above the Companies/Dedup/Groups
+// sub-views. Those sub-views replace the whole split-pane (including its tab
+// bar), so without this strip there is no in-page way to navigate back to
+// All/Favorites or between the sub-view tabs — navigation must never dead-end.
+const SUBVIEW_TABS = [
+  { id: 'all', label: 'All' },
+  { id: 'favorites', label: 'Favorites' },
+  { id: 'companies', label: 'Companies' },
+  { id: 'dedup', label: 'Dedup' },
+  { id: 'groups', label: 'Groups' },
+] as const;
+
+type ContactsTabId = 'all' | 'favorites' | 'groups' | 'companies' | 'dedup';
+
+function SubviewTabNav({ activeTab, onTabChange }: { activeTab: ContactsTabId; onTabChange: (tab: ContactsTabId) => void }) {
+  return (
+    <nav aria-label="Contacts sections" className="flex items-center gap-1.5 mb-5">
+      {SUBVIEW_TABS.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => onTabChange(tab.id)}
+          aria-current={activeTab === tab.id ? 'page' : undefined}
+          className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+            activeTab === tab.id
+              ? 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] border border-[var(--quant-primary)]/40 shadow-sm'
+              : 'text-[var(--quant-muted-foreground)] hover:text-white border border-transparent'
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
 
 export default function ContactsPage() {
   const router = useRouter();
@@ -54,7 +92,11 @@ export default function ContactsPage() {
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [showMobileSheet, setShowMobileSheet] = useState(false);
-  const [isDedupMerged, setIsDedupMerged] = useState(false);
+  // Real duplicate-detection results for the Dedup tab, wired to
+  // GET /contacts/duplicates. null = not scanned yet, [] = clean.
+  // The wizard never invents collisions — an honest empty state renders.
+  const [dedupPairs, setDedupPairs] = useState<DedupCollisionPair[] | null>(null);
+  const dedupIdsRef = useRef<Record<string, { primaryId: string; duplicateIds: string[] }>>({});
   const vcardInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
@@ -129,6 +171,89 @@ export default function ContactsPage() {
     if (tab === 'groups') {
       setSelectedGroupId(null);
     }
+    // AUD-P0-N2: keep ?tab= in the URL in sync with the active tab so the
+    // tab param works end-to-end — deep links in, shareable links out.
+    const params = new URLSearchParams(searchParams.toString());
+    if (tab === 'all') {
+      params.delete('tab');
+    } else {
+      params.set('tab', tab);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `/contacts?${qs}` : '/contacts', { scroll: false });
+  }, [router, searchParams]);
+
+  // --- AUD-P0-N2: real duplicate detection for the Dedup tab -----------------
+  const toDedupRecord = useCallback((c: Contact, sourceLabel: string): DedupCollisionRecord => ({
+    id: c.id,
+    name: c.name || c.email,
+    sourceLabel,
+    company: c.company ?? null,
+    email: c.email ?? null,
+    phone: c.phone ?? null,
+  }), []);
+
+  const loadDedupPairs = useCallback(async () => {
+    try {
+      const res = await apiClient.getContactDuplicates();
+      const clusters: DuplicateCluster[] = res.success && res.data ? res.data : [];
+      const pairs: DedupCollisionPair[] = [];
+      const idMap: Record<string, { primaryId: string; duplicateIds: string[] }> = {};
+      clusters.forEach((cluster) => {
+        if (!cluster.duplicates || cluster.duplicates.length === 0) return;
+        const pairId = `dup-${cluster.primaryContact.id}`;
+        pairs.push({
+          id: pairId,
+          recordA: toDedupRecord(cluster.primaryContact, 'Primary'),
+          recordB: toDedupRecord(cluster.duplicates[0], 'Duplicate'),
+          // matchConfidence omitted: the API does not supply one — never invent it.
+        });
+        idMap[pairId] = {
+          primaryId: cluster.primaryContact.id,
+          duplicateIds: [cluster.primaryContact, ...cluster.duplicates]
+            .map((c) => c.id)
+            .filter((id) => id !== cluster.primaryContact.id),
+        };
+      });
+      dedupIdsRef.current = idMap;
+      setDedupPairs(pairs);
+    } catch {
+      setDedupPairs([]);
+    }
+  }, [toDedupRecord]);
+
+  // Scan the real backend when the Dedup tab opens; manual Re-Scan re-triggers.
+  useEffect(() => {
+    if (activeTab === 'dedup' && dedupPairs === null) {
+      void loadDedupPairs();
+    }
+  }, [activeTab, dedupPairs, loadDedupPairs]);
+
+  const handleDedupMerge = useCallback(async (collisionId?: string) => {
+    const target = dedupPairs?.find((p) => p.id === collisionId) ?? dedupPairs?.[0];
+    const ids = target ? dedupIdsRef.current[target.id] : undefined;
+    if (!target || !ids || ids.duplicateIds.length === 0) return;
+    try {
+      const res = await apiClient.mergeContacts(ids.primaryId, ids.duplicateIds);
+      if (res.success) {
+        showToast({ text: 'Contacts merged successfully', type: 'success' });
+        setDedupPairs((prev) => (prev ? prev.filter((p) => p.id !== target.id) : prev));
+        void refetch();
+      } else {
+        showToast({ text: res.error?.message || 'Failed to merge contacts', type: 'error' });
+      }
+    } catch {
+      showToast({ text: 'Failed to merge contacts', type: 'error' });
+    }
+  }, [dedupPairs, refetch]);
+
+  const handleDedupKeepSeparate = useCallback((collisionId?: string) => {
+    setDedupPairs((prev) => {
+      if (!prev) return prev;
+      const dropId = collisionId ?? prev[0]?.id;
+      return prev.filter((p) => p.id !== dropId);
+    });
+    showToast({ text: 'Records preserved separately', type: 'info' });
   }, []);
 
   const createContact = useCreateContact();
@@ -610,6 +735,7 @@ export default function ContactsPage() {
         {/* ================================================================== */}
         {activeTab === 'companies' ? (
           <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+            <SubviewTabNav activeTab={activeTab} onTabChange={handleTabChange} />
             <CompaniesSubView
               contacts={displayedContacts}
               onInspect={(c) => {
@@ -626,25 +752,20 @@ export default function ContactsPage() {
           </div>
         ) : activeTab === 'dedup' ? (
           <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+            <SubviewTabNav activeTab={activeTab} onTabChange={handleTabChange} />
             <DedupWizardSubView
-              isMerged={isDedupMerged}
-              onMerge={() => {
-                setIsDedupMerged(true);
-                showToast({ text: 'Merged duplicate contacts successfully', type: 'success' });
-              }}
-              onKeepSeparate={() => {
-                showToast({ text: 'Records preserved separately', type: 'info' });
-              }}
+              isMerged={false}
+              collisions={dedupPairs ?? []}
+              onMerge={handleDedupMerge}
+              onKeepSeparate={handleDedupKeepSeparate}
               onOpenFullModal={() => setShowDedupeModal(true)}
-              onRescan={() => {
-                setIsDedupMerged(false);
-                showToast({ text: 'Re-scanning address book…', type: 'info' });
-              }}
+              onRescan={() => void loadDedupPairs()}
             />
           </div>
         ) : activeTab === 'groups' && contactGroups.length === 0 ? (
           /* Empty Groups state -> Circles view */
           <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+            <SubviewTabNav activeTab={activeTab} onTabChange={handleTabChange} />
             <CirclesSubView
               contacts={displayedContacts}
               onBroadcast={(emails) => {
@@ -747,6 +868,27 @@ export default function ContactsPage() {
                   >
                     <span>+ Group</span>
                   </button>
+                </div>
+
+                {/* AUD-P0-N2: Secondary tabs — real entry points to the
+                    Companies/Dedup/Groups sub-views (previously reachable only
+                    by hand-typed ?tab= URLs). */}
+                <div className="flex items-center gap-1.5">
+                  {(['companies', 'dedup', 'groups'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => handleTabChange(tab)}
+                      aria-current={activeTab === tab ? 'page' : undefined}
+                      className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-semibold capitalize transition-all ${
+                        activeTab === tab
+                          ? 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] border border-[var(--quant-primary)]/40 shadow-sm'
+                          : 'text-[var(--quant-muted-foreground)] hover:text-white border border-transparent'
+                      }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
                 </div>
 
                 {/* Group Filter Chips (if any exist) */}
