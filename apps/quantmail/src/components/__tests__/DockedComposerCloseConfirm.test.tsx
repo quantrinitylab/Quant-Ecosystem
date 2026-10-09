@@ -168,12 +168,18 @@ async function typeInto(input: HTMLInputElement, value: string): Promise<void> {
   });
 }
 
-function dialogEl(container: HTMLElement): Element | null {
-  return container.querySelector('[role="dialog"]');
+/**
+ * ConfirmDialog portals itself to document.body (PR #759: escaping ancestor
+ * stacking contexts so the overlay always paints above portaled surfaces like
+ * the shared-ui Modal). So the dialog physically lives OUTSIDE the React root
+ * container — query the whole document, not the harness container.
+ */
+function dialogEl(): Element | null {
+  return document.querySelector('[role="dialog"]');
 }
 
-function dialogButton(container: HTMLElement, text: string): HTMLButtonElement {
-  const dialog = dialogEl(container);
+function dialogButton(text: string): HTMLButtonElement {
+  const dialog = dialogEl();
   if (!dialog) throw new Error('confirm dialog not open');
   const btn = Array.from(dialog.querySelectorAll('button')).find(
     (b) => b.textContent?.trim() === text
@@ -199,7 +205,7 @@ describe('DockedComposer close confirmation (QM-UIUX-083)', () => {
     await click(buttonByLabel(container, 'Close composer'));
     await flush();
 
-    const dialog = dialogEl(container);
+    const dialog = dialogEl();
     expect(dialog).not.toBeNull();
     expect(dialog?.textContent).toContain('Discard draft?');
     // Nothing was thrown away behind the dialog's back.
@@ -229,7 +235,7 @@ describe('DockedComposer close confirmation (QM-UIUX-083)', () => {
     // Before the follow-up fix the badge branch never mounted the dialog,
     // so this click produced no visible response at all and the pending
     // confirm() only surfaced after a restore.
-    const dialog = dialogEl(container);
+    const dialog = dialogEl();
     expect(dialog).not.toBeNull();
     expect(dialog?.textContent).toContain('Discard draft?');
     // Nothing was thrown away behind the dialog's back, and the composer
@@ -240,10 +246,10 @@ describe('DockedComposer close confirmation (QM-UIUX-083)', () => {
       container.querySelector('[data-testid="docked-composer-minimized"]')
     ).not.toBeNull();
 
-    await click(dialogButton(container, 'Keep editing'));
+    await click(dialogButton('Keep editing'));
     await flush(300);
 
-    expect(dialogEl(container)).toBeNull();
+    expect(dialogEl()).toBeNull();
     expect(onDiscard).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
 
@@ -259,14 +265,14 @@ describe('DockedComposer close confirmation (QM-UIUX-083)', () => {
 
     await click(buttonByLabel(container, 'Close composer'));
     await flush();
-    expect(dialogEl(container)).not.toBeNull();
+    expect(dialogEl()).not.toBeNull();
 
-    await click(dialogButton(container, 'Discard'));
+    await click(dialogButton('Discard'));
     await flush(300);
 
     expect(onDiscard).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(dialogEl(container)).toBeNull();
+    expect(dialogEl()).toBeNull();
   });
 
   it('(d) dirty composer + header X + "Keep editing" keeps the composer open with content intact', async () => {
@@ -275,12 +281,12 @@ describe('DockedComposer close confirmation (QM-UIUX-083)', () => {
 
     await click(buttonByLabel(container, 'Close composer'));
     await flush();
-    expect(dialogEl(container)).not.toBeNull();
+    expect(dialogEl()).not.toBeNull();
 
-    await click(dialogButton(container, 'Keep editing'));
+    await click(dialogButton('Keep editing'));
     await flush(300);
 
-    expect(dialogEl(container)).toBeNull();
+    expect(dialogEl()).toBeNull();
     expect(onDiscard).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
     expect(
@@ -296,7 +302,7 @@ describe('DockedComposer close confirmation (QM-UIUX-083)', () => {
     await flush();
 
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(dialogEl(container)).toBeNull();
+    expect(dialogEl()).toBeNull();
   });
 
   it('(f) footer Discard button asks through the same confirmation as the X buttons', async () => {
@@ -310,13 +316,13 @@ describe('DockedComposer close confirmation (QM-UIUX-083)', () => {
     await click(discardBtn);
     await flush();
 
-    const dialog = dialogEl(container);
+    const dialog = dialogEl();
     expect(dialog).not.toBeNull();
     expect(dialog?.textContent).toContain('Discard draft?');
     expect(onDiscard).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
 
-    await click(dialogButton(container, 'Discard'));
+    await click(dialogButton('Discard'));
     await flush(300);
 
     expect(onDiscard).toHaveBeenCalledTimes(1);
