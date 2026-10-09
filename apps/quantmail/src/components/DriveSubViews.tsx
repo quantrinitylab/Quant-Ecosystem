@@ -686,20 +686,21 @@ export function DriveHomeSubView({
     ? `${formatBytes(Math.max(0, gaugeTotalBytes - gaugeUsedBytes))} remaining`
     : 'Calculating…';
 
-  // Available tags for the Tags category
-  const availableTags = useMemo(
-    () => [
-      '#Architecture',
-      '#Q3-Roadmap',
-      '#FastCDC',
-      '#SovereignCloud',
-      '#Designs',
-      '#AuditReports',
-      '#Financial',
-      '#AudioLogs',
-    ],
-    [],
-  );
+  // AUD-P0-D2 (honesty): tags come ONLY from real file metadata (f.tags).
+  // Previously this hardcoded a fabricated taxonomy (#Architecture, #Q3-Roadmap,
+  // ...) presented as the user's own organizational scheme. The backend does
+  // not currently attach tags to files, so with no real tags the pill row
+  // renders nothing at all — never invented values.
+  const availableTags = useMemo(() => {
+    const seen = new Set<string>();
+    for (const f of files) {
+      for (const t of f.tags ?? []) {
+        const tag = t.trim();
+        if (tag && !seen.has(tag)) seen.add(tag);
+      }
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b));
+  }, [files]);
 
   // Compute live item counts from actual files only — no fabricated seeds.
   // Previously this hardcoded base counts (1420 images, 892 documents, etc.)
@@ -1230,8 +1231,9 @@ export function DriveHomeSubView({
             </div>
           </div>
 
-          {/* Tags pill row when category is 'tags' */}
-          {selectedCategory === 'tags' && (
+          {/* Tags pill row when category is 'tags' — only real file tags, never
+              fabricated taxonomy. Hidden entirely when no file carries tags. */}
+          {selectedCategory === 'tags' && availableTags.length > 0 && (
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
               <button
                 type="button"

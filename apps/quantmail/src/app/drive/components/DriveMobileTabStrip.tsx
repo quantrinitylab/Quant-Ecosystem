@@ -64,10 +64,10 @@ export function DriveMobileTabStrip({
       id: 'vault',
       label: 'Vault',
       icon: PadlockIcon,
-      // NOTE: the E2EE badge matches the desktop header. Its removal is
-      // tracked separately as QM-UIUX-022 (unverified security claim).
-      badgeText: 'E2EE',
-      ariaLabel: 'Encrypted vault',
+      // AUD-P0-D1 (honesty): no encryption is implemented for the vault, so no
+      // E2EE/security badge may be shown — an unverified claim violates the
+      // "every word must be provable truth" rule. The vault header admits this.
+      ariaLabel: 'Vault',
     },
     { id: 'files', label: 'Files', icon: HardDriveIcon, ariaLabel: 'All files' },
     {
