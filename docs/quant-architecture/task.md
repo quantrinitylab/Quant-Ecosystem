@@ -1968,7 +1968,7 @@ Dependencies: none.
 Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 3: D-P0-1); screenshot bb8c2c5d.
 
 ## QM-UIUX-080 — P0: Quanty assistant canned "I don't have that information" on all tiers
-Status: [ ] TODO
+Status: [x] DONE (superseded by PR #724 merged 2026-10-09 — verified on main)
 Finding: Personal deep audit 2026-10-09: asking "what is 2+2" returns the identical canned "I don't have that information." on BOTH Fast and Deep tiers (tier switched in Settings → Assistant and reverted). The assistant is completely non-functional for trivial queries.
 Required: both tiers must return real model answers; the canned fallback must only trigger on genuine failure with a truthful error. Live-verify "what is 2+2" on Fast + Deep post-fix.
 Scope: apps/quantmail assistant/Quanty tiers.
