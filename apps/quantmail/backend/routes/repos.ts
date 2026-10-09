@@ -1020,13 +1020,24 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const provisioned = (await prisma.repository.update({
-      where: { id: created.id },
-      data: { storagePathUrl: storagePath },
-      include: { branches: true },
-    })) as RepoRow;
+    // The repository row already exists at this point; the storage-path write is
+    // bookkeeping. A failure here must not turn a real creation into a reported
+    // failure, so fall back to the created row.
+    let row = created;
+    try {
+      row = (await prisma.repository.update({
+        where: { id: created.id },
+        data: { storagePathUrl: storagePath },
+        include: { branches: true },
+      })) as RepoRow;
+    } catch (updateErr) {
+      request.log.warn(
+        { err: updateErr, repoId: created.id },
+        'repository storage path update notice',
+      );
+    }
 
-    return reply.status(201).send({ success: true, data: toDto(provisioned) });
+    return reply.status(201).send({ success: true, data: toDto(row) });
   });
 
   const importRepoSchema = z.object({

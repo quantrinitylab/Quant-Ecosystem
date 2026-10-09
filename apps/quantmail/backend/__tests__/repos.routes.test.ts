@@ -818,6 +818,48 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     expect(prisma.repository.create).toHaveBeenCalled();
   });
 
+  it('POST /repos persists the repo and GET /repos lists it (QM-UIUX-077)', async () => {
+    const app = await buildApp();
+    const store: any[] = [];
+    prisma.repository.findFirst.mockResolvedValue(null);
+    prisma.repository.create.mockImplementation(async ({ data }: any) => {
+      const row = {
+        id: 'repo-audit-test',
+        ...data,
+        branches: [],
+        starCount: 0,
+        forkCount: 0,
+        deletedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      store.push(row);
+      return row;
+    });
+    prisma.repository.findMany.mockImplementation(async () =>
+      store.filter((r) => r.deletedAt === null),
+    );
+    prisma.repository.count.mockImplementation(async () => store.length);
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/repos',
+      payload: {
+        name: 'audit-test-repo',
+        description: 'Regression: creation must persist and list',
+        visibility: 'private',
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().success).toBe(true);
+
+    const listed = await app.inject({ method: 'GET', url: '/repos' });
+    const body = listed.json();
+    expect(listed.statusCode).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.data.map((r: any) => r.name)).toContain('audit-test-repo');
+  });
+
   it('POST /repos/:id/issues creates a real issue linked to repository and user', async () => {
     const app = await buildApp();
     const res = await app.inject({
