@@ -1911,17 +1911,20 @@ Required: fix all 7 with real-device-behavior verification via mobile Chrome emu
 Scope: apps/quantmail/src (mobile header, app switcher, bottom nav, avatar menu, Drive/QuantGit scroll containers).
 Dependencies: QM-UIUX-072 (pure-black law).
 ## QM-UIUX-074 — P0: Archive row action misroutes to Spam
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-074-archive-misroutes-spam
+Status: [x] DONE
+Owner: fix-agent (paud-p0-1)
+Branch: fix/paud-p0-1-archive-misroute
+Note: prior claim by muse-main (fix/qm-uiux-074-archive-misroutes-spam) superseded — fix landed via PR #714 merged to main 2026-10-09 (commit 3ed2bce90).
 Finding: Personal deep audit 2026-10-09 (signed-in browser, kundan@quantmail.in): clicking "Archive" on an inbox row moved the conversation to SPAM (Spam tab 0→1, "Rescue from spam" offered), then it settled into Archive with contradictory toasts ("Rescued from spam — moved to inbox" followed by "Conversation archived").
 Required: Archive must move directly to Archive — never via Spam; single truthful toast. Regression test: archive action asserts folder=ARCHIVE, never SPAM.
 Scope: apps/quantmail inbox row actions.
 Dependencies: none.
-Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 2: M-P0-1).
+Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 2: M-P0-1). Fixed in PR #714 (merged 2026-10-09, commit 3ed2bce90) — offline SPAM folder predicate now requires isSpam flag; regression test offline-folder-predicate.test.ts.
 
 ## QM-UIUX-075 — P0: No unarchive path anywhere in the UI
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: fix-agent (paud-p0-2)
+Branch: fix/paud-p0-2-unarchive
 Finding: Personal deep audit 2026-10-09: there is NO way to unarchive a conversation — not in row quick actions, not in thread "More conversation actions" (only Reply all/Collapse all/Print/Move to Trash), not in the selection toolbar. An archived conversation is unrestorable via UI.
 Required: add Unarchive/Move-to-inbox affordance in row actions + thread menu + Archive view bulk toolbar. Regression test covers the round trip.
 Scope: apps/quantmail inbox/archive UI.
