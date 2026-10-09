@@ -2012,7 +2012,9 @@ Dependencies: none.
 Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 2: M-P1-4).
 
 ## QM-UIUX-085 — P1: Drive Upload buttons produce no visible response
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: fix-agent (2026-10-09)
+Branch: fix/paud-p1-085-086-drive-upload-folder
 Finding: Personal deep audit 2026-10-09: "Upload"/"Upload files" buttons in Drive produce no visible response — no file picker, no dropzone UI appears on click. Raw file upload was not testable.
 Required: Upload must open a real file picker / dropzone and complete uploads end to end; on failure show a truthful error.
 Scope: apps/quantmail Drive upload UI.
@@ -2020,7 +2022,9 @@ Dependencies: none.
 Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 3: D-P1-1).
 
 ## QM-UIUX-086 — P1: Drive folder Open does not render folder contents
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: fix-agent (2026-10-09)
+Branch: fix/paud-p1-085-086-drive-upload-folder
 Finding: Personal deep audit 2026-10-09: clicking "Open" on "Audit Folder" updated the breadcrumb to "My Drive > Audit Folder" but the content panel did NOT render the folder's contents.
 Required: opening a folder must render its contents; breadcrumb and panel must stay in sync.
 Scope: apps/quantmail Drive folder navigation.
