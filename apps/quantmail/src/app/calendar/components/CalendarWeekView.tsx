@@ -142,7 +142,7 @@ function ChevronRightIcon({ className }: { className?: string }) {
 }
 
 function eventColor(ev: CalendarEventLike): string {
-  return ev.color || 'var(--quant-warning)';
+  return ev.color || 'var(--app-accent)';
 }
 
 export function CalendarWeekView({
@@ -319,7 +319,7 @@ export function CalendarWeekView({
             onClick={goPrevWeek}
             aria-label="Previous week"
             data-testid="week-prev"
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)]"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
           >
             <ChevronLeftIcon className="size-4" />
           </button>
@@ -328,7 +328,7 @@ export function CalendarWeekView({
             onClick={goNextWeek}
             aria-label="Next week"
             data-testid="week-next"
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)]"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
           >
             <ChevronRightIcon className="size-4" />
           </button>
@@ -340,7 +340,7 @@ export function CalendarWeekView({
           type="button"
           onClick={goToday}
           data-testid="week-today"
-          className="min-h-[44px] px-4 rounded-lg text-xs font-medium text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] border border-[#232938] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)]"
+          className="min-h-[44px] px-4 rounded-lg text-xs font-medium text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] border border-[#232938] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
         >
           Today
         </button>
@@ -363,15 +363,15 @@ export function CalendarWeekView({
                   aria-label={`${weekdayNames[i]}, ${MONTHS_SHORT[day.getMonth()]} ${day.getDate()}`}
                   aria-pressed={isSelected}
                   data-testid={`week-day-header-${i}`}
-                  className="flex-1 min-w-0 flex flex-col items-center py-2 gap-0.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)] hover:bg-[#101218]"
+                  className="flex-1 min-w-0 flex flex-col items-center py-2 gap-0.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] hover:bg-[#101218]"
                 >
-                  <span className={`text-[10px] font-medium uppercase tracking-wide ${isToday ? 'text-[var(--quant-warning)]' : 'text-[var(--quant-muted-foreground)]'}`}>
+                  <span className={`text-[10px] font-medium uppercase tracking-wide ${isToday ? 'text-[var(--app-accent)]' : 'text-[var(--quant-muted-foreground)]'}`}>
                     {weekdayNames[i].slice(0, 3)}
                   </span>
                   <span
                     className={`flex items-center justify-center size-8 rounded-full text-sm font-semibold ${
                       isToday
-                        ? 'bg-[var(--quant-warning)] text-black shadow-[0_0_12px_rgba(245,158,11,0.4)]'
+                        ? 'bg-[var(--app-accent)] text-black shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_40%,transparent)]'
                         : isSelected
                           ? 'bg-[#232938] text-white'
                           : 'text-[var(--quant-foreground)]'
@@ -411,7 +411,7 @@ export function CalendarWeekView({
                       onClick={() => onSelectEvent(ev)}
                       data-week-event
                       title={ev.title}
-                      className="w-full truncate text-left text-[11px] px-1.5 py-0.5 rounded border-l-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)]"
+                      className="w-full truncate text-left text-[11px] px-1.5 py-0.5 rounded border-l-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                       style={{
                         borderLeftColor: eventColor(ev),
                         backgroundColor: `${eventColor(ev)}26`,
@@ -458,7 +458,7 @@ export function CalendarWeekView({
                     onPointerUp={() => finishDrag(di)}
                     onPointerCancel={() => setDrag(null)}
                     data-testid={`week-day-column-${di}`}
-                    className="flex-1 min-w-0 relative border-l border-[#232938]/40 cursor-crosshair focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-warning)]"
+                    className="flex-1 min-w-0 relative border-l border-[#232938]/40 cursor-crosshair focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--app-accent)]"
                     style={{ touchAction: 'pan-y' }}
                   >
                     {/* Hour lines */}
@@ -488,7 +488,7 @@ export function CalendarWeekView({
                     {/* Drag selection highlight */}
                     {drag && drag.dayIndex === di && dragHi - dragLo >= SNAP_MINUTES && (
                       <div
-                        className="absolute left-1 right-1 z-[5] rounded bg-[var(--quant-warning)]/25 border border-[var(--quant-warning)]/60 pointer-events-none"
+                        className="absolute left-1 right-1 z-[5] rounded bg-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)] pointer-events-none"
                         style={{ top: minutesToTop(dragLo), height: Math.max(14, minutesToTop(dragHi) - minutesToTop(dragLo)) }}
                         data-testid="week-drag-highlight"
                         aria-hidden="true"

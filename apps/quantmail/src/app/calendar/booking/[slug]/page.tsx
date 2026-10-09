@@ -479,17 +479,17 @@ export default function PublicBookingPage(props: PageProps) {
   }, [selectedDate]);
 
   return (
-    <div className="min-h-screen bg-[var(--quant-background)] text-[var(--quant-foreground)] font-sans flex flex-col justify-between selection:bg-[var(--quant-primary)]/30 selection:text-white">
+    <div className="min-h-screen bg-[var(--quant-background)] text-[var(--quant-foreground)] font-sans flex flex-col justify-between selection:bg-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] selection:text-white">
       {/* Top Brand Bar */}
       <header className="border-b border-[var(--quant-surface-elevated)]/60 bg-black/80 backdrop-blur-md px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="size-8 rounded-xl bg-gradient-to-tr from-[var(--quant-primary)] to-[#FFB076] flex items-center justify-center text-[var(--quant-background)] font-black text-sm shadow-md shadow-[var(--quant-primary)]/20">
+          <div className="size-8 rounded-xl bg-gradient-to-tr from-[var(--app-accent)] to-[color-mix(in_srgb,var(--app-accent),white_30%)] flex items-center justify-center text-[var(--quant-background)] font-black text-sm shadow-md shadow-[color-mix(in_srgb,var(--app-accent)_20%,transparent)]">
             Q
           </div>
           <div>
             <span className="font-bold text-sm tracking-tight text-white flex items-center gap-1.5">
               QuantCalendar
-              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-px rounded bg-[var(--quant-primary)]/15 text-[var(--quant-primary)] border border-[var(--quant-primary)]/25">
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-px rounded bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)]">
                 Sovereign Booking
               </span>
             </span>
@@ -507,8 +507,8 @@ export default function PublicBookingPage(props: PageProps) {
             <div className="space-y-5">
               {/* Host Brand Mark / Avatar */}
               <div className="flex items-center gap-3.5">
-                <div className="size-14 rounded-2xl bg-gradient-to-tr from-[#1E222B] to-[#2B303C] border-2 border-[var(--quant-primary)]/60 p-0.5 flex items-center justify-center shadow-lg shadow-[var(--quant-primary)]/10 relative group">
-                  <div className="size-full rounded-[14px] bg-[var(--quant-surface-elevated)] flex items-center justify-center text-lg font-black text-[var(--quant-primary)]">
+                <div className="size-14 rounded-2xl bg-gradient-to-tr from-[#1E222B] to-[#2B303C] border-2 border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)] p-0.5 flex items-center justify-center shadow-lg shadow-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] relative group">
+                  <div className="size-full rounded-[14px] bg-[var(--quant-surface-elevated)] flex items-center justify-center text-lg font-black text-[var(--app-accent)]">
                     {meetingDetails.hostName.charAt(0)}
                   </div>
                   <span className="absolute -bottom-1 -right-1 size-3.5 rounded-full bg-emerald-500 border-2 border-[var(--quant-surface-subtle)]" />
@@ -536,7 +536,7 @@ export default function PublicBookingPage(props: PageProps) {
               {/* Meeting Metadata Pills */}
               <div className="space-y-2 pt-2">
                 <div className="flex items-center gap-2 text-xs font-semibold text-[var(--quant-foreground)]">
-                  <span className="size-6 rounded-lg bg-[var(--quant-primary)]/15 text-[var(--quant-primary)] border border-[var(--quant-primary)]/20 flex items-center justify-center text-[11px]">
+                  <span className="size-6 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] flex items-center justify-center text-[11px]">
                     <IconClock size={12} />
                   </span>
                   <span>{meetingDetails.duration} min duration</span>
@@ -551,12 +551,12 @@ export default function PublicBookingPage(props: PageProps) {
 
                 {/* Slot Summary in Step 2 or 3 */}
                 {selectedSlot && (
-                  <div className="p-3 rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-primary)]/30 space-y-1 mt-3 animate-in fade-in duration-200">
-                    <div className="text-[11px] font-bold text-[var(--quant-primary)] uppercase tracking-wider">
+                  <div className="p-3 rounded-xl bg-[var(--quant-surface-elevated)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] space-y-1 mt-3 animate-in fade-in duration-200">
+                    <div className="text-[11px] font-bold text-[var(--app-accent)] uppercase tracking-wider">
                       Selected Slot
                     </div>
                     <div className="text-xs font-semibold text-white flex items-center gap-1.5">
-                      <IconCalendar size={13} className="text-[var(--quant-primary)]" />
+                      <IconCalendar size={13} className="text-[var(--app-accent)]" />
                       <span>{formattedSelectedDate}</span>
                     </div>
                     <div className="text-xs text-[var(--quant-muted-foreground)] flex items-center gap-1.5">
@@ -579,7 +579,7 @@ export default function PublicBookingPage(props: PageProps) {
                     id="booking-timezone"
                     value={selectedTimezone}
                     onChange={(e) => setSelectedTimezone(e.target.value)}
-                    className="w-full appearance-none rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] pl-8 pr-8 py-2 text-xs text-white focus:outline-none focus:border-[var(--quant-primary)] cursor-pointer"
+                    className="w-full appearance-none rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] pl-8 pr-8 py-2 text-xs text-white focus:outline-none focus:border-[var(--app-accent)] cursor-pointer"
                   >
                     {TIMEZONES.map((tz) => (
                       <option key={tz.value} value={tz.value} className="bg-[var(--quant-surface-subtle)] text-white">
@@ -676,7 +676,7 @@ export default function PublicBookingPage(props: PageProps) {
                             onClick={() => setSelectedDate(item.date)}
                             className={`size-9 rounded-xl text-xs font-semibold flex items-center justify-center transition-all ${
                               isSelected
-                                ? 'bg-[var(--quant-primary)] text-[var(--quant-background)] font-black shadow-md shadow-[var(--quant-primary)]/30 scale-105'
+                                ? 'bg-[var(--app-accent)] text-[var(--quant-background)] font-black shadow-md shadow-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] scale-105'
                                 : isAvailable
                                   ? 'bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-white cursor-pointer border border-[var(--quant-surface-elevated)]'
                                   : isCurrentMonth
@@ -705,7 +705,7 @@ export default function PublicBookingPage(props: PageProps) {
 
                     {isLoadingSlots ? (
                       <div className="py-12 text-center text-xs text-[var(--quant-muted-foreground)] flex items-center justify-center gap-2">
-                        <span className="inline-block size-3 rounded-full border-2 border-white/30 border-t-[var(--quant-primary)] animate-spin" />
+                        <span className="inline-block size-3 rounded-full border-2 border-white/30 border-t-[var(--app-accent)] animate-spin" />
                         <span>Loading slots…</span>
                       </div>
                     ) : availableSlots.filter((s) => s.available).length === 0 ? (
@@ -723,7 +723,7 @@ export default function PublicBookingPage(props: PageProps) {
                               key={i}
                               type="button"
                               onClick={() => handleSelectSlot(slot)}
-                              className="w-full py-2.5 px-3 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-primary)] hover:text-[var(--quant-background)] hover:border-[var(--quant-primary)] text-xs font-bold text-white transition-all text-center group flex items-center justify-between shadow-sm"
+                              className="w-full py-2.5 px-3 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] hover:bg-[var(--app-accent)] hover:text-[var(--quant-background)] hover:border-[var(--app-accent)] text-xs font-bold text-white transition-all text-center group flex items-center justify-between shadow-sm"
                             >
                               <span>{slot.timeLabel}</span>
                               <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[11px] font-bold">
@@ -773,7 +773,7 @@ export default function PublicBookingPage(props: PageProps) {
                   {/* Name field */}
                   <div>
                     <label className="block text-[var(--quant-muted-foreground)] font-semibold mb-1">
-                      Your Name <span className="text-[var(--quant-primary)]">*</span>
+                      Your Name <span className="text-[var(--app-accent)]">*</span>
                     </label>
                     <input
                       type="text"
@@ -781,14 +781,14 @@ export default function PublicBookingPage(props: PageProps) {
                       onChange={(e) => setBookerName(e.target.value)}
                       placeholder="e.g. Sarah Connor"
                       required
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white placeholder-[#5E6472] focus:outline-none focus:border-[var(--quant-primary)] focus:ring-1 focus:ring-[var(--quant-primary)] text-xs transition-colors"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white placeholder-[#8E939E] focus:outline-none focus:border-[var(--app-accent)] focus:ring-1 focus:ring-[var(--app-accent)] text-xs transition-colors"
                     />
                   </div>
 
                   {/* Email field */}
                   <div>
                     <label className="block text-[var(--quant-muted-foreground)] font-semibold mb-1">
-                      Your Email Address <span className="text-[var(--quant-primary)]">*</span>
+                      Your Email Address <span className="text-[var(--app-accent)]">*</span>
                     </label>
                     <input
                       type="email"
@@ -796,7 +796,7 @@ export default function PublicBookingPage(props: PageProps) {
                       onChange={(e) => setBookerEmail(e.target.value)}
                       placeholder="you@example.com"
                       required
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white placeholder-[#5E6472] focus:outline-none focus:border-[var(--quant-primary)] focus:ring-1 focus:ring-[var(--quant-primary)] text-xs transition-colors"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white placeholder-[#8E939E] focus:outline-none focus:border-[var(--app-accent)] focus:ring-1 focus:ring-[var(--app-accent)] text-xs transition-colors"
                     />
                   </div>
 
@@ -810,7 +810,7 @@ export default function PublicBookingPage(props: PageProps) {
                       onChange={(e) => setBookerNotes(e.target.value)}
                       placeholder="Please share anything that will help prepare for our meeting…"
                       rows={3}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white placeholder-[#5E6472] focus:outline-none focus:border-[var(--quant-primary)] focus:ring-1 focus:ring-[var(--quant-primary)] text-xs transition-colors"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white placeholder-[#8E939E] focus:outline-none focus:border-[var(--app-accent)] focus:ring-1 focus:ring-[var(--app-accent)] text-xs transition-colors"
                     />
                   </div>
                 </div>
@@ -827,7 +827,7 @@ export default function PublicBookingPage(props: PageProps) {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-6 py-2.5 rounded-xl bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-[var(--quant-background)] font-bold text-xs shadow-lg shadow-[var(--quant-primary)]/20 transition-all disabled:opacity-50 flex items-center gap-2"
+                    className="px-6 py-2.5 rounded-xl bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-[var(--quant-background)] font-bold text-xs shadow-lg shadow-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] transition-all disabled:opacity-50 flex items-center gap-2"
                   >
                     {isSubmitting ? (
                       <>
@@ -867,12 +867,12 @@ export default function PublicBookingPage(props: PageProps) {
                 {/* Confirmed Details Card */}
                 <div className="p-5 rounded-2xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] text-left space-y-3 max-w-md mx-auto text-xs">
                   <div className="font-bold text-sm text-white flex items-center gap-2 border-b border-[var(--quant-surface-elevated)]/60 pb-2">
-                    <span className="text-[var(--quant-primary)]">●</span> {confirmedBooking.title}
+                    <span className="text-[var(--app-accent)]">●</span> {confirmedBooking.title}
                   </div>
 
                   <div className="space-y-1.5 text-[var(--quant-muted-foreground)]">
                     <div className="flex items-center gap-2 text-white">
-                      <IconCalendar size={14} className="text-[var(--quant-primary)]" />
+                      <IconCalendar size={14} className="text-[var(--app-accent)]" />
                       <span className="font-medium">
                         {confirmedBooking.startTime.toLocaleDateString('en-US', {
                           weekday: 'long',

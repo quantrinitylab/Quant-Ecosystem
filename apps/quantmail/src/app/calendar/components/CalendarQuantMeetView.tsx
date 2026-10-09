@@ -159,10 +159,10 @@ export function CalendarQuantMeetView({ className = '' }: CalendarQuantMeetViewP
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-[var(--quant-warning)]">
+              <span className="text-xs font-bold uppercase tracking-wider text-[var(--app-accent)]">
                 QuantMeet HD Video
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--quant-warning)]/20 text-[var(--quant-warning)] border border-[var(--quant-warning)]/40">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)]">
                 WebRTC 4K P2P
               </span>
             </div>
@@ -195,7 +195,7 @@ export function CalendarQuantMeetView({ className = '' }: CalendarQuantMeetViewP
           <button
             type="button"
             onClick={handleStartInstantMeeting}
-            className="inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-xl bg-gradient-to-r from-[var(--quant-warning)] to-[#D97706] hover:from-[#FBBF24] hover:to-[var(--quant-warning)] text-black font-bold text-sm shadow-[0_0_24px_rgba(245,158,11,0.35)] transition-all transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)]"
+            className="inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-xl bg-gradient-to-r from-[var(--app-accent)] to-[var(--app-accent-hover)] hover:from-[#FBBF24] hover:to-[var(--app-accent)] text-black font-bold text-sm shadow-[0_0_24px_color-mix(in_srgb,var(--app-accent)_35%,transparent)] transition-all transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
           >
             <VideoCameraIcon className="size-5 text-black" />
             <span>Start Instant Meeting</span>
@@ -207,7 +207,7 @@ export function CalendarQuantMeetView({ className = '' }: CalendarQuantMeetViewP
               value={meetingCode}
               onChange={(e) => setMeetingCode(e.target.value)}
               placeholder="Enter meeting link or code…"
-              className="flex-1 bg-[var(--quant-background)] border border-[#232938] rounded-xl px-3.5 py-2.5 text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)]/60 focus:outline-none focus:border-[var(--quant-warning)] transition-colors"
+              className="flex-1 bg-[var(--quant-background)] border border-[#232938] rounded-xl px-3.5 py-2.5 text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)]/60 focus:outline-none focus:border-[var(--app-accent)] transition-colors"
             />
             <button
               type="button"
@@ -217,7 +217,7 @@ export function CalendarQuantMeetView({ className = '' }: CalendarQuantMeetViewP
                 }
               }}
               disabled={!meetingCode.trim()}
-              className="px-4 py-2.5 rounded-xl bg-[var(--quant-surface-elevated)] hover:bg-[#1f2230] disabled:opacity-50 text-xs font-semibold text-[var(--quant-warning)] border border-[#232938] transition-all focus-visible:outline-none"
+              className="px-4 py-2.5 rounded-xl bg-[var(--quant-surface-elevated)] hover:bg-[#1f2230] disabled:opacity-50 text-xs font-semibold text-[var(--app-accent)] border border-[#232938] transition-all focus-visible:outline-none"
             >
               Join
             </button>
@@ -225,8 +225,8 @@ export function CalendarQuantMeetView({ className = '' }: CalendarQuantMeetViewP
         </div>
 
         {activeInstantMeeting && (
-          <div className="p-3 rounded-xl bg-[var(--quant-warning)]/10 border border-[var(--quant-warning)]/30 flex items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2 text-[var(--quant-warning)] font-mono">
+          <div className="p-3 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-[var(--app-accent)] font-mono">
               <SparklesIcon className="size-4" />
               <span>Instant Room Active: https://quantmail.in/meet/{activeInstantMeeting}</span>
             </div>
@@ -238,7 +238,7 @@ export function CalendarQuantMeetView({ className = '' }: CalendarQuantMeetViewP
                 );
                 showToast({ text: 'Meeting URL copied', type: 'success' });
               }}
-              className="px-2.5 py-1 rounded bg-[var(--quant-warning)] text-black font-bold text-[11px]"
+              className="px-2.5 py-1 rounded bg-[var(--app-accent)] text-black font-bold text-[11px]"
             >
               Copy Link
             </button>
@@ -255,7 +255,7 @@ export function CalendarQuantMeetView({ className = '' }: CalendarQuantMeetViewP
               Synced with your calendar schedule and video room bindings
             </p>
           </div>
-          <span className="text-xs font-medium text-[var(--quant-warning)]">
+          <span className="text-xs font-medium text-[var(--app-accent)]">
             {upcomingCalls.length} scheduled calls
           </span>
         </div>
@@ -264,7 +264,7 @@ export function CalendarQuantMeetView({ className = '' }: CalendarQuantMeetViewP
           {upcomingCalls.map((call) => (
             <div
               key={call.id}
-              className="p-4 rounded-xl bg-[var(--quant-background)] border border-[#232938] hover:border-[var(--quant-warning)]/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm"
+              className="p-4 rounded-xl bg-[var(--quant-background)] border border-[#232938] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm"
             >
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -275,8 +275,8 @@ export function CalendarQuantMeetView({ className = '' }: CalendarQuantMeetViewP
                 </div>
 
                 <div className="flex items-center gap-4 text-xs text-[var(--quant-muted-foreground)] flex-wrap">
-                  <span className="inline-flex items-center gap-1.5 text-[var(--quant-warning)]">
-                    <ClockIcon className="size-3.5 text-[var(--quant-warning)]" />
+                  <span className="inline-flex items-center gap-1.5 text-[var(--app-accent)]">
+                    <ClockIcon className="size-3.5 text-[var(--app-accent)]" />
                     <span>{call.time}</span>
                   </span>
 
@@ -293,7 +293,7 @@ export function CalendarQuantMeetView({ className = '' }: CalendarQuantMeetViewP
               <button
                 type="button"
                 onClick={() => handleJoinCall(call.roomCode, call.title)}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-warning)] hover:text-black text-xs font-bold text-[var(--quant-warning)] border border-[var(--quant-warning)]/40 hover:border-[var(--quant-warning)] transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)]"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--quant-surface-elevated)] hover:bg-[var(--app-accent)] hover:text-black text-xs font-bold text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:border-[var(--app-accent)] transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
               >
                 <VideoCameraIcon className="size-3.5 text-current" />
                 <span>Join HD Call</span>

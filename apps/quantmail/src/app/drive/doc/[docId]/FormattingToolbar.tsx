@@ -30,7 +30,7 @@ const TYPE_LABELS: Record<BlockType, string> = {
 
 const COLOR_OPTIONS = [
   { name: 'Default', value: 'inherit' },
-  { name: 'Orange', value: 'var(--quant-primary)' },
+  { name: 'Orange', value: 'var(--app-accent)' },
   { name: 'Green', value: '#3FB950' },
   { name: 'Blue', value: '#58A6FF' },
   { name: 'Purple', value: '#BC8CFF' },
@@ -94,12 +94,12 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
                 }}
                 className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-left transition-colors ${
                   currentType === t
-                    ? 'bg-[#21262D] text-[var(--quant-primary)] font-semibold'
+                    ? 'bg-[#21262D] text-[var(--app-accent)] font-semibold'
                     : 'text-[#C9D1D9] hover:bg-[#21262D]/60 hover:text-[#F0F6FC]'
                 }`}
               >
                 <span>{TYPE_LABELS[t]}</span>
-                {currentType === t && <span className="text-[var(--quant-primary)]">✓</span>}
+                {currentType === t && <span className="text-[var(--app-accent)]">✓</span>}
               </button>
             ))}
           </div>
@@ -177,7 +177,7 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
             title="Highlight Color"
             className="w-7 h-7 rounded-lg flex items-center justify-center text-xs text-[#C9D1D9] hover:text-[#F0F6FC] hover:bg-[#21262D] transition-colors"
           >
-            <span className="w-3.5 h-3.5 rounded-full border border-[#30363D] bg-[var(--quant-primary)]" />
+            <span className="w-3.5 h-3.5 rounded-full border border-[#30363D] bg-[var(--app-accent)]" />
           </button>
 
           {showColorDropdown && (

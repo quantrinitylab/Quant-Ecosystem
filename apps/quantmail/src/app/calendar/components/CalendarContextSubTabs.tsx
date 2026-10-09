@@ -322,17 +322,17 @@ export function CalendarContextSubTabs({
               id={`tab-${tab.key}`}
               onClick={() => onSelectTab(tab.key)}
               data-testid={`calendar-tab-${tab.key}`}
-              className={`${tab.isLegacy ? 'hidden' : 'flex'} items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)] ${
+              className={`${tab.isLegacy ? 'hidden' : 'flex'} items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                 isActive
-                  ? 'bg-[var(--quant-warning)]/15 text-[var(--quant-warning)] border border-[var(--quant-warning)]/40 shadow-[0_0_12px_rgba(245,158,11,0.15)] font-semibold'
-                  : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] border border-transparent'
+                  ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_15%,transparent)] font-semibold'
+                  : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] border'
               }`}
             >
-              <IconComp className={`size-3.5 ${isActive ? 'text-[var(--quant-warning)]' : 'text-[var(--quant-muted-foreground)]'}`} />
+              <IconComp className={`size-3.5 ${isActive ? 'text-[var(--app-accent)]' : 'text-[var(--quant-muted-foreground)]'}`} />
               <span>{tab.label}</span>
               {isActive && (
                 <span
-                  className="size-1.5 rounded-full bg-[var(--quant-warning)] shadow-[0_0_6px_var(--quant-warning)]"
+                  className="size-1.5 rounded-full bg-[var(--app-accent)] shadow-[0_0_6px_var(--app-accent)]"
                   aria-hidden="true"
                 />
               )}

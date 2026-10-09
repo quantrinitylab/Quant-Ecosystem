@@ -74,7 +74,7 @@ function getFileIcon(mimeType: string, type: string, className = 'w-5 h-5'): Rea
   if (type === 'folder') {
     return (
       <svg
-        className={`${className} text-[var(--quant-primary)] shrink-0`}
+        className={`${className} text-[var(--app-accent)] shrink-0`}
         fill="currentColor"
         viewBox="0 0 24 24"
       >
@@ -1115,7 +1115,7 @@ function DrivePageContent() {
                 if (searchQuery.trim()) setSearchQuery('');
                 navigateToFolder(null, 'Home');
               }}
-              className={`shrink-0 rounded transition-colors hover:text-[var(--quant-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
+              className={`shrink-0 rounded transition-colors hover:text-[var(--app-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                 !currentFolderId && !searchQuery.trim() ? 'font-semibold text-[var(--quant-foreground)]' : ''
               }`}
             >
@@ -1124,7 +1124,7 @@ function DrivePageContent() {
             {searchQuery.trim() ? (
               <span className="flex min-w-0 items-center gap-1.5">
                 <span className="shrink-0 text-[var(--quant-text-muted)]">/</span>
-                <span className="max-w-[200px] truncate font-medium text-[var(--quant-primary)]">
+                <span className="max-w-[200px] truncate font-medium text-[var(--app-accent)]">
                   Search: &ldquo;{searchQuery.trim()}&rdquo;
                 </span>
               </span>
@@ -1136,7 +1136,7 @@ function DrivePageContent() {
                   <button
                     type="button"
                     onClick={() => navigateToBreadcrumb(i + 1)}
-                    className="max-w-[120px] truncate rounded font-medium text-[var(--quant-foreground)] transition-colors hover:text-[var(--quant-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="max-w-[120px] truncate rounded font-medium text-[var(--quant-foreground)] transition-colors hover:text-[var(--app-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                   >
                     {b.name}
                   </button>
@@ -1165,9 +1165,9 @@ function DrivePageContent() {
                   if (activeTab !== 'home' && activeTab !== 'files') handleTabChange('home');
                 }}
                 aria-pressed={activeFilter === filter.key && (activeTab === 'home' || activeTab === 'files')}
-                className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] sm:min-h-0 ${
+                className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] sm:min-h-0 ${
                   activeFilter === filter.key && (activeTab === 'home' || activeTab === 'files')
-                    ? 'bg-[var(--quant-primary)]/12 text-[var(--quant-primary)] border border-[var(--quant-primary)]/35 shadow-[0_0_14px_rgba(255,140,66,0.15),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
+                    ? 'bg-[color-mix(in_srgb,var(--app-accent)_12%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)] shadow-[0_0_14px_color-mix(in_srgb,var(--app-accent)_15%,transparent),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
                     : 'border border-white/[0.08] bg-white/[0.03] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-white/[0.06] hover:border-white/[0.14]'
                 }`}
               >
@@ -1195,9 +1195,9 @@ function DrivePageContent() {
                   onClick={() => setViewMode(key)}
                   aria-label={label}
                   aria-pressed={viewMode === key}
-                  className={`grid size-8 place-items-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] [@media(pointer:coarse)]:size-11 ${
+                  className={`grid size-8 place-items-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] [@media(pointer:coarse)]:size-11 ${
                     viewMode === key
-                      ? 'bg-[var(--quant-primary)] text-[#111111]'
+                      ? 'bg-[var(--app-accent)] text-[#111111]'
                       : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
                   }`}
                 >
@@ -1212,7 +1212,7 @@ function DrivePageContent() {
                 const docId = 'doc_' + Math.random().toString(36).substring(2, 9);
                 router.push(`/drive/doc/${docId}`);
               }}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--quant-primary)] hover:border-[var(--quant-primary)]/40 hover:bg-white/[0.04] hover:shadow-[0_0_12px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--app-accent)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-white/[0.04] hover:shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_10%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
               aria-label="New document"
             >
               <IconFile size={14} />
@@ -1222,7 +1222,7 @@ function DrivePageContent() {
             <button
               type="button"
               onClick={() => setShowNewFolderModal(true)}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--quant-foreground)] hover:border-[var(--quant-primary)]/40 hover:bg-white/[0.04] hover:shadow-[0_0_12px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--quant-foreground)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-white/[0.04] hover:shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_10%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
               aria-label="New folder"
             >
               <IconFolderPlus size={14} />
@@ -1235,11 +1235,11 @@ function DrivePageContent() {
                 setQuantyWorkspaceFile(null);
                 setIsQuantyWorkspaceOpen(true);
               }}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--quant-foreground)] hover:border-[var(--quant-primary)]/40 hover:bg-white/[0.04] hover:shadow-[0_0_12px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] md:px-3"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--quant-foreground)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-white/[0.04] hover:shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_10%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] md:px-3"
               aria-label="Open the Quanty file workspace"
             >
               <svg
-                className="size-3.5 text-[var(--quant-primary)]"
+                className="size-3.5 text-[var(--app-accent)]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -1257,11 +1257,11 @@ function DrivePageContent() {
             <button
               type="button"
               onClick={() => setIsDuplicateCleanerOpen(true)}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--quant-foreground)] hover:border-[var(--quant-primary)]/40 hover:bg-white/[0.04] hover:shadow-[0_0_12px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] md:px-3"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--quant-foreground)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-white/[0.04] hover:shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_10%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] md:px-3"
               aria-label="Find and clean duplicate files"
             >
               <svg
-                className="size-3.5 text-[var(--quant-primary)]"
+                className="size-3.5 text-[var(--app-accent)]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -1280,7 +1280,7 @@ function DrivePageContent() {
             <button
               type="button"
               onClick={handleUploadTrigger}
-              className="hidden h-8 items-center gap-1.5 rounded-lg bg-[var(--quant-primary)] px-3 text-xs font-semibold text-[#111111] transition-colors hover:bg-[var(--quant-primary-hover)] active:bg-[var(--quant-primary-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] md:inline-flex"
+              className="hidden h-8 items-center gap-1.5 rounded-lg bg-[var(--app-accent)] px-3 text-xs font-semibold text-[#111111] transition-colors hover:bg-[var(--app-accent-hover)] active:bg-[var(--quant-primary-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] md:inline-flex"
             >
               <IconUpload size={14} />
               <span>Upload</span>
@@ -1308,7 +1308,7 @@ function DrivePageContent() {
 
         {/* Batch Selection Action Bar */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center justify-between px-4 py-2 sm:px-8 bg-[var(--quant-primary)]/15 border-b border-[var(--quant-primary)]/30 text-xs">
+          <div className="flex items-center justify-between px-4 py-2 sm:px-8 bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border-b border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] text-xs">
             <span className="font-semibold text-white">
               {selectedIds.size} item{selectedIds.size > 1 ? 's' : ''} selected
             </span>
@@ -1316,7 +1316,7 @@ function DrivePageContent() {
               <button
                 type="button"
                 onClick={handleDownloadSelected}
-                className="min-h-touch px-2.5 rounded-md bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-hover)] font-medium flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                className="min-h-touch px-2.5 rounded-md bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-hover)] font-medium flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -1331,7 +1331,7 @@ function DrivePageContent() {
               <button
                 type="button"
                 onClick={handleBatchDelete}
-                className="min-h-touch px-2.5 rounded-md bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 font-medium flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                className="min-h-touch px-2.5 rounded-md bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 font-medium flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -1346,7 +1346,7 @@ function DrivePageContent() {
               <button
                 type="button"
                 onClick={() => setSelectedIds(new Set())}
-                className="min-h-touch px-2.5 rounded-md text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                className="min-h-touch px-2.5 rounded-md text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
               >
                 <svg
                   className="size-3.5"
@@ -1371,7 +1371,7 @@ function DrivePageContent() {
           <div className="flex items-center justify-between px-4 py-2 sm:px-8 bg-[var(--quant-surface-elevated)] border-b border-[var(--quant-surface-elevated)] text-xs">
             <div className="flex items-center gap-2 text-[var(--quant-muted-foreground)]">
               <svg
-                className="size-3.5 text-[var(--quant-primary)]"
+                className="size-3.5 text-[var(--app-accent)]"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -1393,7 +1393,7 @@ function DrivePageContent() {
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="inline-flex items-center gap-1 text-xs text-[var(--quant-primary)] hover:text-[var(--quant-primary-hover)] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="inline-flex items-center gap-1 text-xs text-[var(--app-accent)] hover:text-[var(--app-accent-hover)] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
             >
               <span>Clear search</span>
               <svg
@@ -1420,14 +1420,14 @@ function DrivePageContent() {
           onDragLeave={() => setIsDragOver(false)}
           onDrop={handleDrop}
           className={`flex-1 overflow-y-auto px-4 py-6 sm:px-8 space-y-6 relative ${
-            isDragOver ? 'bg-[var(--quant-primary)]/5' : ''
+            isDragOver ? 'bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)]' : ''
           }`}
         >
           {/* Drag Overlay Hint */}
           {isDragOver && (
-            <div className="absolute inset-4 z-30 border-2 border-dashed border-[var(--quant-primary)] rounded-2xl bg-[var(--quant-background)]/90 flex flex-col items-center justify-center pointer-events-none backdrop-blur-sm">
+            <div className="absolute inset-4 z-30 border-2 border-dashed border-[var(--app-accent)] rounded-2xl bg-[var(--quant-background)]/90 flex flex-col items-center justify-center pointer-events-none backdrop-blur-sm">
               <svg
-                className="w-12 h-12 text-[var(--quant-primary)] mb-3 animate-bounce"
+                className="w-12 h-12 text-[var(--app-accent)] mb-3 animate-bounce"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -1572,7 +1572,7 @@ function DrivePageContent() {
                         <button
                           type="button"
                           onClick={(e) => handleRestoreItem(item.id, item.name, e)}
-                          className="px-3 py-1.5 rounded-lg bg-[var(--quant-primary)]/12 border border-[var(--quant-primary)]/35 text-xs font-semibold text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                          className="px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_12%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)] text-xs font-semibold text-[var(--app-accent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] shadow-[0_0_10px_color-mix(in_srgb,var(--app-accent)_10%,transparent)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                         >
                           Restore
                         </button>
@@ -1859,7 +1859,7 @@ function DrivePageContent() {
               <div className="rounded-xl bg-[var(--quant-surface)] p-4 text-left shadow-[inset_0_0_0_1px_var(--quant-surface-elevated)]">
                 <div className="flex items-center justify-between border-b border-[var(--quant-surface-elevated)] pb-3 mb-3">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[var(--quant-primary)] shrink-0">
+                    <span className="text-[var(--app-accent)] shrink-0">
                       <svg
                         className="w-5 h-5"
                         fill="none"
@@ -1887,7 +1887,7 @@ function DrivePageContent() {
                       <p className="text-[11px] text-[var(--quant-muted-foreground)]">
                         {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
                         {textPreviewContent !== null && (
-                          <span className="text-[var(--quant-primary)] ml-1.5 font-mono">
+                          <span className="text-[var(--app-accent)] ml-1.5 font-mono">
                             ({textPreviewContent.split('\n').length} lines)
                           </span>
                         )}
@@ -1950,7 +1950,7 @@ function DrivePageContent() {
 
                 {isLoadingTextPreview ? (
                   <div className="py-12 text-center text-xs text-[var(--quant-muted-foreground)] space-y-3">
-                    <div className="w-6 h-6 border-2 border-[var(--quant-primary)] border-t-transparent rounded-full animate-spin mx-auto" />
+                    <div className="w-6 h-6 border-2 border-[var(--app-accent)] border-t-transparent rounded-full animate-spin mx-auto" />
                     <p>Loading code preview…</p>
                   </div>
                 ) : textPreviewError ? (
@@ -2086,7 +2086,7 @@ function DrivePageContent() {
                   if (e.key === 'Enter') handleCreateFolder();
                 }}
                 placeholder="e.g. Invoices, Project Assets, Designs…"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)] [@media(pointer:coarse)]:min-h-11"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)] [@media(pointer:coarse)]:min-h-11"
                 autoFocus
                 /* `Modal` traps focus and picks the first focusable child unless a
                    descendant is marked. React's `autoFocus` renders no attribute
@@ -2129,7 +2129,7 @@ function DrivePageContent() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveRename();
                 }}
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)] [@media(pointer:coarse)]:min-h-11"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)] [@media(pointer:coarse)]:min-h-11"
                 autoFocus
                 data-autofocus
               />

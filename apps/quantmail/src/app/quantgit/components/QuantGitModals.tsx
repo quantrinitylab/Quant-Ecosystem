@@ -221,12 +221,12 @@ export function QuantGitModals({
                   >
                     <span
                       className={
-                        currentBranch === b ? 'text-[var(--quant-primary)] font-bold' : 'text-[#E6EDF3]'
+                        currentBranch === b ? 'text-[var(--app-accent)] font-bold' : 'text-[#E6EDF3]'
                       }
                     >
                       {b}
                     </span>
-                    {currentBranch === b && <span className="text-[var(--quant-primary)]">✓</span>}
+                    {currentBranch === b && <span className="text-[var(--app-accent)]">✓</span>}
                   </button>
                 ))}
             </div>
@@ -254,7 +254,7 @@ export function QuantGitModals({
               onChange={(e) => setFileSearchQuery(e.target.value)}
               placeholder="Type a filename..."
               autoFocus
-              className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-3 py-2 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-3 py-2 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
             />
             <div className="divide-y divide-[#21262D] max-h-72 overflow-y-auto">
               {filteredFiles.map((file) => (
@@ -414,7 +414,7 @@ export function QuantGitModals({
               </div>
 
               <div className="rounded-lg border border-[#30363D] bg-[#0D1117] p-3">
-                <p className="font-bold text-[var(--quant-primary)]">Current assignment</p>
+                <p className="font-bold text-[var(--app-accent)]">Current assignment</p>
                 <p className="mt-2 leading-relaxed text-[#E6EDF3]">
                   {selectedOfficeAgent.currentTask}
                 </p>
@@ -447,7 +447,7 @@ export function QuantGitModals({
                   setSelectedOfficeAgent(null);
                   setModalState('deploy-agent');
                 }}
-                className="w-full rounded-md bg-[var(--quant-primary)] px-4 py-2 font-bold text-black hover:bg-[var(--quant-primary-hover)]"
+                className="w-full rounded-md bg-[var(--app-accent)] px-4 py-2 font-bold text-black hover:bg-[var(--app-accent-hover)]"
               >
                 Assign a task
               </button>
@@ -707,7 +707,7 @@ export function QuantGitModals({
             <div className="flex justify-end pt-2">
               <button
                 type="submit"
-                className="px-4 py-1.5 rounded bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-black font-bold"
+                className="px-4 py-1.5 rounded bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-black font-bold"
               >
                 Deploy to Swarm
               </button>
@@ -1235,7 +1235,7 @@ export function QuantGitModals({
                   setIsPersonalizeOpen(false);
                   showToast('Personalization preferences saved!');
                 }}
-                className="px-4 py-2 rounded-lg bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-black font-bold shadow-md transition-colors"
+                className="px-4 py-2 rounded-lg bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-black font-bold shadow-md transition-colors"
               >
                 Save Preferences
               </button>

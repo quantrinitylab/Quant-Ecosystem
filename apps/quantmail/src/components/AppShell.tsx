@@ -654,11 +654,14 @@ export function AppShell({
   }, [isSwitching, pathname, clearSwitching]);
 
   // Per-app color theming: the whole UI's accent color animates smoothly
-  // when switching apps (Mail=orange, Calendar=blue, Drive=green,
-  // Contacts=teal, QuantGit=purple).
+  // when switching apps (user-locked 2026-10-09: Mail=orange, Calendar=blue,
+  // Drive=green, Contacts=amber, QuantGit=purple).
   const appTheme = appThemeForPath(pathname ?? '/');
   const appThemeStyle = {
     '--app-accent': appTheme.accent,
+    '--app-accent-hover': `color-mix(in srgb, ${appTheme.accent}, white 14%)`,
+    '--app-accent-pressed': `color-mix(in srgb, ${appTheme.accent}, black 16%)`,
+    '--app-accent-soft': `color-mix(in srgb, ${appTheme.accent} 14%, transparent)`,
     '--app-glow': appTheme.glow,
     '--app-ring': appTheme.ring,
   } as React.CSSProperties;

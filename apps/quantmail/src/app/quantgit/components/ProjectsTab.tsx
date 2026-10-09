@@ -40,7 +40,7 @@ export function ProjectsTab({ projects, handleMoveKanban }: ProjectsTabProps) {
                         onClick={() =>
                           handleMoveKanban(card.id, col === 'todo' ? 'in_progress' : 'done')
                         }
-                        className="text-[var(--quant-primary)] hover:underline font-bold"
+                        className="text-[var(--app-accent)] hover:underline font-bold"
                       >
                         Move →
                       </button>

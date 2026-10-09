@@ -122,7 +122,7 @@ export function DocumentVersionHistoryModal({
             value={newSnapshotTitle}
             onChange={(e) => setNewSnapshotTitle(e.target.value)}
             placeholder="Name a new checkpoint (e.g. Major draft complete)"
-            className="flex-1 rounded-lg border border-[#30363D] bg-[#0D1117] px-3 py-1.5 text-xs text-[#F0F6FC] placeholder-[#8B949E] focus:outline-none focus:border-[var(--quant-primary)]"
+            className="flex-1 rounded-lg border border-[#30363D] bg-[#0D1117] px-3 py-1.5 text-xs text-[#F0F6FC] placeholder-[#8B949E] focus:outline-none focus:border-[var(--app-accent)]"
           />
           <Button
             variant="primary"
@@ -169,7 +169,7 @@ export function DocumentVersionHistoryModal({
                   key={ver.id}
                   className={`rounded-xl border p-3 transition-all ${
                     isSelectedForPreview
-                      ? 'border-[var(--quant-primary)] bg-[#21262D]'
+                      ? 'border-[var(--app-accent)] bg-[#21262D]'
                       : 'border-[#30363D] bg-[var(--quant-surface-elevated)] hover:border-[#484F58]'
                   }`}
                 >
@@ -180,7 +180,7 @@ export function DocumentVersionHistoryModal({
                           {ver.title || 'Snapshot'}
                         </span>
                         {index === 0 && (
-                          <span className="rounded bg-[var(--quant-primary)]/20 border border-[var(--quant-primary)]/30 px-1.5 py-px text-[var(--q-type-xs)] font-bold text-[var(--quant-primary)]">
+                          <span className="rounded bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] px-1.5 py-px text-[var(--q-type-xs)] font-bold text-[var(--app-accent)]">
                             LATEST
                           </span>
                         )}

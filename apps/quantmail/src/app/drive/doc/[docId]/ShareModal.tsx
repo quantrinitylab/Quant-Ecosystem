@@ -205,7 +205,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               type="text"
               readOnly
               value={directDocUrl}
-              className="flex-1 bg-[#0D1117] border border-[#30363D] rounded-xl px-3 py-2 text-xs font-mono text-[#C9D1D9] select-all focus:outline-none focus:border-[var(--quant-primary)]"
+              className="flex-1 bg-[#0D1117] border border-[#30363D] rounded-xl px-3 py-2 text-xs font-mono text-[#C9D1D9] select-all focus:outline-none focus:border-[var(--app-accent)]"
             />
             <Button
               variant="secondary"
@@ -221,7 +221,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
         <div className="p-4 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[var(--quant-primary)]/10 border border-[var(--quant-primary)]/30 flex items-center justify-center text-[var(--quant-primary)]">
+              <div className="w-8 h-8 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)]">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
@@ -251,7 +251,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 aria-label="Public share permission"
                 value={publicRole}
                 onChange={(e) => setPublicRole(e.target.value as 'view' | 'edit')}
-                className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-1.5 text-xs text-[#F0F6FC] focus:outline-none focus:border-[var(--quant-primary)]"
+                className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-1.5 text-xs text-[#F0F6FC] focus:outline-none focus:border-[var(--app-accent)]"
               >
                 <option value="view">Can View</option>
                 <option value="edit">Can Edit</option>
@@ -260,7 +260,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 aria-label="Share link expiration"
                 value={expiresIn}
                 onChange={(e) => setExpiresIn(e.target.value as any)}
-                className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-1.5 text-xs text-[#F0F6FC] focus:outline-none focus:border-[var(--quant-primary)]"
+                className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-1.5 text-xs text-[#F0F6FC] focus:outline-none focus:border-[var(--app-accent)]"
               >
                 <option value="1d">Expires in 1 day</option>
                 <option value="7d">Expires in 7 days</option>
@@ -284,7 +284,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                   readOnly
                   aria-label="Public share URL"
                   value={publicShareUrl}
-                  className="flex-1 bg-[#0D1117] border border-[#238636]/50 rounded-xl px-3 py-2 text-xs font-mono text-[#3FB950] select-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                  className="flex-1 bg-[#0D1117] border border-[#238636]/50 rounded-xl px-3 py-2 text-xs font-mono text-[#3FB950] select-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                 />
                 <Button
                   variant="primary"
@@ -320,13 +320,13 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               aria-label="Invite by email"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              className="flex-1 bg-[#0D1117] border border-[#30363D] rounded-xl px-3 py-2 text-xs text-[#F0F6FC] placeholder-[#6E7681] focus:outline-none focus:border-[var(--quant-primary)]"
+              className="flex-1 bg-[#0D1117] border border-[#30363D] rounded-xl px-3 py-2 text-xs text-[#F0F6FC] placeholder-[#6E7681] focus:outline-none focus:border-[var(--app-accent)]"
             />
             <select
               aria-label="Invite role"
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value as 'viewer' | 'editor' | 'admin')}
-              className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-2 text-xs text-[#F0F6FC] focus:outline-none focus:border-[var(--quant-primary)]"
+              className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-2 text-xs text-[#F0F6FC] focus:outline-none focus:border-[var(--app-accent)]"
             >
               <option value="viewer">Can View</option>
               <option value="editor">Can Edit</option>
@@ -349,7 +349,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
           <div className="space-y-1.5 max-h-40 overflow-y-auto">
             <div className="flex items-center justify-between p-2.5 rounded-lg bg-[#0D1117] border border-[#21262D]">
               <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-full bg-[var(--quant-primary)] text-[#0D1117] flex items-center justify-center text-[10px] font-bold">
+                <div className="w-6 h-6 rounded-full bg-[var(--app-accent)] text-[#0D1117] flex items-center justify-center text-[10px] font-bold">
                   Y
                 </div>
                 <div>
@@ -357,7 +357,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                   <p className="text-[10px] text-[#8B949E]">Current session</p>
                 </div>
               </div>
-              <span className="text-[11px] font-medium text-[var(--quant-primary)]">Owner</span>
+              <span className="text-[11px] font-medium text-[var(--app-accent)]">Owner</span>
             </div>
 
             {visibleCollaborators.map((c, i) => (

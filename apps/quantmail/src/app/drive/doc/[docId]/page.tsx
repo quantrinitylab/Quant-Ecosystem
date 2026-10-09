@@ -226,7 +226,7 @@ export default function DocumentPage() {
                   <button
                     type="button"
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className="w-12 h-12 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[var(--quant-primary)] flex items-center justify-center text-2xl transition-all shadow-sm"
+                    className="w-12 h-12 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[var(--app-accent)] flex items-center justify-center text-2xl transition-all shadow-sm"
                     title="Change icon"
                   >
                     {metadata.icon || '📄'}
@@ -288,7 +288,7 @@ export default function DocumentPage() {
                       type="button"
                       onClick={handleAddSubpage}
                       disabled={isCreatingSubpage}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-[var(--quant-surface-elevated)] text-[#C9D1D9] hover:bg-[#21262D] hover:text-[var(--quant-primary)] border border-[#30363D] transition-colors"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-[var(--quant-surface-elevated)] text-[#C9D1D9] hover:bg-[#21262D] hover:text-[var(--app-accent)] border border-[#30363D] transition-colors"
                     >
                       <span>+ Add subpage</span>
                     </button>
@@ -300,7 +300,7 @@ export default function DocumentPage() {
                         <Link
                           key={subpage.id}
                           href={`/drive/doc/${subpage.id}`}
-                          className="flex items-center gap-2.5 p-2.5 rounded-lg bg-[var(--quant-surface-elevated)]/70 border border-[#30363D]/60 hover:border-[var(--quant-primary)]/60 hover:bg-[var(--quant-surface-elevated)] transition-all group"
+                          className="flex items-center gap-2.5 p-2.5 rounded-lg bg-[var(--quant-surface-elevated)]/70 border border-[#30363D]/60 hover:border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)] hover:bg-[var(--quant-surface-elevated)] transition-all group"
                         >
                           <span className="text-base shrink-0">
                             {(subpage.metadata as any)?.icon || '📄'}

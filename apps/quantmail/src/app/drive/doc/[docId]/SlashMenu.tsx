@@ -174,7 +174,7 @@ export const SlashMenu: React.FC<SlashMenuProps> = ({ query, onSelect, onClose, 
     >
       <div className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#8B949E] border-b border-[#21262D] mb-1 flex items-center justify-between">
         <span>Basic Blocks</span>
-        {cleanQuery && <span className="text-[var(--quant-primary)]">Filter: &ldquo;{cleanQuery}&rdquo;</span>}
+        {cleanQuery && <span className="text-[var(--app-accent)]">Filter: &ldquo;{cleanQuery}&rdquo;</span>}
       </div>
 
       {filteredCommands.length === 0 ? (
@@ -202,7 +202,7 @@ export const SlashMenu: React.FC<SlashMenuProps> = ({ query, onSelect, onClose, 
                 <div
                   className={`w-7 h-7 rounded-md flex items-center justify-center text-xs font-mono font-bold shrink-0 border ${
                     isSelected
-                      ? 'border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)]'
+                      ? 'border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)]'
                       : 'border-[#30363D] bg-[#0D1117] text-[#8B949E]'
                   }`}
                 >

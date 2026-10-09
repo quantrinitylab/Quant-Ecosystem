@@ -1608,7 +1608,7 @@ function QuantGitContent() {  const router = useRouter();
       status: 'active',
       currentTask: 'Initialized and listening on swarm event bus.',
       initial: newAgentName.trim().charAt(0).toUpperCase(),
-      color: 'var(--quant-primary)',
+      color: 'var(--app-accent)',
       steps: ['Loaded sovereign context', 'Mounted workspace volume'],
       thoughts: 'Ready for local tasks.',
     };
@@ -2085,7 +2085,7 @@ function QuantGitContent() {  const router = useRouter();
                   onClick={() => openRepositoryTab(t.id as GitHubTab)}
                   className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-all shrink-0 ${
                     active
-                      ? 'border-[var(--quant-primary)] text-white font-bold'
+                      ? 'border-[var(--app-accent)] text-white font-bold'
                       : 'border-transparent text-[#7D8590] hover:text-[#E6EDF3] hover:border-[#30363D]'
                   }`}
                 >
@@ -2094,7 +2094,7 @@ function QuantGitContent() {  const router = useRouter();
                     <span
                       className={`px-1.5 py-px rounded-full text-[10px] ${
                         active
-                          ? 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] font-bold'
+                          ? 'bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-accent)] font-bold'
                           : 'bg-[#21262D] text-[#7D8590]'
                       }`}
                     >
@@ -2405,7 +2405,7 @@ function QuantGitContent() {  const router = useRouter();
                 <button
                   type="button"
                   onClick={() => setModalState('deploy-agent')}
-                  className="px-3.5 py-1.5 rounded-md bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-black font-bold text-xs transition-colors"
+                  className="px-3.5 py-1.5 rounded-md bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-black font-bold text-xs transition-colors"
                 >
                   + Deploy Agent
                 </button>
@@ -2556,7 +2556,7 @@ function QuantGitContent() {  const router = useRouter();
 
       {/* Floating Toast Notification — above the single bottom nav */}
       {toastMessage && (
-        <div className="fixed left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-[var(--quant-surface)]/90 backdrop-blur-xl border border-[var(--quant-primary)]/35 text-[var(--quant-primary)] text-xs font-semibold shadow-[0_8px_32px_rgba(0,0,0,0.8),inset_0_1px_0_0_rgba(255,255,255,0.08),0_0_20px_rgba(255,140,66,0.15)] animate-in fade-in slide-in-from-bottom-3 bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)]">
+        <div className="fixed left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-[var(--quant-surface)]/90 backdrop-blur-xl border border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)] text-[var(--app-accent)] text-xs font-semibold shadow-[0_8px_32px_rgba(0,0,0,0.8),inset_0_1px_0_0_rgba(255,255,255,0.08),0_0_20px_color-mix(in_srgb,var(--app-accent)_15%,transparent)] animate-in fade-in slide-in-from-bottom-3 bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)]">
           {toastMessage}
         </div>
       )}

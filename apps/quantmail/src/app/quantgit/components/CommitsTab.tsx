@@ -112,7 +112,7 @@ export function CommitsTab({
                 showToast(`Switched to branch: ${e.target.value}`);
                 emitQuantGitMascotEvent('branch');
               }}
-              className="bg-transparent border-none text-white font-semibold focus:outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="bg-transparent border-none text-white font-semibold focus:outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
             >
               {repoBranches.map((b) => (
                 <option key={b} value={b} className="bg-[var(--quant-surface-elevated)] text-[#E6EDF3]">
@@ -400,7 +400,7 @@ export function CommitsTab({
                                 decoding="async"
                               />
                             ) : (
-                              <span className="w-4 h-4 rounded-full bg-[var(--quant-primary)] text-black font-bold flex items-center justify-center text-[var(--q-type-xs)] shrink-0">
+                              <span className="w-4 h-4 rounded-full bg-[var(--app-accent)] text-black font-bold flex items-center justify-center text-[var(--q-type-xs)] shrink-0">
                                 {authorInitial}
                               </span>
                             )}

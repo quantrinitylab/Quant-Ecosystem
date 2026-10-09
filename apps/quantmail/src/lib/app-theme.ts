@@ -2,8 +2,8 @@
 // QuantMail — Per-App Color Theming
 // Each app (Mail, Calendar, Drive, Contacts, QuantGit) gets its own accent
 // color. Switching apps animates the whole UI's color theme with a smooth
-// transition. Colors follow the user's sketch: Mail=orange, Calendar=blue,
-// Drive=green, QuantGit=purple (Contacts=teal).
+// transition. Colors are user-locked (2026-10-09 revision): Mail=orange,
+// Calendar=blue, Drive=green, Contacts=amber, QuantGit=purple.
 // ============================================================================
 
 export type AppThemeId = 'mail' | 'calendar' | 'drive' | 'contacts' | 'quantgit';
@@ -23,31 +23,31 @@ export interface AppTheme {
 export const APP_THEMES: Record<AppThemeId, AppTheme> = {
   mail: {
     id: 'mail',
-    accent: 'var(--quant-primary)',
-    glow: 'rgba(255, 140, 66, 0.25)',
-    bgWash: 'linear-gradient(180deg, var(--quant-accent-faint) 0%, transparent 32%)',
-    ring: 'var(--quant-primary)',
+    accent: '#FF6B35',
+    glow: 'rgba(255, 107, 53, 0.25)',
+    bgWash: 'linear-gradient(180deg, rgba(255, 107, 53, 0.06) 0%, transparent 32%)',
+    ring: '#FF6B35',
   },
   calendar: {
     id: 'calendar',
-    accent: 'var(--quant-info)',
-    glow: 'rgba(59, 130, 246, 0.25)',
-    bgWash: 'linear-gradient(180deg, rgba(59, 130, 246, 0.06) 0%, transparent 32%)',
-    ring: 'var(--quant-info)',
+    accent: '#4285F4',
+    glow: 'rgba(66, 133, 244, 0.25)',
+    bgWash: 'linear-gradient(180deg, rgba(66, 133, 244, 0.06) 0%, transparent 32%)',
+    ring: '#4285F4',
   },
   drive: {
     id: 'drive',
-    accent: 'var(--quant-success)',
-    glow: 'rgba(34, 197, 94, 0.25)',
-    bgWash: 'linear-gradient(180deg, rgba(34, 197, 94, 0.06) 0%, transparent 32%)',
-    ring: 'var(--quant-success)',
+    accent: '#34A853',
+    glow: 'rgba(52, 168, 83, 0.25)',
+    bgWash: 'linear-gradient(180deg, rgba(52, 168, 83, 0.06) 0%, transparent 32%)',
+    ring: '#34A853',
   },
   contacts: {
     id: 'contacts',
-    accent: '#14B8A6',
-    glow: 'rgba(20, 184, 166, 0.25)',
-    bgWash: 'linear-gradient(180deg, rgba(20, 184, 166, 0.06) 0%, transparent 32%)',
-    ring: '#14B8A6',
+    accent: '#F59E0B',
+    glow: 'rgba(245, 158, 11, 0.25)',
+    bgWash: 'linear-gradient(180deg, rgba(245, 158, 11, 0.06) 0%, transparent 32%)',
+    ring: '#F59E0B',
   },
   quantgit: {
     id: 'quantgit',

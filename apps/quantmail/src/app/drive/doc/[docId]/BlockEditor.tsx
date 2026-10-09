@@ -369,7 +369,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                   type="button"
                   onClick={() => insertBlockBelow(block.id)}
                   title="Add block below"
-                  className="w-5 h-5 rounded flex items-center justify-center text-[#8B949E] hover:text-[var(--quant-primary)] hover:bg-[#21262D] text-xs transition-colors"
+                  className="w-5 h-5 rounded flex items-center justify-center text-[#8B949E] hover:text-[var(--app-accent)] hover:bg-[#21262D] text-xs transition-colors"
                 >
                   +
                 </button>
@@ -538,7 +538,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                           ),
                         );
                       }}
-                      className="mt-1 w-4 h-4 rounded border-[#30363D] bg-[#0D1117] text-[var(--quant-primary)] focus:ring-0 accent-[var(--quant-primary)] cursor-pointer"
+                      className="mt-1 w-4 h-4 rounded border-[#30363D] bg-[#0D1117] text-[var(--app-accent)] focus:ring-0 accent-[var(--app-accent)] cursor-pointer"
                     />
                     <input
                       ref={(el) => {
@@ -567,7 +567,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
 
                 {block.type === 'bullet' && (
                   <div className="flex items-start gap-2.5 py-0.5">
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--quant-primary)] shrink-0" />
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--app-accent)] shrink-0" />
                     <input
                       ref={(el) => {
                         if (el) blockRefs.current.set(block.id, el);
@@ -591,7 +591,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
 
                 {block.type === 'numbered' && (
                   <div className="flex items-start gap-2.5 py-0.5">
-                    <span className="mt-0.5 text-xs font-mono font-semibold text-[var(--quant-primary)] shrink-0 min-w-[18px]">
+                    <span className="mt-0.5 text-xs font-mono font-semibold text-[var(--app-accent)] shrink-0 min-w-[18px]">
                       {index + 1}.
                     </span>
                     <input
@@ -616,7 +616,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                 )}
 
                 {block.type === 'quote' && (
-                  <div className="border-l-4 border-[var(--quant-primary)] pl-3 py-1 bg-[var(--quant-primary)]/5 rounded-r-lg my-1">
+                  <div className="border-l-4 border-[var(--app-accent)] pl-3 py-1 bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] rounded-r-lg my-1">
                     <textarea
                       ref={(el) => {
                         if (el) blockRefs.current.set(block.id, el);
@@ -689,7 +689,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                             prev.map((b) => (b.id === block.id ? { ...b, language: lang } : b)),
                           );
                         }}
-                        className="bg-transparent border-none text-xs text-[#8B949E] focus:outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="bg-transparent border-none text-xs text-[#8B949E] focus:outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                       >
                         <option value="typescript">TypeScript</option>
                         <option value="javascript">JavaScript</option>
@@ -722,7 +722,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                         onCursorMove?.(block.id);
                       }}
                       onBlur={() => onCursorMove?.(undefined)}
-                      className="w-full bg-[#0D1117] p-3 text-xs font-mono text-[#58A6FF] placeholder-[#484F58] focus:outline-none leading-relaxed resize-y border-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                      className="w-full bg-[#0D1117] p-3 text-xs font-mono text-[#58A6FF] placeholder-[#484F58] focus:outline-none leading-relaxed resize-y border-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                     />
                   </div>
                 )}
@@ -746,7 +746,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                             {row.map((cell, cIdx) => (
                               <td
                                 key={cIdx}
-                                className="border border-[#30363D] p-1.5 focus-within:bg-[var(--quant-primary)]/10"
+                                className="border border-[#30363D] p-1.5 focus-within:bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)]"
                               >
                                 <input
                                   type="text"
@@ -765,7 +765,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                                       }),
                                     );
                                   }}
-                                  className="w-full bg-transparent border-none text-xs text-[#C9D1D9] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                                  className="w-full bg-transparent border-none text-xs text-[#C9D1D9] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                                 />
                               </td>
                             ))}
@@ -787,7 +787,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                             }),
                           );
                         }}
-                        className="hover:text-[var(--quant-primary)] transition-colors"
+                        className="hover:text-[var(--app-accent)] transition-colors"
                       >
                         + Add Row
                       </button>
@@ -803,7 +803,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                             }),
                           );
                         }}
-                        className="hover:text-[var(--quant-primary)] transition-colors"
+                        className="hover:text-[var(--app-accent)] transition-colors"
                       >
                         + Add Column
                       </button>

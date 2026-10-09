@@ -5,7 +5,7 @@ import { Modal, Button } from '@quant/shared-ui';
 import type { ContactGroup } from '../../../types';
 
 const PRESET_COLORS = [
-  'var(--quant-primary)',
+  'var(--app-accent)',
   '#4E7BEE',
   '#10B981',
   '#EC4899',
@@ -33,7 +33,7 @@ export function ContactGroupModal({
   isSaving = false,
 }: ContactGroupModalProps) {
   const [name, setName] = useState('');
-  const [color, setColor] = useState<string | null>('var(--quant-primary)');
+  const [color, setColor] = useState<string | null>('var(--app-accent)');
   const [emails, setEmails] = useState<string[]>([]);
   const [emailInput, setEmailInput] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -41,11 +41,11 @@ export function ContactGroupModal({
   useEffect(() => {
     if (group) {
       setName(group.name || '');
-      setColor(group.color || 'var(--quant-primary)');
+      setColor(group.color || 'var(--app-accent)');
       setEmails(group.emails || []);
     } else {
       setName('');
-      setColor('var(--quant-primary)');
+      setColor('var(--app-accent)');
       setEmails([]);
     }
     setEmailInput('');
@@ -123,7 +123,7 @@ export function ContactGroupModal({
         {/* Group Name */}
         <div>
           <label className="block text-xs font-medium text-[var(--quant-muted-foreground)] mb-1.5">
-            Group Name <span className="text-[var(--quant-primary)]">*</span>
+            Group Name <span className="text-[var(--app-accent)]">*</span>
           </label>
           <input
             type="text"
@@ -132,7 +132,7 @@ export function ContactGroupModal({
             placeholder="e.g. Core Engineering, VIP Clients, Investors"
             maxLength={60}
             required
-            className="w-full rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3.5 py-2.5 text-sm text-[var(--quant-foreground)] placeholder-[var(--quant-text-muted)] focus:border-[var(--quant-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--quant-primary)]"
+            className="w-full rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3.5 py-2.5 text-sm text-[var(--quant-foreground)] placeholder-[var(--quant-text-muted)] focus:border-[var(--app-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--app-accent)]"
           />
         </div>
 
@@ -167,7 +167,7 @@ export function ContactGroupModal({
               onChange={(e) => setEmailInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Add email address..."
-              className="flex-1 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3.5 py-2 text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-text-muted)] focus:border-[var(--quant-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--quant-primary)]"
+              className="flex-1 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3.5 py-2 text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-text-muted)] focus:border-[var(--app-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--app-accent)]"
             />
             <Button
               type="button"
@@ -189,13 +189,13 @@ export function ContactGroupModal({
                 >
                   <span
                     className="w-1.5 h-1.5 rounded-full"
-                    style={{ backgroundColor: color || 'var(--quant-primary)' }}
+                    style={{ backgroundColor: color || 'var(--app-accent)' }}
                   />
                   {email}
                   <button
                     type="button"
                     onClick={() => handleRemoveEmail(email)}
-                    className="ml-0.5 text-[var(--quant-text-muted)] hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="ml-0.5 text-[var(--quant-text-muted)] hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                     title="Remove email"
                   >
                     ×

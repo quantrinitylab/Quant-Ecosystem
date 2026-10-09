@@ -631,7 +631,7 @@ export function MarkdownPreview({
                 <ul key={idx} className="space-y-1.5 my-2 pl-2">
                   {sec.items.map((it, itemIdx) => (
                     <li key={itemIdx} className="flex items-start gap-2">
-                      <span className="text-[var(--quant-primary)] mt-1 shrink-0">•</span>
+                      <span className="text-[var(--app-accent)] mt-1 shrink-0">•</span>
                       <span className="text-[#C9D1D9]">{renderInlineMarkdown(it)}</span>
                     </li>
                   ))}

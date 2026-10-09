@@ -134,7 +134,7 @@ export type DayMarkFlags = {
 };
 
 export const DAY_MARKS: Array<{ key: keyof DayMarkFlags; color: string; label: string }> = [
-  { key: 'hasHoliday', color: 'var(--quant-primary)', label: 'holiday' },
+  { key: 'hasHoliday', color: 'var(--app-accent)', label: 'holiday' },
   { key: 'hasPeriod', color: '#FB7185', label: 'cycle entry' },
   { key: 'hasBirthday', color: '#34D399', label: 'birthday' },
   { key: 'hasTask', color: 'var(--brand-accent)', label: 'task' },

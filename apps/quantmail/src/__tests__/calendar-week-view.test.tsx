@@ -176,8 +176,9 @@ describe('CalendarWeekView', () => {
   it('highlights today in the day headers', () => {
     const now = new Date();
     const html = renderToStaticMarkup(<CalendarWeekView {...baseProps} selectedDate={now} />);
-    // Today circle uses the accent background class
-    expect(html).toContain('bg-[var(--quant-warning)] text-black');
+    // Today circle uses the app accent background (per-app accent pass 2026-10-09:
+    // calendar blue instead of the old generic warning yellow)
+    expect(html).toContain('bg-[var(--app-accent)] text-black');
   });
 
   it('shows a current-time line in the today column', () => {

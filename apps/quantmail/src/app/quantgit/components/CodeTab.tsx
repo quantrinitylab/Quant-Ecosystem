@@ -1657,7 +1657,7 @@ pnpm install && pnpm dev
                     }
                   }}
                   spellCheck={false}
-                  className={`flex-1 p-3 font-mono text-xs leading-6 resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
+                  className={`flex-1 p-3 font-mono text-xs leading-6 resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                     editorTheme === 'github-dark'
                       ? 'bg-[#0D1117] text-[#E6EDF3]'
                       : 'bg-white text-[#1F2328]'
