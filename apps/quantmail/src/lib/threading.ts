@@ -346,6 +346,34 @@ function identityOf(address?: EmailAddress | null): { key: string; name: string 
 }
 
 /**
+ * The sender's address when a message is a note to self, else `''`.
+ *
+ * A note to self is the one shape that identifies the user as the sender even
+ * when nobody told us who the user is (`currentEmail` unknown): a self-send
+ * carries the sender in `to:` too, so when every address on the message is the
+ * sender's own, there is no counterparty. `conversationKeyOf` and
+ * `threadParticipants` both depend on this, so a self-send and its delivered
+ * copy agree on the thread key AND on the row label — `You`, never the user's
+ * own name listed as if it were someone else (QM-UIUX-084).
+ *
+ * A bare inbound message with no recipients is NOT a self-note: it names its
+ * one true counterparty.
+ */
+function noteToSelfAddress(email: Email): string {
+  const fromAddr = (
+    email.from?.email ?? (email as { fromAddress?: string }).fromAddress ?? ''
+  )
+    .trim()
+    .toLowerCase();
+  if (!fromAddr) return '';
+  const recipientAddrs = recipientsOf(email)
+    .map((r) => (r.email || '').trim().toLowerCase())
+    .filter(Boolean);
+  if (recipientAddrs.length === 0) return '';
+  return recipientAddrs.every((addr) => addr === fromAddr) ? fromAddr : '';
+}
+
+/**
  * Everyone in a conversation who is not the signed-in user, in the order they
  * first appear.
  *
@@ -374,7 +402,19 @@ export function threadParticipants(messages: Email[] = [], currentEmail?: string
   };
 
   for (const message of messages) {
-    if (!isFromMe(message, currentEmail)) {
+    // QM-UIUX-084: a note to self has no counterparties — neither the sender
+    // nor any recipient is "someone else" — so the sender's own address is
+    // never listed, exactly as `conversationKeyOf` never threads on it. The row
+    // then honestly renders `You` via `summarizeParticipants`.
+    const selfNote = noteToSelfAddress(message);
+    const senderAddr = (
+      message.from?.email ?? (message as { fromAddress?: string }).fromAddress ?? ''
+    )
+      .trim()
+      .toLowerCase();
+    const fromMe = isFromMe(message, currentEmail);
+
+    if (!fromMe) {
       const from =
         message.from ??
         ({
@@ -383,7 +423,7 @@ export function threadParticipants(messages: Email[] = [], currentEmail?: string
         } as EmailAddress);
       const identity = identityOf(from);
       if (identity) {
-        if (!isMyAddress(from?.email, currentEmail)) add(identity);
+        if (!isMyAddress(from?.email, currentEmail) && !selfNote) add(identity);
       } else if (recipientsOf(message).length === 0) {
         // Nothing on the message names anyone. The row still has to say something,
         // and `Sender` is more honest than the reader's own name.
@@ -393,6 +433,12 @@ export function threadParticipants(messages: Email[] = [], currentEmail?: string
 
     for (const recipient of recipientsOf(message)) {
       if (isMyAddress(recipient.email, currentEmail)) continue;
+      // The sender's own address is never a counterparty on a message the user
+      // sent — or on a note to self, where `isFromMe` cannot recognise the user
+      // because `currentEmail` is unknown.
+      const recipientAddr = (recipient.email || '').trim().toLowerCase();
+      if (selfNote) continue;
+      if (fromMe && recipientAddr && recipientAddr === senderAddr) continue;
       add(identityOf(recipient));
     }
   }
@@ -493,7 +539,14 @@ export function summarizeParticipants(participants: string[]): string {
 function conversationKeyOf(email: Email, currentEmail?: string): string {
   const keys = new Set<string>();
 
-  if (!isFromMe(email, currentEmail)) {
+  const fromAddr = (
+    email.from?.email ?? (email as { fromAddress?: string }).fromAddress ?? ''
+  )
+    .trim()
+    .toLowerCase();
+  const fromMe = isFromMe(email, currentEmail);
+
+  if (!fromMe) {
     const from =
       email.from ??
       ({
@@ -506,8 +559,26 @@ function conversationKeyOf(email: Email, currentEmail?: string): string {
 
   for (const recipient of recipientsOf(email)) {
     if (isMyAddress(recipient.email, currentEmail)) continue;
+    // QM-UIUX-084: the user is identifiable as the sender even when nobody told
+    // this function who the user is (`currentEmail` unknown): a self-send carries
+    // its own sender in `to:` too, and without this the address filter above
+    // keeps that recipient as a counterparty — so every self-send keys into one
+    // giant `with:<self>` bucket and distinct-subject notes collapse into one row.
+    // The sender's own address is never a counterparty on a message the user sent.
+    const recipientAddr = (recipient.email || '').trim().toLowerCase();
+    if (fromMe && recipientAddr && recipientAddr === fromAddr) continue;
     const identity = identityOf(recipient);
     if (identity) keys.add(identity.key);
+  }
+
+  // QM-UIUX-084: the delivered copy of a self-send (`isSent: false`) carries the
+  // same sender-as-recipient shape, but `isFromMe` cannot see it when
+  // `currentEmail` is unknown. A note to self has no counterparty to thread by,
+  // so it is keyed by subject rather than by address; without this, two notes
+  // to self on the same account merge into one row here exactly as the Sent
+  // copies did above.
+  if (!fromMe && noteToSelfAddress(email) && keys.size === 1 && keys.has(fromAddr)) {
+    keys.clear();
   }
 
   if (keys.size === 0) return `self:${normalizeSubject(email.subject || '')}`;
