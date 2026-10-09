@@ -2036,11 +2036,17 @@ Dependencies: none.
 Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 3: D-P1-2).
 
 ## QM-UIUX-087 — P1: Quick-reply sends instantly with no undo safety net
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-087-quick-reply-undo
+Status: [x] DONE — PR #735 merged 2026-10-09 (quick-reply via shared UndoSendManager.queueSend true 10s hold; supersedes PR #734's send-then-recall, whose undo could not retract internally-delivered replies; regression tests PR #733 lineage + #735's quick-reply-undo-send.test.ts 7/7)
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/735
 Finding: Customer audit 2026-10-09 (inbox-triage journey): in-thread quick-reply sends are instant with NO undo, while composer sends get a 10s undo countdown — the hasty reply path has no safety net.
 Required: quick-reply must offer the same undo window as compose sends (or a matching safeguard).
 Scope: apps/quantmail thread quick-reply.
 Dependencies: none.
 Evidence: hidden_files/customer-audits/2026-10-09-inbox-triage.md.
+
+## QM-UIUX-088 — QuantChat AI error honesty + API timeout (sibling of QM-UIUX-036)
+Status: [ ] TODO
+Finding: Discovered 2026-10-09 during QM-UIUX-036: QuantChat's AIAssistant silently swallows AI failures (no error state; misleading 'No suggestions available' on failure) and its api-client lacks a request timeout/sanitized error mapping. A partial draft exists (preserved at hidden_files/ledger-ops/qm-uiux-036-foreign-quantchat/ in the goal workspace) — usable as a starting point ONLY after hardening its sanitizer to the ai-error.ts redaction standard (URLs/IPs/tokens/JWT) and adding two-direction regression tests; the draft itself has zero tests and must not be merged as-is.
+Required: honest QuantChat AI error states + retry; shared api-client timeout with sanitized error mapping.
+Scope: apps/quantchat AIAssistant + api-client.
+Dependencies: none.
