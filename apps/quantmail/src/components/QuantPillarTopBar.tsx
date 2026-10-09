@@ -348,24 +348,24 @@ export const PILLAR_TILES: PillarTile[] = [
     id: 'contacts',
     label: 'Contacts',
     path: '/contacts',
-    accentColor: '#8B5CF6',
-    borderColor: 'border-[#8B5CF6]/50',
-    glowColor: 'shadow-[0_0_12px_rgba(139,92,246,0.18)]',
+    accentColor: '#D97757',
+    borderColor: 'border-[#D97757]/50',
+    glowColor: 'shadow-[0_0_12px_rgba(217,119,87,0.16)]',
     searchPlaceholder: 'Search VIPs, contacts, companies…',
-    themeBg: 'linear-gradient(180deg, rgba(139,92,246,0.08) 0%, transparent 40%)',
-    themeGlow: 'rgba(139,92,246,0.15)',
+    themeBg: 'linear-gradient(180deg, rgba(217,119,87,0.07) 0%, transparent 40%)',
+    themeGlow: 'rgba(217,119,87,0.14)',
     icon: ContactsLogoIcon,
   },
   {
     id: 'quantgit',
     label: 'QuantGit',
     path: '/quantgit',
-    accentColor: '#F59E0B',
-    borderColor: 'border-[#F59E0B]/50',
-    glowColor: 'shadow-[0_0_12px_rgba(245,158,11,0.18)]',
+    accentColor: '#8B5CF6',
+    borderColor: 'border-[#8B5CF6]/50',
+    glowColor: 'shadow-[0_0_12px_rgba(139,92,246,0.16)]',
     searchPlaceholder: 'Search repositories, pull requests, commits…',
-    themeBg: 'linear-gradient(180deg, rgba(245,158,11,0.08) 0%, transparent 40%)',
-    themeGlow: 'rgba(245,158,11,0.15)',
+    themeBg: 'linear-gradient(180deg, rgba(139,92,246,0.07) 0%, transparent 40%)',
+    themeGlow: 'rgba(139,92,246,0.14)',
     icon: QuantGitLogoIcon,
   },
 ];
@@ -1159,8 +1159,8 @@ export function QuantPillarTopBar({
             style={{
               left: lineLeft,
               width: lineWidth,
-              top: -13,
-              bottom: -6,
+              top: -4,
+              bottom: -2,
               transition:
                 'left 0.3s ease-out, width 0.3s ease-out',
             }}
@@ -1169,17 +1169,16 @@ export function QuantPillarTopBar({
               key={currentPillar}
               className="block w-full h-full animate-[quantSwooshIn_0.3s_ease-out]"
               style={{
-                borderRadius: 20,
-                border: `1px solid ${activeTile.accentColor}88`,
+                borderRadius: 16,
+                border: `1px solid ${activeTile.accentColor}66`,
                 background: [
-                  `radial-gradient(ellipse 72% 62% at 50% 38%, ${activeTile.accentColor}59 0%, ${activeTile.accentColor}26 55%, transparent 78%)`,
-                  `linear-gradient(180deg, ${activeTile.accentColor}4D 0%, ${activeTile.accentColor}1F 55%, ${activeTile.accentColor}38 100%)`,
+                  `radial-gradient(ellipse 72% 62% at 50% 38%, ${activeTile.accentColor}24 0%, ${activeTile.accentColor}10 58%, transparent 82%)`,
+                  `linear-gradient(180deg, ${activeTile.accentColor}18 0%, ${activeTile.accentColor}0A 58%, ${activeTile.accentColor}12 100%)`,
                 ].join(', '),
                 boxShadow: [
-                  `0 0 18px ${activeTile.accentColor}66`,
-                  `0 0 40px ${activeTile.accentColor}28`,
-                  'inset 0 2px 1px rgba(255,255,255,0.45)',
-                  `inset 0 -8px 16px ${activeTile.accentColor}30`,
+                  `0 0 12px ${activeTile.accentColor}24`,
+                  'inset 0 1px 1px rgba(255,255,255,0.18)',
+                  `inset 0 -4px 10px ${activeTile.accentColor}12`,
                 ].join(', '),
               }}
             />
@@ -1210,13 +1209,13 @@ export function QuantPillarTopBar({
                 onPointerLeave={cancelLongPress}
                 onPointerCancel={cancelLongPress}
                 onContextMenu={(e) => e.preventDefault()}
-                className={`relative flex flex-col items-center justify-center w-12 h-12 min-[400px]:w-14 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35] shrink-0 transition-transform duration-150 ease-out active:scale-110 ${isActive ? '-translate-y-0.5' : ''}`}
+                className={`relative flex flex-col items-center justify-center w-12 h-12 min-[400px]:w-14 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-white/70 shrink-0 transition-transform duration-150 ease-out active:scale-110 ${isActive ? '-translate-y-0.5' : ''}`}
                 style={{
                   animation: `quantStaggerIn 0.4s cubic-bezier(0.22,1,0.36,1) ${idx * 0.05}s both`,
                   transition: 'transform 200ms ease-out, background-color 0.2s ease-out',
                   // Per-app accent tint behind the logo (restored 2026-10-09:
                   // the calendar's blue background must not disappear).
-                  backgroundColor: `${tile.accentColor}${isActive ? '2E' : '14'}`,
+                  backgroundColor: `${tile.accentColor}${isActive ? '18' : '0A'}`,
                 }}
                 aria-current={isActive ? 'page' : undefined}
               >
