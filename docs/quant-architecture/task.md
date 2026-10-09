@@ -857,14 +857,18 @@ Scope: `apps/quantmail/src/**`.
 Dependencies: QM-UIUX-004.
 
 ## QM-UIUX-015 — QuantGram: stray mic button on the welcome page
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-015-gram-mic-button
 Finding: a blue mic FAB sits bottom-right on the QuantGram welcome page before sign-in; its purpose is unclear to an anonymous user. Screenshot: `~/workspace/audits/2026-10-08-uiux-deep/gram-mobile.png`.
 Required: hide until authenticated or remove; do not show unexplained controls to anonymous users.
 Scope: QuantGram welcome page.
 Dependencies: none.
 
 ## QM-UIUX-016 — QuantCooks: duplicate/confusing sign-in CTAs
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-016-cooks-signin-cta
 Finding: the QuantCooks sign-in shows both "Continue with Quant Account" (gradient) and "Continue with Quant SSO" (outline) — near-identical actions competing as primaries. Screenshot: `~/workspace/audits/2026-10-08-uiux-deep/cooks-mobile.png`.
 Required: one primary CTA; demote or remove the duplicate.
 Scope: QuantCooks sign-in.
