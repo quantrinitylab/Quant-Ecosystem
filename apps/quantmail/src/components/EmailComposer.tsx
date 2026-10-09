@@ -200,20 +200,20 @@ function parseInitialRecipients(initial: EmailComposerProps['initialTo']): Recip
 }
 
 const FONT_FAMILIES = [
-  { id: 'sans', name: 'Sans Serif', css: 'font-sans' },
-  { id: 'serif', name: 'Serif', css: 'font-serif' },
-  { id: 'mono', name: 'Monospace / Fixed Width', css: 'font-mono' },
-  { id: 'garamond', name: 'Garamond', css: 'font-[Garamond,serif]' },
-  { id: 'georgia', name: 'Georgia', css: 'font-[Georgia,serif]' },
-  { id: 'verdana', name: 'Verdana', css: 'font-[Verdana,sans-serif]' },
-  { id: 'comic', name: 'Comic Sans MS', css: 'font-["Comic_Sans_MS",cursive]' },
+  { id: 'sans', name: 'Sans Serif', css: 'font-sans', stack: 'ui-sans-serif, system-ui, sans-serif' },
+  { id: 'serif', name: 'Serif', css: 'font-serif', stack: 'ui-serif, Georgia, serif' },
+  { id: 'mono', name: 'Monospace / Fixed Width', css: 'font-mono', stack: 'ui-monospace, monospace' },
+  { id: 'garamond', name: 'Garamond', css: 'font-[Garamond,serif]', stack: 'Garamond, serif' },
+  { id: 'georgia', name: 'Georgia', css: 'font-[Georgia,serif]', stack: 'Georgia, serif' },
+  { id: 'verdana', name: 'Verdana', css: 'font-[Verdana,sans-serif]', stack: 'Verdana, sans-serif' },
+  { id: 'comic', name: 'Comic Sans MS', css: 'font-["Comic_Sans_MS",cursive]', stack: '"Comic Sans MS", cursive' },
 ];
 
 const FONT_SIZES = [
-  { id: 'sm', name: 'Small', css: 'text-xs' },
-  { id: 'base', name: 'Normal', css: 'text-sm' },
-  { id: 'lg', name: 'Large', css: 'text-base' },
-  { id: 'xl', name: 'Huge', css: 'text-lg' },
+  { id: 'sm', name: 'Small', css: 'text-xs', px: 12 },
+  { id: 'base', name: 'Normal', css: 'text-sm', px: 14 },
+  { id: 'lg', name: 'Large', css: 'text-base', px: 16 },
+  { id: 'xl', name: 'Huge', css: 'text-lg', px: 18 },
 ];
 
 const TEXT_COLORS = [
@@ -684,7 +684,33 @@ export function EmailComposer({
    * happens now, and it appends the signature to both halves at the same time so
    * the HTML and plain-text versions of a message cannot say different things.
    */
-  const buildOutgoingBodies = () => composeMessageBodies(buildFinalMessage(), activeSignatureHtml);
+  /**
+   * QM-UIUX-081: the formatting bar's state travels into the sent HTML.
+   *
+   * The toggles used to restyle only the <textarea> — Bold looked bold while
+   * composing and arrived plain — while the docked composer went the other
+   * way and leaked literal `**` markers into the text. Here the whole-message
+   * toggles and presentation choices become real markup via
+   * `composeMessageBodies`: character toggles wrap the body in semantic tags
+   * and non-default font/size/colour/alignment becomes a validated inline
+   * style. Defaults are omitted so an unformatted message is byte-identical
+   * to what it was before formatting existed. (The Amber swatch is a CSS
+   * variable, which no other mail client can resolve, so it stays an
+   * editor-only preview and is not written into the message.)
+   */
+  const buildOutgoingBodies = () =>
+    composeMessageBodies(buildFinalMessage(), activeSignatureHtml, {
+      bold: isBold,
+      italic: isItalic,
+      underline: isUnderline,
+      strikethrough: isStrikethrough,
+      ...(textColor.id !== 'default' && textColor.color.startsWith('#')
+        ? { color: textColor.color }
+        : {}),
+      ...(selectedFont.id !== 'sans' ? { fontFamily: selectedFont.stack } : {}),
+      ...(selectedSize.id !== 'base' ? { fontSizePx: selectedSize.px } : {}),
+      ...(textAlign !== 'left' ? { textAlign } : {}),
+    });
 
   // QM-UIUX-024: the Send button's disabled state mirrors this exactly, so a
   // tap can never reach handleSend while validation would reject it.
@@ -1518,7 +1544,7 @@ export function EmailComposer({
                 placeholder={
                   isTemplateMode
                     ? 'Write your core message, details, deliverables, action items, or bullet points here...'
-                    : 'Write your message here... Type freely, use Markdown, drag and drop files, or ask Quanty AI Copilot.'
+                    : 'Write your message here... Type freely, drag and drop files, or ask Quanty AI Copilot.'
                 }
                 rows={isTemplateMode ? 8 : 12}
                 style={{
