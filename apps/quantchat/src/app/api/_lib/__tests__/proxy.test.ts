@@ -33,7 +33,7 @@ describe('QuantChat Proxy Resiliency (proxyToBackend)', () => {
       expect(conv.id).toBe('conv_general');
       expect(conv.name).toBe('General Chat');
       expect(conv.type).toBe('GROUP');
-      expect(conv.lastMessage).toBe('Welcome to QuantChat sovereign messaging!');
+      expect(conv.lastMessage).toBe('Welcome to QuantChat!');
       expect(typeof conv.timestamp).toBe('string');
       expect(conv.unreadCount).toBe(0);
       expect(conv.avatarInitial).toBe('Q');
