@@ -726,7 +726,7 @@ function paintCalendarFrame(
   // Side wall gives the glass frame its thickness.
   paintSideWall(
     ctx,
-    (c) => markSquirclePath(c, 50, 52, 82, 82, 20),
+    (c) => markSquirclePath(c, 50, 52, 41, 20),
     3,
     '#0A0F1E',
     '#02040A',
@@ -738,14 +738,14 @@ function paintCalendarFrame(
   g.addColorStop(0.5, '#0A0E1D');
   g.addColorStop(1, '#04060C');
   ctx.fillStyle = g;
-  markSquirclePath(ctx, 50, 52, 82, 82, 20);
+  markSquirclePath(ctx, 50, 52, 41, 20);
   ctx.fill();
   // Rim light along the top edge — the glass edge catching light.
   const rim = ctx.createLinearGradient(0, 11, 0, 26);
   rim.addColorStop(0, `rgba(140, 170, 255, ${0.28 + fx.hover * 0.12})`);
   rim.addColorStop(1, 'rgba(140, 170, 255, 0)');
   ctx.fillStyle = rim;
-  markSquirclePath(ctx, 50, 52, 82, 82, 20);
+  markSquirclePath(ctx, 50, 52, 41, 20);
   ctx.fill();
 }
 
@@ -893,7 +893,7 @@ export function paintCalendarMark(
   bez.addColorStop(0.5, 'rgba(170, 195, 245, 0.10)');
   bez.addColorStop(1, 'rgba(170, 195, 245, 0.22)');
   ctx.strokeStyle = bez;
-  markSquirclePath(ctx, 50, 52, 82, 82, 20);
+  markSquirclePath(ctx, 50, 52, 41, 20);
   ctx.stroke();
   ctx.restore();
   ctx.restore();
