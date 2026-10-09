@@ -9,8 +9,11 @@ export interface BranchesTabProps {
   defaultBranch?: string;
   currentBranch?: string;
   onSelectBranch?: (branch: string) => void;
-  onCreateBranch?: (name: string, sourceBranch: string) => Promise<void> | void;
-  onDeleteBranch?: (name: string) => Promise<void> | void;
+  // AUD-P0-G3: these callbacks hit the real backend and report genuine
+  // success/failure. The tab only updates its local list when the backend
+  // confirms — never fabricate a success the API did not give.
+  onCreateBranch?: (name: string, sourceBranch: string) => Promise<boolean>;
+  onDeleteBranch?: (name: string) => Promise<boolean>;
   showToast?: (msg: string) => void;
   currentUsername?: string;
 }
@@ -81,9 +84,10 @@ export function BranchesTab({
 
     setIsSubmitting(true);
     try {
-      if (onCreateBranch) {
-        await onCreateBranch(trimmed, sourceBranch);
-      }
+      // Only touch local state when the backend genuinely created the branch.
+      // The parent's callback already toasts the real success/failure outcome.
+      const created = onCreateBranch ? await onCreateBranch(trimmed, sourceBranch) : false;
+      if (!created) return;
 
       const newBranch: BranchItem = {
         name: trimmed,
@@ -101,7 +105,6 @@ export function BranchesTab({
       setBranchList((prev) => [...prev, newBranch]);
       setNewBranchName('');
       setIsNewBranchModalOpen(false);
-      showToast(`Branch "${trimmed}" created successfully!`);
     } catch {
       showToast('Failed to create branch');
     } finally {
@@ -117,11 +120,11 @@ export function BranchesTab({
     }
 
     try {
-      if (onDeleteBranch) {
-        await onDeleteBranch(name);
-      }
+      // Only touch local state when the backend genuinely deleted the branch.
+      // The parent's callback already toasts the real success/failure outcome.
+      const deleted = onDeleteBranch ? await onDeleteBranch(name) : false;
+      if (!deleted) return;
       setBranchList((prev) => prev.filter((b) => b.name !== name));
-      showToast(`Deleted branch "${name}"`);
     } catch {
       showToast(`Failed to delete branch "${name}"`);
     }

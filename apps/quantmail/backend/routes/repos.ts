@@ -198,7 +198,27 @@ const createBranchSchema = z.object({
     .regex(/^[0-9a-f]{40}$/i, 'sha must be a 40-char SHA')
     .transform((value) => value.toLowerCase())
     .optional(),
+  // The branch to fork the new branch from (falls back to the repo default branch).
+  sourceBranch: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-zA-Z0-9/_.-]+$/, 'Invalid source branch name')
+    .optional(),
+  // Legacy alias for sourceBranch (used by useGit.createBranch).
+  from: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-zA-Z0-9/_.-]+$/, 'Invalid source branch name')
+    .optional(),
 });
+
+const branchNameParamSchema = z
+  .string()
+  .min(1)
+  .max(100)
+  .regex(/^[a-zA-Z0-9/_.-]+$/, 'Invalid branch name');
 
 const MAX_AUTHORED_FILE_BYTES = 2 * 1024 * 1024;
 
@@ -1578,6 +1598,32 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     }
 
     let parentCommitSha = parsed.data.sha;
+    const requestedSourceBranch = parsed.data.sourceBranch ?? parsed.data.from;
+
+    if (!parentCommitSha && requestedSourceBranch) {
+      const sourceBranchRow = await prisma.branch.findUnique({
+        where: {
+          repoId_name: {
+            repoId: repo.id,
+            name: requestedSourceBranch,
+          },
+        },
+      });
+      const repoPathForSource = await resolveRepoPath(repo);
+      parentCommitSha =
+        sourceBranchRow?.commitSha ??
+        (repoPathForSource
+          ? await resolveGitRefSha(repoPathForSource, requestedSourceBranch)
+          : null) ??
+        undefined;
+      if (!parentCommitSha) {
+        throw createAppError(
+          `Source branch "${requestedSourceBranch}" not found`,
+          400,
+          'BRANCH_NOT_FOUND',
+        );
+      }
+    }
 
     if (!parentCommitSha) {
       const defaultBranchRow = await prisma.branch.findUnique({
@@ -1609,13 +1655,54 @@ export default async function reposRoutes(fastify: FastifyInstance) {
 
     parentCommitSha = parentCommitSha.toLowerCase();
 
-    const branch = await prisma.branch.create({
-      data: {
-        repoId: repo.id,
-        name: parsed.data.name,
-        commitSha: parentCommitSha,
-      },
-    });
+    // Create the ref in the bare repository on disk (when the storage path
+    // resolves) BEFORE the database row, so a failed database write cannot
+    // leave a database-only "branch" that git does not know about.
+    const repoPath = await resolveRepoPath(repo);
+    let gitRefCreated = false;
+    if (repoPath) {
+      try {
+        await execFileAsync('git', ['update-ref', `refs/heads/${parsed.data.name}`, parentCommitSha], {
+          cwd: repoPath,
+          env: GIT_CHILD_ENV,
+        });
+        gitRefCreated = true;
+      } catch (error) {
+        request.log.error(
+          { err: error, repoId: repo.id, branch: parsed.data.name },
+          'failed to create branch ref in git storage',
+        );
+        throw createAppError(
+          'Branch could not be created in repository storage',
+          503,
+          'STORAGE_UNAVAILABLE',
+        );
+      }
+    }
+
+    let branch;
+    try {
+      branch = await prisma.branch.create({
+        data: {
+          repoId: repo.id,
+          name: parsed.data.name,
+          commitSha: parentCommitSha,
+        },
+      });
+    } catch (error) {
+      // Best-effort rollback of the git ref so storage and database stay consistent.
+      if (gitRefCreated && repoPath) {
+        try {
+          await execFileAsync('git', ['update-ref', '-d', `refs/heads/${parsed.data.name}`], {
+            cwd: repoPath,
+            env: GIT_CHILD_ENV,
+          });
+        } catch {
+          /* logged below via outer error handling */
+        }
+      }
+      throw error;
+    }
 
     return reply.status(201).send({
       success: true,
@@ -1630,6 +1717,56 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       },
     });
   });
+
+  // DELETE /repos/:id/branches/:branch — permanently deletes a branch from
+  // repository storage and the branch metadata table. The default branch
+  // can never be deleted. (AUD-P0-G3: branch delete must be real, not UI theater.)
+  fastify.delete<{ Params: { id: string; branch: string } }>(
+    '/:id/branches/:branch',
+    async (request, reply) => {
+      const repo = await loadWritableRepo(request, request.params.id);
+      const parsedName = branchNameParamSchema.safeParse(request.params.branch);
+      if (!parsedName.success) throw parsedName.error;
+      const branchName = parsedName.data;
+
+      if (branchName === repo.defaultBranch) {
+        throw createAppError('Cannot delete the default branch', 400, 'CANNOT_DELETE_DEFAULT_BRANCH');
+      }
+
+      const prisma = getPrisma(fastify);
+      const branchRow = await prisma.branch.findUnique({
+        where: { repoId_name: { repoId: repo.id, name: branchName } },
+      });
+      if (!branchRow) {
+        throw createAppError(`Branch "${branchName}" not found`, 404, 'BRANCH_NOT_FOUND');
+      }
+
+      // Remove the ref from git storage first: storage is the source of truth.
+      const repoPath = await resolveRepoPath(repo);
+      if (repoPath) {
+        try {
+          await execFileAsync('git', ['update-ref', '-d', `refs/heads/${branchName}`], {
+            cwd: repoPath,
+            env: GIT_CHILD_ENV,
+          });
+        } catch (error) {
+          request.log.error(
+            { err: error, repoId: repo.id, branch: branchName },
+            'failed to delete branch ref from git storage',
+          );
+          throw createAppError(
+            'Branch could not be deleted from repository storage',
+            503,
+            'STORAGE_UNAVAILABLE',
+          );
+        }
+      }
+
+      await prisma.branch.delete({ where: { repoId_name: { repoId: repo.id, name: branchName } } });
+
+      return reply.send({ success: true, data: { deleted: true, name: branchName } });
+    },
+  );
 
   fastify.get<{ Params: { id: string }; Querystring: { status?: string } }>(
     '/:id/pulls',
