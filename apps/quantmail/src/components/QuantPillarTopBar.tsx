@@ -352,24 +352,24 @@ export const PILLAR_TILES: PillarTile[] = [
     id: 'contacts',
     label: 'Contacts',
     path: '/contacts',
-    accentColor: '#8AB4F8',
-    borderColor: 'border-[#8AB4F8]/50',
-    glowColor: 'shadow-[0_0_12px_rgba(138,180,248,0.18)]',
+    accentColor: '#8B5CF6',
+    borderColor: 'border-[#8B5CF6]/50',
+    glowColor: 'shadow-[0_0_12px_rgba(139,92,246,0.18)]',
     searchPlaceholder: 'Search VIPs, contacts, companies…',
-    themeBg: 'linear-gradient(180deg, rgba(138,180,248,0.08) 0%, transparent 40%)',
-    themeGlow: 'rgba(138,180,248,0.15)',
+    themeBg: 'linear-gradient(180deg, rgba(139,92,246,0.08) 0%, transparent 40%)',
+    themeGlow: 'rgba(139,92,246,0.15)',
     icon: ContactsLogoIcon,
   },
   {
     id: 'quantgit',
     label: 'QuantGit',
     path: '/quantgit',
-    accentColor: '#A855F7',
-    borderColor: 'border-[#A855F7]/50',
-    glowColor: 'shadow-[0_0_12px_rgba(168,85,247,0.18)]',
+    accentColor: '#F59E0B',
+    borderColor: 'border-[#F59E0B]/50',
+    glowColor: 'shadow-[0_0_12px_rgba(245,158,11,0.18)]',
     searchPlaceholder: 'Search repositories, pull requests, commits…',
-    themeBg: 'linear-gradient(180deg, rgba(168,85,247,0.08) 0%, transparent 40%)',
-    themeGlow: 'rgba(168,85,247,0.15)',
+    themeBg: 'linear-gradient(180deg, rgba(245,158,11,0.08) 0%, transparent 40%)',
+    themeGlow: 'rgba(245,158,11,0.15)',
     icon: QuantGitLogoIcon,
   },
 ];
@@ -879,8 +879,9 @@ export function QuantPillarTopBar({
   useEffect(() => {
     setHeaderHidden(false);
   }, [currentPillar]);
-  // Sliding LINE indicator (Swiggy-style): wraps the active tab, animates
-  // from center-expand then slides with spring physics. Replaces the old dot.
+  // Sliding SWOOSH indicator: the glowing ribbon wraps the active bay and
+  // slides between slots (300ms ease-out). Bounds are measured from the
+  // active tab so the swoosh tracks it exactly.
   const [lineLeft, setLineLeft] = useState(0);
   const [lineWidth, setLineWidth] = useState(0);
   const [spinningPillar, setSpinningPillar] = useState<PillarId | null>(null);
@@ -902,8 +903,8 @@ export function QuantPillarTopBar({
   const toastTimer = useRef<number | null>(null);
   const spinTimer = useRef<number | null>(null);
 
-  // Measure the active tab's bounds for the sliding LINE indicator.
-  // The line wraps the active tab (Swiggy-style), expanding from center.
+  // Measure the active tab's bounds for the sliding swoosh indicator.
+  // The swoosh wraps the active bay, expanding from center on change.
   const measureLine = useCallback(() => {
     const idx = PILLAR_TILES.findIndex((t) => t.id === currentPillar);
     const tab = tabRefs.current[idx];
@@ -1115,21 +1116,74 @@ export function QuantPillarTopBar({
       aria-label="Super-App 5-Pillar Navigation Bar"
     >
       {/*
-        Super-App Switcher — logos float directly on the black header, NO
-        pill container behind them (user decision 2026-10-09). Each tile
-        keeps its own per-app accent tint behind the logo (calendar blue,
-        drive green, …). Sliding LINE indicator wraps the active tab.
+        Super-App Switcher — dark glass capsule with rim-light (user-approved
+        2026-10-09, reference: glowing swoosh active indicator). The 5 bays
+        mount the ORIGINAL app logos exactly as-is; the active bay is wrapped
+        by a glowing swoosh ribbon in the app's accent color that bulges
+        slightly beyond the capsule top/bottom and SLIDES between slots
+        (300ms ease-out) on pillar change.
       */}
       <div className="w-full flex justify-center">
+        <div
+          className="relative flex items-center w-full max-w-5xl"
+          style={{ height: 56 }}
+        >
         <div
           ref={dockRef}
           role="tablist"
           aria-label="Application Suites"
-          className="relative flex items-center w-full max-w-5xl"
-          style={{ height: 56 }}
+          className="relative flex items-center flex-1 h-14 rounded-full px-1"
+          style={{
+            background: 'rgba(15,17,23,0.72)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255,255,255,0.09)',
+            // Rim-light on the top edge + deep shadow below: the premium
+            // dark-glass capsule from the reference.
+            boxShadow:
+              'inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -1px 0 rgba(0,0,0,0.45), 0 10px 30px rgba(0,0,0,0.5)',
+          }}
         >
-          {/* Logos: LEFT-aligned group */}
-          <div className="flex items-center gap-0.5 flex-1">
+          {/*
+            Swoosh — the glowing ribbon of light wrapping the active bay.
+            A single element that SLIDES between slots (left/width measured
+            from the active tab, 300ms ease-out). It bulges 8px beyond the
+            capsule top/bottom, carries the active pillar's accent color, and
+            replays a settle animation on every pillar change (key={currentPillar}).
+          */}
+          <span
+            aria-hidden="true"
+            className="absolute pointer-events-none"
+            style={{
+              left: lineLeft,
+              width: lineWidth,
+              top: -8,
+              bottom: -8,
+              transition:
+                'left 0.3s ease-out, width 0.3s ease-out',
+            }}
+          >
+            <span
+              key={currentPillar}
+              className="block w-full h-full animate-[quantSwooshIn_0.3s_ease-out]"
+              style={{
+                borderRadius: 22,
+                border: `1px solid ${activeTile.accentColor}66`,
+                background: [
+                  `radial-gradient(ellipse 72% 62% at 50% 42%, ${activeTile.accentColor}59 0%, ${activeTile.accentColor}26 55%, transparent 78%)`,
+                  `linear-gradient(180deg, ${activeTile.accentColor}4D 0%, ${activeTile.accentColor}1F 55%, ${activeTile.accentColor}38 100%)`,
+                ].join(', '),
+                boxShadow: [
+                  `0 0 22px ${activeTile.accentColor}73`,
+                  `0 0 48px ${activeTile.accentColor}30`,
+                  'inset 0 1px 0 rgba(255,255,255,0.38)',
+                  `inset 0 -10px 18px ${activeTile.accentColor}2E`,
+                ].join(', '),
+              }}
+            />
+          </span>
+          {/* Logos: 5 bays with the ORIGINAL app marks, untouched */}
+          <div className="relative flex items-center justify-between flex-1 px-1">
           {PILLAR_TILES.map((tile, idx) => {
             const isActive = tile.id === currentPillar;
             const IconComp = tile.icon;
@@ -1205,42 +1259,26 @@ export function QuantPillarTopBar({
           })}
           </div>
 
+          {/* Sliding LINE indicator — REMOVED 2026-10-09: replaced by the
+              swoosh ribbon above (user-approved reference design). */}
+
+        </div>
+
           {/* User profile avatar: RIGHT side. Opens the real account menu
               (switch account, add account, settings, security, sign out) —
               never jumps straight to settings. */}
-          <div className="ml-1 shrink-0">
+          <div className="ml-2 shrink-0">
             <AccountBadge compact={true} size="lg" />
           </div>
-
-          {/*
-            Sliding LINE indicator — Swiggy-style.
-            A rounded line that WRAPS the active tab, animating with spring
-            physics: expands from center, then slides. NO dot!
-          */}
-          <span
-            aria-hidden="true"
-            className="absolute bottom-[6px] pointer-events-none"
-            style={{
-              left: lineLeft,
-              width: lineWidth,
-              transition: 'left 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            }}
-          >
-            <span
-              key={currentPillar}
-              className="block mx-auto rounded-full animate-[quantLineExpand_0.35s_cubic-bezier(0.34,1.56,0.64,1)]"
-              style={{
-                width: '60%',
-                height: 3,
-                background: `linear-gradient(90deg, ${activeTile.accentColor}, ${activeTile.accentColor}CC)`,
-                boxShadow: `0 0 8px ${activeTile.accentColor}66`,
-              }}
-            />
-          </span>
         </div>
       </div>
 
       <style>{`
+        @keyframes quantSwooshIn {
+          0% { transform: scaleX(0.82) scaleY(0.94); opacity: 0.55; }
+          60% { transform: scaleX(1.04) scaleY(1.01); opacity: 1; }
+          100% { transform: scaleX(1) scaleY(1); opacity: 1; }
+        }
         @keyframes quantLineExpand {
           0% { transform: scaleX(0.2); opacity: 0.3; }
           60% { transform: scaleX(1.15); opacity: 1; }

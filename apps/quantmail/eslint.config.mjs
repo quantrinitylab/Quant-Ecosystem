@@ -75,8 +75,12 @@ const BANNED_SURFACE_HEX = [
   '0e1017', '0e1119', '111318', '121316', '12151e', '121622', '141722',
   '141822', '16181d', '161822', '161a26', '161b22', '161b26', '181c26',
   '1c1f26', '1e2128', '1e222a', '1e293b', '1f2430', '22c55e', '25252e',
-  '282c35', '3b82f6', 'e8752f', 'ef4444', 'f59e0b', 'ff8c42', 'ff9b5a',
+  '282c35', '3b82f6', 'e8752f', 'ef4444', 'ff8c42', 'ff9b5a',
 ];
+// NOTE (2026-10-09): 'f59e0b' (amber-500) is intentionally NOT banned — it is
+// the user-approved QuantGit pillar ACCENT color (PILLAR_ACCENTS.quantgit),
+// same first-class status as the other four pillar accents. The ban list is
+// for raw SURFACE hexes; pillar accents are the design-system source of truth.
 
 /** Exported for unit-testing the QM-UIUX-004 hex scanner. */
 export function findRawSurfaceHexViolations(text) {

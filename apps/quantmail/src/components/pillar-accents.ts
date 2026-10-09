@@ -6,18 +6,18 @@
 // on desktop). Every app switcher must read its accent from this map so the
 // two viewports can never diverge again.
 //
-// NOTE: the exact per-app color mapping itself is still awaiting user
-// confirmation (the user's per-app theming vision is not yet specced). This
-// map pins the CURRENT mobile values as canonical; changing the mapping
-// later means editing these 5 lines only.
+// NOTE: the exact per-app color mapping was user-confirmed 2026-10-09:
+// Mail=orange, Calendar=blue, Drive=green, Contacts=violet, QuantGit=amber.
+// Dark background is always maintained; the accent only tints glows/badges.
+// Changing the mapping later means editing these 5 lines only.
 // ============================================================================
 
 export const PILLAR_ACCENTS = {
   mail: '#FF6B35',
   calendar: '#4285F4',
   drive: '#34A853',
-  contacts: '#8AB4F8',
-  quantgit: '#A855F7',
+  contacts: '#8B5CF6',
+  quantgit: '#F59E0B',
 } as const;
 
 export type PillarAccentId = keyof typeof PILLAR_ACCENTS;
