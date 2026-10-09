@@ -3652,3 +3652,18 @@
 - [ ] **Task W75-05**: Android Emulator Live Verification & High-Fidelity Screenshots Capture
   - **Target Files**: Artifact screenshots (`quantmail_wave74_verified.png`, `quantmail_superapp_navigation.png`)
   - **Status**: 🟡 **IN PROGRESS**
+
+---
+
+## 🔎 W90: QUANTMAIL SWITCHER + BRAND MARKS DEEP AUDIT (2026-10-09)
+
+> Scope: continue the approved five-pillar switcher direction; preserve the real app marks and per-app accents. No logo replacement with generic glyphs. Do not mark visual/live validation complete without actual browser evidence.
+
+- [x] **Task W90-SWITCHER-01 — Remove duplicate scroll lifecycle**: `apps/quantmail/src/components/QuantPillarTopBar.tsx` had two identical document-capture scroll listeners, each with its own `WeakMap`, RAF queue, and header-reveal effect. Removed the second listener/effect to prevent duplicate scroll processing and state updates. Commit: `75e6b1d485cfd9a832830ef7cde239dbec9ea6fc`.
+- [ ] **Task W90-SWITCHER-02 — Regression gate**: wait for and inspect QuantMail typecheck/build, full-sweep, dependency audit, CodeQL, and the required `gate` result on the exact PR head. Fix failures; do not treat queued checks as passing.
+- [ ] **Task W90-SWITCHER-03 — Desktop Chrome visual audit**: capture and inspect the real running UI at desktop widths for all five active states (Mail, Calendar, Drive, Contacts, QuantGit); verify selected-slot geometry, per-app accent, logo scale, keyboard focus, search placement, and no clipping/overlap.
+- [ ] **Task W90-SWITCHER-04 — Mobile Chrome visual audit**: capture phone viewport screenshots for all five active states; verify touch targets, active-slot proportions, scroll-down collapse, scroll-up reveal, zero blank gap, search compaction, long-press labels, and active-tab retap refresh. Test narrow 320/360/390px widths and browser safe areas.
+- [ ] **Task W90-MARKS-01 — Logo integrity audit**: inspect QuantMail M, live-date QuantCalendar, green QuantDrive folder mascot, QuantContacts, and purple voxel-frog QuantGit at dock size and enlarged size; check canvas/static fallbacks, reduced-motion behavior, accessible names, and no clipped edges.
+- [ ] **Task W90-SCREENS-01 — Pillar-by-pillar UI audit**: audit Mail inbox/thread/composer, Calendar Feed/Month/Events/Schedule, Drive categories/feed/vault, Contacts list/profile, and QuantGit repositories/PRs. Record concrete defects and screenshots before changing screen-specific layouts.
+- [ ] **Task W90-RELEASE-01 — Merge/deploy/verify**: only after required CI passes and the PR is safely merged to `main`, use the repository's protected deployment workflow for `quantmail`; verify rollout health and check the live URL on desktop and mobile. A queued workflow or source change alone is not proof of a live deployment.
+
