@@ -871,8 +871,11 @@ function QuantGitContent() {  const router = useRouter();
     [apiFetch, currentBranch, currentUsername],
   );
 
-  const handleCreateBranch = async (name: string, source = currentBranch) => {
-    if (!selectedRepo) return;
+  // AUD-P0-G3: the ONLY branch create/delete path used by the UI — it always
+  // hits the backend and only updates local state on real API success.
+  // Returns true when the branch was genuinely created, false otherwise.
+  const handleCreateBranch = async (name: string, source = currentBranch): Promise<boolean> => {
+    if (!selectedRepo) return false;
     const repoTarget = selectedRepo.id || selectedRepo.name;
     try {
       const res = await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/branches`, {
@@ -902,23 +905,29 @@ function QuantGitContent() {  const router = useRouter();
             },
           ];
         });
+        setCurrentBranch(name);
         showToast(`Branch "${name}" created in repository!`);
         emitQuantGitMascotEvent('branch');
+        return true;
       } else {
         showToast(json?.error?.message || `Failed to create branch "${name}"`);
         emitQuantGitMascotEvent('error');
+        return false;
       }
     } catch {
       showToast(`Failed to create branch "${name}" — network error`);
       emitQuantGitMascotEvent('error');
+      return false;
     }
   };
 
-  const handleDeleteBranch = async (name: string) => {
-    if (!selectedRepo) return;
+  // AUD-P0-G3: real backend delete; returns true only when the branch was
+  // genuinely deleted from repository storage.
+  const handleDeleteBranch = async (name: string): Promise<boolean> => {
+    if (!selectedRepo) return false;
     if (name === selectedRepo.defaultBranch) {
       showToast('Cannot delete the default branch');
-      return;
+      return false;
     }
     const repoTarget = selectedRepo.id || selectedRepo.name;
     try {
@@ -933,13 +942,16 @@ function QuantGitContent() {  const router = useRouter();
         setDetailedBranches((prev) => prev.filter((b) => b.name !== name));
         showToast(`Deleted branch "${name}"`);
         emitQuantGitMascotEvent('branch');
+        return true;
       } else {
         showToast(json?.error?.message || `Failed to delete branch "${name}"`);
         emitQuantGitMascotEvent('error');
+        return false;
       }
     } catch {
       showToast(`Failed to delete branch "${name}" — network error`);
       emitQuantGitMascotEvent('error');
+      return false;
     }
   };
 
@@ -2192,32 +2204,15 @@ function QuantGitContent() {  const router = useRouter();
                     setCurrentBranch(b);
                     showToast(`Checked out branch: ${b}`);
                   }}
-                  onCreateBranch={(source, newName) => {
-                    setRepoBranches((prev) => (prev.includes(newName) ? prev : [...prev, newName]));
-                    setDetailedBranches((prev) => [
-                      ...prev,
-                      {
-                        name: newName,
-                        sha: selectedRepo.latestCommitSha || '',
-                        isDefault: false,
-                        isProtected: false,
-                        aheadBy: 0,
-                        behindBy: 0,
-                        lastCommitAuthor: currentUsername,
-                        lastCommitMessage: `Create branch ${newName} from ${source}`,
-                        lastCommitTime: 'Just now',
-                      },
-                    ]);
-                    setCurrentBranch(newName);
-                    showToast(`Created and checked out branch "${newName}"`);
-                  }}
-                  onDeleteBranch={(b) => {
-                    setRepoBranches((prev) => prev.filter((item) => item !== b));
-                    setDetailedBranches((prev) => prev.filter((item) => item.name !== b));
-                    if (currentBranch === b) {
+                  // AUD-P0-G3: wired to the real backend handlers — no local-only
+                  // theater. State changes only after the API genuinely succeeds.
+                  onCreateBranch={(name, sourceBranch) => handleCreateBranch(name, sourceBranch)}
+                  onDeleteBranch={async (b) => {
+                    const ok = await handleDeleteBranch(b);
+                    if (ok && currentBranch === b) {
                       setCurrentBranch(selectedRepo.defaultBranch || 'main');
                     }
-                    showToast(`Deleted branch "${b}"`);
+                    return ok;
                   }}
                   showToast={showToast}
                 />
