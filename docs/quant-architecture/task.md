@@ -956,9 +956,8 @@ Scope: `apps/quantmail/src/components/ContactsSubViews.tsx`.
 Dependencies: none.
 
 ## QM-UIUX-027 — Account deletion and data export must be real or removed
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-027-fake-account-actions
+Status: [x] DONE — fixed by PR #632 (commit ae7699510, 2026-10-08): the fake controls were REMOVED per the recorded user decision (QuantMail does not offer account deletion) — handleDeleteAccount/handleExportData setTimeout fakes, DELETE-confirm state, invented '60 seconds / 30 days' copy and the privacy page's deletion instructions all deleted (+11/−198). Verified absent on current main 2026-10-10 (zero grep matches for every invented string). Follow-up filed as QM-UIUX-091 (real export backend exists, no UI).
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/632
 Finding: `account/page.tsx` "Permanently Delete My Account" uses `setTimeout` to toast "scheduled for immediate purge" — NO API call, NO backend endpoint exists. The user types DELETE and believes their account is erased; it is not. Same pattern for "Request Archive" (data export): `setTimeout` toasts "encrypted export will be delivered to your inbox" with no backend. Deletion copy invents specifics ("Erased within 60 seconds... pruned from backups within 30 days"). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/settings-audit.md`.
 Required: either wire to real backend endpoints (deletion + export with honest timelines), or remove the controls entirely. Never show a fake destructive action.
 Scope: `apps/quantmail/src/app/account/page.tsx`.
@@ -1122,9 +1121,7 @@ Scope: thread view; `AISummaryCard`.
 Dependencies: QM-UIUX-045 (decide fake vs real first).
 
 ## QM-UIUX-047 — AI Memory: mount the panel (no surface today)
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-047-ai-memory-panel
+Status: [x] DONE-superseded — verified 2026-10-10 on current main: the see/forget AI-memory surface is live as the Drive 'aimemory' tab (DriveAiMemorySubView: real GET /api/drive/memory, per-card Forget with confirm dialog → DELETE, honest empty/loading/error states, tests in drive-subviews + drive-categories-feed-memory). AIMemoryPanel's mount was DELIBERATELY removed as a duplicate in a1ebad82e (2026-10-07, per user feedback); re-mounting it would recreate the duplicate the task itself forbids. The orphaned component is filed for deletion as QM-UIUX-092.
 Finding: real CRUD on `/api/drive/memory` with delete-confirm, but `AIMemoryPanel` is never mounted. Users can't see or forget what Quanty remembers. No duplicate cards in inbox (verified gone). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quanty-ai-audit.md`.
 Required: mount `AIMemoryPanel` in an appropriate surface (settings or Quanty drawer); verify no duplicates.
 Scope: `AIMemoryPanel`; settings or drawer.
@@ -2071,4 +2068,18 @@ Status: [ ] TODO
 Finding: Zero-defect run-37 audit of PR #736 (apps/quantmail/src/lib/ai-error.ts) found 2 residual P2 gaps: (1) bare internal hostnames leak (e.g. *.internal suffixes, host:port patterns); (2) extended credential classes leak (github_pat_, gho_/ghu_, Slack xox tokens, Basic credentials, PEM markers). The hardened implementation closing both now exists in QuantChat's src/lib/sanitize-error.ts (PR #751) — port those two closings back to QuantMail's ai-error.ts with matching tests.
 Required: ai-error.ts redacts bare internal hostnames and the extended credential classes; regression tests prove both (fail on current, pass on fix).
 Scope: apps/quantmail/src/lib/ai-error.ts + its tests.
+Dependencies: none.
+
+## QM-UIUX-091 — Wire a real data-export UI to the QM-BACK-006 export backend
+Status: [ ] TODO
+Finding: QM-BACK-006 delivered a real backend export center (apps/quantmail/backend/routes/data-lifecycle.ts: POST /exports, POST /exports/:id/build, GET /exports, GET /exports/:id, backed by requestDataExport/completeDataExport/failDataExport with tests), but NO frontend surface references these routes (zero hits in apps/quantmail/src/). Users have no way to request an export even though the backend exists. Found during QM-UIUX-027 verification (2026-10-10).
+Required: a settings/account export control wired through a frontend proxy route to the real /exports endpoints, with honest pending/building/ready/failed states and NO invented timelines or delivery promises. Tests prove the control calls the real endpoints and surfaces failures honestly.
+Scope: apps/quantmail settings/account surface + proxy route.
+Dependencies: none (backend exists).
+
+## QM-UIUX-092 — Delete dead AIMemoryPanel component + useAIMemory hook
+Status: [ ] TODO
+Finding: apps/quantmail/src/components/AIMemoryPanel.tsx and its useAIMemory hook have zero importers on current main (verified 2026-10-10 during QM-UIUX-047). The panel was superseded by DriveAiMemorySubView (Drive aimemory tab); its mount was deliberately removed in a1ebad82e. Dead code duplicates live memory logic and drifts.
+Required: delete AIMemoryPanel.tsx and useAIMemory.ts after re-verifying zero references (code + tests); run the full QuantMail suite.
+Scope: apps/quantmail/src/components/AIMemoryPanel.tsx, useAIMemory hook file.
 Dependencies: none.
