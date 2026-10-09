@@ -51,6 +51,7 @@ import type {
 
 import { QuantGitHeader } from './components/QuantGitHeader';
 import { AppShell } from '../../components/AppShell';
+import { emitQuantGitMascotEvent } from '../../components/marks/quantgit-mascot-events';
 import { AppSidebar } from '../../components/AppSidebar';
 import { CodeTab } from './components/CodeTab';
 import { CommitsTab } from './components/CommitsTab';
@@ -908,11 +909,14 @@ function QuantGitContent() {  const router = useRouter();
           ];
         });
         showToast(`Branch "${name}" created in repository!`);
+        emitQuantGitMascotEvent('branch');
       } else {
         showToast(json?.error?.message || `Failed to create branch "${name}"`);
+        emitQuantGitMascotEvent('error');
       }
     } catch {
       showToast(`Failed to create branch "${name}" — network error`);
+      emitQuantGitMascotEvent('error');
     }
   };
 
@@ -934,11 +938,14 @@ function QuantGitContent() {  const router = useRouter();
         setRepoBranches((prev) => prev.filter((b) => b !== name));
         setDetailedBranches((prev) => prev.filter((b) => b.name !== name));
         showToast(`Deleted branch "${name}"`);
+        emitQuantGitMascotEvent('branch');
       } else {
         showToast(json?.error?.message || `Failed to delete branch "${name}"`);
+        emitQuantGitMascotEvent('error');
       }
     } catch {
       showToast(`Failed to delete branch "${name}" — network error`);
+      emitQuantGitMascotEvent('error');
     }
   };
 
@@ -1244,6 +1251,7 @@ function QuantGitContent() {  const router = useRouter();
         setNewPrBody('');
         setModalState('none');
         showToast(`Pull Request #${created.id} opened in PostgreSQL!`);
+        emitQuantGitMascotEvent('pull');
         return;
       }
     } catch {
@@ -1322,6 +1330,7 @@ function QuantGitContent() {  const router = useRouter();
       setActiveDeckTab('repos');
       setActiveGitHubTab('pulls');
       showToast(`Pull Request #${createdPr.id} created from branch ${params.sourceBranch}!`);
+      emitQuantGitMascotEvent('pull');
       return createdPr;
     },
     [apiFetch, currentBranch, currentUsername, pulls, selectedRepo, showToast],
@@ -1375,6 +1384,7 @@ function QuantGitContent() {  const router = useRouter();
         setNewRepoDesc('');
         setModalState('none');
         showToast(`Repository ${slug} created in database!`);
+        emitQuantGitMascotEvent('repo');
         return;
       }
     } catch {
@@ -1545,6 +1555,7 @@ function QuantGitContent() {  const router = useRouter();
         setNewBranchInput('');
         setModalState('none');
         showToast(`Branch ${branchName} created and checked out!`);
+        emitQuantGitMascotEvent('branch');
       } else {
         const err = await res.json().catch(() => ({}));
         showToast(err.error?.message || 'Failed to create branch');
@@ -1879,6 +1890,7 @@ function QuantGitContent() {  const router = useRouter();
       });
 
       showToast(formatCommitToast(input.path, payload?.data?.commitSha));
+      emitQuantGitMascotEvent('commit');
       closeBlobEditor();
       await fetchRepos();
 
@@ -2105,6 +2117,7 @@ function QuantGitContent() {  const router = useRouter();
                 openRepository(matched);
               } else {
                 showToast(`Opened repository: ${repoName}`);
+                emitQuantGitMascotEvent('repo');
               }
             }}
             onMergePR={(prId) => {
