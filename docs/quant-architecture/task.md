@@ -982,7 +982,9 @@ Scope: `QuantPillarTopBar.tsx`, `QuantMailSuperAppHeader.tsx`, booking, QuantGit
 Dependencies: QM-SCREEN-026 (reopen).
 
 ## QM-UIUX-030 — Search text must not persist across app tabs
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-030-search-tab-persistence
 Finding: `QuantPillarTopBar` holds `internalSearch` via one-time `useState`; the topbar lives in layout-level `AppShell`, so switching Mail → Calendar → Drive leaves stale query text while the page's own `searchQuery` is empty. Known P1 from the customer audit, still present. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/search-audit.md`.
 Required: key the search input by route or clear on tab switch.
 Scope: `QuantPillarTopBar.tsx`, `AppShell`.
@@ -2049,7 +2051,9 @@ Dependencies: none.
 Evidence: hidden_files/customer-audits/2026-10-09-inbox-triage.md.
 
 ## QM-UIUX-088 — QuantChat AI error honesty + API timeout (sibling of QM-UIUX-036)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-088-quantchat-ai-error-timeout
 Finding: Discovered 2026-10-09 during QM-UIUX-036: QuantChat's AIAssistant silently swallows AI failures (no error state; misleading 'No suggestions available' on failure) and its api-client lacks a request timeout/sanitized error mapping. A partial draft exists (preserved at hidden_files/ledger-ops/qm-uiux-036-foreign-quantchat/ in the goal workspace) — usable as a starting point ONLY after hardening its sanitizer to the ai-error.ts redaction standard (URLs/IPs/tokens/JWT) and adding two-direction regression tests; the draft itself has zero tests and must not be merged as-is.
 Required: honest QuantChat AI error states + retry; shared api-client timeout with sanitized error mapping.
 Scope: apps/quantchat AIAssistant + api-client.
