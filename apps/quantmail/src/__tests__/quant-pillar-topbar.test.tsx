@@ -111,15 +111,15 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
       // Active-only markers: these strings render ONLY when Mail is active —
-      // the swoosh ribbon border/glow and the active logo glow.
+      // the raised tab's clean colored edge (no glow anywhere by user rule).
       // (Bare 'var(--quant-primary)' / '#FF6B35' are global: AI capsule, search ring and the
       // profile avatar all carry them, so they prove nothing per-pillar.)
-      expect(html).toContain('1px solid #FF6B3588');
-      expect(html).toContain('drop-shadow(0 0 6px #FF6B3566)');
-      // Raised-slot treatment (refinement 2026-10-09): the active tab rises
-      // above the capsule like a tab (-13px) and settles below it (-6px),
-      // physically connecting the slot to the screen.
-      expect(html).toContain('top:-13px');
+      expect(html).toContain('border-top:1.5px solid #FF6B35');
+      expect(html).not.toContain('drop-shadow(0 0 6px');
+      // Raised-tab treatment (2026-10-09): the active tab rises 18px above
+      // the capsule like a folder tab and its base extends into the bar,
+      // connecting the slot to the screen from below.
+      expect(html).toContain('top:-18px');
       expect(html).toContain('-translate-y-0.5');
     });
 
@@ -130,9 +130,9 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       // #000000 in dark theme), no blur tint, no dividers.
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
-      // Active-only: swoosh + glow in Calendar's blue.
-      expect(html).toContain('1px solid #4285F488');
-      expect(html).toContain('drop-shadow(0 0 6px #4285F466)');
+      // Active-only: raised tab edge in Calendar's blue, no glow.
+      expect(html).toContain('border-top:1.5px solid #4285F4');
+      expect(html).not.toContain('drop-shadow(0 0 6px');
     });
 
     it('applies Google Drive-style colors to Drive tile when active', () => {
@@ -142,33 +142,33 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       // #000000 in dark theme), no blur tint, no dividers.
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
-      // Active-only: swoosh + glow in Drive's green.
-      expect(html).toContain('1px solid #34A85388');
-      expect(html).toContain('drop-shadow(0 0 6px #34A85366)');
+      // Active-only: raised tab edge in Drive's green, no glow.
+      expect(html).toContain('border-top:1.5px solid #34A853');
+      expect(html).not.toContain('drop-shadow(0 0 6px');
     });
 
-    it('applies Violet active styling to Contacts tile when active', () => {
+    it('applies Amber active styling to Contacts tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" />);
 
       // QM-UIUX-072/073: pure-black header bar (--quant-background is
       // #000000 in dark theme), no blur tint, no dividers.
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
-      // Active-only: swoosh + glow in Contacts' violet (user-confirmed 2026-10-09).
-      expect(html).toContain('1px solid #8B5CF688');
-      expect(html).toContain('drop-shadow(0 0 6px #8B5CF666)');
+      // Active-only: raised tab edge in Contacts' amber (user correction 2026-10-09 ~11:00 IST).
+      expect(html).toContain('border-top:1.5px solid #F59E0B');
+      expect(html).not.toContain('drop-shadow(0 0 6px');
     });
 
-    it('applies distinct Amber active styling to QuantGit tile when active', () => {
+    it('applies distinct Purple active styling to QuantGit tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="quantgit" />);
 
       // QM-UIUX-072/073: pure-black header bar (--quant-background is
       // #000000 in dark theme), no blur tint, no dividers.
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
-      // Active-only: swoosh + glow in QuantGit's amber (user-confirmed 2026-10-09).
-      expect(html).toContain('1px solid #F59E0B88');
-      expect(html).toContain('drop-shadow(0 0 6px #F59E0B66)');
+      // Active-only: raised tab edge in QuantGit's purple (user correction 2026-10-09 ~11:00 IST).
+      expect(html).toContain('border-top:1.5px solid #8B5CF6');
+      expect(html).not.toContain('drop-shadow(0 0 6px');
     });
 
     it('renders unread/count badges when provided in unreadCounts prop', () => {

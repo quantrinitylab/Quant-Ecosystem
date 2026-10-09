@@ -812,9 +812,9 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
     pillar: 'contacts',
     name: 'Contacts',
     accentColor: PILLAR_ACCENTS.contacts,
-    activeContainerStyle: 'bg-[#8B5CF6]/15 border-[#8B5CF6]/40',
-    activeTextStyle: 'text-[#8B5CF6]',
-    badgeStyle: 'bg-[#8B5CF6] text-black',
+    activeContainerStyle: 'bg-[#F59E0B]/15 border-[#F59E0B]/40',
+    activeTextStyle: 'text-[#F59E0B]',
+    badgeStyle: 'bg-[#F59E0B] text-black',
     tabs: [
       {
         id: 'all',
@@ -838,9 +838,9 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
     pillar: 'quantgit',
     name: 'QuantGit',
     accentColor: PILLAR_ACCENTS.quantgit,
-    activeContainerStyle: 'bg-[#F59E0B]/15 border-[#F59E0B]/40',
-    activeTextStyle: 'text-[#F59E0B]',
-    badgeStyle: 'bg-[#F59E0B] text-black',
+    activeContainerStyle: 'bg-[#8B5CF6]/15 border-[#8B5CF6]/40',
+    activeTextStyle: 'text-[#8B5CF6]',
+    badgeStyle: 'bg-[#8B5CF6] text-black',
     // User-approved 2026-10-09: Repositories + Overview only. Every tab maps
     // to a real existing route — no fake tabs.
     tabs: [
