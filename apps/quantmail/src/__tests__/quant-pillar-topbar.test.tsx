@@ -154,9 +154,9 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       // #000000 in dark theme), no blur tint, no dividers.
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
-      // Active-only: swoosh + glow in Contacts' violet (user-confirmed 2026-10-09).
-      expect(html).toContain('1px solid #8B5CF688');
-      expect(html).toContain('drop-shadow(0 0 6px #8B5CF666)');
+      // Active-only: compact accent slot and glow follow the active app's brand color.
+      expect(html).toContain('1px solid #14B8A666');
+      expect(html).toContain('drop-shadow(0 0 6px #14B8A666)');
     });
 
     it('applies distinct Amber active styling to QuantGit tile when active', () => {
@@ -166,9 +166,9 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       // #000000 in dark theme), no blur tint, no dividers.
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
-      // Active-only: swoosh + glow in QuantGit's amber (user-confirmed 2026-10-09).
-      expect(html).toContain('1px solid #F59E0B88');
-      expect(html).toContain('drop-shadow(0 0 6px #F59E0B66)');
+      // Active-only: QuantGit uses its approved violet identity.
+      expect(html).toContain('1px solid #8B5CF666');
+      expect(html).toContain('drop-shadow(0 0 6px #8B5CF666)');
     });
 
     it('renders unread/count badges when provided in unreadCounts prop', () => {
@@ -644,11 +644,12 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       expect(html).toContain('#FF6B35');
     });
 
-    it('removes the pill container behind the switcher logos', () => {
+    it('keeps the active slot compact and avoids excessive glow', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
-      // No rounded dock pill with border/shadow behind the logos (React
-      // serializes borderRadius:16 as border-radius:16px).
-      expect(html).not.toContain('border-radius:16px');
+      // A modest rounded active slot is intentional; the old oversized bloom is not.
+      expect(html).toContain('border-radius:16px');
+      expect(html).toContain('top:-4px');
+      expect(html).not.toContain('0 0 40px #FF6B3528');
       expect(html).not.toContain('0 2px 12px rgba(0,0,0,0.35)');
     });
   });
