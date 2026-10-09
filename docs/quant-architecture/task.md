@@ -956,7 +956,9 @@ Scope: `apps/quantmail/src/components/ContactsSubViews.tsx`.
 Dependencies: none.
 
 ## QM-UIUX-027 — Account deletion and data export must be real or removed
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-027-fake-account-actions
 Finding: `account/page.tsx` "Permanently Delete My Account" uses `setTimeout` to toast "scheduled for immediate purge" — NO API call, NO backend endpoint exists. The user types DELETE and believes their account is erased; it is not. Same pattern for "Request Archive" (data export): `setTimeout` toasts "encrypted export will be delivered to your inbox" with no backend. Deletion copy invents specifics ("Erased within 60 seconds... pruned from backups within 30 days"). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/settings-audit.md`.
 Required: either wire to real backend endpoints (deletion + export with honest timelines), or remove the controls entirely. Never show a fake destructive action.
 Scope: `apps/quantmail/src/app/account/page.tsx`.
@@ -980,9 +982,8 @@ Scope: `QuantPillarTopBar.tsx`, `QuantMailSuperAppHeader.tsx`, booking, QuantGit
 Dependencies: QM-SCREEN-026 (reopen).
 
 ## QM-UIUX-030 — Search text must not persist across app tabs
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-030-search-tab-persistence
+Status: [x] DONE-superseded — premise verified stale 2026-10-10: already fixed 2026-10-08 by 1b5d7713e (QM-SCREEN-026, pillar-clear + controlled sync in QuantPillarTopBar). PR #752 merged 2026-10-10 added 5 behavioral regression pins (mechanism-removal negative controls prove each pin guards its mechanism); no product change needed.
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/752
 Finding: `QuantPillarTopBar` holds `internalSearch` via one-time `useState`; the topbar lives in layout-level `AppShell`, so switching Mail → Calendar → Drive leaves stale query text while the page's own `searchQuery` is empty. Known P1 from the customer audit, still present. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/search-audit.md`.
 Required: key the search input by route or clear on tab switch.
 Scope: `QuantPillarTopBar.tsx`, `AppShell`.
@@ -1121,7 +1122,9 @@ Scope: thread view; `AISummaryCard`.
 Dependencies: QM-UIUX-045 (decide fake vs real first).
 
 ## QM-UIUX-047 — AI Memory: mount the panel (no surface today)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-047-ai-memory-panel
 Finding: real CRUD on `/api/drive/memory` with delete-confirm, but `AIMemoryPanel` is never mounted. Users can't see or forget what Quanty remembers. No duplicate cards in inbox (verified gone). Evidence: `~/workspace/audits/2026-10-08-uiux-deep/quanty-ai-audit.md`.
 Required: mount `AIMemoryPanel` in an appropriate surface (settings or Quanty drawer); verify no duplicates.
 Scope: `AIMemoryPanel`; settings or drawer.
@@ -2049,9 +2052,8 @@ Dependencies: none.
 Evidence: hidden_files/customer-audits/2026-10-09-inbox-triage.md.
 
 ## QM-UIUX-088 — QuantChat AI error honesty + API timeout (sibling of QM-UIUX-036)
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-088-quantchat-ai-error-timeout
+Status: [x] DONE — PR #751 merged 2026-10-10 (new sanitize-error.ts at the ai-error standard PLUS the two residual gaps closed — bare internal hostnames + extended credential classes; api-client 30s timeout with ABORTED/TIMEOUT/sanitized mapping; AIAssistant honest error states + retry on chat/translate/replies; 39 new tests, negative control 11/15 fail on original, full QuantChat suite 586/586)
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/751
 Finding: Discovered 2026-10-09 during QM-UIUX-036: QuantChat's AIAssistant silently swallows AI failures (no error state; misleading 'No suggestions available' on failure) and its api-client lacks a request timeout/sanitized error mapping. A partial draft exists (preserved at hidden_files/ledger-ops/qm-uiux-036-foreign-quantchat/ in the goal workspace) — usable as a starting point ONLY after hardening its sanitizer to the ai-error.ts redaction standard (URLs/IPs/tokens/JWT) and adding two-direction regression tests; the draft itself has zero tests and must not be merged as-is.
 Required: honest QuantChat AI error states + retry; shared api-client timeout with sanitized error mapping.
 Scope: apps/quantchat AIAssistant + api-client.
