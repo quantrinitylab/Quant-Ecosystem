@@ -7,7 +7,9 @@ import { ClockIcon, StarFilledIcon, StarIcon, HardDriveIcon } from './DriveIcons
 export interface RecentItem {
   id: string;
   name: string;
-  type: 'file';
+  // QM-UIUX-079: 'document' rows are the Drive projection of doc-editor
+  // documents — they open in the editor and carry no star/download.
+  type: 'file' | 'document';
   mimeType: string;
   size: number;
   modifiedAt: string;
@@ -15,6 +17,7 @@ export interface RecentItem {
   // Null when never opened — recency then reflects the last modification.
   lastOpenedAt?: string | null;
   isStarred?: boolean;
+  documentId?: string;
 }
 
 export interface DriveRecentSubViewProps {
@@ -164,20 +167,23 @@ export function DriveRecentSubView({
                         <HardDriveIcon className="size-4" />
                       </div>
 
-                      <button
-                        type="button"
-                        aria-label={item.isStarred ? `Unstar ${item.name}` : `Star ${item.name}`}
-                        onClick={(e) => onToggleStar?.(item, e)}
-                        className={`size-7 rounded grid place-items-center transition-transform hover:scale-110 focus-visible:outline-none ${
-                          item.isStarred ? 'text-[var(--quant-warning)]' : 'text-[#64748B] hover:text-[var(--quant-warning)]'
-                        }`}
-                      >
-                        {item.isStarred ? (
-                          <StarFilledIcon className="size-4" />
-                        ) : (
-                          <StarIcon className="size-4" />
-                        )}
-                      </button>
+                      {/* QM-UIUX-079: documents have no star flag — no star control. */}
+                      {item.type !== 'document' && (
+                        <button
+                          type="button"
+                          aria-label={item.isStarred ? `Unstar ${item.name}` : `Star ${item.name}`}
+                          onClick={(e) => onToggleStar?.(item, e)}
+                          className={`size-7 rounded grid place-items-center transition-transform hover:scale-110 focus-visible:outline-none ${
+                            item.isStarred ? 'text-[var(--quant-warning)]' : 'text-[#64748B] hover:text-[var(--quant-warning)]'
+                          }`}
+                        >
+                          {item.isStarred ? (
+                            <StarFilledIcon className="size-4" />
+                          ) : (
+                            <StarIcon className="size-4" />
+                          )}
+                        </button>
+                      )}
                     </div>
 
                     <p className="text-xs font-bold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">

@@ -116,6 +116,8 @@ let folders: FolderRow[] = [];
 let shares: ShareRow[] = [];
 let driveLinks: DriveLinkRow[] = [];
 let fileVersions: FileVersionRow[] = [];
+// QM-UIUX-079 — the `documents` table projected into Drive listings.
+let documents: any[] = [];
 
 function matches(record: any, where: any): boolean {
   if (!where) return true;
@@ -341,6 +343,36 @@ function createFakePrisma() {
       findMany: async () => [],
       deleteMany: async () => ({ count: 0 }),
     },
+    // QM-UIUX-079 — documents table projected into drive listings/search/
+    // trash/recent. Empty in these fixtures; present so routes that project
+    // documents do not 500 on the missing model.
+    document: {
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        documents.find((d) => d.id === where.id) ?? null,
+      findFirst: async ({ where }: { where: any }) =>
+        documents.find((d) => matches(d, where)) ?? null,
+      findMany: async ({ where, take }: { where?: any; take?: number }) => {
+        const hits = documents.filter((d) => matches(d, where));
+        return typeof take === 'number' ? hits.slice(0, take) : hits;
+      },
+      count: async ({ where }: { where?: any }) => documents.filter((d) => matches(d, where)).length,
+      update: async ({ where, data }: { where: { id: string }; data: any }) => {
+        const hit = documents.find((d) => d.id === where.id);
+        if (!hit) throw new Error('Document not found');
+        Object.assign(hit, data, { updatedAt: new Date() });
+        return hit;
+      },
+      updateMany: async ({ where, data }: { where: any; data: any }) => {
+        const hits = documents.filter((d) => matches(d, where));
+        for (const hit of hits) Object.assign(hit, data, { updatedAt: new Date() });
+        return { count: hits.length };
+      },
+      delete: async ({ where }: { where: { id: string } }) => {
+        const idx = documents.findIndex((d) => d.id === where.id);
+        if (idx >= 0) documents.splice(idx, 1);
+        return { ok: true };
+      },
+    },
     $transaction: async (arg: any) => {
       if (Array.isArray(arg)) {
         return Promise.all(arg);
@@ -380,6 +412,7 @@ describe('QuantDrive Parity & Integrity (Wave 5 Phase D)', () => {
     shares = [];
     driveLinks = [];
     fileVersions = [];
+    documents = [];
   });
 
   // 1. POST /drive/shares/:id/accept & decline

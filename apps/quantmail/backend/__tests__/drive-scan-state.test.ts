@@ -105,6 +105,16 @@ function fakePrisma(scanStatus: string | null = 'unknown') {
       create: vi.fn().mockResolvedValue({ id: 'v1', versionNumber: 1 }),
     },
     folder: { findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn().mockResolvedValue(null) },
+    // QM-UIUX-079 — documents table projected into drive listings.
+    // Empty fixture store; present so the route does not 500.
+    document: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findFirst: vi.fn().mockResolvedValue(null),
+      count: vi.fn().mockResolvedValue(0),
+      update: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      delete: vi.fn(),
+    },
     user: { findUnique: vi.fn().mockResolvedValue({ displayName: 'User', email: 'u@example.com' }), findMany: vi.fn().mockResolvedValue([]) },
     $transaction: vi.fn(async (ops: any) => {
       if (!Array.isArray(ops)) throw new Error('callback transactions not supported in this mock');

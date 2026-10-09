@@ -94,6 +94,14 @@ function createFakePrisma() {
     fileVersion: {
       findMany: async () => [],
     },
+    // QM-UIUX-079 — documents table projected into /drive/recent.
+    // Empty fixture store; present so the route does not 500.
+    document: {
+      findMany: async () => [],
+      findFirst: async () => null,
+      count: async () => 0,
+      updateMany: async () => ({ count: 0 }),
+    },
     $executeRawUnsafe: async (sql: string, ...params: unknown[]) => {
       rawCalls.push({ sql, params });
       if (rawShouldThrow) throw new Error('db down');

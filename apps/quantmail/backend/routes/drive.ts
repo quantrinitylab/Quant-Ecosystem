@@ -410,6 +410,64 @@ function folderDto(folder: FolderRow, owner: Owner, decorations?: Decorations) {
     versions: [],
   };
 }
+// ============================================================================
+// QM-UIUX-079 — Documents are first-class Drive items.
+//
+// Documents created through the Drive doc editor (`/documents`) live in the
+// `documents` table, but the Drive surface (`/drive/files`, `/drive/search`,
+// `/drive/recent`, Home categories, Trash) only ever read `drive_files` /
+// `drive_folders` — so a created document loaded fine via its direct URL yet
+// appeared NOWHERE in Drive. Rather than duplicating document content into
+// drive_files (a second source of truth), the Drive API projects each Document
+// row as a virtual Drive item. The `doc:` id prefix keeps document ids
+// unambiguous so file-keyed handlers (download, star, versions) never mistake
+// one for a drive_files row. Documents have no storage object, no scan state
+// and no star — the DTO says so explicitly instead of inventing values.
+// ============================================================================
+const QUANT_DOCUMENT_MIME = 'application/x-quant-document';
+const DOCUMENT_DRIVE_ID_PREFIX = 'doc:';
+
+function isDocumentDriveId(id: unknown): id is string {
+  return typeof id === 'string' && id.startsWith(DOCUMENT_DRIVE_ID_PREFIX);
+}
+
+function documentIdFromDriveId(id: string): string {
+  return id.slice(DOCUMENT_DRIVE_ID_PREFIX.length);
+}
+
+function documentDriveDto(doc: any, owner: Owner) {
+  const content = typeof doc.content === 'string' ? doc.content : '';
+  return {
+    id: `${DOCUMENT_DRIVE_ID_PREFIX}${doc.id}`,
+    name: doc.title || 'Untitled Document',
+    type: 'document' as const,
+    mimeType: QUANT_DOCUMENT_MIME,
+    size: Buffer.byteLength(content, 'utf8'),
+    path: '',
+    parentId: null,
+    modifiedAt: doc.updatedAt,
+    // Documents track no explicit open — recency falls back to updatedAt.
+    lastOpenedAt: null,
+    owner,
+    sharedWith: [],
+    // Documents have no star flag — never rendered as starred.
+    isStarred: false,
+    versions: [],
+    thumbnailUrl: null,
+    // Documents are never scanned — the honest state is null (no badge),
+    // not 'unknown' (which renders a "not scanned" warning for files).
+    scanStatus: null,
+    scanReason: null,
+    scannedAt: null,
+    // Real Document row id — the Drive UI routes document opens to the doc
+    // editor with this id (`/drive/doc/<documentId>`).
+    documentId: doc.id,
+    // The Document table carries no deletion timestamp; the soft-delete
+    // update bumps updatedAt, which is the honest deletion time.
+    deletedAt: doc.isDeleted ? doc.updatedAt : null,
+  };
+}
+
 async function loadDecorations(
   prisma: any,
   fileIds: string[],
@@ -969,7 +1027,15 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       fileWhere = { userId, folderId, isDeleted: false };
     }
 
-    const [folders, files, totalCount, quota] = await Promise.all([
+    // QM-UIUX-079 — documents (the doc-editor `documents` table) are projected
+    // into Drive listings so a created document shows up everywhere a file
+    // does. Documents have no folder, so they only join the root listing and
+    // the 'documents' filter — never a folder view or a cursor page (cursor
+    // pagination stays file-keyed so page boundaries never shift).
+    const includeDocuments =
+      (filter === 'documents' || !filter || filter === 'all') && !folderId && !cursor;
+
+    const [folders, files, totalCount, docCount, documents, quota] = await Promise.all([
       returnFolders && !cursor
         ? prisma.folder.findMany({
             where: folderWhere,
@@ -985,6 +1051,16 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
           })
         : Promise.resolve([]),
       returnFiles ? prisma.file.count({ where: fileWhere }) : Promise.resolve(0),
+      includeDocuments
+        ? prisma.document.count({ where: { userId, isDeleted: false } })
+        : Promise.resolve(0),
+      includeDocuments
+        ? prisma.document.findMany({
+            where: { userId, isDeleted: false },
+            orderBy: { updatedAt: 'desc' },
+            take: limit + 1,
+          })
+        : Promise.resolve([]),
       quotaService.getQuota(userId),
     ]);
 
@@ -997,14 +1073,31 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       items.map((file: any) => file.id),
       folders.map((folder: any) => folder.id),
     );
+
+    // Merge the document projection with the file page in the requested sort
+    // order so created documents interleave with files instead of dangling at
+    // the end (or never appearing at all, as before this fix).
+    const mergedItems = [
+      ...items.map((file: FileRow) => fileDto(file, owner, decorations)),
+      ...documents.map((doc: any) => documentDriveDto(doc, owner)),
+    ];
+    if (mergedItems.length > 1) {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      mergedItems.sort((a: any, b: any) => {
+        if (sortBy === 'name') return a.name.localeCompare(b.name) * dir;
+        if (sortBy === 'size') return (a.size - b.size) * dir;
+        return (new Date(a.modifiedAt).getTime() - new Date(b.modifiedAt).getTime()) * dir;
+      });
+    }
+
     return reply.send({
       files: [
         ...folders.map((folder: FolderRow) => folderDto(folder, owner, decorations)),
-        ...items.map((file: FileRow) => fileDto(file, owner, decorations)),
+        ...mergedItems,
       ],
       quota: { used: quota.usedBytes, total: quota.limitBytes },
       nextCursor,
-      totalCount,
+      totalCount: totalCount + docCount,
       hasMore,
     });
   });
@@ -1013,13 +1106,27 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     const q = (request.query.q || '').trim();
     if (!q) return reply.send({ files: [] });
     const owner = await ownerInfo(prisma, userId);
-    const [folders, files] = await Promise.all([
+    // QM-UIUX-079 — search covers documents too (title AND content), so a
+    // created document is findable the same way it is listable.
+    const [folders, files, documents] = await Promise.all([
       prisma.folder.findMany({
         where: { userId, isDeleted: false, name: { contains: q, mode: 'insensitive' } },
         take: 50,
       }),
       prisma.file.findMany({
         where: { userId, isDeleted: false, name: { contains: q, mode: 'insensitive' } },
+        take: 50,
+      }),
+      prisma.document.findMany({
+        where: {
+          userId,
+          isDeleted: false,
+          OR: [
+            { title: { contains: q, mode: 'insensitive' } },
+            { content: { contains: q, mode: 'insensitive' } },
+          ],
+        },
+        orderBy: { updatedAt: 'desc' },
         take: 50,
       }),
     ]);
@@ -1032,6 +1139,7 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       files: [
         ...folders.map((folder: FolderRow) => folderDto(folder, owner, decorations)),
         ...files.map((file: FileRow) => fileDto(file, owner, decorations)),
+        ...documents.map((doc: any) => documentDriveDto(doc, owner)),
       ],
     });
   });
@@ -2045,6 +2153,17 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
 
     const now = new Date();
 
+    // QM-UIUX-079 — document Drive ids (`doc:<id>`) soft-delete the Document
+    // row. Previously the doc editor's delete flow sent its document id here
+    // and it silently no-oped, so "deleted" documents lingered in listings.
+    const docIds = ids.filter(isDocumentDriveId).map(documentIdFromDriveId);
+    if (docIds.length > 0) {
+      await prisma.document.updateMany({
+        where: { id: { in: docIds }, userId, isDeleted: false },
+        data: { isDeleted: true },
+      });
+    }
+
     // 1. Batch-query matching folders in a single query to eliminate N+1 findFirst lookups
     const matchingFolders = await prisma.folder.findMany({
       where: { id: { in: ids }, userId, isDeleted: false },
@@ -2091,11 +2210,17 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
   fastify.get('/drive/trash', async (request, reply) => {
     const userId = requireUserId(request);
     const owner = await ownerInfo(prisma, userId);
-    const [files, folders] = await Promise.all([
+    // QM-UIUX-079 — trashed documents surface here too, so a document moved
+    // to Trash is restorable instead of vanishing from every surface.
+    const [files, folders, documents] = await Promise.all([
       prisma.file.findMany({ where: { userId, isDeleted: true }, orderBy: { deletedAt: 'desc' } }),
       prisma.folder.findMany({
         where: { userId, isDeleted: true },
         orderBy: { deletedAt: 'desc' },
+      }),
+      prisma.document.findMany({
+        where: { userId, isDeleted: true },
+        orderBy: { updatedAt: 'desc' },
       }),
     ]);
     const rootsF = files.filter((file: any) => file.trashRootId === file.id);
@@ -2107,12 +2232,23 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
           deletedAt: folder.deletedAt,
         })),
         ...rootsF.map((file: FileRow) => ({ ...fileDto(file, owner), deletedAt: file.deletedAt })),
+        ...documents.map((doc: any) => documentDriveDto(doc, owner)),
       ],
     });
   });
   fastify.post<{ Params: { id: string } }>('/drive/files/:id/restore', async (request, reply) => {
     const userId = requireUserId(request);
     const id = request.params.id;
+    // QM-UIUX-079 — restore a trashed document projection.
+    if (isDocumentDriveId(id)) {
+      const docId = documentIdFromDriveId(id);
+      const doc = await prisma.document.findFirst({
+        where: { id: docId, userId, isDeleted: true },
+      });
+      if (!doc) throw createAppError('Trash item not found', 404, 'NOT_FOUND');
+      await prisma.document.update({ where: { id: doc.id }, data: { isDeleted: false } });
+      return reply.send({ ok: true });
+    }
     const count = await Promise.all([
       prisma.file.count({ where: { userId, isDeleted: true, trashRootId: id } }),
       prisma.folder.count({ where: { userId, isDeleted: true, trashRootId: id } }),
@@ -2133,6 +2269,18 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
   fastify.delete<{ Params: { id: string } }>('/drive/files/:id/purge', async (request, reply) => {
     const userId = requireUserId(request);
     const id = request.params.id;
+    // QM-UIUX-079 — permanently delete a trashed document projection.
+    // Versions, collaborators and comments cascade per the prisma schema.
+    if (isDocumentDriveId(id)) {
+      const docId = documentIdFromDriveId(id);
+      const doc = await prisma.document.findFirst({
+        where: { id: docId, userId, isDeleted: true },
+        select: { id: true },
+      });
+      if (!doc) throw createAppError('Trash item not found', 404, 'NOT_FOUND');
+      await prisma.document.delete({ where: { id: doc.id } });
+      return reply.send({ ok: true, purged: 1 });
+    }
     requireStorage();
     const [files, folders] = await Promise.all([
       prisma.file.findMany({
@@ -2757,14 +2905,35 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       userId,
     )) as Array<{ count: number }>;
 
+    // QM-UIUX-079 — documents join the Recent view too, merged by recency
+    // (documents track no explicit open; recency is updatedAt). Cursor
+    // pagination stays file-keyed: documents ride along on every page and
+    // never shift the file cursor.
+    const documents = cursorTs
+      ? []
+      : await prisma.document.findMany({
+          where: { userId, isDeleted: false },
+          orderBy: { updatedAt: 'desc' },
+          take: limit + 1,
+        });
     const decorations = await loadDecorations(
       prisma,
       items.map((file) => file.id),
       [],
     );
+    const docItems = documents.map((doc: any) => documentDriveDto(doc, owner));
+    const merged = [
+      ...items.map((file) => fileDto(file, owner, decorations)),
+      ...docItems,
+    ].sort(
+      (a: any, b: any) =>
+        new Date(b.lastOpenedAt ?? b.modifiedAt).getTime() -
+        new Date(a.lastOpenedAt ?? a.modifiedAt).getTime(),
+    );
+
     return reply.send({
-      files: items.map((file) => fileDto(file, owner, decorations)),
-      totalCount: totalCount[0]?.count ?? items.length,
+      files: merged,
+      totalCount: (totalCount[0]?.count ?? items.length) + documents.length,
       nextCursor,
       hasMore,
     });
