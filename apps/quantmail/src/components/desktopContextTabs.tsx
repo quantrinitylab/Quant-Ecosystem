@@ -4,7 +4,7 @@
 // QuantMail — Desktop Context Tab Definitions (per-app sidebar navigation)
 // ============================================================================
 // Tab sets confirmed with the user 2026-10-07 (Gemini discussion applied):
-//   Mail: Inbox, Teams, Agents, Archive
+//   Mail: Inbox, Sent, Archive
 //   Calendar: Feed, Month, Week, Trackers, Schedule
 //   Drive: Home, Feed, AI Memory, Vault
 //   Contacts: Home, Favorites, Groups, Companies, AI Dedup
@@ -675,6 +675,20 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         icon: InboxIcon,
         targetPath: '/',
         queryParam: { key: 'lens', value: 'all' },
+      },
+      {
+        // QM-UIUX-082: the Sent folder was unreachable from this left nav —
+        // it listed only Inbox/Archive, so sent mail could not be browsed
+        // and the Sent copy of a compose-send could not be verified.
+        // `/sent` is the real delivery-trail page, backed by
+        // `useInbox({ folderType: 'SENT' })` → `GET /emails?folderType=SENT`
+        // (backend filters `isSent = true`). `resolveContextTab` already
+        // mapped `/sent` → 'sent'; the tab itself was never defined, and
+        // `SentIcon` sat unused.
+        id: 'sent',
+        label: 'Sent',
+        icon: SentIcon,
+        targetPath: '/sent',
       },
       {
         id: 'archive',

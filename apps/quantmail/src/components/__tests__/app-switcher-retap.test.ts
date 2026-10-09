@@ -111,7 +111,9 @@ describe('app-switcher re-tap refresh', () => {
   it('every bottom tab navigates to a real route (no fake tabs)', () => {
     for (const cfg of Object.values(PILLAR_SUB_CONFIGS)) {
       for (const tab of cfg.tabs) {
-        expect(tab.targetPath).toMatch(/^\/(archive|calendar|drive|contacts|quantgit(\/repositories)?)?$/);
+        // `/sent` added by QM-UIUX-082: it is a real route
+        // (src/app/sent/page.tsx, backed by `GET /emails?folderType=SENT`).
+        expect(tab.targetPath).toMatch(/^\/(archive|sent|calendar|drive|contacts|quantgit(\/repositories)?)?$/);
       }
     }
   });

@@ -21,7 +21,7 @@ import { PILLAR_ACCENTS } from './pillar-accents';
 // was removed as redundant.
 //
 // Tab sets below are the user-approved structure (2026-10-09):
-//   Mail: Inbox (/), Archive (/archive)
+//   Mail: Inbox (/), Sent (/sent), Archive (/archive)
 //   Calendar: Day, Week, Month (?tab=day|week|month — real view modes)
 //   Drive: My Drive, Recent, Starred (?tab=home|recent|starred)
 //   Contacts: All, Favorites (?tab=all|favorites)
@@ -734,6 +734,17 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         label: 'Inbox',
         icon: InboxIcon,
         targetPath: '/',
+      },
+      {
+        // QM-UIUX-082: Sent was missing from the mobile Mail tabs (only
+        // Inbox/Archive), mirroring the desktop left nav. `/sent` is the
+        // real page backed by `GET /emails?folderType=SENT` (`isSent`);
+        // `resolveActiveTab` already mapped `/sent` → 'sent' and
+        // `SentIcon` was defined but never used.
+        id: 'sent',
+        label: 'Sent',
+        icon: SentIcon,
+        targetPath: '/sent',
       },
       {
         id: 'archive',

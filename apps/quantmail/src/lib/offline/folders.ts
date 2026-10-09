@@ -65,6 +65,17 @@ export function belongsInFolder(email: Email, folderType: string | undefined): b
       // archiving a row briefly showed it in Spam with a "Not spam" rescue
       // button, contradicting the "archived" toast).
       return !isTrashed && email.isSpam === true;
+    case 'SENT':
+      // Sent is the server's `isSent` flag, not a folder: the backend's
+      // `GET /emails?folderType=SENT` filters `isSent = true, isTrash = false`
+      // (backend/routes/emails.ts). Falling through to `default` admitted
+      // every non-trashed message into the cached Sent list, so the /sent
+      // view's offline seed / error fallback (useInbox) and optimistic
+      // reconcile showed received mail as if it were sent — the same class
+      // of bug as the SPAM case above (QM-UIUX-082). `isSent` is a
+      // server-sent field the client `Email` type does not declare; read it
+      // the same way `lib/threading.ts` does.
+      return !isTrashed && (email as { isSent?: boolean }).isSent === true;
     case 'SNOOZED':
       return !isTrashed && Boolean(email.snoozedUntil);
     case 'INBOX':
