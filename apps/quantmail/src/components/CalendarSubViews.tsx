@@ -346,7 +346,7 @@ export function CalendarFeedSubView({
               onClick={() => onSelectDate(day.date)}
               className={`rounded-2xl border transition-all p-4 sm:p-5 ${
                 isSelected
-                  ? 'border-[var(--app-accent)]/50 bg-[var(--quant-surface)] shadow-[0_0_20px_color-mix(in srgb, var(--app-accent) 8%, transparent)]'
+                  ? 'border-[var(--app-accent)]/50 bg-[var(--quant-surface)] shadow-[0_0_20px_rgba(66,133,244,0.08)]'
                   : 'border-[#232938] bg-[var(--quant-surface)]/60 hover:bg-[var(--quant-surface)]'
               }`}
             >
