@@ -1014,24 +1014,27 @@ export function DockedComposer({
             <button
               type="button"
               onClick={() => applyFormatting('b')}
-              className="p-1.5 rounded text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
+              className="grid min-h-[44px] min-w-[44px] place-items-center rounded text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
               title="Bold"
+              aria-label="Bold"
             >
               <IconBold />
             </button>
             <button
               type="button"
               onClick={() => applyFormatting('i')}
-              className="p-1.5 rounded text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
+              className="grid min-h-[44px] min-w-[44px] place-items-center rounded text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
               title="Italic"
+              aria-label="Italic"
             >
               <IconItalic />
             </button>
             <button
               type="button"
               onClick={() => applyFormatting('u')}
-              className="p-1.5 rounded text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
+              className="grid min-h-[44px] min-w-[44px] place-items-center rounded text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
               title="Underline"
+              aria-label="Underline"
             >
               <IconUnderline />
             </button>
@@ -1039,8 +1042,9 @@ export function DockedComposer({
             <button
               type="button"
               onClick={() => applyFormatting('list')}
-              className="p-1.5 rounded text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
+              className="grid min-h-[44px] min-w-[44px] place-items-center rounded text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
               title="Bulleted list"
+              aria-label="Bulleted list"
             >
               <IconList />
             </button>

@@ -608,7 +608,7 @@ function EmailRow({
                 .join('') || 'GP'}
             </span>
           ) : (
-            <IdentityAvatar name={thread.participants[0] || 'You'} size="sm" />
+            <IdentityAvatar name={thread.participants[0] || 'me'} size="sm" />
           )}
         </span>
         <div className="mail-row-copy">
@@ -2919,7 +2919,7 @@ export default function InboxPage() {
           <header className="inbox-hero">
             <div>
               <p className="inbox-kicker">
-                <span /> QuantMail Intelligence
+                <span /> {debouncedQuery ? 'Mail / Search' : 'QuantMail Intelligence'}
               </p>
               <h1>{heroTitle}</h1>
               <p>{heroSummary}</p>

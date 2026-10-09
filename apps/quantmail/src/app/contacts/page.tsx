@@ -777,11 +777,19 @@ export default function ContactsPage() {
             />
           </div>
         ) : (
-          /* ================================================================ */
+          /* SIA-P2-10: SubviewTabNav is the single section nav for every
+             contacts view (All/Favorites/Companies/Dedup/Groups). The left
+             column's duplicate All/Favorites segmented pair and secondary
+             Companies/Dedup/Groups tabs were removed — one nav, not three. */
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="shrink-0 px-4 pt-4 sm:px-6 sm:pt-5 [&>nav]:mb-0">
+              <SubviewTabNav activeTab={activeTab} onTabChange={handleTabChange} />
+            </div>
+          {/* ================================================================ */}
           /* APPLE / GOOGLE CONTACTS SPLIT-PANE ERGONOMICS                    */
           /* Left Pane (360px sticky) + Right Pane (flex-1 full-bleed)        */
           /* ================================================================ */
-          <div className="flex-1 flex flex-row h-full overflow-hidden">
+          <div className="flex-1 flex flex-row min-h-0 overflow-hidden">
             {/* ------------------------------------------------------------ */}
             {/* LEFT PANE: 360px Width, Sticky Scrollable Contact List       */}
             {/* ------------------------------------------------------------ */}
@@ -825,37 +833,9 @@ export default function ContactsPage() {
                   )}
                 </div>
 
-                {/* Filter Tabs: All, Favorites, Add Group */}
-                <div className="flex items-center justify-between gap-1.5">
-                  <div className="flex items-center rounded-xl border border-[#232938] bg-[var(--quant-surface-elevated)] p-0.5 flex-1">
-                    <button
-                      type="button"
-                      onClick={() => handleTabChange('all')}
-                      className={`flex-1 flex items-center justify-center py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                        activeTab === 'all' && !selectedGroupId
-                          ? 'bg-[var(--app-accent)] text-black font-bold shadow-sm'
-                          : 'text-[var(--quant-muted-foreground)] hover:text-white'
-                      }`}
-                    >
-                      All{activeTab === 'all' && pagination ? ` (${pagination.total})` : ''}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleTabChange('favorites')}
-                      className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                        activeTab === 'favorites'
-                          ? 'bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] shadow-sm'
-                          : 'text-[var(--quant-muted-foreground)] hover:text-white'
-                      }`}
-                    >
-                      <svg className="size-3" viewBox="0 0 24 24" fill={activeTab === 'favorites' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
-                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                      </svg>
-                      <span>Favorites</span>
-                    </button>
-                  </div>
-
+                {/* SIA-P2-10: All/Favorites now live in SubviewTabNav (the single
+                    section nav above); only the Add Group action stays here. */}
+                <div className="flex items-center justify-end gap-1.5">
                   {/* Add Group Action */}
                   <button
                     type="button"
@@ -870,26 +850,10 @@ export default function ContactsPage() {
                   </button>
                 </div>
 
-                {/* AUD-P0-N2: Secondary tabs — real entry points to the
-                    Companies/Dedup/Groups sub-views (previously reachable only
-                    by hand-typed ?tab= URLs). */}
-                <div className="flex items-center gap-1.5">
-                  {(['companies', 'dedup', 'groups'] as const).map((tab) => (
-                    <button
-                      key={tab}
-                      type="button"
-                      onClick={() => handleTabChange(tab)}
-                      aria-current={activeTab === tab ? 'page' : undefined}
-                      className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-semibold capitalize transition-all ${
-                        activeTab === tab
-                          ? 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] border border-[var(--quant-primary)]/40 shadow-sm'
-                          : 'text-[var(--quant-muted-foreground)] hover:text-white border border-transparent'
-                      }`}
-                    >
-                      {tab}
-                    </button>
-                  ))}
-                </div>
+
+                {/* SIA-P2-10: the old secondary Companies/Dedup/Groups tabs row
+                    lived here and duplicated SubviewTabNav (one section nav
+                    for every contacts view now renders above the content). */}
 
                 {/* Group Filter Chips (if any exist) */}
                 {contactGroups.length > 0 && (
@@ -955,7 +919,7 @@ export default function ContactsPage() {
                       className="px-2 py-1 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-[11px] text-[var(--quant-muted-foreground)] hover:text-[var(--app-accent)] transition-colors"
                       title="Merge duplicates"
                     >
-                      Dedupe
+                      Dedup
                     </button>
                   </div>
 
@@ -1151,6 +1115,7 @@ export default function ContactsPage() {
                 onScheduleMeeting={(email) => router.push(`/calendar?attendee=${encodeURIComponent(email)}`)}
               />
             </div>
+          </div>
           </div>
         )}
 

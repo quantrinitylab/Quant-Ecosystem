@@ -450,7 +450,7 @@ const MAX_NAMED_PARTICIPANTS = 3;
  * rendered as a generic placeholder.
  */
 export function summarizeParticipants(participants: string[]): string {
-  if (participants.length === 0) return 'You';
+  if (participants.length === 0) return 'me';
   if (participants.length <= MAX_NAMED_PARTICIPANTS) return participants.join(', ');
   return `${participants.slice(0, MAX_NAMED_PARTICIPANTS).join(', ')} +${
     participants.length - MAX_NAMED_PARTICIPANTS

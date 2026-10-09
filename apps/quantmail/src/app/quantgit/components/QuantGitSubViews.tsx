@@ -369,8 +369,8 @@ export function QuantGitReposSubView({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Sovereign Repositories</h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30">
-                  {filtered.length} ACTIVE
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30 whitespace-nowrap">
+                  {filtered.length}{' '}ACTIVE
                 </span>
               </div>
               <p className="text-xs text-[#8B949E] mt-0.5">
@@ -444,15 +444,8 @@ export function QuantGitReposSubView({
                 Create a new repository or import one from GitHub to get started. Your real
                 repositories will appear here.
               </p>
-              {onNewRepo && (
-                <button
-                  type="button"
-                  onClick={onNewRepo}
-                  className="mt-5 px-4 py-2 rounded-xl bg-[#A78BFA] hover:bg-[#906FFA] text-black font-bold text-xs shadow-lg shadow-[#A78BFA]/20 transition-all"
-                >
-                  + New Repository
-                </button>
-              )}
+              {/* SIA-P1-7: exactly one "+ New Repository" CTA per screen — the
+                  header banner carries it, so the empty state must not repeat it. */}
             </div>
           </div>
         ) : (

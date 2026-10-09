@@ -307,12 +307,12 @@ export function CalendarFeedSubView({
       {/* Feed Filters Strip */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#232938] pb-4">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--quant-warning)]">
+          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--app-accent)]">
             Chronological Feed
           </span>
           <span className="text-xs text-[var(--quant-muted-foreground)]">·</span>
           <span className="text-xs text-[var(--quant-muted-foreground)]">
-            {feedDays.length} active date groups
+            {feedDays.length}{' '}active date groups
           </span>
         </div>
 
@@ -325,7 +325,7 @@ export function CalendarFeedSubView({
               onClick={() => setFilterType(mode)}
               className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
                 filterType === mode
-                  ? 'bg-[var(--quant-warning)] text-black font-semibold shadow-sm'
+                  ? 'bg-[var(--app-accent)] text-black font-semibold shadow-sm'
                   : 'bg-[var(--quant-surface)] text-[var(--quant-muted-foreground)] hover:text-white border border-[#232938]'
               }`}
             >
@@ -346,7 +346,7 @@ export function CalendarFeedSubView({
               onClick={() => onSelectDate(day.date)}
               className={`rounded-2xl border transition-all p-4 sm:p-5 ${
                 isSelected
-                  ? 'border-[var(--quant-warning)]/50 bg-[var(--quant-surface)] shadow-[0_0_20px_rgba(245,158,11,0.08)]'
+                  ? 'border-[var(--app-accent)]/50 bg-[var(--quant-surface)] shadow-[0_0_20px_color-mix(in_srgb,var(--app-accent)_8%,transparent)]'
                   : 'border-[#232938] bg-[var(--quant-surface)]/60 hover:bg-[var(--quant-surface)]'
               }`}
             >
@@ -356,7 +356,7 @@ export function CalendarFeedSubView({
                   <div
                     className={`size-9 rounded-xl grid place-items-center text-sm font-bold ${
                       day.isToday
-                        ? 'bg-[var(--quant-warning)] text-black shadow-sm'
+                        ? 'bg-[var(--app-accent)] text-black shadow-sm'
                         : 'bg-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] border border-[#232938]'
                     }`}
                   >
@@ -379,9 +379,9 @@ export function CalendarFeedSubView({
                     e.stopPropagation();
                     openDedicatedSheet('event', day.date);
                   }}
-                  className="px-2.5 py-1 rounded-lg text-xs font-medium text-[var(--quant-warning)] bg-[var(--quant-warning)]/10 hover:bg-[var(--quant-warning)]/20 border border-[var(--quant-warning)]/30 flex items-center gap-1 transition-colors"
+                  className="min-h-[44px] min-w-[44px] justify-center px-2.5 py-1 rounded-lg text-xs font-medium text-[var(--app-accent)] bg-[var(--app-accent)]/10 hover:bg-[var(--app-accent)]/20 border border-[var(--app-accent)]/30 flex items-center gap-1 transition-colors"
                 >
-                  <SvgPlus className="size-3 text-[var(--quant-warning)]" />
+                  <SvgPlus className="size-3 text-[var(--app-accent)]" />
                   <span>Add</span>
                 </button>
               </div>
@@ -1169,7 +1169,7 @@ export function CalendarTrackersSubView({
         <button
           type="button"
           onClick={() => setIsAddTrackerOpen(true)}
-          className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-black bg-[var(--quant-warning)] hover:bg-[#D97706] shadow-sm flex items-center gap-1.5 transition-all"
+          className="min-h-[44px] px-3.5 py-1.5 rounded-lg text-xs font-semibold text-black bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] shadow-sm flex items-center gap-1.5 transition-all"
         >
           <SvgPlus className="size-3.5 text-black" />
           <span>+ Add Tracker</span>
@@ -1869,7 +1869,7 @@ export function CalendarScheduleSubView({
                   <button
                     type="button"
                     onClick={() => openDedicatedSheet?.('event', selectedDate)}
-                    className="text-[11px] font-medium text-[var(--quant-warning)] hover:underline px-2"
+                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center text-[11px] font-medium text-[var(--app-accent)] hover:underline px-3"
                   >
                     + Add
                   </button>
@@ -1885,7 +1885,7 @@ export function CalendarScheduleSubView({
         <div className="space-y-6">
           {/* Quick Add Card */}
           <div className="bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--quant-warning)]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--app-accent)]">
               Add New Scheduled Reminder
             </h3>
 

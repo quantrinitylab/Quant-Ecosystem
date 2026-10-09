@@ -686,7 +686,7 @@ export function ConversationalThreadView({
    *
    * `threadParticipants` is the inbox row's own answer, so the title of the page
    * now matches the row that opened it by construction. It returns `[]` for a
-   * genuine note-to-self, and `summarizeParticipants` renders that as `You` — the
+   * genuine note-to-self, and `summarizeParticipants` renders that as `me` — the
    * one case where your own name is the right title.
    */
   const participantSummary = useMemo(

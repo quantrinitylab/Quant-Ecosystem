@@ -173,6 +173,10 @@ export default function TrashPage() {
       <div className="workspace-page trash-workspace flex flex-col h-full">
         <div className="flex items-center justify-between p-4 border-b border-[var(--quant-border)]">
           <div>
+            {/* SIA-P2-12: the context kicker names the folder — TRASH. */}
+            <p className="inbox-kicker" style={{ marginBottom: '0.35rem' }}>
+              <span /> Trash
+            </p>
             <h1 className="text-lg font-semibold">Trash</h1>
             <p className="text-xs text-[var(--quant-muted-foreground)]">
               Messages here will be permanently deleted after 30 days
