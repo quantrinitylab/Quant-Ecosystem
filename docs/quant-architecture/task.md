@@ -1388,7 +1388,7 @@ Scope: Contacts views.
 Dependencies: none.
 
 ## QM-UIUX-062 — Contacts: "Enterprise Circles" hardcoded
-Status: [~] IN_PROGRESS
+Status: [x] DONE (superseded by QM-UIUX-026 / PR #675 — verified on main 2026-10-09)
 Owner: muse-main
 Branch: fix/qm-uiux-062-contacts-fake-circles
 Finding: `CirclesSubView` renders 3 fake circles with hardcoded counts (4/8/3) and fake member names ('Core 1', 'Core 2', 'Astra AI'); broadcast falls back to fake exec_board@quantrinity.in. Shown when user has no real groups. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/contacts-audit.md`.
