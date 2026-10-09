@@ -1986,7 +1986,7 @@ Dependencies: none.
 Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 2: M-P1-1); screenshot f1de02f0.
 
 ## QM-UIUX-082 — P1: No Sent folder in navigation
-Status: [~] IN_PROGRESS
+Status: [x] DONE — PR #730 merged (real Sent folder)
 Owner: muse-main
 Branch: fix/qm-uiux-082-sent-folder-nav (nav, merged PR #730) → fix/paud-p1-082-sent-folder (part 2: real sent-data wiring, send-flow invalidation, honest counts)
 Finding: Personal deep audit 2026-10-09: left nav has only Inbox/Archive — there is no Sent folder, so sent mail cannot be browsed and the Sent copy of the compose-send flow cannot be verified by the user.
