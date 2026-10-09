@@ -167,14 +167,12 @@ describe('Mobile Shell Overhaul — Worker A', () => {
       expect(html).toContain('aria-label="QuantDrive"');
       expect(html).toContain('aria-label="QuantContacts"');
       expect(html).toContain('aria-label="QuantGit"');
-      // …Calendar now paints the Apple-style SVG mark instead of canvas. Its
-      // accessible name carries the current localized date for screen readers…
+      // …Calendar now paints the dynamic 3D canvas mark. Its accessible name
+      // carries the current localized date for screen readers…
       expect(html).toContain('aria-label="QuantCalendar —');
-      expect(html).toContain('qcal-bg');
-      // …and the four canvas-painted tiles keep their canvas marks (mail's
-      // decorative mark too).
+      // …and all five tiles keep their canvas marks (mail's decorative mark too).
       const canvasCount = (html.match(/<canvas/g) || []).length;
-      expect(canvasCount).toBeGreaterThanOrEqual(4);
+      expect(canvasCount).toBeGreaterThanOrEqual(5);
 
       // The old generic mail glyph is gone from the tiles.
       expect(html).not.toContain('m22 7-8.97 5.7');

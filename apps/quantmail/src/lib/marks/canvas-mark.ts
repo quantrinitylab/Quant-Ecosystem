@@ -665,3 +665,236 @@ export function paintGlossSweep(
  */
 export const markFont = (weight: number, px: number): string =>
   `${weight} ${px}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`;
+
+/* ============================================================================
+ * QuantCalendar mark — dynamic 3D calendar icon.
+ *
+ * Painted in the same 100-unit canvas space as the rest of the family, using
+ * the shared primitives above (squircle path, side wall, gloss sweep, markFont).
+ * The artwork is fully date-driven: `art` carries the authoritative calendar
+ * date (see `lib/calendar-logo-date.ts`) and every label is painted from it —
+ * nothing here is hardcoded.
+ *
+ * Visual direction (per the approved reference): deep blue / cobalt identity on
+ * near-black glass — a dark rounded frame, layered paper sheets with real
+ * thickness, two metallic binding rings, a blue header with month + year, and
+ * a white face with the weekday above a prominent date numeral.
+ * ========================================================================== */
+
+export interface CalendarMarkArt {
+  /** Uppercase month + year for the blue header, e.g. "OCT 2026". */
+  monthYear: string;
+  /** Uppercase short weekday, e.g. "FRI". */
+  weekday: string;
+  /** Day of month, 1-31. */
+  day: number;
+}
+
+export interface CalendarMarkFx {
+  /** Monotonic seconds, for the barely-there idle sheen. */
+  time: number;
+  /** Damped pointer tilt, ±0.8 — shifts highlights, never the layout. */
+  tiltX: number;
+  tiltY: number;
+  /** Eased 0→1 hover weight. */
+  hover: number;
+  /** 0→1 mount intro. 1 when settled (or when reduced motion skips it). */
+  intro: number;
+}
+
+/** Cobalt header ramp — deep blue identity, readable white text on top. */
+const CAL_HEADER_STOPS: Array<[number, string]> = [
+  [0, '#2E6BF2'],
+  [0.55, '#1D4FD0'],
+  [1, '#12348F'],
+];
+
+function paintCalendarShadow(ctx: CanvasRenderingContext2D, cx: number): void {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+  ctx.filter = 'blur(6px)';
+  ctx.beginPath();
+  ctx.ellipse(cx, 90, 30, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function paintCalendarFrame(
+  ctx: CanvasRenderingContext2D,
+  fx: CalendarMarkFx,
+): void {
+  // Side wall gives the glass frame its thickness.
+  paintSideWall(
+    ctx,
+    (c) => markSquirclePath(c, 50, 52, 82, 82, 20),
+    3,
+    '#0A0F1E',
+    '#02040A',
+    12,
+    92,
+  );
+  const g = ctx.createLinearGradient(9, 11, 91, 93);
+  g.addColorStop(0, '#141B31');
+  g.addColorStop(0.5, '#0A0E1D');
+  g.addColorStop(1, '#04060C');
+  ctx.fillStyle = g;
+  markSquirclePath(ctx, 50, 52, 82, 82, 20);
+  ctx.fill();
+  // Rim light along the top edge — the glass edge catching light.
+  const rim = ctx.createLinearGradient(0, 11, 0, 26);
+  rim.addColorStop(0, `rgba(140, 170, 255, ${0.28 + fx.hover * 0.12})`);
+  rim.addColorStop(1, 'rgba(140, 170, 255, 0)');
+  ctx.fillStyle = rim;
+  markSquirclePath(ctx, 50, 52, 82, 82, 20);
+  ctx.fill();
+}
+
+/** Two paper sheets peeking from behind the face — the page-block thickness. */
+function paintCalendarSheets(ctx: CanvasRenderingContext2D): void {
+  const sheets: Array<[number, string]> = [
+    [3.2, '#C9D2E4'],
+    [1.6, '#E2E8F4'],
+  ];
+  for (const [dy, color] of sheets) {
+    ctx.fillStyle = color;
+    roundRectPath(ctx, 18, 22 + dy, 64, 62, 12);
+    ctx.fill();
+  }
+}
+
+function paintCalendarFace(ctx: CanvasRenderingContext2D): void {
+  const g = ctx.createLinearGradient(0, 20, 0, 86);
+  g.addColorStop(0, '#FFFFFF');
+  g.addColorStop(0.75, '#F4F7FC');
+  g.addColorStop(1, '#E6EBF5');
+  ctx.fillStyle = g;
+  roundRectPath(ctx, 18, 20, 64, 64, 12);
+  ctx.fill();
+}
+
+function paintCalendarHeader(ctx: CanvasRenderingContext2D, art: CalendarMarkArt): void {
+  ctx.save();
+  roundRectPath(ctx, 18, 20, 64, 64, 12);
+  ctx.clip();
+  const g = ctx.createLinearGradient(0, 20, 0, 48);
+  for (const [stop, color] of CAL_HEADER_STOPS) g.addColorStop(stop, color);
+  ctx.fillStyle = g;
+  ctx.fillRect(18, 20, 64, 28);
+  // Header bottom edge — a hairline shadow so the face reads as separate.
+  const edge = ctx.createLinearGradient(0, 46, 0, 50);
+  edge.addColorStop(0, 'rgba(6, 18, 54, 0)');
+  edge.addColorStop(1, 'rgba(6, 18, 54, 0.35)');
+  ctx.fillStyle = edge;
+  ctx.fillRect(18, 46, 64, 4);
+  // Month + year, white, letterspaced.
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = markFont(600, 10.5);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(art.monthYear, 50, 34.5);
+  ctx.restore();
+}
+
+/** Two metallic binding rings punched through the header. */
+function paintCalendarRings(ctx: CanvasRenderingContext2D, fx: CalendarMarkFx): void {
+  for (const rx of [36, 64]) {
+    // Soft shadow the ring casts on the header.
+    ctx.save();
+    ctx.fillStyle = 'rgba(4, 10, 28, 0.35)';
+    ctx.filter = 'blur(2px)';
+    roundRectPath(ctx, rx - 3.4, 14, 6.8, 18, 3.4);
+    ctx.fill();
+    ctx.restore();
+    // The ring itself: vertical capsule, steel gradient, hot left edge.
+    const g = ctx.createLinearGradient(rx - 3.4, 0, rx + 3.4, 0);
+    g.addColorStop(0, '#8E9BB3');
+    g.addColorStop(0.35, '#F4F7FC');
+    g.addColorStop(0.62, '#C6D0E4');
+    g.addColorStop(1, '#7C89A6');
+    ctx.fillStyle = g;
+    roundRectPath(ctx, rx - 3.4, 12 + fx.tiltY * 0.6, 6.8, 18, 3.4);
+    ctx.fill();
+    // Punch-hole: dark ring where it meets the header.
+    ctx.fillStyle = '#0A1430';
+    ctx.beginPath();
+    ctx.ellipse(rx, 29, 4.6, 2.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1B2A52';
+    ctx.beginPath();
+    ctx.ellipse(rx, 28.4, 3.4, 1.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function paintCalendarDate(ctx: CanvasRenderingContext2D, art: CalendarMarkArt): void {
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  // Weekday — compact, slate, tracked out.
+  ctx.fillStyle = '#64748F';
+  ctx.font = markFont(600, 8);
+  try {
+    (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = '1.5px';
+  } catch {
+    /* older canvas: tracking unsupported, still legible */
+  }
+  ctx.fillText(art.weekday, 50, 58);
+  try {
+    (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = '0px';
+  } catch {
+    /* noop */
+  }
+  // Date numeral — the hero. Dark navy, heavy weight.
+  ctx.fillStyle = '#0E1A36';
+  ctx.font = markFont(800, 30);
+  ctx.fillText(String(art.day), 50, 74);
+}
+
+/**
+ * The full mark. `intro` eases 0→1 on mount (fade + settle); under
+ * `prefers-reduced-motion` the caller passes 1 immediately and paints once.
+ */
+export function paintCalendarMark(
+  ctx: CanvasRenderingContext2D,
+  art: CalendarMarkArt,
+  fx: CalendarMarkFx,
+): void {
+  const cx = 50;
+  const cy = 52;
+  ctx.save();
+  ctx.clearRect(0, 0, 100, 100);
+  // Intro: fade in and settle from 94%.
+  const s = 0.94 + 0.06 * fx.intro;
+  ctx.globalAlpha = fx.intro;
+  ctx.translate(cx, cy);
+  ctx.scale(s, s);
+  ctx.translate(-cx, -cy);
+
+  paintCalendarShadow(ctx, cx);
+  paintCalendarFrame(ctx, fx);
+  paintCalendarSheets(ctx);
+  paintCalendarFace(ctx);
+  paintCalendarHeader(ctx, art);
+  paintCalendarRings(ctx, fx);
+  paintCalendarDate(ctx, art);
+
+  // Idle: a barely-there gloss drift, frozen when reduced motion is on.
+  ctx.save();
+  roundRectPath(ctx, 18, 20, 64, 64, 12);
+  ctx.clip();
+  const sweep = 0.32 + Math.sin(fx.time * 0.5) * 0.06 + fx.tiltX * 0.12 + fx.hover * 0.18;
+  paintGlossSweep(ctx, 18, 20, 64, 64, sweep, 0.1);
+  ctx.restore();
+
+  // Bezel: hairline light edge so the mark lifts off dark UI.
+  ctx.save();
+  ctx.lineWidth = 1;
+  const bez = ctx.createLinearGradient(9, 11, 91, 93);
+  bez.addColorStop(0, 'rgba(170, 195, 245, 0.35)');
+  bez.addColorStop(0.5, 'rgba(170, 195, 245, 0.10)');
+  bez.addColorStop(1, 'rgba(170, 195, 245, 0.22)');
+  ctx.strokeStyle = bez;
+  markSquirclePath(ctx, 50, 52, 82, 82, 20);
+  ctx.stroke();
+  ctx.restore();
+  ctx.restore();
+}
