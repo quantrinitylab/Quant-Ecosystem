@@ -1234,6 +1234,78 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     expect(prisma.branch.delete).not.toHaveBeenCalled();
   });
 
+  it('DELETE /repos/:id/branches/:branch refuses to delete a branch flagged isProtected with 403 BRANCH_PROTECTED', async () => {
+    const app = await buildApp();
+    prisma.branch.findUnique.mockResolvedValueOnce({
+      id: 'branch-2',
+      repoId: 'repo-1',
+      name: 'release',
+      commitSha: '2222222222222222222222222222222222222222',
+      isProtected: true,
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-09-01T00:00:00.000Z'),
+    } as never);
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/repos/repo-1/branches/release',
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'BRANCH_PROTECTED',
+        }),
+      }),
+    );
+    expect(prisma.branch.delete).not.toHaveBeenCalled();
+  });
+
+  it('DELETE /repos/:id/branches/:branch refuses to delete a branch matched by a protection rule with 403 BRANCH_PROTECTED', async () => {
+    const app = await buildApp();
+    prisma.branchProtection.findMany.mockResolvedValueOnce([
+      { ...MOCK_BRANCH_PROTECTION, id: 'bp-2', branchPattern: 'feat-*' },
+    ]);
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/repos/repo-1/branches/feat-old',
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'BRANCH_PROTECTED',
+        }),
+      }),
+    );
+    expect(prisma.branch.delete).not.toHaveBeenCalled();
+  });
+
+  it('DELETE /repos/:id/branches/:branch rejects a caller without write permission with 403', async () => {
+    const app = await buildApp('user-9');
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/repos/repo-1/branches/feat-old',
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'FORBIDDEN',
+        }),
+      }),
+    );
+    expect(prisma.branch.delete).not.toHaveBeenCalled();
+  });
+
   it('DELETE /repos/:id/branches/:branch returns 404 for an unknown branch (AUD-P0-G3)', async () => {
     const app = await buildApp();
     prisma.branch.findUnique.mockResolvedValueOnce(null as never);
