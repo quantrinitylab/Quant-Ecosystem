@@ -39,7 +39,13 @@ const EMAIL_FORBID_TAGS = [
   'slot',
 ] as const;
 
-/** Attributes that turn a passive body into a request the reader did not make. */
+/**
+ * Attributes that turn a passive body into a request the reader did not make.
+ * `class` is here for a different reason (QM-UIUX-043): the body renders inside
+ * the app DOM, so a sender's classes resolve against the app shell's own
+ * utility stylesheet — `class="bg-white text-black"` would repaint the message
+ * (or, with layout utilities, the shell around it) in the sender's styling.
+ */
 const EMAIL_FORBID_ATTR = [
   'srcdoc',
   'formaction',
@@ -48,6 +54,7 @@ const EMAIL_FORBID_ATTR = [
   'ping',
   'autofocus',
   'srcset',
+  'class',
 ] as const;
 
 /**
