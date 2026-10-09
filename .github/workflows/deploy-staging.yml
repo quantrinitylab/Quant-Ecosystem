@@ -438,14 +438,24 @@ jobs:
                   # NOTE: this block is generated through an unquoted bash heredoc
                   # (<<EOF), so the inner $ must be escaped as \$ to survive until
                   # the Job's shell runs.
+                  # 2026-10-09 ci-green-captain fix: --schema MUST come AFTER the
+                  # migrate subcommand. Prisma 6.19.3 rejects a global --schema
+                  # placed before the subcommand ('unknown or unexpected option:
+                  # --schema', exit 1) — the first repair shipped it inside
+                  # PRISMA_BIN (before 'migrate'), so BOTH resolve and deploy
+                  # died at CLI parse time, resolve's failure was masked by the
+                  # '|| echo' below, and deploy run 37860492104 failed with the
+                  # same 300s kubectl-wait signature as the original P3009.
+                  # Verified locally against prisma 6.19.3: flag-after parses
+                  # and reaches the database; flag-before does not.
                   command:
                   - sh
                   - -c
                   - |
                     set -eu
-                    PRISMA_BIN="node packages/database/node_modules/prisma/build/index.js --schema=packages/database/prisma/schema.prisma"
-                    \$PRISMA_BIN migrate resolve --rolled-back '0087_drive_share_link_scope_audience' || echo 'resolve skipped: 0087 not in failed state'
-                    \$PRISMA_BIN migrate deploy
+                    PRISMA_BIN="node packages/database/node_modules/prisma/build/index.js"
+                    \$PRISMA_BIN migrate resolve --rolled-back '0087_drive_share_link_scope_audience' --schema=packages/database/prisma/schema.prisma || echo 'resolve skipped: 0087 not in failed state'
+                    \$PRISMA_BIN migrate deploy --schema=packages/database/prisma/schema.prisma
                   env:
                   - name: DATABASE_URL
                     valueFrom:
