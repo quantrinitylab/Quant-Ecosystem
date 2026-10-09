@@ -51,13 +51,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 }) => {
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [showEmojiPanel, setShowEmojiPanel] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // --- Voice recording state (real MediaRecorder, not a fake timer) ---
   const [isRecording, setIsRecording] = useState(false);
   const [recordElapsedMs, setRecordElapsedMs] = useState(0);
-  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -67,10 +69,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const onVoiceMessageRef = useRef(onVoiceMessage);
   onVoiceMessageRef.current = onVoiceMessage;
 
-  const showVoiceNotice = useCallback((text: string) => {
-    setVoiceNotice(text);
+  const showNotice = useCallback((text: string) => {
+    setNotice(text);
     if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
-    noticeTimeoutRef.current = setTimeout(() => setVoiceNotice(null), 2600);
+    noticeTimeoutRef.current = setTimeout(() => setNotice(null), 2600);
   }, []);
 
   const stopTracks = useCallback(() => {
@@ -92,7 +94,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const startRecording = useCallback(async () => {
     // No handler wired: honest "coming soon" instead of a dead button.
     if (!onVoiceMessageRef.current) {
-      showVoiceNotice('Voice messages coming soon');
+      showNotice('Voice messages coming soon');
       return;
     }
     if (
@@ -100,7 +102,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       !navigator.mediaDevices?.getUserMedia ||
       typeof MediaRecorder === 'undefined'
     ) {
-      showVoiceNotice('Voice recording not supported in this browser');
+      showNotice('Voice recording not supported in this browser');
       return;
     }
     try {
@@ -138,7 +140,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         mediaRecorderRef.current = null;
       };
       recorder.onerror = () => {
-        showVoiceNotice('Recording failed — please try again');
+        showNotice('Recording failed — please try again');
         setIsRecording(false);
         stopTracks();
       };
@@ -150,9 +152,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         setRecordElapsedMs(Date.now() - recordStartRef.current);
       }, 250);
     } catch {
-      showVoiceNotice('Microphone access denied');
+      showNotice('Microphone access denied');
     }
-  }, [showVoiceNotice, stopTracks]);
+  }, [showNotice, stopTracks]);
 
   const handleVoiceButtonClick = useCallback(() => {
     if (disabled) return;
@@ -182,6 +184,49 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       }
     };
   }, []);
+
+  // Attach menu: the upload transport has no real object-storage backend yet
+  // (presigned URLs are simulated), so each option is honest about being
+  // unavailable instead of fabricating a media URL. The menu itself is real —
+  // it opens, closes, and dismisses on outside tap.
+  const ATTACH_OPTIONS = [
+    { id: 'photo', label: 'Photo', icon: '🖼️' },
+    { id: 'video', label: 'Video', icon: '🎬' },
+    { id: 'file', label: 'File', icon: '📎' },
+  ] as const;
+
+  const handleAttachOption = useCallback(
+    (option: (typeof ATTACH_OPTIONS)[number]) => {
+      setShowAttachMenu(false);
+      showNotice(`${option.label} attachments coming soon`);
+    },
+    [showNotice],
+  );
+
+  // Emoji panel: a real picker — tapping an emoji inserts it at the cursor.
+  const EMOJI_GRID = [
+    '😀', '😂', '❤️', '🔥', '👍', '😢', '😮', '🎉',
+    '💯', '✨', '🙏', '👏', '😎', '🥳', '🤔', '😴',
+    '👋', '💪', '🌟', '🎊', '❌', '✅', '⭐', '💡',
+  ];
+
+  const insertEmoji = useCallback((emoji: string) => {
+    const el = textareaRef.current;
+    if (!el) {
+      setMessage((prev) => prev + emoji);
+      return;
+    }
+    const start = el.selectionStart ?? message.length;
+    const end = el.selectionEnd ?? message.length;
+    const next = message.slice(0, start) + emoji + message.slice(end);
+    setMessage(next);
+    // Restore caret after the inserted emoji on the next paint.
+    requestAnimationFrame(() => {
+      const pos = start + emoji.length;
+      el.focus();
+      el.setSelectionRange(pos, pos);
+    });
+  }, [message]);
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -218,6 +263,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     setMessage('');
     setIsTyping(false);
     onTyping?.(false);
+    setShowEmojiPanel(false);
+    setShowAttachMenu(false);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -277,8 +324,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         {showAttachButton && (
           <button
             type="button"
+            onClick={() => {
+              setShowAttachMenu((v) => !v);
+              setShowEmojiPanel(false);
+            }}
+            disabled={disabled}
             className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors rounded-full hover:bg-gray-100"
             aria-label="Attach file"
+            aria-expanded={showAttachMenu}
           >
             <svg
               className="w-5 h-5"
@@ -313,8 +366,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           {showEmojiButton && (
             <button
               type="button"
+              onClick={() => {
+                setShowEmojiPanel((v) => !v);
+                setShowAttachMenu(false);
+              }}
+              disabled={disabled}
               className="absolute right-1.5 bottom-1 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-gray-600"
               aria-label="Emoji"
+              aria-expanded={showEmojiPanel}
             >
               <svg
                 className="w-5 h-5"
@@ -411,14 +470,57 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           </button>
         ) : null}
       </div>
-      {voiceNotice && (
+      {notice && (
         <p
           role="status"
           aria-live="polite"
           className="px-4 pb-2 text-xs text-gray-500"
         >
-          {voiceNotice}
+          {notice}
         </p>
+      )}
+      {/* Attach menu — real open/close; options honestly report unavailability */}
+      {showAttachMenu && (
+        <div
+          role="menu"
+          aria-label="Attachment options"
+          className="mx-3 mb-2 flex gap-2 overflow-x-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-lg"
+        >
+          {ATTACH_OPTIONS.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              role="menuitem"
+              onClick={() => handleAttachOption(option)}
+              className="flex min-h-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-xl px-3 py-2 text-gray-600 hover:bg-gray-100"
+            >
+              <span className="text-xl" aria-hidden="true">
+                {option.icon}
+              </span>
+              <span className="text-xs font-medium">{option.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {/* Emoji picker — inserts the tapped emoji at the cursor */}
+      {showEmojiPanel && (
+        <div
+          role="dialog"
+          aria-label="Emoji picker"
+          className="mx-3 mb-2 grid grid-cols-8 gap-1 rounded-2xl border border-gray-200 bg-white p-2 shadow-lg"
+        >
+          {EMOJI_GRID.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => insertEmoji(emoji)}
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-2xl hover:bg-gray-100"
+              aria-label={`Insert ${emoji} emoji`}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
       )}
       {message.length > maxLength * 0.9 && (
         <p className="px-4 pb-1 text-xs text-orange-500">

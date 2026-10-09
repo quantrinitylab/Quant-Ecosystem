@@ -23,8 +23,12 @@ import { DisappearingTimerPicker } from '../../../components/chat/DisappearingTi
 import DisappearingTimer from '../../../components/DisappearingTimer';
 import { formatTimerLabel } from '../../../lib/disappearing-timers';
 import type { SendMessageRequest } from '../../../types';
-
-type DeliveryStatus = 'sent' | 'delivered' | 'read';
+import {
+  formatMessageTime,
+  toDeliveryStatus,
+  resolveMessageSender,
+  type DeliveryStatus,
+} from '../../../lib/message-format';
 
 interface EnhancedMessage {
   id: string;
@@ -216,6 +220,17 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
 
   const lastMarkedRef = useRef<string | null>(null);
 
+  // Resolve whether a message is ours. The backend returns raw Prisma records
+  // with `senderId` (and `createdAt`) — there is no `sender: 'self' | 'other'`
+  // field. Comparing against the authenticated user's id is the only real
+  // signal; guessing from list position would fabricate alignment and ticks.
+  const myUserId = me?.id ?? null;
+  const resolveSender = useCallback(
+    (msg: { senderId?: string; userId?: string; sender?: string }): 'self' | 'other' =>
+      resolveMessageSender(msg, myUserId),
+    [myUserId],
+  );
+
   const messages: EnhancedMessage[] = useMemo(() => {
     // Defensive: data must be an array — a paginated envelope or any other
     // non-array shape here used to crash the page with
@@ -232,8 +247,14 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           message?: string;
           content?: string;
           sender?: string;
+          senderId?: string;
+          userId?: string;
           role?: string;
           timestamp?: string;
+          // createdAt arrives as a Date on typed Message records and as a
+          // string on raw JSON wire payloads — accept both.
+          createdAt?: string | Date;
+          status?: string;
           type?: string;
           imageUrl?: string;
           mediaUrl?: string;
@@ -257,9 +278,11 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           return {
             id: msg.id,
             content,
-            sender: (msg.sender ?? msg.role ?? 'other') as string,
-            timestamp: msg.timestamp ?? '',
-            status: (statusByMessageId[msg.id] ?? 'sent') as DeliveryStatus,
+            // Backend records carry senderId + createdAt (Prisma), not the
+            // legacy sender/timestamp fields the old mapping read.
+            sender: resolveSender(msg),
+            timestamp: formatMessageTime(msg.createdAt ?? msg.timestamp),
+            status: (statusByMessageId[msg.id] ?? toDeliveryStatus(msg.status)) as DeliveryStatus,
             reactions: reactions[msg.id] || [],
             replyTo: null,
             imageUrl: msg.imageUrl,
@@ -282,9 +305,9 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         return {
           id: msg.id,
           content: msg.content,
-          sender: msg.sender,
-          timestamp: msg.timestamp,
-          status: (statusByMessageId[msg.id] ?? 'sent') as DeliveryStatus,
+          sender: resolveSender(msg),
+          timestamp: formatMessageTime(msg.createdAt ?? msg.timestamp),
+          status: (statusByMessageId[msg.id] ?? toDeliveryStatus(msg.status)) as DeliveryStatus,
           reactions: reactions[msg.id] || [],
           replyTo: null,
           imageUrl: msg.imageUrl,
@@ -300,7 +323,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
 
     // Expired disappearing messages are removed from the local view.
     return allMsgs.filter((m) => !expiredMessageIds[m.id]);
-  }, [data, incomingMessages, reactions, statusByMessageId, expiredMessageIds]);
+  }, [data, incomingMessages, reactions, statusByMessageId, expiredMessageIds, resolveSender]);
 
   const handleReaction = useCallback((msgId: string, emoji: string) => {
     setReactions((prev) => ({

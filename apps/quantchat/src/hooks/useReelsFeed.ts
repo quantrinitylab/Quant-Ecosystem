@@ -58,7 +58,7 @@ async function fetchReelsFeed(cursor?: string): Promise<ReelsFeedPage> {
   const params = new URLSearchParams({ limit: String(FEED_LIMIT) });
   if (cursor) params.set('cursor', cursor);
 
-  const response = await apiFetchRaw(`/api/reels/feed?${params.toString()}`);
+  const response = await apiFetchRaw(`/api/reels/feed?${params.toString()}`, { timeout: 15000 });
   if (!response.ok) {
     throw new Error(`Failed to fetch reels feed: ${response.statusText}`);
   }
@@ -90,7 +90,7 @@ export function useReelsFeed(): UseReelsFeedReturn {
   // Optimistic like mutation
   const likeMutation = useMutation({
     mutationFn: async (reelId: string) => {
-      const res = await apiFetchRaw(`/api/reels/${reelId}/like`, { method: 'POST' });
+      const res = await apiFetchRaw(`/api/reels/${reelId}/like`, { method: 'POST', timeout: 15000 });
       if (!res.ok) throw new Error('Like failed');
       return res.json();
     },
@@ -125,7 +125,7 @@ export function useReelsFeed(): UseReelsFeedReturn {
   // Unlike (optimistic rollback)
   const unlikeMutation = useMutation({
     mutationFn: async (reelId: string) => {
-      const res = await apiFetchRaw(`/api/reels/${reelId}/like`, { method: 'POST' });
+      const res = await apiFetchRaw(`/api/reels/${reelId}/like`, { method: 'POST', timeout: 15000 });
       if (!res.ok) throw new Error('Unlike failed');
       return res.json();
     },
@@ -160,7 +160,7 @@ export function useReelsFeed(): UseReelsFeedReturn {
   // Share mutation
   const shareMutation = useMutation({
     mutationFn: async (reelId: string) => {
-      const res = await apiFetchRaw(`/api/reels/${reelId}/share`, { method: 'POST' });
+      const res = await apiFetchRaw(`/api/reels/${reelId}/share`, { method: 'POST', timeout: 15000 });
       if (!res.ok) throw new Error('Share failed');
       return res.json();
     },
@@ -187,6 +187,7 @@ export function useReelsFeed(): UseReelsFeedReturn {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
+        timeout: 15000,
       });
       if (!res.ok) throw new Error('Comment failed');
       return res.json();
