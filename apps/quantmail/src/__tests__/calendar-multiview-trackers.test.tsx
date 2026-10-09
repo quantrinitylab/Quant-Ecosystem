@@ -13,6 +13,7 @@ import {
   CalendarMonthSubView,
   CalendarTrackersSubView,
   CalendarScheduleSubView,
+  PeriodTrackerDiscreetBody,
 } from '../components/CalendarSubViews';
 import type { CalendarEventLike } from '../app/calendar/types';
 
@@ -278,7 +279,7 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
     // Sub-View 3: Events & Trackers Hub (CalendarTrackersSubView)
     // ------------------------------------------------------------------------
     describe('Sub-View 3: Events & Trackers Hub (CalendarTrackersSubView)', () => {
-      it('renders Period Tracker card with cycle prediction, fertile window, and discrete toggle', () => {
+      it('renders Period Tracker card with honest empty state and discreet toggle', () => {
         const html = renderToStaticMarkup(
           <CalendarTrackersSubView
             events={mockEvents}
@@ -289,8 +290,57 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
         expect(html).toContain('Period');
         expect(html).toContain('Cycle');
         expect(html).toContain('Discreet');
-        expect(html).toContain('Fertile Window');
+        expect(html).toContain('No cycle data logged yet');
         expect(html).toContain('Log Cycle Symptoms');
+      });
+
+      it('REGRESSION (AUD-P0-C1): renders no fabricated biometric/health data', () => {
+        const html = renderToStaticMarkup(
+          <CalendarTrackersSubView
+            events={mockEvents}
+            openDedicatedSheet={vi.fn()}
+          />,
+        );
+
+        // Fabricated Discreet Mode + period predictions removed from CalendarSubViews
+        const fabricated = [
+          'Cycle Protocol',
+          'Optimal energy',
+          'Biometric Mask',
+          'Day 14 of 28',
+          'Ovulation',
+          'Fertile Window',
+          'Oct 10 – Oct 15',
+          'Pain Free',
+          'Synced',
+          '92% Restful',
+          '7h 45m',
+          '64 bpm',
+          '118/76',
+        ];
+        for (const s of fabricated) {
+          expect(html, `fabricated health data leaked: "${s}"`).not.toContain(s);
+        }
+        // Honest states must be present instead
+        expect(html).toContain('Not synced');
+        expect(html).toContain('No cycle data logged yet');
+        expect(html).toContain('Not logged');
+      });
+
+      it('REGRESSION (AUD-P0-C1): Discreet Mode body shows an honest masked state, not fabricated biometrics', () => {
+        const html = renderToStaticMarkup(<PeriodTrackerDiscreetBody />);
+
+        expect(html).toContain('Discreet Mode');
+        expect(html).toContain('Details hidden');
+        const fabricated = [
+          'Cycle Protocol',
+          'Optimal energy',
+          'Biometric Mask',
+          'milestone',
+        ];
+        for (const s of fabricated) {
+          expect(html, `fabricated biometric state leaked: "${s}"`).not.toContain(s);
+        }
       });
 
       it('renders Health Tracker card with sleep, water quick-log, and vitals', () => {

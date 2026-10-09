@@ -1157,6 +1157,25 @@ export interface CalendarTrackersSubViewProps {
   className?: string;
 }
 
+/**
+ * Discreet-mode body for the Period Tracker card. Renders an honest masked
+ * state — cycle details are hidden and NO health data is shown or invented
+ * (AUD-P0-C1: previously rendered fabricated "Cycle Protocol Alpha" state).
+ */
+export function PeriodTrackerDiscreetBody() {
+  return (
+    <div className="p-4 rounded-xl bg-[#0B0D13] border border-rose-900/30 text-center space-y-2">
+      <span className="text-xs font-bold text-rose-300 block">Discreet Mode · On</span>
+      <p className="text-[11px] text-[#A1A4AC]">
+        Cycle details are hidden. Predictions stay off while Discreet Mode is on.
+      </p>
+      <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] bg-rose-950/40 text-rose-300 border border-rose-800/40">
+        Details hidden
+      </span>
+    </div>
+  );
+}
+
 export function CalendarTrackersSubView({
   events = [],
   openDedicatedSheet,
@@ -1166,8 +1185,8 @@ export function CalendarTrackersSubView({
   // Discreet mode toggle for Period Tracker
   const [isDiscreetMode, setIsDiscreetMode] = useState(false);
 
-  // Health tracker interactive counters
-  const [waterMl, setWaterMl] = useState(1750);
+  // Health tracker interactive counters (start empty — only user-logged intake counts)
+  const [waterMl, setWaterMl] = useState(0);
   const waterTarget = 2500;
 
   // Custom life trackers state
@@ -1343,7 +1362,7 @@ export function CalendarTrackersSubView({
               </div>
               <div>
                 <h3 className="text-sm font-bold text-[#F5F5F5]">Period & Cycle Tracker</h3>
-                <p className="text-[11px] text-[#A1A4AC]">Predictive hormone & fertility lens</p>
+                <p className="text-[11px] text-[#A1A4AC]">Log periods to unlock predictions</p>
               </div>
             </div>
 
@@ -1372,42 +1391,16 @@ export function CalendarTrackersSubView({
 
           {/* Card Body */}
           {isDiscreetMode ? (
-            <div className="p-4 rounded-xl bg-[#0B0D13] border border-rose-900/30 text-center space-y-2">
-              <span className="text-xs font-bold text-rose-300 block">Cycle Protocol Alpha · Active</span>
-              <p className="text-[11px] text-[#A1A4AC]">
-                Phase: Optimal energy window · Next milestone in 6 days
-              </p>
-              <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] bg-rose-950/40 text-rose-300 border border-rose-800/40">
-                Biometric Mask Active
-              </span>
-            </div>
+            <PeriodTrackerDiscreetBody />
           ) : (
             <div className="space-y-3">
-              {/* Prediction Banner */}
-              <div className="p-3.5 rounded-xl bg-gradient-to-r from-rose-950/40 to-[#12151E] border border-rose-900/40 space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-[#A1A4AC]">Cycle Day</span>
-                  <span className="font-bold text-rose-300">Day 14 of 28</span>
-                </div>
-                <div className="h-1.5 rounded-full bg-rose-950 overflow-hidden">
-                  <div className="h-full bg-rose-500 rounded-full" style={{ width: '50%' }} />
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-[#A1A4AC] pt-1">
-                  <span>Next Period: <strong className="text-white">in 14 days</strong></span>
-                  <span className="text-rose-400 font-semibold">Ovulation Window</span>
-                </div>
-              </div>
-
-              {/* Status Chips */}
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2.5 rounded-xl bg-[#0B0D13] border border-[#232938]">
-                  <span className="text-[10px] text-[#A1A4AC] block">Fertile Window</span>
-                  <span className="font-semibold text-rose-200">Oct 10 – Oct 15</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-[#0B0D13] border border-[#232938]">
-                  <span className="text-[10px] text-[#A1A4AC] block">Symptom Log</span>
-                  <span className="font-semibold text-[#F5F5F5]">Pain Free · Energetic</span>
-                </div>
+              {/* Honest empty state — no cycle data has been logged, so no
+                  predictions are shown. Never invent health data. */}
+              <div className="p-4 rounded-xl bg-[#0B0D13] border border-[#232938] text-center space-y-1.5">
+                <p className="text-xs font-semibold text-[#F5F5F5]">No cycle data logged yet</p>
+                <p className="text-[11px] text-[#A1A4AC]">
+                  Log your first period to see cycle day, fertile window and predictions.
+                </p>
               </div>
 
               <button
@@ -1437,8 +1430,8 @@ export function CalendarTrackersSubView({
               </div>
             </div>
 
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-950/60 text-emerald-300 border border-emerald-800/40">
-              Synced
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-[#181C26] text-[#A1A4AC] border border-[#232938]">
+              Not synced
             </span>
           </div>
 
@@ -1477,8 +1470,8 @@ export function CalendarTrackersSubView({
                   <SvgMoon className="size-3.5" />
                   <span className="font-semibold">Sleep</span>
                 </div>
-                <span className="font-bold text-sm text-[#F5F5F5]">7h 45m</span>
-                <span className="text-[10px] text-emerald-400 block">92% Restful</span>
+                <span className="font-bold text-sm text-[#A1A4AC]">Not logged</span>
+                <span className="text-[10px] text-[#A1A4AC] block">No sleep data yet</span>
               </div>
 
               <div className="p-3 rounded-xl bg-[#0B0D13] border border-[#232938]">
@@ -1486,8 +1479,8 @@ export function CalendarTrackersSubView({
                   <SvgHeart className="size-3.5" />
                   <span className="font-semibold">Resting HR</span>
                 </div>
-                <span className="font-bold text-sm text-[#F5F5F5]">64 bpm</span>
-                <span className="text-[10px] text-[#A1A4AC] block">BP: 118/76 mmHg</span>
+                <span className="font-bold text-sm text-[#A1A4AC]">Not logged</span>
+                <span className="text-[10px] text-[#A1A4AC] block">No vitals data yet</span>
               </div>
             </div>
           </div>
