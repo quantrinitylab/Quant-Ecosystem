@@ -1910,3 +1910,114 @@ Finding: User-reported mobile Chrome bugs (all mobile viewport):
 Required: fix all 7 with real-device-behavior verification via mobile Chrome emulation (390x844): before/after screenshots + scroll-behavior screen recordings or frame sequences proving (a) no blank gaps on scroll up/down, (b) Quanty pinned by search always, (c) avatar menu opens with all options working (logout actually logs out, settings opens settings), (d) pure-black header everywhere, (e) calendar logo background restored. No fake controls; every control must work.
 Scope: apps/quantmail/src (mobile header, app switcher, bottom nav, avatar menu, Drive/QuantGit scroll containers).
 Dependencies: QM-UIUX-072 (pure-black law).
+## QM-UIUX-074 — P0: Archive row action misroutes to Spam
+Status: [ ] TODO
+Finding: Personal deep audit 2026-10-09 (signed-in browser, kundan@quantmail.in): clicking "Archive" on an inbox row moved the conversation to SPAM (Spam tab 0→1, "Rescue from spam" offered), then it settled into Archive with contradictory toasts ("Rescued from spam — moved to inbox" followed by "Conversation archived").
+Required: Archive must move directly to Archive — never via Spam; single truthful toast. Regression test: archive action asserts folder=ARCHIVE, never SPAM.
+Scope: apps/quantmail inbox row actions.
+Dependencies: none.
+Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 2: M-P0-1).
+
+## QM-UIUX-075 — P0: No unarchive path anywhere in the UI
+Status: [ ] TODO
+Finding: Personal deep audit 2026-10-09: there is NO way to unarchive a conversation — not in row quick actions, not in thread "More conversation actions" (only Reply all/Collapse all/Print/Move to Trash), not in the selection toolbar. An archived conversation is unrestorable via UI.
+Required: add Unarchive/Move-to-inbox affordance in row actions + thread menu + Archive view bulk toolbar. Regression test covers the round trip.
+Scope: apps/quantmail inbox/archive UI.
+Dependencies: none.
+Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 2: M-P0-2).
+
+## QM-UIUX-076 — P0: QuantGit Feed tab never renders
+Status: [ ] TODO
+Finding: Personal deep audit 2026-10-09: clicking the Feed tab changes the URL to ?tab=feed but the main pane keeps showing the previously rendered view (Repos/Issues); Feed never gets an active state and never renders.
+Required: Feed tab renders its real view and active state; tab<->URL<->pane stay in sync. Regression test.
+Scope: apps/quantmail QuantGit tab routing.
+Dependencies: none.
+Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 1: QG-P0-1); screenshot 7b833b65.
+
+## QM-UIUX-077 — P0: QuantGit repo creation fakes success, persists nothing
+Status: [ ] TODO
+Finding: Personal deep audit 2026-10-09: "Create a new repository" form + Quanty Copilot announced "Repository kundan/audit-test-repo created in database!" but the repo never appeared in the list, search found nothing, refresh/reload changed nothing ("No repositories yet"). Fabricated success feedback for a write that never happened.
+Required: repo creation must persist via the real backend contract and appear in the list; on failure show a truthful error, never a fake success. Regression test: create -> list contains it.
+Scope: apps/quantmail QuantGit repo creation + backend contract.
+Dependencies: none.
+Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 1: QG-P0-2); screenshot a99d8103.
+
+## QM-UIUX-078 — P0: Calendar event creation shows success but does not persist
+Status: [ ] TODO
+Finding: Personal deep audit 2026-10-09: creating an event ("audit test", Oct 10 10:00–11:00 AM) showed success toast "Event 'audit test' saved" but the event exists nowhere — absent from month cell, date inspector, Week view, and calendar search.
+Required: event creation must persist via the real backend contract and render in all views; on failure show a truthful error, never a fake success. Regression test: create -> visible in month + week + search.
+Scope: apps/quantmail Calendar event creation + backend contract.
+Dependencies: none.
+Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 3: C-P0-1); screenshot cb1c0dd1.
+
+## QM-UIUX-079 — P0: Drive created documents invisible in all listings
+Status: [ ] TODO
+Finding: Personal deep audit 2026-10-09: a document created via "New document" (doc_vbokyqc, content autosaved) loads via direct URL but appears NOWHERE — Home RECENT ITEMS (0), Documents category "0 items / No documents found", and Drive search backend reports "Search results for 'audit' (1 item)" while the list still renders "No documents found".
+Required: created/uploaded documents must appear in Home/Recent/category listings and search results consistently. Regression test: create -> listed + searchable.
+Scope: apps/quantmail Drive listings + files API.
+Dependencies: none.
+Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 3: D-P0-1); screenshot bb8c2c5d.
+
+## QM-UIUX-080 — P0: Quanty assistant canned "I don't have that information" on all tiers
+Status: [ ] TODO
+Finding: Personal deep audit 2026-10-09: asking "what is 2+2" returns the identical canned "I don't have that information." on BOTH Fast and Deep tiers (tier switched in Settings → Assistant and reverted). The assistant is completely non-functional for trivial queries.
+Required: both tiers must return real model answers; the canned fallback must only trigger on genuine failure with a truthful error. Live-verify "what is 2+2" on Fast + Deep post-fix.
+Scope: apps/quantmail assistant/Quanty tiers.
+Dependencies: none.
+Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 5: S-P0-1); screenshots f9bbce7f, 3566a74a.
+
+## QM-UIUX-081 — P1: Bold formatting leaks literal markdown into message text
+Status: [ ] TODO
+Finding: Personal deep audit 2026-10-09: selecting text in compose and clicking Bold wrapped it in literal "**" asterisks as plain text — not rendered bold. This is the source of raw "**…**" seen in list snippets, thread previews, and Contacts mail history.
+Required: formatting buttons must produce real rich text (or be removed); no raw markdown may leak into bodies, snippets, or previews. Regression test.
+Scope: apps/quantmail composer formatting.
+Dependencies: none.
+Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 2: M-P1-1); screenshot f1de02f0.
+
+## QM-UIUX-082 — P1: No Sent folder in navigation
+Status: [ ] TODO
+Finding: Personal deep audit 2026-10-09: left nav has only Inbox/Archive — there is no Sent folder, so sent mail cannot be browsed and the Sent copy of the compose-send flow cannot be verified by the user.
+Required: add a real Sent folder backed by the real sent-mail query. (Related: QM-BACK-010 send-pipeline proof needs the Sent copy verifiable.)
+Scope: apps/quantmail navigation + sent query.
+Dependencies: none.
+Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 2: M-P1-2).
+
+## QM-UIUX-083 — P1: Composer close (X) has no discard confirmation
+Status: [ ] TODO
+Finding: Personal deep audit 2026-10-09: clicking the composer X with a typed subject closed it with NO confirmation (auto-save prevented data loss; the explicit "Discard draft" button does confirm properly).
+Required: closing a dirty composer via X must ask Keep editing / Discard, matching the explicit discard path.
+Scope: apps/quantmail composer.
+Dependencies: none.
+Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 2: M-P1-3).
+
+## QM-UIUX-084 — P1: Aggressive self-threading merges unrelated subjects
+Status: [ ] TODO
+Finding: Personal deep audit 2026-10-09: a sent self-email with a unique subject was merged into one giant "You Mail" self-thread containing all prior self-emails with unrelated subjects; the inbox row shows only the latest subject.
+Required: threading must respect subject/message boundaries — unrelated subjects must not merge into one thread.
+Scope: apps/quantmail threading model.
+Dependencies: none.
+Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 2: M-P1-4).
+
+## QM-UIUX-085 — P1: Drive Upload buttons produce no visible response
+Status: [ ] TODO
+Finding: Personal deep audit 2026-10-09: "Upload"/"Upload files" buttons in Drive produce no visible response — no file picker, no dropzone UI appears on click. Raw file upload was not testable.
+Required: Upload must open a real file picker / dropzone and complete uploads end to end; on failure show a truthful error.
+Scope: apps/quantmail Drive upload UI.
+Dependencies: none.
+Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 3: D-P1-1).
+
+## QM-UIUX-086 — P1: Drive folder Open does not render folder contents
+Status: [ ] TODO
+Finding: Personal deep audit 2026-10-09: clicking "Open" on "Audit Folder" updated the breadcrumb to "My Drive > Audit Folder" but the content panel did NOT render the folder's contents.
+Required: opening a folder must render its contents; breadcrumb and panel must stay in sync.
+Scope: apps/quantmail Drive folder navigation.
+Dependencies: none.
+Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 3: D-P1-2).
+
+## QM-UIUX-087 — P1: Quick-reply sends instantly with no undo safety net
+Status: [ ] TODO
+Finding: Customer audit 2026-10-09 (inbox-triage journey): in-thread quick-reply sends are instant with NO undo, while composer sends get a 10s undo countdown — the hasty reply path has no safety net.
+Required: quick-reply must offer the same undo window as compose sends (or a matching safeguard).
+Scope: apps/quantmail thread quick-reply.
+Dependencies: none.
+Evidence: hidden_files/customer-audits/2026-10-09-inbox-triage.md.
