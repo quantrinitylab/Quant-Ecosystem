@@ -2302,7 +2302,9 @@ function QuantGitContent() {  const router = useRouter();
                 />
               )}
 
-              {activeGitHubTab === 'insights' && <InsightsTab />}
+              {activeGitHubTab === 'insights' && (
+                <InsightsTab commits={commits} pullRequests={pulls} workflowRuns={actions} />
+              )}
 
               {activeGitHubTab === 'settings' && (
                 <div className="space-y-8">
@@ -2541,6 +2543,12 @@ function QuantGitContent() {  const router = useRouter();
 
 
 
+
+      {/* Dark bottom safeguard — covers any light safe-area strip between content and bottom nav */}
+      <div
+        aria-hidden="true"
+        className="fixed bottom-0 inset-x-0 h-[80px] bg-[var(--quant-background)] pointer-events-none z-20"
+      />
 
       {/* Floating Toast Notification — above the single bottom nav */}
       {toastMessage && (
