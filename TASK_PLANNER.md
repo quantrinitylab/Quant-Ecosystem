@@ -3667,3 +3667,119 @@
 - [ ] **Task W90-SCREENS-01 — Pillar-by-pillar UI audit**: audit Mail inbox/thread/composer, Calendar Feed/Month/Events/Schedule, Drive categories/feed/vault, Contacts list/profile, and QuantGit repositories/PRs. Record concrete defects and screenshots before changing screen-specific layouts.
 - [ ] **Task W90-RELEASE-01 — Merge/deploy/verify**: only after required CI passes and the PR is safely merged to `main`, use the repository's protected deployment workflow for `quantmail`; verify rollout health and check the live URL on desktop and mobile. A queued workflow or source change alone is not proof of a live deployment.
 
+
+
+## 🧭 WAVE 91: MUSE EXECUTION QUEUE — FORENSIC UI/UX AUDIT, BRAND CONSISTENCY & SCREEN-BY-SCREEN POLISH (PLANNED)
+
+> **Execution contract for Muse:** Treat this as an ordered engineering queue, not a design brainstorm. Read the existing implementation and tests before editing. Work in small, reviewable commits on the active PR branch (or the designated follow-up branch); never overwrite concurrent agent work. Do not invent browser evidence, test results, screenshot artifacts, or deployment status. Mark a task `[x]` only when its acceptance criteria are proven and record the commit/test evidence next to it. Preserve existing product behavior, real brand marks, route guards, keyboard accessibility, and reduced-motion preferences. No generic placeholder logos, raw Unicode emoji, fake data wiring, or broad unrelated refactors.
+
+### Phase A — establish the baseline before visual changes
+
+- [ ] **Task W91-BASE-01 — Snapshot current implementation and branch state**
+  - Read the current PR #704 head, changed-file list, full diff, and current `TASK_PLANNER.md` before editing; detect changes made by other agents since the previous task.
+  - Record exact head SHA, PR status, required checks and changed files in the task notes. Do not assume the previously observed SHA is still current.
+  - Acceptance: baseline records are tied to the exact commit under review; no edits are based on stale file content.
+- [ ] **Task W91-BASE-02 — Inspect the existing test/verification commands**
+  - Read root and `apps/quantmail` package scripts plus CI workflow definitions; identify the canonical commands for focused Vitest tests, QuantMail typecheck/build, lint, full-sweep, dependency audit, CodeQL and required `gate`.
+  - Acceptance: document exact commands/workflow names and which checks are required vs informational; do not invent commands or claim local execution if unavailable.
+- [ ] **Task W91-BASE-03 — Create a screen/viewport evidence matrix**
+  - Define one row per pillar and screen state, with columns for route, viewport, active accent, logo/mark, primary action, search, bottom navigation, keyboard/touch checks, screenshot path, defect severity and evidence link.
+  - Cover desktop Chrome and mobile Chrome at 320, 360, 390 and 430 CSS px; include one wide desktop viewport and keyboard-only pass.
+  - Acceptance: matrix exists in the task notes or a small QA document, with unknowns clearly marked “not yet observed”.
+
+### Phase B — brand tokens and logo integrity
+
+- [ ] **Task W91-BRAND-01 — Reconcile switcher comments, token names and canonical palette**
+  - Audit `QuantPillarTopBar.tsx`, `app-theme.ts`, `AppShell.tsx`, `DesktopPillarRail.tsx`, and shared CSS variables for contradictory or stale color descriptions.
+  - Canonical mapping for this workstream: Mail orange `#FF8C42`; Calendar blue `#3B82F6`; Drive green `#22C55E` (or the existing approved canonical Drive token if already defined); Contacts teal `#14B8A6` (or existing approved canonical token); QuantGit violet `#8B5CF6`. Before changing a value, trace the repository's existing design-token source and consolidate to one source of truth instead of creating competing literals.
+  - Acceptance: switcher, desktop rail, focus ring, selected-state treatment and shared primary action use the same canonical token per app; comments accurately describe runtime behavior; tests assert the mapping.
+- [ ] **Task W91-BRAND-02 — Inspect real app marks at all rendered sizes**
+  - Inspect `QuantMailLogo`, `QuantCalendarLogo`, `QuantDriveLogo`, `QuantContactsLogo` and `QuantGitLogo` components and their actual switcher/desktop-rail call sites.
+  - Verify viewBox, intrinsic dimensions, scaling, canvas/devicePixelRatio handling (where applicable), fallback behavior, contrast on obsidian surfaces, crispness at 1x/2x/3x, and no edge clipping.
+  - Preserve the approved marks: QuantMail geometric M/envelope, QuantCalendar live-date mark, QuantDrive folder mascot, QuantContacts mark and QuantGit purple voxel-frog. Do not replace them with generic Lucide icons.
+  - Acceptance: focused component tests cover accessible names, fallback/render states and required size props; any browser-only visual assertions remain pending until screenshots are actually captured.
+- [ ] **Task W91-BRAND-03 — Motion, accessibility and reduced-motion audit**
+  - Verify active-state transitions, logo animation, focus-visible ring, screen-reader labels, tooltips/long-press labels, hit areas and `prefers-reduced-motion`.
+  - Ensure decorative canvas/SVG marks are hidden from assistive technology when a meaningful accessible label is already supplied; buttons expose the app name and selected state (for example `aria-current`/appropriate pressed semantics).
+  - Acceptance: tests cover keyboard focus, accessible names, selected-state semantics and reduced-motion class/behavior; no interaction depends on hover alone.
+
+### Phase C — switcher geometry and navigation behavior
+
+- [ ] **Task W91-SWITCH-01 — Measure and normalize the five-pillar switcher**
+  - Inspect responsive classes and layout calculations in `QuantPillarTopBar.tsx`; test long labels, narrow widths, browser zoom and font scaling.
+  - Keep the raised active slot restrained: selected state must be obvious without dominating neighboring tiles; equal spacing, baseline alignment, stable bar height and no horizontal overflow are required.
+  - Acceptance: add regression tests for 320/360/390/430px layout assumptions where test infrastructure permits; avoid brittle snapshots of incidental CSS strings when behavior can be asserted.
+- [ ] **Task W91-SWITCH-02 — Audit scroll-collapse lifecycle and race conditions**
+  - Verify there is exactly one intended document scroll subscription and a symmetric cleanup path; inspect passive/capture options, requestAnimationFrame cancellation, stale closures, unmount behavior and nested scroll containers.
+  - Confirm scrolling down collapses only the intended switcher region, scrolling up reveals it, and returning to the top restores the initial state without a blank spacer or layout jump.
+  - Acceptance: tests cover listener setup/cleanup, rapid direction changes, unmount and repeated mount; no duplicate RAF/listener lifecycle remains.
+- [ ] **Task W91-SWITCH-03 — Validate app switching, route state and keyboard shortcuts**
+  - Check each tile navigates to its canonical route, highlights the correct active pillar on direct URL load and browser back/forward, and does not lose unrelated query/hash state unless explicitly intended.
+  - Test keyboard navigation and existing Ctrl+1..5 shortcuts for conflicts with browser/OS defaults and text-entry fields; shortcuts must not fire while typing in input/textarea/contenteditable.
+  - Acceptance: all five route states and browser history behavior have regression coverage; shortcuts are documented and accessible.
+- [ ] **Task W91-SWITCH-04 — Verify search, Quanty and account controls at every breakpoint**
+  - Audit the sticky search, microphone button, Quanty capsule and AccountBadge for duplicate instances, overlap with the active slot, focus order and safe-area insets.
+  - Acceptance: one intended instance per breakpoint; no clipped controls or dead tap targets at 320px; search can be reached by keyboard and touch; voice control announces its state and failure path.
+
+### Phase D — screen-by-screen product UI audit
+
+- [ ] **Task W91-MAIL-01 — Mail inbox, thread and composer**
+  - Inspect inbox/lenses/folders, unread/selected rows, empty/loading/error states, thread detail, reply bar, docked composer, attachment controls and narrow-screen keyboard behavior.
+  - Check collision among composer, bottom navigation, shortcut dock, floating Quanty controls and safe-area padding.
+  - Acceptance: record each defect with route + viewport + screenshot/evidence; fix only confirmed defects; add a focused regression test for each behavioral fix.
+- [ ] **Task W91-CALENDAR-01 — Calendar Feed, Month, Events and Schedule**
+  - Verify all four current sub-views, active accent, date navigation, event creation/edit flows, recurrence display, timezone labels, empty/loading/error states and responsive calendar overflow.
+  - Ensure amber warning semantics remain distinct from Calendar's blue brand accent; do not recolor genuine warnings/errors to brand blue.
+  - Acceptance: functional states and warning-vs-brand semantics are tested; no duplicate primary event actions.
+- [ ] **Task W91-DRIVE-01 — Drive categories, Feed, Vault and storage meter**
+  - Verify category filters/counts, upload/progress/failure states, file actions, media timeline, AI Memory and E2EE Vault labels; check the storage meter is not duplicated.
+  - Confirm destructive actions require clear confirmation and that access/permission failures are visible rather than disguised as empty content.
+  - Acceptance: each category and core action has a defined empty/loading/error/success state; tests validate behavior, not just labels.
+- [ ] **Task W91-CONTACTS-01 — Contacts list, profile, groups and deduplication**
+  - Inspect split-pane desktop behavior and mobile list-to-profile transition, search/filter, favorites, groups, duplicate resolution, contact actions and back navigation.
+  - Acceptance: no profile/list clipping, accessible contact actions, clear destructive merge confirmation and test coverage for empty/error states.
+- [ ] **Task W91-GIT-01 — QuantGit repositories, PRs and actions**
+  - Inspect repo list/detail, PR list/detail, diffs, Issues, Actions and Copilot surfaces; check loading/empty/error states, permission errors, search and mobile overflow.
+  - Verify violet brand accent does not override status semantics for success, warning or failure.
+  - Acceptance: route transitions and primary actions work without duplicate headers/search bars or floating-button collisions; confirmed defects get regression tests.
+
+### Phase E — visual proof and performance
+
+- [ ] **Task W91-VISUAL-01 — Capture real desktop Chrome evidence**
+  - Open the actual running app in Chrome at a wide desktop viewport and a laptop-width viewport; capture all five active pillar states plus representative Mail, Calendar, Drive, Contacts and QuantGit screens.
+  - Include keyboard focus and at least one open menu/sheet per relevant screen; preserve screenshots as review artifacts and link them in the matrix.
+  - Acceptance: images come from the real app/browser session, have route + viewport metadata, and are reviewed for geometry, contrast, clipping, overlap and inconsistent tokens.
+- [ ] **Task W91-VISUAL-02 — Capture real mobile Chrome evidence**
+  - Capture 320, 360, 390 and 430 CSS px widths (physical device screenshots may be used if viewport metadata is recorded); test portrait layout, safe areas, virtual keyboard, scroll-down/up switcher behavior and tap targets.
+  - Acceptance: every pillar has a screenshot at the standard mobile width; narrow-width regressions are documented; do not mark this task complete with mocked component renders alone.
+- [ ] **Task W91-PERF-01 — Motion and rendering performance pass**
+  - Inspect unnecessary rerenders, repeated listeners, canvas animation loops, offscreen work and layout shifts in the switcher and logos. Respect reduced-motion and stop animations when unmounted/offscreen where appropriate.
+  - Acceptance: identify measured evidence before optimizing; no speculative memoization or behavior changes without profiling/test rationale.
+
+### Phase F — verification, review and handoff
+
+- [ ] **Task W91-TEST-01 — Focused test and static-analysis gate**
+  - Run the exact focused switcher/theme/logo tests, QuantMail typecheck/build, and repository-defined lint/full-sweep commands identified in W91-BASE-02.
+  - Acceptance: record command, exact commit SHA and result; fix failures at source; do not weaken assertions, skip tests or add blanket lint/type suppressions to force green.
+- [ ] **Task W91-SEC-01 — Dependency, accessibility and security regression review**
+  - Review CI dependency audit, CodeQL, action-pin policy and required gate on the latest PR head. Inspect any warnings introduced by changed files and any unsafe external navigation/event handling touched by the work.
+  - Acceptance: required checks are green on the exact head or the task explicitly remains blocked with failure details; queued/in-progress checks are never described as passed.
+- [ ] **Task W91-REVIEW-01 — Self-review the final diff and planner accuracy**
+  - Review the complete diff for accidental formatting churn, unrelated files, stale comments, duplicate implementations, raw emojis, generic logo substitutions, accessibility regressions and untested behavior.
+  - Update task statuses only with evidence; list remaining unknowns, screenshot references and exact commits for Muse's next run.
+  - Acceptance: clean scoped diff, tests and evidence recorded; no claim of visual validation unless real browser screenshots were inspected.
+- [ ] **Task W91-RELEASE-01 — Protected merge and live verification handoff**
+  - This is gated by W90-SWITCHER-02/W90-RELEASE-01 and all required checks. Never bypass branch protection or deploy an unmerged branch. After approved merge, use the repository's protected deployment workflow and verify health plus real desktop/mobile behavior.
+  - Acceptance: merge commit, deployment run, health-check result and post-deploy screenshots/URLs are recorded. If browser/deployment access is unavailable, leave the task open and state the blocker.
+
+### Muse's mandatory per-task output format
+
+For every task, Muse must report:
+1. **Observed state** — exact files/routes/behavior inspected; distinguish code inspection from browser observation.
+2. **Root cause** — concrete evidence and why the issue occurs.
+3. **Change** — files and behavior changed, or explicit reason no change was needed.
+4. **Verification** — exact command/test/browser viewport and result; never fabricate.
+5. **Commit** — commit SHA and concise message, or state that no commit was created.
+6. **Planner update** — mark only the proven subtask complete and immediately append newly discovered work as new unchecked task IDs.
+7. **Next task** — name the next unchecked ID; continue in order unless a blocker or failing gate requires a documented dependency.
+
