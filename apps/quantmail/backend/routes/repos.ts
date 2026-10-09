@@ -1752,6 +1752,16 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         throw createAppError(`Branch "${branchName}" not found`, 404, 'BRANCH_NOT_FOUND');
       }
 
+      // Branch protection applies to deletion exactly as it does to commits
+      // (see the file-commit handler): a branch flagged protected on its row,
+      // or matched by a branch-protection rule, can never be deleted — not
+      // even by the repository owner. Without this check any writable caller
+      // (WRITE/MAINTAIN/ADMIN) could permanently delete a protected branch.
+      const protectionRule = await getBranchProtectionRule(prisma, repo.id, branchName);
+      if (branchRow.isProtected || protectionRule) {
+        throw createAppError('Cannot delete a protected branch', 403, 'BRANCH_PROTECTED');
+      }
+
       // Remove the ref from git storage first: storage is the source of truth.
       const repoPath = await resolveRepoPath(repo);
       if (repoPath) {
