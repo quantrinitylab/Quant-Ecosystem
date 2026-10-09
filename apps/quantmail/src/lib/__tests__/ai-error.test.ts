@@ -99,3 +99,67 @@ describe('sanitizeAiError', () => {
     expect(result.length).toBeLessThanOrEqual('The AI service hit a snag: '.length + 200);
   });
 });
+
+// QM-UIUX-090 — the two residual gaps the zero-defect run-37 audit filed
+// against the QM-UIUX-036 pipeline above (P2-736-1/-2), closed in QuantChat's
+// sanitize-error.ts by PR #751 and ported back here: bare internal hostnames
+// with no scheme/IP, and credential shapes outside the original enumerated
+// list. These tests FAIL against the pre-port ai-error.ts and PASS after it.
+describe('sanitizeAiError — residual gaps (QM-UIUX-090)', () => {
+  it('strips bare internal hostnames without a scheme', () => {
+    const dotted = sanitizeAiError(
+      new Error('connect failed quantmail-backend.internal:4000 refused'),
+    );
+    expect(dotted).not.toContain('quantmail-backend.internal');
+    expect(dotted).not.toContain('4000');
+    expect(dotted).toContain('[host]');
+    const service = sanitizeAiError(new Error('upstream ai-service:9000 unreachable'));
+    expect(service).not.toContain('ai-service');
+    expect(service).not.toContain('9000');
+    expect(service).toContain('[host]');
+  });
+
+  it('strips bare internal hostnames with a path and other internal TLDs', () => {
+    const withPath = sanitizeAiError(
+      new Error('POST quantmail-backend.internal:4000/api/ai/chat failed'),
+    );
+    expect(withPath).not.toContain('quantmail-backend.internal');
+    expect(withPath).not.toContain('4000');
+    expect(withPath).toContain('[host]');
+    const corp = sanitizeAiError(new Error('db replica db.corp:5432 unreachable'));
+    expect(corp).not.toContain('db.corp');
+    expect(corp).not.toContain('5432');
+    expect(corp).toContain('[host]');
+  });
+
+  it('falls back to the generic message when the message was only a bare internal host', () => {
+    expect(sanitizeAiError(new Error('quantmail-backend.internal:4000'))).toBe(GENERIC);
+    expect(sanitizeAiError(new Error('ai-service:9000'))).toBe(GENERIC);
+  });
+
+  it('redacts credential shapes beyond the original enumerated list', () => {
+    expect(
+      sanitizeAiError(new Error('leaked github_pat_11ABCDEFG0aBcDeFgHiJkL here')),
+    ).not.toContain('github_pat_');
+    expect(
+      sanitizeAiError(new Error('leaked github_pat_11ABCDEFG0aBcDeFgHiJkL here')),
+    ).not.toContain('11ABCDEFG0aBcDeFgHiJkL');
+    expect(sanitizeAiError(new Error('leaked gho_aBcDeFgHiJkLmNoPqRsTuVwXyZ here'))).not.toContain(
+      'gho_aBcDeFgHiJkLmNoPqRsTuVwXyZ',
+    );
+    expect(sanitizeAiError(new Error('leaked ghu_aBcDeFgHiJkLmNoPqRsTuVwXyZ here'))).not.toContain(
+      'ghu_aBcDeFgHiJkLmNoPqRsTuVwXyZ',
+    );
+    expect(
+      sanitizeAiError(new Error('slack hook xoxb-123456789012-abcdefghijkl failed')),
+    ).not.toContain('xoxb-123456789012-abcdefghijkl');
+    const basic = sanitizeAiError(
+      new Error('proxy rejected Authorization: Basic dXNlcjpwYXNzd29yZA=='),
+    );
+    expect(basic).not.toContain('dXNlcjpwYXNzd29yZA==');
+    expect(basic).toContain('[redacted]');
+    expect(
+      sanitizeAiError(new Error('bad key -----BEGIN RSA PRIVATE KEY----- loaded')),
+    ).not.toContain('BEGIN RSA PRIVATE KEY');
+  });
+});
