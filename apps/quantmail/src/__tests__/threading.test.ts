@@ -143,6 +143,68 @@ describe('groupEmailsIntoThreads', () => {
     expect(threads[0].count).toBe(2);
   });
 
+  it('keeps two self-sends with different subjects in separate threads', () => {
+    // QM-UIUX-084: unique-subject self-sends were all keyed into one giant
+    // note-to-self bucket, so unrelated notes collapsed into a single row.
+    const threads = groupEmailsIntoThreads(
+      [
+        email({
+          subject: 'Grocery list',
+          from: { email: ME, name: 'Kundan' },
+          to: [{ email: ME }],
+          isSent: true,
+        }),
+        email({
+          subject: 'Book ideas',
+          from: { email: ME, name: 'Kundan' },
+          to: [{ email: ME }],
+          isSent: true,
+        }),
+      ],
+      ME,
+    );
+
+    expect(threads).toHaveLength(2);
+    expect(threads.map((t) => t.subject).sort()).toEqual(['Book ideas', 'Grocery list']);
+  });
+
+  it('threads a self-note with its same-subject reply', () => {
+    const [thread] = groupEmailsIntoThreads(
+      [
+        email({
+          subject: 'Trip plan',
+          from: { email: ME, name: 'Kundan' },
+          to: [{ email: ME }],
+          isSent: true,
+          receivedAt: new Date('2026-01-01T09:00:00Z'),
+        }),
+        email({
+          subject: 'Re: Trip plan',
+          from: { email: ME, name: 'Kundan' },
+          to: [{ email: ME }],
+          isSent: true,
+          receivedAt: new Date('2026-01-01T10:00:00Z'),
+        }),
+      ],
+      ME,
+    );
+
+    expect(thread.count).toBe(2);
+    expect(thread.participantsSummary).toBe('You');
+  });
+
+  it('ignores case and reply prefixes when separating self-notes', () => {
+    const threads = groupEmailsIntoThreads(
+      [
+        email({ subject: 'Ideas', from: { email: ME }, isSent: true }),
+        email({ subject: 'ideas', from: { email: ME }, isSent: true }),
+      ],
+      ME,
+    );
+
+    expect(threads).toHaveLength(1);
+  });
+
   it('carries the newest message threadId, which is what a reply targets', () => {
     const threads = groupEmailsIntoThreads([
       email({

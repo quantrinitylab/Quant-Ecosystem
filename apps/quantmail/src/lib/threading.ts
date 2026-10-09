@@ -479,9 +479,16 @@ export function summarizeParticipants(participants: string[]): string {
  * A group of three is its own key, not a merge into any of the three 1:1
  * conversations, for the same reason a group chat is its own row.
  *
- * `self` is the note-to-self bucket: nobody else on the message. `threadId` is not
- * consulted at all — it was the thing splitting these rows — but it is still
- * carried on the thread from the newest message, which is what a reply targets.
+ * Notes-to-self are keyed `self:<normalized subject>`: nobody else is on the
+ * message, so the subject is what distinguishes one note from another, and two
+ * self-sends with different subjects are two rows (QM-UIUX-084). Replies keep
+ * the subject of the note they answer (after `Re:`/`Fwd:` stripping), so they
+ * still land with it. A blank-subject note has no distinguishing feature, so
+ * blank self-notes share one bucket.
+ *
+ * `threadId` is not consulted at all — it was the thing splitting these
+ * rows — but it is still carried on the thread from the newest message,
+ * which is what a reply targets.
  */
 function conversationKeyOf(email: Email, currentEmail?: string): string {
   const keys = new Set<string>();
@@ -503,7 +510,7 @@ function conversationKeyOf(email: Email, currentEmail?: string): string {
     if (identity) keys.add(identity.key);
   }
 
-  if (keys.size === 0) return 'self';
+  if (keys.size === 0) return `self:${normalizeSubject(email.subject || '')}`;
   return `with:${Array.from(keys).sort().join('|')}`;
 }
 
