@@ -1937,7 +1937,9 @@ Dependencies: none.
 Evidence: hidden_files/deep-audits/personal-audit-2026-10-09.md (Session 1: QG-P0-1); screenshot 7b833b65.
 
 ## QM-UIUX-077 — P0: QuantGit repo creation fakes success, persists nothing
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-077-repo-create-fake-success
 Finding: Personal deep audit 2026-10-09: "Create a new repository" form + Quanty Copilot announced "Repository kundan/audit-test-repo created in database!" but the repo never appeared in the list, search found nothing, refresh/reload changed nothing ("No repositories yet"). Fabricated success feedback for a write that never happened.
 Required: repo creation must persist via the real backend contract and appear in the list; on failure show a truthful error, never a fake success. Regression test: create -> list contains it.
 Scope: apps/quantmail QuantGit repo creation + backend contract.
