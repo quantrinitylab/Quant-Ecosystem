@@ -13,6 +13,8 @@ import {
 import { OUTBOUND_DELIVERY_QUEUE } from './outbound-delivery.service';
 import type { DeliverabilityAuthService, DkimSigner } from './deliverability-auth.service';
 import { sendViaSes, isSesConfigured } from '../lib/ses-sender';
+import { QUANT_INTERNAL_DOMAINS } from '../lib/domains';
+import { EmailService } from './email.service';
 
 /**
  * Delivery worker `processDelivery` (QuantMail SuperHub — Pillar 1, Phase 2, task 6.2).
@@ -376,22 +378,85 @@ export class DeliveryWorker {
       });
     }
 
+    // Split recipients: QuantMail users get a direct internal mailbox copy;
+    // only truly external addresses go through SES/SMTP. The delayed-send
+    // path (e.g. /compose's 10s undo window) skips the route-level
+    // deliverInternally, so the worker OWNS internal delivery — without this,
+    // delayed sends to @quantmail.in addresses are queued, never delivered,
+    // and vanish (not in Sent, not in the recipient's inbox).
+    const { internal: internalAddrs, external: externalAddrs } =
+      await this.splitInternalExternal(recipients);
+    const internalSet = new Set(internalAddrs);
+    const extTo = toAddrs.filter((a) => !internalSet.has(a));
+    const extCc = ccAddrs.filter((a) => !internalSet.has(a));
+    const extBcc = bccAddrs.filter((a) => !internalSet.has(a));
+    const extRecipients = externalAddrs;
+
+    const receipts: RecipientReceipt[] = [];
+
+    // Internal delivery: direct inbox copies, no SES/SMTP involved.
+    // fromUserId falls back to the email's owner when the job payload lacks it.
+    const senderUserId = data.userId ?? (email as { userId?: string }).userId;
+    if (internalAddrs.length > 0 && senderUserId) {
+      try {
+        const emailService = new EmailService(this.prisma);
+        await emailService.deliverInternally({
+          fromUserId: senderUserId,
+          subject: email.subject ?? '',
+          bodyHtml: email.bodyHtml ?? undefined,
+          bodyPlain: email.bodyPlain ?? undefined,
+          toAddresses: toAddrs.filter((a) => internalSet.has(a)),
+          ccAddresses: ccAddrs.filter((a) => internalSet.has(a)),
+          bccAddresses: bccAddrs.filter((a) => internalSet.has(a)),
+          threadId: (email as { threadId?: string | null }).threadId ?? undefined,
+          inReplyTo: (email as { inReplyTo?: string | null }).inReplyTo ?? undefined,
+          attachments: ((email as { attachments?: unknown }).attachments as unknown[]) ?? [],
+          messageId,
+          messageKind: (email as { messageKind?: string }).messageKind as 'MAIL' | 'CHAT' | undefined,
+        });
+        for (const r of internalAddrs) {
+          const persisted = await this.recordAttempt(
+            email.id,
+            r,
+            'sent',
+            '250 2.0.0 OK (internal delivery)',
+            false,
+          );
+          receipts.push({
+            recipient: r,
+            status: persisted.status,
+            smtpResponse: persisted.smtpResponse ?? '250 2.0.0 OK (internal delivery)',
+          });
+        }
+      } catch (err) {
+        const response = `451 internal delivery failed: ${(err as Error).message}`;
+        for (const r of internalAddrs) {
+          const persisted = await this.recordAttempt(email.id, r, 'deferred', response, true);
+          receipts.push({
+            recipient: r,
+            status: persisted.status,
+            smtpResponse: persisted.smtpResponse ?? response,
+          });
+        }
+      }
+    }
+
     // When AWS SES is configured (production EKS with IRSA/IAM), transmit directly
     // through SES for maximum deliverability and automatic DKIM/SPF alignment.
     // M-F16: Transmit authoritative message preserving To, Cc, Bcc, replyTo, and fromName.
     // In AWS SESv2, sending to, cc, and bcc together delivers to all recipients while
     // preserving To/Cc headers for Reply-All and hiding Bcc recipients from To/Cc headers.
-    if (isSesConfigured()) {
+    // NOTE: external recipients only — internal ones are already delivered above.
+    if (extRecipients.length > 0 && isSesConfigured()) {
       const from = email.fromName ? `${email.fromName} <${fromAddress}>` : fromAddress;
-      const receipts: RecipientReceipt[] = [];
       let status: AttemptStatus = 'sent';
       let response = '250 2.0.0 OK (AWS SES)';
       try {
         await sendViaSes({
           from,
-          to: toAddrs,
-          cc: ccAddrs.length > 0 ? ccAddrs : undefined,
-          bcc: bccAddrs.length > 0 ? bccAddrs : undefined,
+          to: extTo,
+          cc: extCc.length > 0 ? extCc : undefined,
+          bcc: extBcc.length > 0 ? extBcc : undefined,
           subject: email.subject ?? '',
           bodyHtml: email.bodyHtml && email.bodyHtml.trim().length > 0 ? email.bodyHtml : undefined,
           bodyText:
@@ -402,7 +467,7 @@ export class DeliveryWorker {
         status = 'deferred';
         response = `451 AWS SES delivery error: ${(sesErr as Error).message}`;
       }
-      for (const recipient of recipients) {
+      for (const recipient of extRecipients) {
         const persisted = await this.recordAttempt(
           email.id,
           recipient,
@@ -416,72 +481,59 @@ export class DeliveryWorker {
           smtpResponse: persisted.smtpResponse ?? response,
         });
       }
-      const deliveryStatus = await this.finalizeEmailState(
-        email,
-        receipts.map((r) => r.status),
-      );
-      return { emailId: email.id, deliveryStatus, recipients: receipts };
-    }
-
-    // DKIM-sign once: the signed header set (From/To/Subject/Date/Message-ID) is
-    // identical for every recipient of this message.
-    // M-F15: To and Cc must only contain visible recipients. Bcc addresses must NEVER appear in headers!
-    const headers: Record<string, string> = {
-      from: email.fromName ? `${email.fromName} <${fromAddress}>` : fromAddress,
-      to: toAddrs.join(', '),
-      subject: email.subject ?? '',
-      date: this.now().toUTCString(),
-      'message-id': messageId,
-    };
-    if (ccAddrs.length > 0) {
-      headers.cc = ccAddrs.join(', ');
-    }
-    const body = email.bodyHtml ?? email.bodyPlain ?? data.body ?? '';
-
-    let signer: DkimSigner;
-    let rawMessage: string;
-    try {
-      signer = await this.auth.getDkimSigner(fromDomain);
-      rawMessage = signer.signMessage(headers, body);
-    } catch (err) {
-      // Fail closed: if the message cannot be DKIM-signed, defer every recipient
-      // for retry rather than transmitting unsigned mail.
-      const response = `451 DKIM signing unavailable: ${(err as Error).message}`;
-      const receipts = await Promise.all(
-        recipients.map((r) => this.recordAttempt(email.id, r, 'deferred', response, true)),
-      );
-      const status = await this.finalizeEmailState(
-        email,
-        receipts.map((x) => x.status),
-      );
-      return {
-        emailId: email.id,
-        deliveryStatus: status,
-        recipients: receipts.map((x) => ({
-          recipient: x.recipient,
-          status: x.status,
-          smtpResponse: x.smtpResponse ?? response,
-        })),
+    } else if (extRecipients.length > 0) {
+      // DKIM-sign once: the signed header set (From/To/Subject/Date/Message-ID) is
+      // identical for every recipient of this message.
+      // M-F15: To and Cc must only contain visible recipients. Bcc addresses must NEVER appear in headers!
+      const headers: Record<string, string> = {
+        from: email.fromName ? `${email.fromName} <${fromAddress}>` : fromAddress,
+        to: extTo.join(', '),
+        subject: email.subject ?? '',
+        date: this.now().toUTCString(),
+        'message-id': messageId,
       };
-    }
+      if (extCc.length > 0) {
+        headers.cc = extCc.join(', ');
+      }
+      const body = email.bodyHtml ?? email.bodyPlain ?? data.body ?? '';
 
-    const receipts: RecipientReceipt[] = [];
-    for (const recipient of recipients) {
-      const { outcome, response } = await this.attemptRecipient(recipient, fromAddress, rawMessage);
-      const status: AttemptStatus =
-        outcome === 'accepted' ? 'sent' : outcome === 'deferred' ? 'deferred' : 'bounced';
-      const persisted = await this.recordAttempt(
-        email.id,
-        recipient,
-        status,
-        response,
-        status === 'deferred',
-      );
-      receipts.push({
-        recipient,
-        status: persisted.status,
-        smtpResponse: persisted.smtpResponse ?? response,
-      });
+      let rawMessage: string | undefined;
+      try {
+        const signer: DkimSigner = await this.auth.getDkimSigner(fromDomain);
+        rawMessage = signer.signMessage(headers, body);
+      } catch (err) {
+        // Fail closed: if the message cannot be DKIM-signed, defer every recipient
+        // for retry rather than transmitting unsigned mail.
+        const response = `451 DKIM signing unavailable: ${(err as Error).message}`;
+        for (const r of extRecipients) {
+          const persisted = await this.recordAttempt(email.id, r, 'deferred', response, true);
+          receipts.push({
+            recipient: r,
+            status: persisted.status,
+            smtpResponse: persisted.smtpResponse ?? response,
+          });
+        }
+      }
+
+      if (rawMessage !== undefined) {
+        for (const recipient of extRecipients) {
+          const { outcome, response } = await this.attemptRecipient(recipient, fromAddress, rawMessage);
+          const status: AttemptStatus =
+            outcome === 'accepted' ? 'sent' : outcome === 'deferred' ? 'deferred' : 'bounced';
+          const persisted = await this.recordAttempt(
+            email.id,
+            recipient,
+            status,
+            response,
+            status === 'deferred',
+          );
+          receipts.push({
+            recipient,
+            status: persisted.status,
+            smtpResponse: persisted.smtpResponse ?? response,
+          });
+        }
+      }
     }
 
     const deliveryStatus = await this.finalizeEmailState(
@@ -490,6 +542,59 @@ export class DeliveryWorker {
     );
 
     return { emailId: email.id, deliveryStatus, recipients: receipts };
+  }
+
+  /**
+   * Split recipients into QuantMail-internal vs external addresses, mirroring
+   * the matching logic in EmailService.send: a recipient is internal when it
+   * matches a user's email or username (including username@internal-domain
+   * variants). Internal recipients get direct mailbox copies; only external
+   * ones go through SES/SMTP.
+   */
+  private async splitInternalExternal(
+    recipients: string[],
+  ): Promise<{ internal: string[]; external: string[] }> {
+    let internal: string[] = [];
+    if (recipients.length > 0) {
+      try {
+        const userModel = this.prisma as unknown as {
+          user: {
+            findMany(a: unknown): Promise<Array<{ email: string; username: string | null }>>;
+          };
+        };
+        const targetHandles = recipients.map((r) => r.split('@')[0].toLowerCase());
+        const matches = await userModel.user.findMany({
+          where: {
+            OR: [
+              { email: { in: recipients, mode: 'insensitive' } },
+              { username: { in: targetHandles, mode: 'insensitive' } },
+              ...recipients.flatMap((r) => {
+                const h = r.split('@')[0].toLowerCase();
+                return QUANT_INTERNAL_DOMAINS.map((domain) => ({
+                  email: { equals: `${h}@${domain}`, mode: 'insensitive' as const },
+                }));
+              }),
+            ],
+          },
+          select: { email: true, username: true },
+        });
+        internal = matches.flatMap((u) => [
+          u.email.toLowerCase(),
+          ...(u.username
+            ? QUANT_INTERNAL_DOMAINS.map((domain) => `${u.username!.toLowerCase()}@${domain}`)
+            : []),
+        ]);
+      } catch {
+        // On lookup failure, treat everyone as external — SES/SMTP is the
+        // safe fallback, and failures there are recorded per-recipient.
+        internal = [];
+      }
+    }
+    const internalSet = new Set(internal);
+    return {
+      internal: recipients.filter((r) => internalSet.has(r)),
+      external: recipients.filter((r) => !internalSet.has(r)),
+    };
   }
 
   /** Resolve MX for a recipient and attempt SMTP transmission to the best host. */
