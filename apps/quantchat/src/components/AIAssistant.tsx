@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { AIChatMessage, SmartReply } from '../types';
 import { apiClient } from '../services/api-client';
+import { describeAiError } from '../lib/sanitize-error';
 
 interface AIAssistantProps {
   isOpen: boolean;
@@ -25,6 +26,10 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   const [targetLang, setTargetLang] = useState('es');
   const [translatedText, setTranslatedText] = useState('');
   const [smartReplies, setSmartReplies] = useState<SmartReply[]>([]);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [translateError, setTranslateError] = useState<string | null>(null);
+  const [repliesError, setRepliesError] = useState<string | null>(null);
+  const lastFailedPromptRef = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,37 +43,71 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   }, [messages]);
 
   const loadSmartReplies = async (message: string) => {
-    const response = await apiClient.getSmartReplies(message);
-    if (response.success && response.data) {
-      setSmartReplies(response.data);
+    try {
+      const response = await apiClient.getSmartReplies(message);
+      if (response.success && response.data) {
+        setSmartReplies(response.data);
+        setRepliesError(null);
+      } else {
+        // Surface the real failure — the old code silently left the
+        // misleading "No suggestions available" text in place.
+        setRepliesError(describeAiError(response.error));
+      }
+    } catch (error) {
+      setRepliesError(describeAiError(error));
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!input.trim()) return;
+  const handleSendMessage = async (retryText?: string) => {
+    const isRetry = typeof retryText === 'string' && retryText.trim().length > 0;
+    const text = isRetry ? retryText.trim() : input.trim();
+    if (!text || loading) return;
 
-    const userMessage: AIChatMessage = { role: 'user', content: input, timestamp: new Date() };
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
+    if (!isRetry) {
+      const userMessage: AIChatMessage = { role: 'user', content: text, timestamp: new Date() };
+      setMessages(prev => [...prev, userMessage]);
+      setInput('');
+    }
+    setChatError(null);
     setLoading(true);
 
-    const response = await apiClient.chatWithAI(input);
-    if (response.success && response.data) {
-      const aiMessage: AIChatMessage = { role: 'assistant', content: response.data.response, timestamp: new Date() };
-      setMessages(prev => [...prev, aiMessage]);
+    try {
+      const response = await apiClient.chatWithAI(text);
+      if (response.success && response.data) {
+        const aiMessage: AIChatMessage = { role: 'assistant', content: response.data.response, timestamp: new Date() };
+        setMessages(prev => [...prev, aiMessage]);
+        lastFailedPromptRef.current = null;
+      } else {
+        // Honest error state: show the sanitized real failure (never silence,
+        // never a bare generic) and keep the prompt for one-tap retry.
+        lastFailedPromptRef.current = text;
+        setChatError(describeAiError(response.error));
+      }
+    } catch (error) {
+      lastFailedPromptRef.current = text;
+      setChatError(describeAiError(error));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleTranslate = async () => {
     if (!translateText.trim()) return;
+    setTranslateError(null);
     setLoading(true);
 
-    const response = await apiClient.translateMessage(translateText, targetLang);
-    if (response.success && response.data) {
-      setTranslatedText(response.data.translatedText);
+    try {
+      const response = await apiClient.translateMessage(translateText, targetLang);
+      if (response.success && response.data) {
+        setTranslatedText(response.data.translatedText);
+      } else {
+        setTranslateError(describeAiError(response.error));
+      }
+    } catch (error) {
+      setTranslateError(describeAiError(error));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const languages = [
@@ -131,6 +170,22 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
               {loading && <div className="ai-message assistant typing">Thinking...</div>}
               <div ref={messagesEndRef} />
             </div>
+            {chatError && (
+              <div className="ai-error" role="alert">
+                <span>{chatError}</span>
+                {lastFailedPromptRef.current && (
+                  <button
+                    onClick={() => {
+                      const failed = lastFailedPromptRef.current;
+                      if (failed) void handleSendMessage(failed);
+                    }}
+                    disabled={loading}
+                  >
+                    Retry
+                  </button>
+                )}
+              </div>
+            )}
             <div className="ai-input">
               <input
                 type="text"
@@ -139,7 +194,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                 placeholder="Ask AI anything..."
               />
-              <button onClick={handleSendMessage} disabled={!input.trim() || loading}>Send</button>
+              <button onClick={() => void handleSendMessage()} disabled={!input.trim() || loading}>Send</button>
             </div>
           </div>
         )}
@@ -165,6 +220,14 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                 {loading ? 'Translating...' : 'Translate'}
               </button>
             </div>
+            {translateError && (
+              <div className="ai-error" role="alert">
+                <span>{translateError}</span>
+                <button onClick={handleTranslate} disabled={loading || !translateText.trim()}>
+                  Retry
+                </button>
+              </div>
+            )}
             {translatedText && (
               <div className="translate-result">
                 <p>{translatedText}</p>
@@ -194,7 +257,10 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                   <span className="reply-confidence">{Math.round(reply.confidence * 100)}%</span>
                 </button>
               ))}
-              {smartReplies.length === 0 && (
+              {smartReplies.length === 0 && repliesError && (
+                <p className="no-replies ai-error-text" role="alert">{repliesError}</p>
+              )}
+              {smartReplies.length === 0 && !repliesError && (
                 <p className="no-replies">No suggestions available. Start a conversation to get smart replies.</p>
               )}
             </div>

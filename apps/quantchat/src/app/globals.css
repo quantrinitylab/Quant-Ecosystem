@@ -319,3 +319,12 @@ a[role='button']:active,
 .disappearing-timer .set-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .disappearing-timer .timer-preview { display: flex; align-items: center; gap: 8px; }
 .disappearing-timer .preview-text { font-weight: 700; color: var(--quant-foreground); }
+
+/* ============================================================================
+ * AIAssistant error states (apps/quantchat/src/components/AIAssistant.tsx)
+ * Honest, visible failure + retry affordance for chat/translate/replies.
+ * ========================================================================== */
+.ai-assistant-panel .ai-error { display: flex; align-items: center; gap: 8px; margin: 8px 0; padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255, 80, 80, 0.45); background: rgba(255, 80, 80, 0.1); color: var(--quant-foreground, #f5f3f7); font-size: 13px; }
+.ai-assistant-panel .ai-error button { padding: 4px 12px; border-radius: 999px; border: 1px solid rgba(255, 80, 80, 0.6); background: transparent; color: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.ai-assistant-panel .ai-error button:disabled { opacity: 0.5; cursor: not-allowed; }
+.ai-assistant-panel .ai-error-text { color: #ff8080; }

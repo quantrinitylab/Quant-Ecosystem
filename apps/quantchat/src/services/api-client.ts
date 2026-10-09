@@ -39,6 +39,18 @@ import type {
   MeView,
 } from '../types';
 import { apiFetchRaw } from '@quant/api-client';
+import { sanitizeErrorMessage } from '../lib/sanitize-error';
+
+/**
+ * Global ceiling for any single API request. `apiFetchRaw` keeps native fetch
+ * semantics (no timeout unless asked), so without this a backend that accepts
+ * the connection and never responds leaves the caller's promise — and the
+ * UI spinner on top of it — hanging forever. Mirrors the fleet pattern:
+ * PR #621's 10s AbortController for auth checks, the shared `apiFetch`
+ * default, and QuantMail's FETCH_TIMEOUT_MS in browser-auth-session.
+ * Per-call override via RequestOptions.timeout (0 disables the ceiling).
+ */
+export const REQUEST_TIMEOUT_MS = 30_000;
 
 // ============================================================================
 // Types
@@ -55,6 +67,8 @@ interface RequestOptions {
   headers?: Record<string, string>;
   params?: Record<string, string | number | boolean | undefined>;
   signal?: AbortSignal;
+  /** Per-call timeout in ms (default REQUEST_TIMEOUT_MS; 0 = no timeout). */
+  timeout?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -653,12 +667,15 @@ export class QuantChatApiClient {
       headers['Authorization'] = `Bearer ${this.accessToken}`;
     }
 
+    const timeout = options?.timeout ?? REQUEST_TIMEOUT_MS;
+
     try {
       const response = await apiFetchRaw(url, {
         method,
         headers,
         body: body ? JSON.stringify(body) : undefined,
         signal: options?.signal,
+        timeout,
       });
 
       if (response.status === 401 && this.refreshToken) {
@@ -669,6 +686,8 @@ export class QuantChatApiClient {
             method,
             headers,
             body: body ? JSON.stringify(body) : undefined,
+            signal: options?.signal,
+            timeout,
           });
           return (await retryResponse.json()) as ApiResponse<T>;
         }
@@ -697,9 +716,38 @@ export class QuantChatApiClient {
       const data = (await response.json()) as ApiResponse<T>;
       return data;
     } catch (error) {
+      // Surface the real failure, sanitized — never swallow it into a blanket
+      // "Network request failed". A timeout abort (apiFetchRaw's ceiling
+      // above) gets its own code so UIs can say "timed out" and offer retry;
+      // a caller-initiated abort is reported as a cancellation, not an error
+      // pretending the network failed.
+      if (options?.signal?.aborted) {
+        return {
+          success: false,
+          error: { code: 'ABORTED', message: 'Request cancelled', statusCode: 0 },
+        };
+      }
+      const timedOut =
+        error instanceof Error &&
+        (error.name === 'AbortError' || error.name === 'TimeoutError');
+      if (timedOut) {
+        return {
+          success: false,
+          error: {
+            code: 'TIMEOUT',
+            message: 'Request timed out. Please try again.',
+            statusCode: 0,
+          },
+        };
+      }
+      const message = sanitizeErrorMessage(error);
       return {
         success: false,
-        error: { code: 'NETWORK_ERROR', message: 'Network request failed', statusCode: 0 },
+        error: {
+          code: 'NETWORK_ERROR',
+          message: message || 'Network request failed',
+          statusCode: 0,
+        },
       };
     }
   }
@@ -710,6 +758,7 @@ export class QuantChatApiClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: this.refreshToken, deviceId: this.deviceId }),
+        timeout: REQUEST_TIMEOUT_MS,
       });
 
       const data = (await response.json()) as ApiResponse<AuthTokens>;
