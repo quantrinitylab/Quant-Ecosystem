@@ -633,11 +633,15 @@ async function nextVersion(prisma: any, fileId: string): Promise<number> {
 }
 async function folderTree(prisma: any, userId: string, rootId: string): Promise<string[]> {
   const visited = new Set<string>([rootId]);
-  const MAX_DEPTH = 30;
-  let depth = 0;
+  // QM-SCREEN-059: deliberately NO depth cap. A MAX_DEPTH cutoff made this
+  // traversal silently truncate deep subtrees, so POST /drive/files/trash
+  // marked only part of a >30-level tree while still returning { ok: true },
+  // and the move handler's circular-reference check could miss a target
+  // deeper than the cap. Termination is guaranteed by `visited` instead:
+  // each folder id is enqueued at most once, so the frontier always empties
+  // on a finite folder set — cycles included.
   let frontier = [rootId];
-  while (frontier.length && depth < MAX_DEPTH) {
-    depth++;
+  while (frontier.length) {
     const children = await prisma.folder.findMany({
       where: { userId, parentId: { in: frontier } },
       select: { id: true },
