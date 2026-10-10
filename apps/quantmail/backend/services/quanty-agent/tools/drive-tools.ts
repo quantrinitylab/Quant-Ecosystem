@@ -75,6 +75,22 @@ const FILE_REF_SCHEMA = z
     message: 'Provide fileId or fileName',
   });
 
+/** File reference (fileId or fileName) plus an optional content cap for readFile. */
+const READ_FILE_ARGS_SCHEMA = z
+  .object({
+    fileId: z.string().min(1).optional(),
+    fileName: z.string().min(1).optional(),
+    maxChars: z.number().int().optional(),
+  })
+  .refine((v) => v.fileId || v.fileName, {
+    message: 'Provide fileId or fileName',
+  });
+
+/** Default / clamp bounds for drive.readFile's maxChars. */
+const READ_FILE_MAX_CHARS_DEFAULT = 20000;
+const READ_FILE_MAX_CHARS_MIN = 100;
+const READ_FILE_MAX_CHARS_MAX = 100000;
+
 /** Mirrors drive.ts requireAiTextFile: AI extraction needs a text-based file. */
 const AI_TEXT_MIME_TYPES = new Set([
   'application/json',
@@ -275,6 +291,54 @@ function summarizeFileTool(deps: DriveToolsDeps): QuantyTool {
   };
 }
 
+function readFileTool(deps: DriveToolsDeps): QuantyTool {
+  return {
+    name: 'drive.readFile',
+    app: 'drive',
+    description:
+      'Read the raw text content of a Drive file. Returns file metadata plus the text content (truncated to maxChars). Read-only. For binary files (images, videos, PDFs, …) it returns an honest not-text-readable message — never fabricated content.',
+    parameters: {
+      fileId: { type: 'string', description: 'Drive file id', required: false },
+      fileName: { type: 'string', description: 'File name (or part of it) when the id is unknown', required: false },
+      maxChars: { type: 'number', description: 'Maximum characters of content to return (default 20000)', required: false, default: READ_FILE_MAX_CHARS_DEFAULT },
+    },
+    destructive: false,
+    reversible: false,
+    handler: async (args, ctx: QuantyToolContext): Promise<QuantyToolResult> => {
+      const parsed = READ_FILE_ARGS_SCHEMA.safeParse(args);
+      if (!parsed.success) return failResult('Provide fileId or fileName.');
+      // userId comes ONLY from the tool context — never from args.
+      const file = await resolveDriveFile(deps.prisma, ctx.userId, parsed.data);
+      if (!isTextFile(file.mimeType)) {
+        return failResult(
+          `"${file.name}" (${file.mimeType}) is not a text-readable file, so I can't show its raw content.`,
+        );
+      }
+      const maxRaw = parsed.data.maxChars;
+      const maxChars =
+        typeof maxRaw === 'number' && Number.isFinite(maxRaw)
+          ? Math.min(READ_FILE_MAX_CHARS_MAX, Math.max(READ_FILE_MAX_CHARS_MIN, Math.floor(maxRaw)))
+          : READ_FILE_MAX_CHARS_DEFAULT;
+      const content = await readFileContent(file);
+      const truncated = content.length > maxChars;
+      return {
+        ok: true,
+        data: {
+          fileId: file.id,
+          fileName: file.name,
+          mimeType: file.mimeType,
+          contentLength: content.length,
+          truncated,
+          content: truncated ? content.slice(0, maxChars) : content,
+        },
+        summary: truncated
+          ? `Read "${file.name}" (${file.mimeType}): showing the first ${maxChars.toLocaleString()} of ${content.length.toLocaleString()} characters.`
+          : `Read "${file.name}" (${file.mimeType}, ${content.length} characters).`,
+      };
+    },
+  };
+}
+
 function organizeFileTool(deps: DriveToolsDeps): QuantyTool {
   return {
     name: 'drive.organizeFile',
@@ -320,6 +384,7 @@ function organizeFileTool(deps: DriveToolsDeps): QuantyTool {
 export function buildDriveTools(deps: DriveToolsDeps): QuantyTool[] {
   return [
     searchFilesTool(deps),
+    readFileTool(deps),
     suggestDestinationTool(deps),
     summarizeFileTool(deps),
     organizeFileTool(deps),

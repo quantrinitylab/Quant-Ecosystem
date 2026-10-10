@@ -119,18 +119,20 @@ describe('quanty-agent tool-registry', () => {
     const names = listToolNames();
     for (const n of [
       'drive.searchFiles',
+      'drive.readFile',
       'drive.suggestDestination',
       'drive.summarizeFile',
       'drive.organizeFile',
     ]) {
       expect(names, `expected real tool ${n}`).toContain(n);
     }
-    expect(listToolsByApp('drive')).toHaveLength(4);
-    expect(listTools()).toHaveLength(12 + 5 + 11 + 4);
+    expect(listToolsByApp('drive')).toHaveLength(5);
+    expect(listTools()).toHaveLength(12 + 5 + 11 + 5);
     // The move tool is destructive: the agent layer must confirm first.
     expect(getTool('drive.organizeFile')?.destructive).toBe(true);
     // Read-only drive tools run without a prompt.
     expect(getTool('drive.searchFiles')?.destructive).toBe(false);
+    expect(getTool('drive.readFile')?.destructive).toBe(false);
     expect(getTool('drive.suggestDestination')?.destructive).toBe(false);
     expect(getTool('drive.summarizeFile')?.destructive).toBe(false);
   });

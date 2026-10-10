@@ -51,7 +51,7 @@ interface Rule {
 
 /** Words that carry no meaning in a drive command; stripped before arg extraction. */
 const DRIVE_STOPWORDS = new Set([
-  'find', 'search', 'files', 'file', 'summarize', 'summary', 'organize', 'organise',
+  'find', 'search', 'read', 'files', 'file', 'summarize', 'summary', 'organize', 'organise',
   'where', 'should', 'does', 'go', 'move', 'my', 'me', 'for', 'the', 'a', 'an',
   'about', 'named', 'called', 'to', 'its', 'their', 'folder', 'please',
 ]);
@@ -69,6 +69,27 @@ function driveArgRemainder(command: string): string {
     .join(' ')
     .trim();
   return remainder.replace(/[?!.,]+$/g, '');
+}
+
+/** Words that carry no meaning in a git command; stripped before arg extraction. */
+const GIT_STOPWORDS = new Set([
+  'show', 'list', 'summarize', 'summary', 'my', 'me', 'for', 'the', 'a', 'an',
+  'in', 'of', 'on', 'to', 'all', 'open', 'closed', 'merged',
+  'pr', 'prs', 'pull', 'request', 'requests', 'repo', 'repos', 'repository',
+  'repositories', 'please', 'about', 'number',
+]);
+
+/** Everything left after removing trigger/stop words — the repo name (and PR number). */
+function gitArgRemainder(command: string): string {
+  return command
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter((w) => w && !GIT_STOPWORDS.has(w.replace(/[?!.,]+$/g, '')))
+    .join(' ')
+    .trim()
+    .replace(/[?!.,]+$/g, '');
 }
 
 /**
@@ -115,6 +136,26 @@ const RULES: Rule[] = [
     summary: 'List repositories',
     steps: [{ toolName: 'git.listRepos', label: 'Listing repositories', args: {} }],
   },
+  // Git tools (most useful read-only ones only): open PRs and PR summaries.
+  // Destructive git tools (merge_pr, create_repo) have NO rules — they stay
+  // reachable only via explicit tool paths, never casual NL.
+  {
+    match: ['open', 'prs'],
+    summary: 'Show open pull requests',
+    steps: [{ toolName: 'git.listPrs', label: 'Listing open pull requests', args: {} }],
+    argsFrom: (command) => ({ repo: gitArgRemainder(command), state: 'open' }),
+  },
+  {
+    match: ['summarize', 'pr'],
+    summary: 'Summarize a pull request',
+    steps: [{ toolName: 'git.summarizePr', label: 'Summarizing pull request', args: {} }],
+    argsFrom: (command) => {
+      const remainder = gitArgRemainder(command);
+      const prNumber = Number(remainder.match(/\d+/)?.[0]);
+      const repo = remainder.replace(/\d+/g, '').replace(/\s+/g, ' ').trim();
+      return { repo, prNumber };
+    },
+  },
   // Drive tools (QM-M39-011): Quanty file workspace commands. Each rule
   // targets a REAL registered drive.* tool; the free-text remainder of the
   // command becomes the query / file name. Empty remainders surface as honest
@@ -135,6 +176,12 @@ const RULES: Rule[] = [
     match: ['summarize', 'file'],
     summary: 'Summarize a Drive file',
     steps: [{ toolName: 'drive.summarizeFile', label: 'Summarizing file', args: {} }],
+    argsFrom: (command) => ({ fileName: driveArgRemainder(command) }),
+  },
+  {
+    match: ['read', 'file'],
+    summary: 'Read a Drive file\'s contents',
+    steps: [{ toolName: 'drive.readFile', label: 'Reading file', args: {} }],
     argsFrom: (command) => ({ fileName: driveArgRemainder(command) }),
   },
   {
@@ -176,7 +223,7 @@ export class RuleBasedPlanner implements QuantyPlanner {
       }
     }
     return {
-      summary: `I couldn't understand "${command}". Try: archive unread, mark all read, star important, summarize latest, clean inbox, delete spam, list repos, find files <query>, summarize file <name>, where should <name> go, organize file <name>, move <name> to its folder.`,
+      summary: `I couldn't understand "${command}". Try: archive unread, mark all read, star important, summarize latest, clean inbox, delete spam, list repos, show open PRs in <repo>, summarize PR <n> in <repo>, find files <query>, read file <name>, summarize file <name>, where should <name> go, organize file <name>, move <name> to its folder.`,
       steps: [],
       unmatched: true,
     };
