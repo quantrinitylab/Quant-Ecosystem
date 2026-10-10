@@ -1533,6 +1533,11 @@ export function ConversationalThreadView({
   // and only runs when the countdown closes (or Send Now is pressed), the
   // optimistic bubble lands at that same moment, and Undo hands the words
   // back to the bar with nothing sent.
+  //
+  // Honesty contract (silent-loss fix): `onSendNow` must REJECT when the send
+  // fails — the bar claims "sent" only on resolve. `onSendFailed` shows the
+  // error toast and restores the words, so a failed reply is never celebrated
+  // and never silently eaten.
   const handleSendReply = useCallback(() => {
     if ((!quickReplyText.trim() && pendingAttachments.length === 0) || isSendingQuickReply) return;
     setReplyError(null);
@@ -1567,7 +1572,7 @@ export function ConversationalThreadView({
       if (quotedSnapshot) setQuotedMessage((prev) => prev ?? quotedSnapshot);
     };
 
-    const performSend = async () => {
+    const performSend = async (): Promise<void> => {
       setIsSendingQuickReply(true);
       try {
         // `'chat'` is the whole point of the bar: what is typed here is a line in the
@@ -1575,12 +1580,12 @@ export function ConversationalThreadView({
         // than a guess about its length.
         const res = await apiClient.replyToEmail(replyTarget, replyContent, undefined, 'chat', clientMessageId);
         if (!res.success) {
-          optimisticIdsRef.current.delete(clientMessageId);
-          quantyReact('mail:sendFailed');
-          setReplyError(res.error?.message || 'Failed to send reply');
-          showToast({ text: res.error?.message || 'Failed to send reply', type: 'error' });
-          restoreToReplyBar();
-          return;
+          // REJECT — never resolve on failure. The countdown bar claims "sent"
+          // only when this promise resolves; resolving here after showing an
+          // error toast is the silent-loss bug (the bar would celebrate a
+          // reply that never reached anyone). The honest failure UI lives in
+          // `onSendFailed` below, which the bar calls with this error.
+          throw new Error(res.error?.message || 'Failed to send reply');
         }
 
         const targetTo = messages[0]?.from ? [messages[0].from] : [];
@@ -1658,14 +1663,22 @@ export function ConversationalThreadView({
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }, 100);
-      } catch {
-        quantyReact('mail:sendFailed');
-        setReplyError('Failed to send reply');
-        showToast({ text: 'Failed to send reply', type: 'error' });
-        restoreToReplyBar();
       } finally {
         setIsSendingQuickReply(false);
       }
+    };
+
+    // Runs only when `performSend` rejects — i.e. the reply truly never sent —
+    // so every word here is honest: an error toast, the reconciliation id
+    // dropped, and the words handed back to the reply bar. The countdown bar
+    // calls this instead of ever claiming "sent" for a failed send.
+    const handleSendFailed = (error: unknown) => {
+      optimisticIdsRef.current.delete(clientMessageId);
+      quantyReact('mail:sendFailed');
+      const message = error instanceof Error && error.message ? error.message : 'Failed to send reply';
+      setReplyError(message);
+      showToast({ text: message, type: 'error' });
+      restoreToReplyBar();
     };
 
     // Who the countdown bar names: the conversation's other party, read the
@@ -1688,6 +1701,9 @@ export function ConversationalThreadView({
       to: recipientLabel,
       body: replyContent,
       onSendNow: performSend,
+      // A rejected send hands the words back with an honest error — the bar
+      // never claims "sent" for it (silent-loss fix).
+      onSendFailed: handleSendFailed,
       onUndo: () => {
         // Nothing was sent — the API call only exists inside `performSend`.
         // Drop the reconciliation id and hand the words back to the bar.

@@ -18,7 +18,19 @@ export interface QueueSendOptions {
   to: string;
   subject?: string;
   body?: string;
-  onSendNow?: () => void | Promise<void>;
+  /**
+   * Runs the real send once the recall window closes (countdown expiry or
+   * Send Now). MUST resolve only after the send truly completed — the bar
+   * claims "Message sent!" only on resolve. Reject (or throw) on failure so
+   * the bar never celebrates a send that never happened (silent-loss fix).
+   */
+  onSendNow?: () => Promise<void>;
+  /**
+   * Optional failure hook, called when `onSendNow` rejects: show an honest
+   * error and hand the words back. When absent the manager falls back to
+   * `onUndo`, which restores the caller's draft by contract.
+   */
+  onSendFailed?: (error: unknown) => void | Promise<void>;
   onUndo?: () => void | Promise<void>;
 }
 
@@ -27,7 +39,12 @@ export interface PendingSendItem extends QueueSendOptions {
   queuedAt: number;
 }
 
-export type UndoSendStatus = 'idle' | 'counting' | 'sent';
+/**
+ * 'sending' = the recall window closed and the real send is in flight. The
+ * bar keeps its countdown look (no Undo button — there is nothing left to
+ * recall) until the promise settles into 'sent' or the failure path.
+ */
+export type UndoSendStatus = 'idle' | 'counting' | 'sending' | 'sent';
 
 export interface UndoSendState {
   pendingItem: PendingSendItem | null;
@@ -97,10 +114,16 @@ export class UndoSendManager {
   }
 
   public queueSend = (options: QueueSendOptions): void => {
-    // If a previous email was already in queue, flush it immediately before replacing
+    // If a previous email was already in queue, flush it immediately before replacing.
+    // Synchronous invocation, like before; the returned promise is only
+    // observed so a rejection never goes unhandled. The bar is being replaced,
+    // so there is nothing to celebrate or restore for the previous item.
     if (this.state.pendingItem && this.state.status === 'counting') {
+      const previous = this.state.pendingItem;
       try {
-        this.state.pendingItem.onSendNow?.();
+        Promise.resolve(previous.onSendNow?.()).catch(() => {
+          // Silently ignore flush errors on previous message
+        });
       } catch {
         // Silently ignore flush errors on previous message
       }
@@ -143,46 +166,58 @@ export class UndoSendManager {
       if (remainingMs <= 0) {
         this.clearTimers();
 
-        // Trigger onSendNow automatically
+        // The recall window closed — run the real send. 'sent' is claimed
+        // only when its promise resolves; a rejection takes the honest
+        // failure path instead (never "Message sent!" for a lost send).
         const currentItem = this.state.pendingItem;
-        try {
-          currentItem?.onSendNow?.();
-        } catch {
-          // Silently ignore errors during automatic send execution
+        if (currentItem) {
+          this.flushSend(currentItem);
         }
-
-        this.state = {
-          ...this.state,
-          remainingSeconds: 0,
-          progressPercent: 0,
-          status: 'sent',
-        };
-        this.notify();
-
-        this.sentTimer = setTimeout(() => {
-          this.state = {
-            pendingItem: null,
-            remainingSeconds: this.countdownDurationSec,
-            progressPercent: 100,
-            status: 'idle',
-          };
-          this.notify();
-        }, this.sentDisplayDurationMs);
       }
     }, intervalTickMs);
   };
 
-  public sendNow = (): void => {
-    const currentItem = this.state.pendingItem;
-    if (!currentItem) return;
+  /**
+   * Run the queued item's real send. The bar moves to 'sending' while the
+   * promise is in flight and claims "sent" only on resolve. On reject the
+   * bar never celebrates: the caller's failure hook (or its undo/restore
+   * path) runs and the bar goes quiet.
+   */
+  private flushSend = (item: PendingSendItem): void => {
+    // The recall window is closed from here — the send is committed. The bar
+    // keeps its countdown look while the promise settles, minus the action
+    // buttons (there is nothing left to recall or re-flush).
+    this.state = {
+      ...this.state,
+      remainingSeconds: 0,
+      progressPercent: 0,
+      status: 'sending',
+    };
+    this.notify();
 
-    this.clearTimers();
-
+    let sendPromise: Promise<void>;
     try {
-      currentItem.onSendNow?.();
-    } catch {
-      // Silently ignore onSendNow callback execution errors
+      // Invoked synchronously, exactly like the old fire-and-forget call —
+      // only the *claim* of success is now gated on the returned promise.
+      // Promise.resolve() also turns a synchronous throw into a rejection,
+      // so sync and async failures share one honest path.
+      sendPromise = Promise.resolve(item.onSendNow?.());
+    } catch (err) {
+      sendPromise = Promise.reject(err);
     }
+
+    sendPromise.then(
+      () => this.markSent(item),
+      (error: unknown) => {
+        void this.handleSendFailure(item, error);
+      },
+    );
+  };
+
+  private markSent = (item: PendingSendItem): void => {
+    // Only celebrate the item still on screen — a newer queueSend (or an
+    // undo) may have replaced it while the promise was in flight.
+    if (this.state.pendingItem?.id !== item.id) return;
 
     this.state = {
       ...this.state,
@@ -193,6 +228,7 @@ export class UndoSendManager {
     this.notify();
 
     this.sentTimer = setTimeout(() => {
+      if (this.state.pendingItem?.id !== item.id) return;
       this.state = {
         pendingItem: null,
         remainingSeconds: this.countdownDurationSec,
@@ -203,9 +239,47 @@ export class UndoSendManager {
     }, this.sentDisplayDurationMs);
   };
 
+  private handleSendFailure = async (item: PendingSendItem, error: unknown): Promise<void> => {
+    // The send never completed — the bar must never claim "sent". Hand the
+    // words back through the caller's failure hook, or its undo/restore
+    // path when it has no dedicated hook, then go quiet.
+    if (this.state.pendingItem?.id !== item.id) return;
+    try {
+      if (item.onSendFailed) {
+        await item.onSendFailed(error);
+      } else {
+        await item.onUndo?.();
+      }
+    } catch {
+      // A restore-path error must never mask the original send failure.
+    }
+    if (this.state.pendingItem?.id !== item.id) return;
+    this.state = {
+      pendingItem: null,
+      remainingSeconds: this.countdownDurationSec,
+      progressPercent: 100,
+      status: 'idle',
+    };
+    this.notify();
+  };
+
+  public sendNow = (): void => {
+    const currentItem = this.state.pendingItem;
+    if (!currentItem) return;
+    // Already flushing (or already celebrated) — never fire the send twice.
+    if (this.state.status !== 'counting') return;
+
+    this.clearTimers();
+    this.flushSend(currentItem);
+  };
+
   public undoSend = (): void => {
     const currentItem = this.state.pendingItem;
     if (!currentItem) return;
+    // The recall window is the countdown only. Once it closes the send is
+    // committed ('sending') — undoing then would hand the words back for a
+    // message that already went out, inviting a duplicate re-send.
+    if (this.state.status !== 'counting') return;
 
     this.clearTimers();
 
@@ -421,6 +495,44 @@ export function UndoSendCountdownBar(props: UndoSendCountdownBarProps) {
               data-testid="undo-send-progress"
               className="h-full bg-gradient-to-r from-[var(--quant-primary)] to-[#FFA768] rounded-full transition-all duration-75 ease-linear"
               style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        </>
+      )}
+
+      {/* The recall window closed and the real send is in flight: same look,
+          but no Undo / Send Now — there is nothing left to recall or flush.
+          'sent' is claimed only when the send promise resolves. */}
+      {status === 'sending' && (
+        <>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <span className="flex h-2 w-2 relative shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--quant-primary)] opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--quant-primary)]" />
+              </span>
+              <p
+                data-testid="undo-send-text"
+                className="text-xs sm:text-sm font-medium text-[#F4F4F5] truncate"
+              >
+                Sending message to&nbsp;
+                <span className="font-semibold text-white">{pendingItem.to}</span>
+                ...
+              </p>
+            </div>
+          </div>
+
+          <div
+            role="progressbar"
+            aria-valuenow={0}
+            aria-valuemin={0}
+            aria-valuemax={10}
+            className="w-full h-1 bg-[#27272A] rounded-full overflow-hidden mt-2.5"
+          >
+            <div
+              data-testid="undo-send-progress"
+              className="h-full bg-gradient-to-r from-[var(--quant-primary)] to-[#FFA768] rounded-full transition-all duration-75 ease-linear"
+              style={{ width: '0%' }}
             />
           </div>
         </>

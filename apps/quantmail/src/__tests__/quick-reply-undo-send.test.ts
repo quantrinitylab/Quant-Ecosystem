@@ -105,7 +105,7 @@ describe('QM-UIUX-087 — quick-reply send behaviour through the shared undo que
     manager.destroy();
   });
 
-  it('(c) when the window expires the send completes exactly once', () => {
+  it('(c) when the window expires the send completes exactly once', async () => {
     const manager = new UndoSendManager();
     const performSend = vi.fn(async () => {});
     const restoreToReplyBar = vi.fn();
@@ -117,7 +117,12 @@ describe('QM-UIUX-087 — quick-reply send behaviour through the shared undo que
       onUndo: restoreToReplyBar,
     });
 
+    // The window closed: the send promise is in flight ('sending'), and
+    // 'sent' follows only when it resolves — never unconditionally.
     vi.advanceTimersByTime(UNDO_SEND_COUNTDOWN_SEC * 1000);
+    expect(manager.getState().status).toBe('sending');
+
+    await vi.advanceTimersByTimeAsync(0);
     expect(performSend).toHaveBeenCalledTimes(1);
     expect(restoreToReplyBar).not.toHaveBeenCalled();
     expect(manager.getState().status).toBe('sent');
@@ -152,7 +157,7 @@ describe('QM-UIUX-087 — wiring pins on ConversationalThreadView', () => {
     const occurrences = componentSource.split('apiClient.replyToEmail(').length - 1;
     expect(occurrences).toBe(1);
 
-    const performSendStart = componentSource.indexOf('const performSend = async () => {');
+    const performSendStart = componentSource.indexOf('const performSend = async (): Promise<void> => {');
     const queueSendCall = componentSource.indexOf('queueSend({', performSendStart);
     const apiCall = componentSource.indexOf('apiClient.replyToEmail(');
     expect(performSendStart).toBeGreaterThan(-1);
@@ -166,8 +171,15 @@ describe('QM-UIUX-087 — wiring pins on ConversationalThreadView', () => {
     const queueSendCall = body.indexOf('queueSend({');
     const clearAt = body.indexOf("setQuickReplyText('');", queueSendCall);
     expect(clearAt).toBeGreaterThan(queueSendCall);
-    // The deferred send's failure paths restore the words.
-    const performSend = body.slice(body.indexOf('const performSend = async () => {'), queueSendCall);
-    expect(performSend).toContain('restoreToReplyBar()');
+    // A failed send REJECTS (it must never resolve into a false "sent"):
+    // the failure hook wired as onSendFailed restores the words.
+    const performSendStart = body.indexOf('const performSend = async (): Promise<void> => {');
+    expect(performSendStart).toBeGreaterThan(-1);
+    const performSend = body.slice(performSendStart, queueSendCall);
+    expect(performSend).toContain('throw new Error(res.error?.message');
+    expect(body).toContain('onSendFailed: handleSendFailed');
+    const failedStart = body.indexOf('const handleSendFailed = (error: unknown) => {');
+    expect(failedStart).toBeGreaterThan(-1);
+    expect(body.slice(failedStart, queueSendCall)).toContain('restoreToReplyBar()');
   });
 });
