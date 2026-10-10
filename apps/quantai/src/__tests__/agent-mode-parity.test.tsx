@@ -23,12 +23,10 @@ const { CanvasArtifactsPanel } = await import('../components/CanvasArtifactsPane
 describe('QuantAI Agent Mode Suites', () => {
   describe('OnboardingHero', () => {
     it('renders onboarding hero with Quant branding and feature grid', () => {
-      const onSSO = vi.fn();
       const onSignIn = vi.fn();
 
       const html = renderToStaticMarkup(
         React.createElement(OnboardingHero, {
-          onContinueQuantSSO: onSSO,
           onSignIn: onSignIn,
         }),
       );
@@ -38,7 +36,9 @@ describe('QuantAI Agent Mode Suites', () => {
       expect(html).not.toContain('ChatGPT parity');
       expect(html).toContain('Meet');
       expect(html).toContain('Quanty');
-      expect(html).toContain('Continue with Quant Account');
+      // R3-P1-4 (2026-10-10): single sign-in path — the direct-SSO hero button
+      // was removed; every CTA routes to /login.
+      expect(html).not.toContain('Continue with Quant Account');
       expect(html).toContain('Sign in to start chatting');
       expect(html).toContain('Chat Mode');
       expect(html).toContain('Agent &amp; Code Mode');

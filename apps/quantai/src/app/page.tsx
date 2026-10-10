@@ -510,18 +510,7 @@ export default function AIPage() {
             Profile
           </Link>
         </div>
-      ) : (
-        <div className="flex items-center justify-between pt-1 border-t border-[var(--quant-border)]/50">
-          <span className="text-[11px] text-zinc-400">Sign in to chat</span>
-          <button
-            type="button"
-            onClick={handleNavigateToLogin}
-            className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer"
-          >
-            Sign In →
-          </button>
-        </div>
-      )}
+      ) : null}
     </div>
   );
 
@@ -706,7 +695,7 @@ export default function AIPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1.5">
+                  <div>
                     <button
                       type="button"
                       onClick={handleNavigateToLogin}
@@ -715,15 +704,6 @@ export default function AIPage() {
                     >
                       <span>🔒</span>
                       <span>Sign In</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleQuantSSO}
-                      className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-hover)] text-[var(--foreground-secondary)] hover:text-[var(--foreground)] text-xs font-semibold transition-all cursor-pointer"
-                      title="Quick SSO with QuantMail"
-                    >
-                      <span>⚡</span>
-                      <span>SSO</span>
                     </button>
                   </div>
                 )}
@@ -781,7 +761,6 @@ export default function AIPage() {
               {!isAuthenticated && hasCheckedAuth && (
                 <div className="p-4 border-b border-[var(--quant-border)] bg-[var(--quant-surface)]/30 overflow-y-auto max-h-[60vh]">
                   <OnboardingHero
-                    onContinueQuantSSO={handleQuantSSO}
                     onSignIn={handleNavigateToLogin}
                   />
                 </div>
