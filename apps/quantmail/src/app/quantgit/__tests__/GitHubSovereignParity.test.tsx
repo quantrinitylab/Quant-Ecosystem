@@ -144,7 +144,7 @@ describe('QuantGit 159-Screen GitHub Sovereign Parity Components', () => {
   });
 
   describe('CopilotFleetModeView (Screens 1–14, 135–142)', () => {
-    it('renders Copilot cloud agent OS, models, and usage meter', () => {
+    it('renders Copilot fleet planner, models, and honest local-only state', () => {
       const html = renderToStaticMarkup(
         <CopilotFleetModeView repoOwner="quantrinitylab" repoName="Quant-Ecosystem" />,
       );
@@ -152,8 +152,12 @@ describe('QuantGit 159-Screen GitHub Sovereign Parity Components', () => {
       expect(html).toContain('GitHub Copilot Fleet Mode');
       expect(html).toContain('Cloud Agents');
       expect(html).toContain('Claude Sonnet 4.5');
-      expect(html).toContain('1 / 200 Credits');
-      expect(html).toContain('Delegate tasks to Copilot cloud agents');
+      // QM-PLAT-008 — no fabricated usage meter or seeded agent activity:
+      // the view is a local planner until a real agent backend is connected.
+      expect(html).not.toContain('1 / 200 Credits');
+      expect(html).not.toContain('10,450');
+      expect(html).toContain('Plan tasks for Copilot cloud agents');
+      expect(html).toContain('No agent tasks yet');
       expect(html).toContain('agent');
       expect(html).toContain('debug');
     });
