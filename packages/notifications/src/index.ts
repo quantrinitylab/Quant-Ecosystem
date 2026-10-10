@@ -1,5 +1,14 @@
 // ============================================================================
 // Notifications Package - Barrel Export
+//
+// QM-UIUX-054: the in-memory "engine" facade (NotificationFanout,
+// CrossAppDispatcher, InAppNotificationService, PreferenceService and the
+// Phase-27 helper services) was deleted. It only computed routing decisions
+// in process memory — it never persisted or sent anything — and every app's
+// real notification path writes the shared Prisma `Notification` model
+// directly (QuantMail QM-UIUX-052, QuantGram, QuantWave). What remains here
+// is the push-delivery substrate that QM-UIUX-053 will wire:
+// PushNotificationService (FCM/APNs) and WebPushService (VAPID web push).
 // ============================================================================
 
 export { PushNotificationService, PushService } from './services/push-service';
@@ -10,30 +19,9 @@ export type {
   PushResult,
   PushServiceConfig,
 } from './services/push-service';
-export { InAppNotificationService } from './services/in-app-service';
-export { EmailDigestService } from './services/email-digest-service';
-export { SchedulerService } from './services/scheduler-service';
-export { PreferenceService } from './services/preference-service';
-export { NotificationFanout } from './services/notification-fanout';
-export type { FanoutEvent, RecipientRouting, FanoutResult } from './services/notification-fanout';
 
-// Phase 27 - New services
-export { DndService } from './services/dnd-service';
-export { BatchService } from './services/batch-service';
-export type { BatchConfig } from './services/batch-service';
-export { DedupService } from './services/dedup-service';
-export { SnoozeService } from './services/snooze-service';
 export { WebPushService } from './services/web-push-service';
 export type { VapidConfig, WebPushPayload } from './services/web-push-service';
-
-export { UniversalNotificationCenter } from './universal-notification-center';
-export type {
-  NotificationApp,
-  UniversalNotification,
-  UniversalNotificationPriority,
-  UniversalNotificationPreferences,
-  NotificationFilters,
-} from './universal-notification-center';
 
 export type {
   NotificationType,
@@ -83,6 +71,3 @@ export type {
 } from './types';
 
 export { CATEGORY_URGENCY } from './types';
-
-export { CrossAppDispatcher } from './services/cross-app-dispatcher';
-export type { CrossAppNotification } from './services/cross-app-dispatcher';
