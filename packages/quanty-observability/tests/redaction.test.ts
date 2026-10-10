@@ -38,6 +38,43 @@ describe('Redactor', () => {
     expect(redacted.cc[0]).toBe('***@x.io');
   });
 
+  it('email masking matches the pre-ReDoS-fix regex semantics exactly', () => {
+    const masked = [
+      'user.name+tag@sub.example.co.in',
+      'a@b.co',
+      'a@b..c', // dot may be adjacent, just not first/last in domain
+      'u@v.w.xy',
+    ];
+    const notMasked = [
+      '@example.com', // empty local part
+      'a@', // empty domain
+      'a@example', // no dot in domain
+      'a@.com', // dot first in domain
+      'a@com.', // dot last in domain
+      'a@@b.c', // two @
+      'a b@c.d', // whitespace in local part
+      'a@b c.d', // whitespace in domain
+      'plain', // no @ at all
+      '',
+      'a@b.c ', // trailing whitespace
+    ];
+    for (const email of masked) {
+      const out = redactSecrets({ v: email }).v as string;
+      expect(out, email).toBe('***' + email.slice(email.indexOf('@')));
+    }
+    for (const s of notMasked) {
+      expect(redactSecrets({ v: s }).v, s).toBe(s);
+    }
+  });
+
+  it('email detection is linear-time (no ReDoS on dot-heavy input)', () => {
+    const evil = 'u@' + 'a.'.repeat(15000) + 'x '; // non-matching: trailing space
+    const start = Date.now();
+    const out = redactSecrets({ v: evil }).v as string;
+    expect(out).toBe(evil); // unchanged, since it is not an email
+    expect(Date.now() - start).toBeLessThan(2000);
+  });
+
   it('redacts credential-scheme strings and sensitive URL parts', () => {
     expect(redactSecrets({ h: 'Bearer abc.def.ghi' }).h).toBe(REDACTED);
     expect(redactSecrets({ h: 'Basic dXNlcjpwYXNz' }).h).toBe(REDACTED);
