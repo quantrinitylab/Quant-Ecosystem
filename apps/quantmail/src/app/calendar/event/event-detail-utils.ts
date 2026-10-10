@@ -4,6 +4,8 @@
 // Kept free of React so the formatting contract is unit-testable.
 // ============================================================================
 
+import { tzOffsetMinutes } from '../../../lib/calendar-logo-date';
+
 export type RsvpStatus = 'accepted' | 'declined' | 'tentative' | 'pending';
 
 export const RSVP_LABELS: Record<RsvpStatus, string> = {
@@ -87,9 +89,63 @@ export interface EventDetailDto {
   location?: string;
   status?: string;
   timeZone?: string;
+  /** Server-computed: is the signed-in viewer in this event's attendee list. */
+  viewerIsAttendee?: boolean;
   attendees?: Array<{ email: string; name?: string; status?: string }>;
   reminders?: string[];
   recurrence?: string | null;
   // Parsed by the backend out of the stored __QUANT_META__ description header.
   driveLink?: string;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/**
+ * Render a stored UTC instant as a `datetime-local` wall-clock value in the
+ * event's own timezone. Rendering in the *browser* timezone instead made a
+ * user editing an event saved in another zone see a shifted time and
+ * "correct" it — silently moving the meeting. Falls back to browser-local
+ * rendering for a missing or invalid zone name.
+ */
+export function toZonedInputValue(value: string | Date, timeZone?: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  let offsetMinutes: number;
+  try {
+    offsetMinutes = timeZone ? tzOffsetMinutes(d, timeZone) : -d.getTimezoneOffset();
+  } catch {
+    offsetMinutes = -d.getTimezoneOffset();
+  }
+  const shifted = new Date(d.getTime() + offsetMinutes * 60_000);
+  return `${shifted.getUTCFullYear()}-${pad2(shifted.getUTCMonth() + 1)}-${pad2(shifted.getUTCDate())}T${pad2(shifted.getUTCHours())}:${pad2(shifted.getUTCMinutes())}`;
+}
+
+/**
+ * Parse a `datetime-local` wall-clock value as belonging to `timeZone`,
+ * returning the UTC ISO instant. Two refinement passes absorb a DST offset
+ * change between the first guess and the resolved instant. Falls back to
+ * browser-local parsing for a missing or invalid zone name.
+ */
+export function zonedInputToIso(value: string, timeZone?: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?/.exec(value.trim());
+  if (!match) return new Date(value).toISOString();
+  const parts = match.slice(1).map(Number);
+  const y = parts[0] as number;
+  const mo = parts[1] as number;
+  const da = parts[2] as number;
+  const h = parts[3] as number;
+  const mi = parts[4] as number;
+  const wallAsUtc = Date.UTC(y, mo - 1, da, h, mi);
+  if (timeZone) {
+    try {
+      let candidate = wallAsUtc;
+      for (let i = 0; i < 2; i++) {
+        candidate = wallAsUtc - tzOffsetMinutes(new Date(candidate), timeZone) * 60_000;
+      }
+      return new Date(candidate).toISOString();
+    } catch {
+      // Invalid zone name — fall through to browser-local parsing.
+    }
+  }
+  return new Date(value).toISOString();
 }

@@ -1327,13 +1327,6 @@ export default async function calendarRoutes(
       data: callAlertService.getScheduledAlerts(requireUserId(request)),
     });
   });
-  fastify.get<{ Params: { id: string } }>('/events/:id', async (request, reply) => {
-    const userId = requireUserId(request);
-    const event = await getPrisma(fastify).event.findUnique({ where: { id: request.params.id } });
-    if (!event || event.userId !== userId)
-      throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
-    return reply.send({ success: true, data: toEventDto(event as EventRow) });
-  });
   const getEventForIcs = async (prisma: any, id: string, userId: string): Promise<EventRow> => {
     let event = (await prisma.event.findUnique({
       where: { id },
@@ -1346,6 +1339,11 @@ export default async function calendarRoutes(
       })) as EventRow | null;
       if (parent && parent.userId === userId) {
         const occStart = new Date(occIso);
+        // An occurrence id whose suffix is not a real ISO instant is not a
+        // real event — 404 rather than synthesizing an Invalid-Date row.
+        if (Number.isNaN(occStart.getTime())) {
+          throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
+        }
         const duration = new Date(parent.endTime).getTime() - new Date(parent.startTime).getTime();
         event = {
           ...parent,
@@ -1361,6 +1359,39 @@ export default async function calendarRoutes(
     }
     return event;
   };
+
+  // The detail page's "Your response" RSVP widget must only be offered to an
+  // actual attendee. Match exactly the way POST /events/:id/rsvp matches:
+  // attendee row's userId, or the viewer's account email against the
+  // attendee's email (case-insensitive).
+  const isViewerAttendee = async (
+    prisma: any,
+    event: EventRow,
+    userId: string,
+  ): Promise<boolean> => {
+    if (!prisma.user || typeof prisma.user.findUnique !== 'function') return false;
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    const email = String(user?.email ?? '').toLowerCase();
+    return toStoredAttendees(parseJsonArray(event.attendees) as AttendeeInput[]).some(
+      (attendee) => attendee.userId === userId || attendee.email.toLowerCase() === email,
+    );
+  };
+
+  fastify.get<{ Params: { id: string } }>('/events/:id', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    // Resolves recurring occurrence ids (<parentId>_<iso>) the same way the
+    // ICS endpoints do, so a detail link from search/list never 404s on a
+    // real occurrence.
+    const event = await getEventForIcs(prisma, request.params.id, userId);
+    return reply.send({
+      success: true,
+      data: {
+        ...toEventDto(event as EventRow),
+        viewerIsAttendee: await isViewerAttendee(prisma, event, userId),
+      },
+    });
+  });
 
   const getOrganizerInfo = async (prisma: any, userId: string) => {
     if (!prisma.user || typeof prisma.user.findUnique !== 'function') return undefined;

@@ -53,6 +53,10 @@ const EVENT = {
   ],
   reminders: ['30 minutes before'],
   recurrence: 'FREQ=WEEKLY',
+  // The RSVP scenario in this fixture is a viewer who IS an attendee; the
+  // detail page only offers "Your response" when the backend DTO says so
+  // (viewerIsAttendee), matching the gating tests in event-detail.test.tsx.
+  viewerIsAttendee: true,
 };
 
 function loaded(event: unknown) {

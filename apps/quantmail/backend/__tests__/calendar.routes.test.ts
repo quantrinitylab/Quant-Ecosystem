@@ -307,6 +307,100 @@ describe('GET /events/:id', () => {
   });
 });
 
+describe('GET /events/:id — recurring occurrence ids and viewerIsAttendee', () => {
+  // A daily parent; list/search hand out occurrence ids of the form
+  // `<parentId>_<iso>` (recurring.service expandRecurrence).
+  const PARENT = {
+    ...ROW,
+    recurrenceRule: 'FREQ=DAILY',
+    startTime: new Date('2026-10-12T09:00:00.000Z'),
+    endTime: new Date('2026-10-12T10:00:00.000Z'),
+    attendees: JSON.stringify([{ email: 'me@quantmail.in', name: 'Me', status: 'pending' }]),
+  };
+  const OCC_ID = 'e1_2026-10-13T09:00:00.000Z';
+
+  function withUserDelegate() {
+    (prisma as unknown as { user: unknown }).user = {
+      findUnique: vi.fn().mockResolvedValue({ email: 'me@quantmail.in' }),
+    };
+  }
+
+  function occurrenceLookup() {
+    prisma.event.findUnique.mockImplementation(
+      ({ where: { id } }: { where: { id: string } }) =>
+        Promise.resolve(id === OCC_ID ? null : id === 'e1' ? PARENT : null),
+    );
+  }
+
+  it('resolves a valid occurrence id into a synthesized occurrence', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    occurrenceLookup();
+    const res = await app.inject({ method: 'GET', url: `/events/${OCC_ID}` });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json().data;
+    expect(body.id).toBe(OCC_ID);
+    expect(body.startTime).toBe('2026-10-13T09:00:00.000Z');
+    // Parent duration (1h) applied to the occurrence start.
+    expect(body.endTime).toBe('2026-10-13T10:00:00.000Z');
+    expect(body.recurrence).toBeNull();
+  });
+
+  it('404s an occurrence id with an unparseable iso suffix', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    occurrenceLookup();
+    const res = await app.inject({ method: 'GET', url: '/events/e1_not-a-date' });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error.code).toBe('EVENT_NOT_FOUND');
+  });
+
+  it('404s an occurrence id whose parent belongs to another user', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    prisma.event.findUnique.mockImplementation(
+      ({ where: { id } }: { where: { id: string } }) =>
+        Promise.resolve(id === OCC_ID ? null : id === 'e1' ? { ...PARENT, userId: 'user-2' } : null),
+    );
+    const res = await app.inject({ method: 'GET', url: `/events/${OCC_ID}` });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error.code).toBe('EVENT_NOT_FOUND');
+  });
+
+  it('sets viewerIsAttendee true when the viewer is in the attendee list', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    occurrenceLookup();
+    const res = await app.inject({ method: 'GET', url: '/events/e1' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.viewerIsAttendee).toBe(true);
+  });
+
+  it('sets viewerIsAttendee false when the viewer is not an attendee', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    const res = await app.inject({ method: 'GET', url: '/events/e1' });
+    expect(res.statusCode).toBe(200);
+    // ROW.attendees is '[]' — the owner is normally not in the list.
+    expect(res.json().data.viewerIsAttendee).toBe(false);
+  });
+
+  it('matches the viewer by attendee userId even when the email differs', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    prisma.event.findUnique.mockResolvedValue({
+      ...ROW,
+      attendees: JSON.stringify([
+        { userId: 'user-1', email: 'other@example.com', name: 'Me', status: 'pending' },
+      ]),
+    });
+    const res = await app.inject({ method: 'GET', url: '/events/e1' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.viewerIsAttendee).toBe(true);
+  });
+});
+
 describe('POST /events', () => {
   it('creates from the payload the sheet sends', async () => {
     const app = await buildApp();
