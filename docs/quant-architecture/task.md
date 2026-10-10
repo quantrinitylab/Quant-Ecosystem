@@ -1222,9 +1222,7 @@ Scope: `apps/quantmail/backend/routes/inbound-webhook.ts`, `emails.ts`.
 Dependencies: none.
 
 ## QM-UIUX-053 — Push notifications unwired (no delivery path)
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-053-push-notifications
+Status: [x] DONE — PR #797 merged 2026-10-10 (16 files, +1678/-26). Wired: QuantMail registration routes (POST /push/subscribe, /push/unsubscribe, GET /push/vapid-public-key; userId from auth only), PushSubscription persistence (existing Prisma model, no migration), push-delivery service on the new-mail notification path (dead-endpoint pruning), real web-push transport handler (VAPID env) in packages/notifications, frontend service worker + client hook + Settings toggle; honest not-configured degradation when VAPID keys are absent. Removed the substrate's fabricated {success:true, 201} fallback. 41 new tests, all fail on original; suites green; tsc clean. Native FCM/APNs half still blocked on the user's FCM provisioning decision (device-token store + credentials).
 Finding: `PushService` (real FCM/APNs code) is never instantiated. No device-token registration, no service worker, no VAPID, no `PushSubscription` writes from QuantMail. No delivery path from server to device exists. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/notif-backend-audit.md`.
 Required: wire the push delivery path (device registration → subscription → PushService invocation).
 Scope: QuantMail backend + frontend.
