@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { ApprovalQueue, ApprovalRequest } from '../approval-queue.js';
+import { ApprovalQueue, ApprovalRequest, ApprovalDecisionContext } from '../approval-queue.js';
+
+// QM-QUANTY-009: decisions require an authenticated, step-up-verified decider
+// who is not the requesting agent ('agent-1').
+const CTX: ApprovalDecisionContext = { decidedBy: 'user-owner', stepUpVerified: true };
 
 describe('ApprovalQueue', () => {
   function makeRequest(overrides: Partial<ApprovalRequest> = {}): ApprovalRequest {
@@ -26,7 +30,7 @@ describe('ApprovalQueue', () => {
   it('approves pending requests', () => {
     const queue = new ApprovalQueue();
     queue.submit(makeRequest({ id: 'req-1' }));
-    queue.approve('req-1');
+    queue.approve('req-1', CTX);
 
     const item = queue.getById('req-1');
     expect(item?.status).toBe('approved');
@@ -36,7 +40,7 @@ describe('ApprovalQueue', () => {
   it('rejects pending requests', () => {
     const queue = new ApprovalQueue();
     queue.submit(makeRequest({ id: 'req-1' }));
-    queue.reject('req-1');
+    queue.reject('req-1', CTX);
 
     const item = queue.getById('req-1');
     expect(item?.status).toBe('rejected');
@@ -45,26 +49,26 @@ describe('ApprovalQueue', () => {
 
   it('throws when approving non-existent request', () => {
     const queue = new ApprovalQueue();
-    expect(() => queue.approve('nonexistent')).toThrow(/not found/);
+    expect(() => queue.approve('nonexistent', CTX)).toThrow(/not found/);
   });
 
   it('throws when rejecting non-existent request', () => {
     const queue = new ApprovalQueue();
-    expect(() => queue.reject('nonexistent')).toThrow(/not found/);
+    expect(() => queue.reject('nonexistent', CTX)).toThrow(/not found/);
   });
 
   it('throws when approving already resolved request', () => {
     const queue = new ApprovalQueue();
     queue.submit(makeRequest({ id: 'req-1' }));
-    queue.approve('req-1');
-    expect(() => queue.approve('req-1')).toThrow(/already approved/);
+    queue.approve('req-1', CTX);
+    expect(() => queue.approve('req-1', CTX)).toThrow(/already approved/);
   });
 
   it('throws when rejecting already resolved request', () => {
     const queue = new ApprovalQueue();
     queue.submit(makeRequest({ id: 'req-1' }));
-    queue.reject('req-1');
-    expect(() => queue.reject('req-1')).toThrow(/already rejected/);
+    queue.reject('req-1', CTX);
+    expect(() => queue.reject('req-1', CTX)).toThrow(/already rejected/);
   });
 
   it('getPending only returns pending items', () => {
@@ -72,8 +76,8 @@ describe('ApprovalQueue', () => {
     queue.submit(makeRequest({ id: 'req-1' }));
     queue.submit(makeRequest({ id: 'req-2' }));
     queue.submit(makeRequest({ id: 'req-3' }));
-    queue.approve('req-1');
-    queue.reject('req-2');
+    queue.approve('req-1', CTX);
+    queue.reject('req-2', CTX);
 
     const pending = queue.getPending();
     expect(pending).toHaveLength(1);
@@ -94,7 +98,7 @@ describe('ApprovalQueue', () => {
     expect(entry?.status).toBe('pending');
 
     // Approve it
-    queue.approve('high-risk');
+    queue.approve('high-risk', CTX);
     expect(queue.getById('high-risk')?.status).toBe('approved');
   });
 });
