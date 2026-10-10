@@ -50,7 +50,6 @@ const SENSITIVE_KEY_SUBSTRINGS = [
 /** Key names redacted only on exact (case-insensitive) match. */
 const SENSITIVE_KEY_EXACT = new Set(['pwd', 'pin']);
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CREDENTIAL_SCHEME_RE = /^(bearer|basic|token)\s+\S+$/i;
 
 export interface RedactionOptions {
@@ -105,9 +104,35 @@ function redactValue(value: unknown, redactor: Redactor, stack: object[]): unkno
   return out;
 }
 
+/**
+ * Linear-scan equivalent of the email shape previously matched by
+ * /^[^\s@]+@[^\s@]+\.[^\s@]+$/. That regex backtracks polynomially on
+ * inputs whose domain contains many '.' characters (CodeQL
+ * js/polynomial-redos), so the check is done by hand instead: no whitespace
+ * anywhere, exactly one '@' with a non-empty local part, and a '.' inside
+ * the domain with at least one character on both sides of it.
+ */
+function isEmailAddress(value: string): boolean {
+  let atIndex = -1;
+  for (let i = 0; i < value.length; i++) {
+    const ch = value.charAt(i);
+    if (/\s/.test(ch)) return false;
+    if (ch === '@') {
+      if (atIndex !== -1) return false;
+      atIndex = i;
+    }
+  }
+  if (atIndex <= 0) return false;
+  // The domain dot must be neither the domain's first nor its last character.
+  for (let i = atIndex + 2; i < value.length - 1; i++) {
+    if (value.charAt(i) === '.') return true;
+  }
+  return false;
+}
+
 function redactString(value: string, redactor: Redactor): string {
   if (CREDENTIAL_SCHEME_RE.test(value)) return REDACTED;
-  if (redactor.maskEmail && EMAIL_RE.test(value)) {
+  if (redactor.maskEmail && isEmailAddress(value)) {
     return `***${value.slice(value.indexOf('@'))}`;
   }
   if (value.includes('://')) {
