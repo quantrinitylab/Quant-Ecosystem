@@ -872,7 +872,9 @@ Scope: QuantCooks sign-in.
 Dependencies: none.
 
 ## QM-UIUX-017 — QuantCooks: "OR" divider text overlaps the divider line
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-017-cooks-or-divider
 Finding: the "OR" divider label sits awkwardly on top of the divider line (visual glitch). Screenshot: `~/workspace/audits/2026-10-08-uiux-deep/cooks-mobile.png`.
 Required: proper divider with background-masked label or spaced layout.
 Scope: QuantCooks sign-in.
@@ -1067,9 +1069,8 @@ Scope: inbox page; `layout.tsx`; `useCollabDoc.ts`; image tags.
 Dependencies: none.
 
 ## QM-UIUX-040 — Inbox P1s: swipe hint, cursor pagination, hook cleanup
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-040-inbox-p1s
+Status: [x] DONE — PR #774 merged 2026-10-10 (12 files, +985/-171). Backend GET /emails gains an optional keyset cursor over the route's real ordering (receivedAt desc, createdAt desc, id desc); offset mode unchanged for existing callers; malformed cursor = 400. Frontend: cursor pager behind useInbox (poll cannot rewind an extended chain; tail never persisted to the offline snapshot), Load-more in inbox + folder pages, one-time dismissible swipe hint (inbox pool only — folder rows are not swipeable), dead useInfiniteInbox deleted. New tests 9 backend + 12 frontend incl. the insert-between-pages drift scenario; negative controls fail on original; built on 80234f287, re-verified after a clean 3-way merge onto current main (targeted 21/21, frontend tsc 0).
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/774
 Finding: (a) swipe actions not discoverable — no hint for new users; (b) page-based pagination can drift when new mail arrives during scroll — cursor-based is correct; (c) `useInfiniteInbox` and `useInbox` both exist — verify which is live, delete the dead one. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/inbox-deep-audit.md`.
 Required: one-time dismissible swipe hint; cursor pagination; remove dead hook.
 Scope: inbox components and hooks.
