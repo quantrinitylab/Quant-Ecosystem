@@ -175,6 +175,64 @@ vi.mock('../lib/markdown', () => ({
   useSafeMarkdownHtml: () => '',
 }));
 
+// --- framer-motion: the real animation engine is the hang/OOM source --------
+// Run-9 evidence (gate job 114183252419): the quarantined solo invocation ran
+// 523.75s for 9 tests with testTimeout=60000 and `tests 0ms` — i.e. every
+// test hung into its 60s timeout while the worker leaked ~8 GB and died.
+// The real motion/AnimatePresence components (used by both
+// ConversationalThreadView and the real AnchoredMenu on the menu path) start
+// rAF-driven animation loops under jsdom that never settle inside React 19
+// act(), so each test hangs and leaks until the timeout/OOM killer.
+// Map motion.* to plain host elements, AnimatePresence to a fragment, and
+// report reduced motion. The assertions below only read button text, toast
+// calls and titles — none of which need real animation.
+vi.mock('framer-motion', () => {
+  // framer-motion-only props must not reach the DOM as unknown attributes.
+  const STRIP = new Set([
+    'initial', 'animate', 'exit', 'transition', 'variants', 'layout', 'layoutId',
+    'whileHover', 'whileTap', 'whileInView', 'whileFocus', 'whileDrag', 'drag',
+    'dragConstraints', 'dragElastic', 'dragMomentum', 'onAnimationStart',
+    'onAnimationComplete', 'onHoverStart', 'onHoverEnd', 'onTap', 'onPan',
+    'onDragEnd', 'onDragStart', 'onViewportEnter', 'onViewportLeave',
+  ]);
+  const toPlain =
+    (tag: string) =>
+    ({ children, ...rest }: { children?: React.ReactNode; [k: string]: unknown }) => {
+      const domProps: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(rest)) {
+        if (!STRIP.has(k)) domProps[k] = v;
+      }
+      return React.createElement(tag, domProps, children);
+    };
+  const motionProxy = new Proxy(
+    {},
+    {
+      get: (_t, tag) =>
+        typeof tag === 'string' ? toPlain(tag) : undefined,
+    },
+  );
+  const noopMotionValue = (v: unknown) => ({
+    get: () => v,
+    set: () => {},
+    on: () => () => {},
+  });
+  return {
+    motion: motionProxy,
+    AnimatePresence: ({ children }: { children?: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    useReducedMotion: () => true,
+    useAnimation: () => ({
+      start: () => Promise.resolve(),
+      stop: () => {},
+      set: () => {},
+    }),
+    useMotionValue: noopMotionValue,
+    useTransform: () => noopMotionValue(0),
+    useSpring: (v: unknown) => v,
+    animate: () => ({ stop: () => {} }),
+  };
+});
+
 import { ConversationalThreadView } from '../components/ConversationalThreadView';
 
 // --- Fixtures ----------------------------------------------------------------
