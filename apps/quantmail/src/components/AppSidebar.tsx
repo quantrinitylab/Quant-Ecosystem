@@ -241,7 +241,11 @@ const NAV_GROUPS: Array<{
   {
     label: 'Mail',
     items: [
-      { id: 'inbox', label: 'Mail', icon: 'inbox', path: '/' },
+      // SIA-P1-5: one folder list everywhere — the drawer's inbox entry is
+      // labelled "Inbox", matching the desktop context sidebar
+      // (PILLAR_SUB_CONFIGS mail tabs: Inbox, Sent, Drafts, Archive, Spam,
+      // Trash). The group header stays "Mail" (the app's name).
+      { id: 'inbox', label: 'Inbox', icon: 'inbox', path: '/' },
       { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
       { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
       { id: 'archive', label: 'Archive', icon: 'archive', path: '/?tab=archive', tab: 'archive' },
