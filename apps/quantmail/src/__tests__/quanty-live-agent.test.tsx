@@ -9,8 +9,8 @@ import {
   TASK_STATUS_DOT,
   TASK_STATUS_LABEL,
   TASK_STATUS_TO_BUBBLE,
-  loadRecentCommands,
-  saveRecentCommand,
+  addRecentCommand,
+  purgeLegacyRecentCommands,
   QuantyAvatar,
   QuantyModeChooser,
   QuantyActionHighlight,
@@ -76,29 +76,45 @@ describe('quantyTime helpers', () => {
   });
 });
 
-describe('recent commands storage', () => {
-  it('returns [] when window is unavailable (SSR)', () => {
-    expect(loadRecentCommands()).toEqual([]);
+describe('recent commands — session-only (QM-QUANTY-012)', () => {
+  it('needs no window: the list update is pure and the legacy purge is a safe no-op (SSR)', () => {
+    expect(addRecentCommand([], 'a')).toEqual(['a']);
+    expect(() => purgeLegacyRecentCommands()).not.toThrow();
   });
 
-  it('saves, dedupes and caps at 5', () => {
-    const store = new Map<string, string>();
+  it('dedupes, newest first, caps at 5 — in memory only, storage never written', () => {
+    // A legacy copy from the pre-classification build is sitting in storage.
+    const store = new Map<string, string>([
+      ['quanty-recent-commands', JSON.stringify(['purani command'])],
+    ]);
+    const setItem = vi.fn((k: string, v: string) => void store.set(k, v));
     vi.stubGlobal('window', {
       localStorage: {
         getItem: (k: string) => store.get(k) ?? null,
-        setItem: (k: string, v: string) => void store.set(k, v),
+        setItem,
+        removeItem: (k: string) => void store.delete(k),
       },
     });
-    expect(saveRecentCommand('a')).toEqual(['a']);
-    expect(saveRecentCommand('b')).toEqual(['b', 'a']);
-    expect(saveRecentCommand('a')).toEqual(['a', 'b']); // dedupe, newest first
-    saveRecentCommand('c');
-    saveRecentCommand('d');
-    saveRecentCommand('e');
-    const six = saveRecentCommand('f');
-    expect(six).toHaveLength(5);
-    expect(six[0]).toBe('f');
-    expect(loadRecentCommands()).toEqual(six);
+
+    let list: string[] = [];
+    list = addRecentCommand(list, 'a');
+    expect(list).toEqual(['a']);
+    list = addRecentCommand(list, 'b');
+    expect(list).toEqual(['b', 'a']);
+    list = addRecentCommand(list, 'a');
+    expect(list).toEqual(['a', 'b']); // dedupe, newest first
+    list = addRecentCommand(list, 'c');
+    list = addRecentCommand(list, 'd');
+    list = addRecentCommand(list, 'e');
+    list = addRecentCommand(list, 'f');
+    expect(list).toHaveLength(5);
+    expect(list[0]).toBe('f');
+
+    // The session-list flow never writes storage…
+    expect(setItem).not.toHaveBeenCalled();
+    // …and the mount purge deletes the legacy copy instead of restoring it.
+    purgeLegacyRecentCommands();
+    expect(store.has('quanty-recent-commands')).toBe(false);
   });
 });
 

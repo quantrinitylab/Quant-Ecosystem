@@ -57,7 +57,7 @@ export type { QuantyIdentityTabProps } from './tabs/QuantyIdentityTab';
 export { useQuantyPopupData } from './useQuantyPopupData';
 export type { UseQuantyPopupData, UseQuantyPopupDataOptions } from './useQuantyPopupData';
 
-export { QuantyCommandBar, loadRecentCommands, saveRecentCommand } from './QuantyCommandBar';
+export { QuantyCommandBar, addRecentCommand, purgeLegacyRecentCommands } from './QuantyCommandBar';
 export type { QuantyCommandBarProps } from './QuantyCommandBar';
 
 export { QuantyActivityFeed } from './QuantyActivityFeed';
