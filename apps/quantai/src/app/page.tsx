@@ -866,6 +866,7 @@ export default function AIPage() {
                       onClearFile={() => setAttachedFile(null)}
                       currentModel={currentModel.name}
                       onStop={stopStreaming}
+                      aiUnavailable={aiUnavailable}
                     />
                   ) : (
                     <div className="p-4">
@@ -1262,6 +1263,8 @@ interface ChatInputProps {
   onClearFile: () => void;
   currentModel?: string;
   onStop?: () => void;
+  /** True when the backend reported no AI provider is configured (AI_UNAVAILABLE). */
+  aiUnavailable?: boolean;
 }
 
 function ChatInput({
@@ -1277,6 +1280,7 @@ function ChatInput({
   onClearFile,
   currentModel,
   onStop,
+  aiUnavailable = false,
 }: ChatInputProps) {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
