@@ -204,11 +204,26 @@ vi.mock('framer-motion', () => {
       }
       return React.createElement(tag, domProps, children);
     };
+  // The Proxy `get` trap fires on EVERY `motion.div` access — on every
+  // render. Without a cache, each access returned a FRESH component
+  // function, so React saw a different component identity at the same tree
+  // position on every render and entered an unmount/remount loop: the
+  // hang+OOM signature of gate job 114188075863 (run 38043411872 — FATAL
+  // ERROR at 8 GB, Duration 785.97s, tests 0ms). Cache per tag so the
+  // identity is stable across renders, exactly like real `motion.div`.
+  const tagCache = new Map<string, ReturnType<typeof toPlain>>();
   const motionProxy = new Proxy(
     {},
     {
-      get: (_t, tag) =>
-        typeof tag === 'string' ? toPlain(tag) : undefined,
+      get: (_t, tag) => {
+        if (typeof tag !== 'string') return undefined;
+        let Comp = tagCache.get(tag);
+        if (!Comp) {
+          Comp = toPlain(tag);
+          tagCache.set(tag, Comp);
+        }
+        return Comp;
+      },
     },
   );
   const noopMotionValue = (v: unknown) => ({
