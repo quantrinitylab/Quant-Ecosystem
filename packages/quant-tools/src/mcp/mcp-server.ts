@@ -65,7 +65,7 @@ export class MCPServerAdapter {
       };
     }
 
-    const context: McpAuthContext = { userId: auth.userId, tier: auth.tier, bearer: token };
+    const context: McpAuthContext = { userId: auth.userId, tier: auth.tier, bearer: token, scopes: [] };
     try {
       const outcome = await this.server.dispatchToolCall(toolName, args, context);
 

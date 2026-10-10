@@ -75,6 +75,36 @@ export {
   type McpJsonSchemaProperty,
 } from './mcp/descriptor-mapping.js';
 
+// Connect-once OAuth + capability token (P1-2)
+export {
+  SCOPE_CATALOG,
+  allScopeNames,
+  isKnownScope,
+  requiredScopesForTool,
+  scopeDomainForAppId,
+  scopeInfo,
+  type CapabilityScope,
+  CAPABILITY_TOKEN_ISSUER,
+  CAPABILITY_TOKEN_SECRET_ENV,
+  CapabilityTokenError,
+  isCapabilityTokenRevoked,
+  issueCapabilityToken,
+  resolveCapabilitySecret,
+  revokeCapabilityToken,
+  verifyCapabilityToken,
+  type CapabilityClaims,
+  type CapabilityTokenErrorCode,
+  type IssueCapabilityTokenOptions,
+  createConnectOnceHandler,
+  type ConnectOnceOptions,
+  type ConsentUser,
+  JwtCapabilityTokenResolver,
+} from './connect-once/index.js';
+export type {
+  CapabilityTokenResolver,
+  ResolvedCapabilities,
+} from './mcp/mcp-gateway-server.js';
+
 // Orchestrator
 export { CrossAppOrchestrator } from './orchestrator/index.js';
 export type {

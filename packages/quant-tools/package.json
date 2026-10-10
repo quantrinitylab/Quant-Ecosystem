@@ -17,6 +17,7 @@
     "vitest": "^4"
   },
   "dependencies": {
+    "@quant/federation": "workspace:*",
     "@quant/quanty-contracts": "workspace:*"
   }
 }
