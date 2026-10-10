@@ -123,6 +123,19 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^settings\/tokens$/, methods: ['GET', 'POST'] },
   { pattern: /^settings\/tokens\/[^/]+$/, methods: ['DELETE'] },
 
+  // ── Data lifecycle: export center (QM-BACK-006, QM-UIUX-091) ──────────────
+  // dataLifecycleRoutes is registered at BOTH `/data-lifecycle` and
+  // `/api/data-lifecycle` in backend/app.ts; the web client calls
+  // `/api/data-lifecycle/*`, so this proxy sees `data-lifecycle/*`. The
+  // backend export center was live with NO allow-list entry, so every call
+  // 404'd here — the Account page had no way to reach it. Only the export
+  // routes are exposed: the retention sweep and the operations read have no
+  // web caller and stay backend-only. The `:id` GET row is anchored and
+  // single-segment, so it cannot shadow the `/build` POST below it.
+  { pattern: /^data-lifecycle\/exports$/, methods: ['GET', 'POST'] },
+  { pattern: /^data-lifecycle\/exports\/[^/]+$/, methods: ['GET'] },
+  { pattern: /^data-lifecycle\/exports\/[^/]+\/build$/, methods: ['POST'] },
+
   // ── Admin console (restructure Phase 1 pilot) ──────────────────────────────
   // adminRoutes is mounted at both `/admin` and `/api/admin` (backend/app.ts).
   // The web client calls `/api/admin/*`, so this proxy sees `admin/*`. Without
