@@ -98,8 +98,8 @@ the right order. Missing dependencies fail fast at boot rather than at runtime
 
 ```typescript
 // cross-cutting engine that needs the database
-export default fp(notificationsPlugin, {
-  name: 'notifications',
+export default fp(enginePlugin, {
+  name: 'engine',
   dependencies: ['prisma'], // registers after prismaPlugin → fastify.prisma is defined
 });
 ```
@@ -172,11 +172,11 @@ export default async function featureRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/send',
     {
-      preHandler: fastify.requireAuth({ scopes: ['notifications:write'] }), // optional fine-grained scope
+      preHandler: fastify.requireAuth({ scopes: ['feature:write'] }), // optional fine-grained scope
       schema: { body: SendSchema },
     },
     async (request) => {
-      const result = await fastify.notifications.dispatch({
+      const result = await fastify.engine.send({
         ...request.body,
         userId: request.auth.userId,
       });
