@@ -16,6 +16,7 @@ import {
 import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
+import { inboxLensTarget, inboxResetTarget, syncSearchParam } from '../lib/inbox-nav';
 import { AppSidebar } from '../components/AppSidebar';
 import { EmailSafetyBanner } from '../components/EmailSafetyBanner';
 import { EmailSnooze } from '../components/EmailSnooze';
@@ -1779,14 +1780,14 @@ function InboxPageContent() {
     return () => window.clearTimeout(timer);
   }, [searchQuery]);
 
+  /*
+   * Keep ?q= in sync on the debounced value — replace, not push, so typing
+   * doesn't stack history entries. The pure decision (set vs drop vs no-op)
+   * lives in `syncSearchParam` so the CUST-P1-6 contract is unit-tested.
+   */
   useEffect(() => {
-    const url = new URL(window.location.href);
-    const current = url.searchParams.get('q') ?? '';
-    const next = debouncedQuery.trim();
-    if (current === next) return;
-    if (next) url.searchParams.set('q', next);
-    else url.searchParams.delete('q');
-    router.replace(url.pathname + url.search, { scroll: false });
+    const target = syncSearchParam(window.location.href, debouncedQuery);
+    if (target !== null) router.replace(target, { scroll: false });
   }, [debouncedQuery, router]);
 
   const { user: currentUser } = useAuth();
@@ -2047,9 +2048,14 @@ function InboxPageContent() {
     setActiveLens('all');
     setActiveTurn('any');
     setActiveFilters(new Set());
+    // CUST-P1-6: the reset drops ?q from the URL, so the search state is
+    // cleared alongside — otherwise the URL says no-search while the
+    // searchbox still shows the old text and the panel stays in search mode.
+    setSearchQuery('');
+    setDebouncedQuery('');
     // Stay in the classic inbox: dropping ?view=inbox would render the People
     // view at / (2026-10-10 button audit).
-    router.replace('/?view=inbox', { scroll: false });
+    router.replace(inboxResetTarget(), { scroll: false });
   }, [router]);
 
   /**
@@ -2064,8 +2070,17 @@ function InboxPageContent() {
     (lens: InboxLens) => {
       setActiveLens(lens);
       setShowArchivedView(false);
-      const target = lens === 'all' ? '/?view=inbox' : `/?view=inbox&lens=${lens}`;
-      router.replace(target, { scroll: false });
+      // CUST-P1-6: a lens switch is a new query context — clear the search so
+      // the URL (no `q`, see inboxLensTarget), the searchbox, and the panel
+      // stay in sync. Without the clear, the debounced query kept driving the
+      // panel's search-mode render ("No messages matched …") against a URL
+      // that no longer had `q`, while the searchbox still showed the old text.
+      // Both states clear at once (same as the panel's own "Clear search"
+      // button) so the panel exits search mode immediately instead of 260ms
+      // later when the debounce would catch up.
+      setSearchQuery('');
+      setDebouncedQuery('');
+      router.replace(inboxLensTarget(lens), { scroll: false });
     },
     [router],
   );
