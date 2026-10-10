@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRealtime } from '../providers/realtime-context';
+import { chatSocket } from '../services/chat-socket';
 import { getAuthHeadersWithContent } from '../lib/auth';
 import { getChatTheme, type ChatTheme } from '../lib/chat-themes';
 
@@ -9,15 +9,23 @@ import { getChatTheme, type ChatTheme } from '../lib/chat-themes';
 // Task 14.3: useChatThemeSync
 //
 // Persists a conversation's theme to the backend and syncs the selection to
-// all participants in real time over the 'chat' channel via a `theme_changed`
-// event. Subscribers update their local theme immediately when a participant
-// changes it.
+// all participants in real time via a `theme_changed` event. Subscribers
+// update their local theme immediately when a participant changes it.
 //
 // Backend: POST /conversations/:id/theme
 // Requirements: 14.3 (persist per-conversation + sync to all participants)
+//
+// QM-UIUX-060: migrated from the dead RealtimeProvider (`/ws`) to the working
+// `chatSocket` singleton (`/ws/chat`), joining the conversation room exactly
+// like useRealtimeChat. Honest transport note: the durable sync path is the
+// REST persist above — the backend `/ws/chat` handler has no theme channel
+// today, so the `theme_changed` frame is a best-effort realtime hint carried
+// on the single real connection (the old provider's `/ws` socket had the
+// same limitation); it is delivered to local consumers if a peer frame with
+// that shape arrives over the singleton.
 // ============================================================================
 
-/** Shape of the realtime `theme_changed` event payload. */
+/** Shape of the realtime `theme_changed` event. */
 export interface ThemeChangedEvent {
   type: 'theme_changed';
   conversationId: string;
@@ -49,23 +57,39 @@ export function useChatThemeSync(
   conversationId: string,
   initialThemeId?: string | null,
 ): UseChatThemeSyncResult {
-  const { subscribe, publish } = useRealtime();
   const [theme, setLocalTheme] = useState<ChatTheme>(() => getChatTheme(initialThemeId));
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Subscribe to theme_changed events for this conversation (Req 14.3 sync).
+  // Subscribe to theme_changed events for this conversation (Req 14.3 sync)
+  // over the shared chatSocket singleton, joining the conversation room so
+  // room-scoped frames for this conversation reach this consumer.
   useEffect(() => {
-    const unsubscribe = subscribe(
-      'chat',
-      (event: ThemeChangedEvent & { conversationId?: string }) => {
-        if (event?.type === 'theme_changed' && event.conversationId === conversationId) {
-          setLocalTheme(getChatTheme(event.themeId));
-        }
-      },
-    );
-    return unsubscribe;
-  }, [subscribe, conversationId]);
+    if (!conversationId) return;
+
+    chatSocket.acquire();
+    chatSocket.subscribe(conversationId);
+
+    const unsubscribeMessage = chatSocket.onMessage((event: any) => {
+      // Normalized events carry their payload in `data`; legacy passthrough
+      // frames carry the fields flat.
+      const source = event?.data ?? event;
+      const type = event?.type ?? source?.type;
+      if (type !== 'theme_changed') return;
+      const eventConversationId: string | undefined =
+        source?.conversationId ?? event?.conversationId;
+      const themeId: string | undefined = source?.themeId ?? event?.themeId;
+      if (eventConversationId === conversationId && themeId) {
+        setLocalTheme(getChatTheme(themeId));
+      }
+    });
+
+    return () => {
+      unsubscribeMessage();
+      chatSocket.unsubscribe(conversationId);
+      chatSocket.release();
+    };
+  }, [conversationId]);
 
   const setTheme = useCallback(
     async (themeId: string) => {
@@ -75,8 +99,8 @@ export function useChatThemeSync(
       setIsSaving(true);
       setError(null);
 
-      // Broadcast to other participants immediately.
-      publish('chat', {
+      // Broadcast to other participants immediately over the shared socket.
+      chatSocket.send({
         type: 'theme_changed',
         conversationId,
         themeId: next.id,
@@ -97,7 +121,7 @@ export function useChatThemeSync(
         setIsSaving(false);
       }
     },
-    [conversationId, publish],
+    [conversationId],
   );
 
   return { theme, isSaving, error, setTheme };
