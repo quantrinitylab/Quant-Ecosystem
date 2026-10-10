@@ -37,6 +37,47 @@ export interface ParsedSearchQuery {
 
 const KNOWN_FOLDER_TYPES = new Set(['inbox', 'sent', 'drafts', 'spam', 'trash', 'archive']);
 
+/**
+ * Translate one canonical `in:` folder type (lowercased) into a Prisma `Email`
+ * condition. Mirrors the folder-listing semantics of `GET /emails`
+ * (`apps/quantmail/backend/routes/emails.ts`): system folders are expressed
+ * through the Email flags (`isSent`/`isDraft`/`isSpam`/`isTrash`) plus the
+ * `EmailFolder.type` relation where the listing route uses it.
+ */
+function folderTypeCondition(type: string): Record<string, unknown> {
+  switch (type) {
+    case 'sent':
+      return { isSent: true, isTrash: false };
+    case 'drafts':
+      return { isDraft: true, isTrash: false };
+    case 'spam':
+      return { isSpam: true, isTrash: false };
+    case 'trash':
+      return { isTrash: true };
+    case 'archive':
+      return { isTrash: false, folder: { is: { type: 'ARCHIVE' } } };
+    case 'inbox':
+      // Default inbox view: active mail (not Draft/Spam/Trash) that is unfiled,
+      // in the INBOX folder, or sent in an active thread.
+      return {
+        isDraft: false,
+        isSpam: false,
+        isTrash: false,
+        AND: [
+          {
+            OR: [
+              { folderId: null },
+              { folder: { is: { type: 'INBOX' } } },
+              { isSent: true },
+            ],
+          },
+        ],
+      };
+    default:
+      return {};
+  }
+}
+
 const RELATIVE_UNIT_MS: Record<string, number> = {
   d: 86_400_000,
   w: 604_800_000,
@@ -210,6 +251,10 @@ export class SearchQueryService {
     if (parsed.folderIds.length > 0) {
       and.push({ folderId: { in: parsed.folderIds } });
     }
+    if (parsed.inFolderTypes.length > 0) {
+      const branches = parsed.inFolderTypes.map(folderTypeCondition);
+      and.push(branches.length === 1 ? branches[0]! : { OR: branches });
+    }
     if (parsed.hasAttachment !== undefined) {
       and.push({ hasAttachments: parsed.hasAttachment });
     }
@@ -314,6 +359,43 @@ export class SearchQueryService {
         if (parsed.folderIds.length > 0) {
           whereClauses.push(`"folderId" = ANY($${paramIdx++}::text[])`);
           params.push(parsed.folderIds);
+        }
+        if (parsed.inFolderTypes.length > 0) {
+          // Raw-SQL mirror of folderTypeCondition() for the GIN full-text path.
+          // $1 is always the userId bind (see params initialisation above);
+          // folder membership resolves through email_folders (EmailFolder.type).
+          const bind = (value: unknown): string => {
+            params.push(value);
+            return `$${paramIdx++}`;
+          };
+          const folderOfType = (folderType: string): string =>
+            `"folderId" IN (SELECT id FROM email_folders WHERE "userId" = $1 AND type = '${folderType}')`;
+          const clauseFor = (type: string): string => {
+            switch (type) {
+              case 'sent':
+                return `"isSent" = ${bind(true)} AND "isTrash" = ${bind(false)}`;
+              case 'drafts':
+                return `"isDraft" = ${bind(true)} AND "isTrash" = ${bind(false)}`;
+              case 'spam':
+                return `"isSpam" = ${bind(true)} AND "isTrash" = ${bind(false)}`;
+              case 'trash':
+                return `"isTrash" = ${bind(true)}`;
+              case 'archive':
+                return `"isTrash" = ${bind(false)} AND ${folderOfType('ARCHIVE')}`;
+              case 'inbox':
+                return (
+                  `"isDraft" = ${bind(false)} AND "isSpam" = ${bind(false)} AND ` +
+                  `"isTrash" = ${bind(false)} AND ("folderId" IS NULL OR ` +
+                  `${folderOfType('INBOX')} OR "isSent" = ${bind(true)})`
+                );
+              default:
+                // Unreachable: inFolderTypes only holds KNOWN_FOLDER_TYPES.
+                // A no-op guard rather than silently filtering everything out.
+                return 'TRUE';
+            }
+          };
+          const clauses = parsed.inFolderTypes.map((type) => `(${clauseFor(type)})`);
+          whereClauses.push(clauses.length === 1 ? clauses[0]! : `(${clauses.join(' OR ')})`);
         }
         if (parsed.hasAttachment !== undefined) {
           whereClauses.push(`"hasAttachments" = $${paramIdx++}`);
