@@ -42,31 +42,36 @@ const normalizedArgs = normalizeArgs(rawArgs);
 
 if (normalizedArgs.length === 0) {
   // ---------------------------------------------------------------------------
-  // Gate OOM fix (PR #773): shard the full suite into two sequential vitest
+  // Gate OOM fix (PR #773): shard the full suite into four sequential vitest
   // invocations instead of one.
   //
-  // Root cause (CI run 38035175874, gate job): a single vitest forks-pool
-  // worker hit its V8 heap limit —
-  //   "Mark-Compact 8068.4 (8230.0) MB ... FATAL ERROR: Ineffective
+  // Root cause (CI runs 38035175874 + 38036983383, gate AND full-sweep jobs):
+  // a single vitest forks-pool worker grows monotonically across the test
+  // files it processes and dies with
+  //   "Mark-Compact 8068.7 (8230.5) MB ... FATAL ERROR: Ineffective
   //    mark-compacts near heap limit Allocation failed - JavaScript heap
   //    out of memory"
-  // — with 362/363 test files and 4287/4296 tests passing. The 8230 MB limit
-  // is the 8192 MB NODE_OPTIONS cap from the earlier heap-bump fix, so the
-  // cap IS active: this is genuine per-worker heap accumulation across the
-  // ~180 test files each long-lived fork processes (vitest forks pool never
-  // recycles workers), NOT a too-small cap and NOT machine RAM exhaustion
-  // (that would be SIGKILL/137, not a V8 fatal error). maxWorkers: 2 did not
-  // help because each remaining fork still accumulates the same ~8 GB.
+  // while every test passes. The 8230 MB limit is the 8192 MB NODE_OPTIONS
+  // cap from the earlier heap-bump fix, so the cap IS active: this is genuine
+  // per-worker heap accumulation across the ~180 test files each long-lived
+  // fork processes (vitest forks pool never recycles workers), NOT a
+  // too-small cap and NOT machine RAM exhaustion (that would be SIGKILL/137,
+  // not a V8 fatal error). maxWorkers: 2 did not help because each remaining
+  // fork still accumulates the same heap.
   //
-  // Each shard spawns fresh workers that process ~half the files, roughly
-  // halving peak per-worker heap (~4 GB vs the 8 GB cap). Shards run
-  // sequentially so peak machine RAM stays at 2 concurrent forks.
-  // Targeted runs (args present, e.g. local dev) keep the old single-run
-  // behavior.
+  // Shard timing shows the weight is concentrated in the second half:
+  // shard 1/2 (182 files) passes in ~170s, shard 2/2 (181 files) OOMs after
+  // ~420-540s at the heap cap. Splitting into 4 shards (~90 files each)
+  // halves the heavy half again: peak per-worker heap drops to ~2 GB,
+  // comfortably under the 8 GB gate cap. Shards run sequentially so peak
+  // machine RAM stays at 2 concurrent forks. Targeted runs (args present,
+  // e.g. local dev) keep the old single-run behavior.
   // ---------------------------------------------------------------------------
   const shards = [
-    ['--shard=1/2'],
-    ['--shard=2/2'],
+    ['--shard=1/4'],
+    ['--shard=2/4'],
+    ['--shard=3/4'],
+    ['--shard=4/4'],
   ];
   let failed = false;
   for (const shardArgs of shards) {

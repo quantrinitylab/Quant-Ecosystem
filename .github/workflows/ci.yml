@@ -236,5 +236,7 @@ jobs:
 
       - name: Full typecheck + lint + test + build
         env:
-          NODE_OPTIONS: --max-old-space-size=4096
+          # Same 8 GB cap as the gate step: quantmail's vitest forks workers
+          # accumulate heap across test files (PR #773) and die at 4 GB.
+          NODE_OPTIONS: --max-old-space-size=8192
         run: npx turbo typecheck lint test build --concurrency=2 --continue
