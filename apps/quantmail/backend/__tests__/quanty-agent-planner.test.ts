@@ -64,6 +64,18 @@ describe('quanty-agent planner', () => {
     ["find John's contact", ['contacts.searchContacts']],
     ['search contacts for Priya Sharma', ['contacts.searchContacts']],
     ['add Priya Sharma, priya@example.com', ['contacts.addContact']],
+    // Calendar commands.
+    ["what's on my calendar today", ['calendar.listEvents']],
+    ["what's on my calendar tomorrow", ['calendar.listEvents']],
+    ["what's on my schedule today", ['calendar.listEvents']],
+    ['schedule a meeting tomorrow at 3pm', ['calendar.createEvent']],
+    ['schedule an event for tomorrow', ['calendar.createEvent']],
+    ['cancel my 2pm meeting', ['calendar.deleteEvent']],
+    ['cancel the standup event', ['calendar.deleteEvent']],
+    ['delete that event', ['calendar.deleteEvent']],
+    ['am I free today', ['calendar.freeBusy']],
+    ['am I free tomorrow', ['calendar.freeBusy']],
+    ['am I busy today', ['calendar.freeBusy']],
   ];
 
   it.each(cases)('plans "%s"', (command, expectedTools) => {
@@ -90,14 +102,15 @@ describe('quanty-agent planner', () => {
     expect(plan.unmatched).toBe(true);
   });
 
-  it('honestly declines commands for tools that do not exist (calendar)', () => {
-    // Calendar tools are not wired yet — the planner must NOT plan them
-    // (that would be planning against a stub).
+  it('plans calendar commands against real registered tools', () => {
     for (const command of ['create an event for tomorrow', "what's on my schedule today?"]) {
       const plan = new RuleBasedPlanner().plan(command);
-      expect(plan.unmatched).toBe(true);
+      expect(plan.unmatched, command).toBe(false);
+      for (const step of plan.steps) {
+        expect(getTool(step.toolName), `tool ${step.toolName} should be registered`).toBeDefined();
+      }
     }
-    expect(listToolNames().some((n) => n.startsWith('calendar.'))).toBe(false);
+    expect(listToolNames().some((n) => n.startsWith('calendar.'))).toBe(true);
     // Contacts tools ARE wired now — the planner routes to real implementations.
     expect(listToolNames().some((n) => n.startsWith('contacts.'))).toBe(true);
   });
@@ -177,6 +190,37 @@ describe('quanty-agent planner', () => {
     expect(planner.plan('move budget.xlsx to its folder').steps[0].args).toEqual({
       fileName: 'budget.xlsx',
     });
+  });
+
+  it('calendar create materializes as a destructive (confirmation-gated) step with parsed args', () => {
+    const planner = new RuleBasedPlanner();
+    const plan = planner.plan('schedule a meeting tomorrow at 3pm');
+    expect(plan.unmatched).toBe(false);
+    const step = plan.steps[0];
+    expect(step.toolName).toBe('calendar.createEvent');
+    // "tomorrow at 3pm" becomes a UTC-day ISO start/end pair (honest, documented).
+    expect(typeof step.args.title).toBe('string');
+    expect(String(step.args.start)).toMatch(/T15:00:00\.000Z$/);
+    expect(String(step.args.end)).toMatch(/T16:00:00\.000Z$/);
+    const steps = materializeSteps(plan);
+    expect(steps[0].destructive).toBe(true);
+  });
+
+  it('calendar delete extracts the event reference as eventId', () => {
+    const plan = new RuleBasedPlanner().plan('cancel my 2pm meeting');
+    expect(plan.unmatched).toBe(false);
+    expect(plan.steps[0].toolName).toBe('calendar.deleteEvent');
+    expect(plan.steps[0].args.eventId).toBe('2pm');
+    expect(materializeSteps(plan)[0].destructive).toBe(true);
+  });
+
+  it('calendar list carries a UTC-day window', () => {
+    const plan = new RuleBasedPlanner().plan("what's on my calendar today");
+    expect(plan.unmatched).toBe(false);
+    expect(plan.steps[0].toolName).toBe('calendar.listEvents');
+    const { start, end } = plan.steps[0].args as { start: string; end: string };
+    expect(new Date(start).getUTCHours()).toBe(0);
+    expect(new Date(end).getTime() - new Date(start).getTime()).toBe(86_400_000 - 1);
   });
 
   it('drive organize materializes as a destructive (confirmation-gated) step', () => {

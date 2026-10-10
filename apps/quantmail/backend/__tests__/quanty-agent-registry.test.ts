@@ -115,13 +115,20 @@ describe('quanty-agent tool-registry', () => {
     ]) {
       expect(names, `expected real tool ${n}`).toContain(n);
     }
-    // Calendar has no tools yet — nothing from the old stub era.
-    expect(names.some((n) => n.startsWith('calendar.'))).toBe(false);
+    // Calendar tools (adapted from the real calendar-tools).
+    for (const n of [
+      'calendar.listEvents', 'calendar.createEvent', 'calendar.updateEvent',
+      'calendar.deleteEvent', 'calendar.freeBusy',
+    ]) {
+      expect(names, `expected real tool ${n}`).toContain(n);
+    }
+    // Nothing from the old stub era.
     // Drive tools register only when an AIEngine is provided (QM-M39-011);
     // mockDeps() omits it, so none are registered here.
     expect(names.some((n) => n.startsWith('drive.'))).toBe(false);
     expect(listToolsByApp('contacts')).toHaveLength(4);
-    expect(listTools()).toHaveLength(12 + 5 + 11 + 4);
+    expect(listToolsByApp('calendar')).toHaveLength(5);
+    expect(listTools()).toHaveLength(12 + 5 + 11 + 4 + 5);
   });
 
   it('registerRealTools registers the REAL drive tools when an AIEngine is provided (QM-M39-011)', () => {
@@ -138,7 +145,8 @@ describe('quanty-agent tool-registry', () => {
     }
     expect(listToolsByApp('drive')).toHaveLength(5);
     expect(listToolsByApp('contacts')).toHaveLength(4);
-    expect(listTools()).toHaveLength(12 + 5 + 11 + 5 + 4);
+    expect(listToolsByApp('calendar')).toHaveLength(5);
+    expect(listTools()).toHaveLength(12 + 5 + 11 + 5 + 4 + 5);
     // The move tool is destructive: the agent layer must confirm first.
     expect(getTool('drive.organizeFile')?.destructive).toBe(true);
     // Read-only drive tools run without a prompt.
@@ -158,12 +166,17 @@ describe('quanty-agent tool-registry', () => {
     // These require the user to tap "Haan, karo" before the executor runs them.
     expect(getTool('contacts.addContact')?.destructive).toBe(true);
     expect(getTool('contacts.updateContact')?.destructive).toBe(true);
+    expect(getTool('calendar.createEvent')?.destructive).toBe(true);
+    expect(getTool('calendar.updateEvent')?.destructive).toBe(true);
+    expect(getTool('calendar.deleteEvent')?.destructive).toBe(true);
     // Read-only tools run without a prompt.
     expect(getTool('mail.searchEmails')?.destructive).toBe(false);
     expect(getTool('mail.listUnread')?.destructive).toBe(false);
     expect(getTool('git.listRepos')?.destructive).toBe(false);
     expect(getTool('contacts.searchContacts')?.destructive).toBe(false);
     expect(getTool('contacts.getContact')?.destructive).toBe(false);
+    expect(getTool('calendar.listEvents')?.destructive).toBe(false);
+    expect(getTool('calendar.freeBusy')?.destructive).toBe(false);
   });
 
   it('every registered tool has a real async handler', async () => {
