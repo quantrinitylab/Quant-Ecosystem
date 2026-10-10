@@ -2102,7 +2102,9 @@ Status: [x] DONE — PR #773 merged 2026-10-10. Root cause: api-client request()
 PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/773
 
 ## QM-UIUX-095 — Thread header "Not spam" rescue shows the same fake success (093 follow-up)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-095-rescue-spam-fake-success
 Finding: handleRescueSpam in ConversationalThreadView.tsx (~L769, header/banner "Not spam" action) has the identical never-rejects defect class fixed by QM-UIUX-093 for the More-menu handlers: the api-client request() resolves {success:false} on failure instead of rejecting, and the handler proceeds as if the rescue succeeded. Deliberately out of 093's More-menu scope; filed at 093's close.
 Required: inspect the settled result; on failure show the existing error toast and do NOT remove the spam state/banner; on success proceed as today. Add regression tests mirroring the 093 handler tests (failure keeps state + error toast; success path unchanged).
 Scope: apps/quantmail/src (ConversationalThreadView.tsx handleRescueSpam + tests).
