@@ -1,10 +1,37 @@
 import { TaskDecomposer, SubTask, AIInferenceAdapter } from './task-decomposer.js';
 import { WorkerAgent, AgentTask } from './worker-agent.js';
 import { PermissionLevel, canAct } from './permissions.js';
-import { ApprovalQueue } from './approval-queue.js';
+import { ApprovalQueue, ApprovalStatus } from './approval-queue.js';
 import { ConflictResolver } from './conflict-resolver.js';
+import { AuditTrail } from './audit-trail.js';
 
-export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
+/**
+ * QM-QUANTY-009: 'waiting_approval' is a mandatory, observable state — a
+ * task with a high-risk subtask sits here until the approval gate resolves.
+ */
+export type TaskStatus = 'pending' | 'running' | 'waiting_approval' | 'completed' | 'failed';
+
+/** Thrown when the approval gate stops a high-risk subtask from executing. */
+export class ApprovalBlockedError extends Error {
+  readonly approvalId: string;
+  readonly approvalStatus: ApprovalStatus | 'integrity';
+
+  constructor(approvalId: string, status: ApprovalStatus | 'integrity', detail: string) {
+    super(`Approval gate blocked ${approvalId}: ${detail}`);
+    this.name = 'ApprovalBlockedError';
+    this.approvalId = approvalId;
+    this.approvalStatus = status;
+  }
+}
+
+export interface OrchestratorOptions {
+  /** Inject a pre-configured gate (e.g. backed by a durable FileApprovalStore). */
+  approvalQueue?: ApprovalQueue;
+  /** Shared audit spine for gate + execution events. */
+  auditTrail?: AuditTrail;
+  /** Approval request TTL in ms. Defaults to the queue's policy default. */
+  approvalTimeoutMs?: number;
+}
 
 export interface OrchestratorTask {
   id: string;
@@ -21,11 +48,16 @@ export class Orchestrator {
   private tasks: Map<string, OrchestratorTask> = new Map();
   readonly approvalQueue: ApprovalQueue;
   readonly conflictResolver: ConflictResolver;
+  readonly auditTrail: AuditTrail;
+  private readonly approvalTimeoutMs?: number;
 
-  constructor(ai: AIInferenceAdapter) {
+  constructor(ai: AIInferenceAdapter, options: OrchestratorOptions = {}) {
     this.decomposer = new TaskDecomposer(ai);
-    this.approvalQueue = new ApprovalQueue();
+    this.auditTrail = options.auditTrail ?? new AuditTrail();
+    this.approvalQueue =
+      options.approvalQueue ?? new ApprovalQueue({ auditTrail: this.auditTrail });
     this.conflictResolver = new ConflictResolver();
+    this.approvalTimeoutMs = options.approvalTimeoutMs;
   }
 
   registerWorker(worker: WorkerAgent): void {
@@ -64,7 +96,7 @@ export class Orchestrator {
           }
         }
 
-        await Promise.all(group.map((subtask) => this.dispatchSubtask(subtask)));
+        await Promise.all(group.map((subtask) => this.dispatchSubtask(subtask, orchestratorTask)));
 
         // Release locks after group completes
         for (const subtask of group) {
@@ -94,7 +126,7 @@ export class Orchestrator {
     return this.tasks.get(taskId);
   }
 
-  private async dispatchSubtask(subtask: SubTask): Promise<void> {
+  private async dispatchSubtask(subtask: SubTask, task: OrchestratorTask): Promise<void> {
     const worker = this.findSuitableWorker(subtask.requiredPermission);
     if (!worker) {
       throw new Error(
@@ -102,17 +134,99 @@ export class Orchestrator {
       );
     }
 
-    // Approval gate for high-risk subtasks
+    // QM-QUANTY-009 — BLOCKING approval gate for high-risk subtasks.
+    // Previously this submitted an approval request and then ran the worker
+    // unconditionally (fail-open). Now the worker is not started until an
+    // authenticated decision approves the exact persisted action, and any
+    // other terminal outcome (rejected / expired / cancelled / tampered)
+    // stops the subtask. Retries re-enter this gate on the same record.
     if (
       subtask.requiredPermission === PermissionLevel.ACT_HIGH ||
       subtask.requiredPermission === PermissionLevel.FULL_AUTO
     ) {
       const approvalId = `approval-${subtask.id}`;
+      const riskLevel =
+        subtask.requiredPermission === PermissionLevel.FULL_AUTO ? 'critical' : 'high';
       this.approvalQueue.submit({
         id: approvalId,
         agentId: worker.id,
         action: subtask.description,
-        riskLevel: subtask.requiredPermission === PermissionLevel.FULL_AUTO ? 'critical' : 'high',
+        riskLevel,
+        resourceId: subtask.id,
+        taskId: task.id,
+        requesterId: worker.id,
+        ...(this.approvalTimeoutMs !== undefined ? { timeout: this.approvalTimeoutMs } : {}),
+      });
+
+      task.status = 'waiting_approval';
+      this.auditTrail.log({
+        id: `gate-${approvalId}-waiting-${Date.now()}`,
+        agentId: worker.id,
+        action: 'approval.waiting',
+        timestamp: Date.now(),
+        result: 'pending',
+        reversible: false,
+        metadata: { approvalId, subtaskId: subtask.id, taskId: task.id },
+      });
+
+      const record = await this.approvalQueue.waitForDecision(approvalId);
+
+      if (record.status !== 'approved') {
+        this.auditTrail.log({
+          id: `gate-${approvalId}-blocked-${Date.now()}`,
+          agentId: worker.id,
+          action: 'approval.blocked',
+          timestamp: Date.now(),
+          result: 'failure',
+          reversible: false,
+          metadata: { approvalId, subtaskId: subtask.id, taskId: task.id, status: record.status },
+        });
+        throw new ApprovalBlockedError(
+          approvalId,
+          record.status,
+          `high-risk action stopped with approval status '${record.status}'`,
+        );
+      }
+
+      // The decision binds the exact action hash. If the persisted record or
+      // the live subtask was altered after approval, execution must not run.
+      const intact = this.approvalQueue.verifyActionIntegrity(approvalId, {
+        action: subtask.description,
+        agentId: worker.id,
+        resourceId: subtask.id,
+        riskLevel,
+      });
+      if (!intact) {
+        this.auditTrail.log({
+          id: `gate-${approvalId}-integrity-${Date.now()}`,
+          agentId: worker.id,
+          action: 'approval.integrity_blocked',
+          timestamp: Date.now(),
+          result: 'failure',
+          reversible: false,
+          metadata: { approvalId, subtaskId: subtask.id, taskId: task.id },
+        });
+        throw new ApprovalBlockedError(
+          approvalId,
+          'integrity',
+          'action changed after approval (hash mismatch)',
+        );
+      }
+
+      task.status = 'running';
+      this.auditTrail.log({
+        id: `gate-${approvalId}-resumed-${Date.now()}`,
+        agentId: worker.id,
+        action: 'approval.resumed',
+        timestamp: Date.now(),
+        result: 'success',
+        reversible: false,
+        metadata: {
+          approvalId,
+          subtaskId: subtask.id,
+          taskId: task.id,
+          decidedBy: record.decision?.decidedBy,
+        },
       });
     }
 

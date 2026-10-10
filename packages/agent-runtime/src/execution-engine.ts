@@ -116,7 +116,14 @@ export class ExecutionEngine {
         });
 
         if (this.autoApprove) {
-          this.approvalQueue.approve(approvalId);
+          // QM-QUANTY-009: decisions now require an authenticated context.
+          // This engine's foundation-phase auto-approve is recorded as an
+          // explicit system-policy decision (auditable in the record history),
+          // never as a silent local flag flip.
+          this.approvalQueue.approve(approvalId, {
+            decidedBy: 'system:execution-engine-auto-approve',
+            stepUpVerified: true,
+          });
           step.status = 'approved';
         } else {
           // When autoApprove is disabled, skip execution of this step.

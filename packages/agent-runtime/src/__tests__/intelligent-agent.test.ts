@@ -235,8 +235,9 @@ describe('IntelligentAgent', () => {
       const autoApproveQueue = new ApprovalQueue();
       const originalSubmit = autoApproveQueue.submit.bind(autoApproveQueue);
       vi.spyOn(autoApproveQueue, 'submit').mockImplementation((req) => {
-        originalSubmit(req);
-        autoApproveQueue.approve(req.id);
+        const record = originalSubmit(req);
+        autoApproveQueue.approve(req.id, { decidedBy: 'test-approver', stepUpVerified: true });
+        return record;
       });
 
       const agent = createTestAgent({
@@ -305,8 +306,9 @@ describe('IntelligentAgent', () => {
       const autoApproveQueue = new ApprovalQueue();
       const originalSubmit = autoApproveQueue.submit.bind(autoApproveQueue);
       vi.spyOn(autoApproveQueue, 'submit').mockImplementation((req) => {
-        originalSubmit(req);
-        autoApproveQueue.approve(req.id);
+        const record = originalSubmit(req);
+        autoApproveQueue.approve(req.id, { decidedBy: 'test-approver', stepUpVerified: true });
+        return record;
       });
 
       const agent = createTestAgent({
@@ -457,8 +459,9 @@ describe('IntelligentAgent', () => {
       const autoApproveQueue = new ApprovalQueue();
       const originalSubmit = autoApproveQueue.submit.bind(autoApproveQueue);
       vi.spyOn(autoApproveQueue, 'submit').mockImplementation((req) => {
-        originalSubmit(req);
-        autoApproveQueue.approve(req.id);
+        const record = originalSubmit(req);
+        autoApproveQueue.approve(req.id, { decidedBy: 'test-approver', stepUpVerified: true });
+        return record;
       });
 
       const agent = createTestAgent({
@@ -619,8 +622,9 @@ describe('IntelligentAgent', () => {
       const autoApproveQueue = new ApprovalQueue();
       const originalSubmit = autoApproveQueue.submit.bind(autoApproveQueue);
       vi.spyOn(autoApproveQueue, 'submit').mockImplementation((req) => {
-        originalSubmit(req);
-        autoApproveQueue.approve(req.id);
+        const record = originalSubmit(req);
+        autoApproveQueue.approve(req.id, { decidedBy: 'test-approver', stepUpVerified: true });
+        return record;
       });
 
       const agent = createTestAgent({

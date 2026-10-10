@@ -47,8 +47,25 @@ export type {
 export { KillSwitch } from './kill-switch.js';
 
 // Approval Queue
-export { ApprovalQueue, ApprovalRequestSchema } from './approval-queue.js';
-export type { ApprovalRequest, ApprovalStatus, QueuedRequest } from './approval-queue.js';
+export {
+  ApprovalQueue,
+  ApprovalRequestSchema,
+  APPROVAL_POLICY_VERSION,
+  DEFAULT_APPROVAL_TIMEOUT_MS,
+  InMemoryApprovalStore,
+  FileApprovalStore,
+  computeActionHash,
+} from './approval-queue.js';
+export type {
+  ApprovalRequest,
+  ApprovalStatus,
+  QueuedRequest,
+  ApprovalDecisionContext,
+  ApprovalCancelContext,
+  ApprovalHistoryEvent,
+  ApprovalStore,
+  ApprovalQueueOptions,
+} from './approval-queue.js';
 
 // Conflict Resolver
 export { ConflictResolver } from './conflict-resolver.js';
@@ -67,8 +84,8 @@ export { WorkerAgent } from './worker-agent.js';
 export type { AgentStatus, AgentTask } from './worker-agent.js';
 
 // Orchestrator
-export { Orchestrator } from './orchestrator.js';
-export type { OrchestratorTask, TaskStatus } from './orchestrator.js';
+export { Orchestrator, ApprovalBlockedError } from './orchestrator.js';
+export type { OrchestratorTask, TaskStatus, OrchestratorOptions } from './orchestrator.js';
 
 // ============================================================================
 // Device Control Layer
