@@ -98,8 +98,12 @@ export default async function notificationRoutes(fastify: FastifyInstance) {
 
   // POST /notifications/push/subscribe — register (or refresh) this browser's
   // subscription for the signed-in user. The endpoint identifies the browser
-  // installation, so a re-register with fresher keys updates the same row —
-  // including handing it to whoever is signed in on that browser now.
+  // installation, but a row belongs to its owner: the lookup is scoped by
+  // userId, so a re-register with fresher keys refreshes the CALLER's row —
+  // and an endpoint that is registered to somebody else is never overwritten
+  // or reassigned (BOLA). The caller gets their own row for that endpoint
+  // instead; endpoints carry no unique constraint and rows are always read
+  // back per userId, so per-user rows are the correct model.
   fastify.post('/push/subscribe', async (request, reply) => {
     const userId = userIdFrom(request);
     const parsed = pushSubscribeBodySchema.safeParse(request.body);
@@ -109,11 +113,11 @@ export default async function notificationRoutes(fastify: FastifyInstance) {
     const { endpoint, keys, expirationTime } = parsed.data;
     const expiresAt = expirationTime ? new Date(expirationTime) : null;
 
-    const existing = await prisma.pushSubscription.findFirst({ where: { endpoint } });
+    const existing = await prisma.pushSubscription.findFirst({ where: { endpoint, userId } });
     if (existing) {
       await prisma.pushSubscription.update({
         where: { id: existing.id },
-        data: { userId, p256dh: keys.p256dh, auth: keys.auth, expiresAt },
+        data: { p256dh: keys.p256dh, auth: keys.auth, expiresAt },
       });
     } else {
       await prisma.pushSubscription.create({
