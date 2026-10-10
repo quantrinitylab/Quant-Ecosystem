@@ -2066,9 +2066,8 @@ Scope: apps/quantchat login + SSO handoff.
 Dependencies: none.
 
 ## QM-UIUX-090 — QuantMail ai-error sanitizer: close the two residual gaps
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-090-ai-error-gaps
+Status: [x] DONE — PR #762 merged 2026-10-10: the two residual gaps from QuantChat's merged sanitizer ported into QuantMail's ai-error.ts (bare internal hostnames; extended credential classes github_pat_/gh[opusr]_/Slack xox/Basic/PEM), byte-identical patterns in the same pipeline order. Negative control: 4 new tests fail on pristine, 16/16 with fix; full QuantMail suite 4213/4216 (3 A/B-proven pre-existing benchmark flakes).
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/762
 Finding: Zero-defect run-37 audit of PR #736 (apps/quantmail/src/lib/ai-error.ts) found 2 residual P2 gaps: (1) bare internal hostnames leak (e.g. *.internal suffixes, host:port patterns); (2) extended credential classes leak (github_pat_, gho_/ghu_, Slack xox tokens, Basic credentials, PEM markers). The hardened implementation closing both now exists in QuantChat's src/lib/sanitize-error.ts (PR #751) — port those two closings back to QuantMail's ai-error.ts with matching tests.
 Required: ai-error.ts redacts bare internal hostnames and the extended credential classes; regression tests prove both (fail on current, pass on fix).
 Scope: apps/quantmail/src/lib/ai-error.ts + its tests.
@@ -2093,7 +2092,9 @@ Scope: apps/quantmail/src/components/AIMemoryPanel.tsx, useAIMemory hook file.
 Dependencies: none.
 
 ## QM-UIUX-093 — Thread view More-menu shows fake success when the API fails
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-093-thread-more-menu-fake-success
 Finding: Zero-defect run-38 (2026-10-10) found QuantMail web's ConversationalThreadView More-menu actions treat an apiClient {success:false} result as success — the UI confirms actions that the backend rejected. Same fake-success family as QM-UIUX-088 (apiClient never rejects → error branches are dead). Evidence: goal workspace hidden_files zero-defect run-38 w2-landing-verify.md (D38-1).
 Required: More-menu actions must check the result and surface failures honestly (error toast/state, no success confirmation on {success:false}); regression tests prove a failed API result shows failure, a successful one shows success.
 Scope: apps/quantmail ConversationalThreadView + its menu actions.
