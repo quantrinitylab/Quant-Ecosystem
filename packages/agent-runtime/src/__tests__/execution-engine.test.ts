@@ -36,6 +36,8 @@ describe('ExecutionEngine', () => {
       undoEngine,
       costTracker,
       permissionGuard,
+      // Unit tests of the engine itself intentionally bypass approvals.
+      { autoApprove: true },
     );
 
     // Register agent with high permissions
@@ -83,6 +85,46 @@ describe('ExecutionEngine', () => {
       expect(result.actionsTaken).toHaveLength(1);
       expect(result.actionsTaken[0]?.result.success).toBe(true);
       expect(result.auditEntries).toHaveLength(1);
+    });
+
+    it('does NOT auto-approve by default (safe default: autoApprove=false)', async () => {
+      // Regression test for P0 fix: the engine must NOT execute approval-gated
+      // steps unless autoApprove is explicitly opted in.
+      const strictEngine = new ExecutionEngine(
+        registry,
+        classifier,
+        approvalQueue,
+        auditTrail,
+        undoEngine,
+        costTracker,
+        permissionGuard,
+      );
+
+      const plan: AgentPlan = {
+        id: 'plan-safe-default',
+        intent: 'Test safe default',
+        steps: [
+          {
+            id: 'step-safe-1',
+            toolName: 'readData',
+            args: {},
+            tier: AgentActionTier.Tier0_ReadOnly,
+            description: 'Read data with approval gate',
+            requiresApproval: true,
+            status: 'pending',
+          },
+        ],
+        estimatedCost: { totalEstimatedCost: 0, breakdown: [], currency: 'USD' },
+        createdAt: Date.now(),
+        status: 'draft',
+      };
+
+      const result = await strictEngine.executePlan(plan, 'agent-1');
+      // Step must be skipped (approval request still submitted to the queue),
+      // and the tool handler must never run.
+      expect(result.actionsTaken).toHaveLength(0);
+      expect(result.auditEntries).toHaveLength(0);
+      expect(plan.steps[0]?.status).toBe('skipped');
     });
 
     it('logs to audit trail', async () => {
