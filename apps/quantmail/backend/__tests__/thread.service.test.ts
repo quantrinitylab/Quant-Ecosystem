@@ -63,6 +63,10 @@ describe('ThreadService', () => {
             { id: 'thread-1', deletedAt: null },
           ],
         },
+        // `folder` drives `isArchived` in formatEmailRecord (archive is tracked
+        // via folderId, not a boolean) — the thread header's Archive/Unarchive
+        // toggle needs it (2026-10-10 button audit).
+        include: { folder: true },
         // `createdAt` breaks ties: messages that arrive in the same second would
         // otherwise come back in an order the database was free to choose.
         orderBy: [{ receivedAt: 'asc' }, { createdAt: 'asc' }],
