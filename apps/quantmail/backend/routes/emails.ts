@@ -48,6 +48,100 @@ function getPrisma(fastify: FastifyInstance): PrismaClient {
   return (fastify as unknown as { prisma: PrismaClient }).prisma;
 }
 
+/*
+ * QM-UIUX-040: keyset ("cursor") pagination for GET /emails.
+ *
+ * Offset pages drift when mail arrives mid-scroll: a newer row pushes every
+ * later row one slot down, so the next offset page repeats a row the user
+ * already saw (and the row after it is never shown). A cursor names the last
+ * row of the previous page by its position in the list ordering —
+ * (receivedAt desc, createdAt desc, id desc) — and the next page is "every
+ * row strictly after that position", which inserts cannot shift.
+ *
+ * The cursor is opaque to clients: base64url(JSON) of
+ * `{ r: receivedAt ISO | null, c: createdAt ISO, i: id }`. `receivedAt` is
+ * nullable (drafts carry none); in descending order Postgres sorts NULLs
+ * first, so an undated row precedes every dated one and the keyset below
+ * mirrors exactly that.
+ */
+export interface EmailListCursor {
+  receivedAt: string | null;
+  createdAt: string;
+  id: string;
+}
+
+export function encodeEmailListCursor(row: {
+  receivedAt: Date | string | null;
+  createdAt: Date | string;
+  id: string;
+}): string {
+  const payload: EmailListCursor = {
+    receivedAt: row.receivedAt ? new Date(row.receivedAt).toISOString() : null,
+    createdAt: new Date(row.createdAt).toISOString(),
+    id: row.id,
+  };
+  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+}
+
+export function decodeEmailListCursor(raw: string): EmailListCursor {
+  const invalid = () => createAppError('Invalid pagination cursor', 400, 'INVALID_CURSOR');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
+  } catch {
+    throw invalid();
+  }
+  const candidate = parsed as Partial<EmailListCursor> | null;
+  if (
+    !candidate ||
+    typeof candidate !== 'object' ||
+    typeof candidate.id !== 'string' ||
+    candidate.id.length === 0 ||
+    typeof candidate.createdAt !== 'string' ||
+    Number.isNaN(Date.parse(candidate.createdAt)) ||
+    (candidate.receivedAt !== null &&
+      (typeof candidate.receivedAt !== 'string' || Number.isNaN(Date.parse(candidate.receivedAt))))
+  ) {
+    throw invalid();
+  }
+  return {
+    receivedAt: candidate.receivedAt ?? null,
+    createdAt: candidate.createdAt,
+    id: candidate.id,
+  };
+}
+
+/**
+ * Prisma filter for "strictly after the cursor position" in the list
+ * ordering (receivedAt desc nulls-first, createdAt desc, id desc).
+ */
+export function emailListKeysetWhere(cursor: EmailListCursor): Prisma.EmailWhereInput {
+  const createdAt = new Date(cursor.createdAt);
+  if (cursor.receivedAt === null) {
+    // The cursor row is undated, and undated rows sort first: what remains is
+    // the rest of the undated rows behind it, then every dated row.
+    return {
+      OR: [
+        {
+          AND: [
+            { receivedAt: null },
+            { OR: [{ createdAt: { lt: createdAt } }, { createdAt, id: { lt: cursor.id } }] },
+          ],
+        },
+        { receivedAt: { not: null } },
+      ],
+    };
+  }
+  const receivedAt = new Date(cursor.receivedAt);
+  return {
+    OR: [
+      { receivedAt: { lt: receivedAt } },
+      { receivedAt, createdAt: { lt: createdAt } },
+      { receivedAt, createdAt, id: { lt: cursor.id } },
+    ],
+  };
+}
+
 /**
  * QM-BACK-002: build the mutation options for a mutating route handler.
  * `expectedVersion` comes from the request body (validated); `requestId` is
@@ -1281,6 +1375,12 @@ export default async function emailsRoutes(
     const page = Math.max(1, Number(q.page) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(q.pageSize || q.limit) || 50));
     const skip = (page - 1) * pageSize;
+    // QM-UIUX-040: optional keyset cursor. Absent = the offset behaviour
+    // every existing caller relies on, unchanged.
+    const cursor =
+      typeof q.cursor === 'string' && q.cursor.length > 0
+        ? decodeEmailListCursor(q.cursor)
+        : null;
 
     const prisma = getPrisma(fastify);
     const where: any = { userId, deletedAt: null };
@@ -1369,18 +1469,49 @@ export default async function emailsRoutes(
      * routinely do — and ordering by one column alone leaves their relative
      * position up to the planner, so the same row can land on two pages of the
      * same list or on none. The composite index added in migration 0052 matches
-     * this ordering.
+     * this ordering. `id` closes the order (QM-UIUX-040): two rows can also
+     * share a `createdAt`, and a keyset cursor is only exact when the ordering
+     * is total. It changes nothing wherever the first two keys already differ.
      */
     const timelineOrder: Prisma.EmailOrderByWithRelationInput[] = [
       { receivedAt: 'desc' },
       { createdAt: 'desc' },
+      { id: 'desc' },
     ];
-    const [data, total, unreadCount] = await Promise.all([
-      prisma.email.findMany({ where, skip, take: pageSize, orderBy: timelineOrder }),
+    // The row window and the counts run in parallel, exactly as before.
+    // Counts describe the whole mailbox view — they use the un-narrowed
+    // `where`, so a cursor page never shrinks the totals.
+    const listWhere: Prisma.EmailWhereInput | null = cursor
+      ? {
+          ...where,
+          AND: [
+            ...(Array.isArray(where.AND) ? where.AND : []),
+            emailListKeysetWhere(cursor),
+          ],
+        }
+      : null;
+    const [rows, total, unreadCount] = await Promise.all([
+      // Cursor mode fetches one row past the page as the "has next" probe;
+      // offset mode fetches exactly the page.
+      listWhere
+        ? prisma.email.findMany({ where: listWhere, take: pageSize + 1, orderBy: timelineOrder })
+        : prisma.email.findMany({ where, skip, take: pageSize, orderBy: timelineOrder }),
       prisma.email.count({ where }),
       prisma.email.count({ where: { ...where, isRead: false } }),
     ]);
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    let data = rows;
+    let nextCursor: string | null = null;
+    if (listWhere) {
+      const hasMore = rows.length > pageSize;
+      data = hasMore ? rows.slice(0, pageSize) : rows;
+      const last = data[data.length - 1];
+      nextCursor = hasMore && last ? encodeEmailListCursor(last) : null;
+    } else {
+      const last = data[data.length - 1];
+      nextCursor = page < totalPages && last ? encodeEmailListCursor(last) : null;
+    }
 
     // Augment each email with a category (used by inbox tabs) and return a
     // unified envelope with data.
@@ -1393,6 +1524,7 @@ export default async function emailsRoutes(
       totalPages,
       totalCount: total,
       unreadCount,
+      nextCursor,
     });
   });
 

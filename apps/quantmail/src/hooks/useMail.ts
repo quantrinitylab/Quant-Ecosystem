@@ -2,11 +2,16 @@
 
 // ============================================================================
 // QuantMail — Unified Mail Data & Mutation Layer (Task K06)
-// Consolidates useInbox, useMailMutations, useThread, useInfiniteInbox, useEmail.
+// Consolidates useInbox, useMailMutations, useThread, useEmail.
 // Single canonical queryKey factory with documented schema & offline support.
 // ============================================================================
 
-import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import {
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+  type UseQueryResult,
+} from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '../services/api-client';
 import { browserApiRequest as apiRequest } from '../services/browser-api-request';
@@ -17,6 +22,7 @@ import {
   reconcileList,
 } from '../lib/offline/folders';
 import { mailboxKey, readMailbox, writeMailbox, patchEmail } from '../lib/offline/mail-cache';
+import { InboxCursorPager } from '../lib/inbox-cursor-pager';
 import { enqueue, type MailMutationKind } from '../lib/offline/outbox';
 import { showToast } from '../lib/toast-bus';
 import { apiRequestError, backoffInterval } from '../lib/query-retry';
@@ -62,6 +68,21 @@ export interface UseInboxOptions {
   offline?: boolean;
 }
 
+/**
+ * The mailbox query result, plus the cursor tail (QM-UIUX-040): `data` is
+ * the first page with every `loadMore` page appended (deduped by id), and
+ * `refetch` restarts the chain from a fresh first page. An intersection,
+ * not an interface — `UseQueryResult` is a state union in React Query v5.
+ */
+export type UseInboxReturn = UseQueryResult<Email[]> & {
+  /** Fetch the next slice by server keyset cursor and append it to `data`. */
+  loadMore: () => Promise<void>;
+  /** True while a `loadMore` fetch is in flight. */
+  isLoadingMore: boolean;
+  /** True when the server reported a further slice after the loaded tail. */
+  hasMore: boolean;
+};
+
 export type EmailPatch = Partial<Email>;
 
 export interface MailMutations {
@@ -97,22 +118,6 @@ export interface UseMailMutationsOptions {
    * reading pane showing one of them or move the focused row along.
    */
   onRemoved?: (ids: string[]) => void;
-}
-
-export interface UseInfiniteInboxOptions {
-  category?: EmailCategory;
-  pageSize?: number;
-}
-
-export interface UseInfiniteInboxReturn {
-  emails: Email[];
-  isLoading: boolean;
-  isLoadingMore: boolean;
-  error: Error | null;
-  hasMore: boolean;
-  loadMore: () => void;
-  refetch: () => Promise<void>;
-  sentinelRef: (node: HTMLElement | null) => void;
 }
 
 export interface SendEmailParams {
@@ -215,8 +220,19 @@ function formatSnoozeTarget(until: Date): string {
 
 /**
  * Mailbox view, backed by an offline snapshot.
+ *
+ * The first page is the React Query value (an `Email[]` the mutation layer
+ * patches in place, and the offline snapshot seeds). Older mail hangs off
+ * the keyset cursor (QM-UIUX-040): `loadMore` asks the server for the slice
+ * strictly after the loaded tail — a position in the list ordering, not a
+ * page number — so mail arriving at the top mid-scroll can neither repeat
+ * nor swallow a row the way offset pages did. The tail lives in
+ * `InboxCursorPager`; it is session state, reset when the view (label /
+ * category / folder / page) changes or on an explicit `refetch`, and it is
+ * deliberately not written into the offline mailbox snapshot, which stays
+ * a first-page cache.
  */
-export function useInbox(options?: UseInboxOptions) {
+export function useInbox(options?: UseInboxOptions): UseInboxReturn {
   const queryClient = useQueryClient();
   const { label, category, page, pageSize, offline = true } = options ?? {};
   const folderType = options?.folderType ?? 'INBOX';
@@ -229,6 +245,17 @@ export function useInbox(options?: UseInboxOptions) {
     () => mailboxKey({ label, category, folderType }),
     [label, category, folderType],
   );
+
+  const pagerRef = useRef<InboxCursorPager | null>(null);
+  if (pagerRef.current === null) {
+    pagerRef.current = new InboxCursorPager();
+  }
+  const pager = pagerRef.current;
+  // The pager is a ref-held machine; this counter is what tells React its
+  // outputs (hasMore, the merged tail) changed.
+  const [pagerVersion, bumpPagerVersion] = useState(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const loadingMoreRef = useRef(false);
 
   const seededRef = useRef<string | null>(null);
   useEffect(() => {
@@ -251,7 +278,15 @@ export function useInbox(options?: UseInboxOptions) {
     };
   }, [cacheKey, folderType, offline, queryClient, queryKey]);
 
-  return useQuery<Email[]>({
+  // A different mailbox view starts a new chain; the old view's tail must
+  // never be appended to this one's first page.
+  const viewKey = JSON.stringify(queryKey);
+  useEffect(() => {
+    pager.reset();
+    bumpPagerVersion((version) => version + 1);
+  }, [pager, viewKey]);
+
+  const query = useQuery<Email[]>({
     queryKey,
     queryFn: async () => {
       try {
@@ -260,6 +295,8 @@ export function useInbox(options?: UseInboxOptions) {
           throw apiRequestError(response.error, 'Failed to load inbox');
         }
         const emails = response.data ?? [];
+        pager.syncFirstPage(response.nextCursor ?? null);
+        bumpPagerVersion((version) => version + 1);
         getFts5Indexer().indexEmails(emails);
         if (offline) void writeMailbox(cacheKey, emails);
         return emails;
@@ -278,6 +315,59 @@ export function useInbox(options?: UseInboxOptions) {
     refetchOnWindowFocus: true,
     staleTime: 15_000,
   });
+
+  const loadMore = useCallback(async () => {
+    const cursor = pager.cursor;
+    if (!cursor || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setIsLoadingMore(true);
+    try {
+      const response = await apiClient.getEmails({ label, category, folderType, pageSize, cursor });
+      if (!response.success) {
+        throw apiRequestError(response.error, 'Failed to load more mail');
+      }
+      const more = response.data ?? [];
+      getFts5Indexer().indexEmails(more);
+      pager.extend(more, response.nextCursor ?? null);
+      bumpPagerVersion((version) => version + 1);
+    } catch {
+      // The tail is untouched, so the same button can simply be tried again.
+      showToast({ text: 'Could not load more mail. Please try again.', type: 'error' });
+    } finally {
+      loadingMoreRef.current = false;
+      setIsLoadingMore(false);
+    }
+  }, [pager, label, category, folderType, pageSize]);
+
+  const queryRefetch = query.refetch;
+  const refetch = useCallback<UseQueryResult<Email[]>['refetch']>(
+    (refetchOptions) => {
+      pager.reset();
+      bumpPagerVersion((version) => version + 1);
+      return queryRefetch(refetchOptions);
+    },
+    [pager, queryRefetch],
+  );
+
+  const data = useMemo(
+    () => (query.data ? pager.merge(query.data) : query.data),
+    // pagerVersion is the pager's change signal; the pager itself is a
+    // stable ref, so the version is what belongs in the dep array.
+    [query.data, pager, pagerVersion],
+  );
+
+  // The assertion is the union tax: spreading a `UseQueryResult` state
+  // union and widening `data` back to `Email[] | undefined` leaves an object
+  // no single union member accepts, even though it is exactly a query
+  // result with `data`/`refetch` replaced and the tail fields added.
+  return {
+    ...query,
+    data,
+    refetch,
+    loadMore,
+    isLoadingMore,
+    hasMore: pager.hasMore,
+  } as UseInboxReturn;
 }
 
 /**
@@ -683,146 +773,6 @@ export function useThread(threadId: string) {
     enabled: !!threadId,
     retry: 2,
   });
-}
-
-/**
- * Infinite scroll hook for the inbox.
- */
-export function useInfiniteInbox({
-  category = 'primary',
-  pageSize = 20,
-}: UseInfiniteInboxOptions = {}): UseInfiniteInboxReturn {
-  const [emails, setEmails] = useState<Email[]>([]);
-  const [page, setPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-  const [hasMore, setHasMore] = useState(true);
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const sentinelNodeRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    setIsLoading(true);
-    setError(null);
-    setPage(1);
-    setEmails([]);
-    setHasMore(true);
-
-    apiClient
-      .getEmails({ category, page: 1, pageSize })
-      .then((response) => {
-        if (!active) return;
-        if (response.success && response.data) {
-          const items = response.data;
-          setEmails(items);
-          setHasMore(items.length >= pageSize);
-        } else {
-          setError(new Error(response.error?.message || 'Failed to load inbox'));
-        }
-      })
-      .catch((err) => {
-        if (!active) return;
-        setError(err instanceof Error ? err : new Error('Network error'));
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [category, pageSize]);
-
-  const loadMore = useCallback(() => {
-    if (isLoading || isLoadingMore || !hasMore) return;
-
-    setIsLoadingMore(true);
-    const nextPage = page + 1;
-
-    apiClient
-      .getEmails({ category, page: nextPage, pageSize })
-      .then((response) => {
-        if (response.success && response.data) {
-          const newItems = response.data;
-          if (newItems.length === 0) {
-            setHasMore(false);
-          } else {
-            setEmails((prev) => {
-              const existingIds = new Set(prev.map((e) => e.id));
-              const unique = newItems.filter((e) => !existingIds.has(e.id));
-              return [...prev, ...unique];
-            });
-            setPage(nextPage);
-            setHasMore(newItems.length >= pageSize);
-          }
-        } else {
-          setHasMore(false);
-        }
-      })
-      .catch(() => {
-        setHasMore(false);
-      })
-      .finally(() => {
-        setIsLoadingMore(false);
-      });
-  }, [category, hasMore, isLoading, isLoadingMore, page, pageSize]);
-
-  const refetch = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    setPage(1);
-    setHasMore(true);
-    try {
-      const response = await apiClient.getEmails({ category, page: 1, pageSize });
-      if (response.success && response.data) {
-        setEmails(response.data);
-        setHasMore(response.data.length >= pageSize);
-      } else {
-        setError(new Error(response.error?.message || 'Failed to refresh inbox'));
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Network error'));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [category, pageSize]);
-
-  const sentinelRef = useCallback(
-    (node: HTMLElement | null) => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-        observerRef.current = null;
-      }
-
-      sentinelNodeRef.current = node;
-      if (!node) return;
-
-      observerRef.current = new IntersectionObserver(
-        (entries) => {
-          const [entry] = entries;
-          if (entry?.isIntersecting) {
-            loadMore();
-          }
-        },
-        { rootMargin: '200px' },
-      );
-
-      observerRef.current.observe(node);
-    },
-    [loadMore],
-  );
-
-  return {
-    emails,
-    isLoading,
-    isLoadingMore,
-    error,
-    hasMore,
-    loadMore,
-    refetch,
-    sentinelRef,
-  };
 }
 
 /**

@@ -72,6 +72,14 @@ interface ApiResponse<T> {
 
 interface PaginatedResponse<T> extends ApiResponse<T[]> {
   metadata?: { total: number; page: number; pageSize: number; totalPages?: number };
+  // The mail backend's list envelope carries pagination at the top level.
+  // `nextCursor` (QM-UIUX-040) is the keyset position of the last row of
+  // this page — pass it back as `cursor` for the next slice; null ends it.
+  page?: number;
+  pageSize?: number;
+  totalPages?: number;
+  totalCount?: number;
+  nextCursor?: string | null;
 }
 
 interface RequestOptions {
@@ -489,6 +497,8 @@ export class QuantMailApiClient {
     folderType?: string;
     page?: number;
     pageSize?: number;
+    /** Keyset cursor from a previous response's `nextCursor` (QM-UIUX-040). */
+    cursor?: string;
   }): Promise<PaginatedResponse<Email>> {
     return this.get('/emails', {
       params: options as Record<string, string | number | boolean | undefined>,

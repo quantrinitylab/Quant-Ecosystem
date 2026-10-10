@@ -21,6 +21,7 @@ import { EmailSafetyBanner } from '../components/EmailSafetyBanner';
 import { EmailSnooze } from '../components/EmailSnooze';
 import { AnchoredMenu } from '../components/AnchoredMenu';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { SwipeHint } from '../components/SwipeHint';
 import { HoverActions } from '../components/HoverActions';
 import { IdentityAvatar } from '../components/IdentityAvatar';
 import { InboxZeroState } from '../components/InboxZeroState';
@@ -1530,7 +1531,15 @@ export default function InboxPage() {
     ref: listRef,
     elementRef: listElementRef,
   } = useScrollElement<HTMLDivElement>();
-  const { data: allEmails, isLoading, error, refetch } = useInbox({
+  const {
+    data: allEmails,
+    isLoading,
+    error,
+    refetch,
+    loadMore,
+    hasMore,
+    isLoadingMore,
+  } = useInbox({
     folderType: 'INBOX',
   });
   const { data: archivedEmails } = useInbox({ folderType: 'ARCHIVE' });
@@ -2142,6 +2151,12 @@ export default function InboxPage() {
             : (threads ?? []),
     [showArchivedView, allArchivedThreads, activeLens, allSpamThreads, allSnoozedThreads, threads],
   );
+
+  // True when the windowed list is showing the inbox pool itself (not the
+  // archived shelf or the spam/snoozed pools). The swipe tip and the cursor
+  // "load more" belong to that pool: they extend the INBOX query, and the
+  // other pools are separate queries with their own first pages.
+  const isInboxPool = !showArchivedView && activeLens !== 'spam' && activeLens !== 'snoozed';
 
   /**
    * Lens counts, measured on the pool the turn and the active filters have already
@@ -3842,6 +3857,7 @@ export default function InboxPage() {
                 {/* Out of flow so the rows' offsets stay exact; its height is fed
                     back to the virtualizer as `paddingStart`. */}
                 <div ref={measureListHeader} className="absolute inset-x-0 top-0">
+                  {isInboxPool && <SwipeHint />}
                   {activeLens === 'spam' && (
                     <SpamBanner
                       spamCount={allSpamThreads.length}
@@ -3960,6 +3976,17 @@ export default function InboxPage() {
               </div>
             )}
           </div>
+          {showThreadList && isInboxPool && hasMore && (
+            <div className="flex justify-center px-4 py-3">
+              <Button
+                variant="secondary"
+                onClick={() => void loadMore()}
+                disabled={isLoadingMore}
+              >
+                {isLoadingMore ? 'Loading…' : 'Load more conversations'}
+              </Button>
+            </div>
+          )}
           <footer className="inbox-list-footer">
             <span>
               {threads?.length ?? 0} conversation{threads?.length === 1 ? '' : 's'}
