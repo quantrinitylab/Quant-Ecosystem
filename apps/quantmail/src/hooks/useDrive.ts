@@ -164,7 +164,9 @@ const getDriveErrorMessage = (err: unknown, fallback: string): string => {
 // QM-M39-009: read the backend's error instruction (e.g. FILE_QUARANTINED)
 // so quarantine blocks surface an instruction, never a generic error.
 // Returns null when the body carries no usable message.
-const readErrorInstruction = async (response: Response): Promise<string | null> => {
+// QM-SCREEN-011: exported so the Drive preview modal reuses the same honest
+// error surfacing for its authenticated blob-preview fetches.
+export const readErrorInstruction = async (response: Response): Promise<string | null> => {
   try {
     const contentType = response.headers.get('Content-Type') || '';
     if (!contentType.includes('application/json')) return null;

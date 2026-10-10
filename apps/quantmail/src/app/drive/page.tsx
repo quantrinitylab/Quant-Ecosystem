@@ -28,7 +28,7 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { QuantDriveLogo } from '../../components/QuantDriveLogo';
 import { useConfirm } from '../../hooks/useConfirm';
-import { useDrive, type ReceivedShare, type SentShareItem, isDocumentDriveId } from '../../hooks/useDrive';
+import { useDrive, type ReceivedShare, type SentShareItem, isDocumentDriveId, readErrorInstruction } from '../../hooks/useDrive';
 import { formatBytes } from '../../lib/format-bytes';
 import { showToast } from '../../components/InboxToast';
 import { useScrollElement, useVirtualizer } from '../../lib/virtual/useVirtualizer';
@@ -51,6 +51,7 @@ import { QuantyFileWorkspace } from '../../components/drive/QuantyFileWorkspace'
 import { StorageQuotaBar } from '../../components/drive/StorageQuotaBar';
 import { apiFetchRaw } from '@quant/api-client';
 import { browserApiRequest } from '../../services/browser-api-request';
+import { browserAuthSession } from '../../services/browser-auth-session';
 
 type DriveItem = {
   id: string;
@@ -306,6 +307,30 @@ function isTextOrCodeFile(mimeType: string, name: string): boolean {
   );
 }
 
+// QM-SCREEN-011: honest states for the authenticated blob-preview path. Media
+// bytes arrive via fetch (media tags cannot send the session's Authorization
+// header), so a spinner and the backend's real error beat a broken
+// <img>/<iframe>/<audio>/<video>. Same visual language as the text preview.
+function MediaPreviewStatus({ loading, error }: { loading: boolean; error: string | null }) {
+  if (loading) {
+    return (
+      <div className="py-12 text-center text-xs text-[var(--quant-muted-foreground)] space-y-3">
+        <div className="w-6 h-6 border-2 border-[var(--app-accent)] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p>Loading preview…</p>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="py-8 text-center text-xs text-rose-400 bg-rose-500/10 rounded-lg p-4 border border-rose-500/20">
+        <p className="font-semibold mb-1">Unable to preview file</p>
+        <p className="text-zinc-400">{error}</p>
+      </div>
+    );
+  }
+  return null;
+}
+
 function DrivePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -550,6 +575,15 @@ function DrivePageContent() {
   const [textPreviewError, setTextPreviewError] = useState<string | null>(null);
   const [copiedTextPreview, setCopiedTextPreview] = useState(false);
 
+  // QM-SCREEN-011: blob object URL for the media preview (image/pdf/audio/
+  // video). Media tags cannot send the session's Authorization header — the
+  // token lives only in browser memory — so bytes are fetched with the
+  // session attached and handed to the tag as an object URL. Revoked on
+  // change/close so no bytes linger.
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string | null>(null);
+  const [isLoadingMediaPreview, setIsLoadingMediaPreview] = useState(false);
+  const [mediaPreviewError, setMediaPreviewError] = useState<string | null>(null);
+
   useEffect(() => {
     // QM-M39-009: never fetch bytes for a quarantined file — preview is
     // blocked with an instruction, not attempted.
@@ -572,7 +606,13 @@ function DrivePageContent() {
     setCopiedTextPreview(false);
 
     const url = getDownloadUrl(previewItem.id);
-    apiFetchRaw(url, { signal: controller.signal })
+    // QM-SCREEN-011: attach the session token — without it the download proxy
+    // 401s even for signed-in users (media tags can't send headers, and this
+    // tokenless fetch couldn't either).
+    apiFetchRaw(url, {
+      signal: controller.signal,
+      token: browserAuthSession.getAccessToken() ?? undefined,
+    })
       .then(async (res) => {
         if (!res.ok) {
           throw new Error(`Failed to load file preview (${res.status})`);
@@ -600,6 +640,68 @@ function DrivePageContent() {
 
     return () => {
       controller.abort();
+    };
+  }, [previewItem, getDownloadUrl]);
+
+  // QM-SCREEN-011: authenticated media preview. <img>/<iframe>/<audio>/<video>
+  // never send the Authorization header, and no access-token cookie exists —
+  // so the preview src was a bare URL that 401d for signed-in users. Fetch
+  // the bytes with the session attached (same as the download button) and
+  // render from a blob object URL, exactly like downloadFile does in
+  // useDrive.ts. Quarantined files never fetch bytes — the preview modal
+  // already gates them on scanStatus with an instruction.
+  useEffect(() => {
+    const item = previewItem;
+    const isMediaPreview =
+      !!item &&
+      item.scanStatus !== 'quarantined' &&
+      !isTextOrCodeFile(item.mimeType, item.name) &&
+      (item.mimeType.startsWith('image/') ||
+        item.mimeType === 'application/pdf' ||
+        item.mimeType.startsWith('audio/') ||
+        item.mimeType.startsWith('video/'));
+    if (!isMediaPreview || !item) {
+      setMediaPreviewUrl(null);
+      setIsLoadingMediaPreview(false);
+      setMediaPreviewError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    let objectUrl: string | null = null;
+    setIsLoadingMediaPreview(true);
+    setMediaPreviewError(null);
+    setMediaPreviewUrl(null);
+
+    const url = getDownloadUrl(item.id);
+    apiFetchRaw(url, {
+      signal: controller.signal,
+      token: browserAuthSession.getAccessToken() ?? undefined,
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          // Honest error: surface the backend's instruction (e.g. 403
+          // FILE_QUARANTINED) verbatim, never a generic "preview failed".
+          const instruction = await readErrorInstruction(res);
+          throw new Error(instruction || `Failed to load file preview (${res.status})`);
+        }
+        const blob = await res.blob();
+        objectUrl = URL.createObjectURL(blob);
+        setMediaPreviewUrl(objectUrl);
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setMediaPreviewError(err instanceof Error ? err.message : 'Failed to load file preview');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsLoadingMediaPreview(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [previewItem, getDownloadUrl]);
 
@@ -2021,13 +2123,19 @@ function DrivePageContent() {
               </div>
             ) : previewItem && previewItem.mimeType.startsWith('image/') ? (
               <div className="rounded-xl bg-[var(--quant-surface)] p-4 shadow-[inset_0_0_0_1px_var(--quant-surface-elevated)]">
-                <img
-                  src={getDownloadUrl(previewItem.id)}
-                  alt={previewItem.name}
-                  className="max-h-96 mx-auto rounded-lg object-contain"
-                  loading="lazy"
-                  decoding="async"
-                />
+                {/* QM-SCREEN-011: blob object URL — the bare download URL 401s
+                    (no Authorization header on media tags). */}
+                {isLoadingMediaPreview || mediaPreviewError ? (
+                  <MediaPreviewStatus loading={isLoadingMediaPreview} error={mediaPreviewError} />
+                ) : (
+                  <img
+                    src={mediaPreviewUrl ?? undefined}
+                    alt={previewItem.name}
+                    className="max-h-96 mx-auto rounded-lg object-contain"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                )}
                 <h4 className="text-sm font-bold text-[var(--quant-foreground)] mt-3">{previewItem.name}</h4>
                 <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
                   {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
@@ -2035,11 +2143,17 @@ function DrivePageContent() {
               </div>
             ) : previewItem && previewItem.mimeType === 'application/pdf' ? (
               <div className="rounded-xl bg-[var(--quant-surface)] p-4 shadow-[inset_0_0_0_1px_var(--quant-surface-elevated)]">
-                <iframe
-                  src={getDownloadUrl(previewItem.id)}
-                  className="w-full h-96 rounded-lg border border-[var(--quant-border)]"
-                  title={previewItem.name}
-                />
+                {/* QM-SCREEN-011: blob object URL (frame-src allows blob:);
+                    the bare download URL 401s in the iframe. */}
+                {isLoadingMediaPreview || mediaPreviewError ? (
+                  <MediaPreviewStatus loading={isLoadingMediaPreview} error={mediaPreviewError} />
+                ) : (
+                  <iframe
+                    src={mediaPreviewUrl ?? undefined}
+                    className="w-full h-96 rounded-lg border border-[var(--quant-border)]"
+                    title={previewItem.name}
+                  />
+                )}
                 <h4 className="text-sm font-bold text-[var(--quant-foreground)] mt-3">{previewItem.name}</h4>
                 <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
                   {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
@@ -2054,15 +2168,25 @@ function DrivePageContent() {
                 <p className="text-xs text-[var(--quant-muted-foreground)] mt-1 mb-4">
                   {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
                 </p>
-                <audio controls src={getDownloadUrl(previewItem.id)} className="w-full max-w-md" />
+                {/* QM-SCREEN-011: blob object URL — the bare download URL 401s. */}
+                {isLoadingMediaPreview || mediaPreviewError ? (
+                  <MediaPreviewStatus loading={isLoadingMediaPreview} error={mediaPreviewError} />
+                ) : (
+                  <audio controls src={mediaPreviewUrl ?? undefined} className="w-full max-w-md" />
+                )}
               </div>
             ) : previewItem && previewItem.mimeType.startsWith('video/') ? (
               <div className="rounded-xl bg-[var(--quant-surface)] p-4 shadow-[inset_0_0_0_1px_var(--quant-surface-elevated)]">
-                <video
-                  controls
-                  src={getDownloadUrl(previewItem.id)}
-                  className="max-h-96 w-full rounded-lg mx-auto"
-                />
+                {/* QM-SCREEN-011: blob object URL — the bare download URL 401s. */}
+                {isLoadingMediaPreview || mediaPreviewError ? (
+                  <MediaPreviewStatus loading={isLoadingMediaPreview} error={mediaPreviewError} />
+                ) : (
+                  <video
+                    controls
+                    src={mediaPreviewUrl ?? undefined}
+                    className="max-h-96 w-full rounded-lg mx-auto"
+                  />
+                )}
                 <h4 className="text-sm font-bold text-[var(--quant-foreground)] mt-3">{previewItem.name}</h4>
                 <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
                   {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
