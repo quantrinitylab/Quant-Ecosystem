@@ -2,6 +2,10 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
+  parseSendEmailDraft,
+  stripSendEmailEnvelope,
+} from '../components/QuantyCopilotDrawer';
+import {
   TASK_STATUS_DOT,
   TASK_STATUS_LABEL,
   TASK_STATUS_TO_BUBBLE,
@@ -20,6 +24,7 @@ import {
   QuantyIdentityTab,
   QuantyActivityFeed,
   QuantyLiveAgent,
+  QuantyCommandBar,
   useQuantyAgent,
   formatClockTime,
   formatRelativeTime,
@@ -347,26 +352,13 @@ describe('useQuantyAgent', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('submits a command and opens the SSE stream', async () => {
+  it('submits a command and opens the authenticated SSE stream', async () => {
     const agent = probe();
     const fetchSpy = vi.fn(async () => ({
       ok: true,
       json: async () => ({ taskId: 'task-1' }),
     }));
     vi.stubGlobal('fetch', fetchSpy);
-
-    const seenUrls: string[] = [];
-    class FakeEventSource {
-      url: string;
-      onmessage: ((e: { data: string }) => void) | null = null;
-      onerror: (() => void) | null = null;
-      constructor(url: string) {
-        this.url = url;
-        seenUrls.push(url);
-      }
-      close() {}
-    }
-    vi.stubGlobal('EventSource', FakeEventSource);
 
     const taskId = await agent.submitCommand('mere unread emails archive kar do');
     expect(taskId).toBe('task-1');
@@ -377,7 +369,14 @@ describe('useQuantyAgent', () => {
     const opts = (fetchSpy.mock.calls[0] as unknown[])[1] as { body: string };
     const body = JSON.parse(opts.body) as { command: string };
     expect(body.command).toBe('mere unread emails archive kar do');
-    expect(seenUrls[0]).toBe('/api/quanty/tasks/task-1/stream');
+    // The stream goes over authenticated fetch (EventSource cannot send the
+    // Authorization header, which is why voice commands 401'd).
+    const streamCalls = fetchSpy.mock.calls.filter(([url]) => String(url).includes('/stream'));
+    expect(streamCalls.length).toBeGreaterThan(0);
+    expect(streamCalls[0][0]).toBe('/api/quanty/tasks/task-1/stream');
+    expect((streamCalls[0][1] as { headers: Record<string, string> }).headers['Accept']).toBe(
+      'text/event-stream',
+    );
   });
 
   it('surfaces transport errors', async () => {
@@ -387,5 +386,102 @@ describe('useQuantyAgent', () => {
       vi.fn(async () => ({ ok: false, status: 500 })),
     );
     await expect(agent.submitCommand('hello')).rejects.toThrow('HTTP 500');
+  });
+});
+
+describe('parseSendEmailDraft', () => {
+  const envelope = (args: object) => `Draft taiyaar hai.\ntool_call ${JSON.stringify({ name: 'send_email', arguments: args })}`;
+
+  it('detects the unfenced send_email envelope and extracts the draft', () => {
+    const draft = parseSendEmailDraft(
+      envelope({ to: 'boss@company.com', subject: 'Leave', body: 'Kal chhutti chahiye.' }),
+    );
+    expect(draft).not.toBeNull();
+    expect(draft?.to).toBe('boss@company.com');
+    expect(draft?.subject).toBe('Leave');
+    expect(draft?.body).toBe('Kal chhutti chahiye.');
+    expect(draft?.toValid).toBe(true);
+  });
+
+  it('detects a fenced envelope defensively', () => {
+    const raw = '```tool_call\n' + JSON.stringify({ name: 'send_email', arguments: { to: 'a@b.com', subject: 'Hi', body: 'Hello' } }) + '\n```';
+    const draft = parseSendEmailDraft(raw);
+    expect(draft?.to).toBe('a@b.com');
+    expect(draft?.toValid).toBe(true);
+  });
+
+  it('handles stringified arguments', () => {
+    const raw = 'tool_call ' + JSON.stringify({
+      name: 'send_email',
+      arguments: JSON.stringify({ to: 'x@y.com', subject: 'S', body: 'B' }),
+    });
+    expect(parseSendEmailDraft(raw)?.to).toBe('x@y.com');
+  });
+
+  it('handles a body containing braces (balanced JSON scan)', () => {
+    const draft = parseSendEmailDraft(
+      envelope({ to: 'a@b.com', subject: 'Code', body: 'Use { key: "value" } here.' }),
+    );
+    expect(draft?.body).toBe('Use { key: "value" } here.');
+  });
+
+  it('flags an invalid recipient instead of passing it through', () => {
+    const draft = parseSendEmailDraft(envelope({ to: 'not-an-email', subject: 'S', body: 'B' }));
+    expect(draft?.to).toBe('not-an-email');
+    expect(draft?.toValid).toBe(false);
+  });
+
+  it('flags a missing recipient', () => {
+    const draft = parseSendEmailDraft(envelope({ subject: 'S', body: 'B' }));
+    expect(draft?.to).toBe('');
+    expect(draft?.toValid).toBe(false);
+  });
+
+  it('ignores other tool envelopes (compose)', () => {
+    const raw = 'tool_call ' + JSON.stringify({ name: 'compose', arguments: { body: 'Dear …' } });
+    expect(parseSendEmailDraft(raw)).toBeNull();
+  });
+
+  it('returns null when there is no envelope', () => {
+    expect(parseSendEmailDraft('Bas ek normal jawab.')).toBeNull();
+  });
+
+  it('returns null on unparseable JSON', () => {
+    expect(parseSendEmailDraft('tool_call {not json')).toBeNull();
+  });
+});
+
+describe('stripSendEmailEnvelope', () => {
+  it('removes the envelope but keeps the prose', () => {
+    const raw =
+      'Draft taiyaar hai, review karein.\ntool_call ' +
+      JSON.stringify({ name: 'send_email', arguments: { to: 'a@b.com', subject: 'S', body: 'B' } });
+    const stripped = stripSendEmailEnvelope(raw);
+    expect(stripped).toBe('Draft taiyaar hai, review karein.');
+    expect(stripped).not.toContain('tool_call');
+  });
+
+  it('leaves plain text untouched', () => {
+    expect(stripSendEmailEnvelope('Koi envelope nahi.')).toBe('Koi envelope nahi.');
+  });
+});
+
+describe('QuantyCommandBar mic honesty', () => {
+  it('never renders the mic button disabled (a dead button explains nothing on touch)', () => {
+    // SSR: effects never run, so speechSupported stays false — the exact
+    // state where the old code disabled the button into a dead tap target.
+    // (Matches the disabled *attribute*, not Tailwind's `disabled:` variants.)
+    const html = renderToStaticMarkup(React.createElement(QuantyCommandBar, { onSubmit: () => undefined }));
+    const micButton = html.match(/<button[^>]*aria-label="Bol kar command dein"[^>]*>/);
+    expect(micButton).not.toBeNull();
+    expect(micButton?.[0]).not.toMatch(/\sdisabled(\s|=|>)/);
+  });
+
+  it('disables the mic button only while a task is busy', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(QuantyCommandBar, { onSubmit: () => undefined, busy: true }),
+    );
+    const micButton = html.match(/<button[^>]*aria-label="Bol kar command dein"[^>]*>/);
+    expect(micButton?.[0]).toMatch(/\sdisabled(\s|=|>)/);
   });
 });

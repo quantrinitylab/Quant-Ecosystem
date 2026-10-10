@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { browserAuthSession } from '../../services/browser-auth-session';
 import type {
   QuantyStreamEvent,
   QuantySubmitResponse,
@@ -60,12 +61,16 @@ export function useQuantyAgent(options: UseQuantyAgentOptions = {}): UseQuantyAg
   const apiBase = options.apiBase ?? '/api/quanty/tasks';
   const [task, setTask] = useState<QuantyTask | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const sourceRef = useRef<EventSource | null>(null);
+  const streamAbortRef = useRef<AbortController | null>(null);
   const taskIdRef = useRef<string | null>(null);
+  // Mirror of the task for the stream loop: reconnect decisions must read the
+  // latest status without re-creating the stream callback.
+  const taskRef = useRef<QuantyTask | null>(null);
+  taskRef.current = task;
 
   const closeStream = useCallback(() => {
-    sourceRef.current?.close();
-    sourceRef.current = null;
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
   }, []);
 
   const applyEvent = useCallback((event: QuantyStreamEvent) => {
@@ -91,29 +96,94 @@ export function useQuantyAgent(options: UseQuantyAgentOptions = {}): UseQuantyAg
     }
   }, []);
 
+  /**
+   * Authenticated SSE reader over fetch.
+   *
+   * EventSource cannot send an Authorization header, and this backend reads
+   * `request.auth?.userId` and answers 401 without one — so the old
+   * EventSource stream could never authenticate (the voice panel's typed
+   * commands failed with "Quanty se baat nahi ho payi (HTTP 401)" for the same
+   * reason on POST). This reader sends the in-memory access token like every
+   * other authenticated call, refreshes once on 401, and reconnects a bounded
+   * number of times when the stream drops mid-task (the old EventSource
+   * auto-reconnect contract).
+   */
   const openStream = useCallback(
     (taskId: string) => {
       closeStream();
       taskIdRef.current = taskId;
-      const source = new EventSource(`${apiBase}/${encodeURIComponent(taskId)}/stream`);
-      sourceRef.current = source;
+      const controller = new AbortController();
+      streamAbortRef.current = controller;
+      const url = `${apiBase}/${encodeURIComponent(taskId)}/stream`;
 
-      source.onmessage = (msg) => {
-        try {
-          const event = JSON.parse(msg.data) as QuantyStreamEvent;
-          applyEvent(event);
-          if (event.type === 'done' || event.type === 'error') {
-            closeStream();
+      const readOnce = async (allowRefreshRetry: boolean): Promise<'closed' | 'reconnect'> => {
+        const token = browserAuthSession.getAccessToken();
+        const res = await fetch(url, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            Accept: 'text/event-stream',
+          },
+          credentials: 'include',
+          signal: controller.signal,
+        });
+        if (res.status === 401 && allowRefreshRetry) {
+          const refreshed = await browserAuthSession.refresh();
+          if (refreshed.success) return readOnce(false);
+        }
+        if (!res.ok || !res.body) {
+          setError(`Live updates nahi mil paye (HTTP ${res.status})`);
+          return 'closed';
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const frames = buffer.split('\n\n');
+          buffer = frames.pop() ?? '';
+          for (const frame of frames) {
+            for (const line of frame.split('\n')) {
+              if (!line.startsWith('data:')) continue;
+              const payload = line.slice(5).trim();
+              if (!payload) continue;
+              try {
+                const event = JSON.parse(payload) as QuantyStreamEvent;
+                applyEvent(event);
+                if (event.type === 'done' || event.type === 'error') {
+                  return 'closed';
+                }
+              } catch {
+                /* A malformed frame must not kill the stream; the next one heals it. */
+              }
+            }
           }
-        } catch {
-          /* A malformed frame must not kill the stream; the next one heals it. */
+          if (controller.signal.aborted) return 'closed';
+        }
+        // Server closed the stream without a done/error frame: a dropped
+        // connection, not a finished task.
+        return 'reconnect';
+      };
+
+      const pump = async () => {
+        let attempts = 0;
+        for (;;) {
+          if (controller.signal.aborted) return;
+          try {
+            const outcome = await readOnce(attempts === 0);
+            if (outcome === 'closed') return;
+          } catch (err) {
+            if (controller.signal.aborted || (err as Error)?.name === 'AbortError') return;
+            // Network blip — fall through to the reconnect check below.
+          }
+          const status = taskRef.current?.status;
+          if (!status || !RUNNING_STATUSES.has(status) || attempts >= 5) return;
+          attempts += 1;
+          await new Promise((r) => setTimeout(r, 1500));
         }
       };
-
-      source.onerror = () => {
-        // EventSource retries automatically; only surface if the task looks stuck.
-        // We keep quiet here — a transient blip shouldn't alarm the user.
-      };
+      void pump();
     },
     [apiBase, applyEvent, closeStream],
   );
@@ -123,7 +193,10 @@ export function useQuantyAgent(options: UseQuantyAgentOptions = {}): UseQuantyAg
       const trimmed = command.trim();
       if (!trimmed) throw new Error('Command khaali hai');
       setError(null);
-      const res = await fetch(apiBase, {
+      // Authenticated: the backend reads request.auth?.userId and answers 401
+      // without an Authorization header (this is why voice-panel commands
+      // failed while the chat drawer — which uses authenticatedFetch — worked).
+      const res = await browserAuthSession.authenticatedFetch(apiBase, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command: trimmed }),
@@ -154,7 +227,10 @@ export function useQuantyAgent(options: UseQuantyAgentOptions = {}): UseQuantyAg
     async (path: string, failureMessage: string): Promise<void> => {
       const taskId = taskIdRef.current;
       if (!taskId) return;
-      const res = await fetch(`${apiBase}/${encodeURIComponent(taskId)}${path}`, { method: 'POST' });
+      const res = await browserAuthSession.authenticatedFetch(
+        `${apiBase}/${encodeURIComponent(taskId)}${path}`,
+        { method: 'POST' },
+      );
       if (!res.ok) {
         const message = `${failureMessage} (HTTP ${res.status})`;
         setError(message);
@@ -178,13 +254,15 @@ export function useQuantyAgent(options: UseQuantyAgentOptions = {}): UseQuantyAg
 
   const undoTask = useCallback(
     (taskId: string) =>
-      fetch(`${apiBase}/${encodeURIComponent(taskId)}/undo`, { method: 'POST' }).then((res) => {
-        if (!res.ok) {
-          const message = `Undo nahi ho paya (HTTP ${res.status})`;
-          setError(message);
-          throw new Error(message);
-        }
-      }),
+      browserAuthSession
+        .authenticatedFetch(`${apiBase}/${encodeURIComponent(taskId)}/undo`, { method: 'POST' })
+        .then((res) => {
+          if (!res.ok) {
+            const message = `Undo nahi ho paya (HTTP ${res.status})`;
+            setError(message);
+            throw new Error(message);
+          }
+        }),
     [apiBase],
   );
 
@@ -199,8 +277,8 @@ export function useQuantyAgent(options: UseQuantyAgentOptions = {}): UseQuantyAg
   // hit interrupt — closing the tab shouldn't nuke a long-running job.
   useEffect(() => {
     return () => {
-      sourceRef.current?.close();
-      sourceRef.current = null;
+      streamAbortRef.current?.abort();
+      streamAbortRef.current = null;
     };
   }, []);
 
