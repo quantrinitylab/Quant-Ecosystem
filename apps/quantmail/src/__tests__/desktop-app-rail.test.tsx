@@ -4,6 +4,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { DESKTOP_PILLAR_TILES } from '../components/pillarTiles';
 import { AppShell } from '../components/AppShell';
 
+// Desktop redesign (2026-10-10): AppShell's pinned rail renders the real
+// DesktopSidebar — hermetic marker here, the component itself is covered in
+// desktop-sidebar.test.tsx.
+vi.mock('../components/DesktopSidebar', () => ({
+  DesktopSidebar: () => <div data-testid="desktop-sidebar-mock" />,
+}));
+
+
 // Mock Next.js navigation hooks
 const mockPush = vi.fn();
 let mockCurrentPathname = '/';

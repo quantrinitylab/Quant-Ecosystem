@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, isValidElement, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
 import { PageTransition, useFocusTrap } from '@quant/shared-ui';
@@ -22,7 +22,8 @@ import type { Email } from '../types';
 import { SearchClearButton } from './SearchClearButton';
 import { QuantFab, type FabAction } from './QuantFab';
 import { ShellChromeProvider } from './ShellChromeContext';
-import { QuantyTrigger, QuantyDrawerHost } from './QuantyLauncher';
+import { QuantyDrawerHost } from './QuantyLauncher';
+import { DesktopSidebar } from './DesktopSidebar';
 import type { QuantyLiveAgentHandle } from './QuantyLiveAgent';
 
 /**
@@ -40,7 +41,6 @@ import { ContextBottomNavBar } from './ContextBottomNavBar';
 import { DesktopAppRail } from './DesktopAppRail';
 import { DesktopContextSidebar } from './DesktopContextSidebar';
 import { pillarForApp } from './desktopContextTabs';
-import { AccountBadge } from './AccountBadge';
 import { appThemeForPath } from '../lib/app-theme';
 
 export interface AppShellProps {
@@ -289,6 +289,16 @@ export function AppShell({
           ? 'code'
           : 'mail';
 
+  /*
+   * The pinned desktop rail always renders the new DesktopSidebar
+   * (user-approved redesign, 2026-10-10). The `sidebar` prop still feeds the
+   * mobile drawer untouched — only its `extra` slot is forwarded so routes
+   * like Contacts keep their A–Z index on desktop too.
+   */
+  const desktopSidebarExtra = isValidElement(sidebar)
+    ? (sidebar.props as { extra?: ReactNode }).extra
+    : undefined;
+
   const isMainSuiteRoute =
     pathname === '/' ||
     pathname.startsWith('/calendar') ||
@@ -347,19 +357,6 @@ export function AppShell({
     if (restoreFocus) menuTriggerRef.current?.focus();
   }, []);
 
-  const togglePinned = useCallback(() => {
-    setIsPinned((previous) => {
-      const next = !previous;
-      try {
-        window.localStorage.setItem(PIN_STORAGE_KEY, next ? '1' : '0');
-      } catch {
-        /* ignore */
-      }
-      if (next) setIsSidebarOpen(false);
-      return next;
-    });
-  }, []);
-
   /**
    * Tracks Tailwind's `md` breakpoint, because whether the drawer is the primary
    * navigation or a redundant copy of a pinned rail is a purely visual fact that
@@ -386,14 +383,10 @@ export function AppShell({
    */
   useEffect(() => {
     const handleToggle = () => {
-      // On a wide screen the pinned rail *is* the sidebar, so "hide it" means
-      // unpin. Toggling the drawer there would be worse than a no-op: the drawer
-      // is `md:hidden` while pinned, so it would lock the page and capture the
-      // keyboard behind something the user cannot see.
-      if (isPinned && isWide) {
-        togglePinned();
-        return;
-      }
+      // The desktop rail is always pinned now — toggling there would hide the
+      // rail with no way back (the hamburger is gone), so ignore it on wide
+      // screens. The mobile drawer still toggles below `md`.
+      if (isWide) return;
       setIsSidebarOpen((open) => {
         // Leaving focus on a node inside a drawer that is about to go
         // `aria-hidden` strands the screen reader, so hand it back to the trigger.
@@ -403,7 +396,7 @@ export function AppShell({
     };
     window.addEventListener('quant:sidebar:toggle', handleToggle);
     return () => window.removeEventListener('quant:sidebar:toggle', handleToggle);
-  }, [isPinned, isWide, togglePinned]);
+  }, [isWide]);
 
   /**
    * Whether the drawer is actually on screen.
@@ -414,7 +407,7 @@ export function AppShell({
    * scroll lock, the focus trap, the keyboard mask — has to hang off this instead,
    * or a stray click locks the page with no visible cause.
    */
-  const isDrawerPresented = isSidebarOpen && !(isPinned && isWide);
+  const isDrawerPresented = isSidebarOpen && !(isPinned || isWide);
 
   /**
    * The drawer is modal — backdrop, locked body scroll, focus trap — so while it
@@ -489,6 +482,20 @@ export function AppShell({
     priority: 10,
     enabled: () => Boolean(onSearchChange),
   });
+
+  /*
+   * The desktop sidebar's search button focuses the header's global search
+   * input. It reuses the same focusSearch the `/` shortcut uses, so routes
+   * without a header field fall back to the pillar/mobile search the same way.
+   */
+  useEffect(() => {
+    const handleDesktopSearchFocus = () => {
+      focusSearch();
+    };
+    window.addEventListener('quant:desktop-search-focus', handleDesktopSearchFocus);
+    return () =>
+      window.removeEventListener('quant:desktop-search-focus', handleDesktopSearchFocus);
+  }, [focusSearch]);
 
   /*
    * The row stays mounted so it can animate, so opening it has to move focus
@@ -752,32 +759,14 @@ export function AppShell({
                 onClick={() => closeSidebar()}
               />
 
-              {/* Desktop Pinned Sidebar */}
-              {isPinned && (
+              {/* Desktop Pinned Sidebar — always pinned on desktop (2026-10-10 redesign).
+                  The mobile drawer below keeps rendering the old sidebar untouched. */}
+              {(isPinned || isWide) && (
                 <aside
                   className="hidden md:relative md:flex flex-none bg-[var(--surface)] border-r border-[var(--border)]"
                   aria-label="Sidebar"
                 >
-                  <div className="absolute right-2 top-2 z-10 flex items-center gap-1">
-                    <button
-                      type="button"
-                      className="size-9 inline-flex items-center justify-center rounded-md text-[var(--foreground)]/70 outline-none hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-                      aria-label="Unpin navigation"
-                      aria-pressed={true}
-                      onClick={togglePinned}
-                    >
-                      <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
-                        <path
-                          d="M9 4h6l-1 6 4 4H6l4-4-1-6Zm3 10v6"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeLinecap="round"
-                          strokeWidth="2"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                  {sidebar}
+                  <DesktopSidebar extra={desktopSidebarExtra} onQuantyClick={openQuanty} />
                 </aside>
               )}
 
@@ -787,7 +776,7 @@ export function AppShell({
                 id={drawerId}
                 className={`fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-3rem)] flex-none bg-[var(--surface)] shadow-2xl transition-transform duration-200 ease-out motion-reduce:transition-none ${
                   isSidebarOpen ? 'visible translate-x-0' : 'invisible -translate-x-full'
-                } ${isPinned ? 'md:hidden' : ''}`}
+                } ${isPinned || isWide ? 'md:hidden' : ''}`}
                 // A backdrop, a locked page and a focus trap already make this a modal
                 // dialog; saying so lets a screen reader announce the boundary instead
                 // of presenting it as one more complementary region on the page.
@@ -832,30 +821,10 @@ export function AppShell({
                 customHeader
               ) : (
                 <header className="hidden md:flex min-h-14 flex-none items-center justify-between gap-3 bg-black backdrop-blur px-3 md:px-5">
-                  {/* Left: Active App Name / Section Breadcrumb */}
+                  {/* Left: Active App Name / Section Breadcrumb.
+                      The old hamburger is gone (2026-10-10): the desktop rail
+                      is always pinned now, so there is nothing to toggle. */}
                   <div className="flex items-center gap-3 shrink-0">
-                    <button
-                      ref={menuTriggerRef}
-                      type="button"
-                      // Hidden once the rail is pinned on a wide screen: the drawer it
-                      // opens is `md:hidden` there, so the control had nothing to show.
-                      className={`inline-flex size-8 flex-none items-center justify-center rounded-lg outline-none hover:bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${isPinned ? 'md:hidden' : ''}`}
-                      aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
-                      aria-expanded={isDrawerPresented}
-                      aria-controls={drawerId}
-                      onClick={() => setIsSidebarOpen((open) => !open)}
-                    >
-                      <svg viewBox="0 0 24 24" className="size-4.5" aria-hidden="true">
-                        <path
-                          d="M4 6h16M4 12h16M4 18h16"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeLinecap="round"
-                          strokeWidth="2"
-                        />
-                      </svg>
-                    </button>
-
                     <button
                       type="button"
                       className="flex min-h-touch items-center gap-2.5 select-none group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
@@ -923,12 +892,9 @@ export function AppShell({
                     ) : null}
                   </div>
 
-                  {/* Right: Compact Quant AI capsule + Quanty trigger button + Account badge */}
+                  {/* Right: page actions. Quanty and the account badge moved
+                      into the desktop sidebar (2026-10-10 redesign). */}
                   <div className="flex items-center gap-2 shrink-0">
-                    {/* Quant AI entry: real Quanty trigger next to it (no fabricated status) */}
-
-                    {!hasOwnQuanty && <QuantyTrigger isOpen={isQuantyOpen} onOpen={openQuanty} />}
-                    <AccountBadge compact={true} />
                     {mobileActions}
                   </div>
                 </header>

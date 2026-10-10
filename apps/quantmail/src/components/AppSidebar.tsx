@@ -281,13 +281,36 @@ export interface AppSidebarProps {
   extra?: ReactNode;
 }
 
-export function AppSidebar({ extra }: AppSidebarProps = {}) {
+type SidebarNavItem = (typeof NAV_GROUPS)[number]['items'][number];
+
+/**
+ * Shared sidebar building blocks. The mobile drawer keeps rendering
+ * `AppSidebar` (pixel-identical), while the new desktop rail renders
+ * `DesktopSidebar` — both compose these same pieces, so nav behavior,
+ * badges and the storage readout stay identical across viewports.
+ */
+
+/** Compose button — the sidebar's primary action. */
+export function SidebarComposeButton() {
+  const router = useRouter();
+  return (
+    <div className="sidebar-compose-wrap">
+      <button type="button" onClick={() => router.push('/compose')} className="sidebar-compose">
+        <Icon name="compose" className="h-[18px] w-[18px]" />
+        <span>Compose</span>
+        <kbd className="hidden md:inline-flex">C</kbd>
+      </button>
+    </div>
+  );
+}
+
+/** Mail / Workspace / Control nav groups with live unread + draft badges. */
+export function SidebarNavGroups() {
   const router = useRouter();
   const pathname = usePathname() ?? '/';
   const searchParams = useSearchParams();
   const currentLens = searchParams.get('lens');
-  type NavItem = (typeof NAV_GROUPS)[number]['items'][number];
-  const isActive = (item: NavItem) => {
+  const isActive = (item: SidebarNavItem) => {
     if (item.lens) {
       return pathname === '/' && currentLens === item.lens;
     }
@@ -303,7 +326,111 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
   const { data: draftEmails } = useInbox({ folderType: 'DRAFTS' });
   const unreadCount = inboxEmails?.filter((e) => !e.isRead).length ?? 0;
   const draftCount = draftEmails?.length ?? 0;
+  return (
+    <>
+      {NAV_GROUPS.map((group) => (
+        <section
+          key={group.label}
+          className="sidebar-group"
+          aria-labelledby={`nav-${group.label.toLowerCase()}`}
+        >
+          <h2 id={`nav-${group.label.toLowerCase()}`}>{group.label}</h2>
+          <ul role="list">
+            {group.items.map((item) => {
+              const active = isActive(item);
+              return (
+                <li key={item.id} className={item.desktopOnly ? 'hidden md:block' : ''}>
+                  <button
+                    type="button"
+                    onClick={() => router.push(item.path)}
+                    className={`sidebar-nav-item ${active ? 'is-active' : ''}`}
+                    aria-current={active ? 'page' : undefined}
+                  >
+                    <Icon name={item.icon} />
+                    <span>{item.label}</span>
+                    {item.id === 'inbox' && unreadCount > 0 && (
+                      <span className="sidebar-count" aria-label={`${unreadCount} unread`}>
+                        {unreadCount}
+                      </span>
+                    )}
+                    {item.id === 'drafts' && draftCount > 0 && (
+                      <span
+                        className="sidebar-count sidebar-count-muted"
+                        aria-label={`${draftCount} drafts`}
+                      >
+                        {draftCount}
+                      </span>
+                    )}
+                    {item.id === 'inbox' && (
+                      <span className="sidebar-nav-spark" aria-hidden="true" />
+                    )}
+                    {item.shortcut && (
+                      <kbd className="ml-auto text-[10px] text-[var(--quant-muted-foreground)] bg-[var(--quant-surface-hover)] px-1.5 py-0.5 rounded">
+                        {item.shortcut}
+                      </kbd>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </>
+  );
+}
+
+/*
+  This read `1.2 / 15 GB` over an 8% bar, both hardcoded, while
+  `components/Sidebar.tsx` hardcoded `3.5 GB of 15 GB used` over a 35%
+  bar and the Drive page showed the real total. All three now come from
+  `GET /drive/quota`, which sums the user's undeleted files server-side,
+  and the bar is a real `progressbar` so a screen reader gets the number
+  instead of an unlabelled sliver of orange.
+*/
+/** Real cloud-storage readout (GET /drive/quota via useStorageQuota). */
+export function SidebarStorage() {
   const { quota, known: quotaKnown, usedPct } = useStorageQuota();
+  return (
+    <section
+      className="mt-4 px-2.5 py-3 border-t border-[var(--quant-border-subtle)]"
+      aria-label="Storage status"
+    >
+      <div className="flex items-center justify-between text-[11px] text-[var(--quant-muted-foreground)]">
+        <span className="font-medium flex items-center gap-1.5">
+          <span className="inline-block size-1.5 rounded-full bg-[var(--quant-primary)]" />
+          Cloud Storage
+        </span>
+        <span className="font-mono text-[10px] text-[var(--quant-foreground)]">
+          {quotaKnown && quota
+            ? `${formatBytes(quota.used)} / ${formatBytes(quota.total)}`
+            : 'Calculating\u2026'}
+        </span>
+      </div>
+      <div
+        className="mt-2 h-1.5 w-full rounded-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] overflow-hidden"
+        role="progressbar"
+        aria-label="Cloud storage used"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={quotaKnown ? usedPct : undefined}
+        aria-valuetext={
+          quotaKnown && quota
+            ? `${formatBytes(quota.used)} of ${formatBytes(quota.total)} used`
+            : 'Calculating'
+        }
+      >
+        <div
+          className="h-full rounded-full bg-[var(--quant-primary)] transition-all duration-300"
+          style={{ width: `${usedPct}%` }}
+        />
+      </div>
+    </section>
+  );
+}
+
+export function AppSidebar({ extra }: AppSidebarProps = {}) {
+  const router = useRouter();
 
   return (
     <nav className="quant-sidebar" aria-label="QuantMail navigation">
@@ -342,109 +469,14 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
         </div>
       </header>
 
-      <div className="sidebar-compose-wrap">
-        <button type="button" onClick={() => router.push('/compose')} className="sidebar-compose">
-          <Icon name="compose" className="h-[18px] w-[18px]" />
-          <span>Compose</span>
-          <kbd className="hidden md:inline-flex">C</kbd>
-        </button>
-      </div>
+      <SidebarComposeButton />
 
       <div className="sidebar-scroll">
-        {NAV_GROUPS.map((group) => (
-          <section
-            key={group.label}
-            className="sidebar-group"
-            aria-labelledby={`nav-${group.label.toLowerCase()}`}
-          >
-            <h2 id={`nav-${group.label.toLowerCase()}`}>{group.label}</h2>
-            <ul role="list">
-              {group.items.map((item) => {
-                const active = isActive(item);
-                return (
-                  <li key={item.id} className={item.desktopOnly ? 'hidden md:block' : ''}>
-                    <button
-                      type="button"
-                      onClick={() => router.push(item.path)}
-                      className={`sidebar-nav-item ${active ? 'is-active' : ''}`}
-                      aria-current={active ? 'page' : undefined}
-                    >
-                      <Icon name={item.icon} />
-                      <span>{item.label}</span>
-                      {item.id === 'inbox' && unreadCount > 0 && (
-                        <span className="sidebar-count" aria-label={`${unreadCount} unread`}>
-                          {unreadCount}
-                        </span>
-                      )}
-                      {item.id === 'drafts' && draftCount > 0 && (
-                        <span
-                          className="sidebar-count sidebar-count-muted"
-                          aria-label={`${draftCount} drafts`}
-                        >
-                          {draftCount}
-                        </span>
-                      )}
-                      {item.id === 'inbox' && (
-                        <span className="sidebar-nav-spark" aria-hidden="true" />
-                      )}
-                      {item.shortcut && (
-                        <kbd className="ml-auto text-[10px] text-[var(--quant-muted-foreground)] bg-[var(--quant-surface-hover)] px-1.5 py-0.5 rounded">
-                          {item.shortcut}
-                        </kbd>
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))}
+        <SidebarNavGroups />
 
         {extra}
 
-        {/* QuantMail Storage Indicator */}
-        {/*
-          This read `1.2 / 15 GB` over an 8% bar, both hardcoded, while
-          `components/Sidebar.tsx` hardcoded `3.5 GB of 15 GB used` over a 35%
-          bar and the Drive page showed the real total. All three now come from
-          `GET /drive/quota`, which sums the user's undeleted files server-side,
-          and the bar is a real `progressbar` so a screen reader gets the number
-          instead of an unlabelled sliver of orange.
-        */}
-        <section
-          className="mt-4 px-2.5 py-3 border-t border-[var(--quant-border-subtle)]"
-          aria-label="Storage status"
-        >
-          <div className="flex items-center justify-between text-[11px] text-[var(--quant-muted-foreground)]">
-            <span className="font-medium flex items-center gap-1.5">
-              <span className="inline-block size-1.5 rounded-full bg-[var(--quant-primary)]" />
-              Cloud Storage
-            </span>
-            <span className="font-mono text-[10px] text-[var(--quant-foreground)]">
-              {quotaKnown && quota
-                ? `${formatBytes(quota.used)} / ${formatBytes(quota.total)}`
-                : 'Calculating…'}
-            </span>
-          </div>
-          <div
-            className="mt-2 h-1.5 w-full rounded-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] overflow-hidden"
-            role="progressbar"
-            aria-label="Cloud storage used"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={quotaKnown ? usedPct : undefined}
-            aria-valuetext={
-              quotaKnown && quota
-                ? `${formatBytes(quota.used)} of ${formatBytes(quota.total)} used`
-                : 'Calculating'
-            }
-          >
-            <div
-              className="h-full rounded-full bg-[var(--quant-primary)] transition-all duration-300"
-              style={{ width: `${usedPct}%` }}
-            />
-          </div>
-        </section>
+        <SidebarStorage />
       </div>
 
       <AccountBadge />
