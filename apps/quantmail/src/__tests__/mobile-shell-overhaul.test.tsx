@@ -2,6 +2,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AppShell } from '../components/AppShell';
+
+// Desktop redesign (2026-10-10): AppShell's pinned rail renders the real
+// DesktopSidebar — hermetic marker here, the component itself is covered in
+// desktop-sidebar.test.tsx.
+vi.mock('../components/DesktopSidebar', () => ({
+  DesktopSidebar: () => <div data-testid="desktop-sidebar-mock" />,
+}));
+
 import {
   QuantPillarTopBar,
   PILLAR_TILES,
@@ -120,8 +128,9 @@ describe('Mobile Shell Overhaul — Worker A', () => {
       );
 
       // Desktop header still carries the brand button and the search field.
+      // The hamburger is gone (2026-10-10 redesign: rail always pinned).
       expect(html).toContain('id="app-shell-search-input"');
-      expect(html).toContain('Open navigation menu');
+      expect(html).not.toContain('Open navigation menu');
     });
 
     it('still honours customHeader (replaces the whole header element)', () => {

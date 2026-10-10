@@ -1027,6 +1027,18 @@ body {
 .sidebar-label-actions button { min-height: 1.9rem; flex: 1; border-radius: 0.45rem; background: var(--quant-primary); color: #17100a; font-size: 0.68rem; font-weight: 700; }
 .sidebar-label-actions button:last-child { background: var(--quant-muted); color: var(--quant-foreground); }
 .sidebar-footer { display: flex; min-height: 3.25rem; align-items: center; gap: 0.45rem; padding: 0 1rem; border-top: 1px solid var(--quant-border-subtle); color: #A1A4AC; font-size: 0.64rem; }
+
+/* Desktop sidebar redesign (2026-10-10): the pinned md+ rail. The mobile
+   drawer keeps the old AppSidebar untouched, so these classes are only
+   ever rendered inside AppShell's `hidden md:flex` rail. */
+.desktop-sidebar .sidebar-brand { min-height: 4.5rem; border-bottom: none; }
+.sidebar-search-wrap { padding: 0.1rem 0.8rem 0.35rem; }
+.sidebar-search { display: flex; width: 100%; min-height: 2.75rem; align-items: center; gap: 0.68rem; border-radius: 0.62rem; padding: 0 0.68rem; color: var(--quant-muted-foreground); font-size: 0.78rem; font-weight: 520; transition: color 140ms ease, background 140ms ease; }
+.sidebar-search:hover { background: rgba(255, 255, 255, 0.045); color: #f3f3ef; }
+.sidebar-search kbd { margin-left: auto; border: 1px solid var(--quant-surface-hover); border-radius: 0.3rem; padding: 0.08rem 0.35rem; background: var(--quant-surface-hover); font-size: 0.625rem; font-family: monospace; }
+.sidebar-quanty { display: flex; flex-direction: column; align-items: center; gap: 0.85rem; padding: 2.5rem 1rem 2rem; }
+.sidebar-quanty-cta { display: inline-flex; min-height: 2.5rem; align-items: center; border-radius: 999px; padding: 0 1.35rem; background: var(--quant-primary); color: #17100a; font-size: 0.8rem; font-weight: 700; transition: filter 140ms ease, transform 140ms ease; }
+.sidebar-quanty-cta:hover { filter: brightness(1.07); transform: translateY(-1px); }
 .sidebar-india { display: grid; width: 1.2rem; overflow: hidden; border-radius: 0.16rem; }
 .sidebar-india i { height: 0.16rem; background: #ff9933; }.sidebar-india i:nth-child(2) { background: #f5f5ef; }.sidebar-india i:nth-child(3) { background: #138808; }
 
