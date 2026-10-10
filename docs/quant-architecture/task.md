@@ -512,7 +512,7 @@ Required: timezone/DST, recurrence, reminders, attendee state, drag/drop where s
 Dependencies: QM-WORK-007.
 
 ## QM-SCREEN-009 — Calendar event create / edit / detail / RSVP
-Status: [~] IN PROGRESS
+Status: [x] DONE (audit complete 2026-10-11 ~03:00 IST; fixes tracked via their PRs)
 Owner: LANE-1
 Branch: lane-1/audit-qm-screen-009-events
 Audit started: 2026-10-11 ~02:35 IST (lane-1 deep audit loop)
