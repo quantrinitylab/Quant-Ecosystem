@@ -8,7 +8,7 @@
  *
  * The nav the shipped shell actually renders is NOT `AppSidebar` (that one
  * already listed Sent): `AppShell` renders `DesktopContextSidebar` on
- * desktop — driven by `PILLAR_SUB_CONFIGS` in `desktopContextTabs.tsx` —
+ * desktop — its options area is driven by `PILLAR_SUB_CONFIGS` in `desktopContextTabs.tsx` —
  * and `ContextBottomNavBar` on mobile. Both Mail tab sets listed only
  * Inbox + Archive; both files even defined a `SentIcon` and a resolver arm
  * (`/sent` → 'sent') that were dead because no tab existed.

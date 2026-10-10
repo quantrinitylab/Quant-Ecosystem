@@ -4,10 +4,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { AppShell } from '../components/AppShell';
 
 // Desktop redesign (2026-10-10): AppShell's pinned rail renders the real
-// DesktopSidebar — hermetic marker here, the component itself is covered in
-// desktop-sidebar.test.tsx.
-vi.mock('../components/DesktopSidebar', () => ({
-  DesktopSidebar: () => <div data-testid="desktop-sidebar-mock" />,
+// DesktopContextSidebar — hermetic marker here, the component itself is
+// covered in desktop-context-sidebar.test.tsx.
+vi.mock('../components/DesktopContextSidebar', () => ({
+  DesktopContextSidebar: () => <div data-testid="desktop-context-sidebar-mock" />,
 }));
 
 
@@ -129,6 +129,10 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Contextual Bottom Nav Integr
 
     it('mounts the contextual bottom nav on Calendar route (/calendar)', () => {
       mockCurrentPathname = '/calendar';
+      // The mobile bottom nav owns its own tab set (ContextBottomNavBar's
+      // PILLAR_SUB_CONFIGS): Day/Week/Month with the #4285F4 calendar accent.
+      // ?tab=day activates a tab so the accent renders in SSR markup.
+      mockCurrentSearchParams = new URLSearchParams('tab=day');
       const html = renderToStaticMarkup(
         <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
           <div>Calendar Content</div>
@@ -137,14 +141,13 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Contextual Bottom Nav Integr
 
       // QuantPillarTopBar has calendar active
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
-      expect(html).toContain('var(--quant-warning)');
+      expect(html).toContain('#4285F4');
 
       // Contextual tabs now live in the bottom bar (top strip removed)
       expect(html).toContain('Calendar contextual navigation');
-      expect(html).toContain('Feed');
-      expect(html).toContain('Month');
-      expect(html).toContain('Trackers');
-      expect(html).toContain('Schedule');
+      expect(html).toContain('>Day<');
+      expect(html).toContain('>Week<');
+      expect(html).toContain('>Month<');
 
       // Single bottom bar only — no app-switcher duplicate, no top strip
       expect(html).not.toContain('App pillars');
@@ -160,13 +163,12 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Contextual Bottom Nav Integr
       );
 
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
-      expect(html).toContain('#38BDF8');
+      expect(html).toContain('#34A853');
 
       expect(html).toContain('Drive contextual navigation');
-      expect(html).toContain('Home');
-      expect(html).toContain('Feed');
-      expect(html).toContain('AI Memory');
-      expect(html).toContain('Vault');
+      expect(html).toContain('>My Drive<');
+      expect(html).toContain('>Recent<');
+      expect(html).toContain('>Starred<');
 
       expect(html).not.toContain('App pillars');
       expect(html).not.toContain('sub-navigation');
@@ -181,10 +183,12 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Contextual Bottom Nav Integr
       );
 
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
-      expect(html).toContain('#10B981');
+      expect(html).toContain('#F59E0B');
 
       // Contacts contextual tabs live in the shell bottom bar
       expect(html).toContain('Contacts contextual navigation');
+      expect(html).toContain('>All<');
+      expect(html).toContain('>Favorites<');
       expect(html).not.toContain('sub-navigation');
       expect(html).not.toContain('App pillars');
     });
@@ -198,15 +202,13 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Contextual Bottom Nav Integr
       );
 
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
-      expect(html).toContain('#A78BFA');
+      expect(html).toContain('#8B5CF6');
 
-      // Gemini-approved QuantGit bottom tabs: Quanty AI (logo-only) → Feed →
-      // Repos → PRs → Issues. No top strip, no app-switcher duplicate.
+      // QuantGit bottom tabs: Repositories → Overview. No top strip, no
+      // app-switcher duplicate.
       expect(html).toContain('QuantGit contextual navigation');
-      expect(html).toContain('Feed');
-      expect(html).toContain('Repos');
-      expect(html).toContain('PRs');
-      expect(html).toContain('Issues');
+      expect(html).toContain('>Repositories<');
+      expect(html).toContain('>Overview<');
       expect(html).not.toContain('sub-navigation');
 
       expect(html).not.toContain('App pillars');
@@ -325,8 +327,8 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Contextual Bottom Nav Integr
       // 2026-10-10 desktop redesign: the header hamburger is gone (the rail
       // is always pinned), so nothing may advertise opening the navigation.
       // (The pinned rail itself needs matchMedia/localStorage effects, so it
-      // only renders in a real browser — DesktopSidebar is covered directly
-      // in desktop-sidebar.test.tsx.)
+      // only renders in a real browser — DesktopContextSidebar is covered
+      // directly in desktop-context-sidebar.test.tsx.)
       expect(html).not.toContain('Open navigation menu');
       expect(html).toContain('main-content');
     });

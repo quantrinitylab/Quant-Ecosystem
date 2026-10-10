@@ -1036,9 +1036,30 @@ body {
 .sidebar-search { display: flex; width: 100%; min-height: 2.75rem; align-items: center; gap: 0.68rem; border-radius: 0.62rem; padding: 0 0.68rem; color: var(--quant-muted-foreground); font-size: 0.78rem; font-weight: 520; transition: color 140ms ease, background 140ms ease; }
 .sidebar-search:hover { background: rgba(255, 255, 255, 0.045); color: #f3f3ef; }
 .sidebar-search kbd { margin-left: auto; border: 1px solid var(--quant-surface-hover); border-radius: 0.3rem; padding: 0.08rem 0.35rem; background: var(--quant-surface-hover); font-size: 0.625rem; font-family: monospace; }
+
+/* Expanding inline search field in the desktop sidebar (replaced the old
+   header search, 2026-10-10): collapsed it looks like the search button;
+   focusing expands the input. `is-open` keeps it expanded while a query is
+   typed. `type="search"` so Esc / the clear affordance behave natively. */
+.sidebar-search-field { display: flex; width: 100%; min-height: 2.75rem; align-items: center; gap: 0.68rem; border-radius: 0.62rem; padding: 0 0.68rem; color: var(--quant-muted-foreground); font-size: 0.78rem; cursor: text; border: 1px solid transparent; transition: color 140ms ease, background 140ms ease, border-color 140ms ease; }
+.sidebar-search-field:hover { background: rgba(255, 255, 255, 0.045); color: #f3f3ef; }
+.sidebar-search-field input { flex: 1; min-width: 0; width: 0; opacity: 0; background: transparent; border: 0; outline: 0; color: #f5f5f2; font-size: 0.82rem; padding: 0; transition: width 160ms ease, opacity 160ms ease; }
+.sidebar-search-field input::placeholder { color: var(--quant-muted-foreground); }
+.sidebar-search-field input::-webkit-search-cancel-button { display: none; }
+.sidebar-search-field:focus-within { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.12); color: #f3f3ef; }
+.sidebar-search-field:focus-within input, .sidebar-search-field.is-open input { width: 100%; opacity: 1; }
+.sidebar-search-kbd { margin-left: auto; flex: none; border: 1px solid var(--quant-surface-hover); border-radius: 0.3rem; padding: 0.08rem 0.35rem; background: var(--quant-surface-hover); font-size: 0.625rem; font-family: monospace; }
 .sidebar-quanty { display: flex; flex-direction: column; align-items: center; gap: 0.85rem; padding: 2.5rem 1rem 2rem; }
 .sidebar-quanty-cta { display: inline-flex; min-height: 2.5rem; align-items: center; border-radius: 999px; padding: 0 1.35rem; background: var(--quant-primary); color: #17100a; font-size: 0.8rem; font-weight: 700; transition: filter 140ms ease, transform 140ms ease; }
 .sidebar-quanty-cta:hover { filter: brightness(1.07); transform: translateY(-1px); }
+/* Contextual tabs inside the desktop sidebar (single-sidebar fix 2026-10-10):
+   vertical icon+label rows with real count badges, per-app accent on active. */
+.sidebar-context-tabs { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.35rem 0.65rem 0.5rem; }
+.sidebar-context-tab { display: flex; width: 100%; align-items: center; gap: 0.7rem; border: 1px solid transparent; border-radius: 0.62rem; padding: 0.55rem 0.75rem; color: #94A3B8; font-size: 0.82rem; font-weight: 520; text-align: left; transition: color 140ms ease, background 140ms ease, border-color 140ms ease; }
+.sidebar-context-tab:hover { background: rgba(255, 255, 255, 0.045); color: #f3f3ef; }
+.sidebar-context-tab.is-active { font-weight: 700; border-style: solid; border-width: 1px; }
+.sidebar-context-badge { display: inline-flex; height: 1.1rem; min-width: 1.1rem; align-items: center; justify-content: center; border-radius: 999px; padding: 0 0.35rem; color: #000; font-size: var(--q-type-xs); font-weight: 800; line-height: 1; }
+.sidebar-context-badgetext { display: inline-flex; height: 1rem; align-items: center; border: 1px solid var(--quant-surface-hover); border-radius: 0.3rem; padding: 0 0.35rem; background: var(--quant-surface-elevated); color: #94A3B8; font-size: var(--q-type-xs); font-weight: 800; text-transform: uppercase; letter-spacing: -0.01em; }
 .sidebar-india { display: grid; width: 1.2rem; overflow: hidden; border-radius: 0.16rem; }
 .sidebar-india i { height: 0.16rem; background: #ff9933; }.sidebar-india i:nth-child(2) { background: #f5f5ef; }.sidebar-india i:nth-child(3) { background: #138808; }
 

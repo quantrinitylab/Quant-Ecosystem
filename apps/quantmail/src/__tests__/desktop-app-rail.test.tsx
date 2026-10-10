@@ -5,12 +5,13 @@ import { DESKTOP_PILLAR_TILES } from '../components/pillarTiles';
 import { AppShell } from '../components/AppShell';
 
 // Desktop redesign (2026-10-10): AppShell's pinned rail renders the real
-// DesktopSidebar — hermetic marker here, the component itself is covered in
-// desktop-sidebar.test.tsx.
-vi.mock('../components/DesktopSidebar', () => ({
-  DesktopSidebar: () => <div data-testid="desktop-sidebar-mock" />,
-}));
-
+// DesktopContextSidebar (single sidebar: logo+name, search, per-app compose,
+// contextual tabs, Quanty, storage, profile). The pinned rail is effect-gated
+// (isPinned/isWide flip only via matchMedia/localStorage effects), so it never
+// renders under renderToStaticMarkup — the component itself is covered directly
+// in desktop-context-sidebar.test.tsx. This file asserts the right rail and
+// drawer integration only.
+// Quanty/AccountBadge internals are hermetic markers here.
 
 // Mock Next.js navigation hooks
 const mockPush = vi.fn();
@@ -107,10 +108,15 @@ describe('DesktopAppRail (slim 5-app switcher)', () => {
       </AppShell>,
     );
 
-    // DesktopContextSidebar is mounted on the left with the Drive contextual tabs
-    expect(html).toContain('data-testid="desktop-context-sidebar"');
-    expect(html).toContain('data-testid="desktop-context-tab-home"');
-    expect(html).toContain('data-testid="desktop-context-tab-feed"');
+    // The pinned desktop rail (DesktopContextSidebar, the single desktop
+    // sidebar) is effect-gated — isPinned/isWide only flip via
+    // matchMedia/localStorage effects, which never run under
+    // renderToStaticMarkup — so it is absent from SSR markup by design.
+    // Its per-pillar integration (drive tabs desktop-context-tab-home /
+    // desktop-context-tab-feed, logo+name, search, Quanty, storage,
+    // profile) is covered directly in desktop-context-sidebar.test.tsx.
+    expect(html).not.toContain('data-testid="desktop-context-sidebar"');
+    expect(html).not.toContain('data-testid="desktop-sidebar"');
 
     // DesktopAppRail (slim 5-app switcher) is mounted on the right
     expect(html).toContain('data-testid="desktop-app-rail"');
