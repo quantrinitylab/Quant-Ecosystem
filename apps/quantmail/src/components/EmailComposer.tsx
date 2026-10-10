@@ -126,6 +126,26 @@ export function getSendBlockReason(to: string, subject: string, body: string): s
 }
 
 /**
+ * Full-page compose detection (CUST-P0-3).
+ *
+ * SINGLE SOURCE OF TRUTH for "are we on the dedicated /compose page".
+ * `handleSend` uses this to decide between the immediate-send path (the
+ * UndoSendManager provider lives in the page and is destroyed by the
+ * post-send navigation, so the send must run now, not on a countdown) and
+ * the modal/popover path (provider survives, countdown bar is safe).
+ *
+ * It must depend ONLY on the route — never on which callbacks the host
+ * passes. The /compose page passes `onDiscard` (for its Discard button);
+ * an earlier version required `!onDiscard` here, which made this always
+ * false on the real /compose page. Send then called the discard handler
+ * (deleting the draft + navigating away) and parked the real send on a
+ * countdown that died with the page: silent data loss, no toast.
+ */
+export function isFullPageComposePath(pathname: string | null | undefined): boolean {
+  return !!pathname && pathname.includes('/compose');
+}
+
+/**
  * Which Quanty reaction a blocked send announces (QM-UIUX-025).
  *
  * Mirrors `getSendBlockReason` field-for-field and in the same order, so the
@@ -875,23 +895,24 @@ export function EmailComposer({
     // with `delayMs: 10000`) and the undo toast the page shows. In a
     // modal/popover the provider survives the send, so `queueSend` keeps its
     // countdown bar there.
-    const isFullPageCompose =
-      !onClose &&
-      !onDiscard &&
-      typeof window !== 'undefined' &&
-      window.location.pathname.includes('/compose');
+    //
+    // CUST-P0-3: this must be true on the real `/compose` page. It used to
+    // require `!onDiscard`, but the compose page passes `onDiscard` (for its
+    // Discard button), so the immediate-send path never activated there.
+    const isFullPageCompose = isFullPageComposePath(
+      typeof window !== 'undefined' ? window.location.pathname : null,
+    );
 
+    // Dismiss the composer chrome. CUST-P0-3: NEVER call `onDiscard` on the
+    // send path — the /compose page's discard handler deletes the server
+    // draft and navigates away (router.back), which silently destroyed the
+    // message with no toast. Only `onClose` (modal/popover) dismisses here;
+    // the full page navigates after a successful send below.
     if (onClose) {
       onClose();
-    } else if (onDiscard) {
-      onDiscard();
-    } else if (isFullPageCompose) {
-      try {
-        sessionStorage.setItem('quant_undo_draft', JSON.stringify(draftSnapshot));
-      } catch {}
     }
 
-    const sendNow = async () => {
+    const sendNow = async (): Promise<boolean> => {
       // Runs the actual send once the recall window closes (modal path) or
       // immediately (full-page path), then announces the result.
       try {
@@ -961,19 +982,27 @@ export function EmailComposer({
             type: 'success',
           });
         }
+        return true;
       } catch (err: any) {
         quantyReact('mail:sendFailed');
         showToast({ text: err.message || 'Failed to send message', type: 'error' });
+        return false;
       } finally {
         setIsSending(false);
       }
     };
 
     if (isFullPageCompose) {
-      // Send first, navigate after: the host page's "Sending… (10s to undo)"
-      // toast is on screen before the route changes.
-      await sendNow();
-      router.push('/');
+      // Send first, navigate after — and ONLY navigate on success. The host
+      // page's "Sending… (10s to undo)" toast is on screen before the route
+      // changes. On failure the error toast above is already shown and the
+      // user stays on the compose page with the draft intact (CUST-P0-3:
+      // never navigate away from a failed send — the old unconditional
+      // router.push('/') wiped the error toast and looked like silent loss).
+      const sent = await sendNow();
+      if (sent) {
+        router.push('/');
+      }
       return;
     }
 
@@ -1015,7 +1044,9 @@ export function EmailComposer({
           router.push('/compose');
         }
       },
-      onSendNow: sendNow,
+      onSendNow: () => {
+        void sendNow();
+      },
     });
   };
 
