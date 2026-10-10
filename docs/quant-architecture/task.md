@@ -570,7 +570,9 @@ Finding: repository contains QuantMail health/deploy infrastructure; completion 
 Dependencies: QM-BACK-008; QM-BACK-007.
 
 ## QM-PLAT-008 — QuantMail fabricated operational-data audit
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-plat-008-fabricated-ops-data
 Finding: prior audit identified Teams/Agents surfaces with fabricated-looking teammates/PR/deploy/heartbeat/kubectl data. Re-audit current branch and either connect to real sources or remove.
 Dependencies: QM-TRUST-002.
 
