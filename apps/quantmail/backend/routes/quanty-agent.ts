@@ -63,7 +63,8 @@ function boot(fastify: FastifyInstance): void {
   if (booted) return;
   const prisma = (fastify as unknown as { prisma: PrismaClient }).prisma;
   // REAL tools: mail + git handlers backed by the scoped backend services,
-  // drive handlers backed by the real Drive AI services (QM-M39-011).
+  // drive handlers backed by the real Drive AI services (QM-M39-011),
+  // calendar handlers backed by CalendarService + prisma.event rows.
   // No stubs — registerRealTools throws on duplicate registration, so this
   // runs exactly once per process.
   registerRealTools({

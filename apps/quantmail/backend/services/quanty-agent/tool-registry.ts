@@ -11,6 +11,8 @@
 //     - mail.*  — adapted from `./tools/mail-tools.ts` (real EmailService /
 //                 ThreadService implementations) plus real composite tools
 //                 from `./tools/composite-mail-tools.ts`
+//     - calendar.* — adapted from `./tools/calendar-tools.ts` (real
+//                 CalendarService + prisma.event rows)
 //     - git.*   — adapted from `./tools/git-tools.ts` (real Prisma/git-backed)
 //     - drive.* — from `./tools/drive-tools.ts` (real Drive AI services:
 //                 search, suggest-destination, summarize, organize)
@@ -43,6 +45,13 @@ import type { QuantyMailTool, QuantyMailToolsDeps, MailAuditEntry } from './tool
 import { buildQuantyContactsTools } from './tools/contacts-tools';
 import type { QuantyContactsTool, QuantyContactsToolsDeps, ContactsAuditEntry } from './tools/contacts-tools';
 import { ContactService } from '../contact.service';
+import { buildQuantyCalendarTools } from './tools/calendar-tools';
+import type {
+  QuantyCalendarTool,
+  QuantyCalendarToolsDeps,
+  CalendarToolsPrisma,
+} from './tools/calendar-tools';
+import { CalendarService, type CalendarPrisma } from '../calendar.service';
 import { buildCompositeMailTools } from './tools/composite-mail-tools';
 import { GIT_TOOLS } from './tools/git-tools';
 import type { QuantyTool as GitQuantyTool, GitToolsPrisma } from './tools/git-tools';
@@ -240,6 +249,34 @@ function adaptContactsTool(tool: QuantyContactsTool): QuantyTool {
   };
 }
 
+/** Adapt one real calendar tool into an engine tool (`calendar.*`). */
+function adaptCalendarTool(tool: QuantyCalendarTool): QuantyTool {
+  const aiTool: AITool = tool;
+  return {
+    name: `calendar.${snakeToCamel(tool.name)}`,
+    app: 'calendar',
+    description: tool.description,
+    parameters: Object.fromEntries(
+      Object.entries(tool.parameters).map(([k, v]) => [k, toCoreParam(v)]),
+    ),
+    // requiresConfirmation is the consent gate: create_event, update_event,
+    // delete_event.
+    destructive: tool.requiresConfirmation === true,
+    reversible: tool.reversible === true,
+    handler: async (args, ctx): Promise<QuantyToolResult> => {
+      const res = await aiTool.handler(args, assistantContextFor(ctx));
+      return {
+        ok: res.success,
+        data: res.data,
+        summary: res.success
+          ? res.displayMessage
+          : res.error || res.displayMessage || 'Tool failed',
+        reversible: tool.reversible === true,
+      };
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Real tool registration — replaces the old stub registerBuiltinTools()
 // ---------------------------------------------------------------------------
@@ -259,12 +296,21 @@ function adaptContactsTool(tool: QuantyContactsTool): QuantyTool {
  *
  * After this call the planner's rules resolve to live implementations:
  * `mail.archiveUnread`, `mail.sendEmail`, `git.listRepos`, `drive.searchFiles`,
- * `contacts.searchContacts`, ...
+ * `contacts.searchContacts`, `calendar.listEvents`, `calendar.createEvent`, ...
  */
 export function registerRealTools(deps: QuantyMailToolsDeps): void {
   const mailTools = buildQuantyMailTools(deps);
   registerTools(mailTools.map(adaptMailTool));
   registerTools(GIT_TOOLS.map(adaptGitTool));
+  registerTools(
+    buildQuantyCalendarTools({
+      prisma: deps.prisma as unknown as CalendarToolsPrisma,
+      calendarService: new CalendarService(deps.prisma as unknown as CalendarPrisma),
+      audit: deps.audit
+        ? (entry) => deps.audit!(entry as unknown as MailAuditEntry)
+        : undefined,
+    } satisfies QuantyCalendarToolsDeps).map(adaptCalendarTool),
+  );
   registerTools(buildCompositeMailTools(deps));
   registerTools(
     buildQuantyContactsTools({
@@ -282,4 +328,4 @@ export function registerRealTools(deps: QuantyMailToolsDeps): void {
   }
 }
 
-export type { QuantyMailToolsDeps, MailAuditEntry, QuantyContactsToolsDeps, ContactsAuditEntry };
+export type { QuantyMailToolsDeps, MailAuditEntry, QuantyContactsToolsDeps, ContactsAuditEntry, QuantyCalendarToolsDeps, CalendarToolsPrisma };
