@@ -1,28 +1,43 @@
 'use client';
 
 import React from 'react';
-import { useRealtime } from '../providers/realtime-context';
+import { useChatSocket } from '../hooks/useChatSocket';
+import type { ChatConnectionState } from '../services/chat-socket';
 
 // ============================================================================
 // Task 16.6: Degraded-Connectivity Indicator UI
 //
-// - When connectionState === 'degraded': yellow banner
+// - When the shared chat socket is 'degraded': yellow banner
 //   "Connection limited — some features may be delayed"
-// - When connectionState === 'reconnecting': subtle pulsing indicator
+// - When the shared chat socket is 'connecting': subtle pulsing indicator
+//
+// QM-UIUX-060: migrated from the dead RealtimeProvider (`/ws`) to the working
+// `chatSocket` singleton (`/ws/chat`) via useChatSocket. Visible behavior is
+// unchanged: the banner only ever showed for the old provider's 'degraded'
+// and 'reconnecting' states, which map to the singleton's 'degraded' and
+// 'connecting' states respectively ('open' ≈ old 'connected' and 'closed' ≈
+// old 'disconnected' both render nothing).
 // ============================================================================
+
+/** Banner states derived from the chat-socket connection state. */
+export type BannerState = 'degraded' | 'reconnecting' | null;
+
+/** Pure mapping from chatSocket state to the banner's visible state. */
+export function bannerStateFor(state: ChatConnectionState): BannerState {
+  if (state === 'degraded') return 'degraded';
+  if (state === 'connecting') return 'reconnecting';
+  return null;
+}
 
 /**
  * ConnectionStatusBanner renders a non-intrusive banner at the top of the
  * viewport when the real-time connection is degraded or reconnecting.
  */
 export function ConnectionStatusBanner() {
-  const { connectionState } = useRealtime();
+  const { connectionState } = useChatSocket();
+  const bannerState = bannerStateFor(connectionState);
 
-  if (connectionState === 'connected' || connectionState === 'disconnected') {
-    return null;
-  }
-
-  if (connectionState === 'degraded') {
+  if (bannerState === 'degraded') {
     return (
       <div
         role="status"
@@ -48,7 +63,7 @@ export function ConnectionStatusBanner() {
     );
   }
 
-  if (connectionState === 'reconnecting') {
+  if (bannerState === 'reconnecting') {
     return (
       <div
         role="status"
