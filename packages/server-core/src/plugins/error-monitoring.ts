@@ -77,7 +77,7 @@ function resolveRequestId(request: FastifyRequest, reply: FastifyReply): string 
 
 async function errorMonitoringPlugin(fastify: FastifyInstance) {
   // Construct the engine's capture pipeline once at boot (a decorated singleton),
-  // never per-request — mirroring `prisma.ts` / `notifications.ts`.
+  // never per-request — mirroring `prisma.ts`.
   const capture = new ErrorCapture({
     environment: process.env['NODE_ENV'] ?? 'production',
     debug: false,
