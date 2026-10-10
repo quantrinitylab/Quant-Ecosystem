@@ -124,6 +124,26 @@ describe('capability-token', () => {
     }
   });
 
+  it('rejects a tampered payload (claims changed without resigning)', () => {
+    const token = bearerJwt(['mail.read']);
+    const [headerB64, payloadB64, sigB64] = token.split('.');
+    const claims = JSON.parse(
+      Buffer.from(
+        (payloadB64 ?? '').replace(/-/g, '+').replace(/_/g, '/'),
+        'base64',
+      ).toString('utf8'),
+    ) as Record<string, unknown>;
+    claims['scopes'] = ['mail.read', 'admin.all'];
+    const tamperedPayload = Buffer.from(JSON.stringify(claims), 'utf8')
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    expect(() =>
+      verifyCapabilityToken(`${headerB64}.${tamperedPayload}.${sigB64}`, SECRET),
+    ).toThrowError(expect.objectContaining({ code: 'invalid_signature' }));
+  });
+
   it('rejects a token signed with the wrong secret', () => {
     const token = bearerJwt(['mail.read']);
     expect(() => verifyCapabilityToken(token, 'wrong-secret')).toThrowError(

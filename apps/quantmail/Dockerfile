@@ -16,6 +16,10 @@ RUN npx prisma@6.19.3 generate --schema=packages/database/prisma/schema.prisma
 # deps (brand, common) may need dist/ for their CJS/ESM exports.
 RUN pnpm --filter @quant/common exec tsc --project tsconfig.json --noEmit false --outDir dist --declaration || true
 RUN pnpm --filter @quant/brand exec tsc --project tsconfig.json --noEmit false --outDir dist --declaration || true
+# quanty-contracts resolves its types from dist (types: dist/index.d.ts) and is
+# type-imported via @quant/quant-tools (mcp/descriptor-mapping.ts) — build it
+# too, or next build fails: Cannot find module '@quant/quanty-contracts'.
+RUN pnpm --filter @quant/quanty-contracts build
 # Now run next build — transpilePackages handles shared-ui from source,
 # and brand/common have dist/ for any CJS imports.
 RUN cd apps/quantmail && pnpm exec next build

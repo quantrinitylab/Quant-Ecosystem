@@ -98,6 +98,61 @@ function gitArgRemainder(command: string): string {
     .trim()
     .replace(/[?!.,]+$/g, '');
 }
+/** Words that carry no meaning in a calendar command; stripped before arg extraction. */
+const CALENDAR_STOPWORDS = new Set([
+  'my', 'me', 'the', 'a', 'an', 'on', 'for', 'please', 'what', 's', 'is', 'are',
+  'show', 'do', 'i', 'have', 'has', 'any', 'upcoming', 'there', 'at', 'in', 'of',
+  'to', 'with', 'and', 'it', 'this', 'that',
+]);
+
+/** Everything left after removing trigger/stop words and the time phrase — the event title or event id. */
+function calendarRemainder(command: string, triggers: string[]): string {
+  const triggerSet = new Set(triggers);
+  const remainder = command
+    .toLowerCase()
+    .replace(/\bat\s+\d{1,2}(?::\d{2})?\s*(am|pm)?\b/g, ' ') // drop the time phrase
+    .replace(/\btomorrow\b|\btoday\b/g, ' ') // drop day hints (they become the window)
+    .replace(/[?!.,]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter((w) => w && !triggerSet.has(w) && !CALENDAR_STOPWORDS.has(w))
+    .join(' ')
+    .trim();
+  return remainder;
+}
+
+/** UTC-day window args for list_events / free_busy (the planner has no user-timezone context). */
+function dayWindowArgs(day: 'today' | 'tomorrow'): Record<string, unknown> {
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  if (day === 'tomorrow') start.setUTCDate(start.getUTCDate() + 1);
+  const end = new Date(start.getTime() + 86_400_000 - 1);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+/**
+ * Tiny, honest time parser for create-event commands: only "today/tomorrow
+ * at <h>(:<mm>)(am|pm)" is understood. Anything else returns {} and the
+ * tool reports the honest missing-start error instead of guessing.
+ */
+function parseTimeHint(command: string): { start?: string; end?: string } {
+  const lower = command.toLowerCase();
+  const day = lower.includes('tomorrow') ? 'tomorrow' : lower.includes('today') ? 'today' : null;
+  if (!day) return {};
+  const m = /\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i.exec(command);
+  if (!m) return {};
+  let hour = Number(m[1]);
+  const minute = m[2] ? Number(m[2]) : 0;
+  const meridiem = (m[3] ?? '').toLowerCase();
+  if (meridiem === 'pm' && hour < 12) hour += 12;
+  if (meridiem === 'am' && hour === 12) hour = 0;
+  if (hour > 23 || minute > 59) return {};
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hour, minute));
+  if (day === 'tomorrow') start.setUTCDate(start.getUTCDate() + 1);
+  return { start: start.toISOString(), end: new Date(start.getTime() + 3_600_000).toISOString() };
+}
 
 /**
  * The commands the rule-based planner understands. Each rule is deliberately
@@ -233,6 +288,106 @@ const RULES: Rule[] = [  {
     // planning a contact add against garbage.
     guard: (command) => EMAIL_TOKEN_RE.test(command),
   },
+  // Calendar tools: Quanty calendar commands. Each rule targets a REAL
+  // registered calendar.* tool; the day windows are UTC-day boundaries (the
+  // planner has no user-timezone context), so the summary says so. Unknown
+  // phrasings fall through to the unmatched plan rather than guessing a
+  // destructive action.
+  {
+    match: ['calendar', 'today'],
+    summary: "List today's calendar events (UTC day)",
+    steps: [{ toolName: 'calendar.listEvents', label: "Listing today's events", args: {} }],
+    argsFrom: () => dayWindowArgs('today'),
+  },
+  {
+    match: ['calendar', 'tomorrow'],
+    summary: "List tomorrow's calendar events (UTC day)",
+    steps: [{ toolName: 'calendar.listEvents', label: "Listing tomorrow's events", args: {} }],
+    argsFrom: () => dayWindowArgs('tomorrow'),
+  },
+  // Create rules come before the generic "schedule today/tomorrow" list rules:
+  // "schedule a meeting tomorrow at 3pm" must create, not list.
+  {
+    match: ['schedule', 'meeting'],
+    summary: 'Schedule a meeting (asks for confirmation first)',
+    steps: [{ toolName: 'calendar.createEvent', label: 'Creating calendar event', args: {} }],
+    argsFrom: (command) => ({
+      title: calendarRemainder(command, ['schedule', 'meeting']) || 'Untitled meeting',
+      ...parseTimeHint(command),
+    }),
+  },
+  {
+    match: ['schedule', 'event'],
+    summary: 'Schedule an event (asks for confirmation first)',
+    steps: [{ toolName: 'calendar.createEvent', label: 'Creating calendar event', args: {} }],
+    argsFrom: (command) => ({
+      title: calendarRemainder(command, ['schedule', 'event']) || 'Untitled event',
+      ...parseTimeHint(command),
+    }),
+  },
+  {
+    match: ['create', 'event'],
+    summary: 'Create a calendar event (asks for confirmation first)',
+    steps: [{ toolName: 'calendar.createEvent', label: 'Creating calendar event', args: {} }],
+    argsFrom: (command) => ({
+      title: calendarRemainder(command, ['create', 'event']) || 'Untitled event',
+      ...parseTimeHint(command),
+    }),
+  },
+  {
+    match: ['schedule', 'today'],
+    summary: "What's on my schedule today (UTC day)",
+    steps: [{ toolName: 'calendar.listEvents', label: "Listing today's events", args: {} }],
+    argsFrom: () => dayWindowArgs('today'),
+  },
+  {
+    match: ['schedule', 'tomorrow'],
+    summary: "What's on my schedule tomorrow (UTC day)",
+    steps: [{ toolName: 'calendar.listEvents', label: "Listing tomorrow's events", args: {} }],
+    argsFrom: () => dayWindowArgs('tomorrow'),
+  },
+  {
+    match: ['cancel', 'meeting'],
+    summary: 'Delete a meeting (asks for confirmation first)',
+    steps: [{ toolName: 'calendar.deleteEvent', label: 'Deleting calendar event', args: {} }],
+    argsFrom: (command) => ({ eventId: calendarRemainder(command, ['cancel', 'meeting']) }),
+  },
+  {
+    match: ['cancel', 'event'],
+    summary: 'Delete a calendar event (asks for confirmation first)',
+    steps: [{ toolName: 'calendar.deleteEvent', label: 'Deleting calendar event', args: {} }],
+    argsFrom: (command) => ({ eventId: calendarRemainder(command, ['cancel', 'event']) }),
+  },
+  {
+    match: ['delete', 'event'],
+    summary: 'Delete a calendar event (asks for confirmation first)',
+    steps: [{ toolName: 'calendar.deleteEvent', label: 'Deleting calendar event', args: {} }],
+    argsFrom: (command) => ({ eventId: calendarRemainder(command, ['delete', 'event']) }),
+  },
+  {
+    match: ['free', 'today'],
+    summary: 'Show free/busy blocks for today (UTC day)',
+    steps: [{ toolName: 'calendar.freeBusy', label: 'Checking free/busy blocks', args: {} }],
+    argsFrom: () => dayWindowArgs('today'),
+  },
+  {
+    match: ['free', 'tomorrow'],
+    summary: 'Show free/busy blocks for tomorrow (UTC day)',
+    steps: [{ toolName: 'calendar.freeBusy', label: 'Checking free/busy blocks', args: {} }],
+    argsFrom: () => dayWindowArgs('tomorrow'),
+  },
+  {
+    match: ['busy', 'today'],
+    summary: 'Show busy blocks for today (UTC day)',
+    steps: [{ toolName: 'calendar.freeBusy', label: 'Checking busy blocks', args: {} }],
+    argsFrom: () => dayWindowArgs('today'),
+  },
+  {
+    match: ['busy', 'tomorrow'],
+    summary: 'Show busy blocks for tomorrow (UTC day)',
+    steps: [{ toolName: 'calendar.freeBusy', label: 'Checking busy blocks', args: {} }],
+    argsFrom: () => dayWindowArgs('tomorrow'),
+  },
 ];
 
 /** Words that carry no meaning in a contacts command; stripped before arg extraction. */
@@ -288,9 +443,8 @@ function parseAddContactArgs(command: string): Record<string, unknown> {
 
 /**
  * Rule-based planner: keyword matching over the commands above. Every rule
- * targets a REAL registered tool; calendar commands are deliberately absent —
- * those tools don't exist yet, so the planner honestly says it couldn't
- * understand rather than planning against a stub.
+ * targets a REAL registered tool; unknown phrasings fall through to the
+ * unmatched plan rather than planning against a stub.
  */
 export class RuleBasedPlanner implements QuantyPlanner {
   plan(command: string): QuantyPlan {
@@ -305,7 +459,7 @@ export class RuleBasedPlanner implements QuantyPlanner {
       }
     }
     return {
-      summary: `I couldn't understand "${command}". Try: archive unread, mark all read, star important, summarize latest, clean inbox, delete spam, list repos, show open PRs in <repo>, summarize PR <n> in <repo>, find files <query>, read file <name>, summarize file <name>, where should <name> go, organize file <name>, move <name> to its folder, find <name>'s contact, search contacts <query>, add <name>, <email>.`,
+      summary: `I couldn't understand "${command}". Try: archive unread, mark all read, star important, summarize latest, clean inbox, delete spam, list repos, show open PRs in <repo>, summarize PR <n> in <repo>, find files <query>, read file <name>, summarize file <name>, where should <name> go, organize file <name>, move <name> to its folder, find <name>'s contact, search contacts <query>, add <name>, <email>, what's on my calendar today, schedule a meeting tomorrow at 3pm, am I free tomorrow.`,
       steps: [],
       unmatched: true,
     };
