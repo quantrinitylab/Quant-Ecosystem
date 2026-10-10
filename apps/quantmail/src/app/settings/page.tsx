@@ -81,6 +81,7 @@ import { PhoneVerificationCard } from '../../components/PhoneVerificationCard';
 import { showToast } from '../../components/InboxToast';
 import { ShortcutKeys } from '../../components/ShortcutKeys';
 import { useDesktopNotifications } from '../../hooks/useDesktopNotifications';
+import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { writeAIIntent } from '../../lib/ai-intent-preference';
 import { invalidateDefaultSignature } from '../../lib/email-signature-preference';
 import { buildHelpGroups, dimNoteFor, helpGroupHeading } from '../../lib/keyboard/help-model';
@@ -298,6 +299,7 @@ export default function SettingsPage() {
   const [selectedAIModel, setSelectedAIModel] = useState<AIIntent>('auto');
 
   const desktopNotifications = useDesktopNotifications();
+  const pushNotifications = usePushNotifications();
   const commands = useCommandList();
   const helpGroups = useMemo(() => buildHelpGroups(commands), [commands]);
   const helpNote = dimNoteFor(helpGroups, {
@@ -587,6 +589,15 @@ export default function SettingsPage() {
   ) : desktopNotifications.permission === 'denied' ? (
     <StatusPill>Blocked in this browser</StatusPill>
   ) : null;
+
+  const pushNotificationStatus =
+    pushNotifications.status === 'unsupported' ? (
+      <StatusPill>Not supported here</StatusPill>
+    ) : pushNotifications.status === 'denied' ? (
+      <StatusPill>Blocked in this browser</StatusPill>
+    ) : pushNotifications.status === 'not-configured' ? (
+      <StatusPill>Not set up on the server yet</StatusPill>
+    ) : null;
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
@@ -1005,7 +1016,7 @@ export default function SettingsPage() {
           {activeTab === 'notifications' && (
             <SettingsSection
               title="Notifications"
-              description="One switch, because one of them is real. Email digests, sound alerts and a mentions-only filter each wrote a preference nothing read — there is no digest job, no sound asset and no mention parser — so they are gone rather than sitting here pretending."
+              description="Two switches, and both of them are real. Email digests, sound alerts and a mentions-only filter each wrote a preference nothing read — there is no digest job, no sound asset and no mention parser — so they are gone rather than sitting here pretending."
             >
               <SettingsToggleRow
                 label="Desktop notifications"
@@ -1020,6 +1031,26 @@ export default function SettingsPage() {
                 }
                 onChange={(next) => void desktopNotifications.setEnabled(next)}
                 status={notificationStatus}
+              />
+              <SettingsToggleRow
+                label="Push notifications"
+                description={
+                  pushNotifications.status === 'denied'
+                    ? 'Your browser is blocking notifications for this site. Allow them in the address-bar site settings, then switch this back on.'
+                    : pushNotifications.status === 'not-configured'
+                      ? 'The server has no push keys yet, so there is nothing to deliver through. This switch lights up when they are provisioned — it will not pretend to be on before then.'
+                      : 'A system notification when new mail arrives, even with this tab closed. Your browser subscription is stored on the server and removed when you switch this off.'
+                }
+                checked={pushNotifications.enabled}
+                disabled={
+                  pushNotifications.busy ||
+                  pushNotifications.status === 'unknown' ||
+                  pushNotifications.status === 'unsupported' ||
+                  pushNotifications.status === 'denied' ||
+                  pushNotifications.status === 'not-configured'
+                }
+                onChange={(next) => void pushNotifications.setEnabled(next)}
+                status={pushNotificationStatus}
               />
             </SettingsSection>
           )}
