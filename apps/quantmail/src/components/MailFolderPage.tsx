@@ -81,7 +81,8 @@ export function MailFolderPage({
   rowAction,
 }: MailFolderPageProps) {
   const router = useRouter();
-  const { data: emails, isLoading, error, refetch } = useInbox({ folderType });
+  const { data: emails, isLoading, error, refetch, loadMore, hasMore, isLoadingMore } =
+    useInbox({ folderType });
   const { user: currentUser } = useAuth();
   const currentEmail = currentUser?.email || '';
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -283,6 +284,18 @@ export function MailFolderPage({
                 );
               })}
             </motion.div>
+          )}
+
+          {!isLoading && !error && threads.length > 0 && hasMore && (
+            <div className="flex justify-center p-4">
+              <Button
+                variant="secondary"
+                onClick={() => void loadMore()}
+                disabled={isLoadingMore}
+              >
+                {isLoadingMore ? 'Loading…' : 'Load more conversations'}
+              </Button>
+            </div>
           )}
         </div>
       </div>
