@@ -73,6 +73,7 @@ function makeConversation(overrides: Partial<PersonConversation> = {}): PersonCo
     lastMessageFromMe: true,
     world: 'log',
     participantEmails: [ME, FRIEND],
+    hasGroupMessages: false,
     ...overrides,
   };
 }
@@ -278,5 +279,91 @@ describe('PersonThread', () => {
     const count = container.querySelector('[data-testid="thread-participant-count"]');
     expect(count).not.toBeNull();
     expect(count!.textContent).toContain('3 people');
+  });
+
+  it('P1-F: renders only the last 50 messages with a Load earlier button', () => {
+    const messages: Email[] = Array.from({ length: 75 }, (_, i) =>
+      makeEmail({
+        id: `bulk-${i}`,
+        bodyText: `Message number ${i}`,
+        receivedAt: new Date(`2026-10-10T${String(8 + Math.floor(i / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}:00Z`),
+      }),
+    );
+    const conversation = makeConversation({ messages, lastMessage: messages[74] });
+    const container = renderIntoDom(
+      <PersonThread conversation={conversation} currentUserEmail={ME} />,
+    );
+    const rows = container.querySelectorAll('[data-testid="thread-message"]');
+    expect(rows).toHaveLength(50);
+    const loadMore = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Load earlier messages'),
+    );
+    expect(loadMore).not.toBeUndefined();
+    expect(loadMore!.textContent).toContain('25 more');
+    // Tapping reveals the rest.
+    act(() => {
+      loadMore!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(container.querySelectorAll('[data-testid="thread-message"]')).toHaveLength(75);
+  });
+
+  it('P1-F: shows no Load earlier button when the thread fits in the window', () => {
+    const conversation = makeConversation();
+    const container = renderIntoDom(
+      <PersonThread conversation={conversation} currentUserEmail={ME} />,
+    );
+    const loadMore = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Load earlier messages'),
+    );
+    expect(loadMore).toBeUndefined();
+  });
+
+  it('P1-A: shows the New messages pill instead of yanking when scrolled up', () => {
+    const m1 = makeEmail({ id: 'p1a-1', bodyText: 'first', receivedAt: new Date('2026-10-10T08:00:00Z') });
+    const conversation = makeConversation({ messages: [m1], lastMessage: m1 });
+    const container = renderIntoDom(
+      <PersonThread conversation={conversation} currentUserEmail={ME} />,
+    );
+    const scroller = container.querySelector('[data-testid="thread-scroll"]') as HTMLElement;
+    // Simulate the user scrolled up: large scrollable area, parked at top.
+    Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 2000 });
+    Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 500 });
+    scroller.scrollTop = 0;
+    // A new message arrives via background poll.
+    const m2 = makeEmail({ id: 'p1a-2', bodyText: 'second', receivedAt: new Date('2026-10-10T08:01:00Z') });
+    const updated = { ...conversation, messages: [m1, m2], lastMessage: m2 };
+    act(() => {
+      root!.render(<PersonThread conversation={updated} currentUserEmail={ME} />);
+    });
+    const pill = container.querySelector('[data-testid="new-messages-pill"]');
+    expect(pill).not.toBeNull();
+    expect(pill!.textContent).toContain('New messages');
+    // Tapping the pill jumps to the bottom and dismisses it.
+    act(() => {
+      pill!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(container.querySelector('[data-testid="new-messages-pill"]')).toBeNull();
+  });
+
+  it('P1-C: renders a pending send as a Sending bubble, not a timestamp', () => {
+    const pending = makeEmail({
+      id: 'pending-abc123',
+      from: { email: ME, name: 'Me' },
+      to: [{ email: FRIEND }],
+      bodyText: 'optimistic hello',
+      isSent: true,
+      receivedAt: new Date('2026-10-10T08:10:00Z'),
+      pendingSend: true,
+    } as Partial<Email> & { pendingSend?: boolean });
+    const conversation = makeConversation({ messages: [pending], lastMessage: pending });
+    const container = renderIntoDom(
+      <PersonThread conversation={conversation} currentUserEmail={ME} />,
+    );
+    const row = container.querySelector('[data-testid="thread-message"]');
+    expect(row).not.toBeNull();
+    expect(row!.textContent).toContain('optimistic hello');
+    expect(row!.textContent).toContain('Sending');
+    // Right-aligned like any sent message.
+    expect(row!.getAttribute('data-sent')).toBe('true');
   });
 });

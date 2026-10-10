@@ -9,6 +9,13 @@ export interface ThreadComposerProps {
   conversation: PersonConversation;
   currentUserEmail: string;
   onSent?: () => void;
+  /**
+   * P1-C: fired the moment the user hits send, before the network round-trip.
+   * The host renders an optimistic "Sending…" bubble so the thread never
+   * looks empty on slow mobile data. The text stays in the box only when the
+   * send actually fails (see handleSend).
+   */
+  onSendStart?: (text: string, subject: string) => void;
 }
 
 /**
@@ -98,7 +105,7 @@ export async function executeThreadSend(
  * text is preserved, nothing navigates, and no discard handler is ever
  * called — there is no `onDiscard` prop on this component by design.
  */
-export function ThreadComposer({ conversation, onSent }: ThreadComposerProps) {
+export function ThreadComposer({ conversation, onSent, onSendStart }: ThreadComposerProps) {
   const [body, setBody] = useState('');
   const [newTopic, setNewTopic] = useState(false);
   const [customSubject, setCustomSubject] = useState('');
@@ -131,6 +138,8 @@ export function ThreadComposer({ conversation, onSent }: ThreadComposerProps) {
     const text = body.trim();
     if (!text || isSending) return;
     setIsSending(true);
+    // P1-C: optimistic bubble first — the host shows it as "Sending…".
+    onSendStart?.(text, subject);
     try {
       const outcome = await executeThreadSend(
         {

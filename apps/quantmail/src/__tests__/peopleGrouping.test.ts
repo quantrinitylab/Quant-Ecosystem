@@ -159,6 +159,54 @@ describe('groupEmailsByPerson', () => {
     expect(conv.name).toBe('alice');
   });
 
+  it('P1-E: one group mail does not hijack the 1:1 row into Groups', () => {
+    const direct1 = email({
+      from: { email: 'alice@example.com', name: 'Alice' },
+      to: [{ email: ME }],
+      subject: 'Hi',
+      snippet: 'hello',
+      isRead: false,
+      receivedAt: at('2026-10-10T08:00:00Z'),
+    });
+    const direct2 = email({
+      from: { email: ME },
+      to: [{ email: 'alice@example.com' }],
+      subject: 'Re: Hi',
+      snippet: 'hey back',
+      isSent: true,
+      receivedAt: at('2026-10-10T08:30:00Z'),
+    });
+    const group = email({
+      from: { email: ME },
+      to: [{ email: 'alice@example.com' }, { email: 'bob@example.com' }],
+      subject: 'Team',
+      snippet: 'hi all',
+      isSent: true,
+      receivedAt: at('2026-10-10T09:00:00Z'),
+    });
+
+    const [conv] = groupEmailsByPerson([direct1, direct2, group], ME);
+    // The row stays in Log: the 1:1 history is not evicted by one group mail.
+    expect(conv.world).toBe('log');
+    expect(conv.hasGroupMessages).toBe(true);
+    // All three messages remain in the one person row.
+    expect(conv.messages).toHaveLength(3);
+    expect(conv.participantEmails).toEqual(['alice@example.com', 'bob@example.com']);
+  });
+
+  it('P1-E: a purely 1:1 bucket has hasGroupMessages false', () => {
+    const direct = email({
+      from: { email: 'alice@example.com', name: 'Alice' },
+      to: [{ email: ME }],
+      subject: 'Hi',
+      snippet: 'hello',
+      receivedAt: at('2026-10-10T08:00:00Z'),
+    });
+    const [conv] = groupEmailsByPerson([direct], ME);
+    expect(conv.world).toBe('log');
+    expect(conv.hasGroupMessages).toBe(false);
+  });
+
   it('classifies a declared promotions category as updates', () => {
     const promo = email({
       from: { email: 'deals@store.com', name: 'Store' },

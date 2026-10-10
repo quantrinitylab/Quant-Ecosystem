@@ -1,15 +1,16 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { AppShell } from '../../../components/AppShell';
 import { AppSidebar } from '../../../components/AppSidebar';
 import { useInbox } from '../../../hooks/useInbox';
 import { useAuth } from '../../../providers/auth-provider';
-import { groupEmailsByPerson } from '../../../lib/peopleGrouping';
+import { groupEmailsByPerson, type PersonConversation } from '../../../lib/peopleGrouping';
 import { PersonThread } from '../../../components/PersonThread';
 import { ThreadComposer } from '../../../components/ThreadComposer';
+import type { Email } from '../../../types';
 
 /**
  * One person's full conversation: every message in both directions,
@@ -34,7 +35,21 @@ export default function PersonPage() {
     }
   }, [rawPersonId]);
 
-  const { data: emails, isLoading, refetch } = useInbox();
+  const { data: emails, isLoading, isError, refetch } = useInbox();
+
+  /**
+   * P1-C: optimistic sends. Each entry becomes a "Sending…" bubble appended
+   * to the thread the moment the user hits send; it is replaced by the real
+   * message once the refetch after a successful send confirms it.
+   */
+  const [pendingSends, setPendingSends] = useState<
+    Array<{ clientId: string; bodyText: string; subject: string; sentAt: Date }>
+  >([]);
+
+  // A different person is a different thread: drop stale optimistic bubbles.
+  useEffect(() => {
+    setPendingSends([]);
+  }, [personKey]);
 
   const conversation = useMemo(() => {
     if (!personKey) return undefined;
@@ -42,6 +57,50 @@ export default function PersonPage() {
       (candidate) => candidate.personKey === personKey,
     );
   }, [emails, currentUserEmail, personKey]);
+
+  const conversationWithPending: PersonConversation | undefined = useMemo(() => {
+    if (!conversation || pendingSends.length === 0) return conversation;
+    const pendingEmails = pendingSends.map(
+      (p) =>
+        ({
+          id: `pending-${p.clientId}`,
+          createdAt: p.sentAt,
+          updatedAt: p.sentAt,
+          threadId: conversation.lastMessage.threadId,
+          userId: '',
+          from: { email: currentUserEmail, name: '' },
+          to: [{ email: conversation.email }],
+          cc: [],
+          bcc: [],
+          subject: p.subject,
+          bodyText: p.bodyText,
+          bodyHtml: '',
+          snippet: p.bodyText.slice(0, 80),
+          priority: 'normal',
+          category: 'primary',
+          status: 'sending',
+          isRead: true,
+          isStarred: false,
+          isArchived: false,
+          isDraft: false,
+          labels: [],
+          attachments: [],
+          receivedAt: p.sentAt,
+          isSent: true,
+          references: [],
+          headers: {},
+          // Marker for the "Sending…" state; not part of the Email contract.
+          pendingSend: true,
+        }) as Email,
+    );
+    const messages = [...conversation.messages, ...pendingEmails];
+    return {
+      ...conversation,
+      messages,
+      lastMessage: pendingEmails[pendingEmails.length - 1],
+      lastActivityAt: new Date(),
+    };
+  }, [conversation, pendingSends, currentUserEmail]);
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell" aria-label="Conversation">
@@ -75,6 +134,24 @@ export default function PersonPage() {
             <div className="flex flex-1 items-center justify-center" role="status" aria-label="Loading conversation">
               <div className="size-8 animate-spin rounded-full border-2 border-[#2A2D35] border-t-[#F97316]" />
             </div>
+          ) : isError ? (
+            /* P1-B: a failed fetch is not "not found" — say so honestly and
+               offer a retry, mirroring PeopleHome. */
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+              <p className="text-sm font-semibold text-white">
+                Couldn&apos;t load this conversation
+              </p>
+              <p className="text-xs text-[#9BA0AA]">
+                Check your connection and try again — nothing was lost.
+              </p>
+              <button
+                type="button"
+                onClick={() => void refetch()}
+                className="mt-1 inline-flex min-h-[44px] items-center rounded-xl bg-[#F97316] px-5 text-sm font-bold text-black transition-colors hover:bg-[#FB8A3D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316]"
+              >
+                Retry
+              </button>
+            </div>
           ) : !conversation ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
               <p className="text-sm font-semibold text-white">Conversation not found</p>
@@ -90,14 +167,28 @@ export default function PersonPage() {
             </div>
           ) : (
             <PersonThread
-              conversation={conversation}
+              conversation={conversationWithPending ?? conversation}
               currentUserEmail={currentUserEmail}
               renderComposer={
                 conversation.world === 'updates' ? undefined : (
                   <ThreadComposer
                     conversation={conversation}
                     currentUserEmail={currentUserEmail}
-                    onSent={() => void refetch()}
+                    onSendStart={(text, subject) => {
+                      const clientId =
+                        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+                          ? crypto.randomUUID()
+                          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                      setPendingSends((prev) => [
+                        ...prev,
+                        { clientId, bodyText: text, subject, sentAt: new Date() },
+                      ]);
+                    }}
+                    onSent={() => {
+                      // The send succeeded: refetch, then swap the optimistic
+                      // bubbles for the confirmed messages.
+                      void refetch().finally(() => setPendingSends([]));
+                    }}
                   />
                 )
               }

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Thread composer + People home routing tests.
 //
 // The composer never touches a DOM here: the send orchestration lives in the
@@ -289,6 +290,57 @@ describe('ThreadComposer rendering', () => {
     );
     expect(html.toLowerCase()).not.toContain('discard');
   });
+
+  it('P1-C: fires onSendStart with the text and subject before the network send', async () => {
+    const { act } = await import('react');
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const { createRoot } = await import('react-dom/client');
+    composeMock.mockResolvedValue(okCompose());
+    sendMock.mockResolvedValue(okSend());
+
+    const onSendStart = vi.fn();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <ThreadComposer
+          conversation={makeConversation() as any}
+          currentUserEmail="me@quantmail.in"
+          onSendStart={onSendStart}
+        />,
+      );
+    });
+
+    const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+    expect(textarea).not.toBeNull();
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(
+        Object.getPrototypeOf(textarea),
+        'value',
+      )?.set;
+      setter?.call(textarea, 'optimistic hello');
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const sendButton = container.querySelector(
+      'button[aria-label="Send message"]',
+    ) as HTMLButtonElement;
+    expect(sendButton).not.toBeNull();
+    expect(sendButton.disabled).toBe(false);
+    await act(async () => {
+      sendButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    // Fired synchronously on send-start, before the async compose/send.
+    expect(onSendStart).toHaveBeenCalledTimes(1);
+    expect(onSendStart).toHaveBeenCalledWith('optimistic hello', 'Re: Hi there');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
 });
 
 describe('/people home', () => {
@@ -373,5 +425,18 @@ describe('/people/[personId] thread page', () => {
     expect(html).toContain('Conversation not found');
     expect(html).not.toContain('data-testid="person-thread"');
     expect(html).toContain('Back to people');
+  });
+
+  it('P1-B: shows an honest retry UI on fetch error, not "not found"', () => {
+    inboxState.isError = true;
+    groupState.convos = [makeConversation()];
+    navState.params = { personId: encodeURIComponent('ada') };
+
+    const html = renderToStaticMarkup(<PersonPage />);
+
+    expect(html).toContain("load this conversation");
+    expect(html).toContain('Retry');
+    expect(html).not.toContain('Conversation not found');
+    expect(html).not.toContain('data-testid="person-thread"');
   });
 });
