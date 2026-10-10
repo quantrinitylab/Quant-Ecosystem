@@ -1827,7 +1827,7 @@ function DrivePageContent() {
                 onPurgeTrashItem={handlePurgeItem}
               />
             ))
-          )}
+          }
 
           {/* QM-M39-002 — "Recent" view (M39 screen 6): server-side recency-ordered
               file list. Items render in backend order, newest first; the empty
