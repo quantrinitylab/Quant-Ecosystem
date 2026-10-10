@@ -218,4 +218,76 @@ describe('QuantMail backend allow-list', () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
   });
+
+  describe('QM-UIUX-091 — the data-export routes the Account page depends on', () => {
+    // Every one of these is implemented in `backend/routes/data-lifecycle.ts`
+    // (registered at `/data-lifecycle` and `/api/data-lifecycle` in
+    // backend/app.ts). The allow-list had no `data-lifecycle` entry at all,
+    // so the Account page's export control 404'd here — API_ROUTE_NOT_FOUND
+    // before the request left Next — even though the backend export center
+    // (QM-BACK-006) was live. Same failure class as the CI GETs above.
+    const EXPORT_ROUTES: Array<[string, keyof typeof HANDLERS]> = [
+      ['data-lifecycle/exports', 'GET'],
+      ['data-lifecycle/exports', 'POST'],
+      ['data-lifecycle/exports/exp_123', 'GET'],
+      ['data-lifecycle/exports/exp_123/build', 'POST'],
+    ];
+
+    for (const [path, method] of EXPORT_ROUTES) {
+      it(`forwards ${method} /${path} to the backend`, async () => {
+        const response = await call(path, method);
+
+        expect(response.status).toBe(200);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock.mock.calls[0]?.[0]).toBe(`${BACKEND}/${path}`);
+        expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method });
+      });
+    }
+
+    // The backend authorises from `request.auth.userId`, which comes from
+    // the caller's access token — a proxy that dropped Authorization would
+    // make every export call a 401. Pin the forwarding explicitly.
+    it('forwards the Authorization header to the backend', async () => {
+      const request = new NextRequest('http://localhost:3000/api/data-lifecycle/exports', {
+        method: 'GET',
+        headers: { authorization: 'Bearer test-token' },
+      });
+      const response = await apiRoute.GET(request, contextFor('data-lifecycle/exports'));
+
+      expect(response.status).toBe(200);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const headers = fetchMock.mock.calls[0]?.[1]?.headers as
+        | Record<string, string>
+        | undefined;
+      expect(headers?.Authorization).toBe('Bearer test-token');
+    });
+
+    // The GET-only `:id` entry is anchored and single-segment, so it cannot
+    // shadow the `/build` POST — the same trap as ci/builds cancel above.
+    // Loosen it to `.+` or drop the `$` and this test goes red.
+    it('does not let the GET-only export entry shadow the build POST', async () => {
+      const response = await call('data-lifecycle/exports/exp_123/build', 'POST');
+
+      expect(response.status).not.toBe(405);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('405s DELETE on the exports collection and names the verbs that do work', async () => {
+      const response = await call('data-lifecycle/exports', 'DELETE');
+
+      expect(response.status).toBe(405);
+      expect(response.headers.get('allow')).toBe('GET, POST');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    // The retention sweep and the operations read have no web caller; the
+    // proxy deliberately keeps those doors shut (enumerated list, like admin).
+    it('keeps retention and operations routes closed', async () => {
+      const sweep = await call('data-lifecycle/retention/sweep', 'POST');
+      expect(sweep.status).toBe(404);
+      const ops = await call('data-lifecycle/operations', 'GET');
+      expect(ops.status).toBe(404);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { AppShell } from '../../../components/AppShell';
 import { AppSidebar } from '../../../components/AppSidebar';
 import { SettingsSection } from '../SettingsPrimitives';
+import { DataExportSettings } from './DataExportSettings';
 
 export default function AccountSettingsPage() {
   return (
@@ -77,6 +78,9 @@ export default function AccountSettingsPage() {
               </div>
             </div>
           </SettingsSection>
+
+          {/* Data export — wired to the QM-BACK-006 export center (QM-UIUX-091) */}
+          <DataExportSettings />
         </div>
       </div>
     </AppShell>
