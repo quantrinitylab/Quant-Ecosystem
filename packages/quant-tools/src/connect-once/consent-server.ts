@@ -525,11 +525,29 @@ function parseBasicAuth(header: string | undefined): { username: string; passwor
   if (!header) {
     return null;
   }
-  const match = /^Basic\s+(.+)$/i.exec(header.trim());
-  if (!match?.[1]) {
+  // Parse "Basic <credentials>" with a manual scan instead of
+  // /^Basic\s+(.+)$/i: the overlapping \s+ and .+ quantifiers backtrack
+  // polynomially on headers with long whitespace runs (CodeQL
+  // js/polynomial-redos). This scan is linear-time and accepts exactly the
+  // same headers (case-insensitive scheme, one-or-more whitespace, then the
+  // credentials). The single-character /\s/ test has no quantifier, so it
+  // cannot backtrack.
+  const trimmed = header.trim();
+  if (trimmed.length < 6 || trimmed.slice(0, 5).toLowerCase() !== 'basic') {
     return null;
   }
-  const decoded = Buffer.from(match[1], 'base64').toString('utf8');
+  let i = 5;
+  if (!/\s/.test(trimmed.charAt(i))) {
+    return null;
+  }
+  while (i < trimmed.length && /\s/.test(trimmed.charAt(i))) {
+    i++;
+  }
+  const credentials = trimmed.slice(i);
+  if (!credentials) {
+    return null;
+  }
+  const decoded = Buffer.from(credentials, 'base64').toString('utf8');
   const colon = decoded.indexOf(':');
   if (colon < 0) {
     return null;

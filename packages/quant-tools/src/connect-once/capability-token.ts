@@ -223,11 +223,13 @@ export function isCapabilityTokenRevoked(jti: string): boolean {
 
 function base64urlEncode(input: string | Buffer): string {
   const buf = typeof input === 'string' ? Buffer.from(input, 'utf8') : input;
-  return buf
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/g, '');
+  const encoded = buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+  // Strip base64 padding without a trailing-regex: in base64 output '=' only
+  // ever appears as trailing padding, so cutting at the first '=' is
+  // equivalent to the old /=+$/ replace — and linear-time (the regex
+  // backtracked polynomially on long '=' runs; CodeQL js/polynomial-redos).
+  const pad = encoded.indexOf('=');
+  return pad === -1 ? encoded : encoded.slice(0, pad);
 }
 
 function base64urlDecode(input: string): Buffer {
