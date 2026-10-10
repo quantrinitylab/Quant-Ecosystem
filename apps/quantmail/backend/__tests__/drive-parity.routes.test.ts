@@ -968,6 +968,124 @@ describe('QuantDrive Parity & Integrity (Wave 5 Phase D)', () => {
     });
   });
 
+  // 4b. QM-SCREEN-059: folderTree() must not silently truncate at 30 levels
+  describe('QM-SCREEN-059: Deep subtree trash & move cycle check', () => {
+    function pushChain(prefix: string, levels: number): string[] {
+      const now = new Date();
+      const ids: string[] = [];
+      let path = '';
+      for (let i = 0; i < levels; i++) {
+        const id = `${prefix}-${i}`;
+        path = `${path}/${prefix}${i}`;
+        folders.push({
+          id,
+          name: `${prefix}${i}`,
+          parentId: i === 0 ? null : `${prefix}-${i - 1}`,
+          path,
+          userId: 'user-owner',
+          isStarred: false,
+          isDeleted: false,
+          deletedAt: null,
+          trashRootId: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+        ids.push(id);
+      }
+      return ids;
+    }
+
+    function pushFile(id: string, folderId: string) {
+      const now = new Date();
+      files.push({
+        id,
+        name: `${id}.txt`,
+        mimeType: 'text/plain',
+        size: 128,
+        folderId,
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        encryptedContent: 'k',
+        encryptionIV: 'iv',
+        encryptionAuthTag: 'tag',
+        encryptionKey: 'key',
+        contentHash: 'hash',
+        userId: 'user-owner',
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    it('trashes a folder subtree deeper than 30 levels completely', async () => {
+      // 35-level chain: with the old MAX_DEPTH=30 cap, levels 31-34 stayed
+      // active while the endpoint still returned { ok: true }.
+      const ids = pushChain('deep', 35);
+      pushFile('deep-leaf-file', 'deep-34');
+      pushFile('deep-mid-file', 'deep-20');
+
+      const app = await buildApp('user-owner');
+      const res = await app.inject({
+        method: 'POST',
+        url: '/drive/files/trash',
+        payload: { fileIds: ['deep-0'] },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().ok).toBe(true);
+
+      // { ok: true } must be truthful: EVERY folder in the subtree is trashed.
+      for (const id of ids) {
+        const row = folders.find((f) => f.id === id);
+        expect(row?.isDeleted, `folder ${id} should be trashed`).toBe(true);
+        expect(row?.trashRootId).toBe('deep-0');
+      }
+      expect(files.find((f) => f.id === 'deep-leaf-file')?.isDeleted).toBe(true);
+      expect(files.find((f) => f.id === 'deep-mid-file')?.isDeleted).toBe(true);
+
+      await app.close();
+    });
+
+    it('still trashes a normal-depth tree fully', async () => {
+      const ids = pushChain('flat', 3);
+      pushFile('flat-leaf-file', 'flat-2');
+
+      const app = await buildApp('user-owner');
+      const res = await app.inject({
+        method: 'POST',
+        url: '/drive/files/trash',
+        payload: { fileIds: ['flat-0'] },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().ok).toBe(true);
+      for (const id of ids) {
+        expect(folders.find((f) => f.id === id)?.isDeleted).toBe(true);
+      }
+      expect(files.find((f) => f.id === 'flat-leaf-file')?.isDeleted).toBe(true);
+
+      await app.close();
+    });
+
+    it('rejects moving a folder into a descendant deeper than 30 levels', async () => {
+      // The move handler's circular-reference check uses the same folderTree;
+      // a truncated traversal missed deep targets and allowed a real cycle.
+      pushChain('mv', 35);
+
+      const app = await buildApp('user-owner');
+      const res = await app.inject({
+        method: 'POST',
+        url: '/drive/move',
+        payload: { folderIds: ['mv-0'], targetFolderId: 'mv-34' },
+      });
+      expect(res.statusCode).toBe(400);
+
+      // Nothing was moved before the rejection.
+      expect(folders.find((f) => f.id === 'mv-0')?.parentId).toBeNull();
+
+      await app.close();
+    });
+  });
+
   // 5. Task D10: Unify Move Route & Path Recalculation
   describe('Task D10: Unify Move Route & Descendant Path Updates', () => {
     it('moves folder into target folder and updates paths for it and all descendants', async () => {
