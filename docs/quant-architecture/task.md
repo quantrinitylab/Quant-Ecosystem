@@ -2099,9 +2099,8 @@ Owner: muse-main
 Branch: fix/qm-uiux-093-thread-more-menu-fake-success
 
 ## QM-UIUX-094 — AI error sanitizers still leak single-word host:port (P2-D39-1)
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-094-sanitizer-hostport
+Status: [x] DONE — PR #769 merged 2026-10-10; staging deployed @d53121f6, health green. Host pattern widened identically in both mirrored sanitizers (ai-error.ts + sanitize-error.ts, +131/-2 with tests): single-word/underscore host:port shapes (backend:9000, ai_service:9000) now redacted; over-redaction pins prove times (9:30), ratios and version strings survive; leak tests fail on the old pattern. Typecheck error sets byte-identical with/without in all four app configs.
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/769
 Finding: zero-defect run-39 (2026-10-10) — the host:port redaction added by PR #751 (QuantChat sanitize-error.ts) and PR #762 (QuantMail ai-error.ts) still leaks single-word/underscore internal host:port shapes (e.g. backend:9000) in upstream error text shown to users. The current regexes require dotted hostnames. Evidence: hidden_files/zero-defect-shift-2026-10-10-0527/ (run-39 FINAL).
 Required: extend the host:port redaction in BOTH copies (apps/quantmail/src/lib/ai-error.ts and apps/quantchat/src/lib/sanitize-error.ts) to cover single-word and underscore hostnames with ports, without over-redacting legitimate user-visible text (times like 9:30, ratios, version strings). Add regression tests in both apps: the new leak shapes fail on current code, pass after the fix; keep the two implementations byte-consistent in behavior.
 Scope: apps/quantmail/src/lib/ai-error.ts + its tests; apps/quantchat/src/lib/sanitize-error.ts + its tests.
