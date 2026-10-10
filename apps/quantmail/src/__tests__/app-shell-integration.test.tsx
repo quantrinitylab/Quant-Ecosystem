@@ -4,10 +4,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { AppShell } from '../components/AppShell';
 
 // Desktop redesign (2026-10-10): AppShell's pinned rail renders the real
-// DesktopSidebar — hermetic marker here, the component itself is covered in
-// desktop-sidebar.test.tsx.
-vi.mock('../components/DesktopSidebar', () => ({
-  DesktopSidebar: () => <div data-testid="desktop-sidebar-mock" />,
+// DesktopContextSidebar — hermetic marker here, the component itself is
+// covered in desktop-context-sidebar.test.tsx.
+vi.mock('../components/DesktopContextSidebar', () => ({
+  DesktopContextSidebar: () => <div data-testid="desktop-context-sidebar-mock" />,
 }));
 
 
@@ -325,8 +325,8 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Contextual Bottom Nav Integr
       // 2026-10-10 desktop redesign: the header hamburger is gone (the rail
       // is always pinned), so nothing may advertise opening the navigation.
       // (The pinned rail itself needs matchMedia/localStorage effects, so it
-      // only renders in a real browser — DesktopSidebar is covered directly
-      // in desktop-sidebar.test.tsx.)
+      // only renders in a real browser — DesktopContextSidebar is covered
+      // directly in desktop-context-sidebar.test.tsx.)
       expect(html).not.toContain('Open navigation menu');
       expect(html).toContain('main-content');
     });

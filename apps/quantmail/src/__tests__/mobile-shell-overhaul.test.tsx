@@ -4,10 +4,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { AppShell } from '../components/AppShell';
 
 // Desktop redesign (2026-10-10): AppShell's pinned rail renders the real
-// DesktopSidebar — hermetic marker here, the component itself is covered in
-// desktop-sidebar.test.tsx.
-vi.mock('../components/DesktopSidebar', () => ({
-  DesktopSidebar: () => <div data-testid="desktop-sidebar-mock" />,
+// DesktopContextSidebar — hermetic marker here, the component itself is
+// covered in desktop-context-sidebar.test.tsx.
+vi.mock('../components/DesktopContextSidebar', () => ({
+  DesktopContextSidebar: () => <div data-testid="desktop-context-sidebar-mock" />,
 }));
 
 import {

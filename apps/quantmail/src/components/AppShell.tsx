@@ -6,12 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { PageTransition, useFocusTrap } from '@quant/shared-ui';
 import { quantMailDarkSemanticTheme, quantMailDarkSemanticThemeName } from '../brand/theme';
 import { useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
-import { QuantMailLogo } from './QuantMailLogo';
-import { QuantCalendarLogo } from './QuantCalendarLogo';
-import { QuantDriveLogo } from './QuantDriveLogo';
-import { QuantContactsLogo } from './QuantContactsLogo';
-import { QuantGitLogo } from './QuantGitLogo';
-import { BrandWordmark, appDisplayName } from './BrandWordmark';
+import { appDisplayName } from './BrandWordmark';
 // Type only: the shell renders per-app SVG marks itself.
 import { type LogoAppType } from './Interactive3DLogo';
 import { QuantumSplashIntro } from './QuantumSplashIntro';
@@ -23,7 +18,7 @@ import { SearchClearButton } from './SearchClearButton';
 import { QuantFab, type FabAction } from './QuantFab';
 import { ShellChromeProvider } from './ShellChromeContext';
 import { QuantyDrawerHost } from './QuantyLauncher';
-import { DesktopSidebar } from './DesktopSidebar';
+import { DesktopContextSidebar } from './DesktopContextSidebar';
 import type { QuantyLiveAgentHandle } from './QuantyLiveAgent';
 
 /**
@@ -39,7 +34,6 @@ import { UndoSendProvider } from './UndoSendCountdownBar';
 import { QuantPillarTopBar } from './QuantPillarTopBar';
 import { ContextBottomNavBar } from './ContextBottomNavBar';
 import { DesktopAppRail } from './DesktopAppRail';
-import { DesktopContextSidebar } from './DesktopContextSidebar';
 import { pillarForApp } from './desktopContextTabs';
 import { appThemeForPath } from '../lib/app-theme';
 
@@ -156,10 +150,10 @@ export function AppShell({
    */
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const mobileSearchRef = useRef<HTMLInputElement>(null);
-  const desktopSearchRef = useRef<HTMLInputElement>(null);
+  const sidebarSearchRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const pathname = usePathname() ?? '/';
-  const { data: inboxEmails, refetch: refetchInbox } = useInbox({ folderType: 'INBOX' });
+  const { data: inboxEmails } = useInbox({ folderType: 'INBOX' });
   // Defensive: AppShell is normally inside AuthProvider (see app/layout.tsx),
   // but tests and some hosts render it standalone — useAuth() throws there.
   let currentEmail = '';
@@ -290,8 +284,9 @@ export function AppShell({
           : 'mail';
 
   /*
-   * The pinned desktop rail always renders the new DesktopSidebar
-   * (user-approved redesign, 2026-10-10). The `sidebar` prop still feeds the
+   * The pinned desktop rail renders DesktopContextSidebar — the ONE desktop
+   * left sidebar (2026-10-10: logo+name, search, per-app compose + contextual
+   * tabs, Quanty, storage, profile). The `sidebar` prop still feeds the
    * mobile drawer untouched — only its `extra` slot is forwarded so routes
    * like Contacts keep their A–Z index on desktop too.
    */
@@ -313,30 +308,6 @@ export function AppShell({
    * Desktop keeps the shell's center search (the pillar bar is `md:hidden`).
    */
   const pillarSearchVisible = topBar === undefined && isMainSuiteRoute && !customHeader;
-
-  const handleLogoClick = useCallback(() => {
-    void refetchInbox();
-    window.dispatchEvent(new CustomEvent('quant:refresh'));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-
-    if (pathname.startsWith('/calendar') && pathname !== '/calendar') router.push('/calendar');
-    else if (pathname.startsWith('/drive') && pathname !== '/drive') router.push('/drive');
-    else if (pathname.startsWith('/contacts') && pathname !== '/contacts') router.push('/contacts');
-    else if (
-      pathname.startsWith('/quantgit') &&
-      pathname !== '/quantgit'
-    )
-      router.push('/quantgit');
-    else if (
-      !pathname.startsWith('/calendar') &&
-      !pathname.startsWith('/drive') &&
-      !pathname.startsWith('/contacts') &&
-      !pathname.startsWith('/quantgit') &&
-      pathname !== '/'
-    ) {
-      router.push('/');
-    }
-  }, [pathname, refetchInbox, router]);
 
   useEffect(() => {
     try {
@@ -455,13 +426,14 @@ export function AppShell({
     // `false` is not "nothing happened" — it hands the key press to the next
     // binding in the ranking, which is the command registry's `/search` jump.
     if (!onSearchChange) return false;
-    const desktop = desktopSearchRef.current;
-    // `offsetParent` is null exactly when an ancestor is `display: none` — which
-    // is how the desktop bar hides below `md`. Cheaper and more honest than
+    // Desktop: the sidebar owns the search field now (the old header bar is
+    // gone). The rail is `hidden md:flex`, so `offsetParent` is null exactly
+    // when the sidebar is not on screen — cheaper and more honest than
     // re-deriving the breakpoint with `matchMedia`.
-    if (desktop && desktop.offsetParent !== null) {
-      desktop.focus();
-      desktop.select();
+    const sidebar = sidebarSearchRef.current;
+    if (sidebar && sidebar.offsetParent !== null) {
+      sidebar.focus();
+      sidebar.select();
       return true;
     }
     // SIA-P1-3: on mobile the pillar bar owns the search field (the shell's
@@ -482,20 +454,6 @@ export function AppShell({
     priority: 10,
     enabled: () => Boolean(onSearchChange),
   });
-
-  /*
-   * The desktop sidebar's search button focuses the header's global search
-   * input. It reuses the same focusSearch the `/` shortcut uses, so routes
-   * without a header field fall back to the pillar/mobile search the same way.
-   */
-  useEffect(() => {
-    const handleDesktopSearchFocus = () => {
-      focusSearch();
-    };
-    window.addEventListener('quant:desktop-search-focus', handleDesktopSearchFocus);
-    return () =>
-      window.removeEventListener('quant:desktop-search-focus', handleDesktopSearchFocus);
-  }, [focusSearch]);
 
   /*
    * The row stays mounted so it can animate, so opening it has to move focus
@@ -727,24 +685,6 @@ export function AppShell({
         `{children}` as well as for the shell's own.
       */}
         <ShellChromeProvider isDrawerPresented={isDrawerPresented}>
-          {/*
-            Desktop left context sidebar (Gmail-style): Compose button + the
-            current app's contextual tabs rendered vertically. The 5-app
-            switcher moved to the slim right rail (DesktopAppRail).
-          */}
-          {isMainSuiteRoute && (
-            <DesktopContextSidebar
-              pillar={pillarForApp(currentApp)}
-              composeAction={
-                fabActions[0]
-                  ? { label: fabActions[0].label, onSelect: fabActions[0].onSelect }
-                  : null
-              }
-              badgeCounts={{ inbox: unreadCount, teams: mailLensCounts.teams }}
-              onQuantyOpen={openQuanty}
-            />
-          )}
-
           {sidebar && (
             <>
               {/* Backdrop for overlay drawer */}
@@ -759,14 +699,30 @@ export function AppShell({
                 onClick={() => closeSidebar()}
               />
 
-              {/* Desktop Pinned Sidebar — always pinned on desktop (2026-10-10 redesign).
+              {/* Desktop Pinned Sidebar — the ONE desktop left sidebar
+                  (2026-10-10 redesign): logo+name, search, per-app compose +
+                  contextual tabs, Quanty, storage, profile.
                   The mobile drawer below keeps rendering the old sidebar untouched. */}
               {(isPinned || isWide) && (
                 <aside
                   className="hidden md:relative md:flex flex-none bg-[var(--surface)] border-r border-[var(--border)]"
                   aria-label="Sidebar"
                 >
-                  <DesktopSidebar extra={desktopSidebarExtra} onQuantyClick={openQuanty} />
+                  <DesktopContextSidebar
+                    extra={desktopSidebarExtra}
+                    onQuantyOpen={openQuanty}
+                    pillar={pillarForApp(currentApp)}
+                    composeAction={
+                      fabActions[0]
+                        ? { label: fabActions[0].label, onSelect: fabActions[0].onSelect }
+                        : null
+                    }
+                    badgeCounts={{ inbox: unreadCount, teams: mailLensCounts.teams }}
+                    searchValue={searchValue}
+                    onSearchChange={onSearchChange}
+                    searchPlaceholder={searchPlaceholder}
+                    searchInputRef={sidebarSearchRef}
+                  />
                 </aside>
               )}
 
@@ -804,101 +760,19 @@ export function AppShell({
               would stack dead space (black-void fix). */}
           <div className="flex min-w-0 flex-1 flex-col">
             {/*
-              The per-app header is desktop-only (`hidden md:flex`).
+              The old desktop header bar (app logo + global search) is gone
+              (2026-10-10): both now live in the desktop sidebar. Only a
+              page-provided `customHeader` (e.g. the selection action bar)
+              renders here — real functionality that must keep working.
 
               On a phone the top of the screen belongs to the 5-pillar dock
               (`QuantPillarTopBar` below): switcher first, then the Quant AI
-              capsule, then content. The old mobile header — hamburger, per-app
-              wordmark, search toggle, Quanty orb — stacked a redundant brand
-              row above the dock and the AI banner, which is the triple-stack
-              from the mobile QA screenshots. Mobile search still works: the
-              pillar bar owns a search field wired to the same `onSearchChange`,
-              and the `/` shortcut below still opens the collapsible row.
-              `customHeader` keeps replacing this whole element untouched.
+              capsule, then content. Mobile search still works: the pillar bar
+              owns a search field wired to the same `onSearchChange`, and the
+              `/` shortcut focuses the sidebar field on desktop / the
+              collapsible row on mobile.
             */}
-            {sidebar &&
-              (customHeader ? (
-                customHeader
-              ) : (
-                <header className="hidden md:flex min-h-14 flex-none items-center justify-between gap-3 bg-black backdrop-blur px-3 md:px-5">
-                  {/* Left: Active App Name / Section Breadcrumb.
-                      The old hamburger is gone (2026-10-10): the desktop rail
-                      is always pinned now, so there is nothing to toggle. */}
-                  <div className="flex items-center gap-3 shrink-0">
-                    <button
-                      type="button"
-                      className="flex min-h-touch items-center gap-2.5 select-none group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
-                      onClick={handleLogoClick}
-                      title={`${appDisplayName(currentApp)} — Click to refresh`}
-                      aria-label={`${appDisplayName(currentApp)} — refresh`}
-                    >
-                      {currentApp === 'calendar' ? (
-                        <QuantCalendarLogo size={28} />
-                      ) : currentApp === 'drive' ? (
-                        <QuantDriveLogo size={28} />
-                      ) : currentApp === 'contacts' ? (
-                        <QuantContactsLogo size={28} />
-                      ) : currentApp === 'code' ? (
-                        <QuantGitLogo size={28} />
-                      ) : (
-                        <QuantMailLogo size={30} unreadCount={unreadCount} interactive={false} />
-                      )}
-
-                      <BrandWordmark app={currentApp} size="text-sm" />
-                    </button>
-                  </div>
-
-                  {/* Center: Global search input (w-full max-w-lg, obsidian slate var(--quant-surface), hairline border #232938, / shortcut) */}
-                  <div
-                    className={`flex-1 max-w-lg mx-3 ${onSearchChange ? 'hidden md:flex' : 'hidden'}`}
-                  >
-                    {onSearchChange ? (
-                      <div className="w-full flex h-[34px] items-center gap-2 px-3 rounded-lg bg-[var(--quant-surface)] border border-[#232938] focus-within:border-[var(--quant-primary)]/60 focus-within:ring-1 focus-within:ring-[var(--quant-primary)]/30 transition-all shadow-inner">
-                        <svg
-                          className="size-3.5 text-[var(--quant-muted-foreground)] shrink-0"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.6"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                          focusable="false"
-                        >
-                          <circle cx="11" cy="11" r="7" />
-                          <path d="m20 20-4-4" />
-                        </svg>
-                        <input
-                          ref={desktopSearchRef}
-                          id="app-shell-search-input"
-                          name="searchQuery"
-                          type="search"
-                          value={searchValue ?? ''}
-                          onChange={(e) => onSearchChange(e.target.value)}
-                          aria-label="Search"
-                          placeholder={
-                            searchPlaceholder ||
-                            (currentApp === 'mail'
-                              ? 'Search in QuantMail (sender, subject, keyword)…'
-                              : `Search in ${appDisplayName(currentApp)}…`)
-                          }
-                          className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#717888] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
-                        />
-                        {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
-                        <kbd className="hidden lg:inline px-1.5 py-0.5 rounded bg-[#181B22] text-[10px] font-mono text-[var(--quant-text-muted)] border border-[#2B303C] shrink-0">
-                          /
-                        </kbd>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {/* Right: page actions. Quanty and the account badge moved
-                      into the desktop sidebar (2026-10-10 redesign). */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    {mobileActions}
-                  </div>
-                </header>
-              ))}
+            {sidebar && (customHeader ? customHeader : null)}
 
             {/*
           The mobile search row.

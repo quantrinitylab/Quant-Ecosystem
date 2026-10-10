@@ -5,12 +5,16 @@ import { DESKTOP_PILLAR_TILES } from '../components/pillarTiles';
 import { AppShell } from '../components/AppShell';
 
 // Desktop redesign (2026-10-10): AppShell's pinned rail renders the real
-// DesktopSidebar — hermetic marker here, the component itself is covered in
-// desktop-sidebar.test.tsx.
-vi.mock('../components/DesktopSidebar', () => ({
-  DesktopSidebar: () => <div data-testid="desktop-sidebar-mock" />,
-}));
+// DesktopContextSidebar (single sidebar: logo+name, search, per-app compose,
+// contextual tabs, Quanty, storage, profile). The component itself is
+// additionally covered in desktop-context-sidebar.test.tsx.
+// Quanty/AccountBadge internals are hermetic markers here.
 
+
+// Mock storage quota (react-query) for the real DesktopContextSidebar's SidebarStorage
+vi.mock('../hooks/useStorageQuota', () => ({
+  useStorageQuota: () => ({ quota: null, known: false, usedPct: 0 }),
+}));
 
 // Mock Next.js navigation hooks
 const mockPush = vi.fn();
@@ -107,8 +111,9 @@ describe('DesktopAppRail (slim 5-app switcher)', () => {
       </AppShell>,
     );
 
-    // DesktopContextSidebar is mounted on the left with the Drive contextual tabs
+    // The single desktop sidebar is mounted on the left with the Drive contextual tabs
     expect(html).toContain('data-testid="desktop-context-sidebar"');
+    expect(html).not.toContain('data-testid="desktop-sidebar"');
     expect(html).toContain('data-testid="desktop-context-tab-home"');
     expect(html).toContain('data-testid="desktop-context-tab-feed"');
 
