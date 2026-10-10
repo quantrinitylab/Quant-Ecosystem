@@ -3,6 +3,7 @@
 // Browser push notifications using the Web Push protocol
 // ============================================================================
 
+import webpush from 'web-push';
 import type { WebPushSubscription, WebPushSendOptions, WebPushResult } from '../types';
 
 /** VAPID configuration */
@@ -25,6 +26,45 @@ export interface WebPushPayload {
   requireInteraction?: boolean;
 }
 
+/** Transport boundary: delivers one serialized payload to one subscription. */
+export type WebPushSendHandler = (
+  subscription: WebPushSubscription,
+  payload: string,
+  options: WebPushSendOptions,
+) => Promise<WebPushResult>;
+
+/**
+ * Builds the REAL Web Push transport on top of the `web-push` library:
+ * VAPID-signed, payload-encrypted delivery to the subscription's endpoint.
+ * Failures are returned (never thrown, never faked) with the push service's
+ * HTTP status code preserved so callers can prune 404/410 (gone) endpoints.
+ */
+export function createWebPushSendHandler(config: VapidConfig): WebPushSendHandler {
+  webpush.setVapidDetails(config.subject, config.publicKey, config.privateKey);
+  return async (subscription, payload, options) => {
+    try {
+      const response = await webpush.sendNotification(
+        { endpoint: subscription.endpoint, keys: subscription.keys },
+        payload,
+        {
+          ...(options.ttl !== undefined ? { TTL: options.ttl } : {}),
+          ...(options.urgency !== undefined ? { urgency: options.urgency } : {}),
+          ...(options.topic !== undefined ? { topic: options.topic } : {}),
+        },
+      );
+      return { success: true, endpoint: subscription.endpoint, statusCode: response.statusCode };
+    } catch (err) {
+      const statusCode = (err as { statusCode?: unknown })?.statusCode;
+      return {
+        success: false,
+        endpoint: subscription.endpoint,
+        ...(typeof statusCode === 'number' ? { statusCode } : {}),
+        error: err instanceof Error ? err.message : 'Web push delivery failed',
+      };
+    }
+  };
+}
+
 /**
  * WebPushService - VAPID-based Web Push notifications
  *
@@ -34,13 +74,7 @@ export interface WebPushPayload {
 export class WebPushService {
   private subscriptions: Map<string, WebPushSubscription[]> = new Map();
   private vapidConfig: VapidConfig | null = null;
-  private sendHandler:
-    | ((
-        subscription: WebPushSubscription,
-        payload: string,
-        options: WebPushSendOptions,
-      ) => Promise<WebPushResult>)
-    | null = null;
+  private sendHandler: WebPushSendHandler | null = null;
 
   constructor(vapidConfig?: VapidConfig) {
     if (vapidConfig) {
@@ -130,9 +164,20 @@ export class WebPushService {
         if (this.sendHandler) {
           const result = await this.sendHandler(sub, serializedPayload, options);
           results.push(result);
+          // A transport-level 404/410 means the subscription is gone at the
+          // push service; mark it inactive so callers can prune it.
+          if (!result.success && (result.statusCode === 404 || result.statusCode === 410)) {
+            sub.isActive = false;
+          }
         } else {
-          // Default: simulate successful send
-          results.push({ success: true, endpoint: sub.endpoint, statusCode: 201 });
+          // No transport wired: report the failure honestly. This used to
+          // fabricate a 201 success, which made every unwired caller believe
+          // a notification had been delivered when nothing had been sent.
+          results.push({
+            success: false,
+            endpoint: sub.endpoint,
+            error: 'Web push transport not configured',
+          });
         }
       } catch (err) {
         const error = err instanceof Error ? err.message : 'Unknown error';
@@ -149,15 +194,10 @@ export class WebPushService {
   }
 
   /**
-   * Set a custom send handler (for testing or custom transport)
+   * Set the transport (see {@link createWebPushSendHandler} for the real
+   * `web-push` transport; tests may inject a capturing handler here).
    */
-  public setSendHandler(
-    handler: (
-      subscription: WebPushSubscription,
-      payload: string,
-      options: WebPushSendOptions,
-    ) => Promise<WebPushResult>,
-  ): void {
+  public setSendHandler(handler: WebPushSendHandler): void {
     this.sendHandler = handler;
   }
 
