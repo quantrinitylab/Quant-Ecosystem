@@ -30,6 +30,10 @@ import {
   agendaEventWindow,
 } from './lib/calendar-geometry';
 import { pointerStartsSheetDrag } from './lib/sheet-drag';
+import {
+  calendarEventMatchesQuery,
+  calendarSearchStatus,
+} from './lib/calendar-search';
 import { CalendarHeader } from './components/CalendarHeader';
 import { CalendarEventForm } from './components/CalendarEventForm';
 import { CalendarModals } from './components/CalendarModals';
@@ -302,7 +306,7 @@ function CalendarPageContent() {
     [today, agendaRangeDays],
   );
 
-  const { data: rawEvents, isLoading, error, refetch } = useCalendarEvents({ start, end });
+  const { data: rawEvents, isLoading, isFetching, error, refetch } = useCalendarEvents({ start, end });
 
   // Re-tap active app tab → refresh calendar events (P1: app-switcher refresh)
   useEffect(() => {
@@ -319,6 +323,27 @@ function CalendarPageContent() {
   }, [rawEvents]);
 
   const isInitialLoading = isLoading && !rawEvents;
+
+  // QM-SCREEN-026: Calendar search filters the events the server returned
+  // (authorization-aware GET /events) — it makes no latency promise, and
+  // its UX must distinguish loading / degraded (server load failed) /
+  // updating / no-matches instead of rendering an empty list for all four.
+  const searchMatchCount = useMemo(() => {
+    if (!searchFilter.trim()) return 0;
+    return events.filter((ev) => calendarEventMatchesQuery(ev, searchFilter)).length;
+  }, [events, searchFilter]);
+
+  const searchStatus = useMemo(
+    () =>
+      calendarSearchStatus({
+        query: searchFilter,
+        isLoading: isInitialLoading,
+        isFetching,
+        error,
+        matchCount: searchMatchCount,
+      }),
+    [searchFilter, isInitialLoading, isFetching, error, searchMatchCount],
+  );
 
   const createEvent = useCreateEvent();
   const updateEvent = useUpdateEvent();
@@ -590,7 +615,7 @@ function CalendarPageContent() {
 
         if (
           needle &&
-          !dayEvents.some((e) => e.title.toLowerCase().includes(needle)) &&
+          !dayEvents.some((e) => calendarEventMatchesQuery(e, searchFilter)) &&
           !dayHolidays.some((h) => h.name.toLowerCase().includes(needle))
         ) {
           continue;
@@ -1197,6 +1222,31 @@ function CalendarPageContent() {
           </div>
         )}
 
+        {/* QM-SCREEN-026: honest search state. While a search is active the
+            user must be able to tell loading / degraded (server load
+            failed) / updating / no-matches apart — an empty list alone
+            used to stand in for all of them. No latency is promised. */}
+        {searchStatus.phase !== 'idle' && searchStatus.message && (
+          <div
+            role="status"
+            aria-live="polite"
+            data-testid="calendar-search-status"
+            data-phase={searchStatus.phase}
+            className="mx-3 mt-2 flex items-center justify-between gap-3 rounded-xl border border-[#232938] bg-[var(--quant-surface)] px-4 py-2.5 text-sm text-[var(--quant-muted-foreground)]"
+          >
+            <span>{searchStatus.message}</span>
+            {searchStatus.phase === 'degraded' && (
+              <button
+                type="button"
+                onClick={() => void refetch()}
+                className="shrink-0 rounded-lg bg-[var(--quant-surface-elevated)] px-3 py-1.5 font-semibold text-white hover:bg-[#232938] min-h-[44px]"
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        )}
+
         {/*
           The single merged tab row: Agenda/Week/Day/Month/Booking/QuantMeet/
           Reminders. Replaces the old double stack (header view switcher +
@@ -1235,6 +1285,11 @@ function CalendarPageContent() {
               openDedicatedSheet={openDedicatedSheet}
               onSelectEvent={setSelectedEvent}
               searchFilter={searchFilter}
+              isSearchLoading={searchStatus.phase === 'loading'}
+              searchError={
+                searchStatus.phase === 'degraded' ? (searchStatus.message ?? undefined) : undefined
+              }
+              onSearchRetry={() => void refetch()}
             />
           )
         )}
