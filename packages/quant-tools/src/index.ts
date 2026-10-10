@@ -53,8 +53,27 @@ export { UndoRegistry } from './undo/undo-registry.js';
 // Audit
 export { AuditLog } from './audit/audit-log.js';
 
-// MCP
+// MCP — protocol-compliant Streamable HTTP gateway (P1-1) + legacy adapter
 export { MCPServerAdapter } from './mcp/mcp-server.js';
+export {
+  QuantyMcpServer,
+  McpRpcError,
+  CONFIRMATION_ARG_KEY,
+  MCP_PROTOCOL_VERSIONS,
+  MCP_LATEST_PROTOCOL_VERSION,
+  type JsonRpcRequest,
+  type JsonRpcResponse,
+  type McpAuthContext,
+  type ToolCallOutcome,
+  type ConfirmationEnvelope,
+} from './mcp/mcp-gateway-server.js';
+export {
+  toMcpInputSchema,
+  toRiskTier,
+  toToolDescriptor,
+  type McpJsonSchema,
+  type McpJsonSchemaProperty,
+} from './mcp/descriptor-mapping.js';
 
 // Orchestrator
 export { CrossAppOrchestrator } from './orchestrator/index.js';
