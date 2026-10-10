@@ -1220,7 +1220,9 @@ Scope: `apps/quantmail/backend/routes/inbound-webhook.ts`, `emails.ts`.
 Dependencies: none.
 
 ## QM-UIUX-053 — Push notifications unwired (no delivery path)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-053-push-notifications
 Finding: `PushService` (real FCM/APNs code) is never instantiated. No device-token registration, no service worker, no VAPID, no `PushSubscription` writes from QuantMail. No delivery path from server to device exists. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/notif-backend-audit.md`.
 Required: wire the push delivery path (device registration → subscription → PushService invocation).
 Scope: QuantMail backend + frontend.
