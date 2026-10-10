@@ -872,9 +872,7 @@ Scope: QuantCooks sign-in.
 Dependencies: none.
 
 ## QM-UIUX-017 — QuantCooks: "OR" divider text overlaps the divider line
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-017-cooks-or-divider
+Status: [x] DONE (superseded — verified on current main 2026-10-10, no code change). The defective in-form divider (full-width line + absolute masked label) was deleted 2026-10-07 by e99057c5a (the QM-UIUX-016 consolidation); the surviving divider at apps/quantcooks/src/pages/login.tsx:88-94 is the spaced flex layout the task requires (line-label-line, gap-4, token colors, both themes). The audit screenshot was taken against a lagging staging build; the ledger's evidence file does not exist locally. Builder verdict firsthand-verified by muse-main.
 Finding: the "OR" divider label sits awkwardly on top of the divider line (visual glitch). Screenshot: `~/workspace/audits/2026-10-08-uiux-deep/cooks-mobile.png`.
 Required: proper divider with background-masked label or spaced layout.
 Scope: QuantCooks sign-in.
