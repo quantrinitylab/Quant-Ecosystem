@@ -84,14 +84,6 @@ export interface SentShareItem {
   } | null;
 }
 
-interface UploadProgress {
-  fileId: string;
-  fileName: string;
-  progress: number;
-  status: 'pending' | 'uploading' | 'complete' | 'error';
-  error?: string;
-}
-
 interface StorageQuota {
   used: number;
   total: number;
@@ -107,8 +99,7 @@ export interface UseDriveReturn {
   files: DriveFile[];
   loading: boolean;
   error: string | null;
-  uploads: UploadProgress[];
-  quota: StorageQuota;
+  quota: StorageQuota | null;
   currentFolderId: string | null;
   breadcrumbs: { id: string | null; name: string }[];
   fetchFiles: (folderId?: string | null, filter?: string | null) => Promise<void>;
@@ -129,7 +120,6 @@ export interface UseDriveReturn {
   searchFiles: (query: string) => Promise<void>;
   getDownloadUrl: (fileId: string) => string;
   downloadFile: (fileId: string, fileName?: string) => Promise<void>;
-  cancelUpload: (uploadId: string) => void;
   acceptShare: (shareId: string) => Promise<{ success: boolean; share: any }>;
   declineShare: (shareId: string) => Promise<{ success: boolean; share: any }>;
   fetchReceivedShares: () => Promise<ReceivedShare[]>;
@@ -184,14 +174,14 @@ export function useDrive(): UseDriveReturn {
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [uploads, setUploads] = useState<UploadProgress[]>([]);
-  const [quota, setQuota] = useState<StorageQuota>({ used: 0, total: 15 * 1024 * 1024 * 1024 });
+  // Unknown until the backend answers: a fabricated 15 GB default used to
+  // sit here, presenting invented quota before the first fetch completed.
+  const [quota, setQuota] = useState<StorageQuota | null>(null);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<{ id: string | null; name: string }[]>([
     { id: null, name: 'My Drive' },
   ]);
   const abortControllers = useRef<Map<string, AbortController>>(new Map());
-  const cancelledUploadIds = useRef<Set<string>>(new Set());
   const fetchSeqRef = useRef<number>(0);
 
   const fetchFiles = useCallback(
@@ -230,27 +220,12 @@ export function useDrive(): UseDriveReturn {
     async (fileList: File[]) => {
       setError(null);
       const failures: string[] = [];
-      const newUploads: UploadProgress[] = fileList.map((file, i) => ({
-        fileId: `upload-${Date.now()}-${i}`,
-        fileName: file.name,
-        progress: 0,
-        status: 'pending' as const,
-      }));
-      setUploads((prev) => [...prev, ...newUploads]);
 
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
-        const uploadId = newUploads[i].fileId;
-        if (cancelledUploadIds.current.has(uploadId)) {
-          cancelledUploadIds.current.delete(uploadId);
-          continue;
-        }
+        const uploadId = `upload-${Date.now()}-${i}`;
         const controller = new AbortController();
         abortControllers.current.set(uploadId, controller);
-
-        setUploads((prev) =>
-          prev.map((u) => (u.fileId === uploadId ? { ...u, status: 'uploading' as const } : u)),
-        );
 
         try {
           const formData = new FormData();
@@ -276,14 +251,8 @@ export function useDrive(): UseDriveReturn {
               }
               controller.signal.addEventListener('abort', abortRequest, { once: true });
 
-              xhr.upload.onprogress = (event) => {
-                if (event.lengthComputable) {
-                  const progress = Math.round((event.loaded / event.total) * 100);
-                  setUploads((prev) =>
-                    prev.map((u) => (u.fileId === uploadId ? { ...u, progress } : u)),
-                  );
-                }
-              };
+              // Upload progress is deliberately untracked: no consumer ever
+              // rendered the uploads list, so progress state was dead weight.
               xhr.onload = () => {
                 detachAbort();
                 if (xhr.status === 401 && allowRefreshRetry) {
@@ -333,11 +302,6 @@ export function useDrive(): UseDriveReturn {
 
           await uploadOnce(true);
 
-          setUploads((prev) =>
-            prev.map((u) =>
-              u.fileId === uploadId ? { ...u, progress: 100, status: 'complete' as const } : u,
-            ),
-          );
           // Honest signal for the Drive mascot's success acknowledgement —
           // fired only here, after the upload truly completed (never on error).
           if (typeof window !== 'undefined') {
@@ -346,11 +310,6 @@ export function useDrive(): UseDriveReturn {
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'Upload failed';
           failures.push(errorMsg);
-          setUploads((prev) =>
-            prev.map((u) =>
-              u.fileId === uploadId ? { ...u, status: 'error' as const, error: errorMsg } : u,
-            ),
-          );
         } finally {
           abortControllers.current.delete(uploadId);
         }
@@ -632,16 +591,6 @@ export function useDrive(): UseDriveReturn {
     }
   }, []);
 
-  const cancelUpload = useCallback((uploadId: string) => {
-    cancelledUploadIds.current.add(uploadId);
-    const controller = abortControllers.current.get(uploadId);
-    if (controller) {
-      controller.abort();
-      abortControllers.current.delete(uploadId);
-    }
-    setUploads((prev) => prev.filter((u) => u.fileId !== uploadId));
-  }, []);
-
   const acceptShare = useCallback(async (shareId: string) => {
     setError(null);
     try {
@@ -797,7 +746,6 @@ export function useDrive(): UseDriveReturn {
     files,
     loading,
     error,
-    uploads,
     quota,
     currentFolderId,
     breadcrumbs,
@@ -819,7 +767,6 @@ export function useDrive(): UseDriveReturn {
     searchFiles,
     getDownloadUrl,
     downloadFile,
-    cancelUpload,
     acceptShare,
     declineShare,
     fetchReceivedShares,

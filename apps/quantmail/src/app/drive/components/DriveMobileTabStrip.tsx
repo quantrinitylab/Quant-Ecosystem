@@ -37,8 +37,8 @@ interface MobileTabDef {
  * mobile `MobileSubTabStrip` was deleted — so without this component,
  * 7 of 8 Drive surfaces were unreachable on phones.
  *
- * Visual language mirrors the desktop tab header (blue #38BDF8 accent on
- * dark) rendered as horizontally scrollable pills, following the pill
+ * Visual language mirrors the desktop tab header (drive-green var(--app-accent)
+ * accent on dark) rendered as horizontally scrollable pills, following the pill
  * patterns already used elsewhere in the Drive page (filter pills).
  * `md:hidden` keeps the desktop layout pixel-identical.
  */
@@ -114,14 +114,14 @@ export function DriveMobileTabStrip({
               aria-controls={`drive-panel-${tab.id}`}
               tabIndex={isActive ? 0 : -1}
               onClick={() => onTabChange(tab.id)}
-              className={`inline-flex min-h-[44px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-xs font-medium transition-all duration-150 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] ${
+              className={`inline-flex min-h-[44px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-xs font-medium transition-all duration-150 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                 isActive
-                  ? 'bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/40 font-semibold'
+                  ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] font-semibold'
                   : 'border border-white/[0.08] bg-white/[0.03] text-[var(--quant-muted-foreground)] hover:text-[#F8FAFC] hover:bg-white/[0.06] hover:border-white/[0.14]'
               }`}
             >
               <Icon
-                className={`size-4 shrink-0 ${isActive ? 'text-[#38BDF8]' : 'text-[#64748B]'}`}
+                className={`size-4 shrink-0 ${isActive ? 'text-[var(--app-accent)]' : 'text-[#64748B]'}`}
               />
               <span>{tab.label}</span>
 
@@ -129,7 +129,7 @@ export function DriveMobileTabStrip({
                 <span
                   className={`ml-0.5 px-1.5 py-px rounded text-[10px] font-mono tracking-wider uppercase font-semibold ${
                     isActive
-                      ? 'bg-[#38BDF8]/20 text-[#38BDF8] border border-[#38BDF8]/40'
+                      ? 'bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)]'
                       : 'bg-[var(--quant-surface-elevated)] text-[#94A3B8] border border-[#334155]'
                   }`}
                 >
@@ -140,7 +140,7 @@ export function DriveMobileTabStrip({
               {tab.badgeCount !== undefined && tab.badgeCount > 0 && (
                 <span
                   className={`ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${
-                    isActive ? 'bg-[#38BDF8] text-[var(--quant-background)]' : 'bg-[#334155] text-[#E2E8F0]'
+                    isActive ? 'bg-[var(--app-accent)] text-[var(--quant-background)]' : 'bg-[#334155] text-[#E2E8F0]'
                   }`}
                 >
                   {tab.badgeCount}
