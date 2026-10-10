@@ -11,7 +11,9 @@
 //   1. Auth is mandatory and ownership comes from the session — a `userId`
 //      smuggled in the body is ignored, never trusted (BOLA).
 //   2. Register → re-register → unregister is a real round-trip against the
-//      store: one row per endpoint, keys refreshed in place.
+//      store: one row per (user, endpoint), keys refreshed in place — and a
+//      subscribe naming ANOTHER user's endpoint never overwrites or
+//      reassigns their row; the caller gets their own row (BOLA).
 //   3. Malformed payloads are 400s, never 200s over a partial write.
 //   4. Unsubscribe is scoped to the caller: naming another user's endpoint
 //      removes nothing.
@@ -64,8 +66,14 @@ function fakePrisma() {
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     pushSubscription: {
-      findFirst: vi.fn(async ({ where }: { where: { endpoint: string } }) => {
-        return rows.find((row) => row.endpoint === where.endpoint) ?? null;
+      findFirst: vi.fn(async ({ where }: { where: { endpoint: string; userId?: string } }) => {
+        return (
+          rows.find(
+            (row) =>
+              row.endpoint === where.endpoint &&
+              (where.userId === undefined || row.userId === where.userId),
+          ) ?? null
+        );
       }),
       findMany: vi.fn(async ({ where }: { where: { userId: string } }) => {
         return rows.filter((row) => row.userId === where.userId);
@@ -221,6 +229,47 @@ describe('POST /notifications/push/subscribe', () => {
     expect(res.statusCode).toBe(201);
     expect(prisma.rows).toHaveLength(1);
     expect(prisma.rows[0]).toMatchObject({ p256dh: 'new-p256dh', auth: 'new-auth' });
+  });
+
+  it('does not overwrite another user’s subscription when its endpoint is re-registered', async () => {
+    const app = await buildApp('user-2');
+    // Seed user-1's existing subscription for the same endpoint (buildApp
+    // resets the fake, so the victim row is seeded directly, mirroring the
+    // unsubscribe BOLA test below).
+    prisma.rows.push({
+      id: 'sub-victim',
+      userId: 'user-1',
+      endpoint: ENDPOINT,
+      p256dh: 'victim-p256dh',
+      auth: 'victim-auth',
+      expiresAt: null,
+      createdAt: new Date(),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/notifications/push/subscribe',
+      payload: subscriptionBody({ keys: { p256dh: 'attacker-p256dh', auth: 'attacker-auth' } }),
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toEqual({ success: true, data: { subscribed: true } });
+    // The victim's row is untouched: same owner, same keys.
+    const victimRow = prisma.rows.find((row) => row.id === 'sub-victim');
+    expect(victimRow).toMatchObject({
+      userId: 'user-1',
+      p256dh: 'victim-p256dh',
+      auth: 'victim-auth',
+    });
+    // The caller got their own row for the endpoint.
+    const callerRows = prisma.rows.filter((row) => row.userId === 'user-2');
+    expect(callerRows).toHaveLength(1);
+    expect(callerRows[0]).toMatchObject({
+      endpoint: ENDPOINT,
+      p256dh: 'attacker-p256dh',
+      auth: 'attacker-auth',
+    });
+    expect(prisma.rows).toHaveLength(2);
   });
 
   it('stores expirationTime as expiresAt', async () => {
