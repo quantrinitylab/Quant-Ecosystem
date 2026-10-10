@@ -33,15 +33,6 @@ export const QUANTMAIL_SLOS: SloDefinition[] = [
     windowHours: 720,
   },
   {
-    id: 'quantmail.search',
-    journey: 'Search',
-    description: 'Full-text mail search (GET /search/emails).',
-    availabilityTarget: 0.995,
-    latencyTargetMs: 1500,
-    latencyPercentile: 0.99,
-    windowHours: 720,
-  },
-  {
     id: 'quantmail.send-queue',
     journey: 'Outbound submission (send/queue)',
     description: 'Compose/send accepted into the outbound queue.',
@@ -69,7 +60,6 @@ export const QUANTMAIL_SLOS: SloDefinition[] = [
 export const QUANTMAIL_SLO_ROUTES: SloRouteMapping[] = [
   { method: 'GET', pattern: '/emails', sloId: 'quantmail.inbox-read' },
   { method: 'GET', pattern: '/threads/:id', sloId: 'quantmail.thread-open' },
-  { method: 'GET', pattern: '/search/emails', sloId: 'quantmail.search' },
   { method: 'POST', pattern: '/emails', sloId: 'quantmail.send-queue' },
   { method: 'POST', pattern: '/emails/compose', sloId: 'quantmail.send-queue' },
   { method: 'POST', pattern: '/emails/:id/send', sloId: 'quantmail.send-queue' },
