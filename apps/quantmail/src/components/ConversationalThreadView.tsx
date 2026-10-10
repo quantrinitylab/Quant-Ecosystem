@@ -1370,10 +1370,18 @@ export function ConversationalThreadView({
     const targetId = messages[0]?.id || threadId;
     if (targetId) {
       try {
-        await apiClient.toggleStar(targetId);
+        // QM-UIUX-093: apiClient resolves `{ success: false }` when the
+        // server refuses — it never rejects — so a resolved failure must
+        // take the rollback path too, not fall through to the success toast.
+        const res = await apiClient.toggleStar(targetId);
+        if (!res?.success) throw new Error(res?.error?.message || 'Star update refused');
         showToast({ text: nextState ? 'Pinned to top' : 'Unpinned from top', type: 'info' });
       } catch {
+        // Roll the optimistic flip back — here and in the parent, which was
+        // already told the new state — and say it failed.
         setStarred(!nextState);
+        if (onStarToggle) onStarToggle(!nextState);
+        showToast({ text: 'Could not update star', type: 'error' });
       }
     }
   };
@@ -1390,13 +1398,23 @@ export function ConversationalThreadView({
     const ids = conversationMessageIds;
     if (ids.length === 0) return;
     try {
-      await Promise.all(ids.map((id) => apiClient.markAsUnread(id)));
-      // Only after every POST resolved: flip exactly the rows the server
-      // accepted, so a partial failure never leaves a lying local state.
-      setMessages((prev) =>
-        prev.map((m) => (ids.includes(m.id) ? { ...m, isRead: false } : m)),
-      );
-      showToast({ text: 'Marked as unread', type: 'info' });
+      // QM-UIUX-093: apiClient resolves `{ success: false }` on failure — it
+      // never rejects — so inspect the settled results: flip exactly the
+      // rows the server accepted (a partial failure never leaves a lying
+      // local state), and if any POST was refused, report the failure
+      // instead of claiming success.
+      const results = await Promise.all(ids.map((id) => apiClient.markAsUnread(id)));
+      const accepted = ids.filter((_, i) => results[i]?.success);
+      if (accepted.length > 0) {
+        setMessages((prev) =>
+          prev.map((m) => (accepted.includes(m.id) ? { ...m, isRead: false } : m)),
+        );
+      }
+      if (accepted.length === ids.length) {
+        showToast({ text: 'Marked as unread', type: 'info' });
+      } else {
+        showToast({ text: 'Could not mark as unread', type: 'error' });
+      }
       invalidateMailLists(queryClient);
     } catch {
       showToast({ text: 'Could not mark as unread', type: 'error' });
@@ -1409,11 +1427,19 @@ export function ConversationalThreadView({
       const ids = conversationMessageIds;
       if (ids.length === 0) return;
       try {
-        await Promise.all(ids.map((id) => apiClient.snoozeEmail(id, until)));
-        showToast({
-          text: `Snoozed until ${until.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`,
-          type: 'success',
-        });
+        // QM-UIUX-093: apiClient resolves `{ success: false }` on failure —
+        // it never rejects — so the success toast is earned only when every
+        // snooze POST was accepted; any refusal is reported as a failure
+        // (the list invalidation below resyncs whatever partially landed).
+        const results = await Promise.all(ids.map((id) => apiClient.snoozeEmail(id, until)));
+        if (results.every((r) => r?.success)) {
+          showToast({
+            text: `Snoozed until ${until.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`,
+            type: 'success',
+          });
+        } else {
+          showToast({ text: 'Could not snooze conversation', type: 'error' });
+        }
         invalidateMailLists(queryClient);
       } catch {
         showToast({ text: 'Could not snooze conversation', type: 'error' });
@@ -1443,8 +1469,15 @@ export function ConversationalThreadView({
       const ids = conversationMessageIds;
       if (ids.length === 0) return;
       try {
-        await Promise.all(ids.map((id) => apiClient.addLabel(id, labelName)));
-        showToast({ text: `Label "${labelName}" applied`, type: 'success' });
+        // QM-UIUX-093: apiClient resolves `{ success: false }` on failure —
+        // it never rejects — so claim the label only when every POST was
+        // accepted; any refusal is reported as a failure.
+        const results = await Promise.all(ids.map((id) => apiClient.addLabel(id, labelName)));
+        if (results.every((r) => r?.success)) {
+          showToast({ text: `Label "${labelName}" applied`, type: 'success' });
+        } else {
+          showToast({ text: 'Could not apply label', type: 'error' });
+        }
         invalidateMailLists(queryClient);
       } catch {
         showToast({ text: 'Could not apply label', type: 'error' });
