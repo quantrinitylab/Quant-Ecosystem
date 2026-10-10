@@ -25,13 +25,15 @@ import {
   formatWhen,
   isUrl,
   rsvpTone,
-  toLocalInputValue,
+  toZonedInputValue,
+  zonedInputToIso,
   stripQuantMeta,
   RSVP_LABELS,
   type RsvpStatus,
   type EventDetailDto,
 } from '../event-detail-utils';
 import type { CalendarEvent } from '../../../../types';
+import { TIMEZONES } from '../../types';
 
 // --- inline icon set (SVG, no emoji) -----------------------------------------
 type IconName = 'back' | 'pencil' | 'trash' | 'pin' | 'link' | 'clock' | 'repeat' | 'bell' | 'users' | 'check';
@@ -117,21 +119,38 @@ export default function CalendarEventDetailPage() {
     end: '',
     allDay: false,
     location: '',
+    timezone: '',
   });
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const openEdit = () => {
     if (!event) return;
+    // Seed the wall-clock inputs in the event's own timezone, matching the
+    // "When" display above. Seeding in the browser timezone here silently
+    // shifted events saved in another zone.
+    const tz = event.timeZone || 'Asia/Kolkata';
     setForm({
       title: event.title ?? '',
       description: stripQuantMeta(event.description),
-      start: toLocalInputValue(event.startTime),
-      end: toLocalInputValue(event.endTime),
+      start: toZonedInputValue(event.startTime, tz),
+      end: toZonedInputValue(event.endTime, tz),
       allDay: Boolean(event.allDay),
       location: event.location ?? '',
+      timezone: tz,
     });
     setSaveError(null);
     setEditing(true);
+  };
+
+  // Switching the timezone keeps the same instant — the wall-clock inputs
+  // are re-rendered in the new zone instead of being re-interpreted.
+  const handleTimezoneChange = (tz: string) => {
+    setForm((f) => ({
+      ...f,
+      timezone: tz,
+      start: f.start ? toZonedInputValue(zonedInputToIso(f.start, f.timezone), tz) : f.start,
+      end: f.end ? toZonedInputValue(zonedInputToIso(f.end, f.timezone), tz) : f.end,
+    }));
   };
 
   const handleSave = async () => {
@@ -146,9 +165,13 @@ export default function CalendarEventDetailPage() {
         data: {
           title: form.title.trim(),
           description: form.description,
-          startTime: new Date(form.start).toISOString(),
-          endTime: form.end ? new Date(form.end).toISOString() : undefined,
+          // Interpret the wall-clock inputs in the chosen timezone, and tell
+          // the backend which zone they belong to, so a save never silently
+          // shifts an event stored in another zone.
+          startTime: zonedInputToIso(form.start, form.timezone),
+          endTime: form.end ? zonedInputToIso(form.end, form.timezone) : undefined,
           location: form.location,
+          timezone: form.timezone,
           ...(form.allDay ? { allDay: true } : {}),
         } as never,
       });
@@ -277,6 +300,24 @@ export default function CalendarEventDetailPage() {
                     />
                   </label>
                 </div>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">Time zone</span>
+                  <select
+                    className="h-11 w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm outline-none focus:border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)]"
+                    value={form.timezone}
+                    onChange={(e) => handleTimezoneChange(e.target.value)}
+                    aria-label="Event time zone"
+                  >
+                    {TIMEZONES.map((tz) => (
+                      <option key={tz.value} value={tz.value}>
+                        {tz.label}
+                      </option>
+                    ))}
+                    {!TIMEZONES.some((tz) => tz.value === form.timezone) && form.timezone && (
+                      <option value={form.timezone}>{form.timezone}</option>
+                    )}
+                  </select>
+                </label>
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">Location</span>
                   <input
@@ -407,28 +448,32 @@ export default function CalendarEventDetailPage() {
                       ))}
                     </ul>
                   )}
-                  {/* Your response */}
-                  <div className="mt-4 border-t border-[var(--quant-border)] pt-4">
-                    <p className="mb-2 text-xs font-medium text-[var(--quant-muted-foreground)]">Your response</p>
-                    <div className="flex flex-wrap gap-2">
-                      {(['accepted', 'tentative', 'declined'] as RsvpStatus[]).map((status) => (
-                        <button
-                          key={status}
-                          type="button"
-                          onClick={() => void handleRsvp(status)}
-                          disabled={rsvp.isPending}
-                          className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[var(--quant-border)] px-4 text-sm font-medium transition-colors hover:bg-[var(--quant-muted)] disabled:opacity-50"
-                          aria-label={`Respond ${RSVP_LABELS[status]}`}
-                        >
-                          <Icon name="check" className="h-3.5 w-3.5" />
-                          {RSVP_LABELS[status]}
-                        </button>
-                      ))}
+                  {/* Your response — only offered when the viewer is an attendee.
+                      Otherwise the button 403s ("not an attendee"), so the
+                      affordance itself is wrong. */}
+                  {event.viewerIsAttendee && (
+                    <div className="mt-4 border-t border-[var(--quant-border)] pt-4">
+                      <p className="mb-2 text-xs font-medium text-[var(--quant-muted-foreground)]">Your response</p>
+                      <div className="flex flex-wrap gap-2">
+                        {(['accepted', 'tentative', 'declined'] as RsvpStatus[]).map((status) => (
+                          <button
+                            key={status}
+                            type="button"
+                            onClick={() => void handleRsvp(status)}
+                            disabled={rsvp.isPending}
+                            className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[var(--quant-border)] px-4 text-sm font-medium transition-colors hover:bg-[var(--quant-muted)] disabled:opacity-50"
+                            aria-label={`Respond ${RSVP_LABELS[status]}`}
+                          >
+                            <Icon name="check" className="h-3.5 w-3.5" />
+                            {RSVP_LABELS[status]}
+                          </button>
+                        ))}
+                      </div>
+                      {rsvpError && (
+                        <p role="alert" className="mt-2 text-sm text-red-400">{rsvpError}</p>
+                      )}
                     </div>
-                    {rsvpError && (
-                      <p role="alert" className="mt-2 text-sm text-red-400">{rsvpError}</p>
-                    )}
-                  </div>
+                  )}
                 </Section>
 
                 {/* Recurrence */}
