@@ -1067,7 +1067,9 @@ Scope: inbox page; `layout.tsx`; `useCollabDoc.ts`; image tags.
 Dependencies: none.
 
 ## QM-UIUX-040 — Inbox P1s: swipe hint, cursor pagination, hook cleanup
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-040-inbox-p1s
 Finding: (a) swipe actions not discoverable — no hint for new users; (b) page-based pagination can drift when new mail arrives during scroll — cursor-based is correct; (c) `useInfiniteInbox` and `useInbox` both exist — verify which is live, delete the dead one. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/inbox-deep-audit.md`.
 Required: one-time dismissible swipe hint; cursor pagination; remove dead hook.
 Scope: inbox components and hooks.
@@ -2095,6 +2097,13 @@ Dependencies: none.
 Status: [~] IN_PROGRESS
 Owner: muse-main
 Branch: fix/qm-uiux-093-thread-more-menu-fake-success
+
+## QM-UIUX-094 — AI error sanitizers still leak single-word host:port (P2-D39-1)
+Status: [ ] TODO
+Finding: zero-defect run-39 (2026-10-10) — the host:port redaction added by PR #751 (QuantChat sanitize-error.ts) and PR #762 (QuantMail ai-error.ts) still leaks single-word/underscore internal host:port shapes (e.g. backend:9000) in upstream error text shown to users. The current regexes require dotted hostnames. Evidence: hidden_files/zero-defect-shift-2026-10-10-0527/ (run-39 FINAL).
+Required: extend the host:port redaction in BOTH copies (apps/quantmail/src/lib/ai-error.ts and apps/quantchat/src/lib/sanitize-error.ts) to cover single-word and underscore hostnames with ports, without over-redacting legitimate user-visible text (times like 9:30, ratios, version strings). Add regression tests in both apps: the new leak shapes fail on current code, pass after the fix; keep the two implementations byte-consistent in behavior.
+Scope: apps/quantmail/src/lib/ai-error.ts + its tests; apps/quantchat/src/lib/sanitize-error.ts + its tests.
+Dependencies: none.
 Finding: Zero-defect run-38 (2026-10-10) found QuantMail web's ConversationalThreadView More-menu actions treat an apiClient {success:false} result as success — the UI confirms actions that the backend rejected. Same fake-success family as QM-UIUX-088 (apiClient never rejects → error branches are dead). Evidence: goal workspace hidden_files zero-defect run-38 w2-landing-verify.md (D38-1).
 Required: More-menu actions must check the result and surface failures honestly (error toast/state, no success confirmation on {success:false}); regression tests prove a failed API result shows failure, a successful one shows success.
 Scope: apps/quantmail ConversationalThreadView + its menu actions.
