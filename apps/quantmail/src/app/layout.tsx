@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import './shell.css';
@@ -33,6 +33,18 @@ export const metadata: Metadata = {
   },
   manifest: '/manifest.json',
   themeColor: 'var(--quant-surface-subtle)',
+};
+
+/**
+ * P1-1 (mobile): `interactiveWidget: 'resizes-content'` makes iOS Safari
+ * shrink the layout viewport when the keyboard opens instead of overlaying
+ * it — so the ThreadComposer is pushed above the keyboard rather than
+ * hidden behind it. width/initialScale preserve the default viewport.
+ */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  interactiveWidget: 'resizes-content',
 };
 
 const themeBootstrap = `

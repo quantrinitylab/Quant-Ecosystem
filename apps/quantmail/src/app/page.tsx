@@ -4208,7 +4208,8 @@ function InboxPageContent() {
  */
 function MailboxViewToggle({ isInbox }: { isInbox: boolean }) {
   const linkClass = (active: boolean) =>
-    `min-h-[36px] px-3.5 inline-flex items-center rounded-full text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316] ${
+    // P1-3 (mobile): 44px minimum touch target (was 36px).
+    `min-h-[44px] px-3.5 inline-flex items-center rounded-full text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316] ${
       active ? 'bg-[#F97316] text-black' : 'text-[#9BA0AA] hover:text-white'
     }`;
   return (

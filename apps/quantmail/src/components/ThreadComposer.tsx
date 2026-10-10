@@ -192,6 +192,11 @@ export function ThreadComposer({ conversation, onSent }: ThreadComposerProps) {
           value={body}
           onChange={(event) => setBody(event.target.value)}
           onKeyDown={handleKeyDown}
+          // P1-1 (mobile): when the iOS keyboard opens, make sure the box
+          // is scrolled into the resized visible area.
+          onFocus={() => {
+            textareaRef.current?.scrollIntoView({ block: 'nearest' });
+          }}
           rows={1}
           placeholder={`Message ${conversation.name}…`}
           aria-label={`Message ${conversation.name}`}
@@ -206,13 +211,13 @@ export function ThreadComposer({ conversation, onSent }: ThreadComposerProps) {
           className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl bg-[#F97316] px-4 text-sm font-bold text-black transition-all hover:bg-[#FB8A3D] disabled:opacity-40 disabled:hover:bg-[#F97316] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
         >
           {isSending ? (
-            <span className="inline-flex items-center gap-1.5">
-              <span
-                className="size-3.5 rounded-full border-2 border-black/30 border-t-black animate-spin"
-                aria-hidden="true"
-              />
-              Sending
-            </span>
+            // P2-7: icon-only while sending — the "Sending" label used to
+            // widen the button and squeeze the textarea. Sending state is
+            // conveyed by the spinner + disabled opacity instead.
+            <span
+              className="size-4 rounded-full border-2 border-black/30 border-t-black animate-spin"
+              aria-hidden="true"
+            />
           ) : (
             <svg
               className="size-4"
@@ -231,7 +236,9 @@ export function ThreadComposer({ conversation, onSent }: ThreadComposerProps) {
         </button>
       </div>
       <p className="mt-1.5 px-1 text-[11px] text-[#6B6E76]">
-        {newTopic ? 'Starting a new topic' : `Replying: ${subject}`} · Enter to send, Shift+Enter for a new line
+        {newTopic ? 'Starting a new topic' : `Replying: ${subject}`} · Enter to send
+        {/* P2-3: the Shift+Enter hint is meaningless on phone keyboards. */}
+        <span className="hidden sm:inline">, Shift+Enter for a new line</span>
       </p>
     </div>
   );
