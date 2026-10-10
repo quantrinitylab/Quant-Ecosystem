@@ -107,7 +107,15 @@ describe('capability-token', () => {
     const token = bearerJwt(['mail.read']);
     const parts = token.split('.');
     const sig = parts[2] ?? '';
-    const tampered = `${parts[0]}.${parts[1]}.${sig.slice(0, -1)}${sig.endsWith('A') ? 'B' : 'A'}`;
+    // Tamper the FIRST signature character, not the last: the signature is a
+    // 32-byte HMAC, so its 43rd (last) base64url character carries only 4
+    // significant bits and its low 2 bits are ignored when decoding. Changing
+    // the last char 'A' -> 'B' therefore left the decoded signature bytes
+    // identical (~1/16 of tokens, whenever the last char was 'A') and this
+    // test flaked — verification correctly did not throw. The first character
+    // is fully significant, so flipping it always changes the decoded bytes.
+    const tamperedSig = `${sig.startsWith('A') ? 'B' : 'A'}${sig.slice(1)}`;
+    const tampered = `${parts[0]}.${parts[1]}.${tamperedSig}`;
     expect(() => verifyCapabilityToken(tampered, SECRET)).toThrowError(CapabilityTokenError);
     try {
       verifyCapabilityToken(tampered, SECRET);
