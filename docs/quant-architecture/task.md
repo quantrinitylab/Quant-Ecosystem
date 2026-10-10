@@ -570,9 +570,8 @@ Finding: repository contains QuantMail health/deploy infrastructure; completion 
 Dependencies: QM-BACK-008; QM-BACK-007.
 
 ## QM-PLAT-008 — QuantMail fabricated operational-data audit
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-plat-008-fabricated-ops-data
+Status: [x] DONE — PR #777 merged 2026-10-10 (7 files, +140/-1285). Re-audit verified QM-TRUST-002's removals hold (both panels + teams/agents tabs gone, zero refs). Still fabricated and LIVE until this PR: QuantGit CopilotFleetModeView — seeded fake running tasks (68%/100%), fake "1 / 200 Credits" meter, invented token counts behind a pulsing live dot, "N Active Agents" counter, and a dispatch toast claiming "Dispatched cloud agent" for a toast-only callback. No backend exists for fleet dispatch/metering, so the view now starts empty, labels user tasks "Local only — not dispatched", the usage widget is deleted, and the toast is honest. Dead fabricated code removed (zero refs repo-wide): AGENT_FLEET_CATALOG and GlobalDeliveryGlobe (892 lines of invented infra telemetry) + its test. New CopilotFleetHonesty tests (5) fail on pristine, pass with fix; full quantgit suite 107/107; tsc 0; ESLint 0.
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/777
 Finding: prior audit identified Teams/Agents surfaces with fabricated-looking teammates/PR/deploy/heartbeat/kubectl data. Re-audit current branch and either connect to real sources or remove.
 Dependencies: QM-TRUST-002.
 
