@@ -4,11 +4,9 @@
 //   GET /spotlight   curated feed of top reels ranked by engagement
 //                    (likes, comments, shares, watch-through rate). Ranking is
 //                    cached and refreshed at most every 15 minutes (13.6).
-//                    When the ranking is (re)computed, creators of newly
-//                    featured reels are notified via push (13.7). If
-//                    @quant/recommendation is available, the per-viewer order
-//                    is personalized; otherwise it falls back to engagement-only
-//                    ordering (13.8).
+//                    If @quant/recommendation is available, the per-viewer
+//                    order is personalized; otherwise it falls back to
+//                    engagement-only ordering (13.8).
 // ============================================================================
 import type { FastifyInstance } from 'fastify';
 import type { PrismaClient } from '@prisma/client';
@@ -33,24 +31,6 @@ interface AuthedRequest {
 function optionalUserId(request: unknown): string | undefined {
   const r = request as AuthedRequest;
   return r.auth?.userId ?? r.user?.id ?? undefined;
-}
-
-interface NotificationsDispatcher {
-  dispatcher: {
-    dispatch(input: {
-      type: string;
-      title: string;
-      body: string;
-      recipientIds: string[];
-      priority?: string;
-      data?: Record<string, unknown>;
-    }): unknown;
-  };
-}
-
-function getNotifications(fastify: FastifyInstance): NotificationsDispatcher | null {
-  const n = (fastify as unknown as { notifications?: NotificationsDispatcher }).notifications;
-  return n ?? null;
 }
 
 function serializeReel(reel: RankedSpotlightReel) {
@@ -78,9 +58,6 @@ export default async function spotlightRoutes(fastify: FastifyInstance) {
   // One ranking cache per backend instance (15-minute TTL — Task 13.6).
   const spotlight = new SpotlightService();
   const reelService = new ReelService((fastify as unknown as { prisma: PrismaClient }).prisma);
-  // Reels whose creators have already received a "Featured" notification, so a
-  // reel that stays featured across refreshes is not re-notified (Task 13.7).
-  const notifiedFeatured = new Set<string>();
 
   fastify.get('/', async (request, reply) => {
     const parsed = spotlightQuerySchema.safeParse(request.query);
@@ -94,38 +71,14 @@ export default async function spotlightRoutes(fastify: FastifyInstance) {
       forceRefresh: parsed.data.refresh ?? false,
     });
 
-    // Task 13.7: on a fresh ranking, notify creators of newly featured reels.
-    if (ranking.refreshed) {
-      const notifications = getNotifications(fastify);
-      for (const reel of ranking.reels) {
-        if (reel.isFeatured && !notifiedFeatured.has(reel.id)) {
-          notifiedFeatured.add(reel.id);
-          if (notifications) {
-            try {
-              notifications.dispatcher.dispatch({
-                type: 'achievement',
-                title: 'Your reel is featured in Spotlight! ✨',
-                body: `"${reel.caption}" is trending across QuantChat.`,
-                recipientIds: [reel.creatorId],
-                priority: 'high',
-                data: { reelId: reel.id, deepLink: `/spotlight?reel=${reel.id}` },
-              });
-            } catch (err) {
-              fastify.log.error(
-                { err, reelId: reel.id },
-                'Failed to dispatch Featured notification',
-              );
-            }
-          }
-        }
-      }
-      // Drop notification records for reels that are no longer featured so they
-      // can be re-celebrated if they trend again later.
-      const stillFeatured = new Set(ranking.reels.filter((r) => r.isFeatured).map((r) => r.id));
-      for (const id of [...notifiedFeatured]) {
-        if (!stillFeatured.has(id)) notifiedFeatured.delete(id);
-      }
-    }
+    // QM-UIUX-054: Task 13.7 previously "notified" creators of newly featured
+    // reels here via `fastify.notifications.dispatcher.dispatch()` — the
+    // @quant/notifications facade, which only computed routing decisions in
+    // memory, never persisted or sent anything, and whose result was
+    // discarded. The call (and its dedupe set) was theater and has been
+    // removed with the facade. A real "your reel is featured" notification
+    // belongs in the Prisma `Notification` path the other apps use
+    // (see QuantMail QM-UIUX-052), not a routing-decision calculator.
 
     // Task 13.8: personalize per viewer when possible (graceful fallback).
     let ordered = ranking.reels;
