@@ -409,28 +409,38 @@ Scope: flutter_apps/workspaces/phase1/apps/quantmail/flutter/packages/quant_core
 Dependencies: QM-AUTH-008; QM-PLAT-006; QM-PLAT-010.
 
 ## QM-SCREEN-002 — Login / registration / verification / recovery / 2FA
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: Track A screen-audit subagent
+Branch: architecture/quant-company-system-v1
 Scope: M00 auth family.
 Required: Web + Tauri + Capacitor/Flutter parity, responsive states, truthful security copy, safe navigation, recovery/verification contracts, 2FA lifecycle, anti-enumeration, secure handoff.
 Dependencies: QM-AUTH-002 through QM-AUTH-010.
 
 ## QM-SCREEN-003 — Workspace shell / navigation / account switcher / command palette
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: Track A screen-audit subagent
+Branch: architecture/quant-company-system-v1
 Required: one scroll owner, keyboard navigation, mobile drawer/bottom navigation, desktop density, route prefetch, deep links, account switching, notifications, Quanty persistent surface, accessibility.
 Dependencies: QM-WORK-001/002.
 
 ## QM-SCREEN-004 — Inbox / triage / priority / bulk actions
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: Track A screen-audit subagent
+Branch: architecture/quant-company-system-v1
 Required: cursor pagination, virtualized lists, unread/read, archive/delete/spam, labels/folders, bulk actions, swipe, keyboard, pull-to-refresh, smart brief only from real data, offline sync and conflict handling.
 Dependencies: QM-WORK-003.
 
 ## QM-SCREEN-005 — Thread / reply / attachments / participants / related context
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: Track A screen-audit subagent
+Branch: architecture/quant-company-system-v1
 Required: message state, thread ordering, reply/reply-all/forward, attachments, external sender/phishing indicators, Calendar/Drive/Contacts/QuantGit relations, Quanty evidence + draft diff, realtime and offline reconciliation.
 Dependencies: QM-WORK-004.
 
 ## QM-SCREEN-006 — Compose / drafts / schedule / send verification
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: Track A screen-audit subagent
+Branch: architecture/quant-company-system-v1
 Required: recipient resolution, autosave, attachment upload, Drive insertion, signatures, scheduled send, idempotency, send status, retry/unknown outcome, authoritative verification, voice Quanty flow.
 Dependencies: QM-WORK-005; QM-QUANTY-003.
 
