@@ -64,6 +64,25 @@ describe('SearchQueryService.parse', () => {
     const p = service.parse('priority:high');
     expect(p.terms).toEqual(['priority:high']);
   });
+
+  it('parses in:<knownType> case-insensitively into inFolderTypes', () => {
+    const p = service.parse('in:inbox in:SENT in:Drafts in:SPAM in:trash in:Archive');
+    expect(p.inFolderTypes).toEqual(['inbox', 'sent', 'drafts', 'spam', 'trash', 'archive']);
+    expect(p.folderIds).toEqual([]);
+  });
+
+  it('maps unknown in: values to folderIds (never silently dropped)', () => {
+    const p = service.parse('in:custom-folder-1 in:work');
+    expect(p.inFolderTypes).toEqual([]);
+    expect(p.folderIds).toEqual(['custom-folder-1', 'work']);
+  });
+
+  it('parses combined operators with in: (from:x in:inbox)', () => {
+    const p = service.parse('from:alice in:inbox invoice');
+    expect(p.from).toEqual(['alice']);
+    expect(p.inFolderTypes).toEqual(['inbox']);
+    expect(p.terms).toEqual(['invoice']);
+  });
 });
 
 describe('SearchQueryService.buildEmailWhere', () => {
@@ -119,6 +138,68 @@ describe('SearchQueryService.buildEmailWhere', () => {
     const and = where.AND as Record<string, unknown>[];
     expect(and).toContainEqual({ toAddresses: { array_contains: 'bob@x.com' } });
     expect(and).toContainEqual({ labels: { array_contains: 'work' } });
+  });
+
+  it('maps in:sent to the sent condition (mirrors GET /emails folderType=SENT)', () => {
+    const where = service.buildEmailWhere('user-1', 'in:sent');
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toContainEqual({ isSent: true, isTrash: false });
+  });
+
+  it('maps in:trash to the trash condition', () => {
+    const where = service.buildEmailWhere('user-1', 'in:trash');
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toContainEqual({ isTrash: true });
+  });
+
+  it('maps in:archive to the archive-folder relation condition', () => {
+    const where = service.buildEmailWhere('user-1', 'in:archive');
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toContainEqual({
+      isTrash: false,
+      folder: { is: { type: 'ARCHIVE' } },
+    });
+  });
+
+  it('maps in:inbox to the default-inbox condition (unfiled, INBOX folder, or sent)', () => {
+    const where = service.buildEmailWhere('user-1', 'in:inbox');
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toContainEqual({
+      isDraft: false,
+      isSpam: false,
+      isTrash: false,
+      AND: [
+        {
+          OR: [
+            { folderId: null },
+            { folder: { is: { type: 'INBOX' } } },
+            { isSent: true },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('ORs multiple in: types instead of ANDing contradictory flags', () => {
+    const where = service.buildEmailWhere('user-1', 'in:trash in:spam');
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toContainEqual({
+      OR: [{ isTrash: true }, { isSpam: true, isTrash: false }],
+    });
+  });
+
+  it('combines in: with other operators and explicit folder ids', () => {
+    const where = service.buildEmailWhere('user-1', 'from:alice in:inbox folder:fid-1');
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toContainEqual({ fromAddress: { contains: 'alice', mode: 'insensitive' } });
+    expect(and).toContainEqual({ folderId: { in: ['fid-1'] } });
+    expect(and.some((c) => 'isDraft' in c && 'isTrash' in c)).toBe(true);
+  });
+
+  it('adds no folder condition when no in: operator is present', () => {
+    const where = service.buildEmailWhere('user-1', 'from:alice');
+    const and = where.AND as Record<string, unknown>[];
+    expect(and.some((c) => 'isSent' in c || 'isTrash' in c || 'folder' in c)).toBe(false);
   });
 });
 
@@ -437,5 +518,87 @@ describe('SearchQueryService.search', () => {
     expect(dataCall!).toContain('%bob@example.com%');
     expect(dataCall!).toContain('%finance%');
     expect(dataCall!).toContain(true);
+  });
+
+  it('wires in: types into the raw full-text search SQL branch (in:inbox)', async () => {
+    prisma.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*)::int AS total')) {
+        return [{ total: 2 }];
+      }
+      return [{ id: 'email-inbox-1' }, { id: 'email-inbox-2' }];
+    });
+
+    const result = await service.search('user-1', 'in:inbox invoice', { page: 1, limit: 10 });
+
+    expect(result.total).toBe(2);
+    const calls = prisma.$queryRawUnsafe.mock.calls;
+    const dataCall = calls.find((c: any[]) => String(c[0]).includes('SELECT id, "userId"'));
+    expect(dataCall).toBeDefined();
+
+    const sql = String(dataCall![0]);
+    // Mirrors folderTypeCondition('inbox'): not draft/spam/trash, and
+    // unfiled OR in the INBOX folder OR sent in an active thread.
+    expect(sql).toContain('"isDraft" = $');
+    expect(sql).toContain('"isSpam" = $');
+    expect(sql).toContain('"isTrash" = $');
+    expect(sql).toContain('"folderId" IS NULL');
+    expect(sql).toContain('email_folders');
+    expect(sql).toContain("type = 'INBOX'");
+    expect(sql).toContain('"isSent" = $');
+    // Bind values: three falses for draft/spam/trash, true for the isSent arm.
+    expect(dataCall!.filter((p) => p === false).length).toBeGreaterThanOrEqual(3);
+    expect(dataCall!).toContain(true);
+  });
+
+  it('wires in:sent into the raw full-text search SQL branch', async () => {
+    prisma.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*)::int AS total')) {
+        return [{ total: 1 }];
+      }
+      return [{ id: 'email-sent-1' }];
+    });
+
+    const result = await service.search('user-1', 'in:sent invoice', { page: 1, limit: 10 });
+
+    expect(result.total).toBe(1);
+    const calls = prisma.$queryRawUnsafe.mock.calls;
+    const dataCall = calls.find((c: any[]) => String(c[0]).includes('SELECT id, "userId"'));
+    expect(dataCall).toBeDefined();
+
+    const sql = String(dataCall![0]);
+    expect(sql).toContain('"isSent" = $');
+    expect(sql).toContain('"isTrash" = $');
+    // No folder-table subquery needed for the flag-based sent condition.
+    expect(sql).not.toContain('email_folders');
+  });
+
+  it('wires multiple in: types into the raw SQL branch as an OR', async () => {
+    prisma.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*)::int AS total')) {
+        return [{ total: 1 }];
+      }
+      return [{ id: 'email-1' }];
+    });
+
+    await service.search('user-1', 'in:trash in:spam invoice', { page: 1, limit: 10 });
+
+    const calls = prisma.$queryRawUnsafe.mock.calls;
+    const dataCall = calls.find((c: any[]) => String(c[0]).includes('SELECT id, "userId"'));
+    const sql = String(dataCall![0]);
+    expect(sql).toContain('"isTrash" = $');
+    expect(sql).toContain('"isSpam" = $');
+    expect(sql).toContain(' OR ');
+  });
+
+  it('wires in: types into the Prisma fallback path when $queryRawUnsafe throws', async () => {
+    prisma.$queryRawUnsafe.mockRejectedValue(new Error('raw query failed'));
+    prisma.email.findMany.mockResolvedValue([{ id: 'email-prisma-1' }]);
+    prisma.email.count.mockResolvedValue(1);
+
+    const result = await service.search('user-1', 'in:trash invoice', { page: 1, limit: 10 });
+
+    expect(result.data).toEqual([{ id: 'email-prisma-1' }]);
+    const callArg = prisma.email.findMany.mock.calls[0]?.[0] as { where: { AND: unknown[] } };
+    expect(callArg.where.AND).toContainEqual({ isTrash: true });
   });
 });
