@@ -208,7 +208,20 @@ export function stripSendEmailEnvelope(text: string): string {
   return (text.slice(0, start) + text.slice(end)).trim() || text;
 }
 
-const STORAGE_KEY = 'quantmail_quanty_chats_v1';
+/*
+ * QM-QUANTY-005: Quanty chat history is classified as EPHEMERAL session state.
+ * Transcripts live in component state only, for as long as this page is open;
+ * a reload starts fresh. They are never written to browser storage: a durable
+ * plaintext copy of everything a user said to the assistant — opened, as this
+ * drawer can be, with a live email in context — sits outside every retention,
+ * export and deletion control the product offers, and localStorage is not a
+ * memory contract.
+ *
+ * This key is the pre-classification store's name. Nothing writes it any more;
+ * it is named here only so the drawer can DELETE it on mount and take the
+ * plaintext earlier versions left on this browser with it.
+ */
+const LEGACY_STORAGE_KEY = 'quantmail_quanty_chats_v1';
 
 /*
  * ─── Talking to the model ──────────────────────────────────────────────────────
@@ -484,15 +497,19 @@ export function QuantyCopilotDrawer({
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Load history from localStorage
+  /*
+   * Nothing is restored on mount — history is session-only (QM-QUANTY-005,
+   * see LEGACY_STORAGE_KEY). The one storage touch left is the purge: a
+   * browser that ran an older build may still hold full transcripts under
+   * the legacy key, and leaving them in place because the new code no longer
+   * reads them would keep the exposure while removing the evidence.
+   */
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        setHistoryList(JSON.parse(saved));
-      }
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
     } catch {
-      // ignore
+      // Storage can be unavailable (private mode, blocked cookies). The
+      // purge is best-effort; nothing in the drawer depends on it.
     }
   }, []);
 
@@ -513,25 +530,26 @@ export function QuantyCopilotDrawer({
     }
   }, [messages, isLoading, failure]);
 
+  /*
+   * Snapshot the running conversation into the session chat list. State only:
+   * this used to also write the transcript to localStorage, which is the
+   * persistence QM-QUANTY-005 removes — the list now lasts exactly as long
+   * as the page does and not one reload longer.
+   */
   const saveCurrentConversation = (newMsgs: ChatTurn[]) => {
     if (newMsgs.length < 2) return;
-    try {
-      const firstUserMsg = newMsgs.find((m) => m.role === 'user')?.text || 'Conversation';
-      const newItem: ChatHistoryItem = {
-        id: Date.now().toString(),
-        date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        preview: firstUserMsg.slice(0, 45),
-        messages: newMsgs,
-      };
-      const updated = [newItem, ...historyList.filter((h) => h.preview !== newItem.preview)].slice(
-        0,
-        15,
-      );
-      setHistoryList(updated);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
+    const firstUserMsg = newMsgs.find((m) => m.role === 'user')?.text || 'Conversation';
+    const newItem: ChatHistoryItem = {
+      id: Date.now().toString(),
+      date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      preview: firstUserMsg.slice(0, 45),
+      messages: newMsgs,
+    };
+    const updated = [newItem, ...historyList.filter((h) => h.preview !== newItem.preview)].slice(
+      0,
+      15,
+    );
+    setHistoryList(updated);
   };
 
   /**
@@ -712,9 +730,17 @@ export function QuantyCopilotDrawer({
 
   const clearHistory = () => {
     setHistoryList([]);
-    localStorage.removeItem(STORAGE_KEY);
+    // The list is memory-only now, so clearing it is the whole job. The
+    // removeItem stays as a belt-and-braces purge of the legacy key: a user
+    // clearing their chats should not leave a pre-classification transcript
+    // behind just because this session never wrote it.
+    try {
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+    } catch {
+      // ignore — storage may be unavailable; the in-memory clear already ran
+    }
     setShowHistoryMenu(false);
-    showToast({ text: 'Recent chat history cleared', type: 'info' });
+    showToast({ text: 'Session chat history cleared', type: 'info' });
   };
 
   const loadChat = (item: ChatHistoryItem) => {
@@ -727,9 +753,7 @@ export function QuantyCopilotDrawer({
 
   const deleteChat = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const next = historyList.filter((x) => x.id !== id);
-    setHistoryList(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    setHistoryList(historyList.filter((x) => x.id !== id));
   };
 
   // A failed first turn still put the user's own prompt on screen, so the
@@ -800,8 +824,8 @@ export function QuantyCopilotDrawer({
                       ? 'text-[var(--quant-primary)] bg-[var(--quant-primary)]/12 shadow-sm'
                       : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-white/[0.04]'
                   }`}
-                  title="Chat history"
-                  aria-label="Chat history"
+                  title="Chats from this session"
+                  aria-label="Chats from this session"
                   aria-haspopup="menu"
                   aria-expanded={showHistoryMenu}
                 >
@@ -850,7 +874,7 @@ export function QuantyCopilotDrawer({
                     className="absolute right-4 top-12 z-50 w-64 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] p-3 shadow-2xl space-y-2 text-xs"
                   >
                     <div className="flex items-center justify-between pb-1.5 border-b border-[var(--quant-surface-elevated)]">
-                      <span className="font-semibold text-[var(--quant-foreground)]">Recent Chats</span>
+                      <span className="font-semibold text-[var(--quant-foreground)]">Session Chats</span>
                       {historyList.length > 0 && (
                         <button
                           type="button"
@@ -864,7 +888,8 @@ export function QuantyCopilotDrawer({
 
                     {historyList.length === 0 ? (
                       <p className="text-[11px] text-[var(--quant-muted-foreground)] py-2 text-center">
-                        No previous chats recorded
+                        No chats yet in this session. Chats are kept only while this page is open —
+                        they are not saved.
                       </p>
                     ) : (
                       <div className="max-h-48 overflow-y-auto space-y-1">
@@ -1129,8 +1154,8 @@ export function QuantyCopilotDrawer({
 
                 {/*
                   Not an assistant bubble. An error styled as one gets written to
-                  chat history by `saveCurrentConversation` and read back a week
-                  later as something Quanty actually said — which is how the
+                  chat history by `saveCurrentConversation` and read back later
+                  as something Quanty actually said — which is how the
                   fabricated fallback this replaces did its damage. It keeps the
                   assistant surface so it sits in the column, and carries rose
                   type (the hue this file already uses for destructive actions)
