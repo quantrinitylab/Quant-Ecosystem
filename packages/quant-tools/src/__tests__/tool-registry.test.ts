@@ -126,10 +126,10 @@ describe('ToolRegistry', () => {
     expect(registry.listAll()).toHaveLength(1);
   });
 
-  it('should register all 85 predefined tools', () => {
+  it('should register all 87 predefined tools', () => {
     for (const tool of allTools) {
       registry.register(tool);
     }
-    expect(registry.listAll()).toHaveLength(85);
+    expect(registry.listAll()).toHaveLength(87);
   });
 });

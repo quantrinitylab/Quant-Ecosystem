@@ -50,7 +50,8 @@ export const mailTools: ToolDefinition[] = [
       folder: {
         type: 'string',
         required: false,
-        description: 'Folder to search in',
+        description:
+          'Folder to search in (NOT WIRED YET — accepted for forward compatibility; search currently covers the whole mailbox)',
         default: 'inbox',
       },
       limit: { type: 'number', required: false, description: 'Max results to return', default: 20 },
@@ -139,5 +140,49 @@ export const mailTools: ToolDefinition[] = [
     costEstimate: 'free',
     undoRecipe: null,
     tags: ['email', 'draft', 'compose'],
+  },
+  {
+    id: 'quantmail.listUnread',
+    appId: 'quantmail',
+    name: 'List Unread Emails',
+    description: 'List the most recent unread emails in the inbox (read-only)',
+    inputSchema: {
+      limit: { type: 'number', required: false, description: 'Max results to return', default: 20 },
+    },
+    outputSchema: {
+      type: 'object',
+      description: 'Unread email summaries plus the inbox unread count',
+      fields: {
+        emails: { type: 'array', description: 'Unread email summaries' },
+        unreadCount: { type: 'number', description: "Backend's total unread count for the inbox" },
+      },
+    },
+    permissionTier: 0,
+    costEstimate: 'free',
+    undoRecipe: null,
+    tags: ['email', 'unread', 'inbox'],
+  },
+  {
+    id: 'quantmail.getMessage',
+    appId: 'quantmail',
+    name: 'Get Email Message',
+    description: 'Fetch a single email by its ID, with full body text (read-only)',
+    inputSchema: {
+      messageId: { type: 'string', required: true, description: 'ID of the email to fetch' },
+    },
+    outputSchema: {
+      type: 'object',
+      description: 'Full email detail',
+      fields: {
+        id: { type: 'string', description: 'Email ID' },
+        subject: { type: 'string', description: 'Subject line' },
+        from: { type: 'string', description: 'Sender address' },
+        bodyText: { type: 'string', description: 'Plain-text body' },
+      },
+    },
+    permissionTier: 0,
+    costEstimate: 'free',
+    undoRecipe: null,
+    tags: ['email', 'read', 'message'],
   },
 ];
