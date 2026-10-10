@@ -5,13 +5,14 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { spring } from '@quant/brand';
 import { BottomNav } from '@quant/shared-ui';
-import { useRealtime } from '../../providers/realtime-context';
+import { chatSocket } from '../../services/chat-socket';
 import { MapCanvas } from '../../components/map/MapCanvas';
 import { FriendPin } from '../../components/map/FriendPin';
 import { GhostModeToggle } from '../../components/map/GhostModeToggle';
 import { HeatmapOverlay } from '../../components/map/HeatmapOverlay';
 import { navItems, routes } from '../../lib/navigation';
 import { shouldBroadcastLocation } from './locationBroadcast';
+import { applyFriendLocationUpdate, type FriendLocationUpdate } from './friendLocationUpdate';
 import type { GeoPosition, FriendLocation } from '../../components/map';
 import { apiFetchRaw } from '@quant/api-client';
 
@@ -63,7 +64,17 @@ interface FriendsOnMapResponse {
 
 export default function MapPage() {
   const router = useRouter();
-  const { subscribe, publish } = useRealtime();
+
+  // QM-UIUX-060: migrated from the dead RealtimeProvider (`/ws`) to the
+  // working `chatSocket` singleton (`/ws/chat`). Honest transport note: the
+  // backend `/ws/chat` handler has no map channel today, so location frames
+  // below are best-effort hints on the single real connection (the old
+  // provider's socket had the same limitation) — the source of truth for
+  // friend positions is the real REST endpoint, which is refetched on the
+  // same 30s cadence as the location broadcast.
+  const publish = useCallback((event: Record<string, unknown>) => {
+    chatSocket.send({ type: String(event.type ?? ''), ...event });
+  }, []);
 
   const [activeTab, setActiveTab] = useState<'friends' | 'explore'>('friends');
   const [ghostMode, setGhostMode] = useState(false);
@@ -78,39 +89,48 @@ export default function MapPage() {
 
   // Fetch the caller's close friends who are currently sharing their location
   // from the real backend (GET /api/map/friends → Fastify GET /map/friends).
+  const loadFriends = useCallback(async (isCancelled: () => boolean) => {
+    try {
+      const res = await apiFetchRaw('/api/map/friends');
+      const json = res.ok ? ((await res.json()) as FriendsOnMapResponse) : null;
+      if (isCancelled() || !json?.success) return;
+      const list = Array.isArray(json.data?.friends) ? json.data.friends : [];
+      setFriends(
+        list.map((f) => ({
+          userId: String(f.userId),
+          username: f.username ?? '',
+          avatarUrl: f.avatarUrl ?? '',
+          position: [Number(f.longitude), Number(f.latitude)] as [number, number],
+          lastUpdated: f.updatedAt ? new Date(f.updatedAt) : new Date(),
+          // The backend does not expose presence for map friends, and the
+          // map has no presence source — so this starts false rather than
+          // inventing an online state.
+          isOnline: false,
+        })),
+      );
+    } catch {
+      // Leave the list as-is: the empty state below is honest about that.
+    } finally {
+      if (!isCancelled()) setFriendsLoaded(true);
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
+    const isCancelled = () => cancelled;
 
-    apiFetchRaw('/api/map/friends')
-      .then((res) => (res.ok ? (res.json() as Promise<FriendsOnMapResponse>) : null))
-      .then((json) => {
-        if (cancelled || !json?.success) return;
-        const list = Array.isArray(json.data?.friends) ? json.data.friends : [];
-        setFriends(
-          list.map((f) => ({
-            userId: String(f.userId),
-            username: f.username ?? '',
-            avatarUrl: f.avatarUrl ?? '',
-            position: [Number(f.longitude), Number(f.latitude)] as [number, number],
-            lastUpdated: f.updatedAt ? new Date(f.updatedAt) : new Date(),
-            // The backend does not expose presence for map friends, and the
-            // map has no presence source — so this starts false rather than
-            // inventing an online state.
-            isOnline: false,
-          })),
-        );
-      })
-      .catch(() => {
-        // Leave the list empty: the empty state below is honest about that.
-      })
-      .finally(() => {
-        if (!cancelled) setFriendsLoaded(true);
-      });
+    void loadFriends(isCancelled);
+    // Refetch on the broadcast cadence so friend pins track the real backend
+    // state even though the socket has no map channel (see publish note).
+    const refetchInterval = setInterval(() => {
+      void loadFriends(isCancelled);
+    }, 30000);
 
     return () => {
       cancelled = true;
+      clearInterval(refetchInterval);
     };
-  }, []);
+  }, [loadFriends]);
 
   // Handle location acquired from MapCanvas
   const handleLocationAcquired = useCallback((pos: GeoPosition) => {
@@ -122,48 +142,23 @@ export default function MapPage() {
   }, []);
 
   // ─── Task 8.2: Subscribe to friend location updates via WebSocket ─────
+  // Over the shared chatSocket singleton (QM-UIUX-060). Normalized events
+  // carry their payload in `data`; legacy passthrough frames use `payload`.
   useEffect(() => {
-    const unsub = subscribe('map', (event: { type: string; payload: unknown }) => {
-      if (event.type === 'friend-location-update') {
-        const update = event.payload as {
-          userId: string;
-          username: string;
-          avatarUrl: string;
-          position: [number, number];
-          isOnline: boolean;
-        };
+    chatSocket.acquire();
 
-        setFriends((prev) => {
-          const idx = prev.findIndex((f) => f.userId === update.userId);
-          if (idx >= 0) {
-            // Task 8.4: Update position (animated via FriendPin CSS transition)
-            const updated = [...prev];
-            updated[idx] = {
-              ...updated[idx],
-              position: update.position,
-              lastUpdated: new Date(),
-              isOnline: update.isOnline,
-            };
-            return updated;
-          }
-          // New friend appearing
-          return [
-            ...prev,
-            {
-              userId: update.userId,
-              username: update.username,
-              avatarUrl: update.avatarUrl,
-              position: update.position,
-              lastUpdated: new Date(),
-              isOnline: update.isOnline,
-            },
-          ];
-        });
-      }
+    const unsubscribeMessage = chatSocket.onMessage((event: any) => {
+      if (event?.type !== 'friend-location-update') return;
+      const update = (event?.data ?? event?.payload) as FriendLocationUpdate | undefined;
+      if (!update?.userId || !Array.isArray(update.position)) return;
+      setFriends((prev) => applyFriendLocationUpdate(prev, update));
     });
 
-    return unsub;
-  }, [subscribe]);
+    return () => {
+      unsubscribeMessage();
+      chatSocket.release();
+    };
+  }, []);
 
   // ─── Task 8.6: Location broadcast every 30s when ghost mode is OFF ────
   useEffect(() => {
@@ -175,7 +170,7 @@ export default function MapPage() {
 
     if (!shouldBroadcastLocation(ghostMode)) {
       // Task 8.5: When ghost mode enabled, send hide event and never broadcast
-      publish('map', {
+      publish({
         type: 'ghost-mode-enabled',
         timestamp: Date.now(),
       });
@@ -188,7 +183,7 @@ export default function MapPage() {
 
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          publish('map', {
+          publish({
             type: 'location-update',
             payload: {
               position: [pos.coords.longitude, pos.coords.latitude],
@@ -229,13 +224,13 @@ export default function MapPage() {
           broadcastIntervalRef.current = null;
         }
         // Send ghost mode event to hide pin from friends within 5s
-        publish('map', {
+        publish({
           type: 'ghost-mode-enabled',
           timestamp: Date.now(),
         });
       } else {
         // Disable ghost mode → resume broadcasting
-        publish('map', {
+        publish({
           type: 'ghost-mode-disabled',
           timestamp: Date.now(),
         });
