@@ -7,6 +7,7 @@ import { AppSidebar } from '../../../components/AppSidebar';
 import { ConversationalThreadView } from '../../../components/ConversationalThreadView';
 import { useMailMutations } from '../../../hooks/useMailMutations';
 import { useEdgeSwipeBack } from '../../../hooks/useEdgeSwipeBack';
+import { useThreadViewKeyboard } from '../../../hooks/useThreadViewKeyboard';
 
 function validInternalReturnTo(value: string | null): string | null {
   if (!value) return null;
@@ -61,6 +62,45 @@ export default function ThreadPage() {
 
   // Left-edge swipe → same as the back affordance: leave the thread.
   useEdgeSwipeBack(() => leaveThread(false), { disabled: !threadId });
+
+  /*
+   * CUST-P1-4: thread-view keyboard shortcuts. The inbox binds `x u s e f`
+   * in the `inbox` scope only; without these thread-scoped counterparts the
+   * keys were silent no-ops here. `r` focuses the reply box with an explicit
+   * preventDefault so the typed `r` never leaks into the body; Esc closes
+   * the thread (it does not fire while typing — the engine skips bindings
+   * when focus is in an input, so the inline quoted-message Escape keeps
+   * working).
+   */
+  useThreadViewKeyboard({
+    onArchive: useCallback(() => {
+      if (!threadId) return;
+      void mutations.archive([threadId]);
+      leaveThread(true);
+    }, [threadId, mutations, leaveThread]),
+    onMarkUnread: useCallback(() => {
+      if (!threadId) return;
+      void mutations.markUnread([threadId]);
+    }, [threadId, mutations]),
+    onToggleStar: useCallback(() => {
+      if (!threadId) return;
+      void mutations.toggleStar([threadId]);
+    }, [threadId, mutations]),
+    onForward: useCallback(() => {
+      if (!threadId) return;
+      router.push(`/compose?forward=${encodeURIComponent(threadId)}`);
+    }, [threadId, router]),
+    onFocusReply: useCallback(() => {
+      document.getElementById('chatbot-reply-input')?.focus();
+    }, []),
+    onSelect: useCallback(() => {
+      if (!threadId) return;
+      router.push(`/?selected=${encodeURIComponent(threadId)}`);
+    }, [threadId, router]),
+    onClose: useCallback(() => {
+      leaveThread(false);
+    }, [leaveThread]),
+  });
 
   if (!threadId) {
     return (

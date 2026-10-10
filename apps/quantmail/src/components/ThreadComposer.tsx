@@ -197,6 +197,7 @@ export function ThreadComposer({ conversation, onSent, onSendStart }: ThreadComp
           {newTopic ? 'Re:' : 'New topic'}
         </button>
         <textarea
+          id="people-reply-input"
           ref={textareaRef}
           value={body}
           onChange={(event) => setBody(event.target.value)}

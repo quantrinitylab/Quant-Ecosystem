@@ -37,6 +37,19 @@ vi.mock('../hooks/useInbox', () => ({
     refetch: inboxState.refetch,
   }),
 }));
+// The people thread page wires CUST-P1-4 keyboard shortcuts through
+// useMailMutations, which needs a react-query QueryClientProvider in
+// production (provided by the root layout). These tests render the page
+// without providers, so the sibling-owned hook is mocked against its
+// contract — the same pattern used for useInbox above.
+const mutationsMock = vi.hoisted(() => ({
+  archive: vi.fn(),
+  markUnread: vi.fn(),
+  toggleStar: vi.fn(),
+}));
+vi.mock('../hooks/useMailMutations', () => ({
+  useMailMutations: () => mutationsMock,
+}));
 vi.mock('../providers/auth-provider', () => ({
   useAuth: () => ({ user: { email: 'me@quantmail.in' } }),
 }));

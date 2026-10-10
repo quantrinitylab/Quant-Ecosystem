@@ -343,7 +343,14 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       keys: '[',
       icon: 'sidebar',
       keywords: ['collapse', 'expand', 'navigation'],
-      run: () => window.dispatchEvent(new CustomEvent('quant:sidebar:toggle')),
+      // CUST-P1-4: the desktop rail is pinned (toggling is a no-op by design
+      // on wide screens — the hamburger is gone), so the key is only enabled
+      // where it can act: the mobile drawer below `md`. Without this the `?`
+      // sheet advertises a dead key on desktop.
+      enabled: () => typeof window === 'undefined' || window.innerWidth < 768,
+      run: () => {
+        window.dispatchEvent(new CustomEvent('quant:sidebar:toggle'));
+      },
     },
     {
       id: 'view.refresh',

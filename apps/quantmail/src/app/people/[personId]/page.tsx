@@ -1,16 +1,18 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { AppShell } from '../../../components/AppShell';
 import { AppSidebar } from '../../../components/AppSidebar';
 import { useInbox } from '../../../hooks/useInbox';
+import { useMailMutations } from '../../../hooks/useMailMutations';
 import { useAuth } from '../../../providers/auth-provider';
 import { groupEmailsByPerson, type PersonConversation } from '../../../lib/peopleGrouping';
 import { PersonThread } from '../../../components/PersonThread';
 import { ThreadComposer } from '../../../components/ThreadComposer';
 import type { Email } from '../../../types';
+import { useThreadViewKeyboard } from '../../../hooks/useThreadViewKeyboard';
 
 /**
  * One person's full conversation: every message in both directions,
@@ -23,8 +25,10 @@ import type { Email } from '../../../types';
  */
 export default function PersonPage() {
   const params = useParams();
+  const router = useRouter();
   const { user } = useAuth();
   const currentUserEmail = user?.email ?? '';
+  const mutations = useMailMutations();
 
   const rawPersonId = typeof params?.personId === 'string' ? params.personId : '';
   const personKey = useMemo(() => {
@@ -101,6 +105,52 @@ export default function PersonPage() {
       lastActivityAt: new Date(),
     };
   }, [conversation, pendingSends, currentUserEmail]);
+
+  const messageIds = useMemo(
+    () => (conversation ? conversation.messages.map((message) => message.id) : []),
+    [conversation],
+  );
+
+  /*
+   * CUST-P1-4: thread-view keyboard shortcuts for the people conversation
+   * view. Same contract as /thread/[id]: the keys act on the open person
+   * conversation instead of being silent no-ops.
+   */
+  useThreadViewKeyboard({
+    onArchive: useCallback(() => {
+      if (messageIds.length === 0) return;
+      void mutations.archive(messageIds);
+      router.push('/people');
+    }, [messageIds, mutations, router]),
+    onMarkUnread: useCallback(() => {
+      if (messageIds.length === 0) return;
+      void mutations.markUnread(messageIds);
+    }, [messageIds, mutations]),
+    onToggleStar: useCallback(() => {
+      if (messageIds.length === 0) return;
+      void mutations.toggleStar(messageIds);
+    }, [messageIds, mutations]),
+    onForward: useCallback(() => {
+      const lastId = messageIds[messageIds.length - 1];
+      if (!lastId) return;
+      router.push(`/compose?forward=${encodeURIComponent(lastId)}`);
+    }, [messageIds, router]),
+    onFocusReply: useCallback(() => {
+      // The updates world renders no composer; focusing is a no-op there.
+      document.getElementById('people-reply-input')?.focus();
+    }, []),
+    onSelect: useCallback(() => {
+      // Select by thread id so the inbox pre-selects the right row; fall back
+      // to the last message id if the thread id is absent.
+      const lastMessage = conversation?.messages[conversation.messages.length - 1];
+      const selectId = lastMessage?.threadId || lastMessage?.id;
+      if (!selectId) return;
+      router.push(`/?selected=${encodeURIComponent(selectId)}`);
+    }, [conversation, router]),
+    onClose: useCallback(() => {
+      router.push('/people');
+    }, [router]),
+  });
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell" aria-label="Conversation">
