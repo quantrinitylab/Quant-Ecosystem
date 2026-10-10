@@ -86,7 +86,7 @@ vi.mock('next/link', () => ({
 }));
 
 import { ThreadComposer, defaultReplySubject, executeThreadSend } from '../components/ThreadComposer';
-import { PeopleHome } from '../app/people/page';
+import { PeopleHome } from '../components/PeopleHome';
 import PersonPage from '../app/people/[personId]/page';
 
 function makeConversation(overrides: Record<string, unknown> = {}) {

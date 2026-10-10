@@ -66,7 +66,7 @@ import { IconCheck, IconFilter, IconSpam, IconX } from '../components/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateMailLists } from '../lib/offline/folders';
 import { AddFolderModal, type FolderDraft } from '../components/AddFolderModal';
-import { PeopleHome } from './people/page';
+import { PeopleHome } from '../components/PeopleHome';
 import type { ContactGroup, Email, EmailCategory } from '../types';
 
 export type { ConversationThread };
