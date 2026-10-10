@@ -7,15 +7,14 @@
 import React from 'react';
 
 interface OnboardingHeroProps {
-  onContinueQuantSSO: () => void;
-  // Guest mode was removed (P0-2, 2026-10-06): guest chat 401'd on every
-  // message. The second CTA is now a plain sign-in entry point.
+  // R3-P1-4 (2026-10-10): single sign-in entry point. The hero used to offer a
+  // direct-SSO button AND a sign-in button — two of the 4+ paths on one
+  // screen. Every CTA now routes to /login, which presents SSO + email.
   onSignIn: () => void;
   onDismiss?: () => void;
 }
 
 export function OnboardingHero({
-  onContinueQuantSSO,
   onSignIn,
   onDismiss,
 }: OnboardingHeroProps) {
@@ -86,24 +85,16 @@ export function OnboardingHero({
           </div>
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Buttons — single sign-in path (R3-P1-4): /login presents the
+            SSO hero and email credentials. */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto pt-2">
           <button
             type="button"
-            onClick={onContinueQuantSSO}
+            onClick={onSignIn}
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-semibold text-sm shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all cursor-pointer"
           >
-            <span className="text-base">⚡</span>
-            <span>Continue with Quant Account</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onSignIn}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-hover)] text-[var(--foreground)] font-medium text-sm transition-colors cursor-pointer"
-          >
             <span>Sign in to start chatting</span>
-            <span className="text-xs text-[var(--foreground-secondary)]">→</span>
+            <span className="text-xs">→</span>
           </button>
         </div>
 
