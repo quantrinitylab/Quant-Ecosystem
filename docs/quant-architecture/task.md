@@ -764,9 +764,8 @@ Scope: flutter_apps/apps/quant_mail; flutter_apps/apps/quant_calendar; apps/quan
 Dependencies: QM-PLAT-006; QM-SCREEN-008/009; Calendar architecture.
 
 ## QM-SCREEN-026 — QuantMail Calendar UI must eliminate misleading search-performance claims
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-screen-026-calendar-claim
+Status: [x] DONE-superseded
+Resolution: premise verified stale 2026-10-11 — the <5ms claim was purged 2026-10-08 by 1b5d7713e (fix: purge <5ms/Sub-5ms search-performance claims (QM-SCREEN-026)); re-verified on main 4dcf7bd95: QuantPillarTopBar calendar placeholder is now 'Search events, meetings, attendees…' with no claim, repo-wide non-test grep for 5ms claims = 0 hits, absence pinned by quant-pillar-topbar + QuantMailSuperAppHeader tests. No product change needed.
 Finding: the shared QuantMail pillar header advertises `Search events, meetings, attendees… <5ms`, but the audited architecture requires authorization-aware retrieval and source hydration; no evidence establishes a universal sub-5ms SLA for Calendar search.
 Required: remove the absolute performance claim or replace it with an evidence-backed product promise. Search UX must expose loading/degraded states and server-authoritative results, with performance budgets measured separately from marketing copy.
 Scope: apps/quantmail/src/components/QuantPillarTopBar.tsx; Calendar search implementation/tests.
@@ -1056,7 +1055,8 @@ Scope: `apps/quantmail/src/app/quantgit/page.tsx`.
 Dependencies: none.
 
 ## QM-UIUX-029 — Purge "<5ms" search-performance claims (QM-SCREEN-026 not actually done)
-Status: [ ] TODO
+Status: [x] DONE-superseded
+Resolution: premise verified stale 2026-10-11 on main 4dcf7bd95 — every cited site is clean (QuantPillarTopBar placeholders, <5ms LIVE badge, QuantMailSuperAppHeader placeholder, booking/QuantGit Sub-5ms lines, SearchBar latency pill): repo-wide non-test grep = 0 hits; purge landed 2026-10-08 via 1b5d7713e; absence pinned by tests. No product change needed.
 Finding: QM-SCREEN-026 required removing the absolute "<5ms" search claim, but it is still live: 5 placeholders in `QuantPillarTopBar.tsx` (including the exact cited string `'Search events, meetings, attendees… <5ms'`), a visible `<5ms LIVE` badge with pulsing dot, `QuantMailSuperAppHeader.tsx` placeholder, "Sub-5ms Performance" lines in booking and QuantGit. The `SearchBar` latency pill measures only the local FTS5 query while results come from the server — misleading. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/search-audit.md`.
 Required: purge all `<5ms`/`Sub-5ms` from user-visible copy; re-mark QM-SCREEN-026 as not done; latency pill must measure end-to-end or be removed.
 Scope: `QuantPillarTopBar.tsx`, `QuantMailSuperAppHeader.tsx`, booking, QuantGit.
@@ -1463,9 +1463,8 @@ Dependencies: QM-SCREEN-039; QM-SCREEN-044; security/logging architecture.
 Validation: source audit on 2026-10-08 reproduced the public download handler reading x-share-password first and falling back to request.query.password; existing deep parity tests use the header form. No remediation implementation claim yet.
 
 ## QM-UIUX-060 — QuantChat: migrate RealtimeProvider consumers to chat-socket singleton
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-060-realtime-singleton
+Status: [x] DONE
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/822
 Finding: QM-UIUX-057 deleted 3 dead realtime paths but `providers/RealtimeProvider.tsx` could NOT be deleted — it has 6 live consumers (ConnectionStatusBanner, usePresence, NotificationBadge, useChatThemeSync, app/map/page.tsx, useRealtimeChat). The audit's "dead protocol" claim was only true for the chat-typing path. Evidence: PR #654 notes.
 Required: migrate all 6 consumers to the working `chat-socket` singleton, then delete RealtimeProvider. Do not break notification/presence/banner behavior.
 Scope: `apps/quantchat/src/`.
