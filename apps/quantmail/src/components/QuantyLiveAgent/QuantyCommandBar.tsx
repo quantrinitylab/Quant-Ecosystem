@@ -20,32 +20,43 @@ export interface QuantyCommandBarProps {
   className?: string;
 }
 
-const STORAGE_KEY = 'quanty-recent-commands';
+/*
+ * QM-QUANTY-012: recent commands are classified as EPHEMERAL session state.
+ * They live in component state only, for as long as this page session lasts;
+ * a fresh mount starts empty. They are never written to browser storage:
+ * commands are free-typed instructions to an AI agent and can carry sensitive
+ * content, and a durable plaintext copy in localStorage sits outside every
+ * retention, export and deletion control the product offers (same
+ * classification as the drawer transcripts, QM-QUANTY-005).
+ *
+ * This key is the pre-classification store's name. Nothing reads or writes it
+ * any more; it is named here only so the command bar can DELETE it on mount
+ * and take the commands earlier versions left on this browser with it.
+ */
+const LEGACY_STORAGE_KEY = 'quanty-recent-commands';
 const MAX_RECENT = 5;
 
-/** Read recent commands from localStorage (safe no-op during SSR/tests). */
-export function loadRecentCommands(): string[] {
+/**
+ * Delete the legacy localStorage copy of recent commands (best-effort; a safe
+ * no-op during SSR/tests). This is the ONLY storage touch left: the purge.
+ * Stored commands are never read back into the UI.
+ */
+export function purgeLegacyRecentCommands(): void {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((c): c is string => typeof c === 'string').slice(0, MAX_RECENT) : [];
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
-    return [];
+    /* storage blocked/unavailable — purge is best-effort; nothing depends on it */
   }
 }
 
-/** Persist a command to the recent list (dedupe, newest first). */
-export function saveRecentCommand(command: string): string[] {
+/**
+ * Next session recent list after a command is submitted: dedupe, newest
+ * first, capped. Pure — the list lives in component state, never in storage.
+ */
+export function addRecentCommand(current: string[], command: string): string[] {
   const trimmed = command.trim();
-  if (!trimmed) return loadRecentCommands();
-  const next = [trimmed, ...loadRecentCommands().filter((c) => c !== trimmed)].slice(0, MAX_RECENT);
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  } catch {
-    /* storage full/blocked — recent list is a nicety, not a requirement */
-  }
-  return next;
+  if (!trimmed) return current;
+  return [trimmed, ...current.filter((c) => c !== trimmed)].slice(0, MAX_RECENT);
 }
 
 /**
@@ -76,7 +87,11 @@ export function QuantyCommandBar({
   const recognitionRef = useRef<{ stop: () => void } | null>(null);
 
   useEffect(() => {
-    setRecent(loadRecentCommands());
+    // Nothing is restored on mount — recent commands are session-only
+    // (QM-QUANTY-012). The one storage touch left is the purge of the legacy
+    // key, so commands typed under the old build do not linger on this
+    // browser; the purge never reads them into the UI.
+    purgeLegacyRecentCommands();
     // Web Speech API feature-detect (Chrome/Android). Firefox/Safari: no mic.
     const SR =
       typeof window !== 'undefined' &&
@@ -170,7 +185,9 @@ export function QuantyCommandBar({
   const submit = () => {
     const command = value.trim();
     if (!command || busy) return;
-    setRecent(saveRecentCommand(command));
+    // Session-only: the recent list is updated in component state and is
+    // never persisted (QM-QUANTY-012).
+    setRecent((prev) => addRecentCommand(prev, command));
     setValue('');
     setShowRecent(false);
     onSubmit(command);
