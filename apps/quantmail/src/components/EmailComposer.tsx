@@ -146,6 +146,31 @@ export function getSendBlockReaction(
   return null;
 }
 
+/**
+ * CUST-P0-3: is this the full `/compose` page (as opposed to a modal/popover
+ * composer hosted somewhere else)?
+ *
+ * The modal/popover signal is `onClose` — only a modal host passes it. The
+ * full-page signal is the route. `onDiscard` must NOT gate this: the real
+ * `/compose` page passes `onDiscard` (its discard handler, used by the back
+ * button and edge-swipe), and the old `!onDiscard` clause made this return
+ * `false` on the very page it was written for. That dead branch let
+ * `handleSend` fall into an `else if (onDiscard)` branch that invoked the
+ * discard handler, which ran
+ * the page's DISCARD handler on send — deleting the server draft and
+ * `router.back()`-ing, unmounting the page and silently cancelling the queued
+ * send (no toast, no error, message lost; the landing page varied with
+ * browser history).
+ */
+export function isFullPageComposePath(opts: {
+  /** true when a modal/popover host passed an onClose handler */
+  hasOnCloseHandler: boolean;
+  /** window.location.pathname at send time */
+  pathname: string;
+}): boolean {
+  return !opts.hasOnCloseHandler && opts.pathname.includes('/compose');
+}
+
 export interface EmailComposerProps {
   initialTo?: string | Array<{ email: string; name?: string }>;
   initialSubject?: string;
@@ -875,25 +900,37 @@ export function EmailComposer({
     // with `delayMs: 10000`) and the undo toast the page shows. In a
     // modal/popover the provider survives the send, so `queueSend` keeps its
     // countdown bar there.
+    // CUST-P0-3: `onDiscard` is the host page's DISCARD handler — it must not
+    // gate this path (see isFullPageComposePath).
     const isFullPageCompose =
-      !onClose &&
-      !onDiscard &&
       typeof window !== 'undefined' &&
-      window.location.pathname.includes('/compose');
+      isFullPageComposePath({
+        hasOnCloseHandler: Boolean(onClose),
+        pathname: window.location.pathname,
+      });
 
     if (onClose) {
+      // Modal/popover host: close the composer chrome; the send proceeds
+      // through queueSend below.
       onClose();
-    } else if (onDiscard) {
-      onDiscard();
     } else if (isFullPageCompose) {
+      // Full /compose page: stash the snapshot for undo-reopen.
+      // CUST-P0-3: NEVER invoke the host's onDiscard on the send path. On
+      // this page onDiscard is the DISCARD handler — calling it here deleted
+      // the server draft and router.back()'d, unmounting the page and
+      // silently cancelling the queued send (no toast, no error, message
+      // lost; destination varied with browser history).
       try {
         sessionStorage.setItem('quant_undo_draft', JSON.stringify(draftSnapshot));
       } catch {}
     }
 
-    const sendNow = async () => {
+    const sendNow = async (): Promise<boolean> => {
       // Runs the actual send once the recall window closes (modal path) or
       // immediately (full-page path), then announces the result.
+      // Returns true when the send/schedule request was accepted, false when
+      // it failed — the error toast already fired in the false case, so the
+      // caller can decide whether navigating away is honest.
       try {
         setIsSending(true);
         quantyReact('mail:sending');
@@ -961,9 +998,14 @@ export function EmailComposer({
             type: 'success',
           });
         }
+        return true;
       } catch (err: any) {
+        // CUST-P0-3 honest failure: the error is announced, the draft stays
+        // a draft (nothing on this path deletes it), and the false return
+        // keeps the caller from navigating away silently.
         quantyReact('mail:sendFailed');
         showToast({ text: err.message || 'Failed to send message', type: 'error' });
+        return false;
       } finally {
         setIsSending(false);
       }
@@ -972,8 +1014,15 @@ export function EmailComposer({
     if (isFullPageCompose) {
       // Send first, navigate after: the host page's "Sending… (10s to undo)"
       // toast is on screen before the route changes.
-      await sendNow();
-      router.push('/');
+      // CUST-P0-3: navigate ONLY on success. On failure the composer
+      // re-opens on the preserved draft (the error toast already fired)
+      // instead of the message being silently lost.
+      const sent = await sendNow();
+      if (sent) {
+        router.push('/');
+      } else {
+        setIsDismissed(false);
+      }
       return;
     }
 
@@ -1015,7 +1064,11 @@ export function EmailComposer({
           router.push('/compose');
         }
       },
-      onSendNow: sendNow,
+      // CUST-P0-3: sendNow returns a boolean; the queueSend post-countdown
+      // callback ignores it (its signature is `() => void | Promise<void>`).
+      onSendNow: async () => {
+        await sendNow();
+      },
     });
   };
 
