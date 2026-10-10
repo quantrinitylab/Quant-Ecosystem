@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CalendarEventLike, EntryType } from '../app/calendar/types';
 import { MONTH_NAMES, FULL_WEEKDAYS } from '../app/calendar/types';
 import { dayKey, startOf, endOf, hhmm } from '../app/calendar/lib/calendar-geometry';
+import { calendarEventMatchesQuery } from '../app/calendar/lib/calendar-search';
 import type { Holiday } from '../lib/holidays';
 import { showToast } from './InboxToast';
 import {
@@ -211,6 +212,11 @@ export interface CalendarFeedSubViewProps {
   openDedicatedSheet: (type: EntryType, date?: Date, endDate?: Date) => void;
   onSelectEvent: (event: CalendarEventLike) => void;
   searchFilter?: string;
+  /** QM-SCREEN-026: true while the server events load behind the search is pending. */
+  isSearchLoading?: boolean;
+  /** QM-SCREEN-026: degraded state — the server load behind the search failed. */
+  searchError?: string;
+  onSearchRetry?: () => void;
   className?: string;
 }
 
@@ -222,6 +228,9 @@ export function CalendarFeedSubView({
   openDedicatedSheet,
   onSelectEvent,
   searchFilter = '',
+  isSearchLoading = false,
+  searchError,
+  onSearchRetry,
   className = '',
 }: CalendarFeedSubViewProps) {
   const [filterType, setFilterType] = useState<'all' | 'meetings' | 'tasks' | 'trackers' | 'holidays'>('all');
@@ -267,8 +276,9 @@ export function CalendarFeedSubView({
       const dateLabel = `${MONTH_NAMES[d.getMonth()].slice(0, 3)} ${d.getDate()}`;
       const dayEvs = (eventsByDay[k] || []).filter((ev) => {
         if (!searchFilter.trim()) return true;
-        const q = searchFilter.toLowerCase();
-        return ev.title.toLowerCase().includes(q) || (ev.location || '').toLowerCase().includes(q);
+        // QM-SCREEN-026: same matcher as the page — title, location,
+        // description and attendees (the placeholder promises attendees).
+        return calendarEventMatchesQuery(ev, searchFilter);
       });
 
       const dayHols = holidaysByDay[k] || [];
@@ -301,6 +311,12 @@ export function CalendarFeedSubView({
     }
     return days;
   }, [eventsByDay, holidaysByDay, searchFilter, filterType]);
+
+  const isSearchActive = Boolean(searchFilter.trim());
+  const searchMatchCount = useMemo(() => {
+    if (!isSearchActive) return 0;
+    return events.filter((ev) => calendarEventMatchesQuery(ev, searchFilter)).length;
+  }, [events, searchFilter, isSearchActive]);
 
   return (
     <div className={`flex-1 flex flex-col overflow-y-auto bg-[var(--quant-background)] text-[var(--quant-foreground)] p-4 sm:p-6 pb-24 space-y-6 ${className}`}>
@@ -335,7 +351,45 @@ export function CalendarFeedSubView({
         </div>
       </div>
 
-      {/* Feed List */}
+      {/* QM-SCREEN-026: while a search is active, loading / degraded /
+          no-matches replace the day list — an empty (or "Free day") list
+          must never stand in for a pending or failed server load. */}
+      {isSearchActive && isSearchLoading ? (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="calendar-feed-search-loading"
+          className="py-10 text-center text-sm text-[var(--quant-muted-foreground)]"
+        >
+          Searching your calendar…
+        </div>
+      ) : isSearchActive && searchError ? (
+        <div
+          role="alert"
+          data-testid="calendar-feed-search-error"
+          className="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+        >
+          <span>{searchError}</span>
+          {onSearchRetry && (
+            <button
+              type="button"
+              onClick={onSearchRetry}
+              className="shrink-0 rounded-lg bg-red-500/20 px-3 py-1.5 font-semibold text-red-100 hover:bg-red-500/30 min-h-[44px]"
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      ) : isSearchActive && searchMatchCount === 0 ? (
+        <div
+          role="status"
+          data-testid="calendar-feed-search-empty"
+          className="py-10 text-center text-sm text-[var(--quant-muted-foreground)]"
+        >
+          No events match “{searchFilter.trim()}” in the calendar loaded from the server.
+        </div>
+      ) : (
+      /* Feed List */
       <div className="space-y-6">
         {feedDays.map((day) => {
           const isSelected = dayKey(selectedDate) === day.key;
@@ -487,6 +541,7 @@ export function CalendarFeedSubView({
           );
         })}
       </div>
+      )}
     </div>
   );
 }
