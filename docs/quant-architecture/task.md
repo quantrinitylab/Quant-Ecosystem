@@ -1227,9 +1227,8 @@ Scope: QuantMail backend + frontend.
 Dependencies: QM-UIUX-052 (notifications must exist first).
 
 ## QM-UIUX-054 — Notification engine facade: wire or delete
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-054-notification-facade
+Status: [x] DONE — PR #788 merged 2026-10-10 (28 files, +46/-4688 against its merge base). Decision: DELETE. Evidence: QM-UIUX-052's real path deliberately bypasses this engine (its own comments defer to this task and call the facade theater); the engine is in-memory by design and cannot honestly serve multi-process backends without duplicating the Prisma Notification model every app already uses. Verified dead: NotificationFanout never persists/sends; InAppNotificationService zero instantiations repo-wide; server-core plugin decorates every app but nothing productive invokes it (PreferenceService state never populated); ws-gateway 'notifications' channel zero publishers and its handler registration zero callers. Two live theater call sites removed (QuantChat messages.ts dispatched after every send and discarded the result; spotlight.ts dispatched "Your reel is featured!" into the void). Kept deliberately: push substrate (push-service, apns-client, web-push-service) + types.ts — QM-UIUX-053 names them as its wiring substrate; inventory entry retained with honest 'pending' status. Gates: notifications 32/32, quantchat 1235/1235, server-core 189/190 (sole failure a pre-existing full-suite e2e timeout, A/B-proven identical on pristine, passes isolated), tsc clean in all touched packages, zero dangling references.
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/788
 Finding: `NotificationFanout.fanout()` only returns routing decisions — never persists or sends. `InAppNotificationService` has zero instantiations. `server-core` notifications plugin wires singletons nothing invokes. ws-gateway `'notifications'` channel has zero publishers. ~15 files of dead infrastructure. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/notif-backend-audit.md`.
 Required: wire the engine into the real path (QM-UIUX-052) or delete the dead files.
 Scope: notification engine files.
