@@ -87,6 +87,9 @@ jobs:
 
       - name: Build workspace dependency
         run: pnpm --filter @quant/common build
+      - name: Build quanty-contracts for typechecks
+      if: contains(matrix.stage, 'typecheck')
+      run: pnpm --filter @quant/quanty-contracts build
 
       - name: Build backend typecheck dependencies
         if: contains(matrix.stage, 'backend-typecheck')
