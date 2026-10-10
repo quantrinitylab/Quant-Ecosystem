@@ -171,9 +171,13 @@ describe('ChatService', () => {
       prisma.aIMessage.create.mockResolvedValue({ id: 'msg-user' });
       prisma.aIMessage.findMany.mockResolvedValue([]);
 
-      const err = await engineLess
+      const err = (await engineLess
         .sendMessage('session-1', 'user-1', 'Hello')
-        .catch((e: unknown) => e as { statusCode?: number; code?: string; message?: string });
+        .catch((e: unknown) => e)) as {
+        statusCode?: number;
+        code?: string;
+        message?: string;
+      };
       expect(err.code).toBe('AI_UNAVAILABLE');
       expect(err.statusCode).toBe(503);
     });
