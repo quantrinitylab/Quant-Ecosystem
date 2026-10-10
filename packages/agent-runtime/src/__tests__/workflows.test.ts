@@ -38,6 +38,8 @@ function createEngine(): {
     undoEngine,
     costTracker,
     permissionGuard,
+    // Workflow unit tests intentionally bypass approvals.
+    { autoApprove: true },
   );
 
   // Grant full permissions to test agent

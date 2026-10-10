@@ -41,8 +41,9 @@ export function tierToPermissionLevel(tier: AgentActionTier): PermissionLevel {
 }
 
 export interface ExecutionEngineOptions {
-  /** When true, approval requests are auto-approved immediately. Default: true.
-   * Set to false when async approval flows (human-in-the-loop, external webhook) are wired in. */
+  /** When true, approval requests are auto-approved immediately. Default: false.
+   * Set to true only for trusted test/dev contexts where approval flows are intentionally
+   * bypassed. Production agents must go through the approval queue. */
   autoApprove?: boolean;
 }
 
@@ -59,7 +60,7 @@ export class ExecutionEngine {
     private permissionGuard: PermissionGuard,
     options?: ExecutionEngineOptions,
   ) {
-    this.autoApprove = options?.autoApprove ?? true;
+    this.autoApprove = options?.autoApprove ?? false;
   }
 
   async executePlan(plan: AgentPlan, agentId: string): Promise<AgentWorkflowResult> {
@@ -101,9 +102,9 @@ export class ExecutionEngine {
       }
 
       // 3. Submit to approval queue if required.
-      // Foundation phase: auto-approve is enabled by default because async approval requires
-      // external integrations (webhooks, human-in-the-loop UI) not yet built. In production,
-      // set autoApprove=false so the engine yields here and awaits external approval/rejection.
+      // Safe default: auto-approve is DISABLED. Approval-gated steps are skipped unless
+      // an external approval arrives via the approval queue. Pass autoApprove: true
+      // explicitly only in trusted test/dev contexts that intentionally bypass approvals.
       if (step.requiresApproval) {
         const approvalId = generateId('approval');
         this.approvalQueue.submit({
