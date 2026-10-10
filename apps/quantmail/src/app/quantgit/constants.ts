@@ -10,7 +10,6 @@ import type {
   SecretScanningAlert,
   CodeQLAlert,
   BranchSecurityRules,
-  DeployedAgent,
   CommitItem,
   BranchItem,
 } from './types';
@@ -1301,114 +1300,6 @@ The Quant team takes security seriously. If you discover a security vulnerabilit
 Please do not disclose security issues publicly until a fix has been released.
 `;
 
-// Swarm Fleet Catalog
-export const AGENT_FLEET_CATALOG: DeployedAgent[] = [
-  {
-    id: 'astra',
-    name: 'Astra',
-    role: 'Executive Lead & Architecture Gatekeeper',
-    pod: 'COMMAND',
-    status: 'active',
-    currentTask:
-      'Enforcing 1:1 GitHub parity, two-column layout, and zero-hallucination verification.',
-    initial: 'A',
-    color: 'var(--app-accent)',
-    steps: [
-      'Audited GitHub dark UI tokens',
-      'Verified 10 repository tabs',
-      'Confirmed live EKS staging build',
-    ],
-    thoughts:
-      'All 10 tabs must have interactive functionality and reflect authentic GitHub dark theme (#0D1117).',
-  },
-  {
-    id: 'sentinel',
-    name: 'Sentinel',
-    role: 'Audit & QA Sentinel',
-    pod: 'SHIELD',
-    status: 'analyzing',
-    currentTask:
-      'Continuous Vitest regression & CI gate surveillance across all monorepo packages.',
-    initial: 'S',
-    color: '#34D399',
-    steps: [
-      'Gate sweep passed in 4m18s',
-      'Typecheck clean (zero emit errors)',
-      'Zero console exceptions',
-    ],
-    thoughts: 'Watching test worker memory footprints and confirming zero unhandled exceptions.',
-  },
-  {
-    id: 'forge',
-    name: 'Forge',
-    role: 'Fullstack Monorepo Engine',
-    pod: 'ENGINE',
-    status: 'building',
-    currentTask:
-      'Building 1:1 File Tree explorer with clickable blob viewer and breadcrumb navigation.',
-    initial: 'F',
-    color: '#60A5FA',
-    steps: [
-      'Parsed GitHub table layout',
-      'Added line numbers to file viewer',
-      'Wired branch selector modal',
-    ],
-    thoughts:
-      'Developers expect to click on files and see line numbers, copy raw, and commit messages.',
-  },
-  {
-    id: 'scout',
-    name: 'Scout',
-    role: 'Codebase Researcher',
-    pod: 'RECON',
-    status: 'idle',
-    currentTask: 'Mapping competitor features from logged-in GitHub web sessions.',
-    initial: 'R',
-    color: '#A78BFA',
-    steps: [
-      'Inspected GitHub repo header',
-      'Captured clone drawer protocol tabs',
-      'Mapped Kanban project columns',
-    ],
-    thoughts:
-      'GitHub puts Releases in the right sidebar with quick binary downloads. Quant APK must sit right there.',
-  },
-  {
-    id: 'pixel',
-    name: 'Pixel',
-    role: 'UI/UX & Design Systems',
-    pod: 'CANVAS',
-    status: 'active',
-    currentTask:
-      'Polishing GitHub dark tokens (#0D1117, #010409, #30363D) and green buttons (#238636).',
-    initial: 'P',
-    color: '#F472B6',
-    steps: [
-      'Eliminated cartoon eyes from mascot',
-      'Created authentic GitHub tabs with orange underline',
-      'Added 2-column layout',
-    ],
-    thoughts:
-      'The user wants real GitHub look and feel, not generic cards. Exact border colors make the difference.',
-  },
-  {
-    id: 'ledger',
-    name: 'Ledger',
-    role: 'Database & Storage Migrations',
-    pod: 'VAULT',
-    status: 'idle',
-    currentTask:
-      'Managing repository tables, branches, issues, and pull requests in Prisma schema.',
-    initial: 'L',
-    color: '#FBBF24',
-    steps: [
-      'Schema 0058 verified',
-      'Storage quota aggregate sum verified',
-      'Prisma client generated',
-    ],
-    thoughts: 'All issue numbers and PR numbers must increment deterministically.',
-  },
-];
 
 export const INITIAL_COMMITS: CommitItem[] = [
   {

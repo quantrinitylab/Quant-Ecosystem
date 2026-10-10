@@ -2265,7 +2265,9 @@ function QuantGitContent() {  const router = useRouter();
                     }
                     repoName={selectedRepo.name}
                     onDispatchTask={(prompt, model, mode) =>
-                      showToast(`Dispatched cloud agent [${mode}] with ${model}`)
+                      showToast(
+                        `Saved locally [${mode}] with ${model} — no cloud agent backend connected`,
+                      )
                     }
                   />
                   <div className="pt-6 border-t border-[#30363D]">

@@ -81,8 +81,9 @@ const COPILOT_MODELS: CopilotModel[] = [
 export interface CopilotAgentTask {
   id: string;
   title: string;
-  status: 'running' | 'completed' | 'review_required';
-  progress: number;
+  // Tasks created in this view are local session drafts only — no cloud
+  // agent backend is connected, so nothing is ever 'running' or dispatched.
+  status: 'local';
   model: string;
   startedAt: string;
 }
@@ -106,27 +107,11 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
   const [selectedContext, setSelectedContext] = useState<string[]>([
     '@repo:' + repoOwner + '/' + repoName,
   ]);
-  const [isTokenUsageOpen, setIsTokenUsageOpen] = useState(false);
 
-  // Active cloud agent sessions
-  const [agentTasks, setAgentTasks] = useState<CopilotAgentTask[]>([
-    {
-      id: 'task-01',
-      title: 'Analyze database indexing and optimize slow query on email_suppressions',
-      status: 'running',
-      progress: 68,
-      model: 'GPT-6 Luna',
-      startedAt: '3m ago',
-    },
-    {
-      id: 'task-02',
-      title: 'Generate E2E Signal protocol prekey verification test suite',
-      status: 'review_required',
-      progress: 100,
-      model: 'Claude Sonnet 4.5',
-      startedAt: '12m ago',
-    },
-  ]);
+  // Local session drafts only. There is no cloud agent backend wired to
+  // this view, so the list starts empty and entries added here are never
+  // presented as running or dispatched work.
+  const [agentTasks, setAgentTasks] = useState<CopilotAgentTask[]>([]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,8 +120,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
     const newTask: CopilotAgentTask = {
       id: `task-${Date.now().toString().slice(-4)}`,
       title: promptText,
-      status: 'running',
-      progress: 15,
+      status: 'local',
       model: selectedModel.name,
       startedAt: 'Just now',
     };
@@ -161,49 +145,14 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
               </span>
             </h3>
             <p className="text-[11px] text-[#8D96A0]">
-              Autonomous background task delegation across {repoOwner}/{repoName}
+              Task planning for {repoOwner}/{repoName}. Workspace tasks you add here are local to
+              this session — connect a real agent backend to enable autonomous dispatch.
             </p>
           </div>
         </div>
 
-        {/* Token Usage Badge (Screen 10) */}
-        <div className="relative">
-          <button
-            onClick={() => setIsTokenUsageOpen(!isTokenUsageOpen)}
-            className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[#8B949E] text-xs transition-colors"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] text-[#8D96A0]">Usage:</span>
-            <span className="font-mono text-[11px] font-semibold text-[#E6EDF3]">
-              1 / 200 Credits
-            </span>
-          </button>
-
-          {isTokenUsageOpen && (
-            <div className="absolute right-0 top-full mt-2 w-64 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-2xl p-4 z-40 space-y-3 text-xs">
-              <h4 className="font-semibold text-xs text-[#E6EDF3]">Session token usage</h4>
-              <div className="space-y-1 text-[11px]">
-                <div className="flex justify-between text-[#8D96A0]">
-                  <span>Input:</span>
-                  <span className="font-mono text-[#E6EDF3]">10,450 tokens</span>
-                </div>
-                <div className="flex justify-between text-[#8D96A0]">
-                  <span>Output:</span>
-                  <span className="font-mono text-[#E6EDF3]">1,824 tokens</span>
-                </div>
-              </div>
-              <div className="pt-2 border-t border-[#30363D] space-y-1.5">
-                <div className="flex justify-between text-[11px]">
-                  <span className="text-[#8D96A0]">Included credits:</span>
-                  <span className="font-semibold text-emerald-400">1 / 200</span>
-                </div>
-                <div className="h-1.5 w-full bg-[#21262D] rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-400 w-[1%]" />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* No usage meter: there is no connected backend metering tokens or
+            credits for this view, so no usage figure is shown. */}
       </div>
 
       {/* Cloud Agent Sessions Banner (Screens 140–142) */}
@@ -214,72 +163,63 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
           </div>
           <div>
             <h4 className="font-semibold text-xs text-[#E6EDF3]">
-              Delegate tasks to Copilot cloud agents
+              Plan tasks for Copilot cloud agents
             </h4>
             <p className="text-[11px] text-[#8D96A0]">
-              Let agents work independently in the background, then inspect terminals and PR diffs.
+              Dispatch is not connected yet — tasks stay in this browser session and are not
+              executed by any agent.
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-medium text-purple-300">
-            {agentTasks.filter((t) => t.status === 'running').length} Active Agents
+            {agentTasks.length} local {agentTasks.length === 1 ? 'task' : 'tasks'}
           </span>
         </div>
       </div>
 
-      {/* Active Tasks Feed */}
+      {/* Local Tasks Feed */}
       <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-        {agentTasks.map((task) => (
+        {agentTasks.length === 0 ? (
           <div
-            key={task.id}
-            className="p-3.5 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[#58A6FF]/60 transition-all space-y-2.5"
+            data-testid="fleet-tasks-empty"
+            className="p-4 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] text-[11px] text-[#8D96A0]"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                {task.status === 'running' ? (
-                  <div className="w-5 h-5 rounded-full border-2 border-[#58A6FF] border-t-transparent animate-spin" />
-                ) : (
-                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs">
-                    ✓
+            No agent tasks yet. Tasks you add below appear here as local session drafts — nothing
+            is dispatched or executed until a real agent backend is connected.
+          </div>
+        ) : (
+          agentTasks.map((task) => (
+            <div
+              key={task.id}
+              className="p-3.5 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[#58A6FF]/60 transition-all space-y-2.5"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-5 h-5 rounded-full bg-[#21262D] text-[#8D96A0] flex items-center justify-center text-xs">
+                    ○
                   </div>
-                )}
-                <div>
-                  <h5 className="font-semibold text-xs text-[#E6EDF3]">{task.title}</h5>
-                  <div className="flex items-center gap-2 text-[10px] text-[#8D96A0] pt-0.5">
-                    <span className="font-mono">{task.model}</span>
-                    <span>•</span>
-                    <span>{task.startedAt}</span>
+                  <div>
+                    <h5 className="font-semibold text-xs text-[#E6EDF3]">{task.title}</h5>
+                    <div className="flex items-center gap-2 text-[10px] text-[#8D96A0] pt-0.5">
+                      <span className="font-mono">{task.model}</span>
+                      <span>•</span>
+                      <span>{task.startedAt}</span>
+                    </div>
                   </div>
                 </div>
+
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider bg-[#21262D] text-[#8D96A0] border border-[#30363D]">
+                  Local only
+                </span>
               </div>
 
-              <span
-                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                  task.status === 'running'
-                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                }`}
-              >
-                {task.status === 'running' ? 'In Progress' : 'Review Ready'}
-              </span>
+              <p className="text-[10px] text-[#8D96A0]">
+                Saved locally — not dispatched to any agent backend.
+              </p>
             </div>
-
-            {/* Progress bar */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-[10px] text-[#8D96A0]">
-                <span>Executing code analysis & terminal run...</span>
-                <span>{task.progress}%</span>
-              </div>
-              <div className="h-1.5 w-full bg-[#0D1117] rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#58A6FF] transition-all duration-300"
-                  style={{ width: `${task.progress}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       {/* Preset Prompts (Screens 137–139) */}
