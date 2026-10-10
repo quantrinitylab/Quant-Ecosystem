@@ -792,6 +792,10 @@ function CalendarPageContent() {
       startTime: hasStart && !ev.allDay ? toTimeInput(startD) : prev.startTime,
       endTime: hasEnd && !ev.allDay ? toTimeInput(endD) : prev.endTime,
       allDay: Boolean(ev.allDay),
+      // Restore the event's saved timezone: the backend DTO carries it as
+      // `timeZone` (camelCase); older rows may carry `timezone`. Without this
+      // the sheet shows the form default and a save silently rewrites it.
+      timezone: ev.timezone || ev.timeZone || prev.timezone,
       location: ev.location || '',
       description: ev.description || '',
       recurrence: ev.recurrence || 'Does not repeat',
