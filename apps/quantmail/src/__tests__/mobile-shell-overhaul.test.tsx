@@ -99,7 +99,7 @@ describe('Mobile Shell Overhaul — Worker A', () => {
   // 1. AppShell — per-app header is desktop-only on mobile
   // ==========================================================================
   describe('AppShell mobile header removal', () => {
-    it('renders the per-app header as hidden on mobile / flex on desktop', () => {
+    it('renders no desktop top header bar — logo+search moved to the sidebar', () => {
       mockCurrentPathname = '/contacts';
       const html = renderToStaticMarkup(
         <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
@@ -107,15 +107,16 @@ describe('Mobile Shell Overhaul — Worker A', () => {
         </AppShell>,
       );
 
-      // The per-app header block (hamburger + brand + search + orb) is
-      // desktop-only now — the phone opens on the 5-pillar dock instead.
-      expect(html).toContain('<header class="hidden md:flex min-h-14');
+      // 2026-10-10 desktop redesign (user-ordered): the top header bar
+      // (logo + search) is gone entirely — the single desktop sidebar owns
+      // logo+name, search, Quanty and profile now.
+      expect(html).not.toContain('<header class="hidden md:flex min-h-14');
       // The old mobile-only search toggle inside that header is gone with it
       // (mobile search lives in the pillar bar's own field now).
       expect(html).not.toContain('aria-label="Close search"');
     });
 
-    it('keeps the desktop header content intact (brand, search field)', () => {
+    it('moved search into the desktop sidebar (no header search field)', () => {
       mockCurrentPathname = '/';
       const html = renderToStaticMarkup(
         <AppShell
@@ -127,9 +128,12 @@ describe('Mobile Shell Overhaul — Worker A', () => {
         </AppShell>,
       );
 
-      // Desktop header still carries the brand button and the search field.
+      // No header search field anymore — search lives in the single desktop
+      // sidebar (DesktopContextSidebar, effect-gated so absent from SSR
+      // markup; covered directly in desktop-context-sidebar.test.tsx,
+      // including id="app-shell-search-input").
       // The hamburger is gone (2026-10-10 redesign: rail always pinned).
-      expect(html).toContain('id="app-shell-search-input"');
+      expect(html).not.toContain('id="app-shell-search-input"');
       expect(html).not.toContain('Open navigation menu');
     });
 
