@@ -1045,7 +1045,10 @@ export function EmailComposer({
         }
       },
       onSendNow: () => {
-        void sendNow();
+        // The undo queue awaits this promise: "Message sent" is claimed only
+        // after the real send resolves, which is what the copy below was
+        // already written as if it did.
+        return sendNow().then(() => undefined);
       },
     });
   };

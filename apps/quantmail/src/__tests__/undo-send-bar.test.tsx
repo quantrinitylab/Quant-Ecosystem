@@ -354,9 +354,9 @@ describe('10-Second Undo-Send Countdown Bar Test Suite', () => {
       }
     });
 
-    it('test "Send Now" immediately flushes', () => {
+    it('test "Send Now" immediately flushes', async () => {
       const manager = new UndoSendManager();
-      const onSendNow = vi.fn();
+      const onSendNow = vi.fn(async () => {});
       const onUndo = vi.fn();
 
       manager.queueSend({
@@ -371,26 +371,29 @@ describe('10-Second Undo-Send Countdown Bar Test Suite', () => {
       // Click / invoke Send Now immediately
       manager.sendNow();
 
-      // onSendNow executed immediately
+      // The recall window closed: the bar shows the in-flight state while the
+      // real send promise settles — 'sent' is claimed only on resolve.
+      expect(manager.getState().status).toBe('sending');
       expect(onSendNow).toHaveBeenCalledTimes(1);
       expect(onUndo).not.toHaveBeenCalled();
 
-      // Status transitioned to 'sent'
+      // The promise resolved: status transitioned to 'sent'
+      await vi.advanceTimersByTimeAsync(0);
       expect(manager.getState().status).toBe('sent');
       expect(manager.getState().remainingSeconds).toBe(0);
       expect(manager.getState().progressPercent).toBe(0);
 
       // Verify that after 2s (MESSAGE_SENT_DISPLAY_MS), status becomes idle
-      vi.advanceTimersByTime(MESSAGE_SENT_DISPLAY_MS);
+      await vi.advanceTimersByTimeAsync(MESSAGE_SENT_DISPLAY_MS);
       expect(manager.getState().status).toBe('idle');
       expect(manager.getState().pendingItem).toBeNull();
 
       manager.destroy();
     });
 
-    it('after 10s without undo, automatically triggers onSendNow and displays "Message sent!" for 2s', () => {
+    it('after 10s without undo, automatically triggers onSendNow and displays "Message sent!" for 2s', async () => {
       const manager = new UndoSendManager();
-      const onSendNow = vi.fn();
+      const onSendNow = vi.fn(async () => {});
       const onUndo = vi.fn();
 
       manager.queueSend({
@@ -408,30 +411,32 @@ describe('10-Second Undo-Send Countdown Bar Test Suite', () => {
       expect(onSendNow).not.toHaveBeenCalled();
       expect(manager.getState().status).toBe('counting');
 
-      // Advance past 10 seconds (total 10000ms)
+      // Advance past 10 seconds (total 10000ms): the window closed and the
+      // real send is in flight — 'sent' follows only when it resolves.
       vi.advanceTimersByTime(150);
-
-      // Automatically triggered onSendNow
       expect(onSendNow).toHaveBeenCalledTimes(1);
       expect(onUndo).not.toHaveBeenCalled();
+      expect(manager.getState().status).toBe('sending');
+
+      await vi.advanceTimersByTimeAsync(0);
       expect(manager.getState().status).toBe('sent');
 
       // Stays in 'sent' state for 2 seconds
-      vi.advanceTimersByTime(1500);
+      await vi.advanceTimersByTimeAsync(1500);
       expect(manager.getState().status).toBe('sent');
 
       // Completes 2s display and returns to idle
-      vi.advanceTimersByTime(500);
+      await vi.advanceTimersByTimeAsync(500);
       expect(manager.getState().status).toBe('idle');
       expect(manager.getState().pendingItem).toBeNull();
 
       manager.destroy();
     });
 
-    it('flushes previous pending message when a new queueSend is called during countdown', () => {
+    it('flushes previous pending message when a new queueSend is called during countdown', async () => {
       const manager = new UndoSendManager();
-      const onSendNow1 = vi.fn();
-      const onSendNow2 = vi.fn();
+      const onSendNow1 = vi.fn(async () => {});
+      const onSendNow2 = vi.fn(async () => {});
 
       // Queue first email
       manager.queueSend({
@@ -452,7 +457,9 @@ describe('10-Second Undo-Send Countdown Bar Test Suite', () => {
         onSendNow: onSendNow2,
       });
 
-      // Previous email was flushed immediately
+      // Previous email was flushed immediately (the flush is async now — the
+      // send promise is fired and observed, never awaited by the new item).
+      await vi.advanceTimersByTimeAsync(0);
       expect(onSendNow1).toHaveBeenCalledTimes(1);
       expect(onSendNow2).not.toHaveBeenCalled();
 
