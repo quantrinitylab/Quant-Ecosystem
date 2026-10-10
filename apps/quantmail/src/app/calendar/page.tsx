@@ -50,14 +50,17 @@ import {
   CalendarScheduleSubView,
 } from '../../components/CalendarSubViews';
 
-const createInitialFormState = (currentUserEmail: string = ''): FormState => ({
+const createInitialFormState = (
+  currentUserEmail: string = '',
+  timezone: string = 'Asia/Kolkata',
+): FormState => ({
   title: '',
   startDate: toDateInput(new Date()),
   endDate: toDateInput(new Date()),
   startTime: '10:00',
   endTime: '11:00',
   allDay: false,
-  timezone: 'Asia/Kolkata',
+  timezone,
   location: '',
   description: '',
   recurrence: 'Does not repeat',
@@ -253,7 +256,7 @@ function CalendarPageContent() {
 
   // Rich Entry Form State
   const [formState, setFormState] = useState<FormState>(() =>
-    createInitialFormState(currentUserEmail),
+    createInitialFormState(currentUserEmail, activeTimezone),
   );
 
   useEffect(() => {
@@ -718,7 +721,7 @@ function CalendarPageContent() {
         startTime: opts?.startTime ?? '10:00',
         endTime: opts?.endTime ?? '11:00',
         allDay: false,
-        timezone: 'Asia/Kolkata',
+        timezone: activeTimezone,
         location: '',
         description: '',
         recurrence: 'Does not repeat',
@@ -758,7 +761,7 @@ function CalendarPageContent() {
       setEditingEventId(null);
       setActiveSheetType(type);
     },
-    [selectedDate, currentUserEmail],
+    [selectedDate, currentUserEmail, activeTimezone],
   );
 
   const openEditSheet = useCallback((ev: CalendarEventLike) => {
