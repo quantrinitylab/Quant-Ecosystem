@@ -1861,9 +1861,7 @@ Scope: apps/quantai/backend/routes/agent-runtime.ts; packages/agent-runtime/src/
 Dependencies: QM-AUTH-008; QM-QUANTY-004; durable jobs architecture.
 
 ## QM-QUANTY-009 — Quanty high-risk approval must be a blocking, durable gate before execution
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-quanty-009-blocking-approval-gate
+Status: [x] DONE — PR #800 merged 2026-10-10 (8 files, +1161/-59). High-risk (ACT_HIGH/FULL_AUTO) actions now block in a durable WAITING_APPROVAL state: the approval record persists exact action/resource/risk/policy version/expiry/requester + action hash; resume only on an authenticated decision matching that exact node+hash, unexpired; rejection/expiry/cancellation stop the action; retries cannot bypass; decisions audited; execution-engine auto-approve records an explicit system-policy decision. Re-based onto post-#789 main (disjoint hunks, both preserved) and gates re-run on the merged tree: agent-runtime 452/452, tsc clean. New approval-gate.test.ts (521 lines) covers block-until-approved, hash/expiry mismatch, rejection/expiry/cancellation, retry non-bypass.
 Finding: packages/agent-runtime/src/orchestrator.ts detects ACT_HIGH/FULL_AUTO and calls approvalQueue.submit, but then immediately proceeds to worker.start and worker.run without awaiting or checking an approval decision. Recording an approval request is not the same as blocking execution, creating a fail-open path for high-risk actions.
 Required: make approval a mandatory WAITING_APPROVAL state. Persist exact action/resource/risk/policy version/expiry/requester and an action hash. Resume only after authenticated approval matches that exact node and has not expired. Rejection, expiry and cancellation must stop the action and retries must not bypass approval. Prefer the canonical Quanty approval engine over parallel in-memory approval implementations.
 Tests: prove external tool is never invoked before approval; approval/expiry/rejection/duplicate decision; action changes after approval; restart while waiting; concurrent cancel/approve; malicious client cannot mark approval locally. Audit every decision.
