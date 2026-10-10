@@ -121,6 +121,63 @@ export interface UpsertVacationResponderPreference {
   intervalDays?: number;
 }
 
+/**
+ * Data-export center (QM-BACK-006 backend, QM-UIUX-091 UI). The shapes below
+ * are the backend's actual contract in `backend/routes/data-lifecycle.ts`:
+ * the status union is the `DataExportStatus` Prisma enum — the backend has
+ * no other states — and a completed export's artifact is an inventory
+ * manifest delivered inline by the build call (`artifactRef` is
+ * `inline-manifest:<id>`), never a download URL.
+ */
+export type DataExportStatus = 'requested' | 'completed' | 'failed';
+
+export interface DataExportRequestRecord {
+  id: string;
+  userId: string;
+  scope: string;
+  status: DataExportStatus;
+  artifactRef: string | null;
+  error: string | null;
+  requestedAt: string;
+  completedAt: string | null;
+}
+
+export interface DataExportManifestClass {
+  count: number;
+  retention: string;
+}
+
+export interface DataExportManifest {
+  version: string;
+  generatedAt: string;
+  classes: {
+    emails: DataExportManifestClass;
+    threads: DataExportManifestClass;
+    contacts: DataExportManifestClass;
+    driveFiles: DataExportManifestClass;
+  };
+  compliance: {
+    activeLegalHoldsPlacedByUser: number;
+    priorExports: number;
+    activeRetentionPolicies: number;
+  };
+  note: string;
+}
+
+export interface RequestDataExportResult {
+  exportId: string;
+  operationId: string;
+  status: DataExportStatus;
+  scope: string;
+}
+
+export interface BuildDataExportResult {
+  exportId: string;
+  status: DataExportStatus;
+  artifactRef: string;
+  manifest: DataExportManifest;
+}
+
 export interface MailFilterCondition {
   from?: string;
   to?: string;
@@ -750,6 +807,22 @@ export class QuantMailApiClient {
 
   async disableVacationResponder(): Promise<ApiResponse<VacationResponderPreference>> {
     return this.post('/vacation-responder/disable', {});
+  }
+
+  // ── Data exports (QM-BACK-006 / QM-UIUX-091) ─────────────────────────────
+  // Through the Next proxy these land on the backend's `/data-lifecycle`
+  // mount. Only the `mailbox-inventory` scope exists in v1, so the request
+  // carries no scope choice — the backend defaults and validates it.
+  async requestDataExport(): Promise<ApiResponse<RequestDataExportResult>> {
+    return this.post('/data-lifecycle/exports', {});
+  }
+
+  async buildDataExport(exportId: string): Promise<ApiResponse<BuildDataExportResult>> {
+    return this.post(`/data-lifecycle/exports/${encodeURIComponent(exportId)}/build`, {});
+  }
+
+  async listDataExports(): Promise<ApiResponse<DataExportRequestRecord[]>> {
+    return this.get('/data-lifecycle/exports');
   }
 
   async getFilters(): Promise<ApiResponse<EmailFilter[]>> {
