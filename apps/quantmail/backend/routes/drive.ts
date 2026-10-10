@@ -1560,7 +1560,7 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     const files = fileIds.length
       ? await prisma.file.findMany({
           where: { id: { in: fileIds }, userId, isDeleted: false },
-          select: { id: true, name: true, mimeType: true, size: true, updatedAt: true },
+          select: { id: true, name: true, mimeType: true, size: true, updatedAt: true, scanStatus: true, scanReason: true },
         })
       : [];
     const fileMap: Map<string, any> = new Map(files.map((f: any) => [f.id, f]));
@@ -1601,6 +1601,9 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       mimeType: string;
       size: number;
       updatedAt: Date;
+      // QM-M39-009: real scan state for file targets (null for folders).
+      scanStatus: string | null;
+      scanReason: string | null;
       sharedWith: Array<{
         name: string;
         email: string;
@@ -1627,6 +1630,8 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
           mimeType: share.fileId ? target.mimeType : '',
           size: share.fileId ? target.size : 0,
           updatedAt: target.updatedAt,
+          scanStatus: share.fileId ? (target.scanStatus ?? null) : null,
+          scanReason: share.fileId ? (target.scanReason ?? null) : null,
           sharedWith: [],
           linkShare: share.fileId ? (linkMap.get(share.fileId) ?? null) : null,
         };

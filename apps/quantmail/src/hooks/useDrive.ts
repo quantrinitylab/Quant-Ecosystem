@@ -75,6 +75,10 @@ export interface SentShareItem {
   size: number;
   updatedAt: string;
   sharedCount: number;
+  // QM-M39-009: real scan state from GET /drive/shares/sent. 'unknown' is
+  // honest for unscanned files — the badge never renders it as safe.
+  scanStatus?: string | null;
+  scanReason?: string | null;
   sharedWith: SentShareRecipient[];
   linkShare: {
     role: string;
@@ -180,6 +184,291 @@ const readErrorInstruction = async (response: Response): Promise<string | null> 
 // presentational components can use it without pulling this module.
 export { isDocumentDriveId } from '../lib/drive-ids';
 
+// ============================================================================
+// Resumable chunked uploads (QM-SCREEN-011 P0).
+//
+// The one-shot base64 JSON POST meant a dropped network restarted the whole
+// file from zero. The backend already exposes a FastCDC chunk protocol —
+// POST /api/drive/upload/chunk/initiate, POST /:uploadId, GET /:uploadId/status,
+// POST /:uploadId/complete, POST /:uploadId/abort — and the catch-all
+// src/app/api/[...path]/route.ts forwards every /api/drive/* path, so no
+// dedicated Next proxy routes are needed. The client below slices each file
+// into chunks, POSTs them sequentially with progress, retries failed chunks,
+// and resumes an interrupted upload from the server-reported missing chunks.
+// ============================================================================
+
+/** 5 MiB per chunk — inside the backend's 64 KiB..20 MiB per-chunk window. */
+const RESUMABLE_CHUNK_SIZE = 5 * 1024 * 1024;
+/** Backend MAX_UPLOAD_FILE_BYTES for chunked uploads; 413 above this. */
+const RESUMABLE_MAX_BYTES = 5 * 1024 * 1024 * 1024;
+const CHUNK_RETRY_ATTEMPTS = 3;
+const CHUNK_RETRY_BASE_MS = 800;
+
+interface ChunkedSessionBinding {
+  serverUploadId: string;
+  fingerprint: string;
+}
+
+/**
+ * Browser-side registry of live server sessions, keyed by file fingerprint
+ * (name + size + mtime + folder). Survives a failed uploadFiles call, so
+ * retrying the same File resumes the SAME server session through the status
+ * endpoint instead of re-uploading chunks the server already received.
+ */
+const resumableSessions = new Map<string, string>();
+
+/** Test-only escape hatch: drop all remembered sessions between cases. */
+export function clearResumableUploadSessionsForTests(): void {
+  resumableSessions.clear();
+}
+
+const resumableFingerprint = (file: File, folderId: string | null): string =>
+  `${file.name}|${file.size}|${file.lastModified}|${folderId ?? ''}`;
+
+const sleepAbortable = (ms: number, signal: AbortSignal): Promise<void> =>
+  new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new Error('Upload cancelled'));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new Error('Upload cancelled'));
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+
+const blobToBase64 = async (blob: Blob): Promise<string> => {
+  // arrayBuffer + chunked btoa: no FileReader dependency, so this works in
+  // the node-environment unit tests as well as the browser.
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = '';
+  const STEP = 0x8000;
+  for (let i = 0; i < bytes.length; i += STEP) {
+    binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + STEP)));
+  }
+  return btoa(binary);
+};
+
+/** Verbatim backend error message when the body carries one — honest errors only. */
+const extractChunkApiError = async (response: Response, fallback: string): Promise<string> => {
+  const text = await response.text().catch(() => '');
+  if (!text) return response.statusText || fallback;
+  try {
+    const parsed = JSON.parse(text) as { error?: { message?: string }; message?: string };
+    return parsed.error?.message || parsed.message || text || fallback;
+  } catch {
+    return text || response.statusText || fallback;
+  }
+};
+
+const initiateChunkedSession = async (
+  file: File,
+  folderId: string | null,
+  signal: AbortSignal,
+): Promise<{ uploadId: string; chunkSize: number; totalChunks: number }> => {
+  const response = await apiRequest('/api/drive/upload/chunk/initiate', {
+    method: 'POST',
+    signal,
+    body: JSON.stringify({
+      name: file.name || 'untitled',
+      totalSize: file.size,
+      mimeType: file.type || 'application/octet-stream',
+      folderId,
+      chunkSize: RESUMABLE_CHUNK_SIZE,
+    }),
+  });
+  if (!response.ok) throw new Error(await extractChunkApiError(response, 'Upload failed'));
+  const session = (await response.json()) as {
+    uploadId: string;
+    chunkSize: number;
+    totalChunks: number;
+  };
+  return { uploadId: session.uploadId, chunkSize: session.chunkSize, totalChunks: session.totalChunks };
+};
+
+interface ChunkedSessionState {
+  uploadId: string;
+  chunkSize: number;
+  totalChunks: number;
+  missingChunks: number[];
+}
+
+/**
+ * Ask the server which chunks of a remembered session already landed.
+ * Returns null when the session is gone server-side (expired / backend
+ * restarted) — the caller then initiates a fresh session.
+ */
+const queryMissingChunks = async (
+  serverUploadId: string,
+  signal: AbortSignal,
+): Promise<ChunkedSessionState | null> => {
+  const response = await apiRequest(
+    `/api/drive/upload/chunk/${encodeURIComponent(serverUploadId)}/status`,
+    { signal },
+  );
+  if (!response.ok) return null;
+  const status = (await response.json()) as {
+    uploadId: string;
+    chunkSize: number;
+    totalChunks: number;
+    missingChunks: number[];
+  };
+  return {
+    uploadId: status.uploadId,
+    chunkSize: status.chunkSize,
+    totalChunks: status.totalChunks,
+    missingChunks: [...status.missingChunks].sort((a, b) => a - b),
+  };
+};
+
+const postChunkWithRetry = async (
+  serverUploadId: string,
+  chunkIndex: number,
+  contentBase64: string,
+  signal: AbortSignal,
+): Promise<void> => {
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= CHUNK_RETRY_ATTEMPTS; attempt++) {
+    if (signal.aborted) throw new Error('Upload cancelled');
+    let response: Response | null = null;
+    try {
+      response = await apiRequest(
+        `/api/drive/upload/chunk/${encodeURIComponent(serverUploadId)}`,
+        { method: 'POST', signal, body: JSON.stringify({ chunkIndex, contentBase64 }) },
+      );
+    } catch (networkError) {
+      // Network failure / timeout — retryable. A user abort is caught by the
+      // signal check below and is never retried.
+      lastError = networkError instanceof Error ? networkError : new Error('Upload failed');
+    }
+    if (response) {
+      if (response.ok) return;
+      const message = await extractChunkApiError(response, 'Upload failed');
+      lastError = new Error(message);
+      // 4xx (other than 408/429) is a terminal client error — retrying a
+      // rejected chunk is pointless. 5xx / 408 / 429 may recover.
+      const retryable = response.status >= 500 || response.status === 408 || response.status === 429;
+      if (!retryable) throw lastError;
+    }
+    if (signal.aborted) throw new Error('Upload cancelled');
+    if (attempt < CHUNK_RETRY_ATTEMPTS) {
+      await sleepAbortable(CHUNK_RETRY_BASE_MS * 2 ** (attempt - 1), signal);
+    }
+  }
+  throw lastError ?? new Error('Upload failed');
+};
+
+const completeChunkedSession = async (
+  serverUploadId: string,
+  signal: AbortSignal,
+): Promise<void> => {
+  const response = await apiRequest(
+    `/api/drive/upload/chunk/${encodeURIComponent(serverUploadId)}/complete`,
+    { method: 'POST', signal, body: JSON.stringify({}) },
+  );
+  if (!response.ok) throw new Error(await extractChunkApiError(response, 'Upload failed'));
+};
+
+/**
+ * The chunked protocol requires a non-empty file; an empty file keeps the
+ * legacy one-shot route so it is still uploadable instead of being rejected.
+ */
+const uploadEmptyFileOneShot = async (
+  file: File,
+  folderId: string | null,
+  signal: AbortSignal,
+): Promise<void> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (folderId) formData.append('folderId', folderId);
+  // authenticatedFetch, not browserApiRequest — the JSON Content-Type default
+  // would corrupt the multipart body.
+  const response = await browserAuthSession.authenticatedFetch('/api/drive/upload', {
+    method: 'POST',
+    body: formData,
+    signal,
+  });
+  if (!response.ok) throw new Error(await extractChunkApiError(response, 'Upload failed'));
+};
+
+interface ResumableUploadTask {
+  file: File;
+  folderId: string | null;
+  signal: AbortSignal;
+  onProgress: (percent: number) => void;
+  onSession: (binding: ChunkedSessionBinding) => void;
+}
+
+const uploadFileResumable = async (task: ResumableUploadTask): Promise<void> => {
+  const { file, folderId, signal, onProgress, onSession } = task;
+
+  if (file.size === 0) {
+    await uploadEmptyFileOneShot(file, folderId, signal);
+    onProgress(100);
+    return;
+  }
+  // Client-side guard mirrors the backend 413 so the limit is visible up
+  // front; the backend stays the authority — its message surfaces verbatim.
+  if (file.size > RESUMABLE_MAX_BYTES) {
+    throw new Error(`File exceeds maximum upload size of ${RESUMABLE_MAX_BYTES} bytes`);
+  }
+  if (signal.aborted) throw new Error('Upload cancelled');
+
+  const fingerprint = resumableFingerprint(file, folderId);
+  let session: ChunkedSessionState | null = null;
+
+  const remembered = resumableSessions.get(fingerprint);
+  if (remembered) {
+    const resumed = await queryMissingChunks(remembered, signal);
+    if (resumed) {
+      session = resumed;
+    } else {
+      resumableSessions.delete(fingerprint);
+    }
+  }
+  if (!session) {
+    const initiated = await initiateChunkedSession(file, folderId, signal);
+    session = {
+      ...initiated,
+      missingChunks: Array.from({ length: initiated.totalChunks }, (_, i) => i),
+    };
+    resumableSessions.set(fingerprint, session.uploadId);
+  }
+
+  const { uploadId: serverUploadId, chunkSize, totalChunks } = session;
+  onSession({ serverUploadId, fingerprint });
+
+  const chunkByteSize = (index: number): number =>
+    index === totalChunks - 1 ? file.size - index * chunkSize : chunkSize;
+
+  // Bytes already confirmed on the server (resume case) count toward progress.
+  let uploadedBytes = 0;
+  for (let i = 0; i < totalChunks; i++) {
+    if (!session.missingChunks.includes(i)) uploadedBytes += chunkByteSize(i);
+  }
+  onProgress(Math.min(100, Math.round((uploadedBytes / file.size) * 100)));
+
+  for (const chunkIndex of session.missingChunks) {
+    if (signal.aborted) throw new Error('Upload cancelled');
+    const start = chunkIndex * chunkSize;
+    const contentBase64 = await blobToBase64(
+      file.slice(start, Math.min(start + chunkSize, file.size)),
+    );
+    await postChunkWithRetry(serverUploadId, chunkIndex, contentBase64, signal);
+    uploadedBytes += chunkByteSize(chunkIndex);
+    onProgress(Math.min(100, Math.round((uploadedBytes / file.size) * 100)));
+  }
+
+  await completeChunkedSession(serverUploadId, signal);
+  resumableSessions.delete(fingerprint);
+  onProgress(100);
+};
+
 export function useDrive(): UseDriveReturn {
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -191,6 +480,7 @@ export function useDrive(): UseDriveReturn {
     { id: null, name: 'My Drive' },
   ]);
   const abortControllers = useRef<Map<string, AbortController>>(new Map());
+  const uploadSessionIds = useRef<Map<string, ChunkedSessionBinding>>(new Map());
   const cancelledUploadIds = useRef<Set<string>>(new Set());
   const fetchSeqRef = useRef<number>(0);
 
@@ -251,87 +541,17 @@ export function useDrive(): UseDriveReturn {
         setUploads((prev) =>
           prev.map((u) => (u.fileId === uploadId ? { ...u, status: 'uploading' as const } : u)),
         );
+        const setProgress = (progress: number) =>
+          setUploads((prev) => prev.map((u) => (u.fileId === uploadId ? { ...u, progress } : u)));
 
         try {
-          const formData = new FormData();
-          formData.append('file', file);
-          if (currentFolderId) formData.append('folderId', currentFolderId);
-
-          const uploadOnce = async (allowRefreshRetry: boolean): Promise<void> => {
-            if (controller.signal.aborted) throw new Error('Upload cancelled');
-
-            const xhr = new XMLHttpRequest();
-            await new Promise<void>((resolve, reject) => {
-              const abortRequest = () => xhr.abort();
-              const detachAbort = () =>
-                controller.signal.removeEventListener('abort', abortRequest);
-              const rejectUpload = (uploadError: Error) => {
-                detachAbort();
-                reject(uploadError);
-              };
-
-              if (controller.signal.aborted) {
-                rejectUpload(new Error('Upload cancelled'));
-                return;
-              }
-              controller.signal.addEventListener('abort', abortRequest, { once: true });
-
-              xhr.upload.onprogress = (event) => {
-                if (event.lengthComputable) {
-                  const progress = Math.round((event.loaded / event.total) * 100);
-                  setUploads((prev) =>
-                    prev.map((u) => (u.fileId === uploadId ? { ...u, progress } : u)),
-                  );
-                }
-              };
-              xhr.onload = () => {
-                detachAbort();
-                if (xhr.status === 401 && allowRefreshRetry) {
-                  void (async () => {
-                    try {
-                      const refreshed = await browserAuthSession.refresh();
-                      if (!refreshed.success || !browserAuthSession.getAccessToken()) {
-                        reject(new Error('Upload authorization failed'));
-                        return;
-                      }
-                      await uploadOnce(false);
-                      resolve();
-                    } catch (retryError) {
-                      reject(retryError);
-                    }
-                  })();
-                  return;
-                }
-
-                if (xhr.status >= 200 && xhr.status < 300) {
-                  resolve();
-                } else {
-                  // Surface the backend reason (quota exceeded, too large, storage down)
-                  // instead of a bare status line.
-                  let message = xhr.statusText || `Upload failed with status ${xhr.status}`;
-                  try {
-                    const parsed = JSON.parse(xhr.responseText) as {
-                      error?: { message?: string };
-                      message?: string;
-                    };
-                    message = parsed.error?.message || parsed.message || message;
-                  } catch {
-                    /* non-JSON body: keep the status text */
-                  }
-                  reject(new Error(message));
-                }
-              };
-              xhr.onerror = () => rejectUpload(new Error('Upload failed'));
-              xhr.onabort = () => rejectUpload(new Error('Upload cancelled'));
-              xhr.open('POST', '/api/drive/upload');
-              xhr.withCredentials = true;
-              const accessToken = browserAuthSession.getAccessToken();
-              if (accessToken) xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
-              xhr.send(formData);
-            });
-          };
-
-          await uploadOnce(true);
+          await uploadFileResumable({
+            file,
+            folderId: currentFolderId,
+            signal: controller.signal,
+            onProgress: setProgress,
+            onSession: (binding) => uploadSessionIds.current.set(uploadId, binding),
+          });
 
           setUploads((prev) =>
             prev.map((u) =>
@@ -353,6 +573,7 @@ export function useDrive(): UseDriveReturn {
           );
         } finally {
           abortControllers.current.delete(uploadId);
+          uploadSessionIds.current.delete(uploadId);
         }
       }
       await fetchFiles();
@@ -638,6 +859,17 @@ export function useDrive(): UseDriveReturn {
     if (controller) {
       controller.abort();
       abortControllers.current.delete(uploadId);
+    }
+    // Release the server-side quota reservation for the chunked session, if
+    // one was initiated — best effort, never blocks the UI.
+    const binding = uploadSessionIds.current.get(uploadId);
+    uploadSessionIds.current.delete(uploadId);
+    if (binding) {
+      resumableSessions.delete(binding.fingerprint);
+      void apiRequest(
+        `/api/drive/upload/chunk/${encodeURIComponent(binding.serverUploadId)}/abort`,
+        { method: 'POST' },
+      ).catch(() => undefined);
     }
     setUploads((prev) => prev.filter((u) => u.fileId !== uploadId));
   }, []);

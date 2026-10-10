@@ -693,6 +693,8 @@ function DrivePageContent() {
           lastOpenedAt: f.lastOpenedAt ?? null,
           isStarred: f.isStarred,
           documentId: (f as { documentId?: string }).documentId,
+          scanStatus: f.scanStatus ?? null,
+          scanReason: f.scanReason ?? null,
         }));
         setRecentItems((prev) => (append ? [...prev, ...mapped] : mapped));
         recentCursorRef.current = page.nextCursor;

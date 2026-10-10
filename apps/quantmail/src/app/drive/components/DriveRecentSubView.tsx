@@ -4,6 +4,7 @@ import React from 'react';
 import { formatBytes } from '../../../lib/format-bytes';
 import { isDocumentDriveId } from '../../../lib/drive-ids';
 import { ClockIcon, StarFilledIcon, StarIcon, HardDriveIcon } from './DriveIcons';
+import { FileScanBadge } from './FileScanBadge';
 
 export interface RecentItem {
   id: string;
@@ -19,6 +20,10 @@ export interface RecentItem {
   lastOpenedAt?: string | null;
   isStarred?: boolean;
   documentId?: string;
+  // QM-M39-009: security scan state from the backend. 'unknown' is honest for
+  // unscanned files — the badge never renders it as safe.
+  scanStatus?: string | null;
+  scanReason?: string | null;
 }
 
 export interface DriveRecentSubViewProps {
@@ -194,6 +199,10 @@ export function DriveRecentSubView({
                       {formatBytes(item.size)}
                       {recencyText ? ` · ${recencyText}` : ''}
                     </p>
+                    {/* QM-M39-009: security scan state — 'unknown' renders as "Not scanned", never as safe */}
+                    <div className="mt-1.5">
+                      <FileScanBadge status={item.scanStatus} reason={item.scanReason} />
+                    </div>
                   </div>
 
                   <div className="pt-2 border-t border-[#232938] flex items-center justify-between text-[11px]">
