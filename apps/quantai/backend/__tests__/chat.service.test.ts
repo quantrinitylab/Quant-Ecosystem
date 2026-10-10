@@ -158,6 +158,30 @@ describe('ChatService', () => {
       );
     });
 
+    it('throws honest AI_UNAVAILABLE 503 (not 500) when no engine is configured', async () => {
+      const engineLess = new ChatService(prisma as never, undefined);
+      prisma.aISession.findUnique.mockResolvedValue({
+        id: 'session-1',
+        userId: 'user-1',
+        model: 'quant-1',
+        systemPrompt: null,
+      });
+      // The no-engine path is reached only after the user message is stored
+      // and history is fetched — mock both so the flow gets to requireEngine().
+      prisma.aIMessage.create.mockResolvedValue({ id: 'msg-user' });
+      prisma.aIMessage.findMany.mockResolvedValue([]);
+
+      const err = (await engineLess
+        .sendMessage('session-1', 'user-1', 'Hello')
+        .catch((e: unknown) => e)) as {
+        statusCode?: number;
+        code?: string;
+        message?: string;
+      };
+      expect(err.code).toBe('AI_UNAVAILABLE');
+      expect(err.statusCode).toBe(503);
+    });
+
     it('includes attachments in user message', async () => {
       prisma.aISession.findUnique.mockResolvedValue({
         id: 'session-1',

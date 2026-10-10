@@ -42,7 +42,7 @@ describe('resolveCurrentModel — P0 crash regression', () => {
   });
 
   it('NEVER returns undefined when the API returns an empty list (the P0)', () => {
-    const resolved = resolveCurrentModel([], 'gpt-4o');
+    const resolved = resolveCurrentModel([], 'quant-1');
     expect(resolved).toBeDefined();
     expect(typeof resolved.id).toBe('string');
     expect(resolved.id.length).toBeGreaterThan(0);
@@ -55,15 +55,15 @@ describe('resolveCurrentModel — P0 crash regression', () => {
   });
 
   it('resolves a static-list model when fetched list is empty', () => {
-    const resolved = resolveCurrentModel([], 'gpt-4o');
+    const resolved = resolveCurrentModel([], 'quant-1');
     const staticIds = AVAILABLE_MODELS.map((m) => m.id);
     // Either the static match or the hardcoded fallback — both are safe.
-    expect(['gpt-4o', ...staticIds].includes(resolved.id)).toBe(true);
+    expect(['quant-1', ...staticIds].includes(resolved.id)).toBe(true);
   });
 
   it('page.tsx can safely dereference .id on every fallback path', () => {
     const cases: Array<[AIModel[], string]> = [
-      [[], 'gpt-4o'],
+      [[], 'quant-1'],
       [[], 'bogus'],
       [[makeModel('x')], 'bogus'],
       [[makeModel('x')], 'x'],

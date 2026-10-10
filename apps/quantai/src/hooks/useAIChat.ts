@@ -53,6 +53,8 @@ interface UseAIChatReturn {
   isStreaming: boolean;
   isLoading: boolean;
   error: string | null;
+  /** True when the backend reported no AI provider is configured. */
+  aiUnavailable: boolean;
   currentModel: string;
   tokenCount: number;
   sendMessage: (content: string, attachments?: string[]) => void;
@@ -125,13 +127,19 @@ function mapServerSession(s: ServerSession): ChatConversation {
 }
 
 export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
-  const { defaultModel = 'muse-spark-1.3' } = options;
+  const { defaultModel = 'quant-1' } = options;
 
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * True once the backend has told us no AI provider is configured
+   * (AI_UNAVAILABLE). The composer disables itself and shows an honest
+   * "not available" state instead of letting the user retry a dead flow.
+   */
+  const [aiUnavailable, setAiUnavailable] = useState<boolean>(false);
   const [currentModel, setCurrentModel] = useState<string>(defaultModel);
 
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -346,7 +354,9 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
   const sendMessage = useCallback(
     (content: string, attachments?: string[]) => {
       const trimmed = content.trim();
-      if (!trimmed || isStreaming) return;
+      // No point hitting a flow the backend already told us can never
+      // succeed; the composer is disabled in this state too.
+      if (!trimmed || isStreaming || aiUnavailable) return;
 
       void (async () => {
         let conversationId = activeConversationId;
@@ -387,6 +397,10 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
         setIsStreaming(true);
         setError(null);
 
+        // Hoisted: the catch block needs the stream's error code to decide
+        // between a generic error bubble and the honest AI_UNAVAILABLE state.
+        let streamErrorCode: string | null = null;
+
         try {
           const res = await apiFetchRaw(`${API_BASE}/sessions/${convId}/messages/stream`, {
             method: 'POST',
@@ -424,9 +438,19 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
               const data = line.slice(5).trim();
               if (!data || data === '[DONE]') continue;
               try {
-                const parsed = JSON.parse(data) as { content?: string; error?: string };
+                const parsed = JSON.parse(data) as {
+                  content?: string;
+                  error?: string;
+                  code?: string;
+                };
                 if (parsed.error) {
                   streamError = parsed.error;
+                  // Honest unavailable signal from the backend (no AI provider
+                  // configured): the flow can never succeed, so remember it
+                  // and surface a disabled state instead of a generic error.
+                  if (parsed.code === 'AI_UNAVAILABLE') {
+                    streamErrorCode = parsed.code;
+                  }
                 } else if (parsed.content) {
                   accumulated += parsed.content;
                   applyDelta(accumulated);
@@ -466,12 +490,25 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
           await loadMessages(convId);
         } catch (err) {
           if (err instanceof Error && err.name === 'AbortError') return;
+          const unavailable = streamErrorCode === 'AI_UNAVAILABLE';
+          if (unavailable) {
+            // Persistent honest state: the composer disables itself and the
+            // page shows "AI chat isn't available right now" instead of
+            // letting the user retry a flow that can never succeed.
+            setAiUnavailable(true);
+          }
           setError(err instanceof Error ? err.message : 'Failed to get response');
           patchConversation(convId, (c) => ({
             ...c,
             messages: c.messages.map((m) =>
               m.id === tempAssistantId
-                ? { ...m, content: 'Sorry, I encountered an error.', isStreaming: false }
+                ? {
+                    ...m,
+                    content: unavailable
+                      ? "AI chat isn't available right now — no AI provider is configured on this server."
+                      : 'Sorry, I encountered an error.',
+                    isStreaming: false,
+                  }
                 : m,
             ),
           }));
@@ -484,6 +521,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
     [
       activeConversationId,
       isStreaming,
+      aiUnavailable,
       currentModel,
       conversations,
       createConversation,
@@ -545,10 +583,10 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
   }, [activeConversationId, patchConversation]);
 
   const retryLastMessage = useCallback(() => {
-    if (!activeConversation) return;
+    if (!activeConversation || aiUnavailable) return;
     const lastUser = [...activeConversation.messages].reverse().find((m) => m.role === 'user');
     if (lastUser) sendMessage(lastUser.content);
-  }, [activeConversation, sendMessage]);
+  }, [activeConversation, aiUnavailable, sendMessage]);
 
   const stopStreaming = useCallback(() => {
     abortControllerRef.current?.abort();
@@ -563,6 +601,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
     isStreaming,
     isLoading,
     error,
+    aiUnavailable,
     currentModel,
     tokenCount,
     sendMessage,
