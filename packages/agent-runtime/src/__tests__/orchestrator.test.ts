@@ -166,12 +166,27 @@ describe('Orchestrator', () => {
     const worker = new MockWorkerAgent('worker-1', PermissionLevel.ACT_HIGH);
     orchestrator.registerWorker(worker);
 
-    await orchestrator.executeTask('Do high-risk thing');
+    // QM-QUANTY-009: the gate blocks — execution cannot complete until an
+    // authenticated approval arrives, so drive the decision while in flight.
+    const execution = orchestrator.executeTask('Do high-risk thing');
+    await vi.waitFor(() => {
+      expect(orchestrator.approvalQueue.getAll().length).toBe(1);
+    });
+    expect(worker.executedTasks).toHaveLength(0);
 
+    orchestrator.approvalQueue.approve('approval-sub-1', {
+      decidedBy: 'user-owner',
+      stepUpVerified: true,
+    });
+    const result = await execution;
+
+    expect(result.status).toBe('completed');
+    expect(worker.executedTasks).toHaveLength(1);
     const pending = orchestrator.approvalQueue.getAll();
     expect(pending.length).toBe(1);
     expect(pending[0]!.request.riskLevel).toBe('high');
     expect(pending[0]!.request.agentId).toBe('worker-1');
+    expect(pending[0]!.status).toBe('approved');
   });
 
   it('acquires resource locks during parallel dispatch', async () => {
