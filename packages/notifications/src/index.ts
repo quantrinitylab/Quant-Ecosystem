@@ -7,8 +7,12 @@
 // in process memory — it never persisted or sent anything — and every app's
 // real notification path writes the shared Prisma `Notification` model
 // directly (QuantMail QM-UIUX-052, QuantGram, QuantWave). What remains here
-// is the push-delivery substrate that QM-UIUX-053 will wire:
-// PushNotificationService (FCM/APNs) and WebPushService (VAPID web push).
+// is the push-delivery substrate: PushNotificationService (FCM/APNs) and
+// WebPushService (VAPID web push). QM-UIUX-053 wires the web-push half into
+// QuantMail: subscriptions persist in the Prisma `PushSubscription` model,
+// delivery runs through `createWebPushSendHandler` (the real `web-push`
+// transport), and an unconfigured server (no VAPID keys) reports
+// 'not-configured' instead of pretending to send.
 // ============================================================================
 
 export { PushNotificationService, PushService } from './services/push-service';
@@ -20,8 +24,12 @@ export type {
   PushServiceConfig,
 } from './services/push-service';
 
-export { WebPushService } from './services/web-push-service';
-export type { VapidConfig, WebPushPayload } from './services/web-push-service';
+export { WebPushService, createWebPushSendHandler } from './services/web-push-service';
+export type {
+  VapidConfig,
+  WebPushPayload,
+  WebPushSendHandler,
+} from './services/web-push-service';
 
 export type {
   NotificationType,
