@@ -27,21 +27,21 @@ describe('HeroPromptBento', () => {
       }),
     );
 
-    // Card 1: FluxGPT AI
+    // Card 1: Image Generation
     expect(html).toContain('Generate Visual Concepts');
-    expect(html).toContain('🎨 FluxGPT AI');
+    expect(html).toContain('Image Generation');
 
     // Card 2: Work Canvas
     expect(html).toContain('Synthesize Documents &amp; Code');
-    expect(html).toContain('📝 Work Canvas');
+    expect(html).toContain('Work Canvas');
 
-    // Card 3: 3D Voice Orb
+    // Card 3: Voice Mode
     expect(html).toContain('Start Real-Time Voice Mode');
-    expect(html).toContain('🎙️ 3D Voice Orb');
+    expect(html).toContain('Voice Mode');
 
-    // Card 4: Vizion OCR
+    // Card 4: Document OCR
     expect(html).toContain('Vision Analysis &amp; Document OCR');
-    expect(html).toContain('👁️ Vizion OCR');
+    expect(html).toContain('Document OCR');
   });
 
   it('renders accurate subtext for prompt cards', () => {
@@ -54,10 +54,10 @@ describe('HeroPromptBento', () => {
       }),
     );
 
-    expect(html).toContain('Hyper-detailed diffusion prompts with FluxGPT LoRA styles');
+    expect(html).toContain('Craft hyper-detailed prompts to describe any visual');
     expect(html).toContain('Draft technical specs, markdown docs &amp; code in split Work Canvas');
-    expect(html).toContain('Fluid conversational voice session with Aura &amp; Vesper personas');
-    expect(html).toContain('Extract tables, structured data &amp; scene captions with Vizion AI');
+    expect(html).toContain('Fluid real-time conversational voice session');
+    expect(html).toContain('Extract tables, structured data &amp; scene captions from uploaded documents');
   });
 
   it('triggers correct callbacks when bento cards are clicked or activated with Enter', () => {
@@ -81,7 +81,7 @@ describe('HeroPromptBento', () => {
 
     expect(cards).toHaveLength(4);
 
-    // Card 1: FluxGPT AI (Visuals)
+    // Card 1: Image Generation (Visuals)
     cards[0].props.onClick();
     expect(onSelectPrompt).toHaveBeenCalledWith(
       expect.stringContaining(
@@ -96,11 +96,11 @@ describe('HeroPromptBento', () => {
     );
     expect(onOpenCanvas).toHaveBeenCalledTimes(1);
 
-    // Card 3: 3D Voice Orb (Real-Time Voice Mode)
+    // Card 3: Voice Mode (Real-Time Voice Mode)
     cards[2].props.onClick();
     expect(onStartVoice).toHaveBeenCalledTimes(1);
 
-    // Card 4: Vizion OCR (Vision Analysis)
+    // Card 4: Document OCR (Vision Analysis)
     cards[3].props.onClick();
     expect(onSelectPrompt).toHaveBeenCalledWith(
       expect.stringContaining('Extract all key entities, dates, and tables'),
