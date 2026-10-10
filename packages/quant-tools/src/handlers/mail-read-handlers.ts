@@ -79,7 +79,11 @@ export function resolveCallerJwt(context: ToolExecutionContext): string {
 export function resolveBaseUrl(options?: MailReadHandlerOptions): string {
   const raw =
     options?.baseUrl ?? process.env[QUANTMAIL_API_BASE_URL_ENV] ?? DEFAULT_QUANTMAIL_API_BASE_URL;
-  return raw.replace(/\/+$/, '');
+  // Strip trailing slashes without a regex: /\/+$/ is flagged by CodeQL
+  // (js/polynomial-redos) because it can backtrack on long runs of '/'.
+  let end = raw.length;
+  while (end > 0 && raw.charCodeAt(end - 1) === 0x2f /* '/' */) end--;
+  return raw.slice(0, end);
 }
 
 function clampLimit(value: unknown, fallback: number = DEFAULT_PAGE_SIZE): number {
