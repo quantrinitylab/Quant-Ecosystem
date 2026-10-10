@@ -39,6 +39,44 @@ export interface AIChatOptions {
   model?: string;
 }
 
+/**
+ * Native function-calling tool definition, in the OpenAI `tools` wire format.
+ * `parameters` is a JSON Schema object (`{ type: 'object', properties: {...},
+ * required: [...] }`). Anthropic callers are translated to its `input_schema`
+ * shape by the transport below.
+ */
+export interface AIToolFunction {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+/** One tool call the model requested through native function calling. */
+export interface AIToolCall {
+  /** Provider-issued call id (may be empty on providers that omit it). */
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
+/** Result of a chat completion that may carry native tool calls. */
+export interface AIChatWithToolsResult {
+  /** Assistant text content (may be empty when the turn is pure tool calls). */
+  content: string;
+  /** Tool calls the model requested, in order. Never text-parsed. */
+  toolCalls: AIToolCall[];
+}
+
+export interface AIChatWithToolsOptions extends AIChatOptions {
+  /** Tool definitions exposed to the model via the provider's native `tools` parameter. */
+  tools?: AIToolFunction[];
+  /** 'auto' (default) lets the model decide; 'none' forbids tool use. */
+  toolChoice?: 'auto' | 'none';
+}
+
 export type AIProviderName = 'cloudflare' | 'openai' | 'anthropic' | 'custom' | 'none';
 
 const DEFAULT_TIMEOUT_MS = 40_000;
@@ -253,6 +291,181 @@ export async function aiChat(messages: AIMessage[], options: AIChatOptions = {})
       return chatViaOpenAICompatible(messages, options);
     case 'anthropic':
       return chatViaAnthropic(messages, options);
+    default:
+      throw new Error(aiUnavailableReason());
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Native function calling.
+//
+// The old QuantAI tool path had the model emit ```tool_call fenced JSON
+// blocks inside its prose and had the route regex-scan them back out — a
+// fragile hack around what the providers already expose natively. These
+// transports pass the tool definitions through the provider's own `tools`
+// parameter and read the structured `tool_calls` back off the response, so
+// no text parsing is involved. A tool call whose arguments do not parse as
+// a JSON object is dropped, never executed.
+// ---------------------------------------------------------------------------
+
+interface OpenAIToolCallWire {
+  id?: string;
+  type?: string;
+  function?: { name?: string; arguments?: string };
+}
+
+function parseOpenAIToolCalls(message: {
+  content?: string | null;
+  tool_calls?: OpenAIToolCallWire[];
+}): AIChatWithToolsResult {
+  const content = typeof message?.content === 'string' ? message.content.trim() : '';
+  const toolCalls: AIToolCall[] = [];
+  for (const tc of message?.tool_calls ?? []) {
+    // Only function-type calls with a name are actionable.
+    if (tc?.type !== 'function' || !tc.function?.name) continue;
+    let args: Record<string, unknown>;
+    try {
+      const parsed: unknown = JSON.parse(tc.function.arguments ?? '{}');
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
+      args = parsed as Record<string, unknown>;
+    } catch {
+      // Malformed arguments: drop the call rather than executing garbage.
+      continue;
+    }
+    toolCalls.push({ id: String(tc.id ?? ''), name: tc.function.name, arguments: args });
+  }
+  return { content, toolCalls };
+}
+
+async function chatWithToolsViaOpenAICompatible(
+  messages: AIMessage[],
+  options: AIChatWithToolsOptions,
+  overrides: { baseUrl: string; headers: Record<string, string>; model: string },
+): Promise<AIChatWithToolsResult> {
+  const data = (await postJson(
+    `${overrides.baseUrl}/chat/completions`,
+    overrides.headers,
+    {
+      model: overrides.model,
+      messages,
+      temperature: options.temperature ?? 0.6,
+      max_tokens: options.maxTokens ?? 1024,
+      tools: options.tools ?? [],
+      tool_choice: options.toolChoice === 'none' ? 'none' : 'auto',
+    },
+    options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+  )) as { choices?: Array<{ message?: { content?: string | null; tool_calls?: OpenAIToolCallWire[] } }> };
+
+  const message = data.choices?.[0]?.message;
+  if (!message) throw new Error('AI provider returned an empty response');
+  return parseOpenAIToolCalls(message);
+}
+
+async function chatWithToolsViaCloudflare(
+  messages: AIMessage[],
+  options: AIChatWithToolsOptions,
+): Promise<AIChatWithToolsResult> {
+  const accountId = getCloudflareAccountId();
+  const apiToken = getCloudflareToken()!;
+  const model =
+    options.model ??
+    env('CLOUDFLARE_AI_MODEL') ??
+    env('AI_MODEL') ??
+    '@cf/meta/llama-3.1-70b-instruct';
+  const baseUrl = env('CLOUDFLARE_AI_BASE_URL') ?? 'https://api.cloudflare.com/client/v4/accounts';
+
+  // Cloudflare's OpenAI-compatible endpoint supports native `tools`. The
+  // legacy /ai/run REST fallback does not — when tools are requested we must
+  // NOT silently fall back to a text-only call, or tool calls would vanish.
+  return chatWithToolsViaOpenAICompatible(messages, options, {
+    baseUrl: `${baseUrl}/${accountId}/ai/v1`,
+    headers: { Authorization: `Bearer ${apiToken}` },
+    model,
+  });
+}
+
+async function chatWithToolsViaAnthropic(
+  messages: AIMessage[],
+  options: AIChatWithToolsOptions,
+): Promise<AIChatWithToolsResult> {
+  const apiKey = (env('AI_API_KEY') ?? env('ANTHROPIC_API_KEY'))!;
+  const baseUrl = (env('AI_BASE_URL') ?? 'https://api.anthropic.com/v1').replace(/\/$/, '');
+  const model = options.model ?? env('AI_MODEL') ?? 'claude-3-5-haiku-latest';
+
+  const system = messages
+    .filter((m) => m.role === 'system')
+    .map((m) => m.content)
+    .join('\n\n');
+  const turns = messages
+    .filter((m) => m.role !== 'system')
+    .map((m) => ({ role: m.role, content: m.content }));
+
+  const data = (await postJson(
+    `${baseUrl}/messages`,
+    { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    {
+      model,
+      system: system || undefined,
+      messages: turns,
+      max_tokens: options.maxTokens ?? 1024,
+      temperature: options.temperature ?? 0.6,
+      tools: (options.tools ?? []).map((t) => ({
+        name: t.function.name,
+        description: t.function.description,
+        input_schema: t.function.parameters,
+      })),
+    },
+    options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+  )) as {
+    content?: Array<{ type?: string; text?: string; id?: string; name?: string; input?: unknown }>;
+  };
+
+  const textParts: string[] = [];
+  const toolCalls: AIToolCall[] = [];
+  for (const part of data.content ?? []) {
+    if (part?.type === 'text') {
+      textParts.push(part.text ?? '');
+    } else if (part?.type === 'tool_use' && part.name) {
+      const input = part.input;
+      toolCalls.push({
+        id: String(part.id ?? ''),
+        name: part.name,
+        arguments:
+          input && typeof input === 'object' && !Array.isArray(input)
+            ? (input as Record<string, unknown>)
+            : {},
+      });
+    }
+  }
+  return { content: textParts.join('').trim(), toolCalls };
+}
+
+/**
+ * Run a chat completion with native function calling through whichever
+ * provider is configured. Tool definitions ride the provider's `tools`
+ * parameter; requested calls come back structured on the response — the
+ * caller never parses model prose for tool calls.
+ */
+export async function aiChatWithTools(
+  messages: AIMessage[],
+  options: AIChatWithToolsOptions = {},
+): Promise<AIChatWithToolsResult> {
+  const provider = activeProvider();
+  switch (provider) {
+    case 'cloudflare':
+      return chatWithToolsViaCloudflare(messages, options);
+    case 'openai':
+    case 'custom':
+      return chatWithToolsViaOpenAICompatible(messages, options, {
+        baseUrl: (env('AI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, ''),
+        headers: ((): Record<string, string> => {
+          const apiKey = env('AI_API_KEY') ?? env('OPENAI_API_KEY');
+          return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
+        })(),
+        model: options.model ?? env('AI_MODEL') ?? 'gpt-4o-mini',
+      });
+    case 'anthropic':
+      return chatWithToolsViaAnthropic(messages, options);
     default:
       throw new Error(aiUnavailableReason());
   }

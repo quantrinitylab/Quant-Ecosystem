@@ -33,14 +33,20 @@ import Fastify from 'fastify';
 import { errorHandlerPlugin } from '@quant/server-core';
 import aiChatRoutes from '../routes/ai-chat';
 
-const { aiChatMock, isAIConfiguredMock } = vi.hoisted(() => ({
+const { aiChatMock, aiChatWithToolsMock, isAIConfiguredMock } = vi.hoisted(() => ({
   aiChatMock: vi.fn(),
+  aiChatWithToolsMock: vi.fn(),
   isAIConfiguredMock: vi.fn(),
 }));
 
 vi.mock('../services/ai-provider.service', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/ai-provider.service')>();
-  return { ...actual, aiChat: aiChatMock, isAIConfigured: isAIConfiguredMock };
+  return {
+    ...actual,
+    aiChat: aiChatMock,
+    aiChatWithTools: aiChatWithToolsMock,
+    isAIConfigured: isAIConfiguredMock,
+  };
 });
 
 const ONE_TURN = [{ role: 'user', content: 'What is on my calendar today?' }];
@@ -74,9 +80,17 @@ function providerMessages(): Array<{ role: string; content: string }> {
   return aiChatMock.mock.calls[0]![0] as Array<{ role: string; content: string }>;
 }
 
+/** The options object the route handed the native tool-calling provider. */
+function providerWithToolsOptions(): Record<string, unknown> {
+  expect(aiChatWithToolsMock).toHaveBeenCalled();
+  return aiChatWithToolsMock.mock.calls[0]![1] as Record<string, unknown>;
+}
+
 beforeEach(() => {
   aiChatMock.mockReset();
   aiChatMock.mockResolvedValue('an answer');
+  aiChatWithToolsMock.mockReset();
+  aiChatWithToolsMock.mockResolvedValue({ content: 'an answer', toolCalls: [] });
   isAIConfiguredMock.mockReset();
   isAIConfiguredMock.mockReturnValue(true);
 });
@@ -460,9 +474,16 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       },
     };
 
-    aiChatMock.mockResolvedValue(
-      'I will create the repository for you now.\n\n```tool_call\n{\n  "name": "create_repository",\n  "arguments": {\n    "name": "autonomous-swarm-engine",\n    "description": "Created by Quanty"\n  }\n}\n```\n\nRepository has been created successfully!',
-    );
+    aiChatWithToolsMock.mockResolvedValue({
+      content: 'I will create the repository for you now.\n\nRepository has been created successfully!',
+      toolCalls: [
+        {
+          id: 'call_1',
+          name: 'create_repository',
+          arguments: { name: 'autonomous-swarm-engine', description: 'Created by Quanty' },
+        },
+      ],
+    });
 
     const app = await buildApp('user-1', { prisma: prismaMock });
     const res = await app.inject({
@@ -546,6 +567,7 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     expect(noToolsPrompt).not.toContain('MUST execute the appropriate tool');
 
     aiChatMock.mockClear();
+    aiChatWithToolsMock.mockClear();
     await app.inject({
       method: 'POST',
       url: '/ai/chat',
@@ -554,8 +576,15 @@ describe('POST /ai/chat — autonomous tool calling', () => {
         tools: { enabled: true },
       },
     });
-    const toolsPrompt = providerMessages()[0]!.content;
+    // Tools enabled: the route uses the native tool-calling transport, and
+    // the tool definitions ride the provider's `tools` parameter.
+    expect(aiChatWithToolsMock).toHaveBeenCalledTimes(1);
+    expect(aiChatMock).not.toHaveBeenCalled();
+    const toolsPrompt = (
+      aiChatWithToolsMock.mock.calls[0]![0] as Array<{ role: string; content: string }>
+    )[0]!.content;
     expect(toolsPrompt).toContain('MUST execute the appropriate tool');
+    expect(toolsPrompt).not.toContain('```tool_call');
   });
 
   it('QM-UIUX-077: tool calls beyond maxSteps are disclosed as NOT executed', async () => {
@@ -580,9 +609,13 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       },
     };
 
-    aiChatMock.mockResolvedValue(
-      'Creating both repositories now.\n\n```tool_call\n{\n  "name": "create_repository",\n  "arguments": { "name": "first-repo" }\n}\n```\n\n```tool_call\n{\n  "name": "create_repository",\n  "arguments": { "name": "second-repo" }\n}\n```\n\nBoth repositories have been created successfully!',
-    );
+    aiChatWithToolsMock.mockResolvedValue({
+      content: 'Creating both repositories now.\n\nBoth repositories have been created successfully!',
+      toolCalls: [
+        { id: 'call_1', name: 'create_repository', arguments: { name: 'first-repo' } },
+        { id: 'call_2', name: 'create_repository', arguments: { name: 'second-repo' } },
+      ],
+    });
 
     const app = await buildApp('user-1', { prisma: prismaMock });
     const res = await app.inject({
@@ -612,9 +645,21 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       },
     };
 
-    aiChatMock.mockResolvedValue(
-      'Deploying agent now.\n\n```tool_call\n{\n  "name": "deploy_agent",\n  "arguments": {\n    "repoId": "demo",\n    "agentName": "Forge",\n    "role": "Autonomous Coder",\n    "workstationIndex": 2\n  }\n}\n```\n\nAgent deployed to Desk #2.',
-    );
+    aiChatWithToolsMock.mockResolvedValue({
+      content: 'Deploying agent now.\n\nAgent deployed to Desk #2.',
+      toolCalls: [
+        {
+          id: 'call_1',
+          name: 'deploy_agent',
+          arguments: {
+            repoId: 'demo',
+            agentName: 'Forge',
+            role: 'Autonomous Coder',
+            workstationIndex: 2,
+          },
+        },
+      ],
+    });
 
     const app = await buildApp('user-1', { prisma: prismaMock });
     const res = await app.inject({
@@ -679,9 +724,23 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       }),
     };
 
-    aiChatMock.mockResolvedValue(
-      'Committing changes.\n\n```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "demo",\n    "path": "src/index.ts",\n    "content": "console.log(42);",\n    "message": "feat: hello world",\n    "branch": "main",\n    "parentSha": "1111222233334444555566667777888899990000"\n  }\n}\n```\n\nCommitted file to repo.',
-    );
+    aiChatWithToolsMock.mockResolvedValue({
+      content: 'Committing changes.\n\nCommitted file to repo.',
+      toolCalls: [
+        {
+          id: 'call_1',
+          name: 'commit_file',
+          arguments: {
+            repoId: 'demo',
+            path: 'src/index.ts',
+            content: 'console.log(42);',
+            message: 'feat: hello world',
+            branch: 'main',
+            parentSha: '1111222233334444555566667777888899990000',
+          },
+        },
+      ],
+    });
 
     const app = await buildApp('user-1', {
       prisma: prismaMock,
@@ -735,9 +794,21 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       commitFile: vi.fn(),
     };
 
-    aiChatMock.mockResolvedValue(
-      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "demo",\n    "path": "src/index.ts",\n    "content": "console.log(42);",\n    "message": "feat: force-write"\n  }\n}\n```',
-    );
+    aiChatWithToolsMock.mockResolvedValue({
+      content: '',
+      toolCalls: [
+        {
+          id: 'call_1',
+          name: 'commit_file',
+          arguments: {
+            repoId: 'demo',
+            path: 'src/index.ts',
+            content: 'console.log(42);',
+            message: 'feat: force-write',
+          },
+        },
+      ],
+    });
 
     const app = await buildApp('user-1', {
       prisma: prismaMock,
@@ -787,9 +858,22 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       },
     };
 
-    aiChatMock.mockResolvedValue(
-      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "demo",\n    "path": "src/index.ts",\n    "content": "console.log(42);",\n    "message": "feat: test",\n    "parentSha": "1111222233334444555566667777888899990000"\n  }\n}\n```',
-    );
+    aiChatWithToolsMock.mockResolvedValue({
+      content: '',
+      toolCalls: [
+        {
+          id: 'call_1',
+          name: 'commit_file',
+          arguments: {
+            repoId: 'demo',
+            path: 'src/index.ts',
+            content: 'console.log(42);',
+            message: 'feat: test',
+            parentSha: '1111222233334444555566667777888899990000',
+          },
+        },
+      ],
+    });
 
     const app = await buildApp('user-1', { prisma: prismaMock });
     const res = await app.inject({
@@ -819,9 +903,22 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       },
     };
 
-    aiChatMock.mockResolvedValue(
-      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "other-tenant-repo",\n    "path": "secret.txt",\n    "content": "payload",\n    "message": "malicious write",\n    "parentSha": "1111222233334444555566667777888899990000"\n  }\n}\n```',
-    );
+    aiChatWithToolsMock.mockResolvedValue({
+      content: '',
+      toolCalls: [
+        {
+          id: 'call_1',
+          name: 'commit_file',
+          arguments: {
+            repoId: 'other-tenant-repo',
+            path: 'secret.txt',
+            content: 'payload',
+            message: 'malicious write',
+            parentSha: '1111222233334444555566667777888899990000',
+          },
+        },
+      ],
+    });
 
     const app = await buildApp('user-1', { prisma: prismaMock });
     const res = await app.inject({
@@ -891,9 +988,23 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       }),
     };
 
-    aiChatMock.mockResolvedValue(
-      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "demo",\n    "path": "src/index.ts",\n    "content": "console.log(42);",\n    "message": "fix: normalize CAS",\n    "branch": "main",\n    "parentSha": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"\n  }\n}\n```',
-    );
+    aiChatWithToolsMock.mockResolvedValue({
+      content: '',
+      toolCalls: [
+        {
+          id: 'call_1',
+          name: 'commit_file',
+          arguments: {
+            repoId: 'demo',
+            path: 'src/index.ts',
+            content: 'console.log(42);',
+            message: 'fix: normalize CAS',
+            branch: 'main',
+            parentSha: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+          },
+        },
+      ],
+    });
 
     const app = await buildApp('user-1', {
       prisma: prismaMock,
@@ -947,9 +1058,23 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       commitFile: vi.fn(),
     };
 
-    aiChatMock.mockResolvedValue(
-      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "demo",\n    "path": "src/index.ts",\n    "content": "console.log(42);",\n    "message": "feat: protected write",\n    "branch": "main",\n    "parentSha": "1111222233334444555566667777888899990000"\n  }\n}\n```',
-    );
+    aiChatWithToolsMock.mockResolvedValue({
+      content: '',
+      toolCalls: [
+        {
+          id: 'call_1',
+          name: 'commit_file',
+          arguments: {
+            repoId: 'demo',
+            path: 'src/index.ts',
+            content: 'console.log(42);',
+            message: 'feat: protected write',
+            branch: 'main',
+            parentSha: '1111222233334444555566667777888899990000',
+          },
+        },
+      ],
+    });
 
     const app = await buildApp('user-1', {
       prisma: prismaMock,
@@ -989,9 +1114,23 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       commitFile: vi.fn(),
     };
 
-    aiChatMock.mockResolvedValue(
-      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "demo",\n    "path": "src/index.ts",\n    "content": "content",\n    "message": "bad CAS",\n    "branch": "main",\n    "parentSha": "948e3612"\n  }\n}\n```',
-    );
+    aiChatWithToolsMock.mockResolvedValue({
+      content: '',
+      toolCalls: [
+        {
+          id: 'call_1',
+          name: 'commit_file',
+          arguments: {
+            repoId: 'demo',
+            path: 'src/index.ts',
+            content: 'content',
+            message: 'bad CAS',
+            branch: 'main',
+            parentSha: '948e3612',
+          },
+        },
+      ],
+    });
 
     const app = await buildApp('user-1', {
       prisma: prismaMock,
@@ -1029,9 +1168,22 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       commitFile: vi.fn(),
     };
 
-    aiChatMock.mockResolvedValue(
-      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": { "repoId": "demo", "path": "test.ts", "content": "1", "message": "msg", "parentSha": "1111222233334444555566667777888899990000" }\n}\n```',
-    );
+    aiChatWithToolsMock.mockResolvedValue({
+      content: '',
+      toolCalls: [
+        {
+          id: 'call_1',
+          name: 'commit_file',
+          arguments: {
+            repoId: 'demo',
+            path: 'test.ts',
+            content: '1',
+            message: 'msg',
+            parentSha: '1111222233334444555566667777888899990000',
+          },
+        },
+      ],
+    });
 
     const app = await buildApp('user-1', {
       prisma: prismaMock,
@@ -1074,14 +1226,15 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       },
     };
 
-    // Model emits 3 tool calls, but maxSteps is set to 1
-    aiChatMock.mockResolvedValue(
-      [
-        '```tool_call\n{\n  "name": "create_repository",\n  "arguments": { "name": "repo-1" }\n}\n```',
-        '```tool_call\n{\n  "name": "create_repository",\n  "arguments": { "name": "repo-2" }\n}\n```',
-        '```tool_call\n{\n  "name": "create_repository",\n  "arguments": { "name": "repo-3" }\n}\n```',
-      ].join('\n\n'),
-    );
+    // Model emits 3 native tool calls, but maxSteps is set to 1
+    aiChatWithToolsMock.mockResolvedValue({
+      content: '',
+      toolCalls: [
+        { id: 'call_1', name: 'create_repository', arguments: { name: 'repo-1' } },
+        { id: 'call_2', name: 'create_repository', arguments: { name: 'repo-2' } },
+        { id: 'call_3', name: 'create_repository', arguments: { name: 'repo-3' } },
+      ],
+    });
 
     const app = await buildApp('user-1', { prisma: prismaMock });
     const response = await app.inject({
@@ -1103,6 +1256,97 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       result: { id: 'repo-1' },
     });
     expect(prismaMock.repository.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('native function calling round-trip: definitions reach the provider and native calls dispatch without text parsing (Phase 0)', async () => {
+    // The transport migration: the ```tool_call fenced-block hack is gone.
+    // The model receives native function definitions and its calls come back
+    // structured on the provider response — the dispatcher never scans prose.
+    const prismaMock = {
+      repository: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({
+          id: 'repo-201',
+          name: 'native-round-trip',
+          description: null,
+          visibility: 'PRIVATE',
+          defaultBranch: 'main',
+        }),
+      },
+      user: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'user-1',
+          username: 'kundan',
+          displayName: 'Kundan',
+          email: 'kundan@quantmail.in',
+        }),
+      },
+    };
+
+    aiChatWithToolsMock.mockResolvedValue({
+      content: 'Creating the repository now.',
+      toolCalls: [
+        {
+          id: 'call_native_1',
+          name: 'create_repository',
+          arguments: { name: 'native-round-trip' },
+        },
+      ],
+    });
+
+    const app = await buildApp('user-1', { prisma: prismaMock });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Create native-round-trip repo' }],
+        tools: { enabled: true },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+
+    // 1. The route used the native tool-calling transport, never the
+    //    plain-text chat path.
+    expect(aiChatWithToolsMock).toHaveBeenCalledTimes(1);
+    expect(aiChatMock).not.toHaveBeenCalled();
+
+    // 2. Tool definitions reached the provider in the native function format,
+    //    with the same names and semantics the fenced blocks used to carry.
+    const sentTools = (providerWithToolsOptions().tools ?? []) as Array<{
+      type: string;
+      function: { name: string; description: string; parameters: unknown };
+    }>;
+    expect(sentTools.map((t) => t.function.name).sort()).toEqual([
+      'commit_file',
+      'create_repository',
+      'deploy_agent',
+      'read_file_blob',
+    ]);
+    for (const tool of sentTools) {
+      expect(tool.type).toBe('function');
+      expect(typeof tool.function.description).toBe('string');
+      expect(tool.function.description.length).toBeGreaterThan(0);
+    }
+
+    // 3. The native tool call dispatched and executed — the provider-issued
+    //    call id survives onto the execution card.
+    expect(body.data.toolExecutions).toHaveLength(1);
+    expect(body.data.toolExecutions[0]).toMatchObject({
+      toolName: 'create_repository',
+      callId: 'call_native_1',
+      status: 'succeeded',
+      result: { id: 'repo-201', name: 'native-round-trip' },
+    });
+    expect(prismaMock.repository.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ ownerId: 'user-1', name: 'native-round-trip' }),
+    });
+
+    // 4. No legacy fenced block survives in the user-visible message: the
+    //    dispatcher no longer reads tool calls out of model prose.
+    expect(body.data.message).not.toContain('```tool_call');
+    expect(body.data.message).toContain('Creating the repository now.');
   });
 });
 

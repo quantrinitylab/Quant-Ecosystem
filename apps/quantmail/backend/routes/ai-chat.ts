@@ -24,10 +24,12 @@ import { createAppError } from '@quant/server-core';
 import { AI_INTENTS, measureAISignals, resolveAIIntent } from '@quant/common';
 import {
   aiChat,
+  aiChatWithTools,
   isAIConfigured,
   activeProvider,
   resolveTierModel,
 } from '../services/ai-provider.service';
+import type { AIToolCall, AIToolFunction } from '../services/ai-provider.service';
 
 const messageSchema = z.object({
   role: z.enum(['user', 'assistant']),
@@ -107,22 +109,112 @@ const SYSTEM_PROMPT_SEND_EMAIL = [
 ].join(' ');
 
 // Prompt for requests where the tool dispatcher will actually run. The model
-// is told to emit tool calls because a dispatcher is listening.
+// is told to use the provided native function-calling tools — it must never
+// emit tool calls as text (the old ```tool_call fenced-block hack is gone).
 const SYSTEM_PROMPT = [
   SYSTEM_PROMPT_PERSONA,
   SYSTEM_PROMPT_CONTEXT_HONESTY,
   SYSTEM_PROMPT_SEND_EMAIL,
   'You have tools that perform real, authenticated actions in this workspace.',
-  'When the user instructs you to build, create a repo, write code, or commit a file, you MUST execute the appropriate tool by emitting a JSON block formatted exactly as:',
-  '```tool_call\n{\n  "name": "<tool_name>",\n  "arguments": { ... }\n}\n```',
+  'When the user instructs you to build, create a repo, write code, or commit a file, you MUST execute the appropriate tool by calling the provided function with its arguments — never describe or emit a tool call as text or as a code block.',
   'Supported tools:',
   '1. create_repository: { "name": string, "description"?: string, "visibility"?: "public"|"private"|"internal", "initReadme"?: boolean }',
   '2. commit_file: { "repoId": string, "path": string, "content": string, "message": string, "branch"?: string, "parentSha": string | null }',
   '3. read_file_blob: { "repoId": string, "path": string, "ref"?: string }',
-  'You can emit multiple tool calls sequentially for multi-step tasks.',
+  'You can call multiple tools in one turn for multi-step tasks.',
   'Never claim to have performed an action or created a resource that the tool did not explicitly return, and never claim a write succeeded before the dispatcher reports succeeded.',
   'Always include a concise, empowering summary in your response explaining what was created or executed.',
 ].join(' ');
+
+// The autonomous tool definitions in the provider's native function-calling
+// format. Same tool names and semantics the fenced ```tool_call blocks used
+// to carry — this is a transport change only. The dispatcher below
+// (executeAutonomousTool) is untouched.
+const AUTONOMOUS_TOOL_DEFINITIONS: AIToolFunction[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'create_repository',
+      description:
+        'Create a new repository in the workspace. Returns the created repository record.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: {
+            type: 'string',
+            description: 'Repository name (alphanumeric, dot, dash, underscore; must not end with .git)',
+          },
+          description: { type: 'string', description: 'Optional repository description' },
+          visibility: {
+            type: 'string',
+            enum: ['public', 'private', 'internal'],
+            description: 'Repository visibility (default private)',
+          },
+          initReadme: {
+            type: 'boolean',
+            description: 'Create an initial README.md commit (default false)',
+          },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'commit_file',
+      description:
+        'Commit a file to a repository branch with strict compare-and-swap on the branch head.',
+      parameters: {
+        type: 'object',
+        properties: {
+          repoId: { type: 'string', description: 'Repository id or name' },
+          path: { type: 'string', description: 'File path inside the repository' },
+          content: { type: 'string', description: 'Full file content to write' },
+          message: { type: 'string', description: 'Commit message' },
+          branch: { type: 'string', description: 'Target branch (default main)' },
+          parentSha: {
+            type: ['string', 'null'],
+            description:
+              '40-char SHA of the current branch head, or null for a root commit. Required.',
+          },
+        },
+        required: ['repoId', 'path', 'content', 'message', 'parentSha'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'read_file_blob',
+      description: 'Read a file blob from a repository at a given ref.',
+      parameters: {
+        type: 'object',
+        properties: {
+          repoId: { type: 'string', description: 'Repository id or name' },
+          path: { type: 'string', description: 'File path inside the repository' },
+          ref: { type: 'string', description: 'Branch, tag or SHA (default main)' },
+        },
+        required: ['repoId', 'path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'deploy_agent',
+      description:
+        'Deploy an autonomous agent to a repository workstation. Currently held pending durable AgentSession persistence.',
+      parameters: {
+        type: 'object',
+        properties: {
+          repoId: { type: 'string', description: 'Repository id or name' },
+        },
+        required: ['repoId'],
+      },
+    },
+  },
+];
 
 // Prompt for requests where tool execution is disabled (the client did not
 // enable tools, or the ENABLE_AUTONOMOUS_TOOLS kill switch is off — the
@@ -650,70 +742,82 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      const rawMessage = await aiChat(modelMessages, {
-        maxTokens: plan.maxTokens,
-        timeoutMs: plan.timeoutMs,
-        model: resolveTierModel(plan.modelEnvVar),
-      });
+      // Native function calling: when tools are enabled the definitions ride
+      // the provider's `tools` parameter and the requested calls come back
+      // structured — no text parsing. When disabled, the plain chat path is
+      // used so the model never sees tool definitions at all (QM-UIUX-077).
+      const completion = isToolCallingEnabled
+        ? await aiChatWithTools(modelMessages, {
+            maxTokens: plan.maxTokens,
+            timeoutMs: plan.timeoutMs,
+            model: resolveTierModel(plan.modelEnvVar),
+            tools: AUTONOMOUS_TOOL_DEFINITIONS,
+          })
+        : {
+            content: await aiChat(modelMessages, {
+              maxTokens: plan.maxTokens,
+              timeoutMs: plan.timeoutMs,
+              model: resolveTierModel(plan.modelEnvVar),
+            }),
+            toolCalls: [] as AIToolCall[],
+          };
+      const rawMessage = completion.content;
+      const nativeToolCalls = completion.toolCalls;
 
-      // Autonomous Tool Calling Dispatcher:
-      // Scan for ```tool_call blocks emitted by the model
+      // Autonomous Tool Calling Dispatcher (native tool calls).
       const toolExecutions: ToolExecutionCard[] = [];
 
+      // Legacy ```tool_call fenced blocks must never reach the user or the
+      // dispatcher: with native calling the model is instructed never to emit
+      // them, and any that appear anyway are stripped. Counted as proposed
+      // but unexecuted below, so the honesty notice still fires (QM-UIUX-077).
       const toolCallRegex = /```(?:tool_call|json:tool_call)\s*([\s\S]*?)```/g;
-
-      // Count every block the model emitted, executed or not. A block that
-      // never produces an execution card — tooling disabled, over the
-      // per-reply step limit, or unparseable — must be disclosed to the user
-      // below: the model's prose may claim the write happened (QM-UIUX-077),
-      // and silently stripping the block would present that claim as fact.
-      const emittedToolCallCount = (rawMessage.match(toolCallRegex) ?? []).length;
-      toolCallRegex.lastIndex = 0;
+      const legacyBlockCount = (rawMessage.match(toolCallRegex) ?? []).length;
 
       if (isToolCallingEnabled) {
         const maxSteps = tools?.maxSteps ?? 2;
         const allowedTools = tools?.allow ? new Set(tools.allow) : null;
-        let match: RegExpExecArray | null;
 
-        while ((match = toolCallRegex.exec(rawMessage)) !== null) {
+        for (const toolCall of nativeToolCalls) {
           if (toolExecutions.length >= maxSteps) {
             break;
           }
-          try {
-            const parsedCall = JSON.parse(match[1].trim());
-            if (parsedCall?.name && parsedCall?.arguments) {
-              if (allowedTools && !allowedTools.has(parsedCall.name)) {
-                toolExecutions.push({
-                  toolName: parsedCall.name,
-                  callId: `call_${Date.now()}_${toolExecutions.length}`,
-                  status: 'failed',
-                  input: parsedCall.arguments,
-                  error: {
-                    code: 'TOOL_NOT_ALLOWED',
-                    message: `Tool '${parsedCall.name}' is not in the allowed tools list`,
-                  },
-                  durationMs: 0,
-                });
-                continue;
-              }
-
-              const card = await executeAutonomousTool(
-                fastify,
-                userId,
-                parsedCall.name,
-                `call_${Date.now()}_${toolExecutions.length}`,
-                parsedCall.arguments,
-                request,
-              );
-              toolExecutions.push(card);
-            }
-          } catch (callParseErr) {
-            request.log.warn({ err: callParseErr }, 'Failed to parse model tool call block');
+          const callId =
+            toolCall.id && toolCall.id.length > 0
+              ? toolCall.id
+              : `call_${Date.now()}_${toolExecutions.length}`;
+          if (!toolCall.name) {
+            // Nameless calls cannot dispatch; they count as unexecuted below.
+            continue;
           }
+          if (allowedTools && !allowedTools.has(toolCall.name)) {
+            toolExecutions.push({
+              toolName: toolCall.name,
+              callId,
+              status: 'failed',
+              input: toolCall.arguments,
+              error: {
+                code: 'TOOL_NOT_ALLOWED',
+                message: `Tool '${toolCall.name}' is not in the allowed tools list`,
+              },
+              durationMs: 0,
+            });
+            continue;
+          }
+
+          const card = await executeAutonomousTool(
+            fastify,
+            userId,
+            toolCall.name,
+            callId,
+            toolCall.arguments as Record<string, any>,
+            request,
+          );
+          toolExecutions.push(card);
         }
       }
 
-      // Clean tool call code blocks from user-visible response text
+      // Clean legacy tool-call code blocks from user-visible response text
       const failedTools = toolExecutions.filter((t) => t.status === 'failed');
       let cleanMessage = rawMessage.replace(toolCallRegex, '').trim();
 
@@ -725,11 +829,17 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
             .join('; '),
         );
       }
-      const unexecutedToolCalls = emittedToolCallCount - toolExecutions.length;
+      // Every call the model requested that never produced an execution card —
+      // over the per-reply step limit, disallowed, or a legacy fenced block —
+      // must be disclosed: the model's prose may claim the write happened
+      // (QM-UIUX-077), and silently dropping the call would present that claim
+      // as fact.
+      const unexecutedToolCalls =
+        nativeToolCalls.length - toolExecutions.length + legacyBlockCount;
       if (unexecutedToolCalls > 0) {
         // The model proposed action(s) that never ran — because tooling is
         // disabled for this chat (the QuantGit copilot never enables it), the
-        // step limit was hit, or a block could not be parsed. Say so plainly
+        // step limit was hit, or a legacy block was stripped. Say so plainly
         // at the top of the reply: whatever the prose below claims, nothing
         // was created, changed, or deleted by those proposals (QM-UIUX-077).
         notices.push(
