@@ -1,15 +1,23 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BRAND_SPRINGS } from '../../lib/motion-tokens';
-import { useRealtime } from '../../providers/realtime-context';
+import { useChatSocket } from '../../hooks/useChatSocket';
 
 // ============================================================================
 // Task 11.7: Notification Red Dot Badges
 // - Small red dot (8px) on navigation items
-// - Appears within 500ms of WebSocket unread event (subscribe to 'notifications' channel)
+// - Appears within 500ms of a WebSocket unread event
 // - Animate entrance with scale spring
+//
+// QM-UIUX-060: migrated from the dead RealtimeProvider (`/ws`) to the working
+// `chatSocket` singleton (`/ws/chat`) via useChatSocket. The singleton's real
+// unread signal is `new_message` (normalized from the backend's
+// `chat.message.created.v1` envelope); legacy passthrough `unread` / `read`
+// frames keep their previous semantics, including `itemId` attribution —
+// an event only affects a badge with an `itemId` when the event explicitly
+// carries that same itemId (in `payload` or `data`).
 // ============================================================================
 
 interface NotificationBadgeProps {
@@ -32,23 +40,41 @@ export function NotificationBadge({
   children,
 }: NotificationBadgeProps) {
   const [hasUnread, setHasUnread] = useState(false);
-  const { subscribe } = useRealtime();
 
-  // Subscribe to WebSocket 'notifications' channel for unread events
-  useEffect(() => {
-    if (externalVisible !== undefined) return; // external control takes precedence
+  // Refs keep the socket handler identity stable (useChatSocket re-registers
+  // when the handler identity changes) while always reading the latest props.
+  const itemIdRef = useRef(itemId);
+  itemIdRef.current = itemId;
+  const externalVisibleRef = useRef(externalVisible);
+  externalVisibleRef.current = externalVisible;
 
-    const unsubscribe = subscribe('notifications', (event) => {
-      if (event.type === 'unread' && (!itemId || event.payload?.itemId === itemId)) {
+  const handleSocketEvent = useCallback((event: any) => {
+    if (externalVisibleRef.current !== undefined) return; // external control takes precedence
+
+    const currentItemId = itemIdRef.current;
+    // Normalized events carry their payload in `data`; legacy passthrough
+    // frames may use `payload` or flat fields.
+    const source = event?.data ?? event?.payload ?? event;
+    const eventItemId: string | undefined = source?.itemId ?? event?.itemId;
+
+    if (event?.type === 'unread') {
+      if (!currentItemId || eventItemId === currentItemId) {
         setHasUnread(true);
       }
-      if (event.type === 'read' && (!itemId || event.payload?.itemId === itemId)) {
+    } else if (event?.type === 'read') {
+      if (!currentItemId || eventItemId === currentItemId) {
         setHasUnread(false);
       }
-    });
+    } else if (event?.type === 'new_message') {
+      // A real inbound message is an unread signal. With an itemId set, only
+      // an explicitly attributed event counts (same rule as `unread` above).
+      if (!currentItemId || eventItemId === currentItemId) {
+        setHasUnread(true);
+      }
+    }
+  }, []);
 
-    return unsubscribe;
-  }, [subscribe, itemId, externalVisible]);
+  useChatSocket(handleSocketEvent);
 
   const showDot = externalVisible ?? hasUnread;
 
