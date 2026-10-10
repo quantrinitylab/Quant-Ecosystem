@@ -66,6 +66,7 @@ import { IconCheck, IconFilter, IconSpam, IconX } from '../components/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateMailLists } from '../lib/offline/folders';
 import { AddFolderModal, type FolderDraft } from '../components/AddFolderModal';
+import { PeopleHome } from './people/page';
 import type { ContactGroup, Email, EmailCategory } from '../types';
 
 export type { ConversationThread };
@@ -1194,7 +1195,7 @@ function ArchivedFolderRow({
   );
 }
 
-export default function InboxPage() {
+function InboxPageContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
@@ -4193,5 +4194,49 @@ export default function InboxPage() {
         isThreadOpen={Boolean(selectedThreadId)}
       />
     </AppShell>
+  );
+}
+
+/**
+ * People view launch (2026-10-10): the root route defaults to the unified
+ * People home — one place for every conversation with a person. The classic
+ * inbox stays fully intact and reachable at `/?view=inbox` (power layer:
+ * Sent, Drafts, labels, archive, search — untouched).
+ *
+ * This wrapper only switches which tree renders. `InboxPageContent` above
+ * is the exact same inbox component, byte-for-byte unchanged.
+ */
+function MailboxViewToggle({ isInbox }: { isInbox: boolean }) {
+  const linkClass = (active: boolean) =>
+    `min-h-[36px] px-3.5 inline-flex items-center rounded-full text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316] ${
+      active ? 'bg-[#F97316] text-black' : 'text-[#9BA0AA] hover:text-white'
+    }`;
+  return (
+    <nav
+      aria-label="Mailbox view"
+      className="fixed right-3 top-3 z-[60] flex items-center gap-1 rounded-full bg-black/85 p-1 backdrop-blur"
+    >
+      <Link href="/" className={linkClass(!isInbox)} aria-current={!isInbox ? 'page' : undefined}>
+        People
+      </Link>
+      <Link
+        href="/?view=inbox"
+        className={linkClass(isInbox)}
+        aria-current={isInbox ? 'page' : undefined}
+      >
+        Inbox
+      </Link>
+    </nav>
+  );
+}
+
+export default function RootPage() {
+  const searchParams = useSearchParams();
+  const isInbox = searchParams?.get('view') === 'inbox';
+  return (
+    <>
+      <MailboxViewToggle isInbox={isInbox} />
+      {isInbox ? <InboxPageContent /> : <PeopleHome />}
+    </>
   );
 }
