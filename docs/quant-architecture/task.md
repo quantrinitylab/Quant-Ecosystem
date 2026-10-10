@@ -742,7 +742,7 @@ Dependencies: QM-QUANTY-001/002; QM-BACK-006; Quanty memory architecture.
 Validation: source audit confirmed `STORAGE_KEY = 'quantmail_quanty_chats_v1'` and localStorage persistence of chat history; no remediation implementation claim yet.
 
 ## QM-QUANTY-012 — Quanty Live Agent command bar persists typed commands in localStorage
-Status: [~] IN_PROGRESS
+Status: [x] DONE — PR #806 merged 2026-10-10
 Owner: muse-main
 Branch: fix/qm-quanty-012-command-bar-session-only
 Finding: `apps/quantmail/src/components/QuantyLiveAgent/QuantyCommandBar.tsx` persists the last 5 typed command strings under localStorage key `quanty-recent-commands`. Commands are user-typed instructions to an AI agent and can contain sensitive content; they persist across sessions outside governed memory/session boundaries (same family as QM-QUANTY-005, different surface: commands, not transcripts). Found during the QM-QUANTY-005 build (2026-10-10).
