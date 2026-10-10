@@ -109,7 +109,11 @@ jobs:
           # quantmail's vitest suite (360 files, ~4267 tests) needs more than
           # 4 GB per worker fork: at 4096 a fork dies with
           # "FATAL ERROR: Ineffective mark-compacts near heap limit" while all
-          # tests actually pass. Runners have 16 GB; 8192 keeps one fork alive.
+          # tests actually pass. The forks pool spawns one worker per CPU core
+          # (3 forks on a 4-vCPU runner) and each boots the full Fastify app,
+          # so raising the cap further cannot fix "Worker exited unexpectedly"
+          # — that's aggregate 16 GB RAM exhaustion. Parallelism is capped at
+          # maxWorkers: 2 in apps/quantmail/vitest.config.ts instead.
           NODE_OPTIONS: --max-old-space-size=8192
         # Selects directly changed workspaces. Unrelated pre-existing failures
         # elsewhere in the monorepo do not block this gate.

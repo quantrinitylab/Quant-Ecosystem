@@ -46,6 +46,14 @@ export default defineConfig({
     // suites headroom over the 5s default when the whole suite runs in parallel.
     testTimeout: 30000,
     hookTimeout: 30000,
+    // Gate OOM fix (PR #773): the forks pool spawns one worker per CPU core
+    // (3 forks on a 4-vCPU CI runner) and each fork boots the FULL Fastify app
+    // through the tsx loader — multi-GB per fork. The aggregate physical RAM
+    // exhaustion is what kills workers ("Worker exited unexpectedly", vitest
+    // exit code 1 with all tests passing). Raising the per-fork heap cap
+    // (NODE_OPTIONS) only lets each fork compete harder for the same 16 GB;
+    // the fix is less parallelism, not a bigger cap.
+    maxWorkers: 2,
     include: [
       'api-v2/**/__tests__/**/*.test.ts',
       'backend/__tests__/**/*.test.ts',
