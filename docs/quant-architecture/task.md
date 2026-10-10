@@ -724,7 +724,9 @@ Dependencies: QM-WORK-004; QM-BACK-001; ecosystem event-spine/offline-sync contr
 Validation: source search confirmed localStorage read/write and an inline comment explicitly states there is no backend reaction endpoint; no implementation claim yet.
 
 ## QM-QUANTY-005 — Quanty conversation history must not become an uncontrolled browser plaintext store
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-quanty-005-ephemeral-history
 Finding: `QuantyCopilotDrawer` persists its transcript/history under `localStorage` (`quantmail_quanty_chats_v1`). Because the history contains user/assistant message text and the drawer can be opened with email context, this creates a durable browser-side plaintext copy outside the governed QuantDrive memory/session boundary and outside the product retention/export/deletion controls.
 Required: classify Quanty chat history explicitly as ephemeral session state, governed durable history, or user-exportable product data. If durable, store it through the governed Quanty/session data contract with retention, deletion/export, device synchronization and sensitive-content policy; if ephemeral, keep it memory-only or in an explicitly bounded encrypted local store with clear lifecycle semantics. Never silently treat browser localStorage as canonical memory.
 Scope: apps/quantmail/src/components/QuantyCopilotDrawer.tsx; Quanty session/history APIs; memory/data lifecycle contracts.
