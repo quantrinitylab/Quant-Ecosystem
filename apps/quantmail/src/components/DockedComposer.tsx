@@ -197,6 +197,16 @@ export function DockedComposer({
   const { queueSend } = useUndoSend();
   const { data: contacts = [] } = useContacts();
 
+  /**
+   * Honest chrome for the entry point: the inbox "New chat" button opens this
+   * composer with kind 'chat' (a chat thread, not a letter — the backend
+   * renders it with chat marks and bubbles). The header used to read
+   * "New Message" either way, which is the mismatch the button's label
+   * promised something else. The kind is fixed at open; it never flips
+   * mid-compose, so the initial kind is the right source.
+   */
+  const emptyTitle = initialMessageKind === 'chat' ? 'New chat' : 'New Message';
+
   // Window states
   const [isMinimized, setIsMinimized] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -766,7 +776,7 @@ export function DockedComposer({
         <div className="flex items-center gap-2 min-w-0">
           <span className="size-2 rounded-full bg-[var(--quant-primary)] shrink-0 animate-pulse" />
           <span className="text-xs font-semibold text-white truncate">
-            {subject.trim() || 'New Message'}
+            {subject.trim() || emptyTitle}
           </span>
         </div>
 
@@ -857,7 +867,7 @@ export function DockedComposer({
             <IconSend className="size-3.5" />
           </div>
           <h3 className="text-xs font-bold text-white truncate tracking-wide">
-            {subject.trim() || 'New Message'}
+            {subject.trim() || emptyTitle}
           </h3>
           {/* Honest autosave indicator: the real state of the last save attempt. */}
           {draftSaveLabel && (

@@ -76,10 +76,42 @@ export interface ToolExecutionCard {
 const SYSTEM_PROMPT_PERSONA =
   'You are QuantAI (Quanty), the sovereign agentic operating AI built into the Quantrinity workspace (QuantMail: mail, calendar, contacts, drive, and QuantGit developer hub).';
 
+// Memory honesty: the "On-screen context" system block describes what is
+// visible on the user's screen right now (app, route, view). It is context,
+// NEVER conversation history. The model once answered "what was the last thing
+// I asked you?" with "You last asked me to provide a snapshot of your
+// mailbox…" — fabricated from the context block, never asked. When the user
+// asks about previous questions or requests, answer ONLY from the actual
+// user/assistant messages in this conversation; never present on-screen context
+// lines as things the user said, asked, or did.
+const SYSTEM_PROMPT_CONTEXT_HONESTY = [
+  'The "On-screen context" block below describes what is currently visible on screen — it is context, not conversation history.',
+  'When asked what the user previously asked, said, or requested, use ONLY the actual user and assistant messages in this conversation.',
+  'Never describe on-screen context (app name, route, view label) as something the user asked you for.',
+].join(' ');
+
+// Quanty sends email (user-approved 2026-10-10): the model drafts, the app
+// confirms. The draft travels as an UNFENCED tool_call envelope — the backend
+// dispatcher only scans fenced ```tool_call blocks, so this envelope never
+// executes server-side. The chat client renders a confirmation card (full To /
+// Subject / Body with Send / Edit / Cancel) and only the user's explicit Send
+// tap transmits anything. This keeps the honesty contract intact: the model
+// must never claim an email was sent, is sending, or will be sent.
+const SYSTEM_PROMPT_SEND_EMAIL = [
+  'When the user asks you to send or draft an email, compose the draft and emit it as an unfenced tool_call block on its own line:',
+  'tool_call {"name": "send_email", "arguments": {"to": "<full email address>", "subject": "<subject>", "body": "<full body text>"}}',
+  'Do NOT wrap it in code fences. Add one short prose line saying the draft is ready for their review.',
+  'The app shows the user a confirmation card with the full recipient address, subject and body — the email is NOT sent until they tap Send.',
+  'Never claim an email was sent, is sending, or will be sent.',
+  'If the recipient is ambiguous, missing, or not a valid email address, do NOT emit the block — ask the user for the full email address instead.',
+].join(' ');
+
 // Prompt for requests where the tool dispatcher will actually run. The model
 // is told to emit tool calls because a dispatcher is listening.
 const SYSTEM_PROMPT = [
   SYSTEM_PROMPT_PERSONA,
+  SYSTEM_PROMPT_CONTEXT_HONESTY,
+  SYSTEM_PROMPT_SEND_EMAIL,
   'You have tools that perform real, authenticated actions in this workspace.',
   'When the user instructs you to build, create a repo, write code, or commit a file, you MUST execute the appropriate tool by emitting a JSON block formatted exactly as:',
   '```tool_call\n{\n  "name": "<tool_name>",\n  "arguments": { ... }\n}\n```',
@@ -101,6 +133,8 @@ const SYSTEM_PROMPT = [
 // not claim — or offer to perform — any write at all.
 const SYSTEM_PROMPT_NO_TOOLS = [
   SYSTEM_PROMPT_PERSONA,
+  SYSTEM_PROMPT_CONTEXT_HONESTY,
+  SYSTEM_PROMPT_SEND_EMAIL,
   'In this chat you CANNOT create, modify, or delete anything: tool execution is disabled for this request, so nothing you describe will actually happen.',
   'Never claim that you created, updated, committed, deployed, or deleted a resource, and never announce a write as done or as about to happen.',
   'If the user asks you to create a repository or change code, say honestly that you cannot do it from this chat and point them to the app\u2019s own controls (for example the "New repository" button in QuantGit). You may still explain, plan, and draft content for the user to apply themselves.',

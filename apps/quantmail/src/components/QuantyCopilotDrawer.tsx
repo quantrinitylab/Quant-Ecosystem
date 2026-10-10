@@ -8,6 +8,8 @@ import { showToast } from './InboxToast';
 import { IconX } from './icons';
 import { browserAuthSession } from '../services/browser-auth-session';
 import { readAIIntent, clientTimeoutForIntent } from '../lib/ai-intent-preference';
+import { apiClient } from '../services/api-client';
+import { useUndoSend } from './UndoSendCountdownBar';
 import type { Email } from '../types';
 import { useI18n } from '../i18n';
 
@@ -107,6 +109,103 @@ export function parseEmailActionFromText(text: string): QuantyEmailAction {
     body: cleanBody || text,
     closing: closingMatch ? closingMatch[0].trim() : undefined,
   };
+}
+
+/**
+ * A drafted email awaiting the user's explicit confirmation. The model emits
+ * it as an unfenced `tool_call {"name": "send_email", "arguments": {...}}`
+ * envelope (see SYSTEM_PROMPT_SEND_EMAIL); the backend never executes it.
+ * Nothing is transmitted until the user taps Send on the confirmation card.
+ */
+export interface QuantySendEmailDraft {
+  to: string;
+  subject: string;
+  body: string;
+  /** False when `to` is missing or not a valid address — Send stays disabled. */
+  toValid: boolean;
+}
+
+const EMAIL_ADDRESS_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+/** Brace-balanced JSON extraction: the draft body may itself contain braces. */
+function extractBalancedJson(text: string, fromIndex: number): string | null {
+  const start = text.indexOf('{', fromIndex);
+  if (start < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') {
+      inString = true;
+    } else if (ch === '{') {
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+/**
+ * Detect a `send_email` draft envelope in the model's raw reply. Accepts the
+ * instructed unfenced form and, defensively, a fenced one. Returns null when
+ * there is no send_email envelope or it cannot be parsed.
+ */
+export function parseSendEmailDraft(text: string): QuantySendEmailDraft | null {
+  const marker = text.indexOf('tool_call');
+  if (marker < 0) return null;
+  const json = extractBalancedJson(text, marker);
+  if (!json) return null;
+  try {
+    const parsed = JSON.parse(json) as {
+      name?: unknown;
+      arguments?: unknown;
+    };
+    if (parsed?.name !== 'send_email') return null;
+    const rawArgs = parsed.arguments;
+    const args =
+      typeof rawArgs === 'string'
+        ? (JSON.parse(rawArgs) as Record<string, unknown>)
+        : (rawArgs as Record<string, unknown> | undefined);
+    if (!args || typeof args !== 'object') return null;
+    const to = typeof args.to === 'string' ? args.to.trim() : '';
+    const subject = typeof args.subject === 'string' ? args.subject.trim() : '';
+    const body = typeof args.body === 'string' ? args.body.trim() : '';
+    return { to, subject, body, toValid: EMAIL_ADDRESS_RE.test(to) };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Remove the send_email envelope from the visible transcript text so the raw
+ * JSON never reaches the chat. The confirmation card carries the draft.
+ */
+export function stripSendEmailEnvelope(text: string): string {
+  const marker = text.indexOf('tool_call');
+  if (marker < 0) return text;
+  const jsonStart = text.indexOf('{', marker);
+  const json = extractBalancedJson(text, marker);
+  if (!json || jsonStart < 0) return text;
+  const jsonEnd = jsonStart + json.length;
+  // If the model fenced the envelope anyway, take the fences with it.
+  let start = marker;
+  const fenceOpen = text.lastIndexOf('```', marker);
+  if (fenceOpen >= 0 && /^```[\w-]*\s*$/.test(text.slice(fenceOpen, marker))) {
+    start = fenceOpen;
+  }
+  let end = jsonEnd;
+  const fenceClose = text.indexOf('```', jsonEnd);
+  if (fenceClose >= 0 && /^\s*$/.test(text.slice(jsonEnd, fenceClose))) {
+    end = fenceClose + 3;
+  }
+  return (text.slice(0, start) + text.slice(end)).trim() || text;
 }
 
 const STORAGE_KEY = 'quantmail_quanty_chats_v1';
@@ -328,6 +427,15 @@ export function QuantyCopilotDrawer({
   const [messages, setMessages] = useState<ChatTurn[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  /**
+   * Email draft awaiting explicit confirmation (Quanty sends email,
+   * user-approved 2026-10-10). Set when the model emits a send_email envelope;
+   * cleared on Send / Edit / Cancel, on drawer close, or when a new turn
+   * starts. Nothing is transmitted while this is merely set.
+   */
+  const [pendingEmailDraft, setPendingEmailDraft] = useState<QuantySendEmailDraft | null>(null);
+  const [draftSending, setDraftSending] = useState(false);
+  const { queueSend } = useUndoSend();
   // BB-P1-11: the drawer previously hardcoded a Hindi summary prompt for every
   // user. Suggestion copy now follows the app locale (English default).
   const { locale } = useI18n();
@@ -394,6 +502,8 @@ export function QuantyCopilotDrawer({
       setShowHistoryMenu(false);
     } else {
       setShowHistoryMenu(false);
+      // An unconfirmed draft does not survive the drawer closing.
+      setPendingEmailDraft(null);
     }
   }, [isOpen]);
 
@@ -476,7 +586,17 @@ export function QuantyCopilotDrawer({
       return;
     }
 
-    const finalMsgs: ChatTurn[] = [...turns, { role: 'assistant', text: unwrapToolCallResponse(result.message) }];
+    // Send-email draft gate: detect the model's send_email envelope BEFORE
+    // unwrapToolCallResponse (which would mangle it into prose). The envelope
+    // itself is stripped from the transcript; the confirmation card below the
+    // messages carries the draft, and nothing sends without the explicit tap.
+    const emailDraft = parseSendEmailDraft(result.message);
+    const assistantText = emailDraft
+      ? stripSendEmailEnvelope(result.message)
+      : unwrapToolCallResponse(result.message);
+    if (emailDraft) setPendingEmailDraft(emailDraft);
+
+    const finalMsgs: ChatTurn[] = [...turns, { role: 'assistant', text: assistantText }];
     setMessages(finalMsgs);
     quantyReact('ai:answered');
     saveCurrentConversation(finalMsgs);
@@ -491,10 +611,90 @@ export function QuantyCopilotDrawer({
     const promptToSend = (userPrompt ?? inputValue).trim();
     if (!promptToSend || isLoading) return;
 
+    // A new message supersedes any unconfirmed draft — the user moved on.
+    setPendingEmailDraft(null);
     const turns: ChatTurn[] = [...messages, { role: 'user', text: promptToSend }];
     setMessages(turns);
     setInputValue('');
     await runTurn(turns);
+  };
+
+  /**
+   * Append a plain assistant note to the transcript (send confirmations,
+   * cancellations, failures). Not a model turn — no network involved.
+   */
+  const appendAssistantNote = (text: string) => {
+    setMessages((prev) => [...prev, { role: 'assistant', text }]);
+  };
+
+  /**
+   * The confirmation gate: the ONLY path that transmits a Quanty-drafted
+   * email. Runs through the same undo-send queue the composer uses, so the
+   * 10-second recall window applies here too. Never called without the
+   * user's explicit Send tap, and never with an invalid recipient.
+   */
+  const confirmSendDraft = () => {
+    const draft = pendingEmailDraft;
+    if (!draft || !draft.toValid || draftSending) return;
+    setDraftSending(true);
+    const { to, subject, body } = draft;
+    queueSend({
+      to,
+      subject,
+      body,
+      onSendNow: async () => {
+        try {
+          const composeRes = await apiClient.composeEmail({
+            to: [{ email: to }],
+            subject: subject || `Message for ${to}`,
+            bodyText: body,
+            messageKind: 'mail',
+          });
+          if (!composeRes.success || !composeRes.data?.id) {
+            throw new Error(composeRes.error?.message || 'Draft nahi ban paya');
+          }
+          const sendRes = await apiClient.sendEmail(composeRes.data.id);
+          if (!sendRes.success) {
+            throw new Error(sendRes.error?.message || 'Bheja nahi ja saka');
+          }
+          appendAssistantNote(`Bhej diya — ${to} ko email chali gayi.`);
+          showToast({ text: `Email sent to ${to}`, type: 'success' });
+        } catch (err) {
+          const detail = err instanceof Error ? err.message : 'Unknown error';
+          appendAssistantNote(`Bhejne me dikkat hui: ${detail}. Kuch nahi bheja gaya — dobara try karein ya Edit se composer me kholein.`);
+          showToast({ text: 'Email nahi bheja ja saka', type: 'error' });
+        } finally {
+          setDraftSending(false);
+          setPendingEmailDraft(null);
+        }
+      },
+      onUndo: async () => {
+        // Undo inside the recall window: the email was never composed, so
+        // there is nothing to retract server-side — just say so honestly.
+        appendAssistantNote('Send cancel kar diya — kuch nahi bheja gaya.');
+        setDraftSending(false);
+        setPendingEmailDraft(null);
+      },
+    });
+  };
+
+  /** Open the draft in the real composer for hand-editing. */
+  const editDraftInComposer = () => {
+    const draft = pendingEmailDraft;
+    if (!draft) return;
+    setPendingEmailDraft(null);
+    onClose();
+    window.dispatchEvent(
+      new CustomEvent('quant:compose:open', {
+        detail: { to: draft.to, subject: draft.subject, body: draft.body },
+      }),
+    );
+  };
+
+  /** Dismiss the draft without sending anything. */
+  const cancelDraft = () => {
+    setPendingEmailDraft(null);
+    appendAssistantNote('Draft cancel kar diya — kuch nahi bheja gaya.');
   };
 
   /**
@@ -980,6 +1180,78 @@ export function QuantyCopilotDrawer({
                   </motion.div>
                 )}
               </div>
+            )}
+
+            {/*
+              Send-email confirmation card (Quanty sends email, user-approved
+              2026-10-10). The draft is fully visible — full To address,
+              Subject, Body — with Send / Edit / Cancel. Nothing transmits
+              without the explicit Send tap; an invalid recipient keeps Send
+              disabled with an honest explanation instead of failing silently.
+            */}
+            {pendingEmailDraft && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                role="group"
+                aria-label="Email bhejne se pehle confirm karein"
+                className="rounded-xl border border-amber-400/30 bg-amber-500/[0.06] px-3.5 py-3 text-xs leading-relaxed text-[var(--quant-foreground)] shadow-sm"
+              >
+                <p className="text-[11px] font-bold uppercase tracking-wide text-amber-300">
+                  Bhejne se pehle dekhein
+                </p>
+                <dl className="mt-2 space-y-1.5">
+                  <div>
+                    <dt className="text-[10px] font-semibold uppercase tracking-wide text-[var(--quant-muted-foreground)]">
+                      To
+                    </dt>
+                    <dd className="break-all font-medium">{pendingEmailDraft.to || '(pata nahi)'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] font-semibold uppercase tracking-wide text-[var(--quant-muted-foreground)]">
+                      Subject
+                    </dt>
+                    <dd className="font-medium">{pendingEmailDraft.subject || '(koi subject nahi)'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] font-semibold uppercase tracking-wide text-[var(--quant-muted-foreground)]">
+                      Body
+                    </dt>
+                    <dd className="whitespace-pre-wrap">{pendingEmailDraft.body || '(khaali body)'}</dd>
+                  </div>
+                </dl>
+                {!pendingEmailDraft.toValid && (
+                  <p role="alert" className="mt-2 text-[11px] text-red-300">
+                    Recipient ka poora email address saaf nahi hai — pehle Quanty ko sahi address batayein, phir Send dabayein.
+                  </p>
+                )}
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={confirmSendDraft}
+                    disabled={!pendingEmailDraft.toValid || draftSending}
+                    className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg bg-amber-500 px-3 text-xs font-bold text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {draftSending ? 'Bheja ja raha…' : 'Send'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={editDraftInComposer}
+                    disabled={draftSending}
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 bg-white/5 px-3 text-xs font-semibold text-[var(--quant-foreground)] transition hover:bg-white/10 disabled:opacity-40"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelDraft}
+                    disabled={draftSending}
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 bg-white/5 px-3 text-xs font-semibold text-[var(--quant-foreground)] transition hover:bg-white/10 disabled:opacity-40"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </motion.div>
             )}
 
             {/* Bottom Rounded Pill Prompt Input + "Quanty can make mistakes." Disclaimer */}
