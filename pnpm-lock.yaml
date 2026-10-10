@@ -2116,6 +2116,9 @@ importers:
 
   packages/quant-tools:
     dependencies:
+      '@quant/federation':
+        specifier: workspace:*
+        version: link:../federation
       '@quant/quanty-contracts':
         specifier: workspace:*
         version: link:../quanty-contracts

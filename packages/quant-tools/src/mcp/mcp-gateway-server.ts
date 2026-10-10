@@ -24,6 +24,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { QuantyApprovalRequest } from '@quant/quanty-contracts';
 import { ToolExecutor } from '../executor/tool-executor.js';
 import { ToolRegistry } from '../registry/tool-registry.js';
+import { requiredScopesForTool } from '../connect-once/capability-scopes.js';
 import type {
   MCPToolEntry,
   PermissionTier,
@@ -89,6 +90,39 @@ export interface McpAuthContext {
   userId: string;
   tier: PermissionTier;
   bearer: string;
+  /**
+   * Granted capability scopes (connect-once OAuth, P1-2). Empty for legacy
+   * `registerToken` tokens: an empty-scope context means "pre-capability
+   * token, tier-checked only" — the scope gate is skipped and the original
+   * tier-only behavior is preserved exactly.
+   */
+  scopes: string[];
+}
+
+/**
+ * P1-2 seam: resolves a bearer token to the capabilities it carries.
+ * The gateway consults this FIRST in `resolveAuth`; a null result falls back
+ * to the legacy in-memory `registerToken` map. Inject via
+ * `QuantyMcpServerOptions.tokenResolver`. (The ready-made implementation is
+ * `JwtCapabilityTokenResolver` in `../connect-once/gateway-resolver.js`.)
+ */
+export interface CapabilityTokenResolver {
+  resolve(bearer: string): Promise<ResolvedCapabilities | null>;
+}
+
+export interface ResolvedCapabilities {
+  userId: string;
+  scopes: string[];
+  /** Expiry of the underlying token, milliseconds since epoch. */
+  expiresAtMs: number;
+  /**
+   * Optional coarse tier for the token. When omitted the gateway stamps tier
+   * 3 on the auth context: capability tokens express authority through
+   * scopes (checked per tool call below), so the tier gate stays permissive
+   * and the scope vocabulary is the authority. Tier >= 2 per-call
+   * confirmations still fire based on each tool's own tier.
+   */
+  tier?: PermissionTier;
 }
 
 interface TokenEntry {
@@ -131,6 +165,11 @@ const CONFIRMATION_TTL_MS = 5 * 60 * 1000;
 
 export interface QuantyMcpServerOptions {
   confirmationTtlMs?: number;
+  /**
+   * P1-2 capability-token seam. When set, `resolveAuth` asks the resolver
+   * first and only falls back to the legacy `registerToken` map on null.
+   */
+  tokenResolver?: CapabilityTokenResolver;
 }
 
 export class QuantyMcpServer {
@@ -139,11 +178,13 @@ export class QuantyMcpServer {
   private readonly tokens = new Map<string, TokenEntry>();
   private readonly pendingApprovals = new Map<string, PendingApproval>();
   private readonly confirmationTtlMs: number;
+  private readonly tokenResolver?: CapabilityTokenResolver;
 
   constructor(registry: ToolRegistry, executor: ToolExecutor, options?: QuantyMcpServerOptions) {
     this.registry = registry;
     this.executor = executor;
     this.confirmationTtlMs = options?.confirmationTtlMs ?? CONFIRMATION_TTL_MS;
+    this.tokenResolver = options?.tokenResolver;
   }
 
   // -- tokens ---------------------------------------------------------------
@@ -164,7 +205,30 @@ export class QuantyMcpServer {
     if (!entry) {
       return null;
     }
-    return { userId: entry.userId, tier: entry.tier, bearer };
+    return { userId: entry.userId, tier: entry.tier, bearer, scopes: [] };
+  }
+
+  /**
+   * P1-2: resolve a bearer to an auth context. The capability-token resolver
+   * (if configured) is consulted FIRST; legacy `registerToken` entries are
+   * the fallback, so existing callers keep working unchanged.
+   */
+  async resolveAuth(bearer: string | undefined): Promise<McpAuthContext | null> {
+    if (!bearer) {
+      return null;
+    }
+    if (this.tokenResolver) {
+      const resolved = await this.tokenResolver.resolve(bearer);
+      if (resolved) {
+        return {
+          userId: resolved.userId,
+          tier: resolved.tier ?? 3,
+          bearer,
+          scopes: resolved.scopes,
+        };
+      }
+    }
+    return this.authenticate(bearer);
   }
 
   // -- catalog ---------------------------------------------------------------
@@ -196,6 +260,26 @@ export class QuantyMcpServer {
         `Insufficient permissions: '${toolId}' requires tier ${tool.permissionTier}`,
         { requiredTier: tool.permissionTier, grantedTier: auth.tier },
       );
+    }
+
+    // P1-2 capability-scope gate: when the auth context carries scopes
+    // (connect-once token), every scope the tool requires must be granted.
+    // Empty scopes = pre-capability legacy token: tier check above is the
+    // only gate (unchanged behavior).
+    if (auth.scopes.length > 0) {
+      const required = requiredScopesForTool(tool);
+      const missing = required.filter((scope) => !auth.scopes.includes(scope));
+      if (missing.length > 0) {
+        throw new McpRpcError(
+          UNAUTHENTICATED,
+          `Insufficient capability scopes: '${toolId}' requires ${missing.join(', ')}`,
+          {
+            requiredScopes: required,
+            grantedScopes: auth.scopes,
+            missingScopes: missing,
+          },
+        );
+      }
     }
 
     // Strip the reserved confirmation envelope before schema validation.
@@ -330,7 +414,7 @@ export class QuantyMcpServer {
         case 'ping':
           return ok(id, {});
         case 'tools/list':
-          this.requireAuth(bearer, message.method);
+          await this.requireAuth(bearer, message.method);
           return ok(id, { tools: this.listMcpTools() });
         case 'tools/call':
           return ok(id, await this.handleToolsCall(message.params, bearer));
@@ -348,8 +432,8 @@ export class QuantyMcpServer {
     }
   }
 
-  private requireAuth(bearer: string | undefined, method: string): McpAuthContext {
-    const auth = this.authenticate(bearer);
+  private async requireAuth(bearer: string | undefined, method: string): Promise<McpAuthContext> {
+    const auth = await this.resolveAuth(bearer);
     if (!auth) {
       throw new McpRpcError(
         UNAUTHENTICATED,
@@ -386,6 +470,7 @@ export class QuantyMcpServer {
         confirmationPolicy: toToolDescriptor(tool).confirmationPolicy,
         readOnlyHint: tool.permissionTier === 0,
         destructiveHint: tool.permissionTier >= 2,
+        requiredScopes: requiredScopesForTool(tool),
       },
     }));
   }
@@ -394,7 +479,7 @@ export class QuantyMcpServer {
     params: unknown,
     bearer: string | undefined,
   ): Promise<Record<string, unknown>> {
-    const auth = this.requireAuth(bearer, 'tools/call');
+    const auth = await this.requireAuth(bearer, 'tools/call');
     if (typeof params !== 'object' || params === null) {
       throw new McpRpcError(INVALID_PARAMS, "'tools/call' params must be an object");
     }
