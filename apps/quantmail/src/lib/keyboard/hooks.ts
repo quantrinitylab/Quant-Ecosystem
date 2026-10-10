@@ -126,6 +126,7 @@ function commandSignature(commands: Command[]): string {
         command.allowInInput ? '1' : '',
         command.allowRepeat === undefined ? '' : command.allowRepeat ? '1' : '0',
         command.preventDefault === false ? '0' : '',
+        command.stopPropagation ? '1' : '',
         command.unmaskable ? '1' : '',
         command.icon ?? '',
         command.description ?? '',

@@ -1262,6 +1262,20 @@ function InboxPageContent() {
     }
   }, [searchParams]);
 
+  /*
+   * CUST-P1-4: `x` (select) in a thread view navigates here with
+   * `?selected=<threadId>`. Pre-select that conversation for bulk actions,
+   * then drop the param so a refresh does not re-select.
+   */
+  useEffect(() => {
+    const selected = searchParams?.get('selected');
+    if (!selected) return;
+    setSelectedIds(new Set([selected]));
+    const url = new URL(window.location.href);
+    url.searchParams.delete('selected');
+    router.replace(url.pathname + url.search + url.hash, { scroll: false });
+  }, [searchParams, router]);
+
   useEffect(() => {
     const handleSubtabChange = (e: Event) => {
       const customEvent = e as CustomEvent<{ pillar?: string; tabId?: string }>;

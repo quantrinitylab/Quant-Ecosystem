@@ -73,6 +73,8 @@ export interface Command {
   allowInInput?: boolean;
   allowRepeat?: boolean;
   preventDefault?: boolean;
+  /** Also call `stopPropagation()` when the binding fires. Defaults to `false`. */
+  stopPropagation?: boolean;
   /** Keeps the binding alive inside modals. See `BindingOptions.unmaskable`. */
   unmaskable?: boolean;
 }
@@ -214,6 +216,7 @@ export function registerCommands(commands: Command[]): () => void {
         allowInInput: command.allowInInput,
         allowRepeat: command.allowRepeat,
         preventDefault: command.preventDefault,
+        stopPropagation: command.stopPropagation,
         unmaskable: command.unmaskable,
         label: command.label,
       }),
