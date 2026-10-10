@@ -2553,6 +2553,25 @@ function InboxPageContent() {
       ? 'Search results'
       : 'Your Inbox';
 
+  /**
+   * SIA-P2-12: honest context kickers. The hero's kicker used to read
+   * "QuantMail Intelligence" in every state — branding over a context label.
+   * The kicker now names the list below it: Mail over the inbox list, Search
+   * over results, Spam/Snoozed/Trash over their folder views, Archive over
+   * archived mail. It matches `heroTitle`'s state branches by construction.
+   */
+  const heroKicker = showArchivedView
+    ? 'Archive'
+    : debouncedQuery
+      ? 'Search'
+      : activeLens === 'spam'
+        ? 'Spam'
+        : activeLens === 'snoozed'
+          ? 'Snoozed'
+          : activeLens === 'trash'
+            ? 'Trash'
+            : 'Mail';
+
   const heroSummary = useMemo(() => {
     // SIA-P1-1: "caught up" is a true-zero state only. Conversations on screen
     // with zero unread are "all read", never "completely caught up".
@@ -3020,7 +3039,7 @@ function InboxPageContent() {
           <header className="inbox-hero">
             <div>
               <p className="inbox-kicker">
-                <span /> QuantMail Intelligence
+                <span /> {heroKicker}
               </p>
               <h1>{heroTitle}</h1>
               <p>{heroSummary}</p>

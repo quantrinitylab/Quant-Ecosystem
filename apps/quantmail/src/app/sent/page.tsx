@@ -224,7 +224,7 @@ export default function SentPage() {
         <header className="sent-header">
           <div>
             <p className="sent-kicker">
-              <span /> Delivery trail
+              <span /> Sent
             </p>
             <h1>Sent</h1>
             <p className="sent-subtitle">

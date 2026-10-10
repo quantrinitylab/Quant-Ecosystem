@@ -78,7 +78,7 @@ export default function DraftsPage() {
         <header className="sent-header">
           <div>
             <p className="sent-kicker">
-              <span /> Work in progress
+              <span /> Drafts
             </p>
             <h1>Drafts</h1>
             <p className="sent-subtitle">
