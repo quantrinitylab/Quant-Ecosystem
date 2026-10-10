@@ -634,8 +634,31 @@ function bearerFromHeader(authorization: string | undefined): string | undefined
   if (!authorization) {
     return undefined;
   }
-  const match = /^Bearer\s+(.+)$/i.exec(authorization.trim());
-  return match?.[1] ?? undefined;
+  // Parse "Bearer <token>" with plain string ops instead of /^Bearer\s+(.+)$/i:
+  // the regex backtracked polynomially on hostile Authorization headers
+  // (CodeQL js/polynomial-redos). Equivalent semantics: case-insensitive
+  // "bearer" scheme, at least one whitespace separator, non-empty token with
+  // no line breaks, surrounding whitespace trimmed.
+  const trimmed = authorization.trim();
+  if (trimmed.slice(0, 6).toLowerCase() !== 'bearer') {
+    return undefined;
+  }
+  const rest = trimmed.slice(6);
+  if (rest === '' || rest[0]?.trim() !== '') {
+    return undefined;
+  }
+  const token = rest.trimStart();
+  // The old (.+) required a non-empty token with no line breaks.
+  if (
+    token === '' ||
+    token.includes('\n') ||
+    token.includes('\r') ||
+    token.includes('\u2028') ||
+    token.includes('\u2029')
+  ) {
+    return undefined;
+  }
+  return token;
 }
 
 function parseConfirmationEnvelope(raw: unknown): ConfirmationEnvelope | null {
