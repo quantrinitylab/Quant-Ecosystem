@@ -306,7 +306,6 @@ export class RuleBasedPlanner implements QuantyPlanner {
     }
     return {
       summary: `I couldn't understand "${command}". Try: archive unread, mark all read, star important, summarize latest, clean inbox, delete spam, list repos, show open PRs in <repo>, summarize PR <n> in <repo>, find files <query>, read file <name>, summarize file <name>, where should <name> go, organize file <name>, move <name> to its folder, find <name>'s contact, search contacts <query>, add <name>, <email>.`,
-      summary: `I couldn't understand "${command}". Try: archive unread, mark all read, star important, summarize latest, clean inbox, delete spam, list repos, find files <query>, summarize file <name>, where should <name> go, organize file <name>, move <name> to its folder, find <name>'s contact, search contacts <query>, add <name>, <email>.`,
       steps: [],
       unmatched: true,
     };
