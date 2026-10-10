@@ -1331,9 +1331,10 @@ body {
 .signin-wordmark .wm-mail { color: var(--quant-primary); }
 
 /* ---- v2: minimal legal footer under the sign-in form ---- */
-.auth-legal-footer { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid rgba(255,255,255,.06); display: flex; align-items: center; justify-content: center; gap: 1.25rem; font-size: 11px; color: #6b6e76; }
-.auth-legal-footer a { color: #8b8e96; text-decoration: none; transition: color 150ms ease; }
+.auth-legal-footer { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid rgba(255,255,255,.06); display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 11px; color: #6b6e76; }
+.auth-legal-footer a { color: #8b8e96; text-decoration: none; transition: color 150ms ease; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; padding: 0.5rem 0.75rem; border-radius: 0.5rem; }
 .auth-legal-footer a:hover { color: #c9c9ce; text-decoration: underline; text-underline-offset: 3px; }
+.auth-legal-footer a:focus-visible { outline: 2px solid var(--quant-primary); outline-offset: 2px; }
 
 /* ---- Quant AI logo animations (transform/opacity only; reduced-motion safe) ---- */
 .qai-logo { display: inline-block; vertical-align: middle; animation: qai-float 5s ease-in-out infinite; }
@@ -1370,7 +1371,7 @@ body {
 }
 
 @media (max-width: 1023px) {
-  .auth-shell { display: block; }.auth-shell-brand { display: none; }.auth-shell-mobile-brand { display: block; height: 5rem; overflow: hidden; }.auth-shell-form { min-height: calc(100dvh - 5rem); padding: 2.5rem 1.25rem; flex-direction: column; align-items: stretch; }.auth-shell-form-content { flex: 1; display: flex; flex-direction: column; }.auth-shell-form-content > div { display: flex; flex-direction: column; flex: 1; }.auth-legal-footer { margin-top: auto; }.auth-mobile-brand { position: relative; display: flex; height: 100%; align-items: center; justify-content: space-between; padding: 0 1.25rem; }.auth-brand-desktop { display: none; }
+  .auth-shell { display: block; }.auth-shell-brand { display: none; }.auth-shell-mobile-brand { display: block; height: 5rem; overflow: hidden; }.auth-shell-form { min-height: calc(100dvh - 5rem); padding: 2.5rem 1.25rem; flex-direction: column; align-items: stretch; }.auth-shell-form-content { flex: 1; display: flex; flex-direction: column; }.auth-shell-form-content > div { display: flex; flex-direction: column; flex: 1; justify-content: center; }.auth-legal-footer { margin-top: 2rem; }.auth-mobile-brand { position: relative; display: flex; height: 100%; align-items: center; justify-content: space-between; padding: 0 1.25rem; }.auth-brand-desktop { display: none; }
 }
 @media (max-width: 767px) {
   .inbox-list-pane { width: 100%; min-width: 0; border-right: 0; }.reading-pane { display: none; }
