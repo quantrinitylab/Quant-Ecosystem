@@ -106,7 +106,11 @@ jobs:
 
       - name: Typecheck, lint, test, build directly changed packages
         env:
-          NODE_OPTIONS: --max-old-space-size=4096
+          # quantmail's vitest suite (360 files, ~4267 tests) needs more than
+          # 4 GB per worker fork: at 4096 a fork dies with
+          # "FATAL ERROR: Ineffective mark-compacts near heap limit" while all
+          # tests actually pass. Runners have 16 GB; 8192 keeps one fork alive.
+          NODE_OPTIONS: --max-old-space-size=8192
         # Selects directly changed workspaces. Unrelated pre-existing failures
         # elsewhere in the monorepo do not block this gate.
         run: npx turbo typecheck lint test build --concurrency=2 --continue ${{ steps.base.outputs.filter }}
