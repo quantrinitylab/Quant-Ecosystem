@@ -97,6 +97,9 @@ export interface CalendarEventLike {
   accountEmail?: string;
   driveLink?: string;
   timezone?: string;
+  // Backend DTO key for the event timezone (apps/quantmail/backend/routes/calendar.ts
+  // toEventDto returns `timeZone`); the create/edit form uses `timezone`.
+  timeZone?: string;
 }
 
 export type CalendarView = 'agenda' | 'week' | 'day' | 'month';

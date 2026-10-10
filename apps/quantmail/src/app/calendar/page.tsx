@@ -50,14 +50,17 @@ import {
   CalendarScheduleSubView,
 } from '../../components/CalendarSubViews';
 
-const createInitialFormState = (currentUserEmail: string = ''): FormState => ({
+const createInitialFormState = (
+  currentUserEmail: string = '',
+  timezone: string = 'Asia/Kolkata',
+): FormState => ({
   title: '',
   startDate: toDateInput(new Date()),
   endDate: toDateInput(new Date()),
   startTime: '10:00',
   endTime: '11:00',
   allDay: false,
-  timezone: 'Asia/Kolkata',
+  timezone,
   location: '',
   description: '',
   recurrence: 'Does not repeat',
@@ -253,7 +256,7 @@ function CalendarPageContent() {
 
   // Rich Entry Form State
   const [formState, setFormState] = useState<FormState>(() =>
-    createInitialFormState(currentUserEmail),
+    createInitialFormState(currentUserEmail, activeTimezone),
   );
 
   useEffect(() => {
@@ -732,7 +735,7 @@ function CalendarPageContent() {
         startTime: opts?.startTime ?? '10:00',
         endTime: opts?.endTime ?? '11:00',
         allDay: false,
-        timezone: 'Asia/Kolkata',
+        timezone: activeTimezone,
         location: '',
         description: '',
         recurrence: 'Does not repeat',
@@ -772,7 +775,7 @@ function CalendarPageContent() {
       setEditingEventId(null);
       setActiveSheetType(type);
     },
-    [selectedDate, currentUserEmail],
+    [selectedDate, currentUserEmail, activeTimezone],
   );
 
   const openEditSheet = useCallback((ev: CalendarEventLike) => {
@@ -803,6 +806,10 @@ function CalendarPageContent() {
       startTime: hasStart && !ev.allDay ? toTimeInput(startD) : prev.startTime,
       endTime: hasEnd && !ev.allDay ? toTimeInput(endD) : prev.endTime,
       allDay: Boolean(ev.allDay),
+      // Restore the event's saved timezone: the backend DTO carries it as
+      // `timeZone` (camelCase); older rows may carry `timezone`. Without this
+      // the sheet shows the form default and a save silently rewrites it.
+      timezone: ev.timezone || ev.timeZone || prev.timezone,
       location: ev.location || '',
       description: ev.description || '',
       recurrence: ev.recurrence || 'Does not repeat',

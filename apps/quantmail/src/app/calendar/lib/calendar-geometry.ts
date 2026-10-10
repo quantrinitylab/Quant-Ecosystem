@@ -67,41 +67,17 @@ export function parseCalendarEvent(raw: any): CalendarEventLike {
     }
   }
 
-  // Fallback heuristic inference if metadata wasn't present
-  if (!metaMatch) {
-    const tLow = title.toLowerCase();
-    if (
-      title.includes('🌸') ||
-      tLow.includes('period') ||
-      tLow.includes('cycle') ||
-      tLow.includes('menstrual') ||
-      tLow.includes('flow')
-    ) {
-      type = 'period';
-      if (tLow.includes('super_heavy') || tLow.includes('super heavy') || tLow.includes('super')) {
-        flowIntensity = 'super_heavy';
-      } else if (tLow.includes('heavy')) {
-        flowIntensity = 'heavy';
-      } else if (tLow.includes('light')) {
-        flowIntensity = 'light';
-      } else {
-        flowIntensity = 'medium';
-      }
-    } else if (
-      title.includes('🎯') ||
-      tLow.includes('task') ||
-      tLow.includes('urgent') ||
-      tLow.includes('todo') ||
-      tLow.includes('audit')
-    ) {
-      type = 'task';
-      if (tLow.includes('urgent')) priority = 'urgent';
-      else if (tLow.includes('low')) priority = 'low';
-      else priority = 'medium';
-    } else if (title.includes('🎂') || tLow.includes('birthday') || tLow.includes('bday')) {
-      type = 'birthday';
-    }
-  }
+  // No metadata: do NOT infer the entry type from title substrings. The old
+  // heuristics misclassified real titles ("Period-end close review" ->
+  // 'period' with menstrual-health fields shown; "Audit committee meeting" ->
+  // 'task'; any "task"/"todo" in a meeting title -> 'task'). Backend rows
+  // carry their own explicit `type`; honor it below. Truly untyped imports
+  // are plain events.
+  const EXPLICIT_TYPES: ReadonlySet<string> = new Set(['event', 'task', 'birthday', 'period']);
+  const explicitType =
+    typeof raw.type === 'string' && EXPLICIT_TYPES.has(raw.type)
+      ? (raw.type as EntryType)
+      : undefined;
 
   return {
     ...raw,
@@ -111,7 +87,7 @@ export function parseCalendarEvent(raw: any): CalendarEventLike {
     exdates,
     title,
     description,
-    type,
+    type: explicitType ?? type,
     priority,
     flowIntensity,
     spottingColor,
