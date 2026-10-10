@@ -491,7 +491,9 @@ Live evidence: /tmp/lane1-audit/desktop-search.png + mobile-search.png (both red
 Audit note: cust-p1-6 "search leak" (PR #809) was a UI state leak (search state persisting across lens-tab switches), NOT a backend data leak; backend ACL was already userId-scoped everywhere — authorization question closed.
 
 ## QM-SCREEN-008 — Calendar home / agenda / day / week / month
-Status: [ ] TODO
+Status: [~] IN_PROGRESS (lane-1 deep audit loop; audit started 2026-10-11 ~01:35 IST)
+Owner: LANE-1
+Branch: lane-1/qm-screen-008-calendar-audit
 Required: timezone/DST, recurrence, reminders, attendee state, drag/drop where supported, mail relation, Drive artifacts, cross-app event creation, offline edits and conflict resolution, mobile gesture behavior.
 Dependencies: QM-WORK-007.
 
