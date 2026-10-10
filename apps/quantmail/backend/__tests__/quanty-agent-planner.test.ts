@@ -59,6 +59,11 @@ describe('quanty-agent planner', () => {
     ['where should invoice.pdf go', ['drive.suggestDestination']],
     ['organize file budget.xlsx', ['drive.suggestDestination']],
     ['move budget.xlsx to its folder', ['drive.organizeFile']],
+    // Contacts tools (real ContactService-backed implementations).
+    ['find the contact for Priya', ['contacts.searchContacts']],
+    ["find John's contact", ['contacts.searchContacts']],
+    ['search contacts for Priya Sharma', ['contacts.searchContacts']],
+    ['add Priya Sharma, priya@example.com', ['contacts.addContact']],
   ];
 
   it.each(cases)('plans "%s"', (command, expectedTools) => {
@@ -85,14 +90,44 @@ describe('quanty-agent planner', () => {
     expect(plan.unmatched).toBe(true);
   });
 
-  it('honestly declines commands for tools that do not exist (calendar/contacts)', () => {
-    // Calendar/contacts tools are not wired yet — the planner must NOT plan
-    // them (that would be planning against a stub).
-    for (const command of ['create an event for tomorrow', "what's on my schedule today?", 'find the contact for Priya']) {
+  it('honestly declines commands for tools that do not exist (calendar)', () => {
+    // Calendar tools are not wired yet — the planner must NOT plan them
+    // (that would be planning against a stub).
+    for (const command of ['create an event for tomorrow', "what's on my schedule today?"]) {
       const plan = new RuleBasedPlanner().plan(command);
       expect(plan.unmatched).toBe(true);
     }
-    expect(listToolNames().some((n) => n.startsWith('calendar.') || n.startsWith('contacts.'))).toBe(false);
+    expect(listToolNames().some((n) => n.startsWith('calendar.'))).toBe(false);
+    // Contacts tools ARE wired now — the planner routes to real implementations.
+    expect(listToolNames().some((n) => n.startsWith('contacts.'))).toBe(true);
+  });
+
+  it('extracts the free-text argument for contacts commands', () => {
+    const planner = new RuleBasedPlanner();
+    expect(planner.plan('find the contact for Priya').steps[0].args).toEqual({ q: 'priya' });
+    expect(planner.plan("find John's contact").steps[0].args).toEqual({ q: "john's" });
+    expect(planner.plan('add Priya Sharma, priya@example.com').steps[0].args).toEqual({
+      name: 'priya sharma',
+      email: 'priya@example.com',
+    });
+  });
+
+  it('does not plan a contact add from a command without an email', () => {
+    // "add" prefixes "address" — without an email-shaped token the guard
+    // keeps this unmatched instead of planning against garbage.
+    const plan = new RuleBasedPlanner().plan('show my address book');
+    expect(plan.unmatched).toBe(true);
+  });
+
+  it('contact add materializes as a destructive (confirmation-gated) step', () => {
+    const steps = materializeSteps(new RuleBasedPlanner().plan('add Priya Sharma, priya@example.com'));
+    expect(steps).toHaveLength(1);
+    expect(steps[0].toolName).toBe('contacts.addContact');
+    expect(steps[0].destructive).toBe(true);
+    expect(getTool('contacts.addContact')?.destructive).toBe(true);
+    // Read-only contacts tools run without a prompt.
+    expect(getTool('contacts.searchContacts')?.destructive).toBe(false);
+    expect(getTool('contacts.getContact')?.destructive).toBe(false);
   });
 
   it('extracts the free-text argument for git commands', () => {
