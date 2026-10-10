@@ -41,37 +41,43 @@ function runVitest(args) {
 const normalizedArgs = normalizeArgs(rawArgs);
 
 if (normalizedArgs.length === 0) {
-  // ---------------------------------------------------------------------------
-  // Gate OOM fix (PR #773): shard the full suite into four sequential vitest
-  // invocations instead of one.
+  // Gate OOM fix (PR #773) — attempt 8: quarantine the proven killer file.
   //
-  // Root cause (CI runs 38035175874 + 38036983383, gate AND full-sweep jobs):
-  // a single vitest forks-pool worker grows monotonically across the test
-  // files it processes and dies with
-  //   "Mark-Compact 8068.7 (8230.5) MB ... FATAL ERROR: Ineffective
+  // Proven root cause (CI run 38040006760, gate job): ONE test file eats
+  // ~8 GB in its own isolated forks worker and dies with
+  //   "Mark-Compact 8068.8 (8230.5) MB ... FATAL ERROR: Ineffective
   //    mark-compacts near heap limit Allocation failed - JavaScript heap
   //    out of memory"
-  // while every test passes. The 8230 MB limit is the 8192 MB NODE_OPTIONS
-  // cap from the earlier heap-bump fix, so the cap IS active: this is genuine
-  // per-worker heap accumulation across the ~180 test files each long-lived
-  // fork processes (vitest forks pool never recycles workers), NOT a
-  // too-small cap and NOT machine RAM exhaustion (that would be SIGKILL/137,
-  // not a V8 fatal error). maxWorkers: 2 did not help because each remaining
-  // fork still accumulates the same heap.
+  // while every other file passes:
+  //   src/__tests__/qm-uiux-093-thread-more-menu-fake-success.test.tsx
+  // (the regression test added by THIS PR — renders the real 3488-line
+  // ConversationalThreadView + real framer-motion under jsdom).
+  // Vitest 4 runs each test file in a FRESH fork (isolate:true default), so
+  // cross-file heap accumulation is IMPOSSIBLE: the 1/2/4-shard fixes (and
+  // the heap-bump/maxWorkers fixes before them) all targeted a phantom
+  // mechanism. Forensics reproduced vitest's exact shard algorithm from its
+  // packed source: in the 4-shard run the killer file was the SINGLE
+  // uncompleted file in shard 4/4; in the 2-shard run it was the single
+  // uncompleted file in 2/2. Worker lifetime ~332s (~10 tests x 30s
+  // testTimeout) suggests the tests hang while leaking ~24 MB/s.
   //
-  // Shard timing shows the weight is concentrated in the second half:
-  // shard 1/2 (182 files) passes in ~170s, shard 2/2 (181 files) OOMs after
-  // ~420-540s at the heap cap. Splitting into 4 shards (~90 files each)
-  // halves the heavy half again: peak per-worker heap drops to ~2 GB,
-  // comfortably under the 8 GB gate cap. Shards run sequentially so peak
-  // machine RAM stays at 2 concurrent forks. Targeted runs (args present,
-  // e.g. local dev) keep the old single-run behavior.
+  // Fix: exclude the killer file from the sharded invocations and run it as
+  // a SEPARATE single-file invocation. Solo it gets the full 8 GB and zero
+  // contention, so if the 332s was GC-thrash under contention it may pass;
+  // and the reduced testTimeout (60s) makes a true hang fail fast with a
+  // clear timeout error instead of OOM-killing the run. If the solo run
+  // still OOMs, the leak is unbounded and the file needs a test-code fix
+  // (mock framer-motion / split the ConversationalThreadView import) —
+  // that goes back to the PR author, not the CI config.
   // ---------------------------------------------------------------------------
+  const QUARANTINED_TEST =
+    'src/__tests__/qm-uiux-093-thread-more-menu-fake-success.test.tsx';
+  const QUARANTINED_TEST_TIMEOUT_MS = 60000;
   const shards = [
-    ['--shard=1/4'],
-    ['--shard=2/4'],
-    ['--shard=3/4'],
-    ['--shard=4/4'],
+    ['--shard=1/4', '--exclude', QUARANTINED_TEST],
+    ['--shard=2/4', '--exclude', QUARANTINED_TEST],
+    ['--shard=3/4', '--exclude', QUARANTINED_TEST],
+    ['--shard=4/4', '--exclude', QUARANTINED_TEST],
   ];
   let failed = false;
   for (const shardArgs of shards) {
@@ -80,6 +86,24 @@ if (normalizedArgs.length === 0) {
     if (code !== 0) {
       failed = true;
     }
+  }
+  // Quarantined: the killer file runs solo with a reduced testTimeout so a
+  // true hang fails fast (timeout) instead of OOM-killing the gate.
+  if (fs.existsSync(QUARANTINED_TEST)) {
+    console.log(
+      `\n[test-runner] running quarantined file: vitest run ${QUARANTINED_TEST} --testTimeout=${QUARANTINED_TEST_TIMEOUT_MS}\n`,
+    );
+    const code = await runVitest([
+      QUARANTINED_TEST,
+      `--testTimeout=${QUARANTINED_TEST_TIMEOUT_MS}`,
+    ]);
+    if (code !== 0) {
+      failed = true;
+    }
+  } else {
+    console.log(
+      `\n[test-runner] quarantined file ${QUARANTINED_TEST} not found, skipping\n`,
+    );
   }
   process.exit(failed ? 1 : 0);
 } else {
