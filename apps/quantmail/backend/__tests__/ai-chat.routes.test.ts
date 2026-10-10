@@ -348,6 +348,27 @@ describe('GET /ai/chat/health', () => {
   });
 });
 
+/**
+ * Two-step confirmation flow: the chat turn proposes (pending-confirmation +
+ * confirmation card), then the user resolves it via POST /ai/chat/confirm.
+ * Returns the toolExecution card from the confirm response.
+ */
+async function confirmPending(
+  app: Awaited<ReturnType<typeof buildApp>>,
+  chatBody: any,
+  approved: boolean,
+) {
+  const card = chatBody.data.confirmationCards[0];
+  expect(card).toBeDefined();
+  const res = await app.inject({
+    method: 'POST',
+    url: '/ai/chat/confirm',
+    payload: { confirmationId: card.id, approved },
+  });
+  expect(res.statusCode).toBe(200);
+  return res.json().data.toolExecution;
+}
+
 describe('POST /ai/chat — autonomous tool calling', () => {
   beforeEach(() => {
     process.env.ENABLE_AUTONOMOUS_TOOLS = 'true';
@@ -452,7 +473,7 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     expect(body.data.message).toContain('I suggested creating a repo.');
   });
 
-  it('detects and executes a create_repository tool call when tools are enabled', async () => {
+  it('a create_repository tool call becomes a confirmation card — nothing executes until approved', async () => {
     const prismaMock = {
       repository: {
         findFirst: vi.fn().mockResolvedValue(null),
@@ -475,7 +496,7 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     };
 
     aiChatWithToolsMock.mockResolvedValue({
-      content: 'I will create the repository for you now.\n\nRepository has been created successfully!',
+      content: 'I will create the repository for you now.',
       toolCalls: [
         {
           id: 'call_1',
@@ -498,9 +519,30 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.success).toBe(true);
-    expect(body.data.message).toContain('Repository has been created successfully!');
+    // The destructive call is NOT executed from the chat turn.
     expect(body.data.toolExecutions).toHaveLength(1);
     expect(body.data.toolExecutions[0]).toMatchObject({
+      toolName: 'create_repository',
+      callId: 'call_1',
+      status: 'pending-confirmation',
+    });
+    expect(body.data.toolExecutions[0].confirmationId).toEqual(expect.any(String));
+    expect(prismaMock.repository.create).not.toHaveBeenCalled();
+    // The confirmation card carries what the user decides on.
+    expect(body.data.confirmationCards).toHaveLength(1);
+    expect(body.data.confirmationCards[0]).toMatchObject({
+      toolName: 'create_repository',
+      title: 'Create repository',
+      args: { name: 'autonomous-swarm-engine', description: 'Created by Quanty' },
+    });
+    expect(body.data.confirmationCards[0].summary).toContain('autonomous-swarm-engine');
+    expect(body.data.confirmationCards[0].id).toBe(body.data.toolExecutions[0].confirmationId);
+    // Honesty: the reply says nothing ran yet.
+    expect(body.data.message).toContain('awaiting your confirmation');
+
+    // Approving the card executes the real handler exactly once.
+    const execution = await confirmPending(app, body, true);
+    expect(execution).toMatchObject({
       toolName: 'create_repository',
       status: 'succeeded',
       result: {
@@ -518,6 +560,16 @@ describe('POST /ai/chat — autonomous tool calling', () => {
         defaultBranch: 'main',
       },
     });
+
+    // The confirmation is single-use: a replayed approval finds nothing and
+    // cannot double-execute.
+    const replay = await app.inject({
+      method: 'POST',
+      url: '/ai/chat/confirm',
+      payload: { confirmationId: body.data.confirmationCards[0].id, approved: true },
+    });
+    expect(replay.statusCode).toBe(404);
+    expect(prismaMock.repository.create).toHaveBeenCalledTimes(1);
   });
 
   it('QM-UIUX-077: a create_repository claim from the tools-less QuantGit copilot is disclosed as NOT executed', async () => {
@@ -632,13 +684,15 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     expect(body.data.toolExecutions).toHaveLength(1);
     expect(body.data.toolExecutions[0]).toMatchObject({
       toolName: 'create_repository',
-      status: 'succeeded',
+      status: 'pending-confirmation',
     });
-    expect(prismaMock.repository.create).toHaveBeenCalledTimes(1);
+    // The gated call proposed nothing executable yet: the second native call
+    // is over the step limit and is disclosed as NOT executed.
+    expect(prismaMock.repository.create).not.toHaveBeenCalled();
     expect(body.data.message).toContain('1 proposed action(s) were NOT executed');
   });
 
-  it('holds deploy_agent tool call as failed and prepends action notice to prose', async () => {
+  it('deploy_agent is not wired: the call fails honestly as NOT_WIRED and the notice says so', async () => {
     const prismaMock = {
       repository: {
         findFirst: vi.fn().mockResolvedValue({ id: 'repo-101', name: 'demo', ownerId: 'user-1' }),
@@ -679,17 +733,19 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       toolName: 'deploy_agent',
       status: 'failed',
       error: {
-        code: 'HELD_PENDING_PERSISTENCE',
+        code: 'NOT_WIRED',
       },
     });
+    // Honest capability surfacing: the tool has no registered handler, so the
+    // agent says "not wired yet" — it never fakes a result.
+    expect(body.data.toolExecutions[0].error.message).toContain('not wired yet');
     // V15: Prose reflects the failure rather than lying about success
-    expect(body.data.message).toContain(
-      '[Action Notice: deploy_agent: deploy_agent is held pending durable AgentSession persistence and runtime task handoff]',
-    );
+    expect(body.data.message).toContain('[Action Notice: deploy_agent:');
+    expect(body.data.message).toContain('not wired yet');
     expect(body.data.message).toContain('Agent deployed to Desk #2.');
   });
 
-  it('detects and executes a commit_file tool call via strict CAS repositoryMutation port', async () => {
+  it('a commit_file tool call waits for confirmation, then commits via strict CAS on approval', async () => {
     const prismaMock = {
       repository: {
         findFirst: vi.fn().mockResolvedValue({ id: 'repo-101', name: 'demo', ownerId: 'user-1' }),
@@ -759,8 +815,18 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.success).toBe(true);
+    // The destructive call is NOT executed from the chat turn.
     expect(body.data.toolExecutions).toHaveLength(1);
     expect(body.data.toolExecutions[0]).toMatchObject({
+      toolName: 'commit_file',
+      status: 'pending-confirmation',
+    });
+    expect(body.data.confirmationCards[0].summary).toContain('src/index.ts');
+    expect(repositoryMutationMock.commitFile).not.toHaveBeenCalled();
+
+    // Approving the card runs the strict-CAS commit exactly once.
+    const execution = await confirmPending(app, body, true);
+    expect(execution).toMatchObject({
       toolName: 'commit_file',
       status: 'succeeded',
       result: {
@@ -825,7 +891,15 @@ describe('POST /ai/chat — autonomous tool calling', () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
+    // The chat turn only proposes: validation runs when the user approves.
     expect(body.data.toolExecutions[0]).toMatchObject({
+      toolName: 'commit_file',
+      status: 'pending-confirmation',
+    });
+    expect(repositoryMutationMock.commitFile).not.toHaveBeenCalled();
+
+    const execution = await confirmPending(app, body, true);
+    expect(execution).toMatchObject({
       toolName: 'commit_file',
       status: 'failed',
       error: {
@@ -889,6 +963,12 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     const body = res.json();
     expect(body.data.toolExecutions[0]).toMatchObject({
       toolName: 'commit_file',
+      status: 'pending-confirmation',
+    });
+
+    const execution = await confirmPending(app, body, true);
+    expect(execution).toMatchObject({
+      toolName: 'commit_file',
       status: 'failed',
       error: {
         code: 'STORAGE_UNAVAILABLE',
@@ -933,6 +1013,12 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.data.toolExecutions[0]).toMatchObject({
+      toolName: 'commit_file',
+      status: 'pending-confirmation',
+    });
+
+    const execution = await confirmPending(app, body, true);
+    expect(execution).toMatchObject({
       toolName: 'commit_file',
       status: 'failed',
       error: {
@@ -1020,7 +1106,14 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json().data.toolExecutions[0]).toMatchObject({
+    const lowercaseBody = response.json();
+    expect(lowercaseBody.data.toolExecutions[0]).toMatchObject({
+      toolName: 'commit_file',
+      status: 'pending-confirmation',
+    });
+
+    const execution = await confirmPending(app, lowercaseBody, true);
+    expect(execution).toMatchObject({
       toolName: 'commit_file',
       status: 'succeeded',
     });
@@ -1090,7 +1183,14 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json().data.toolExecutions[0]).toMatchObject({
+    const protectedBody = response.json();
+    expect(protectedBody.data.toolExecutions[0]).toMatchObject({
+      toolName: 'commit_file',
+      status: 'pending-confirmation',
+    });
+
+    const execution = await confirmPending(app, protectedBody, true);
+    expect(execution).toMatchObject({
       toolName: 'commit_file',
       status: 'failed',
       error: {
@@ -1146,7 +1246,14 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json().data.toolExecutions[0]).toMatchObject({
+    const malformedBody = response.json();
+    expect(malformedBody.data.toolExecutions[0]).toMatchObject({
+      toolName: 'commit_file',
+      status: 'pending-confirmation',
+    });
+
+    const execution = await confirmPending(app, malformedBody, true);
+    expect(execution).toMatchObject({
       toolName: 'commit_file',
       status: 'failed',
       error: {
@@ -1252,10 +1359,9 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     expect(body.data.toolExecutions).toHaveLength(1);
     expect(body.data.toolExecutions[0]).toMatchObject({
       toolName: 'create_repository',
-      status: 'succeeded',
-      result: { id: 'repo-1' },
+      status: 'pending-confirmation',
     });
-    expect(prismaMock.repository.create).toHaveBeenCalledTimes(1);
+    expect(prismaMock.repository.create).not.toHaveBeenCalled();
   });
 
   it('native function calling round-trip: definitions reach the provider and native calls dispatch without text parsing (Phase 0)', async () => {
@@ -1318,10 +1424,11 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       type: string;
       function: { name: string; description: string; parameters: unknown };
     }>;
+    // Unwired tools are hidden from the model: the schema table is the
+    // single source of truth, and deploy_agent has no real handler.
     expect(sentTools.map((t) => t.function.name).sort()).toEqual([
       'commit_file',
       'create_repository',
-      'deploy_agent',
       'read_file_blob',
     ]);
     for (const tool of sentTools) {
@@ -1330,23 +1437,231 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       expect(tool.function.description.length).toBeGreaterThan(0);
     }
 
-    // 3. The native tool call dispatched and executed — the provider-issued
-    //    call id survives onto the execution card.
+    // 3. The native tool call dispatched to the confirmation gate — the
+    //    provider-issued call id survives onto the pending card, and nothing
+    //    executes from the chat turn.
     expect(body.data.toolExecutions).toHaveLength(1);
     expect(body.data.toolExecutions[0]).toMatchObject({
       toolName: 'create_repository',
       callId: 'call_native_1',
-      status: 'succeeded',
-      result: { id: 'repo-201', name: 'native-round-trip' },
+      status: 'pending-confirmation',
     });
-    expect(prismaMock.repository.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ ownerId: 'user-1', name: 'native-round-trip' }),
-    });
+    expect(body.data.confirmationCards).toHaveLength(1);
+    expect(prismaMock.repository.create).not.toHaveBeenCalled();
 
     // 4. No legacy fenced block survives in the user-visible message: the
     //    dispatcher no longer reads tool calls out of model prose.
     expect(body.data.message).not.toContain('```tool_call');
     expect(body.data.message).toContain('Creating the repository now.');
+  });
+});
+
+describe('POST /ai/chat/confirm — confirmation-gated tool execution', () => {
+  beforeEach(() => {
+    process.env.ENABLE_AUTONOMOUS_TOOLS = 'true';
+  });
+
+  afterEach(() => {
+    delete process.env.ENABLE_AUTONOMOUS_TOOLS;
+  });
+
+  async function proposeCreateRepository(
+    app: Awaited<ReturnType<typeof buildApp>>,
+    prismaMock: any,
+  ) {
+    aiChatWithToolsMock.mockResolvedValue({
+      content: 'Creating the repo.',
+      toolCalls: [
+        { id: 'call_1', name: 'create_repository', arguments: { name: 'pending-repo' } },
+      ],
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Create pending-repo' }],
+        tools: { enabled: true },
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    return res.json();
+  }
+
+  function repoPrismaMock() {
+    return {
+      repository: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({
+          id: 'repo-301',
+          name: 'pending-repo',
+          description: null,
+          visibility: 'PRIVATE',
+          defaultBranch: 'main',
+        }),
+      },
+      user: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'user-1', username: 'kundan' }),
+      },
+    };
+  }
+
+  it('denying a confirmation executes nothing (CONFIRMATION_DENIED)', async () => {
+    const prismaMock = repoPrismaMock();
+    const app = await buildApp('user-1', { prisma: prismaMock });
+    const body = await proposeCreateRepository(app, prismaMock);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat/confirm',
+      payload: { confirmationId: body.data.confirmationCards[0].id, approved: false },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.toolExecution).toMatchObject({
+      toolName: 'create_repository',
+      status: 'failed',
+      error: { code: 'CONFIRMATION_DENIED' },
+    });
+    expect(prismaMock.repository.create).not.toHaveBeenCalled();
+  });
+
+  it('404s an unknown or already-consumed confirmation id', async () => {
+    const app = await buildApp('user-1', { prisma: repoPrismaMock() });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat/confirm',
+      payload: { confirmationId: 'no-such-confirmation', approved: true },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('403s when a different user tries to approve', async () => {
+    const prismaMock = repoPrismaMock();
+    const ownerApp = await buildApp('user-1', { prisma: prismaMock });
+    const body = await proposeCreateRepository(ownerApp, prismaMock);
+
+    const otherApp = await buildApp('user-2', { prisma: repoPrismaMock() });
+    const res = await otherApp.inject({
+      method: 'POST',
+      url: '/ai/chat/confirm',
+      payload: { confirmationId: body.data.confirmationCards[0].id, approved: true },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(prismaMock.repository.create).not.toHaveBeenCalled();
+  });
+
+  it('401s an unauthenticated confirm request', async () => {
+    const app = await buildApp(null);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat/confirm',
+      payload: { confirmationId: 'whatever', approved: true },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('400s a malformed confirm body', async () => {
+    const app = await buildApp('user-1', { prisma: repoPrismaMock() });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat/confirm',
+      payload: { confirmationId: 'whatever' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('refuses to execute when the kill switch is off at approval time (TOOLING_DISABLED)', async () => {
+    const prismaMock = repoPrismaMock();
+    const app = await buildApp('user-1', { prisma: prismaMock });
+    const body = await proposeCreateRepository(app, prismaMock);
+
+    delete process.env.ENABLE_AUTONOMOUS_TOOLS;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat/confirm',
+      payload: { confirmationId: body.data.confirmationCards[0].id, approved: true },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.toolExecution).toMatchObject({
+      toolName: 'create_repository',
+      status: 'failed',
+      error: { code: 'TOOLING_DISABLED' },
+    });
+    expect(prismaMock.repository.create).not.toHaveBeenCalled();
+  });
+
+  it('read-only tools (tier 0) still execute directly in the chat turn', async () => {
+    const prismaMock = {
+      repository: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'repo-101', name: 'demo', ownerId: 'user-1' }),
+      },
+    };
+    const repositoryInspectionMock = {
+      readBlob: vi.fn().mockResolvedValue({
+        path: 'README.md',
+        content: '# demo',
+        size: 6,
+        sha: 'abc123',
+      }),
+    };
+
+    aiChatWithToolsMock.mockResolvedValue({
+      content: 'Here is the file.',
+      toolCalls: [
+        { id: 'call_1', name: 'read_file_blob', arguments: { repoId: 'demo', path: 'README.md' } },
+      ],
+    });
+
+    const app = await buildApp('user-1', {
+      prisma: prismaMock,
+      repositoryInspection: repositoryInspectionMock,
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Read README.md' }],
+        tools: { enabled: true },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.toolExecutions).toHaveLength(1);
+    expect(body.data.toolExecutions[0]).toMatchObject({
+      toolName: 'read_file_blob',
+      status: 'succeeded',
+      result: { path: 'README.md', content: '# demo' },
+    });
+    expect(body.data.confirmationCards).toHaveLength(0);
+    expect(repositoryInspectionMock.readBlob).toHaveBeenCalledWith({
+      owner: 'user-1',
+      name: 'demo',
+      ref: 'main',
+      path: 'README.md',
+    });
+  });
+
+  it('the model is told gated tools need confirmation and deploy_agent is not wired', async () => {
+    const app = await buildApp('user-1', {
+      prisma: { repository: { findFirst: vi.fn() } },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: { enabled: true },
+      },
+    });
+    const toolsPrompt = (
+      aiChatWithToolsMock.mock.calls[0]![0] as Array<{ role: string; content: string }>
+    )[0]!.content;
+    expect(toolsPrompt).toContain('[needs your confirmation]');
+    expect(toolsPrompt).toContain('deploy_agent (agent deployment is not wired up yet)');
+    expect(toolsPrompt).not.toContain('```tool_call');
   });
 });
 
