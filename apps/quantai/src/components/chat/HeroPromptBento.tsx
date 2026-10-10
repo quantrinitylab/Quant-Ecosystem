@@ -18,8 +18,8 @@ export function HeroPromptBento({
     {
       id: 'visuals',
       title: 'Generate Visual Concepts',
-      subtext: 'Hyper-detailed diffusion prompts with FluxGPT LoRA styles',
-      badge: '🎨 FluxGPT AI',
+      subtext: 'Craft hyper-detailed prompts to describe any visual',
+      badge: 'Image Generation',
       onClick: () => {
         onSelectPrompt(
           'Create a photorealistic cinematic render of a futuristic quantum supercomputer in a glass laboratory --ar 16:9',
@@ -30,7 +30,7 @@ export function HeroPromptBento({
       id: 'docs',
       title: 'Synthesize Documents & Code',
       subtext: 'Draft technical specs, markdown docs & code in split Work Canvas',
-      badge: '📝 Work Canvas',
+      badge: 'Work Canvas',
       onClick: () => {
         onSelectPrompt(
           'Design an architecture document for a distributed real-time messaging pipeline',
@@ -41,15 +41,15 @@ export function HeroPromptBento({
     {
       id: 'voice',
       title: 'Start Real-Time Voice Mode',
-      subtext: 'Fluid conversational voice session with Aura & Vesper personas',
-      badge: '🎙️ 3D Voice Orb',
+      subtext: 'Fluid real-time conversational voice session',
+      badge: 'Voice Mode',
       onClick: onStartVoice,
     },
     {
       id: 'vision',
       title: 'Vision Analysis & Document OCR',
-      subtext: 'Extract tables, structured data & scene captions with Vizion AI',
-      badge: '👁️ Vizion OCR',
+      subtext: 'Extract tables, structured data & scene captions from uploaded documents',
+      badge: 'Document OCR',
       onClick: () => {
         onSelectPrompt('Extract all key entities, dates, and tables from an uploaded invoice');
         onAttachFile();
