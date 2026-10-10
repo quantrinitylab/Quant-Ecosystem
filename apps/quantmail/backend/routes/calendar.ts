@@ -38,6 +38,11 @@ const eventCollectionFields = {
   calendarId: z.string().optional(),
   timeZone: z.string().max(100).optional(),
   timezone: z.string().max(100).optional(),
+  // The calendar page's create/edit sheet has always sent this top-level.
+  // Event has no driveLink column: the value is persisted inside the
+  // __QUANT_META__ description header (see setMetaDriveLink), never as a
+  // Prisma column.
+  driveLink: z.string().max(2000).optional(),
 };
 const eventCreateSchema = z.object({
   title: z.string().min(1).max(300),
@@ -267,6 +272,61 @@ function toCalendarEvent(row: EventRow): CalendarEvent {
     updatedAt: new Date(row.updatedAt),
   };
 }
+const QUANT_META_RE = /__QUANT_META__:([\s\S]*?):__END_QUANT_META__/;
+
+/**
+ * Persist a top-level `driveLink` payload field inside the __QUANT_META__
+ * description header — the established store for type/priority/subtasks, and
+ * the only place Event can carry the link (there is no driveLink column).
+ *
+ * A non-empty value is stored; an empty/missing value clears a previously
+ * stored link so a cleared form field never leaves a stale URL behind.
+ * Returns the description unchanged when there is nothing to write or clear,
+ * so unrelated updates never rewrite the header.
+ */
+function setMetaDriveLink(description: string, driveLink: string | undefined): string {
+  const trimmed = typeof driveLink === 'string' ? driveLink.trim() : '';
+  const raw = description ?? '';
+  const match = QUANT_META_RE.exec(raw);
+  let meta: Record<string, unknown>;
+  if (match) {
+    try {
+      meta = JSON.parse(match[1] as string) as Record<string, unknown>;
+    } catch {
+      // Corrupt header: only rewrite when there is a link to store.
+      if (!trimmed) return raw;
+      meta = {};
+    }
+  } else {
+    meta = {};
+  }
+  const existing = typeof meta.driveLink === 'string' ? (meta.driveLink as string).trim() : '';
+  if (!trimmed && !existing) return raw;
+  if (trimmed) {
+    meta.driveLink = trimmed;
+  } else {
+    delete meta.driveLink;
+  }
+  const header = `__QUANT_META__:${JSON.stringify(meta)}:__END_QUANT_META__`;
+  const body = raw.replace(/__QUANT_META__:[\s\S]*?:__END_QUANT_META__\n?/, '').trim();
+  return body ? `${header}\n${body}` : `${header}\n`;
+}
+
+/**
+ * Partial-update safety: edit screens that strip the __QUANT_META__ header
+ * before saving (the event detail page seeds its form with the stripped
+ * description) must not wipe the stored meta as a side effect. Re-attach the
+ * existing header so driveLink/type/priority survive a title/location edit.
+ * A description that still carries its own header is returned untouched.
+ */
+function preserveMetaHeader(description: string, existingDescription: string): string {
+  if (QUANT_META_RE.test(description)) return description;
+  const match = QUANT_META_RE.exec(existingDescription ?? '');
+  if (!match) return description;
+  const body = description.trim();
+  return body ? `${match[0]}\n${body}` : `${match[0]}\n`;
+}
+
 function toEventDto(event: EventRow | CalendarEvent) {
   let recurrenceParentId: string | undefined =
     (event as CalendarEvent).recurrenceParentId ??
@@ -280,12 +340,15 @@ function toEventDto(event: EventRow | CalendarEvent) {
         : undefined;
 
   const desc = event.description || '';
+  let driveLink: string | undefined;
   const metaMatch = desc.match(/__QUANT_META__:([\s\S]*?):__END_QUANT_META__/);
   if (metaMatch) {
     try {
       const meta = JSON.parse(metaMatch[1]);
       if (meta.recurrenceParentId) recurrenceParentId = meta.recurrenceParentId;
       if (meta.originalStartTime) originalStartTime = meta.originalStartTime;
+      if (typeof meta.driveLink === 'string' && meta.driveLink.trim())
+        driveLink = meta.driveLink.trim();
     } catch {
       // ignore
     }
@@ -329,6 +392,7 @@ function toEventDto(event: EventRow | CalendarEvent) {
       .filter((a) => Boolean(a.email)),
     reminders: reminderLabels(event.reminders),
     recurrence: event.recurrenceRule ?? null,
+    driveLink,
   };
 }
 function formatIcsDate(date: Date): string {
@@ -1404,7 +1468,12 @@ export default async function calendarRoutes(
     const tzValue = parsed.data.timeZone ?? (parsed.data as any).timezone;
     const eventCreateData: Record<string, unknown> = {
       title: parsed.data.title,
-      description: parsed.data.description ?? '',
+      // driveLink rides in __QUANT_META__ (Event has no column for it); a
+      // top-level payload field that Zod accepted must not be silently dropped.
+      description:
+        parsed.data.driveLink !== undefined
+          ? setMetaDriveLink(parsed.data.description ?? '', parsed.data.driveLink)
+          : (parsed.data.description ?? ''),
       startTime: start,
       endTime: end,
       allDay: parsed.data.allDay ?? false,
@@ -1708,6 +1777,17 @@ export default async function calendarRoutes(
         for (const key of ['title', 'description', 'allDay', 'location', 'status'] as const) {
           if (parsed.data[key] !== undefined) updateData[key] = parsed.data[key];
         }
+        if (parsed.data.driveLink !== undefined) {
+          updateData.description = setMetaDriveLink(
+            (updateData.description as string | undefined) ?? parent.description ?? '',
+            parsed.data.driveLink,
+          );
+        } else if (typeof updateData.description === 'string') {
+          updateData.description = preserveMetaHeader(
+            updateData.description,
+            parent.description ?? '',
+          );
+        }
         if (parsed.data.calendarId !== undefined) updateData.calendarId = parsed.data.calendarId;
         const tzToUpdate = parsed.data.timeZone ?? (parsed.data as any).timezone;
         if (tzToUpdate !== undefined) updateData.timeZone = tzToUpdate;
@@ -1764,7 +1844,13 @@ export default async function calendarRoutes(
         const now = new Date();
         const createPayload: Record<string, unknown> = {
           title: parsed.data.title ?? parent.title,
-          description: parsed.data.description ?? parent.description ?? '',
+          description:
+            parsed.data.driveLink !== undefined
+              ? setMetaDriveLink(
+                  parsed.data.description ?? parent.description ?? '',
+                  parsed.data.driveLink,
+                )
+              : (parsed.data.description ?? parent.description ?? ''),
           startTime: eventStartTime,
           endTime: eventEndTime,
           allDay: parsed.data.allDay ?? parent.allDay ?? false,
@@ -1854,8 +1940,11 @@ export default async function calendarRoutes(
       };
       const metaHeader = `__QUANT_META__:${JSON.stringify(metaObj)}:__END_QUANT_META__\n`;
       const userDesc = parsed.data.description ?? parent.description ?? '';
-      const finalDesc =
+      let finalDesc =
         metaHeader + userDesc.replace(/__QUANT_META__:[\s\S]*?:__END_QUANT_META__\n?/, '').trim();
+      if (parsed.data.driveLink !== undefined) {
+        finalDesc = setMetaDriveLink(finalDesc, parsed.data.driveLink);
+      }
 
       const now = new Date();
       const createPayload: Record<string, unknown> = {
@@ -1958,6 +2047,21 @@ export default async function calendarRoutes(
     const data: Record<string, unknown> = { updatedAt: new Date() };
     for (const key of ['title', 'description', 'allDay', 'location', 'status'] as const)
       if (parsed.data[key] !== undefined) data[key] = parsed.data[key];
+    if (parsed.data.driveLink !== undefined) {
+      // The sheet always sends the field; merge it into the stored
+      // __QUANT_META__ header (clearing included) instead of dropping it.
+      data.description = setMetaDriveLink(
+        (data.description as string | undefined) ?? (existing.description as string) ?? '',
+        parsed.data.driveLink,
+      );
+    } else if (typeof data.description === 'string') {
+      // Screens that save a meta-stripped description (event detail page)
+      // must not wipe the stored header as a side effect.
+      data.description = preserveMetaHeader(
+        data.description,
+        (existing.description as string) ?? '',
+      );
+    }
     if (parsed.data.calendarId !== undefined) data.calendarId = parsed.data.calendarId;
     const tzToUpdate = parsed.data.timeZone ?? (parsed.data as any).timezone;
     if (tzToUpdate !== undefined) data.timeZone = tzToUpdate;
