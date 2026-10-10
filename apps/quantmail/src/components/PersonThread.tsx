@@ -254,7 +254,8 @@ export function PersonThread({
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
     // Intentionally keyed on personKey only: a conversation switch resets.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // (No exhaustive-deps rule is configured in this repo's ESLint setup,
+    // so no disable comment is needed — the narrow dep array is deliberate.)
   }, [conversation.personKey]);
 
   const isNearBottom = () => {
