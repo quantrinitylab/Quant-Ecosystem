@@ -45,6 +45,7 @@ import {
   type AuthVerdict,
 } from '../services/deliverability-auth.service';
 import { InboundIngestAdapter, type InboundRawMessage } from '../services/inbound-ingest.service';
+import { deliverPushToUser } from '../services/push-delivery.service';
 import { MailFilterService } from '../services/mail-filter.service';
 import { suppressionService } from '../services/suppression.service';
 import { createAppError } from '@quant/server-core';
@@ -430,7 +431,10 @@ async function deliverStoredMessage(
  *
  * Deliberately bypasses `CrossAppDispatcher`: its `fanout()` only returns
  * routing decisions and never persists anything (see QM-UIUX-054), so calling
- * it here would be theater. Push delivery is QM-UIUX-053, not this task.
+ * it here would be theater. Web Push delivery (QM-UIUX-053) hooks in below,
+ * after the in-app row persists: `deliverPushToUser` runs the real
+ * subscription → transport path, and its outcome (sent / no-subscriptions /
+ * not-configured) is logged, never swallowed and never faked.
  */
 async function createNewMailNotification(
   log: FastifyInstance['log'],
@@ -454,18 +458,47 @@ async function createNewMailNotification(
     const sender = email.fromName?.trim()
       ? `${email.fromName.trim()} <${email.fromAddress}>`
       : email.fromAddress;
+    const title = `New email from ${sender}`;
+    const body = email.subject || '(no subject)';
+    const actionUrl = email.threadId ? `/thread/${email.threadId}` : '/inbox';
     await db.notification.create({
       data: {
         userId,
         type: 'new_email',
-        title: `New email from ${sender}`,
-        body: email.subject || '(no subject)',
+        title,
+        body,
         sourceApp: 'quantmail',
         sourceEntityId: email.id,
-        actionUrl: email.threadId ? `/thread/${email.threadId}` : '/inbox',
+        actionUrl,
         data: { emailId: email.id, threadId: email.threadId, snippet: email.snippet },
       },
     });
+
+    // QM-UIUX-053: the same event, pushed to the user's registered browsers.
+    // Contained separately from the create above: push must never fail the
+    // notification, and the notification must never be reported as pushed
+    // when it was not — the outcome is logged with its real status.
+    try {
+      const push = await deliverPushToUser(
+        { store: prisma.pushSubscription },
+        userId,
+        {
+          title,
+          body,
+          tag: email.threadId ?? email.id,
+          data: { url: actionUrl, emailId: email.id, threadId: email.threadId },
+        },
+      );
+      log.info(
+        { userId, emailId: email.id, pushStatus: push.status, delivered: push.delivered, failed: push.failed, pruned: push.pruned },
+        '[inbound] web push delivery outcome',
+      );
+    } catch (pushError) {
+      log.error(
+        { err: pushError, userId, emailId: email.id },
+        '[inbound] web push delivery failed — in-app notification already persisted, continuing',
+      );
+    }
   } catch (error) {
     log.error(
       { err: error, userId, emailId: email.id },
