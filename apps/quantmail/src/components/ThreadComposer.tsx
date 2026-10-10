@@ -172,10 +172,10 @@ export function ThreadComposer({ conversation, onSent }: ThreadComposerProps) {
           placeholder="New topic subject…"
           aria-label="New topic subject"
           maxLength={200}
-          className="mb-2 w-full rounded-xl bg-[#111318] px-3.5 py-2.5 text-sm text-white placeholder-[#6B6E76] focus:outline-none focus:ring-2 focus:ring-[#F97316]"
+          className="mb-2 w-full rounded-xl bg-[var(--quant-surface-elevated)] px-3.5 py-2.5 text-sm text-white placeholder-[#6B6E76] focus:outline-none focus:ring-2 focus:ring-[#F97316]"
         />
       )}
-      <div className="flex items-end gap-2 rounded-2xl bg-[#111318] px-2 py-2">
+      <div className="flex items-end gap-2 rounded-2xl bg-[var(--quant-surface-elevated)] px-2 py-2">
         <button
           type="button"
           onClick={() => setNewTopic((prev) => !prev)}

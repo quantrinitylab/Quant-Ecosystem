@@ -50,7 +50,7 @@ export default function PersonPage() {
           <Link
             href="/people"
             aria-label="Back to people"
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl text-[#9BA0AA] transition-colors hover:bg-[#111318] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316]"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl text-[#9BA0AA] transition-colors hover:bg-[var(--quant-surface-elevated)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316]"
           >
             <svg
               className="size-5"
