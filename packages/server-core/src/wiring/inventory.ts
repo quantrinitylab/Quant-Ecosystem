@@ -163,12 +163,18 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
     targets: ['server-core'],
     stage: 1,
     dependsOn: ['prisma'],
-    status: 'done',
+    status: 'pending',
     reason:
-      'Task 15.1 reconciliation (Stage 1 gate, Task 6/9). DoD-1 [DONE] via wiring:dod — ' +
-      'imported by apps/admin, apps/quantchat, apps/quantmail + packages/server-core ' +
-      '(4 importers) + declared dependency; plugins/notifications.ts decorates ' +
-      'fastify.notifications in createApp() after prisma (dependsOn satisfied).',
+      'QM-UIUX-054 (2026-10-10): the earlier wiring:dod [DONE] claim decorated ' +
+      'fastify.notifications with an in-memory facade (NotificationFanout / ' +
+      'CrossAppDispatcher / PreferenceService) that only computed routing ' +
+      'decisions — it never persisted or sent anything, and its only call ' +
+      'sites discarded the result. The facade and plugins/notifications.ts ' +
+      'were deleted; every app\u2019s real notification path writes the shared ' +
+      'Prisma Notification model directly (QuantMail QM-UIUX-052, QuantGram, ' +
+      'QuantWave). The package now contains only the push-delivery substrate ' +
+      '(PushNotificationService/WebPushService), to be wired by QM-UIUX-053 — ' +
+      'until then this engine is honestly pending, not done.',
   },
   {
     engine: '@quant/onboarding',

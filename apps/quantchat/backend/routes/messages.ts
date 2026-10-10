@@ -1,11 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError, enableIdempotency } from '@quant/server-core';
-import { CrossAppDispatcher } from '@quant/notifications';
 import { MessageService } from '../services/message.service';
 import { publishConversationEvent } from '../services/realtime-publisher';
-
-const notifier = new CrossAppDispatcher('quantchat');
 
 const sendMessageSchema = z.object({
   content: z.string().min(1).max(10000),
@@ -75,37 +72,15 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
       data: message,
     });
 
-    // Notify conversation participants about the new message. Recipients are
-    // resolved from the conversation's active members (excluding the sender);
-    // a notification failure must never block message delivery.
-    try {
-      const memberClient = prisma as {
-        conversationMember: {
-          findMany: (args: {
-            where: { conversationId: string; leftAt: null };
-            select: { userId: true };
-          }) => Promise<Array<{ userId: string }>>;
-        };
-      };
-      const members = await memberClient.conversationMember.findMany({
-        where: { conversationId: request.params.id, leftAt: null },
-        select: { userId: true },
-      });
-      const recipientIds = members.map((m) => m.userId).filter((memberId) => memberId !== userId);
-
-      if (recipientIds.length > 0) {
-        notifier.dispatch({
-          type: 'message',
-          title: `New message in conversation`,
-          body: parseResult.data.content.slice(0, 100),
-          recipientIds,
-          priority: 'normal',
-          data: { conversationId: request.params.id, senderId: userId },
-        });
-      }
-    } catch {
-      /* notification failure should not block message sending */
-    }
+    // QM-UIUX-054: this handler previously called
+    // `CrossAppDispatcher.dispatch()` here to "notify" conversation members.
+    // That facade only computed routing decisions in memory — it never
+    // persisted or sent anything, and the result was discarded — so the call
+    // was theater and has been removed with the facade. Durable member
+    // notifications, when built, belong in the real path every other app
+    // uses: a Prisma `Notification` row (see QuantMail QM-UIUX-052), not a
+    // routing-decision calculator. Live delivery to connected clients is
+    // already handled above via publishConversationEvent.
 
     return reply.status(201).send({ success: true, data: message });
   });

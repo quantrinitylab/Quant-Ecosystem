@@ -17,7 +17,6 @@ import errorMonitoringPlugin from './plugins/error-monitoring';
 import featureFlagsPlugin from './plugins/feature-flags';
 import auditPlugin from './plugins/audit';
 import organizationsPlugin from './plugins/organizations';
-import notificationsPlugin from './plugins/notifications';
 import identityPermissionsPlugin from './plugins/identity-permissions';
 import teamsPlugin from './plugins/teams';
 import idempotencyPlugin from './plugins/idempotency';
@@ -133,8 +132,6 @@ export async function createApp(config: AppConfig) {
   // - feature-flags: decorates `fastify.flags`
   // - audit: decorates `fastify.audit`, reads `request.auth` in onResponse
   // - organizations: decorates `fastify.org` + org-context middleware
-  // - notifications: decorates `fastify.notifications` (PreferenceService +
-  //   NotificationFanout + CrossAppDispatcher); depends on `prisma`
   // - error-monitoring: captures/forwards errors via an `onError` hook,
   //   correlated by `x-request-id`; decorates `fastify.errorMonitoring`. Depends
   //   on `error-handler` (which owns the envelope) + `request-id` (correlation),
@@ -145,7 +142,6 @@ export async function createApp(config: AppConfig) {
   await fastify.register(featureFlagsPlugin);
   await fastify.register(auditPlugin);
   await fastify.register(organizationsPlugin);
-  await fastify.register(notificationsPlugin);
 
   // Register the RBAC auth substrate (Category A — cross-cutting). Registered
   // AFTER `auth` (declares `dependencies: ['auth']`) so `requireAuth({ scopes })`
