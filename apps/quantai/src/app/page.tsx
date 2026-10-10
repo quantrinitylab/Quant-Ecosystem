@@ -30,7 +30,7 @@ import {
   savePreservedChatState,
   type AuthUser,
 } from '../lib/auth';
-import { OnboardingHero } from '../components/OnboardingHero';
+import { LOGIN_REDIRECT_URL, mustRedirectToLogin } from '../lib/auth-gate';
 import { QuantAIPageErrorBoundary } from '../components/QuantAIPageErrorBoundary';
 import type { WorkCanvasDocument } from '../components/WorkCanvasPanel';
 import type { CanvasArtifact } from '../types/agent-mode';
@@ -120,7 +120,6 @@ export default function AIPage() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [dismissGuestBanner, setDismissGuestBanner] = useState(false);
   const [forceShowUI, setForceShowUI] = useState(false);
   const [ignoreError, setIgnoreError] = useState(false);
 
@@ -148,13 +147,23 @@ export default function AIPage() {
 
   // P0 (blank white page): safety net — if the auth check effect above never
   // fires (e.g. a render-phase error earlier in the tree, or a hung module),
-  // force the auth gate open after 5s so anonymous users deterministically
-  // see the sign-in UI instead of a dead blank surface.
+  // force the auth check to complete after 5s so anonymous users
+  // deterministically hit the /login redirect below instead of a dead blank
+  // surface.
   useEffect(() => {
     if (hasCheckedAuth) return;
     const t = setTimeout(() => setHasCheckedAuth(true), 5000);
     return () => clearTimeout(t);
   }, [hasCheckedAuth]);
+
+  // P0 (2026-10-10, user-locked): QuantAI requires a Quant account — guests
+  // are redirected to /login instead of seeing the chat UI. returnTo keeps
+  // login returning to /.
+  useEffect(() => {
+    if (mustRedirectToLogin(hasCheckedAuth, isAuthenticated)) {
+      router.replace(LOGIN_REDIRECT_URL);
+    }
+  }, [hasCheckedAuth, isAuthenticated, router]);
 
   const handleNavigateToLogin = useCallback(() => {
     // Preserve current chat state so returning after login maintains full conversation
@@ -376,6 +385,17 @@ export default function AIPage() {
     searchResults,
     isSearchingConversations,
   ]);
+
+  // P0 (2026-10-10, user-locked): guests never see the chat shell — the
+  // redirect effect above sends them to /login; this renders a brief
+  // interstitial instead of the full chat UI.
+  if (mustRedirectToLogin(hasCheckedAuth, isAuthenticated)) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[var(--quant-bg)] text-sm text-[var(--quant-text-muted)]">
+        Sign-in par le ja rahe hain…
+      </div>
+    );
+  }
 
   if (isLoading && !forceShowUI) {
     return (
@@ -757,52 +777,6 @@ export default function AIPage() {
                 isCanvasOpen ? 'w-full lg:w-1/2' : 'w-full'
               }`}
             >
-              {/* Unauthenticated Onboarding Hero prompt */}
-              {!isAuthenticated && hasCheckedAuth && (
-                <div className="p-4 border-b border-[var(--quant-border)] bg-[var(--quant-surface)]/30 overflow-y-auto max-h-[60vh]">
-                  <OnboardingHero
-                    onSignIn={handleNavigateToLogin}
-                  />
-                </div>
-              )}
-
-              {/* Sign-in gate: guest chat was removed (P0-2) — chat requires a Quant account */}
-              {!isAuthenticated && !dismissGuestBanner && hasCheckedAuth && (
-                <div className="px-4 py-2.5 m-3 rounded-xl border border-violet-500/30 bg-gradient-to-r from-violet-950/40 via-zinc-900/60 to-violet-950/30 backdrop-blur-md flex items-center justify-between gap-3 shadow-lg shadow-violet-950/20">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-violet-500/20 text-violet-400 text-xs shrink-0">
-                      🔒
-                    </span>
-                    <div className="text-xs text-zinc-300 truncate">
-                      <span className="font-semibold text-white">Sign in to chat with Quanty:</span>{' '}
-                      <span className="text-zinc-400 hidden sm:inline">
-                        chat requires a Quant account — sign in to start a conversation.
-                      </span>
-                      <span className="text-zinc-400 sm:hidden">
-                        Chat requires sign-in.
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={handleNavigateToLogin}
-                      className="px-3 py-1 rounded-lg bg-gradient-to-r from-[#8B5CF6] to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer"
-                    >
-                      Sign In
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDismissGuestBanner(true)}
-                      className="text-zinc-400 hover:text-zinc-200 p-1 text-xs cursor-pointer"
-                      aria-label="Dismiss banner"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {activeMode === 'chat' ? (
                 <>
                   {/* Chat Messages */}

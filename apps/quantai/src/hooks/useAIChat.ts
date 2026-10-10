@@ -6,7 +6,12 @@
 // ============================================================================
 
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
-import { getAuthToken, savePreservedChatState, loadPreservedChatState } from '../lib/auth';
+import {
+  getAuthToken,
+  clearAuthSession,
+  savePreservedChatState,
+  loadPreservedChatState,
+} from '../lib/auth';
 import type { ToolCall } from '../types/tool-calls';
 import { apiFetchRaw } from '@quant/api-client';
 
@@ -98,6 +103,36 @@ function authHeaders(json = false): Record<string, string> {
   const token = getAuthToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
   return headers;
+}
+
+/**
+ * P0 (2026-10-10): the assistant bubble must name the real failure reason.
+ * A canned "Sorry, I encountered an error." hid expired tokens, an
+ * unreachable backend, and missing AI providers behind one fake message.
+ */
+export function honestStreamErrorContent(reason: string, code: string | null): string {
+  if (code === 'AI_UNAVAILABLE') {
+    return "AI chat isn't available right now — no AI provider is configured on this server.";
+  }
+  if (code === 'UPSTREAM_UNAVAILABLE') {
+    return 'AI service is temporarily unreachable. Please try again in a moment.';
+  }
+  return `Couldn't get a reply: ${reason}`;
+}
+
+/**
+ * A 401/403 from the API means the stored session is expired or revoked.
+ * Clear it and send the user to /login instead of showing a fake "error"
+ * bubble — a signed-in-looking user with a dead token otherwise sees
+ * "Sorry, I encountered an error." on every message forever.
+ */
+function forceReLogin(): void {
+  try {
+    clearAuthSession();
+  } catch {}
+  if (typeof window !== 'undefined') {
+    window.location.href = `/login?returnTo=${encodeURIComponent('/')}`;
+  }
 }
 
 function mapServerMessage(m: ServerMessage): ChatMessage {
@@ -282,22 +317,26 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       setActiveConversationId(conv.id);
       setError(null);
       return conv.id;
-    } catch {
-      // Offline or guest mode fallback: create local conversation
-      const guestId = `guest-conv-${Date.now()}`;
-      const localConv: ChatConversation = {
-        id: guestId,
-        title: 'New Chat',
-        messages: [],
-        model: currentModel,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        loaded: true,
-      };
-      setConversations((prev) => [localConv, ...prev]);
-      setActiveConversationId(localConv.id);
-      setError(null);
-      return guestId;
+    } catch (err) {
+      // P0 (2026-10-10): NEVER create a fake local session here. A client-only
+      // `guest-conv-*` id can never resolve in the backend DB, so every
+      // subsequent stream call failed with SESSION_NOT_FOUND and surfaced as a
+      // fake "Sorry, I encountered an error." on every message. Surface the
+      // real failure instead.
+      const status =
+        err instanceof Error && /Failed to create conversation: (\d+)/.test(err.message)
+          ? Number(err.message.match(/Failed to create conversation: (\d+)/)?.[1])
+          : null;
+      if (status === 401 || status === 403) {
+        forceReLogin();
+        return null;
+      }
+      setError(
+        err instanceof Error
+          ? `Couldn't start a new chat: ${err.message}`
+          : "Couldn't start a new chat. Please try again.",
+      );
+      return null;
     }
   }, [currentModel]);
 
@@ -409,7 +448,33 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
             signal: controller.signal,
           });
 
-          if (!res.ok || !res.body) throw new Error(`Server error: ${res.status}`);
+          if (!res.ok) {
+            // P0 (2026-10-10): parse the backend's honest error body instead
+            // of throwing a generic status — a 401/403 means the session is
+            // dead (re-login), a 503 UPSTREAM_UNAVAILABLE means the backend is
+            // unreachable. Surfacing `Server error: NNN` as a fake assistant
+            // bubble hid all of these.
+            let errorText: string | null = null;
+            let errorCode: string | null = null;
+            try {
+              const errJson = (await res.json()) as {
+                error?: string;
+                code?: string;
+                message?: string;
+              };
+              errorText = errJson.error ?? errJson.message ?? null;
+              errorCode = errJson.code ?? null;
+            } catch {
+              // Non-JSON body — fall through to the status-based error.
+            }
+            if (res.status === 401 || res.status === 403) {
+              forceReLogin();
+              return;
+            }
+            if (errorCode) streamErrorCode = errorCode;
+            throw new Error(errorText ?? `Server error: ${res.status}`);
+          }
+          if (!res.body) throw new Error('Empty response from server');
 
           // Consume the Server-Sent Events stream, accumulating tokens live.
           const reader = res.body.getReader();
@@ -497,18 +562,16 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
             // letting the user retry a flow that can never succeed.
             setAiUnavailable(true);
           }
-          setError(err instanceof Error ? err.message : 'Failed to get response');
+          // P0 (2026-10-10): never a canned "Sorry, I encountered an error."
+          // bubble — surface the real reason so failures are diagnosable.
+          const reason = err instanceof Error ? err.message : 'Failed to get response';
+          const honestContent = honestStreamErrorContent(reason, streamErrorCode);
+          setError(reason);
           patchConversation(convId, (c) => ({
             ...c,
             messages: c.messages.map((m) =>
               m.id === tempAssistantId
-                ? {
-                    ...m,
-                    content: unavailable
-                      ? "AI chat isn't available right now — no AI provider is configured on this server."
-                      : 'Sorry, I encountered an error.',
-                    isStreaming: false,
-                  }
+                ? { ...m, content: honestContent, isStreaming: false }
                 : m,
             ),
           }));
