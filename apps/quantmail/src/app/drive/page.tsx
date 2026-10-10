@@ -1651,6 +1651,13 @@ function DrivePageContent() {
                 <DriveSharedSubView
                   shares={receivedShares.map((s) => ({
                     id: s.id,
+                    // QM-SCREEN-010 P0: `s.id` is the SHARE record id (used for
+                    // accept/decline), NOT the file id. The backend returns
+                    // `id: share.id` with the real target at `s.file.id` /
+                    // `s.folder.id`. Preview/download/recordFileOpen must use
+                    // the file id, so carry it explicitly.
+                    shareId: s.id,
+                    fileId: s.file?.id ?? s.folder?.id ?? null,
                     name: s.file?.name ?? s.folder?.name ?? 'Shared item',
                     type: s.folder ? 'folder' : 'file',
                     mimeType: s.file?.mimeType ?? '',
