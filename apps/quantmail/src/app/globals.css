@@ -1058,8 +1058,8 @@ body {
 .sidebar-context-tab { display: flex; width: 100%; align-items: center; gap: 0.7rem; border: 1px solid transparent; border-radius: 0.62rem; padding: 0.55rem 0.75rem; color: #94A3B8; font-size: 0.82rem; font-weight: 520; text-align: left; transition: color 140ms ease, background 140ms ease, border-color 140ms ease; }
 .sidebar-context-tab:hover { background: rgba(255, 255, 255, 0.045); color: #f3f3ef; }
 .sidebar-context-tab.is-active { font-weight: 700; border-style: solid; border-width: 1px; }
-.sidebar-context-badge { display: inline-flex; height: 1.1rem; min-width: 1.1rem; align-items: center; justify-content: center; border-radius: 999px; padding: 0 0.35rem; color: #000; font-size: 0.62rem; font-weight: 800; line-height: 1; }
-.sidebar-context-badgetext { display: inline-flex; height: 1rem; align-items: center; border: 1px solid var(--quant-surface-hover); border-radius: 0.3rem; padding: 0 0.35rem; background: var(--quant-surface-elevated); color: #94A3B8; font-size: 0.58rem; font-weight: 800; text-transform: uppercase; letter-spacing: -0.01em; }
+.sidebar-context-badge { display: inline-flex; height: 1.1rem; min-width: 1.1rem; align-items: center; justify-content: center; border-radius: 999px; padding: 0 0.35rem; color: #000; font-size: var(--q-type-xs); font-weight: 800; line-height: 1; }
+.sidebar-context-badgetext { display: inline-flex; height: 1rem; align-items: center; border: 1px solid var(--quant-surface-hover); border-radius: 0.3rem; padding: 0 0.35rem; background: var(--quant-surface-elevated); color: #94A3B8; font-size: var(--q-type-xs); font-weight: 800; text-transform: uppercase; letter-spacing: -0.01em; }
 .sidebar-india { display: grid; width: 1.2rem; overflow: hidden; border-radius: 0.16rem; }
 .sidebar-india i { height: 0.16rem; background: #ff9933; }.sidebar-india i:nth-child(2) { background: #f5f5ef; }.sidebar-india i:nth-child(3) { background: #138808; }
 
