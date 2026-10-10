@@ -209,12 +209,20 @@ export default function ComposePage() {
       // (`delayMs: 10000` above) — the message has NOT been sent yet while
       // it is on screen, so it must not claim "Message sent". Say what is
       // true: it is sending, and there are 10s to undo.
+      //
+      // The recall window closing is the moment the send becomes real. When
+      // it does, confirm it honestly with "Email sent" — unless the user
+      // undid the send, in which case the undo toast has already said what
+      // happened. Without this second toast the app navigates home and the
+      // user never gets a confirmation that the message actually went out.
+      let sendUndone = false;
       showToast({
         text: 'Sending… (10s to undo)',
         type: 'success',
         duration: 10000,
         countdown: 10,
         undoAction: async () => {
+          sendUndone = true;
           try {
             const undoRes = await apiClient.undoSend(draft.id);
             if (undoRes.success) {
@@ -231,6 +239,11 @@ export default function ComposePage() {
           }
         },
       });
+      window.setTimeout(() => {
+        if (!sendUndone) {
+          showToast({ text: 'Email sent', type: 'success' });
+        }
+      }, 10000);
       router.push('/');
     },
     [composeDraft, queryClient, router],
