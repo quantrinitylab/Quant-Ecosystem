@@ -25,7 +25,12 @@ const contentSecurityPolicy = [
   "media-src 'self' blob: https:",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
-  "frame-src 'self'",
+  // QM-SCREEN-011: PDF previews render from same-origin blob object URLs
+  // minted by our own authenticated fetch (the session token lives in
+  // browser memory, so media frames can't send it). blob: URLs can only be
+  // minted by page JS, so this does not widen the inbound-mail attack
+  // surface this policy defends.
+  "frame-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
