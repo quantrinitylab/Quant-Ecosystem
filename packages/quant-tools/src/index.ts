@@ -31,6 +31,19 @@ export { ToolExecutor, type ToolHandler } from './executor/tool-executor.js';
 export { WorkflowExecutor } from './executor/workflow-executor.js';
 export type { WorkflowEventType, WorkflowEvent, WorkflowListener } from './executor/workflow-executor.js';
 
+// Real handler implementations (registered on a ToolExecutor by the consumer)
+export {
+  registerMailReadHandlers,
+  resolveCallerJwt,
+  resolveBaseUrl,
+  MAIL_JWT_METADATA_KEY,
+  QUANTMAIL_API_BASE_URL_ENV,
+  DEFAULT_QUANTMAIL_API_BASE_URL,
+  MAX_PAGE_SIZE,
+  type MailReadHandlerOptions,
+  type MailSummary,
+} from './handlers/mail-read-handlers.js';
+
 // Permissions
 export { PermissionEngine } from './permissions/permission-engine.js';
 
