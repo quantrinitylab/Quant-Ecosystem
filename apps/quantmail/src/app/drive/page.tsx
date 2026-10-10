@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   DriveContextTabsHeader,
   DriveMobileTabStrip,
-  DriveFilesSubView,
   DriveSharedSubView,
   DriveRecentSubView,
   DriveSharedByMeSubView,
@@ -1445,12 +1444,7 @@ function DrivePageContent() {
         />
 
         {/* Sovereign Context Sub-Navigation Tabs */}
-        <DriveContextTabsHeader
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-          sharedCount={receivedShares.length}
-          starredCount={items.filter((i) => i.isStarred).length}
-        />
+        <DriveContextTabsHeader activeTab={activeTab} onTabChange={handleTabChange} />
 
         {/* Batch Selection Action Bar */}
         {selectedIds.size > 0 && (
@@ -1797,34 +1791,42 @@ function DrivePageContent() {
             </div>
           )}
 
-          {(activeTab === 'home' || activeTab === 'files') && activeFilter !== 'trash' && (
-            <DriveHomeSubView
-              files={regularFiles}
-              folders={folders}
-              loading={loading}
-              viewMode={viewMode}
-              selectedIds={selectedIds}
-              onToggleSelect={handleToggleSelect}
-              onPreviewItem={(item) => handlePreviewItem(item as any)}
-              onDownloadFile={handleDownloadFile}
-              onToggleStar={handleToggleStar}
-              onDeleteItem={(id, name, e) => handleDeleteItem(id, name, e)}
-              onOpenRename={handleOpenRename}
-              onOpenVersionHistory={(item) => setVersionHistoryFile(item as any)}
-              onOpenAiSummary={(item) => setAiSummaryFile(item as any)}
-              onNavigateToFolder={(folderId, folderName) =>
-                navigateToFolder(folderId, folderName)
-              }
-              trashItems={trashItems}
-              onRestoreTrashItem={handleRestoreItem}
-              onPurgeTrashItem={handlePurgeItem}
-              onUpgradeClick={() =>
-                showToast({
-                  text: 'Sovereign Enterprise Plan: Upgrade options requested.',
-                  type: 'info',
-                })
-              }
-            />
+          {(activeTab === 'home' || activeTab === 'files') &&
+            activeFilter !== 'trash' &&
+            (error && !loading && regularFiles.length === 0 && folders.length === 0 ? (
+              /* Honest error state: the listing itself failed and there is
+                 nothing to show — say so, with Retry. (Operation errors like a
+                 failed rename keep the list visible; only a failed load with
+                 an empty listing takes over the view.) */
+              <ErrorState
+                title="Couldn't load Drive files"
+                message={error}
+                onRetry={() => void fetchFiles()}
+                retryLabel="Retry"
+              />
+            ) : (
+              <DriveHomeSubView
+                files={regularFiles}
+                folders={folders}
+                loading={loading}
+                viewMode={viewMode}
+                selectedIds={selectedIds}
+                onToggleSelect={handleToggleSelect}
+                onPreviewItem={(item) => handlePreviewItem(item as any)}
+                onDownloadFile={handleDownloadFile}
+                onToggleStar={handleToggleStar}
+                onDeleteItem={(id, name, e) => handleDeleteItem(id, name, e)}
+                onOpenRename={handleOpenRename}
+                onOpenVersionHistory={(item) => setVersionHistoryFile(item as any)}
+                onOpenAiSummary={(item) => setAiSummaryFile(item as any)}
+                onNavigateToFolder={(folderId, folderName) =>
+                  navigateToFolder(folderId, folderName)
+                }
+                trashItems={trashItems}
+                onRestoreTrashItem={handleRestoreItem}
+                onPurgeTrashItem={handlePurgeItem}
+              />
+            ))
           )}
 
           {/* QM-M39-002 — "Recent" view (M39 screen 6): server-side recency-ordered
@@ -1863,6 +1865,7 @@ function DrivePageContent() {
                 modifiedAt: f.modifiedAt,
                 isStarred: f.isStarred,
               }))}
+              getDownloadUrl={getDownloadUrl}
               onPreviewItem={(item) =>
                 handlePreviewItem({
                   id: item.id,
@@ -1870,7 +1873,7 @@ function DrivePageContent() {
                   type: 'file',
                   mimeType: item.mimeType,
                   size: item.size,
-                  modifiedAt: new Date().toISOString(),
+                  modifiedAt: item.modifiedAt,
                   isStarred: item.isStarred,
                 } as any)
               }

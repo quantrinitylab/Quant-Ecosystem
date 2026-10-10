@@ -3,7 +3,6 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   DriveContextTabsHeader,
-  DriveFilesSubView,
   DriveSharedSubView,
   DriveSharedByMeSubView,
   DriveVaultSubView,
@@ -100,24 +99,43 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
   // (Home/Feed/AI Memory/Vault). These assertions track the new contract.
   // ==========================================================================
   describe('1. DriveContextTabsHeader Component', () => {
-    it('renders all 4 sovereign context tabs', () => {
+    it('renders all 9 context tabs on desktop (files/shared/starred/cleaner included)', () => {
       const html = renderToStaticMarkup(
         <DriveContextTabsHeader activeTab="home" onTabChange={() => {}} />,
       );
 
       expect(html).toContain('drive-tab-home');
+      expect(html).toContain('drive-tab-recent');
       expect(html).toContain('drive-tab-feed');
       expect(html).toContain('drive-tab-aimemory');
       expect(html).toContain('drive-tab-vault');
+      expect(html).toContain('drive-tab-files');
+      expect(html).toContain('drive-tab-shared');
+      expect(html).toContain('drive-tab-starred');
+      expect(html).toContain('drive-tab-cleaner');
 
       expect(html).toContain('Home');
       expect(html).toContain('Feed');
       expect(html).toContain('AI Memory');
       expect(html).toContain('Sovereign Vault');
+      expect(html).toContain('Files');
+      expect(html).toContain('Shared');
+      expect(html).toContain('Starred');
+      expect(html).toContain('Cleaner');
     });
 
     it('sets aria-selected="true" on active tab', () => {
-      const tabs: DriveSubTab[] = ['home', 'feed', 'aimemory', 'vault'];
+      const tabs: DriveSubTab[] = [
+        'home',
+        'recent',
+        'feed',
+        'aimemory',
+        'vault',
+        'files',
+        'shared',
+        'starred',
+        'cleaner',
+      ];
 
       tabs.forEach((activeTab) => {
         const html = renderToStaticMarkup(
@@ -149,82 +167,9 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
   });
 
   // ==========================================================================
-  // 2. DriveFilesSubView Tests
+  // 2. (removed) DriveFilesSubView was deleted — it was imported by the drive
+  //    page but never rendered; the 'Files' tab renders DriveHomeSubView.
   // ==========================================================================
-  describe('2. DriveFilesSubView Component', () => {
-    it('renders storage quota meter from the real quota hook (not a hardcoded pair)', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={sampleFiles} folders={sampleFolders} />,
-      );
-
-      expect(html).toContain('Storage Quota Meter');
-      // Mocked hook value: 14.2 GB used of 100 GB total.
-      expect(html).toContain('14.2 GB');
-      expect(html).toContain('/ 100 GB');
-      expect(html).toContain('Enterprise Sovereign Cloud');
-      expect(html).toContain('role="progressbar"');
-      expect(html).not.toContain('Calculating');
-    });
-
-    it('renders all 4 color-coded type cards (PDF Red, DOC Blue, CODE Green, ZIP Gold)', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={sampleFiles} folders={sampleFolders} />,
-      );
-
-      // PDF Red
-      expect(html).toContain('PDF Documents');
-      expect(html).toContain('RED');
-
-      // DOC Blue
-      expect(html).toContain('Documents &amp; Text');
-      expect(html).toContain('BLUE');
-
-      // CODE Green
-      expect(html).toContain('Code &amp; Scripts');
-      expect(html).toContain('GREEN');
-
-      // ZIP Gold
-      expect(html).toContain('Archives &amp; Data');
-      expect(html).toContain('GOLD');
-    });
-
-    it('renders FastCDC deduplication badges on files', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={sampleFiles} folders={sampleFolders} />,
-      );
-
-      expect(html).toContain('FastCDC Deduped');
-      expect(html).toContain('CAS: 64KB');
-    });
-
-    it('renders folders and regular files in grid view', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={sampleFiles} folders={sampleFolders} viewMode="grid" />,
-      );
-
-      expect(html).toContain('Cryptographic_Keys');
-      expect(html).toContain('Research_Whitepapers');
-      expect(html).toContain('Q3_Ecosystem_Architecture.pdf');
-      expect(html).toContain('fastcdc_chunker.rs');
-    });
-
-    it('renders list view table when viewMode is list', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={sampleFiles} folders={sampleFolders} viewMode="list" />,
-      );
-
-      expect(html).toContain('Q3_Ecosystem_Architecture.pdf');
-      expect(html).toContain('fastcdc_chunker.rs');
-      expect(html).toContain('Download');
-    });
-
-    it('contains strictly ZERO raw Unicode emojis in files subview', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={sampleFiles} folders={sampleFolders} />,
-      );
-      assertZeroRawEmojis(html);
-    });
-  });
 
   // ==========================================================================
   // 3. DriveSharedSubView Tests

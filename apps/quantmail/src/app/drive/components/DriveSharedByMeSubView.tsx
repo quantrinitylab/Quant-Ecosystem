@@ -41,7 +41,7 @@ function displayPermission(permission: string): 'Viewer' | 'Editor' | 'Admin' {
 function permissionChipClass(permission: string): string {
   const display = displayPermission(permission);
   return display === 'Editor'
-    ? 'bg-[#38BDF8]/15 text-[#38BDF8] border-[#38BDF8]/35'
+    ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)]'
     : display === 'Admin'
       ? 'bg-purple-500/15 text-purple-400 border-purple-500/35'
       : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/35';
@@ -86,13 +86,13 @@ export function DriveSharedByMeSubView({
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[#232938] bg-[var(--quant-surface)] shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
         <div className="flex items-center gap-3.5">
-          <div className="size-11 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8] shrink-0">
+          <div className="size-11 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
             <SharedUsersIcon className="size-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-[#F8FAFC]">Shared by Me</h3>
-              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
+              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)]">
                 {items.length} Shared
               </span>
             </div>
@@ -106,7 +106,7 @@ export function DriveSharedByMeSubView({
           <button
             type="button"
             onClick={onRefresh}
-            className="self-start sm:self-center px-3 py-1.5 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-xs font-semibold text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[#38BDF8]/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
+            className="self-start sm:self-center px-3 py-1.5 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-xs font-semibold text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
           >
             Refresh Shares
           </button>
@@ -160,12 +160,12 @@ export function DriveSharedByMeSubView({
             return (
               <div
                 key={item.id}
-                className="p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[#38BDF8]/40 hover:bg-[var(--quant-surface-elevated)] transition-all shadow-[0_2px_12px_rgba(0,0,0,0.25)]"
+                className="p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)] transition-all shadow-[0_2px_12px_rgba(0,0,0,0.25)]"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
                   {/* Item Info */}
                   <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                    <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[#232938] flex items-center justify-center text-[#38BDF8] shrink-0">
+                    <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[#232938] flex items-center justify-center text-[var(--app-accent)] shrink-0">
                       {item.type === 'folder' ? (
                         <FolderIcon className="size-5 text-[var(--quant-primary)]" />
                       ) : (
@@ -207,7 +207,7 @@ export function DriveSharedByMeSubView({
                           type="button"
                           onClick={() => toggleExpanded(item.id)}
                           aria-expanded={isExpanded}
-                          className="text-[#38BDF8] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] rounded"
+                          className="text-[var(--app-accent)] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] rounded"
                         >
                           {item.sharedCount} {item.sharedCount === 1 ? 'person' : 'people'}
                         </button>{' '}
@@ -222,7 +222,7 @@ export function DriveSharedByMeSubView({
                       type="button"
                       onClick={() => toggleExpanded(item.id)}
                       aria-expanded={isExpanded}
-                      className="px-2.5 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#232938] text-xs font-medium text-[#F8FAFC] hover:border-[#38BDF8]/40 hover:bg-[#1E2433] transition-colors focus-visible:outline-none"
+                      className="px-2.5 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#232938] text-xs font-medium text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[#1E2433] transition-colors focus-visible:outline-none"
                     >
                       {isExpanded ? 'Hide people' : 'See people'}
                     </button>
@@ -230,7 +230,7 @@ export function DriveSharedByMeSubView({
                       <button
                         type="button"
                         onClick={() => onPreviewItem(item)}
-                        className="px-2.5 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#232938] text-xs font-medium text-[#F8FAFC] hover:border-[#38BDF8]/40 hover:bg-[#1E2433] transition-colors focus-visible:outline-none"
+                        className="px-2.5 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#232938] text-xs font-medium text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[#1E2433] transition-colors focus-visible:outline-none"
                       >
                         Preview
                       </button>
@@ -239,7 +239,7 @@ export function DriveSharedByMeSubView({
                       <button
                         type="button"
                         onClick={() => onManageAccess(item)}
-                        className="px-3 py-1.5 rounded-lg bg-[#38BDF8]/15 border border-[#38BDF8]/35 text-xs font-semibold text-[#38BDF8] hover:bg-[#38BDF8]/25 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
+                        className="px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)] text-xs font-semibold text-[var(--app-accent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                       >
                         View access
                       </button>
@@ -265,8 +265,8 @@ export function DriveSharedByMeSubView({
                           className="flex items-center justify-between gap-3 py-1.5"
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="size-8 rounded-full bg-gradient-to-tr from-[#0284C7] to-[#38BDF8] p-[1.5px] shrink-0">
-                              <div className="size-full rounded-full bg-[var(--quant-surface)] flex items-center justify-center text-[10px] font-bold text-[#38BDF8] tracking-wider">
+                            <div className="size-8 rounded-full bg-gradient-to-tr from-[#0284C7] to-[var(--app-accent)] p-[1.5px] shrink-0">
+                              <div className="size-full rounded-full bg-[var(--quant-surface)] flex items-center justify-center text-[10px] font-bold text-[var(--app-accent)] tracking-wider">
                                 {initials}
                               </div>
                             </div>
