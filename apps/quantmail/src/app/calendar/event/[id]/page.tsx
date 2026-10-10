@@ -9,8 +9,8 @@
 // POST /events/:id/rsvp). No fake events, no invented attendees.
 //
 // Sections: header (back / edit / delete), when + timezone, location / meeting
-// link, description, attendees with RSVP state, recurrence, reminders, and the
-// viewer's own RSVP actions.
+// link, attached files, description, attendees with RSVP state, recurrence,
+// reminders, and the viewer's own RSVP actions.
 // ============================================================================
 
 import { useMemo, useState } from 'react';
@@ -371,6 +371,32 @@ export default function CalendarEventDetailPage() {
                   </Section>
                 )}
 
+                {/* Attached files */}
+                <Section icon="link" title="Files">
+                  {event.driveLink ? (
+                    isUrl(event.driveLink) ? (
+                      <>
+                        <a
+                          href={event.driveLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[var(--app-accent)] px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                        >
+                          <Icon name="link" className="h-4 w-4" />
+                          Open link
+                        </a>
+                        <p className="mt-2 break-all text-xs text-[var(--quant-muted-foreground)]">
+                          {event.driveLink}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="break-all text-sm">{event.driveLink}</p>
+                    )
+                  ) : (
+                    <p className="text-sm text-[var(--quant-muted-foreground)]">No files attached.</p>
+                  )}
+                </Section>
+
                 {/* Description */}
                 {event.description && stripQuantMeta(event.description) && (
                   <Section icon="pencil" title="Description">
@@ -469,7 +495,7 @@ export default function CalendarEventDetailPage() {
             <div className="w-full max-w-sm rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
               <h2 className="text-base font-semibold">Delete this event?</h2>
               <p className="mt-1 text-sm text-[var(--quant-muted-foreground)]">
-                “{event?.title}” will be removed from your calendar. Attendees will no longer see it.
+                “{event?.title}” will be permanently deleted from your calendar.
               </p>
               <div className="mt-4 flex gap-2">
                 <Button variant="secondary" onClick={() => setConfirmDelete(false)} className="flex-1">

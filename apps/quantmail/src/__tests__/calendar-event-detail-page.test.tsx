@@ -139,3 +139,32 @@ describe('Calendar event-detail screen', () => {
     expect(html).toContain('Loading event');
   });
 });
+
+describe('Calendar event-detail screen — attached files (driveLink)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders a stored driveLink as a real link button', () => {
+    loaded({ ...EVENT, driveLink: 'https://drive.quantmail.in/file/abc123' });
+    const html = renderToStaticMarkup(<CalendarEventDetailPage />);
+    expect(html).toContain('Files');
+    expect(html).toContain('Open link');
+    expect(html).toContain('https://drive.quantmail.in/file/abc123');
+  });
+
+  it('shows the driveLink as plain text when it is not a URL', () => {
+    loaded({ ...EVENT, driveLink: 'file-ref-42' });
+    const html = renderToStaticMarkup(<CalendarEventDetailPage />);
+    expect(html).toContain('Files');
+    expect(html).toContain('file-ref-42');
+    expect(html).not.toContain('Open link');
+  });
+
+  it('shows an honest empty state when no file is attached', () => {
+    loaded({ ...EVENT });
+    const html = renderToStaticMarkup(<CalendarEventDetailPage />);
+    expect(html).toContain('Files');
+    expect(html).toContain('No files attached.');
+  });
+});

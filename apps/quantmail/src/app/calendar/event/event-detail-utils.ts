@@ -90,4 +90,6 @@ export interface EventDetailDto {
   attendees?: Array<{ email: string; name?: string; status?: string }>;
   reminders?: string[];
   recurrence?: string | null;
+  // Parsed by the backend out of the stored __QUANT_META__ description header.
+  driveLink?: string;
 }

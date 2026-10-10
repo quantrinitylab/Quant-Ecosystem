@@ -812,6 +812,9 @@ function CalendarPageContent() {
       timezone: ev.timezone || ev.timeZone || prev.timezone,
       location: ev.location || '',
       description: ev.description || '',
+      // The backend returns driveLink parsed from the stored __QUANT_META__
+      // header; restore it so editing never silently drops the attached link.
+      driveLink: ev.driveLink || '',
       recurrence: ev.recurrence || 'Does not repeat',
       color: ev.color || prev.color,
       attendeeInput: '',
@@ -938,6 +941,9 @@ function CalendarPageContent() {
       energy: activeSheetType === 'period' ? formState.energy : undefined,
       subtasks: activeSheetType === 'task' ? formState.subtasks : undefined,
       birthYear: activeSheetType === 'birthday' ? formState.birthYear : undefined,
+      // Persisted by the backend into the __QUANT_META__ header; carried here
+      // as well so the client-built description is self-consistent.
+      driveLink: formState.driveLink.trim() || undefined,
     };
     const metaHeader = `__QUANT_META__:${JSON.stringify(metaObj)}:__END_QUANT_META__\n`;
     const userDesc =

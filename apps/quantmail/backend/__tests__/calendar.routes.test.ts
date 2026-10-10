@@ -773,3 +773,104 @@ describe('GET /events — ?q text filter (K10 universal search)', () => {
     expect(firstCall.where.OR).toHaveLength(3);
   });
 });
+
+describe('driveLink — the sheet has always sent it; the schema silently dropped it', () => {
+  const META_LINK =
+    '__QUANT_META__:{"type":"event","driveLink":"https://drive.quantmail.in/file/abc123"}:__END_QUANT_META__\nagenda';
+
+  /** Parse the __QUANT_META__ header out of the description handed to Prisma. */
+  function storedMeta(data: Record<string, unknown>): Record<string, unknown> {
+    const desc = data.description;
+    expect(typeof desc).toBe('string');
+    const match = /__QUANT_META__:([\s\S]*?):__END_QUANT_META__/.exec(desc as string);
+    expect(match).not.toBeNull();
+    return JSON.parse(match![1] as string) as Record<string, unknown>;
+  }
+
+  it('persists a driveLink into the __QUANT_META__ header on create', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/events',
+      payload: {
+        title: 'Design review',
+        start: '2026-09-11T09:00:00.000Z',
+        end: '2026-09-11T10:30:00.000Z',
+        driveLink: 'https://drive.quantmail.in/file/abc123',
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(storedMeta(createData()).driveLink).toBe('https://drive.quantmail.in/file/abc123');
+  });
+
+  it('returns the stored driveLink in the event DTO', async () => {
+    const app = await buildApp();
+    prisma.event.findUnique.mockResolvedValue({ ...ROW, description: META_LINK });
+    const res = await app.inject({ method: 'GET', url: '/events/e1' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.driveLink).toBe('https://drive.quantmail.in/file/abc123');
+  });
+
+  it('merges driveLink into stored meta on update — never a top-level column', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/events/e1',
+      payload: { ...PAGE_PAYLOAD, driveLink: 'https://drive.quantmail.in/file/abc123' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const data = updateData();
+    // Event has no driveLink column: handing one to Prisma would throw.
+    expect(data).not.toHaveProperty('driveLink');
+    expect(storedMeta(data).driveLink).toBe('https://drive.quantmail.in/file/abc123');
+  });
+
+  it('clears a stored driveLink when the sheet sends an empty value', async () => {
+    const app = await buildApp();
+    prisma.event.findUnique.mockResolvedValue({ ...ROW, description: META_LINK });
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/events/e1',
+      payload: { description: META_LINK, driveLink: '' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const meta = storedMeta(updateData());
+    expect(meta).not.toHaveProperty('driveLink');
+    // The human-readable part of the description is untouched.
+    expect(updateData().description).toContain('agenda');
+  });
+
+  it('leaves the description byte-identical when there is nothing to write or clear', async () => {
+    const app = await buildApp();
+    const plain = '__QUANT_META__:{"type":"event"}:__END_QUANT_META__\nagenda';
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/events/e1',
+      payload: { ...PAGE_PAYLOAD, description: plain, driveLink: '' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    // Clearing a link that was never stored must not rewrite the header.
+    expect(updateData().description).toBe(plain);
+  });
+
+  it('re-attaches the stored meta when a client saves a meta-stripped description', async () => {
+    const app = await buildApp();
+    // The event detail page seeds its edit form with the stripped description
+    // and never sends driveLink — without preservation the stored link would
+    // be wiped by a title edit.
+    prisma.event.findUnique.mockResolvedValue({ ...ROW, description: META_LINK });
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/events/e1',
+      payload: { title: 'Renamed', description: 'agenda' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(storedMeta(updateData()).driveLink).toBe('https://drive.quantmail.in/file/abc123');
+  });
+});
