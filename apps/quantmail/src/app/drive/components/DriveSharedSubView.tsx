@@ -14,6 +14,13 @@ export interface SharedCollaborator {
 
 export interface SharedItemRecord {
   id: string;
+  // QM-SCREEN-010 P0: the share record id (for accept/decline) is distinct
+  // from the shared file/folder id (for preview/download). page.tsx sets
+  // both from the ReceivedShare (`shareId: s.id`, `fileId: s.file?.id ??
+  // s.folder?.id`); fall back to `id` when a caller builds the record the
+  // old way with the share id only.
+  shareId?: string;
+  fileId?: string | null;
   name: string;
   type: 'file' | 'folder';
   mimeType: string;
@@ -182,14 +189,14 @@ export function DriveSharedSubView({
                   <>
                     <button
                       type="button"
-                      onClick={() => onAcceptShare?.(item.id)}
+                      onClick={() => onAcceptShare?.(item.shareId ?? item.id)}
                       className="px-3 py-1.5 rounded-lg bg-[#38BDF8] text-[var(--quant-background)] text-xs font-bold hover:bg-[#7DD3FC] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
                     >
                       Accept
                     </button>
                     <button
                       type="button"
-                      onClick={() => onDeclineShare?.(item.id)}
+                      onClick={() => onDeclineShare?.(item.shareId ?? item.id)}
                       className="px-3 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] text-[#94A3B8] text-xs font-medium hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors focus-visible:outline-none"
                     >
                       Decline
@@ -199,25 +206,30 @@ export function DriveSharedSubView({
                   <>
                     <button
                       type="button"
-                      onClick={() => onPreviewItem?.(item)}
+                      // QM-SCREEN-010 P0: preview with the FILE id, not the
+                      // share record id, so the preview modal and
+                      // recordFileOpen hit the real target.
+                      onClick={() => onPreviewItem?.(item.fileId ? { ...item, id: item.fileId } : item)}
                       className="px-2.5 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#232938] text-xs font-medium text-[#F8FAFC] hover:border-[#38BDF8]/40 hover:bg-[#1E2433] transition-colors focus-visible:outline-none"
                     >
                       Preview
                     </button>
                     <button
                       type="button"
-                      onClick={() => onDownloadFile?.(item.id, item.name)}
+                      // QM-SCREEN-010 P0: download with the FILE id, not the
+                      // share record id (which 404s on /files/:id/download).
+                      onClick={() => onDownloadFile?.(item.fileId ?? item.id, item.name)}
                       disabled={item.type === 'file' && item.scanStatus === 'quarantined'}
                       title={
                         item.scanStatus === 'quarantined'
                           ? 'Quarantined — download disabled. Open the file to see the security notice.'
-                          : isDocumentDriveId(item.id)
+                          : isDocumentDriveId(item.fileId ?? item.id)
                             ? 'Open in editor'
                             : 'Download'
                       }
                       className="px-3 py-1.5 rounded-lg bg-[#38BDF8]/15 border border-[#38BDF8]/35 text-xs font-semibold text-[#38BDF8] hover:bg-[#38BDF8]/25 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {isDocumentDriveId(item.id) ? 'Open' : 'Download'}
+                      {isDocumentDriveId(item.fileId ?? item.id) ? 'Open' : 'Download'}
                     </button>
                   </>
                 )}
