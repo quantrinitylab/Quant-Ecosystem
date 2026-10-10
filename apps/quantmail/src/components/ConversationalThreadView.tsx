@@ -771,7 +771,12 @@ export function ConversationalThreadView({
     if (!targetId) return;
     setIsRescuingSpam(true);
     try {
-      await apiClient.markNotSpam(targetId);
+      // QM-UIUX-095: apiClient resolves `{ success: false }` when the
+      // server refuses — it never rejects — so a resolved failure must
+      // take the error path too, not fall through to the success toast,
+      // onNotSpam and onClose (same defect class as QM-UIUX-093).
+      const res = await apiClient.markNotSpam(targetId);
+      if (!res?.success) throw new Error(res?.error?.message || 'Failed to rescue email');
       showToast({ text: 'Rescued from spam — moved back to inbox', type: 'success' });
       if (onNotSpam) {
         onNotSpam(conversationMessageIds);
