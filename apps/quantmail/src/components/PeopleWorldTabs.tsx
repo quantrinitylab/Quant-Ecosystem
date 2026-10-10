@@ -70,7 +70,7 @@ export function PeopleWorldTabs({ world, onChange, counts }: PeopleWorldTabsProp
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(tab.key)}
             onKeyDown={(event) => handleKeyDown(event, index)}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-colors ${
+            className={`flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-colors ${
               active ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
             }`}
             data-testid={`world-tab-${tab.key}`}

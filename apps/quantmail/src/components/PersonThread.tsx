@@ -89,7 +89,8 @@ function MessageRow({
           aria-label={`Subject changed to ${showSubjectChange}`}
         >
           <span className="h-px flex-1 bg-zinc-800" aria-hidden="true" />
-          <span className="text-[11px] tracking-wide text-zinc-500">
+          {/* P2-1: truncate long subjects instead of wrapping ragged. */}
+          <span className="min-w-0 max-w-[70%] truncate text-[11px] tracking-wide text-zinc-500">
             Naya vishay: {showSubjectChange}
           </span>
           <span className="h-px flex-1 bg-zinc-800" aria-hidden="true" />
@@ -117,7 +118,9 @@ function MessageRow({
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
-              className="mt-1 text-xs font-medium text-orange-400/90 hover:text-orange-300"
+              // P1-4 (mobile): extend the tap target with padding instead of
+              // a taller button — the -ml-2 keeps the label visually aligned.
+              className="mt-1 inline-flex items-center px-2 py-2 -ml-2 text-xs font-medium text-orange-400/90 hover:text-orange-300"
               aria-expanded={expanded}
             >
               {expanded ? 'Show less' : 'Show more'}
@@ -144,7 +147,7 @@ function MessageRow({
               ))}
             </div>
           )}
-          <div className="mt-1 text-right text-[10px] text-zinc-500">
+          <div className="mt-1 text-right text-[11px] text-zinc-500">
             {formatMessageTime(message.receivedAt)}
           </div>
         </div>
