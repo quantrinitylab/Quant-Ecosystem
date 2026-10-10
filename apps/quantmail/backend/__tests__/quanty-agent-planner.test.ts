@@ -48,9 +48,13 @@ describe('quanty-agent planner', () => {
     ['clean up my inbox', ['mail.archiveUnread', 'mail.markAllRead']],
     ['delete all spam', ['mail.deleteSpam']],
     ['list my repos', ['git.listRepos']],
+    // Git read-only PR commands.
+    ['show open PRs in quantmail', ['git.listPrs']],
+    ['summarize PR 5 in quantmail', ['git.summarizePr']],
     // QM-M39-011: drive file-workspace commands.
     ['find files quarterly report', ['drive.searchFiles']],
     ['search my files for invoices', ['drive.searchFiles']],
+    ['read the file notes.txt', ['drive.readFile']],
     ['summarize file notes.txt', ['drive.summarizeFile']],
     ['where should invoice.pdf go', ['drive.suggestDestination']],
     ['organize file budget.xlsx', ['drive.suggestDestination']],
@@ -91,6 +95,36 @@ describe('quanty-agent planner', () => {
     expect(listToolNames().some((n) => n.startsWith('calendar.') || n.startsWith('contacts.'))).toBe(false);
   });
 
+  it('extracts the free-text argument for git commands', () => {
+    const planner = new RuleBasedPlanner();
+    expect(planner.plan('show open PRs in quantmail').steps[0].args).toEqual({
+      repo: 'quantmail',
+      state: 'open',
+    });
+    expect(planner.plan('summarize PR 5 in quantmail').steps[0].args).toEqual({
+      repo: 'quantmail',
+      prNumber: 5,
+    });
+  });
+
+  it('never plans destructive git tools (merge_pr, create_repo) from casual NL', () => {
+    const planner = new RuleBasedPlanner();
+    for (const command of ['merge PR 5', 'merge my pull request', 'create a repo called demo']) {
+      expect(planner.plan(command).unmatched, `"${command}"`).toBe(true);
+    }
+  });
+
+  it('read-file and git PR steps materialize as non-destructive', () => {
+    const readSteps = materializeSteps(new RuleBasedPlanner().plan('read the file notes.txt'));
+    expect(readSteps).toHaveLength(1);
+    expect(readSteps[0].toolName).toBe('drive.readFile');
+    expect(readSteps[0].destructive).toBe(false);
+    const prSteps = materializeSteps(new RuleBasedPlanner().plan('show open PRs in quantmail'));
+    expect(prSteps).toHaveLength(1);
+    expect(prSteps[0].toolName).toBe('git.listPrs');
+    expect(prSteps[0].destructive).toBe(false);
+  });
+
   it('extracts the free-text argument for drive commands', () => {
     const planner = new RuleBasedPlanner();
     expect(planner.plan('find files quarterly report').steps[0].args).toEqual({
@@ -101,6 +135,9 @@ describe('quanty-agent planner', () => {
     });
     expect(planner.plan('where should invoice.pdf go').steps[0].args).toEqual({
       fileName: 'invoice.pdf',
+    });
+    expect(planner.plan('read the file notes.txt').steps[0].args).toEqual({
+      fileName: 'notes.txt',
     });
     expect(planner.plan('move budget.xlsx to its folder').steps[0].args).toEqual({
       fileName: 'budget.xlsx',

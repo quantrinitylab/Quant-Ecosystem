@@ -70,10 +70,11 @@ describe('quanty drive tools (QM-M39-011)', () => {
     (checkedPlaintext as unknown as Mock).mockResolvedValue(Buffer.from('file content here'));
   });
 
-  it('builds the four real drive tools', () => {
+  it('builds the five real drive tools', () => {
     const tools = buildDriveTools(deps({}));
     expect(tools.map((t) => t.name).sort()).toEqual([
       'drive.organizeFile',
+      'drive.readFile',
       'drive.searchFiles',
       'drive.suggestDestination',
       'drive.summarizeFile',
@@ -123,6 +124,67 @@ describe('quanty drive tools (QM-M39-011)', () => {
     const result = await tool!.handler({ query: '   ' }, ctx());
     expect(result.ok).toBe(false);
     expect(searchContent).not.toHaveBeenCalled();
+  });
+
+  it('drive.readFile returns metadata plus raw content for a text file', async () => {
+    const prisma = mockPrisma(fileRow());
+    const [tool] = buildDriveTools(deps(prisma)).filter((t) => t.name === 'drive.readFile');
+    expect(tool!.destructive).toBe(false);
+    const result = await tool!.handler({ fileId: 'file-1' }, ctx());
+    expect(result.ok).toBe(true);
+    expect(result.data).toEqual({
+      fileId: 'file-1',
+      fileName: 'notes.txt',
+      mimeType: 'text/plain',
+      contentLength: 'file content here'.length,
+      truncated: false,
+      content: 'file content here',
+    });
+    expect(result.summary).toContain('notes.txt');
+  });
+
+  it('drive.readFile resolves by fileName and honours maxChars', async () => {
+    const longContent = 'x'.repeat(500);
+    (checkedPlaintext as unknown as Mock).mockResolvedValueOnce(Buffer.from(longContent));
+    const row = fileRow();
+    const prisma = mockPrisma(row, [row]);
+    const [tool] = buildDriveTools(deps(prisma)).filter((t) => t.name === 'drive.readFile');
+    const result = await tool!.handler({ fileName: 'notes.txt', maxChars: 200 }, ctx());
+    expect(result.ok).toBe(true);
+    expect(result.data).toMatchObject({
+      fileId: 'file-1',
+      fileName: 'notes.txt',
+      contentLength: 500,
+      truncated: true,
+    });
+    expect((result.data as { content: string }).content).toHaveLength(200);
+    expect(result.summary).toContain('notes.txt');
+  });
+
+  it('drive.readFile returns an honest not-text-readable message for binary files (never fabricated content)', async () => {
+    const prisma = mockPrisma(fileRow({ mimeType: 'image/png', name: 'photo.png' }));
+    const [tool] = buildDriveTools(deps(prisma)).filter((t) => t.name === 'drive.readFile');
+    const result = await tool!.handler({ fileId: 'file-1' }, ctx());
+    expect(result.ok).toBe(false);
+    expect(result.data).toBeUndefined();
+    expect(result.summary).toMatch(/not a text-readable file/i);
+    expect(result.summary).toContain('photo.png');
+    // The storage layer must never be touched for binary files.
+    expect(checkedPlaintext).not.toHaveBeenCalled();
+  });
+
+  it('drive.readFile refuses to guess without a file reference', async () => {
+    const prisma = mockPrisma(fileRow());
+    const [tool] = buildDriveTools(deps(prisma)).filter((t) => t.name === 'drive.readFile');
+    const result = await tool!.handler({}, ctx());
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('fileId or fileName');
+  });
+
+  it('drive.readFile rejects cross-user access with 403', async () => {
+    const prisma = mockPrisma(fileRow({ userId: 'someone-else' }));
+    const [tool] = buildDriveTools(deps(prisma)).filter((t) => t.name === 'drive.readFile');
+    await expect(tool!.handler({ fileId: 'file-1' }, ctx())).rejects.toThrow(/not authorized/i);
   });
 
   it('drive.suggestDestination suggests without moving', async () => {
