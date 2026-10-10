@@ -13,6 +13,7 @@
     "@quant/quanty-client": "workspace:*",
     "@quant/quanty-contracts": "workspace:*",
     "@quant/quanty-memory": "workspace:*",
+    "@quant/quanty-observability": "workspace:*",
     "@quant/quanty-platform": "workspace:*"
   },
   "devDependencies": {
