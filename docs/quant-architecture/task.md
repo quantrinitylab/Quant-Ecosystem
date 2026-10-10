@@ -764,7 +764,9 @@ Scope: flutter_apps/apps/quant_mail; flutter_apps/apps/quant_calendar; apps/quan
 Dependencies: QM-PLAT-006; QM-SCREEN-008/009; Calendar architecture.
 
 ## QM-SCREEN-026 — QuantMail Calendar UI must eliminate misleading search-performance claims
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-screen-026-calendar-claim
 Finding: the shared QuantMail pillar header advertises `Search events, meetings, attendees… <5ms`, but the audited architecture requires authorization-aware retrieval and source hydration; no evidence establishes a universal sub-5ms SLA for Calendar search.
 Required: remove the absolute performance claim or replace it with an evidence-backed product promise. Search UX must expose loading/degraded states and server-authoritative results, with performance budgets measured separately from marketing copy.
 Scope: apps/quantmail/src/components/QuantPillarTopBar.tsx; Calendar search implementation/tests.
