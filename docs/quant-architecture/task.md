@@ -583,7 +583,7 @@ NOT VERIFIED (needs live/auth): signed-in E2E of all flows, trash/restore E2E, a
 FIX AGENTS: lane1-fix-010-proxy-gaps (P0 proxy gaps + move mismatch + shared-with-me id) → PR-only. lane1-fix-010-fake-purge (fake data purge + P1s + P2 cleanup) → PR-only.
 
 ## QM-SCREEN-011 — Drive upload / file preview / editor handoff
-Status: [ ] TODO
+Status: [~] IN PROGRESS — LANE-1, Branch: lane1-audit-011
 Required: resumable uploads, malware/security scan state, signed delivery, preview capability matrix, versioning, share links, editor/Docs handoff, Quanty save/summarize actions.
 Dependencies: QM-SCREEN-010.
 
