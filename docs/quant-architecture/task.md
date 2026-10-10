@@ -2099,9 +2099,15 @@ Scope: apps/quantmail/src/components/AIMemoryPanel.tsx, useAIMemory hook file.
 Dependencies: none.
 
 ## QM-UIUX-093 — Thread view More-menu shows fake success when the API fails
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-093-thread-more-menu-fake-success
+Status: [x] DONE — PR #773 merged 2026-10-10. Root cause: api-client request() never rejects (failures resolve {success:false}) and the four More-menu handlers (handleMarkUnread, handleSnoozeConversation, handleApplyLabel, handleToggleStar in ConversationalThreadView.tsx) confirmed success unconditionally. Handlers now inspect settled results and reuse the existing error toasts; MarkUnread flips only server-accepted ids; ToggleStar throws into the rollback path, which now also reverts the parent callback. 9 component tests added. Note: the PR's CI saga (10 attempts) was caused by the new test file's own realtime mock returning a fresh sendTyping identity every render (infinite effect loop / heap OOM in the gate shard) — found and fixed by ci-green-captain (stable mock + real EmailSnooze restored for 2 snooze tests); product code was correct throughout.
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/773
+
+## QM-UIUX-095 — Thread header "Not spam" rescue shows the same fake success (093 follow-up)
+Status: [ ] TODO
+Finding: handleRescueSpam in ConversationalThreadView.tsx (~L769, header/banner "Not spam" action) has the identical never-rejects defect class fixed by QM-UIUX-093 for the More-menu handlers: the api-client request() resolves {success:false} on failure instead of rejecting, and the handler proceeds as if the rescue succeeded. Deliberately out of 093's More-menu scope; filed at 093's close.
+Required: inspect the settled result; on failure show the existing error toast and do NOT remove the spam state/banner; on success proceed as today. Add regression tests mirroring the 093 handler tests (failure keeps state + error toast; success path unchanged).
+Scope: apps/quantmail/src (ConversationalThreadView.tsx handleRescueSpam + tests).
+Dependencies: QM-UIUX-093 (DONE, PR #773).
 
 ## QM-UIUX-094 — AI error sanitizers still leak single-word host:port (P2-D39-1)
 Status: [x] DONE — PR #769 merged 2026-10-10; staging deployed @d53121f6, health green. Host pattern widened identically in both mirrored sanitizers (ai-error.ts + sanitize-error.ts, +131/-2 with tests): single-word/underscore host:port shapes (backend:9000, ai_service:9000) now redacted; over-redaction pins prove times (9:30), ratios and version strings survive; leak tests fail on the old pattern. Typecheck error sets byte-identical with/without in all four app configs.
