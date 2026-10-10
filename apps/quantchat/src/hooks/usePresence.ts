@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../services/api-client';
-import { useRealtime } from '../providers/realtime-context';
+import { useChatSocket } from './useChatSocket';
 
 /**
  * Presence states rendered by the conversation list. `'online' | 'away' |
@@ -38,7 +38,30 @@ export function usePresence(userIds: string[]): Record<string, PresenceStatus> {
   const sortedKey = sortedIds.join(',');
 
   const [statuses, setStatuses] = useState<Record<string, PresenceStatus>>({});
-  const { subscribe } = useRealtime();
+
+  // QM-UIUX-060: live presence now rides the working `chatSocket` singleton
+  // (`/ws/chat`) instead of the dead RealtimeProvider (`/ws`). The backend
+  // broadcasts every presence transition to all connected sockets as a
+  // `chat.presence.v1` envelope whose payload is
+  // `{ type: 'presence:update', userId, status, lastSeen }`; the singleton
+  // normalizes it to `{ type: 'presence:update', data: <payload>, envelope }`.
+  // The tracked-id set lives in a ref so the socket handler identity is stable
+  // (useChatSocket re-registers when the handler identity changes).
+  const trackedRef = useRef<Set<string>>(new Set());
+  trackedRef.current = new Set(sortedIds);
+
+  const handleSocketEvent = useCallback((event: any) => {
+    // Normalized shape: event.data is the envelope payload. Legacy
+    // passthrough frames may carry the fields under `payload` or flat.
+    const type = event?.type ?? event?.payload?.type ?? event?.data?.type;
+    if (type !== 'presence:update') return;
+    const source = event?.data ?? event?.payload ?? event;
+    const userId: string | undefined = source?.userId ?? event?.userId;
+    if (!userId || !trackedRef.current.has(userId)) return;
+    setStatuses((prev) => ({ ...prev, [userId]: normalizeStatus(source?.status) }));
+  }, []);
+
+  useChatSocket(handleSocketEvent);
 
   // Seed presence from the REST snapshot (Requirement 11.2). Kept fresh on an
   // interval inside the 30s presence freshness window so a missed WS event
@@ -78,24 +101,9 @@ export function usePresence(userIds: string[]): Record<string, PresenceStatus> {
     // sortedKey captures the identity of sortedIds.
   }, [data, isError, sortedKey]);
 
-  // Keep presence live over the shared WebSocket (Requirement 11.3). Defensive
-  // about the event envelope (payload-wrapped vs. flat) to match the existing
-  // realtime event handlers in this app.
-  useEffect(() => {
-    if (sortedIds.length === 0) return;
-    const tracked = new Set(sortedIds);
-
-    const unsubscribe = subscribe('presence', (event: any) => {
-      const type = event?.type ?? event?.payload?.type;
-      if (type !== 'presence:update') return;
-      const source = event?.payload ?? event;
-      const userId: string | undefined = source?.userId ?? event?.userId;
-      if (!userId || !tracked.has(userId)) return;
-      setStatuses((prev) => ({ ...prev, [userId]: normalizeStatus(source?.status) }));
-    });
-
-    return unsubscribe;
-  }, [subscribe, sortedKey]);
+  // Live updates are handled by the useChatSocket registration above
+  // (Requirement 11.3); the REST snapshot effect below seeds the map and the
+  // 30s refetch heals any missed transition.
 
   return statuses;
 }
