@@ -19,6 +19,16 @@ import {
   FileScanDetail,
   normalizeScanStatus,
 } from '../app/drive/components/FileScanBadge';
+import {
+  DriveRecentSubView,
+  DriveSharedByMeSubView,
+  type RecentItem,
+} from '../app/drive/components';
+import {
+  DriveHomeSubView,
+  DriveFeedSubView,
+  type DriveItem as HomeDriveItem,
+} from '../components/DriveSubViews';
 
 // The quota meter reads the real GET /api/drive/quota through this hook; the
 // suite pins it to a known value instead of letting the meter fetch.
@@ -143,5 +153,139 @@ describe('QM-M39-009 scan-state honesty contract', () => {
       expect(html).toContain('Quarantined');
       expect(html).toContain('disabled');
     });
+  });
+});
+
+describe('QM-SCREEN-011: scan badges in the four primary listings', () => {
+  const homeFiles: HomeDriveItem[] = [
+    {
+      id: 'h-unknown',
+      name: 'unscanned.bin',
+      type: 'file',
+      mimeType: 'application/octet-stream',
+      size: 10,
+      modifiedAt: '2026-10-08T00:00:00Z',
+    },
+    {
+      id: 'h-quarantined',
+      name: 'evil.bin',
+      type: 'file',
+      mimeType: 'application/octet-stream',
+      size: 10,
+      modifiedAt: '2026-10-08T00:00:00Z',
+      scanStatus: 'quarantined',
+      scanReason: 'EICAR test signature',
+    },
+  ];
+
+  it('DriveHomeSubView grid renders a scan badge per file', () => {
+    const html = renderToStaticMarkup(<DriveHomeSubView files={homeFiles} viewMode="grid" />);
+    expect(html).toContain('Not scanned');
+    expect(html).toContain('Quarantined');
+    expect(html).toContain('data-scan-status="quarantined"');
+    expect(html).toContain('EICAR test signature');
+  });
+
+  it('DriveHomeSubView list renders a scan badge per file', () => {
+    const html = renderToStaticMarkup(<DriveHomeSubView files={homeFiles} viewMode="list" />);
+    expect(html).toContain('Not scanned');
+    expect(html).toContain('Quarantined');
+  });
+
+  it('never renders unknown as safe in the home listing', () => {
+    const html = renderToStaticMarkup(
+      <DriveHomeSubView files={[homeFiles[0]]} viewMode="grid" />,
+    );
+    expect(html).toContain('Not scanned');
+    expect(html).not.toContain('Scanned · clean');
+  });
+
+  it('DriveFeedSubView tiles render the scan badge', () => {
+    const html = renderToStaticMarkup(
+      <DriveFeedSubView
+        files={[
+          {
+            id: 'fd-1',
+            name: 'photo.png',
+            mimeType: 'image/png',
+            size: 10,
+            modifiedAt: '2026-10-08T00:00:00Z',
+            scanStatus: 'quarantined',
+            scanReason: 'EICAR test signature',
+          },
+          {
+            id: 'fd-2',
+            name: 'clip.mp4',
+            mimeType: 'video/mp4',
+            size: 10,
+            modifiedAt: '2026-10-08T00:00:00Z',
+            scanStatus: 'clean',
+          },
+        ]}
+      />,
+    );
+    expect(html).toContain('Quarantined');
+    expect(html).toContain('Scanned · clean');
+  });
+
+  it('DriveRecentSubView rows render the scan badge', () => {
+    const items: RecentItem[] = [
+      {
+        id: 'r-1',
+        name: 'evil.bin',
+        type: 'file',
+        mimeType: 'application/octet-stream',
+        size: 10,
+        modifiedAt: '2026-10-08T00:00:00Z',
+        scanStatus: 'quarantined',
+        scanReason: 'EICAR test signature',
+      },
+      {
+        id: 'r-2',
+        name: 'plain.bin',
+        type: 'file',
+        mimeType: 'application/octet-stream',
+        size: 10,
+        modifiedAt: '2026-10-08T00:00:00Z',
+      },
+    ];
+    const html = renderToStaticMarkup(<DriveRecentSubView items={items} />);
+    expect(html).toContain('Quarantined');
+    expect(html).toContain('Not scanned');
+  });
+
+  it('DriveSharedByMeSubView rows render the scan badge', () => {
+    const html = renderToStaticMarkup(
+      <DriveSharedByMeSubView
+        items={[
+          {
+            id: 's-1',
+            name: 'evil.bin',
+            type: 'file',
+            mimeType: 'application/octet-stream',
+            size: 10,
+            updatedAt: '2026-10-08T00:00:00Z',
+            sharedCount: 1,
+            sharedWith: [],
+            linkShare: null,
+            scanStatus: 'quarantined',
+            scanReason: 'EICAR test signature',
+          },
+          {
+            id: 's-2',
+            name: 'plain.bin',
+            type: 'file',
+            mimeType: 'application/octet-stream',
+            size: 10,
+            updatedAt: '2026-10-08T00:00:00Z',
+            sharedCount: 2,
+            sharedWith: [],
+            linkShare: null,
+          },
+        ]}
+      />,
+    );
+    expect(html).toContain('Quarantined');
+    expect(html).toContain('Not scanned');
   });
 });

@@ -13,6 +13,7 @@
 import React, { useState } from 'react';
 import { formatBytes } from '../../../lib/format-bytes';
 import { SharedUsersIcon, FolderIcon, CopyIcon } from './DriveIcons';
+import { FileScanBadge } from './FileScanBadge';
 import type { SentShareItem } from '../../../hooks/useDrive';
 
 export interface DriveSharedByMeSubViewProps {
@@ -198,6 +199,10 @@ export function DriveSharedByMeSubView({
                             <CopyIcon className="size-3" />
                             Link expired
                           </span>
+                        )}
+                        {/* QM-M39-009: security scan state — 'unknown' renders as "Not scanned", never as safe */}
+                        {item.type === 'file' && (
+                          <FileScanBadge status={item.scanStatus} reason={item.scanReason} />
                         )}
                       </div>
 

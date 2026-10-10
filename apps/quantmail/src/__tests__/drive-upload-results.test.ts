@@ -1,13 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getUploadBatchError } from '../lib/drive-upload-results';
-import { useDrive } from '../hooks/useDrive';
+import { useDrive, clearResumableUploadSessionsForTests } from '../hooks/useDrive';
 
-// Isolated hook-contract tests, not a React renderer or live storage test.
+// Isolated hook-contract tests for the resumable chunked upload path
+// (QM-SCREEN-011 P0), not a React renderer or live storage test.
 const state = vi.hoisted(() => ({
   cells: [] as { value: unknown }[],
-  replies: [] as { status: number; body?: unknown }[],
   request: vi.fn(),
-  refresh: vi.fn(),
+  // Per-URL-behavior script for the chunked protocol mock.
+  chunkPlan: {
+    initiateCalls: 0,
+    failSecondInitiate: false,
+    chunkFailuresRemaining: 0,
+    chunkCalls: 0,
+  },
 }));
 
 vi.mock('react', () => ({
@@ -28,47 +34,74 @@ vi.mock('react', () => ({
 vi.mock('@quant/common', () => ({ logger: { error: vi.fn() } }));
 vi.mock('../services/browser-api-request', () => ({ browserApiRequest: state.request }));
 vi.mock('../services/browser-auth-session', () => ({
-  browserAuthSession: { refresh: state.refresh, getAccessToken: () => null },
+  browserAuthSession: { refresh: vi.fn(), getAccessToken: () => null },
 }));
 
-class FakeUploadRequest {
-  upload = { onprogress: undefined as unknown };
-  onload: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  onabort: (() => void) | null = null;
-  withCredentials = false;
-  status = 0;
-  statusText = '';
-  responseText = '';
+const okJson = (body: unknown, status = 200) => ({
+  ok: true,
+  status,
+  text: async () => JSON.stringify(body),
+  json: async () => body,
+});
+const errJson = (status: number, message: string) => ({
+  ok: false,
+  status,
+  statusText: '',
+  text: async () => JSON.stringify({ error: { message } }),
+  json: async () => ({ error: { message } }),
+});
 
-  open() {
-    return undefined;
-  }
-  setRequestHeader() {
-    return undefined;
-  }
-  abort() {
-    this.onabort?.();
-  }
-  send() {
-    const reply = state.replies.shift();
-    if (!reply) throw new Error('Unexpected upload request');
-    this.status = reply.status;
-    this.responseText = JSON.stringify(reply.body ?? {});
-    queueMicrotask(() => this.onload?.());
-  }
-}
+const installChunkMock = () => {
+  state.request.mockImplementation(async (url: string) => {
+    if (typeof url === 'string' && url.includes('/drive/upload/chunk/initiate')) {
+      state.chunkPlan.initiateCalls += 1;
+      if (state.chunkPlan.failSecondInitiate && state.chunkPlan.initiateCalls === 2) {
+        return errJson(500, 'Quota exceeded');
+      }
+      return okJson({ uploadId: 'srv-test-1', chunkSize: 5 * 1024 * 1024, totalChunks: 1 }, 201);
+    }
+    if (typeof url === 'string' && url.includes('/drive/upload/chunk/') && url.endsWith('/status')) {
+      return okJson({
+        uploadId: 'srv-test-1',
+        chunkSize: 5 * 1024 * 1024,
+        totalChunks: 1,
+        missingChunks: [0],
+        isComplete: false,
+      });
+    }
+    if (typeof url === 'string' && url.includes('/drive/upload/chunk/') && url.endsWith('/complete')) {
+      return okJson({ file: { id: 'file-1' }, quota: { used: 1, total: 100 } }, 201);
+    }
+    if (typeof url === 'string' && url.includes('/drive/upload/chunk/')) {
+      state.chunkPlan.chunkCalls += 1;
+      if (state.chunkPlan.chunkFailuresRemaining > 0) {
+        state.chunkPlan.chunkFailuresRemaining -= 1;
+        throw new TypeError('Network error');
+      }
+      return okJson({
+        uploadId: 'srv-test-1',
+        chunkIndex: 0,
+        receivedChunks: 1,
+        totalChunks: 1,
+        isComplete: true,
+      });
+    }
+    // fetchFiles and everything else.
+    return okJson({ files: [] });
+  });
+};
 
 const files = () => [new File(['one'], 'one.txt'), new File(['two'], 'two.txt')];
 
 beforeEach(() => {
   state.cells = [];
-  state.replies = [];
   state.request.mockReset();
-  state.refresh.mockReset();
-  state.request.mockResolvedValue({ ok: true, json: async () => ({ files: [] }) });
-  state.refresh.mockResolvedValue({ success: false });
-  vi.stubGlobal('XMLHttpRequest', FakeUploadRequest);
+  state.chunkPlan.initiateCalls = 0;
+  state.chunkPlan.failSecondInitiate = false;
+  state.chunkPlan.chunkFailuresRemaining = 0;
+  state.chunkPlan.chunkCalls = 0;
+  clearResumableUploadSessionsForTests();
+  installChunkMock();
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -92,9 +125,10 @@ describe('upload batch summaries', () => {
 });
 
 describe('Drive operation promise contracts', () => {
-  it('resolves an all-success upload and refreshes the file list', async () => {
-    state.replies = [{ status: 201 }, { status: 201 }];
+  it('uploads via the chunk protocol (initiate → chunk → complete) and refreshes the file list', async () => {
     await expect(useDrive().uploadFiles(files())).resolves.toBeUndefined();
+    expect(state.chunkPlan.initiateCalls).toBe(2);
+    expect(state.chunkPlan.chunkCalls).toBe(2);
     expect(state.request).toHaveBeenCalledWith('/api/drive/files?');
     expect(state.cells[3].value).toEqual([
       expect.objectContaining({ status: 'complete', progress: 100 }),
@@ -103,10 +137,7 @@ describe('Drive operation promise contracts', () => {
   });
 
   it('rejects a partial upload while preserving progress and refreshing successes', async () => {
-    state.replies = [
-      { status: 201 },
-      { status: 500, body: { error: { message: 'Quota exceeded' } } },
-    ];
+    state.chunkPlan.failSecondInitiate = true;
     await expect(useDrive().uploadFiles(files())).rejects.toThrow(
       'Uploaded 1 of 2 files. 1 failed or cancelled. Quota exceeded',
     );
@@ -118,13 +149,43 @@ describe('Drive operation promise contracts', () => {
     expect(state.cells[2].value).toContain('Uploaded 1 of 2 files');
   });
 
-  it('rejects when session refresh throws instead of leaving the upload unresolved', async () => {
-    state.replies = [{ status: 401 }];
-    state.refresh.mockRejectedValueOnce(new Error('Refresh unavailable'));
-    await expect(useDrive().uploadFiles(files().slice(0, 1))).rejects.toThrow(
-      'Uploaded 0 of 1 files. 1 failed or cancelled. Refresh unavailable',
+  it('retries a failed chunk instead of restarting the file', async () => {
+    state.chunkPlan.chunkFailuresRemaining = 2;
+    await expect(useDrive().uploadFiles(files().slice(0, 1))).resolves.toBeUndefined();
+    // 2 failures + 1 success, all for the same chunk of the same session.
+    expect(state.chunkPlan.chunkCalls).toBe(3);
+    expect(state.chunkPlan.initiateCalls).toBe(1);
+    expect(state.cells[3].value).toEqual([
+      expect.objectContaining({ status: 'complete', progress: 100 }),
+    ]);
+  });
+
+  it('resumes an interrupted upload via the status endpoint on retry', async () => {
+    // Same File object across both calls — a re-selected file keeps its
+    // lastModified, so the fingerprint (and the remembered session) matches.
+    const retryFiles = files().slice(0, 1);
+    // First attempt: every chunk POST fails (3 attempts exhausted).
+    state.chunkPlan.chunkFailuresRemaining = 3;
+    await expect(useDrive().uploadFiles(retryFiles)).rejects.toThrow(
+      'Uploaded 0 of 1 files. 1 failed or cancelled. Network error',
     );
-    expect(state.refresh).toHaveBeenCalledTimes(1);
+    expect(state.chunkPlan.initiateCalls).toBe(1);
+
+    // Second attempt with the same File: the remembered session is resumed —
+    // status is queried and only the missing chunk is re-uploaded, no new
+    // initiate.
+    state.chunkPlan.chunkFailuresRemaining = 0;
+    await expect(useDrive().uploadFiles(retryFiles)).resolves.toBeUndefined();
+    expect(state.chunkPlan.initiateCalls).toBe(1);
+  });
+
+  it('rejects a file larger than the chunked cap with the honest 413 message', async () => {
+    const big = new File(['x'], 'big.bin');
+    Object.defineProperty(big, 'size', { value: 6 * 1024 * 1024 * 1024 });
+    await expect(useDrive().uploadFiles([big])).rejects.toThrow(
+      'Uploaded 0 of 1 files. 1 failed or cancelled. File exceeds maximum upload size of 5368709120 bytes',
+    );
+    expect(state.chunkPlan.initiateCalls).toBe(0);
   });
 
   it('rejects a failed folder response without inserting a folder', async () => {

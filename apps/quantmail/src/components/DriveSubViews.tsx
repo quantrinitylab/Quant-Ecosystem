@@ -4,6 +4,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { formatBytes } from '../lib/format-bytes';
 import { isDocumentDriveId } from '../lib/drive-ids';
 import { useStorageQuota } from '../hooks/useStorageQuota';
+import { FileScanBadge } from '../app/drive/components/FileScanBadge';
 
 // ============================================================================
 // SVG Vector Icons — strictly ZERO raw Unicode emojis
@@ -515,6 +516,10 @@ export interface DriveItem {
   deletedAt?: string;
   category?: string;
   tags?: string[];
+  // QM-M39-009: security scan state from the backend. 'unknown' is honest for
+  // unscanned files — the badge never renders it as safe.
+  scanStatus?: string | null;
+  scanReason?: string | null;
 }
 
 export type DriveCategory =
@@ -1139,6 +1144,12 @@ export function DriveHomeSubView({
                       <p className="text-[11px] text-[#64748B] mt-0.5 font-mono">
                         {formatBytes(file.size)}
                       </p>
+                      {/* QM-M39-009: security scan state — 'unknown' renders as "Not scanned", never as safe */}
+                      {file.type !== 'folder' && (
+                        <div className="mt-1.5">
+                          <FileScanBadge status={file.scanStatus} reason={file.scanReason} />
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1158,6 +1169,14 @@ export function DriveHomeSubView({
                       <span className="text-xs font-semibold text-[#F8FAFC] truncate">
                         {file.name}
                       </span>
+                      {/* QM-M39-009: security scan state — 'unknown' renders as "Not scanned", never as safe */}
+                      {file.type !== 'folder' && (
+                        <FileScanBadge
+                          status={file.scanStatus}
+                          reason={file.scanReason}
+                          className="shrink-0"
+                        />
+                      )}
                     </div>
                     <div className="flex items-center gap-3 shrink-0 text-xs text-[#94A3B8]">
                       <span className="font-mono text-[11px]">{formatBytes(file.size)}</span>
@@ -1400,6 +1419,10 @@ export interface DriveFeedItem {
   duration?: string;
   previewGradient: string;
   isStarred?: boolean;
+  // QM-M39-009: security scan state — 'unknown' renders as "Not scanned",
+  // never as safe.
+  scanStatus?: string | null;
+  scanReason?: string | null;
 }
 
 export interface DriveFeedSubViewProps {
@@ -1418,6 +1441,8 @@ export interface DriveFeedSubViewProps {
     size: number;
     modifiedAt: string;
     isStarred?: boolean;
+    scanStatus?: string | null;
+    scanReason?: string | null;
   }>;
 }
 
@@ -1474,6 +1499,8 @@ export function DriveFeedSubView({
               year: 'numeric',
             }),
             isStarred: f.isStarred,
+            scanStatus: f.scanStatus ?? null,
+            scanReason: f.scanReason ?? null,
           } as DriveFeedItem;
         });
     }
@@ -1688,6 +1715,10 @@ export function DriveFeedSubView({
                         <div className="flex items-center justify-between text-[10px] text-[#94A3B8] mt-0.5 font-mono">
                           <span>{formatBytes(item.size)}</span>
                           <span className="text-[#38BDF8]">View Lightbox</span>
+                        </div>
+                        {/* QM-M39-009: security scan state — 'unknown' renders as "Not scanned", never as safe */}
+                        <div className="mt-1.5">
+                          <FileScanBadge status={item.scanStatus} reason={item.scanReason} />
                         </div>
                       </div>
                     </div>
