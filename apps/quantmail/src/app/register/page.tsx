@@ -302,7 +302,7 @@ export default function RegisterPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(event) => event.stopPropagation()}
-                    className="font-medium text-[var(--brand-primary)] underline underline-offset-2 hover:brightness-110 focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                    className="font-medium text-[var(--brand-primary)] underline underline-offset-2 hover:brightness-110 focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] px-1 py-3"
                   >
                     terms
                   </Link>{' '}
