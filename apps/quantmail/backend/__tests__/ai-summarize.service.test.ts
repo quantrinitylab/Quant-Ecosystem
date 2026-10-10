@@ -114,4 +114,67 @@ describe('AISummarizeService', () => {
       expect(result.keyPoints).toHaveLength(2);
     });
   });
+
+  // 2026-10-10 button audit: the thread-view "Summarize this conversation"
+  // button failed with "Could not generate summary" because models wrap the
+  // JSON in fences/prose. extractJsonObject must recover it.
+  describe('extractJsonObject', () => {
+    const payload = {
+      summary: 'Budget thread.',
+      keyPoints: ['a'],
+      actionItems: ['b'],
+      messageCount: 2,
+    };
+
+    it('parses clean JSON', () => {
+      expect(AISummarizeService.extractJsonObject(JSON.stringify(payload))).toEqual(payload);
+    });
+
+    it('strips ```json fences', () => {
+      const fenced = '```json\n' + JSON.stringify(payload) + '\n```';
+      expect(AISummarizeService.extractJsonObject(fenced)).toEqual(payload);
+    });
+
+    it('strips bare ``` fences', () => {
+      const fenced = '```\n' + JSON.stringify(payload) + '\n```';
+      expect(AISummarizeService.extractJsonObject(fenced)).toEqual(payload);
+    });
+
+    it('extracts JSON from surrounding prose', () => {
+      const prose = 'Here is your summary:\n' + JSON.stringify(payload) + '\nHope that helps!';
+      expect(AISummarizeService.extractJsonObject(prose)).toEqual(payload);
+    });
+
+    it('throws AI_PARSE_ERROR when no JSON object exists', () => {
+      expect(() => AISummarizeService.extractJsonObject('no json here at all')).toThrow(
+        'Failed to parse AI summary response',
+      );
+    });
+  });
+
+  describe('summarizeThread with fenced model output', () => {
+    it('succeeds when the model wraps JSON in fences', async () => {
+      aiEngine.infer.mockResolvedValue({
+        content:
+          '```json\n' +
+          JSON.stringify({
+            summary: 'Team agreed on the plan.',
+            keyPoints: ['Plan agreed'],
+            actionItems: ['Ship it'],
+            messageCount: 1,
+          }) +
+          '\n```',
+        model: 'gpt-4o',
+        usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150, estimatedCost: 0.001 },
+        latencyMs: 200,
+        cached: false,
+      });
+
+      const result = await service.summarizeThread(
+        [{ from: 'a@b.com', subject: 'Test', body: 'Body' }],
+        'user-1',
+      );
+      expect(result.summary).toContain('Team agreed');
+    });
+  });
 });

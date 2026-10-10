@@ -72,6 +72,11 @@ export class ThreadService {
           { id: threadId, deletedAt: null },
         ],
       },
+      // The folder relation drives `isArchived` in formatEmailRecord (archive
+      // is tracked via folderId, not the boolean). Without it an archived
+      // thread's messages read as unarchived and the thread header never
+      // offers "Move back to inbox" (2026-10-10 button audit).
+      include: { folder: true },
       orderBy: [{ receivedAt: 'asc' }, { createdAt: 'asc' }],
     });
 
@@ -82,6 +87,7 @@ export class ThreadService {
           subject: thread.subject,
           deletedAt: null,
         },
+        include: { folder: true },
         orderBy: [{ receivedAt: 'asc' }, { createdAt: 'asc' }],
       });
     }

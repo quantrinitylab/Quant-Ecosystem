@@ -1270,11 +1270,12 @@ function InboxPageContent() {
         if (id === 'archive') {
           setActiveTab('archive');
           setShowArchivedView(true);
-          router.push('/?tab=archive');
+          // Keep ?view=inbox — dropping it renders the People view at /.
+          router.push('/?view=inbox&tab=archive');
         } else if (id === 'inbox') {
           setActiveTab('inbox');
           setShowArchivedView(false);
-          router.push('/');
+          router.push('/?view=inbox');
         }
       }
     };
@@ -2032,19 +2033,24 @@ function InboxPageContent() {
     setActiveLens('all');
     setActiveTurn('any');
     setActiveFilters(new Set());
-    router.replace('/', { scroll: false });
+    // Stay in the classic inbox: dropping ?view=inbox would render the People
+    // view at / (2026-10-10 button audit).
+    router.replace('/?view=inbox', { scroll: false });
   }, [router]);
 
   /**
    * Every narrowing control leaves the archived shelf, because the shelf is a
    * different pool: staying on it while the lens changes shows a count for one list
    * above a different one.
+   *
+   * The classic inbox lives at /?view=inbox — the lens param must ride along
+   * with it, or the navigation lands on the People view (2026-10-10 button audit).
    */
   const selectLens = useCallback(
     (lens: InboxLens) => {
       setActiveLens(lens);
       setShowArchivedView(false);
-      const target = lens === 'all' ? '/' : `/?lens=${lens}`;
+      const target = lens === 'all' ? '/?view=inbox' : `/?view=inbox&lens=${lens}`;
       router.replace(target, { scroll: false });
     },
     [router],

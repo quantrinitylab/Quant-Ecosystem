@@ -24,6 +24,10 @@
 // The old bar's inline "Select all N" pill is not duplicated into the menu — it
 // moved there. A control that exists twice at one width is the duplicate
 // affordance this audit is removing everywhere else.
+//
+// z-[70]: the floating People|Inbox toggle pill sits at z-[60]; the selection
+// bar must win that stacking contest or its right-side "More actions" button
+// lands under the pill and clicks get intercepted (2026-10-10 button audit).
 
 import { AnchoredMenu } from './AnchoredMenu';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -92,7 +96,7 @@ export function SelectionHeader({
   /** Batch delete asks first — no silent deletes, even in bulk. */
   const [confirmDelete, setConfirmDelete] = useState(false);
   return (
-    <header className="sticky top-0 z-50 flex min-h-14 flex-none select-none items-center justify-between gap-3 border-b border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3 shadow-xl sm:px-5">
+    <header className="sticky top-0 z-[70] flex min-h-14 flex-none select-none items-center justify-between gap-3 border-b border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3 shadow-xl sm:px-5">
       <div className="flex min-w-0 items-center gap-2">
         <button
           type="button"

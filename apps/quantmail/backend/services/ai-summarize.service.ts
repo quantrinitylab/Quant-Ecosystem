@@ -29,6 +29,65 @@ export class AISummarizeService {
   constructor(private readonly ai: AIEngine) {}
 
   /**
+   * Extracts a JSON object from raw model output. Models instructed to
+   * "respond with ONLY valid JSON" still frequently wrap it in ```json
+   * fences or prepend/append prose — a bare JSON.parse then throws and the
+   * user sees "Could not generate summary" for a summary that actually
+   * exists. This unwraps fences and finds the outermost {...} before
+   * parsing. Pure and unit-tested.
+   */
+  static extractJsonObject(raw: string): unknown {
+    let text = raw.trim();
+    // Strip ```json ... ``` or ``` ... ``` fences.
+    const fenceMatch = text.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
+    if (fenceMatch) {
+      text = fenceMatch[1].trim();
+    }
+    // Fast path: already clean JSON.
+    try {
+      return JSON.parse(text);
+    } catch {
+      /* fall through to brace matching */
+    }
+    // Find the outermost balanced {...} span.
+    const start = text.indexOf('{');
+    if (start === -1) {
+      throw createAppError('Failed to parse AI summary response', 500, 'AI_PARSE_ERROR');
+    }
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch === '\\') {
+          escaped = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (ch === '"') {
+        inString = true;
+      } else if (ch === '{') {
+        depth++;
+      } else if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          try {
+            return JSON.parse(text.slice(start, i + 1));
+          } catch {
+            throw createAppError('Failed to parse AI summary response', 500, 'AI_PARSE_ERROR');
+          }
+        }
+      }
+    }
+    throw createAppError('Failed to parse AI summary response', 500, 'AI_PARSE_ERROR');
+  }
+
+  /**
    * BB-P1-5: the endpoint is wired end-to-end; on hosts with no AI provider
    * credentials `ai.infer` throws a "not configured" error. That used to
    * surface as a generic 500/INTERNAL_ERROR ("Could not generate summary. Try
@@ -83,7 +142,7 @@ Respond ONLY with valid JSON:
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(response.content);
+      parsed = AISummarizeService.extractJsonObject(response.content);
     } catch {
       throw createAppError('Failed to parse AI summary response', 500, 'AI_PARSE_ERROR');
     }
@@ -127,7 +186,7 @@ Respond ONLY with valid JSON:
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(response.content);
+      parsed = AISummarizeService.extractJsonObject(response.content);
     } catch {
       throw createAppError('Failed to parse AI summary response', 500, 'AI_PARSE_ERROR');
     }
