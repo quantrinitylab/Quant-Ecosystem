@@ -1751,9 +1751,8 @@ Validation: source audit on 2026-10-08 against `main` verified the rename handle
 
 ## QM-SCREEN-059 — QuantDrive trash subtree expansion must not silently truncate at 30 levels
 
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-screen-059-drive-trash-depth
+Status: [x] DONE — PR #776 merged 2026-10-10 (2 files, +126/-4). Root fix in the shared folderTree() helper (apps/quantmail/backend/routes/drive.ts): the MAX_DEPTH=30 cap is removed — the visited set already guarantees termination, so the cap only caused silent data loss. Trash now sees the complete subtree ({ ok: true } is truthful), and handleMove's circular-reference check gets the full set too (previously a target deeper than 30 levels was missed, allowing a folder to be moved into its own descendant, creating a real parent cycle). Tests: 35-level chain trash (every folder + deepest files, correct trashRootId), 3-level happy path, move-into-level-34-descendant = 400; fail-on-original proven with exact signatures; Drive backend suite 189/189; backend tsc A/B identical, zero errors in touched files.
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/776
 
 Finding: the live Drive trash endpoint uses the shared `folderTree()` helper to expand a folder before soft-deleting its descendants. That helper hard-caps traversal at `MAX_DEPTH = 30` and then returns the visited IDs without signalling that the frontier was truncated. `POST /drive/files/trash` therefore treats a folder with descendants deeper than 30 levels as fully trashed even though the traversal can stop before reaching the deepest folders. The transaction then marks only the returned folder IDs and their files as deleted, while deeper descendants can remain active. The API still returns `{ ok: true }`, so the client has no indication that the requested subtree was only partially moved to Trash.
 
