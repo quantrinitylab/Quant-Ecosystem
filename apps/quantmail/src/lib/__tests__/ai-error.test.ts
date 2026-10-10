@@ -163,3 +163,58 @@ describe('sanitizeAiError — residual gaps (QM-UIUX-090)', () => {
     ).not.toContain('BEGIN RSA PRIVATE KEY');
   });
 });
+
+// QM-UIUX-094 — zero-defect run-39 (P2-D39-1): the QM-UIUX-090 bare
+// host:port rule required a hyphen (ai-service:9000) or a dotted internal
+// TLD, so single-word and underscore Docker-service names leaked verbatim
+// (W1 node-executed proof in the run-39 shift notes). These tests FAIL
+// against the pre-fix ai-error.ts and PASS after it; the over-redaction
+// pins pass on both and guard the widened pattern.
+describe('sanitizeAiError — single-word service host:port (QM-UIUX-094)', () => {
+  it('strips single-word and underscore service names with ports', () => {
+    const backend = sanitizeAiError(new Error('upstream backend:9000 unreachable'));
+    expect(backend).not.toContain('backend');
+    expect(backend).not.toContain('9000');
+    expect(backend).toContain('[host]');
+    const redis = sanitizeAiError(new Error('cache redis:6379 refused'));
+    expect(redis).not.toContain('redis');
+    expect(redis).not.toContain('6379');
+    expect(redis).toContain('[host]');
+    const db = sanitizeAiError(new Error('db replica db:5432 unreachable'));
+    expect(db).not.toContain('db:5432');
+    expect(db).not.toContain('5432');
+    expect(db).toContain('[host]');
+    const underscore = sanitizeAiError(new Error('upstream ai_service:9000 unreachable'));
+    expect(underscore).not.toContain('ai_service');
+    expect(underscore).not.toContain('9000');
+    expect(underscore).toContain('[host]');
+  });
+
+  it('strips single-word service names with a path', () => {
+    const result = sanitizeAiError(new Error('POST backend:9000/api/ai/chat failed'));
+    expect(result).not.toContain('backend');
+    expect(result).not.toContain('9000');
+    expect(result).not.toContain('/api/ai/chat');
+    expect(result).toContain('[host]');
+  });
+
+  it('falls back to the generic message when the message was only a single-word service host', () => {
+    expect(sanitizeAiError(new Error('backend:9000'))).toBe(GENERIC);
+    expect(sanitizeAiError(new Error('ai_service:9000'))).toBe(GENERIC);
+  });
+
+  it('does not over-redact times, ratios, versions, or ports in plain sentences', () => {
+    expect(sanitizeAiError(new Error('The model replied at 9:30 in the morning'))).toBe(
+      'The AI service hit a snag: The model replied at 9:30 in the morning',
+    );
+    expect(sanitizeAiError(new Error('Aspect ratio 16:9 is not supported'))).toBe(
+      'The AI service hit a snag: Aspect ratio 16:9 is not supported',
+    );
+    expect(sanitizeAiError(new Error('Schema v2:3 unsupported'))).toBe(
+      'The AI service hit a snag: Schema v2:3 unsupported',
+    );
+    expect(sanitizeAiError(new Error('The server listens on port 8080 locally'))).toBe(
+      'The AI service hit a snag: The server listens on port 8080 locally',
+    );
+  });
+});
