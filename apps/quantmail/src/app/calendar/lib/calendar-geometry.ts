@@ -303,3 +303,83 @@ export function defaultEventWindow(today: Date): { start: string; end: string } 
   const end = new Date(today.getFullYear(), today.getMonth() + 6, 0, 23, 59, 59);
   return { start: start.toISOString(), end: end.toISOString() };
 }
+
+const DAY_MS = 86_400_000;
+
+/**
+ * The agenda-aware prefetch window for GET /events.
+ *
+ * The infinite-scroll agenda extends its visible day range ±30 days per
+ * edge-hit (`agendaRangeDays` on the calendar page). The page used to fetch
+ * only the fixed defaultEventWindow() band, so once scrolling pushed past
+ * the band edge, newly revealed days rendered silently EMPTY even though the
+ * server had events there — a quiet data omission.
+ *
+ * This window is the UNION of the default band and the agenda range, so the
+ * query key (['calendar-events', { start, end }]) changes as the user
+ * scrolls and the hook refetches with `placeholderData: previousData`
+ * keeping already-rendered days on screen. The union is clamped to
+ * MAX_AGENDA_EVENT_WINDOW_DAYS (364) so it can never trip the backend's
+ * 365-day WINDOW_TOO_LARGE 400 contract — when an extension would push past
+ * the cap, `cappedPast`/`cappedFuture` report which side hit the wall so the
+ * scroll handler stops extending there and the UI can say so honestly
+ * instead of rendering empty days.
+ */
+export const MAX_AGENDA_EVENT_WINDOW_DAYS = 364;
+
+export interface AgendaEventWindow {
+  start: string;
+  end: string;
+  /** True when the past-side extension was trimmed to fit the 364-day cap. */
+  cappedPast: boolean;
+  /** True when the future-side extension was trimmed to fit the 364-day cap. */
+  cappedFuture: boolean;
+}
+
+export function agendaEventWindow(
+  today: Date,
+  agendaRangeDays: { past: number; future: number },
+): AgendaEventWindow {
+  const band = defaultEventWindow(today);
+  const bandStart = new Date(band.start).getTime();
+  const bandEnd = new Date(band.end).getTime();
+
+  // setDate arithmetic (not raw ms) so DST transitions can't drift the range.
+  const dayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const agendaStartDate = new Date(dayStart);
+  agendaStartDate.setDate(dayStart.getDate() - Math.max(0, agendaRangeDays.past));
+  const agendaEndDate = new Date(dayStart);
+  agendaEndDate.setDate(dayStart.getDate() + Math.max(0, agendaRangeDays.future));
+
+  let start = Math.min(bandStart, agendaStartDate.getTime());
+  let end = Math.max(bandEnd, agendaEndDate.getTime());
+  let cappedPast = false;
+  let cappedFuture = false;
+
+  const maxSpanMs = MAX_AGENDA_EVENT_WINDOW_DAYS * DAY_MS;
+  if (end - start > maxSpanMs) {
+    // Trim only what sticks out past the default band — the band itself (and
+    // with it `today`) always survives. Excess is shared proportionally
+    // across the sides that overhang, so one-sided scrolling trims only the
+    // side being extended.
+    const overPast = Math.max(0, bandStart - start);
+    const overFuture = Math.max(0, end - bandEnd);
+    const totalOver = overPast + overFuture;
+    const allowedOver = Math.max(0, maxSpanMs - (bandEnd - bandStart));
+    const keepPast = totalOver > 0 ? (overPast / totalOver) * allowedOver : 0;
+    const keepFuture = totalOver > 0 ? (overFuture / totalOver) * allowedOver : 0;
+    start = bandStart - keepPast;
+    end = bandEnd + keepFuture;
+    // 1ms tolerance: ignore floating-point dust so "exactly at the cap"
+    // does not read as capped.
+    cappedPast = overPast > keepPast + 1;
+    cappedFuture = overFuture > keepFuture + 1;
+  }
+
+  return {
+    start: new Date(start).toISOString(),
+    end: new Date(end).toISOString(),
+    cappedPast,
+    cappedFuture,
+  };
+}

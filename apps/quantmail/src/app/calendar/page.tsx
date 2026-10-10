@@ -27,7 +27,7 @@ import {
   calculateGrid,
   buildCurrentWeekDays,
   buildMonthWeeks,
-  defaultEventWindow,
+  agendaEventWindow,
 } from './lib/calendar-geometry';
 import { pointerStartsSheetDrag } from './lib/sheet-drag';
 import { CalendarHeader } from './components/CalendarHeader';
@@ -283,7 +283,21 @@ function CalendarPageContent() {
   // window contract (PAUD-P0-5/QM-UIUX-078: the old month-8 → month+10 band
   // was ~546 days, so the list query 400'd on every load and the calendar
   // rendered empty even though saves succeeded).
-  const { start, end } = useMemo(() => defaultEventWindow(today), [today]);
+  //
+  // The band follows the infinite-scroll agenda range: as handleScroll
+  // extends agendaRangeDays ±30 days per edge-hit, start/end change, the
+  // ['calendar-events', options] query key changes, and the hook refetches —
+  // so scrolled-in days never render empty while the server has events
+  // (previously the fixed band silently omitted them). placeholderData:
+  // previousData in the hook keeps already-rendered days on screen while
+  // the wider window loads. The window is clamped to 364 days (never trips
+  // the backend WINDOW_TOO_LARGE 400); when a side hits the cap, the
+  // scroll handler stops extending there and the UI should say so
+  // honestly instead of rendering empty days.
+  const { start, end, cappedPast, cappedFuture } = useMemo(
+    () => agendaEventWindow(today, agendaRangeDays),
+    [today, agendaRangeDays],
+  );
 
   const { data: rawEvents, isLoading, error, refetch } = useCalendarEvents({ start, end });
 
@@ -1055,7 +1069,12 @@ function CalendarPageContent() {
 
       if (activeView !== 'agenda') return;
 
-      if (scrollHeight - scrollTop - clientHeight < 350 && !isLoadingFuture) {
+      // Stop extending a side once the event window hits the 364-day backend
+      // cap (cappedPast/cappedFuture): extending further would only render
+      // empty days, since no wider window can be fetched. When this scroll
+      // path is reattached to a live list, surface an honest end-of-range
+      // note here instead of rendering more days.
+      if (scrollHeight - scrollTop - clientHeight < 350 && !isLoadingFuture && !cappedFuture) {
         setIsLoadingFuture(true);
         setTimeout(() => {
           setAgendaRangeDays((prev) => ({ ...prev, future: prev.future + 30 }));
@@ -1063,7 +1082,7 @@ function CalendarPageContent() {
         }, 250);
       }
 
-      if (scrollTop < 120 && !isLoadingPast) {
+      if (scrollTop < 120 && !isLoadingPast && !cappedPast) {
         setIsLoadingPast(true);
         const prevScrollHeight = host.scrollHeight;
         setTimeout(() => {
@@ -1106,7 +1125,16 @@ function CalendarPageContent() {
         }
       }
     },
-    [activeView, continuousAgendaDays, selectedDate, currentDate, isLoadingPast, isLoadingFuture],
+    [
+      activeView,
+      continuousAgendaDays,
+      selectedDate,
+      currentDate,
+      isLoadingPast,
+      isLoadingFuture,
+      cappedPast,
+      cappedFuture,
+    ],
   );
 
   return (
