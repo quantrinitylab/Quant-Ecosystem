@@ -272,7 +272,55 @@ function toCalendarEvent(row: EventRow): CalendarEvent {
     updatedAt: new Date(row.updatedAt),
   };
 }
-const QUANT_META_RE = /__QUANT_META__:([\s\S]*?):__END_QUANT_META__/;
+const QUANT_META_PREFIX = '__QUANT_META__:';
+const QUANT_META_SUFFIX = ':__END_QUANT_META__';
+
+interface QuantMetaMatch {
+  /** The full `__QUANT_META__:{...}:__END_QUANT_META__` header text. */
+  full: string;
+  /** The raw JSON payload between the prefix and the suffix. */
+  json: string;
+  /** Offset of the header inside the source string. */
+  index: number;
+}
+
+/**
+ * Find a __QUANT_META__ header with plain indexOf scans (linear time).
+ *
+ * This replaces the old lazy regex
+ * /__QUANT_META__:([\s\S]*?):__END_QUANT_META__/ — CodeQL flagged it as a
+ * polynomial ReDoS on user-controlled descriptions (a string starting with
+ * `__QUANT_META__:` followed by many `__QUANT_META__:a` repetitions makes the
+ * lazy quantifier rescan quadratically). indexOf finds the FIRST prefix and
+ * the FIRST suffix after it, which is exactly what the lazy match returned,
+ * in linear time on any input.
+ */
+function matchQuantMeta(raw: string): QuantMetaMatch | null {
+  const start = raw.indexOf(QUANT_META_PREFIX);
+  if (start === -1) return null;
+  const jsonStart = start + QUANT_META_PREFIX.length;
+  const end = raw.indexOf(QUANT_META_SUFFIX, jsonStart);
+  if (end === -1) return null;
+  return {
+    full: raw.slice(start, end + QUANT_META_SUFFIX.length),
+    json: raw.slice(jsonStart, end),
+    index: start,
+  };
+}
+
+/**
+ * Remove the first __QUANT_META__ header (plus one trailing newline when
+ * present), mirroring the old
+ * raw.replace(/__QUANT_META__:[\s\S]*?:__END_QUANT_META__\n?/, '').
+ */
+function stripQuantMeta(raw: string): string {
+  const match = matchQuantMeta(raw);
+  if (!match) return raw;
+  const rest = raw.slice(0, match.index) + raw.slice(match.index + match.full.length);
+  return rest.charAt(match.index) === '\n'
+    ? rest.slice(0, match.index) + rest.slice(match.index + 1)
+    : rest;
+}
 
 /**
  * Persist a top-level `driveLink` payload field inside the __QUANT_META__
@@ -287,11 +335,11 @@ const QUANT_META_RE = /__QUANT_META__:([\s\S]*?):__END_QUANT_META__/;
 function setMetaDriveLink(description: string, driveLink: string | undefined): string {
   const trimmed = typeof driveLink === 'string' ? driveLink.trim() : '';
   const raw = description ?? '';
-  const match = QUANT_META_RE.exec(raw);
+  const match = matchQuantMeta(raw);
   let meta: Record<string, unknown>;
   if (match) {
     try {
-      meta = JSON.parse(match[1] as string) as Record<string, unknown>;
+      meta = JSON.parse(match.json) as Record<string, unknown>;
     } catch {
       // Corrupt header: only rewrite when there is a link to store.
       if (!trimmed) return raw;
@@ -308,7 +356,7 @@ function setMetaDriveLink(description: string, driveLink: string | undefined): s
     delete meta.driveLink;
   }
   const header = `__QUANT_META__:${JSON.stringify(meta)}:__END_QUANT_META__`;
-  const body = raw.replace(/__QUANT_META__:[\s\S]*?:__END_QUANT_META__\n?/, '').trim();
+  const body = stripQuantMeta(raw).trim();
   return body ? `${header}\n${body}` : `${header}\n`;
 }
 
@@ -320,11 +368,11 @@ function setMetaDriveLink(description: string, driveLink: string | undefined): s
  * A description that still carries its own header is returned untouched.
  */
 function preserveMetaHeader(description: string, existingDescription: string): string {
-  if (QUANT_META_RE.test(description)) return description;
-  const match = QUANT_META_RE.exec(existingDescription ?? '');
+  if (matchQuantMeta(description)) return description;
+  const match = matchQuantMeta(existingDescription ?? '');
   if (!match) return description;
   const body = description.trim();
-  return body ? `${match[0]}\n${body}` : `${match[0]}\n`;
+  return body ? `${match.full}\n${body}` : `${match.full}\n`;
 }
 
 function toEventDto(event: EventRow | CalendarEvent) {
@@ -341,10 +389,10 @@ function toEventDto(event: EventRow | CalendarEvent) {
 
   const desc = event.description || '';
   let driveLink: string | undefined;
-  const metaMatch = desc.match(/__QUANT_META__:([\s\S]*?):__END_QUANT_META__/);
+  const metaMatch = matchQuantMeta(desc);
   if (metaMatch) {
     try {
-      const meta = JSON.parse(metaMatch[1]);
+      const meta = JSON.parse(metaMatch.json);
       if (meta.recurrenceParentId) recurrenceParentId = meta.recurrenceParentId;
       if (meta.originalStartTime) originalStartTime = meta.originalStartTime;
       if (typeof meta.driveLink === 'string' && meta.driveLink.trim())
@@ -1941,7 +1989,7 @@ export default async function calendarRoutes(
       const metaHeader = `__QUANT_META__:${JSON.stringify(metaObj)}:__END_QUANT_META__\n`;
       const userDesc = parsed.data.description ?? parent.description ?? '';
       let finalDesc =
-        metaHeader + userDesc.replace(/__QUANT_META__:[\s\S]*?:__END_QUANT_META__\n?/, '').trim();
+        metaHeader + stripQuantMeta(userDesc).trim();
       if (parsed.data.driveLink !== undefined) {
         finalDesc = setMetaDriveLink(finalDesc, parsed.data.driveLink);
       }
