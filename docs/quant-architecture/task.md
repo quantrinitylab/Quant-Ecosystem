@@ -409,40 +409,65 @@ Scope: flutter_apps/workspaces/phase1/apps/quantmail/flutter/packages/quant_core
 Dependencies: QM-AUTH-008; QM-PLAT-006; QM-PLAT-010.
 
 ## QM-SCREEN-002 — Login / registration / verification / recovery / 2FA
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: Track A screen-audit subagent
 Branch: architecture/quant-company-system-v1
 Scope: M00 auth family.
 Required: Web + Tauri + Capacitor/Flutter parity, responsive states, truthful security copy, safe navigation, recovery/verification contracts, 2FA lifecycle, anti-enumeration, secure handoff.
 Dependencies: QM-AUTH-002 through QM-AUTH-010.
+Track A audit (2026-10-10, web only; Tauri/Capacitor/Flutter parity NOT covered in this pass):
+LIVE VERIFIED (Chrome 154 desktop 1440x900 + mobile 390x844, fresh profile): /login renders clean and responsive; honest copy ("Enter your email address and password"); Forgot email? / Forgot password? links, Show-password toggle, "Create an address" -> /register, Help/Privacy/Terms footer. / shows "Authenticating..." spinner with no authenticated-content flash. /register renders live.
+FAKE (live on quantmail.in/register, screenshot /tmp/qm-register-desktop.png): "Phone number (SMS recovery & QuantChat)" field with help text "Used for secure 2-step verification and 1-click QuantChat login." — but handleSubmit only sends {email,password,username,displayName,acceptTerms} (apps/quantmail/src/app/register/page.tsx:69-87; services/browser-auth-session.ts:196-198). The phone value never leaves the browser. Directly contradicts the 2026-10-05 user decision (phone login/OTP removed from ALL apps; PRs #400/#401).
+MISSING: no email-verification step exists in the web flow — POST /auth/register hardcodes emailVerified: true (apps/quantmail/backend/routes/auth.ts:112). "Verification contracts" requirement unimplemented.
+STALE vs user decision: PhoneVerificationCard still mounted in Settings (apps/quantmail/src/app/settings/page.tsx:986) despite the phone-removal decision (backend routes/phone.ts does real SMS, fail-closed — feature itself works, but should not exist per decision).
+OK: password reset is genuine (backend/routes/password-reset.ts — anti-enumeration copy, SES dispatch, hour-bounded tokens, revokes all sessions on success, never touches 2FA). 2FA lifecycle genuine (apps/quantmail/src/app/security/page.tsx — TOTP setup with verify-before-enable, recovery codes with download + low-count warning, disable deletes codes; comments acknowledge past fakery).
+Copy note: login brand panel claims "AI triage — Quant AI surfaces what's urgent and drafts the reply." — unverified capability claim, borderline vs the user's every-word-must-be-provable-truth rule.
+NEEDS-AUTH (not attempted): register->login->2FA end-to-end, recovery-code login path.
+Validation: code review of login/register/forgot-password/reset-password/forgot-email pages + security 2FA + phone backend/routes + password-reset backend, plus live desktop+mobile screenshots of /login and desktop /register.
 
 ## QM-SCREEN-003 — Workspace shell / navigation / account switcher / command palette
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: Track A screen-audit subagent
 Branch: architecture/quant-company-system-v1
 Required: one scroll owner, keyboard navigation, mobile drawer/bottom navigation, desktop density, route prefetch, deep links, account switching, notifications, Quanty persistent surface, accessibility.
 Dependencies: QM-WORK-001/002.
+Track A audit (2026-10-10, web code + logged-out live; signed-in shell NEEDS-AUTH; Tauri/Capacitor/Flutter parity NOT covered):
+VERIFIED IN CODE (post-#767/#768, matches user-locked design): ONE desktop left sidebar — DesktopContextSidebar rendered at AppShell.tsx:711 with logo+name, search, per-app compose + contextual tabs, Quanty, storage, profile; QuantPillarTopBar is md:hidden (mobile only) — desktop top header removed; right DesktopAppRail kept intentionally (user: "right rail untouched"). QuantFab is md:hidden (QuantFab.tsx:179) — mobile-only; desktop compose lives in the sidebar => one primary action per viewport. AccountBadge with real multi-account menu (menuitemradio) in DesktopContextSidebar.tsx:339. Command palette wired: KeyboardSurfaces mounted in app/layout.tsx, idle-preloads CommandPalette + KeyboardShortcutsHelp, shortcut-triggered. Quanty persistent surface: openQuanty -> DesktopContextSidebar + QuantyDrawerHost in AppShell. Skip link + <main tabindex=-1>; no role="application" (documented ARIA fix in AppShell comments). Per-app accent wash cross-fades on app switch (AppShell.tsx ~0.6s ease — user's color-change preference).
+LIVE (fresh profile): / shows "Authenticating..." spinner; no authenticated flash. Logged-out only.
+OPEN: one-scroll-owner, desktop density, route prefetch, deep links, notifications — unverified live (needs-auth).
 
 ## QM-SCREEN-004 — Inbox / triage / priority / bulk actions
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: Track A screen-audit subagent
 Branch: architecture/quant-company-system-v1
 Required: cursor pagination, virtualized lists, unread/read, archive/delete/spam, labels/folders, bulk actions, swipe, keyboard, pull-to-refresh, smart brief only from real data, offline sync and conflict handling.
 Dependencies: QM-WORK-003.
+Track A audit (2026-10-10, web code; inbox rendering NEEDS-AUTH; Flutter parity NOT covered):
+VERIFIED IN CODE: keyset cursor pagination is genuine (apps/quantmail/src/hooks/useMail.ts — InboxCursorPager, loadMore/hasMore, server nextCursor sync). Virtualization via apps/quantmail/src/lib/virtual/useVirtualizer.ts wired into MailFolderPage/page.tsx. Design-locked People view IS on main: /people -> PeopleHome with the three worlds (log/groups/updates) via PeopleWorldTabs, counts computed from real conversation data (PeopleHome.tsx:36-55). AISummaryCard has no mock/fake markers in source scan. No divider-line styling in MailFolderPage.tsx/PeopleHome.tsx (pure-black rule respected in these components).
+LIVE: needs-auth — fresh profile redirects to /login.
+OPEN: bulk action bar UI presence not confirmed in code pass (selection machinery exists); triage/priority semantics vs "smart brief only from real data" — AISummaryCard data source not traced end-to-end; offline sync conflict handling unverified.
 
 ## QM-SCREEN-005 — Thread / reply / attachments / participants / related context
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: Track A screen-audit subagent
 Branch: architecture/quant-company-system-v1
 Required: message state, thread ordering, reply/reply-all/forward, attachments, external sender/phishing indicators, Calendar/Drive/Contacts/QuantGit relations, Quanty evidence + draft diff, realtime and offline reconciliation.
 Dependencies: QM-WORK-004.
+Track A audit (2026-10-10, web code: ConversationalThreadView.tsx 3493 lines + hooks; live thread NEEDS-AUTH):
+PRESENT: reply/reply-all/forward (openReplyAllComposer/openForwardComposer + menu, :600/:612), quick reply + quoted reply, attachments (AttachmentPreview), participants (messageParticipantAddresses :133, threadParticipants, contact groups), chronological ordering (ascending receivedAt sort on load AND realtime merge :896-958), realtime (useThreadRealtime incl. typing :979), offline list invalidation, accordion expand/collapse matching the design lock (chat-kind auto-expanded, long mail = snippet + tap to expand, autoExpandedIndices :163).
+MISSING vs required/design lock: (1) external sender / phishing indicators — zero hits for phishing/spoof/dmarc/external-sender in ConversationalThreadView.tsx and lib/threading.ts; spoofed senders render with no warning. (2) Subject-change separator ("Naya vishay: ...") — not implemented. (3) Quanty evidence + AI draft diff — absent from the thread view. (4) Calendar/Drive/QuantGit relations — absent (only contact groups for participant naming).
+LIVE: needs-auth.
 
 ## QM-SCREEN-006 — Compose / drafts / schedule / send verification
-Status: [~] IN_PROGRESS
+Status: [x] DONE
 Owner: Track A screen-audit subagent
 Branch: architecture/quant-company-system-v1
 Required: recipient resolution, autosave, attachment upload, Drive insertion, signatures, scheduled send, idempotency, send status, retry/unknown outcome, authoritative verification, voice Quanty flow.
 Dependencies: QM-WORK-005; QM-QUANTY-003.
+Track A audit (2026-10-10, web code: EmailComposer.tsx + backend/routes/emails.ts; live compose NEEDS-AUTH):
+PRESENT: recipient resolution (ContactAutocomplete), autosave (components/useDraftAutosave.ts), attachment upload, Drive insertion (QuantDrivePickerModal), signatures, scheduled send (ScheduleSendModal + backend sendAt validation, emails.ts:405-431), idempotency (enableIdempotency on compose/send, emails.ts:334-335), undo-send 10s recall (backend delayMs + UndoSendCountdownBar), send failure handling is genuine (stays on page, draft intact, error toast — CUST-P0-3 fix in handleSend :825-975), truthful send copy (explicitly must NOT claim "Message sent" while the undo window is open).
+MISSING: voice Quanty flow in the composer — no voice/mic/speech UI in EmailComposer.tsx.
+LIVE: needs-auth.
 
 ## QM-SCREEN-007 — Search / command palette / universal search
 Status: [ ] TODO
