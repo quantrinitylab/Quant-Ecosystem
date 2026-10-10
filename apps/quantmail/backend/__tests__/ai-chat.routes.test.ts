@@ -1313,7 +1313,9 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       status: 'failed',
       error: {
         code: 'TOOL_NOT_ALLOWED',
-        message: "Tool 'commit_file' is not in the allowed tools list",
+        // §9 honest unwired state: a plain "not wired up" statement the UI can
+        // show verbatim — no claim the action ran.
+        message: '"commit_file" is not wired up for this chat — nothing was run.',
       },
     });
     expect(repositoryMutationMock.commitFile).not.toHaveBeenCalled();
@@ -1882,5 +1884,204 @@ describe('POST /ai/chat — grounding scope (PAUD-P0-7 / QM-UIUX-080)', () => {
     const grounding = twoPlusTwoGrounding();
     expect(grounding).toContain('answer ONLY from this snapshot and quote its numbers exactly');
     expect(grounding).toContain('Never invent counts');
+  });
+});
+
+describe('POST /ai/chat — visible agent card labels (§9)', () => {
+  beforeEach(() => {
+    process.env.ENABLE_AUTONOMOUS_TOOLS = 'true';
+  });
+
+  afterEach(() => {
+    delete process.env.ENABLE_AUTONOMOUS_TOOLS;
+  });
+
+  it('executed read-only tools carry a human label and durationMs', async () => {
+    const prismaMock = {
+      repository: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'repo-101', name: 'demo', ownerId: 'user-1' }),
+      },
+    };
+    const repositoryInspectionMock = {
+      readBlob: vi.fn().mockResolvedValue({
+        path: 'README.md',
+        content: '# demo',
+        size: 6,
+        sha: 'abc123',
+      }),
+    };
+
+    aiChatWithToolsMock.mockResolvedValue({
+      content: 'Here is the file.',
+      toolCalls: [
+        { id: 'call_1', name: 'read_file_blob', arguments: { repoId: 'demo', path: 'README.md' } },
+      ],
+    });
+
+    const app = await buildApp('user-1', {
+      prisma: prismaMock,
+      repositoryInspection: repositoryInspectionMock,
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Read README.md' }],
+        tools: { enabled: true },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const card = res.json().data.toolExecutions[0];
+    expect(card).toMatchObject({
+      toolName: 'read_file_blob',
+      status: 'succeeded',
+      label: 'Read "README.md" from demo (main)',
+    });
+    expect(typeof card.durationMs).toBe('number');
+  });
+
+  it('pending-confirmation cards carry the planned-action label', async () => {
+    aiChatWithToolsMock.mockResolvedValue({
+      content: 'Creating the repo for you.',
+      toolCalls: [
+        {
+          id: 'call_1',
+          name: 'create_repository',
+          arguments: { name: 'demo', visibility: 'private' },
+        },
+      ],
+    });
+
+    const app = await buildApp('user-1', {
+      prisma: { repository: { findFirst: vi.fn() } },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Create a repo called demo' }],
+        tools: { enabled: true },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.toolExecutions).toHaveLength(1);
+    expect(body.data.toolExecutions[0]).toMatchObject({
+      toolName: 'create_repository',
+      status: 'pending-confirmation',
+      label: 'Create repository "demo" (private)',
+    });
+  });
+
+  it('unknown tools fail honestly with a "not wired yet" label and message', async () => {
+    aiChatWithToolsMock.mockResolvedValue({
+      content: 'Searching your mail.',
+      toolCalls: [{ id: 'call_1', name: 'mail_search', arguments: { query: 'invoice' } }],
+    });
+
+    const app = await buildApp('user-1', {
+      prisma: { repository: { findFirst: vi.fn() } },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Search my mail for invoice' }],
+        tools: { enabled: true },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const card = res.json().data.toolExecutions[0];
+    expect(card).toMatchObject({
+      toolName: 'mail_search',
+      status: 'failed',
+      label: 'Attempted "mail_search"',
+      error: { code: 'UNKNOWN_TOOL' },
+    });
+    // The honest unwired statement: no claim anything ran.
+    expect(card.error.message).toContain('not wired yet');
+    expect(card.error.message).toContain('nothing was run');
+  });
+
+  it('disallowed tools fail honestly with an unwired-style label and message', async () => {
+    aiChatWithToolsMock.mockResolvedValue({
+      content: '',
+      toolCalls: [
+        {
+          id: 'call_1',
+          name: 'commit_file',
+          arguments: {
+            repoId: 'demo',
+            path: 'test.ts',
+            content: '1',
+            message: 'msg',
+            parentSha: '1111222233334444555566667777888899990000',
+          },
+        },
+      ],
+    });
+
+    const app = await buildApp('user-1', {
+      prisma: { repository: { findFirst: vi.fn() } },
+      repositoryMutation: { commitFile: vi.fn() },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Commit file' }],
+        tools: { enabled: true, allow: ['create_repository'] },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const card = res.json().data.toolExecutions[0];
+    expect(card).toMatchObject({
+      toolName: 'commit_file',
+      status: 'failed',
+      label: 'Attempted "commit_file"',
+      error: { code: 'TOOL_NOT_ALLOWED' },
+    });
+    expect(card.error.message).toContain('not wired up for this chat');
+    expect(card.error.message).toContain('nothing was run');
+  });
+
+  it('declined confirmations carry a Declined label and honest message', async () => {
+    aiChatWithToolsMock.mockResolvedValue({
+      content: 'Creating the repo.',
+      toolCalls: [
+        { id: 'call_1', name: 'create_repository', arguments: { name: 'demo' } },
+      ],
+    });
+
+    const app = await buildApp('user-1', {
+      prisma: { repository: { findFirst: vi.fn() } },
+    });
+    const chatRes = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Create a repo called demo' }],
+        tools: { enabled: true },
+      },
+    });
+    const cardId = chatRes.json().data.confirmationCards[0].id;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat/confirm',
+      payload: { confirmationId: cardId, approved: false },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.toolExecution).toMatchObject({
+      toolName: 'create_repository',
+      status: 'failed',
+      label: 'Declined: Create repository "demo" (private)',
+      error: { code: 'CONFIRMATION_DENIED' },
+    });
   });
 });

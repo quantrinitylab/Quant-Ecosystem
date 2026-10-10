@@ -90,6 +90,14 @@ export interface ToolExecutionCard {
   /** `pending-confirmation`: the call was NOT executed — it is waiting on the
    * user's explicit approval (see `confirmationId` / POST /ai/chat/confirm). */
   status: 'succeeded' | 'failed' | 'pending-confirmation';
+  /**
+   * Short human label for the visible agent timeline, e.g.
+   * `Created repository "demo"` / `Create repository "demo" (private)` for a
+   * pending proposal / `Attempted "deploy_agent"` for a failed call. Every
+   * card the route emits must carry one — the chat client renders it verbatim
+   * as the step's title (§9 "Live Visible Agent Mode").
+   */
+  label: string;
   input: Record<string, unknown>;
   result?: Record<string, unknown>;
   error?: { code: string; message: string };
@@ -417,6 +425,7 @@ async function executeAutonomousTool(
         toolName,
         callId,
         status: 'succeeded',
+        label: describeExecutedAction(toolName, args),
         input: args,
         result: {
           id: repo.id,
@@ -544,6 +553,7 @@ async function executeAutonomousTool(
         toolName,
         callId,
         status: 'succeeded',
+        label: describeExecutedAction(toolName, args),
         input: args,
         result: {
           repoId: repo.id,
@@ -585,6 +595,7 @@ async function executeAutonomousTool(
           toolName,
           callId,
           status: 'succeeded',
+          label: describeExecutedAction(toolName, args),
           input: args,
           result: {
             repoId: repo.id,
@@ -607,10 +618,16 @@ async function executeAutonomousTool(
 
     throw new Error(`Unknown tool "${toolName}"`);
   } catch (error: any) {
+    const failedDef = findToolDefinition(toolName);
     return {
       toolName,
       callId,
       status: 'failed',
+      // The label names what was ATTEMPTED — the error icon + message below
+      // carry the failure, so the timeline never reads as a success.
+      label: failedDef
+        ? `Attempted: ${describePlannedAction(failedDef, args)}`
+        : `Attempted "${toolName}"`,
       input: args,
       error: {
         code: error.code || 'EXECUTION_FAILED',
@@ -783,6 +800,31 @@ function describePlannedAction(
   return `Run ${def.name}`;
 }
 
+/**
+ * Past-tense human label for a card whose tool actually ran (§9 visible
+ * agent timeline). The failed-call equivalent is the attempted action:
+ * callers pair `describePlannedAction` with `Attempted "…"` so the label
+ * always names what the agent tried, never claims it succeeded.
+ */
+function describeExecutedAction(
+  toolName: string,
+  args: Record<string, unknown>,
+): string {
+  const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+  if (toolName === 'create_repository') {
+    return `Created repository "${str(args.name) || '(unnamed)'}"`;
+  }
+  if (toolName === 'commit_file') {
+    const branch = str(args.branch) || 'main';
+    return `Committed "${str(args.path) || '(no path)'}" to ${str(args.repoId) || '(unknown repo)'} (${branch})`;
+  }
+  if (toolName === 'read_file_blob') {
+    const ref = str(args.ref) || 'main';
+    return `Read "${str(args.path) || '(no path)'}" from ${str(args.repoId) || '(unknown repo)'} (${ref})`;
+  }
+  return `Ran ${toolName}`;
+}
+
 export default async function aiChatRoutes(fastify: FastifyInstance) {
   fastify.get('/chat/health', async (_request, reply) => {
     if (!isAIConfigured()) {
@@ -893,10 +935,14 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
               toolName: toolCall.name,
               callId,
               status: 'failed',
+              label: `Attempted "${toolCall.name}"`,
               input: toolCall.arguments,
               error: {
                 code: 'TOOL_NOT_ALLOWED',
-                message: `Tool '${toolCall.name}' is not in the allowed tools list`,
+                // §9 honest unwired state: a plain "not wired up" statement the
+                // chat client can show verbatim — no hallucination, no claim
+                // the action ran.
+                message: `"${toolCall.name}" is not wired up for this chat — nothing was run.`,
               },
               durationMs: 0,
             });
@@ -909,10 +955,11 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
               toolName: toolCall.name,
               callId,
               status: 'failed',
+              label: `Attempted "${toolCall.name}"`,
               input: toolCall.arguments,
               error: {
                 code: 'UNKNOWN_TOOL',
-                message: `Unknown tool "${toolCall.name}"`,
+                message: `"${toolCall.name}" is not wired yet — nothing was run.`,
               },
               durationMs: 0,
             });
@@ -926,12 +973,13 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
               toolName: def.name,
               callId,
               status: 'failed',
+              label: `Attempted "${def.name}"`,
               input: toolCall.arguments,
               error: {
                 code: 'NOT_WIRED',
                 message: `${def.name} is not wired yet${
                   def.notWiredReason ? ` — ${def.notWiredReason}` : ''
-                }`,
+                } — nothing was run.`,
               },
               durationMs: 0,
             });
@@ -954,6 +1002,7 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
               toolName: def.name,
               callId,
               status: 'pending-confirmation',
+              label: describePlannedAction(def, args),
               input: args,
               confirmationId: pending.id,
               durationMs: 0,
@@ -1068,10 +1117,14 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
     // Consume before acting: exactly one decision per confirmation.
     consumePendingConfirmation(confirmationId);
 
+    const deniedDef = findToolDefinition(pending.toolName);
     const deniedCard = (code: string, message: string): ToolExecutionCard => ({
       toolName: pending.toolName,
       callId: pending.callId,
       status: 'failed',
+      label: deniedDef
+        ? `Declined: ${describePlannedAction(deniedDef, pending.args as Record<string, unknown>)}`
+        : `Declined "${pending.toolName}"`,
       input: pending.args,
       error: { code, message },
       durationMs: 0,

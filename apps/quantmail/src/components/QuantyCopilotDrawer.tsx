@@ -12,6 +12,14 @@ import { apiClient } from '../services/api-client';
 import { useUndoSend } from './UndoSendCountdownBar';
 import type { Email } from '../types';
 import { useI18n } from '../i18n';
+import { QuantyToolTimeline } from './QuantyToolTimeline';
+import { QuantyConfirmationCard } from './QuantyConfirmationCard';
+import {
+  isToolConfirmationCard,
+  isToolExecutionCard,
+  type AiChatToolConfirmationCard,
+  type AiChatToolExecutionCard,
+} from './quanty-agent-cards';
 
 export interface QuantyEmailAction {
   to?: string;
@@ -281,9 +289,26 @@ interface ChatFailure {
   retryable: boolean;
 }
 
-type ChatTurn = { role: 'user' | 'assistant'; text: string };
+type ChatTurn = {
+  role: 'user' | 'assistant';
+  text: string;
+  /**
+   * Visible agent mode (§9): tool runs and confirmation cards from the
+   * ai-chat native dispatch for this turn. Rendered under the assistant
+   * message as the activity timeline + generic confirmation cards.
+   */
+  toolExecutions?: AiChatToolExecutionCard[];
+  confirmationCards?: AiChatToolConfirmationCard[];
+};
 
-type ChatResult = { ok: true; message: string } | { ok: false; failure: ChatFailure };
+type ChatResult =
+  | {
+      ok: true;
+      message: string;
+      toolExecutions: AiChatToolExecutionCard[];
+      confirmationCards: AiChatToolConfirmationCard[];
+    }
+  | { ok: false; failure: ChatFailure };
 
 /**
  * Shape a transcript into a history a provider will accept.
@@ -340,17 +365,40 @@ async function requestQuanty(
         messages: buildHistory(turns),
         intent,
         ...(Object.keys(context).length > 0 ? { context } : {}),
+        // Visible agent mode (§9): the native tool dispatch is what lets
+        // Quanty act from this chat. Read-only tools execute inside the turn
+        // and come back as timeline steps; anything state-changing comes back
+        // as a confirmation card and runs only after the user's explicit
+        // Confirm (POST /ai/chat/confirm). Nothing on this path auto-executes.
+        tools: { enabled: true, maxSteps: 2 },
       }),
     });
 
     const payload = (await response.json().catch(() => null)) as {
       success?: boolean;
-      data?: { message?: string };
+      data?: {
+        message?: string;
+        toolExecutions?: unknown;
+        confirmationCards?: unknown;
+      };
       error?: { code?: string; message?: string };
     } | null;
 
-    if (response.ok && payload?.success && payload.data?.message) {
-      return { ok: true, message: payload.data.message };
+    if (response.ok && payload?.success) {
+      const data = payload.data;
+      if (typeof data?.message === 'string') {
+        // Guard the arrays: a malformed card must never crash the drawer.
+        return {
+          ok: true,
+          message: data.message,
+          toolExecutions: Array.isArray(data.toolExecutions)
+            ? data.toolExecutions.filter(isToolExecutionCard)
+            : [],
+          confirmationCards: Array.isArray(data.confirmationCards)
+            ? data.confirmationCards.filter(isToolConfirmationCard)
+            : [],
+        };
+      }
     }
 
     if (response.status === 401) {
@@ -614,7 +662,16 @@ export function QuantyCopilotDrawer({
       : unwrapToolCallResponse(result.message);
     if (emailDraft) setPendingEmailDraft(emailDraft);
 
-    const finalMsgs: ChatTurn[] = [...turns, { role: 'assistant', text: assistantText }];
+    const finalMsgs: ChatTurn[] = [
+      ...turns,
+      {
+        role: 'assistant',
+        text: assistantText,
+        // Visible agent mode (§9): the action layer renders under this message.
+        toolExecutions: result.toolExecutions,
+        confirmationCards: result.confirmationCards,
+      },
+    ];
     setMessages(finalMsgs);
     quantyReact('ai:answered');
     saveCurrentConversation(finalMsgs);
@@ -1050,6 +1107,22 @@ export function QuantyCopilotDrawer({
                     >
                       <p className="whitespace-pre-wrap">{m.text}</p>
 
+                      {/*
+                        Visible agent mode (§9): what Quanty did this turn.
+                        The tool timeline renders from the ai-chat response —
+                        per-step live streaming is out of scope because ai/chat
+                        is a synchronous request/response. Generic confirmation
+                        cards (anything non-read-only) resolve via
+                        POST /ai/chat/confirm with explicit Confirm/Cancel.
+                      */}
+                      {m.role === 'assistant' && m.toolExecutions && m.toolExecutions.length > 0 && (
+                        <QuantyToolTimeline executions={m.toolExecutions} />
+                      )}
+                      {m.role === 'assistant' &&
+                        m.confirmationCards?.map((card) => (
+                          <QuantyConfirmationCard key={card.id} card={card} />
+                        ))}
+
                       {m.role === 'assistant' && onApplyAction && (
                         <button
                           type="button"
@@ -1147,7 +1220,7 @@ export function QuantyCopilotDrawer({
                       <span className="size-1.5 rounded-full bg-[var(--quant-primary)] animate-bounce" />
                       <span className="size-1.5 rounded-full bg-[var(--quant-primary)] animate-bounce [animation-delay:0.15s]" />
                       <span className="size-1.5 rounded-full bg-[var(--quant-primary)] animate-bounce [animation-delay:0.3s]" />
-                      <span className="ml-1 text-[11px] text-[var(--quant-muted-foreground)]">Quanty is thinking…</span>
+                      <span className="ml-1 text-[11px] text-[var(--quant-muted-foreground)]">Quanty is working…</span>
                     </div>
                   </div>
                 )}
