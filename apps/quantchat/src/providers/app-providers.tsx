@@ -8,7 +8,6 @@ import {
   QuantSidekick,
 } from '@quant/shared-ui';
 import type { CommandPaletteItem } from '@quant/shared-ui';
-import { RealtimeProvider } from './realtime-provider';
 import { MicroInteractionProvider } from './MicroInteractionProvider';
 import { AuthGate } from './auth-gate';
 
@@ -35,16 +34,18 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider defaultTheme="system">
       <QuantSidekickProvider>
-        <RealtimeProvider>
-          <MicroInteractionProvider>
-            <AuthGate>{children}</AuthGate>
-            <CommandPaletteUI
-              isOpen={commandPaletteOpen}
-              onClose={() => setCommandPaletteOpen(false)}
-              commands={commands}
-            />
-          </MicroInteractionProvider>
-        </RealtimeProvider>
+        {/* QM-UIUX-060: the dead RealtimeProvider (`/ws`) is gone. Realtime
+            consumers now ride the shared `chatSocket` singleton (`/ws/chat`)
+            directly — each hook/component acquires/releases the singleton's
+            refcounted connection itself, so no provider wrapper is needed. */}
+        <MicroInteractionProvider>
+          <AuthGate>{children}</AuthGate>
+          <CommandPaletteUI
+            isOpen={commandPaletteOpen}
+            onClose={() => setCommandPaletteOpen(false)}
+            commands={commands}
+          />
+        </MicroInteractionProvider>
         <QuantSidekick />
       </QuantSidekickProvider>
     </ThemeProvider>
