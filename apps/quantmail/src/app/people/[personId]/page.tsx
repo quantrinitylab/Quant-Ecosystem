@@ -28,8 +28,6 @@ export default function PersonPage() {
   const router = useRouter();
   const { user } = useAuth();
   const currentUserEmail = user?.email ?? '';
-  const router = useRouter();
-  const mutations = useMailMutations();
   const mutations = useMailMutations();
 
   const rawPersonId = typeof params?.personId === 'string' ? params.personId : '';
