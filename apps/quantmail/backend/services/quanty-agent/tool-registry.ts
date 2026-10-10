@@ -15,6 +15,8 @@
 //     - drive.* — from `./tools/drive-tools.ts` (real Drive AI services:
 //                 search, suggest-destination, summarize, organize)
 //                 registered when the caller provides an AIEngine
+//     - contacts.* — adapted from `./tools/contacts-tools.ts` (real
+//                 ContactService: search, get, add, update)
 //
 //   Every tool id is namespaced (`mail.searchEmails`, `git.listRepos`, ...).
 //   Every side-effect flows through the QuantMail backend's scoped services —
@@ -38,6 +40,9 @@ import { ToolRegistry } from '@quant/ai';
 import type { AITool, AIToolParameter, AssistantContext } from '@quant/ai';
 import { buildQuantyMailTools } from './tools/mail-tools';
 import type { QuantyMailTool, QuantyMailToolsDeps, MailAuditEntry } from './tools/mail-tools';
+import { buildQuantyContactsTools } from './tools/contacts-tools';
+import type { QuantyContactsTool, QuantyContactsToolsDeps, ContactsAuditEntry } from './tools/contacts-tools';
+import { ContactService } from '../contact.service';
 import { buildCompositeMailTools } from './tools/composite-mail-tools';
 import { GIT_TOOLS } from './tools/git-tools';
 import type { QuantyTool as GitQuantyTool, GitToolsPrisma } from './tools/git-tools';
@@ -208,6 +213,33 @@ function adaptGitTool(tool: GitQuantyTool): QuantyTool {
   };
 }
 
+/** Adapt one real contacts tool into an engine tool (`contacts.*`). */
+function adaptContactsTool(tool: QuantyContactsTool): QuantyTool {
+  const aiTool: AITool = tool;
+  return {
+    name: `contacts.${snakeToCamel(tool.name)}`,
+    app: 'contacts',
+    description: tool.description,
+    parameters: Object.fromEntries(
+      Object.entries(tool.parameters).map(([k, v]) => [k, toCoreParam(v)]),
+    ),
+    // requiresConfirmation is the consent gate: add_contact, update_contact.
+    destructive: tool.requiresConfirmation === true,
+    reversible: tool.reversible === true,
+    handler: async (args, ctx): Promise<QuantyToolResult> => {
+      const res = await aiTool.handler(args, assistantContextFor(ctx));
+      return {
+        ok: res.success,
+        data: res.data,
+        summary: res.success
+          ? res.displayMessage
+          : res.error || res.displayMessage || 'Tool failed',
+        reversible: tool.reversible === true,
+      };
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Real tool registration — replaces the old stub registerBuiltinTools()
 // ---------------------------------------------------------------------------
@@ -221,14 +253,25 @@ function adaptGitTool(tool: GitQuantyTool): QuantyTool {
  * drive.organizeFile) are registered when deps.aiEngine is provided — without
  * it they are skipped rather than stubbed.
  *
+ * Contacts tools (contacts.searchContacts, contacts.getContact,
+ * contacts.addContact, contacts.updateContact) are always registered; they are
+ * backed by the real ContactService, userId-scoped and audited.
+ *
  * After this call the planner's rules resolve to live implementations:
- * `mail.archiveUnread`, `mail.sendEmail`, `git.listRepos`, `drive.searchFiles`, ...
+ * `mail.archiveUnread`, `mail.sendEmail`, `git.listRepos`, `drive.searchFiles`,
+ * `contacts.searchContacts`, ...
  */
 export function registerRealTools(deps: QuantyMailToolsDeps): void {
   const mailTools = buildQuantyMailTools(deps);
   registerTools(mailTools.map(adaptMailTool));
   registerTools(GIT_TOOLS.map(adaptGitTool));
   registerTools(buildCompositeMailTools(deps));
+  registerTools(
+    buildQuantyContactsTools({
+      prisma: deps.prisma,
+      contactService: new ContactService(deps.prisma),
+    }).map(adaptContactsTool),
+  );
   if (deps.aiEngine) {
     registerTools(
       buildDriveTools({
@@ -239,4 +282,4 @@ export function registerRealTools(deps: QuantyMailToolsDeps): void {
   }
 }
 
-export type { QuantyMailToolsDeps, MailAuditEntry };
+export type { QuantyMailToolsDeps, MailAuditEntry, QuantyContactsToolsDeps, ContactsAuditEntry };

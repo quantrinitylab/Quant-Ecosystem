@@ -106,12 +106,22 @@ describe('quanty-agent tool-registry', () => {
     ]) {
       expect(names, `expected real tool ${n}`).toContain(n);
     }
-    // Nothing from the old stub era: calendar/contacts have no tools yet.
-    expect(names.some((n) => n.startsWith('calendar.') || n.startsWith('contacts.'))).toBe(false);
+    // Contacts tools (real ContactService-backed implementations).
+    for (const n of [
+      'contacts.searchContacts',
+      'contacts.getContact',
+      'contacts.addContact',
+      'contacts.updateContact',
+    ]) {
+      expect(names, `expected real tool ${n}`).toContain(n);
+    }
+    // Calendar has no tools yet — nothing from the old stub era.
+    expect(names.some((n) => n.startsWith('calendar.'))).toBe(false);
     // Drive tools register only when an AIEngine is provided (QM-M39-011);
     // mockDeps() omits it, so none are registered here.
     expect(names.some((n) => n.startsWith('drive.'))).toBe(false);
-    expect(listTools()).toHaveLength(12 + 5 + 11);
+    expect(listToolsByApp('contacts')).toHaveLength(4);
+    expect(listTools()).toHaveLength(12 + 5 + 11 + 4);
   });
 
   it('registerRealTools registers the REAL drive tools when an AIEngine is provided (QM-M39-011)', () => {
@@ -127,7 +137,8 @@ describe('quanty-agent tool-registry', () => {
       expect(names, `expected real tool ${n}`).toContain(n);
     }
     expect(listToolsByApp('drive')).toHaveLength(5);
-    expect(listTools()).toHaveLength(12 + 5 + 11 + 5);
+    expect(listToolsByApp('contacts')).toHaveLength(4);
+    expect(listTools()).toHaveLength(12 + 5 + 11 + 5 + 4);
     // The move tool is destructive: the agent layer must confirm first.
     expect(getTool('drive.organizeFile')?.destructive).toBe(true);
     // Read-only drive tools run without a prompt.
@@ -144,10 +155,15 @@ describe('quanty-agent tool-registry', () => {
     expect(getTool('mail.deleteThread')?.destructive).toBe(true);
     expect(getTool('mail.deleteSpam')?.destructive).toBe(true);
     expect(getTool('git.mergePr')?.destructive).toBe(true);
+    // These require the user to tap "Haan, karo" before the executor runs them.
+    expect(getTool('contacts.addContact')?.destructive).toBe(true);
+    expect(getTool('contacts.updateContact')?.destructive).toBe(true);
     // Read-only tools run without a prompt.
     expect(getTool('mail.searchEmails')?.destructive).toBe(false);
     expect(getTool('mail.listUnread')?.destructive).toBe(false);
     expect(getTool('git.listRepos')?.destructive).toBe(false);
+    expect(getTool('contacts.searchContacts')?.destructive).toBe(false);
+    expect(getTool('contacts.getContact')?.destructive).toBe(false);
   });
 
   it('every registered tool has a real async handler', async () => {

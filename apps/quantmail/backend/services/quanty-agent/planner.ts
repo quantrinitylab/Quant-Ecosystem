@@ -47,6 +47,13 @@ interface Rule {
    * Applied to every step of the rule when it fires.
    */
   argsFrom?: (command: string) => Record<string, unknown>;
+  /**
+   * Optional narrowness gate: evaluated on the raw command after the keyword
+   * match. Lets a deliberately broad rule (e.g. `add`, which also prefixes
+   * `address`) fire only when the command actually carries what the tool
+   * needs (e.g. an email-shaped token) instead of planning against garbage.
+   */
+  guard?: (command: string) => boolean;
 }
 
 /** Words that carry no meaning in a drive command; stripped before arg extraction. */
@@ -97,8 +104,7 @@ function gitArgRemainder(command: string): string {
  * narrow — unknown commands fall through to the unmatched plan instead of
  * guessing a destructive action.
  */
-const RULES: Rule[] = [
-  {
+const RULES: Rule[] = [  {
     match: ['archive', 'unread'],
     summary: 'Archive all unread emails',
     steps: [{ toolName: 'mail.archiveUnread', label: 'Archiving unread emails', args: {} }],
@@ -202,20 +208,96 @@ const RULES: Rule[] = [
     steps: [{ toolName: 'drive.organizeFile', label: 'Moving file to suggested folder', args: {} }],
     argsFrom: (command) => ({ fileName: driveArgRemainder(command) }),
   },
+  // Contacts tools: real ContactService-backed tools (search, add). Rules stay
+  // narrow and keyword-based; get/update take a contactId, which has no
+  // reliable NL form, so they are left to the LLM planner rather than guessed.
+  {
+    match: ['find', 'contact'],
+    summary: 'Find a contact',
+    steps: [{ toolName: 'contacts.searchContacts', label: 'Searching contacts', args: {} }],
+    argsFrom: (command) => ({ q: contactsArgRemainder(command) }),
+  },
+  {
+    match: ['search', 'contact'],
+    summary: 'Search contacts',
+    steps: [{ toolName: 'contacts.searchContacts', label: 'Searching contacts', args: {} }],
+    argsFrom: (command) => ({ q: contactsArgRemainder(command) }),
+  },
+  {
+    match: ['add'],
+    summary: 'Add a contact (asks for confirmation first)',
+    steps: [{ toolName: 'contacts.addContact', label: 'Adding contact', args: {} }],
+    argsFrom: parseAddContactArgs,
+    // `add` also prefixes `address`/`added` — require an email-shaped token so
+    // "show my address book" and friends fall through to unmatched instead of
+    // planning a contact add against garbage.
+    guard: (command) => EMAIL_TOKEN_RE.test(command),
+  },
 ];
+
+/** Words that carry no meaning in a contacts command; stripped before arg extraction. */
+const CONTACTS_STOPWORDS = new Set([
+  'find', 'search', 'contact', 'contacts', 'add', 'new', 'create',
+  'my', 'me', 'for', 'the', 'a', 'an', 'about', 'named', 'called',
+  'with', 'please', 'show', 'get', 'details', 'detail', 'info', 'of', 'to',
+]);
+
+/** An email-shaped token, e.g. priya@example.com — used by the add-contact guard. */
+const EMAIL_TOKEN_RE = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/;
+
+/** Everything left after removing trigger/stop words — the contacts search query. */
+function contactsArgRemainder(command: string): string {
+  // NOTE: works on the raw command (not normalize()), like driveArgRemainder,
+  // so queries keep their punctuation.
+  const remainder = command
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter((w) => w && !CONTACTS_STOPWORDS.has(w.replace(/[?!.,]+$/g, '')))
+    .join(' ')
+    .trim();
+  return remainder.replace(/[?!.,]+$/g, '');
+}
+
+/**
+ * Parse "add Priya Sharma, priya@example.com" into add_contact args:
+ * the email-shaped token becomes `email`, everything else that is not a
+ * trigger/stop word becomes the name. A phone-only command has no reliable
+ * shape, so phone stays empty and the tool honestly errors asking for one —
+ * never a guess.
+ */
+function parseAddContactArgs(command: string): Record<string, unknown> {
+  const emailMatch = command.match(EMAIL_TOKEN_RE);
+  const email = emailMatch ? emailMatch[0] : '';
+  const name = command
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .map((w) => w.replace(/[,;?!."']+$/g, '').replace(/^["']+/g, ''))
+    .filter((w) => {
+      if (!w) return false;
+      if (email && w === email.toLowerCase()) return false;
+      return !CONTACTS_STOPWORDS.has(w);
+    })
+    .join(' ')
+    .trim();
+  return email ? { name, email } : { name };
+}
 
 /**
  * Rule-based planner: keyword matching over the commands above. Every rule
- * targets a REAL registered tool; calendar/contacts commands are deliberately
- * absent — those tools don't exist yet, so the planner honestly says it
- * couldn't understand rather than planning against a stub.
+ * targets a REAL registered tool; calendar commands are deliberately absent —
+ * those tools don't exist yet, so the planner honestly says it couldn't
+ * understand rather than planning against a stub.
  */
 export class RuleBasedPlanner implements QuantyPlanner {
   plan(command: string): QuantyPlan {
     const norm = ` ${normalize(command)} `;
     for (const rule of RULES) {
       const hits = rule.match.every((kw) => norm.includes(` ${kw}`));
-      if (hits) {
+      if (hits && (!rule.guard || rule.guard(command))) {
         const steps = rule.argsFrom
           ? rule.steps.map((s) => ({ ...s, args: rule.argsFrom!(command) }))
           : rule.steps;
@@ -223,7 +305,7 @@ export class RuleBasedPlanner implements QuantyPlanner {
       }
     }
     return {
-      summary: `I couldn't understand "${command}". Try: archive unread, mark all read, star important, summarize latest, clean inbox, delete spam, list repos, show open PRs in <repo>, summarize PR <n> in <repo>, find files <query>, read file <name>, summarize file <name>, where should <name> go, organize file <name>, move <name> to its folder.`,
+      summary: `I couldn't understand "${command}". Try: archive unread, mark all read, star important, summarize latest, clean inbox, delete spam, list repos, show open PRs in <repo>, summarize PR <n> in <repo>, find files <query>, read file <name>, summarize file <name>, where should <name> go, organize file <name>, move <name> to its folder, find <name>'s contact, search contacts <query>, add <name>, <email>.`,
       steps: [],
       unmatched: true,
     };
