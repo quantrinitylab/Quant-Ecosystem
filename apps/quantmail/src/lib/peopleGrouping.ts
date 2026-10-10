@@ -33,8 +33,11 @@
  *   newsletter / donotreply. It does NOT run the heuristic classifier: a row
  *   claiming "Updates" must be grounded in what the message declares or an
  *   obviously machine address, not in a guess about its content.
- * - `groups` when the conversation has more than one distinct other
- *   participant; otherwise `log`.
+ * - `groups` only when the conversation has NO 1:1 messages at all (every
+ *   message has 2+ other participants). A single group mail in a bucket of
+ *   1:1 history does not hijack the row: it stays in `log` with
+ *   `hasGroupMessages` set for the UI indicator.
+ * - `log` otherwise.
  *
  * A plain `.ts` module: `tsconfig.backend.json` typechecks `src/**\/*.ts` with no
  * `jsx` option, so nothing here may import a `.tsx` file.
@@ -63,6 +66,13 @@ export interface PersonConversation {
   world: ConversationWorld;
   /** Distinct other participants (addresses, lowercase) — for group avatars. */
   participantEmails: string[];
+  /**
+   * True when the bucket contains at least one group message (a message with
+   * more than one other participant). The row stays in `log` when it also has
+   * 1:1 history — one group mail must not hijack the whole 1:1 row into
+   * `groups` — and the UI uses this for a group indicator.
+   */
+  hasGroupMessages: boolean;
 }
 
 const SELF_KEY = 'self';
@@ -307,11 +317,37 @@ function displayNameFor(
 }
 
 /**
+ * Whether a single message involves more than one other person.
+ *
+ * Counts distinct non-own addresses across from/to/cc. A 1:1 message has
+ * exactly one; anything more is a group message. Used so one group mail in
+ * a bucket of 1:1 history does not flip the whole row's world.
+ */
+function isGroupMessage(email: Email, currentUserEmail: string): boolean {
+  const others = new Set<string>();
+  const add = (address?: string | null) => {
+    const addr = normalizeAddress(address);
+    if (addr && addr.includes('@') && !isOwnAddress(addr, currentUserEmail)) others.add(addr);
+  };
+  add(email.from?.email);
+  for (const recipient of recipientsOf(email)) add(recipient.email);
+  return others.size > 1;
+}
+
+/**
  * Which world a conversation belongs to — see the module doc for why the
  * `updates` test is deliberately narrow (declared category or an obviously
  * machine sender, never a content guess).
+ *
+ * A bucket with ANY 1:1 history stays in `log`: a single group mail must not
+ * hijack the person's whole 1:1 row into `groups`. Only a purely group
+ * bucket (no 1:1 messages at all) lands in `groups`.
  */
-function classifyWorld(lastMessage: Email, participantEmails: string[]): ConversationWorld {
+function classifyWorld(
+  lastMessage: Email,
+  hasDirectMessages: boolean,
+  hasGroupMessages: boolean,
+): ConversationWorld {
   const declared =
     lastMessage.aiCategory && lastMessage.aiCategory !== 'primary'
       ? lastMessage.aiCategory
@@ -319,7 +355,8 @@ function classifyWorld(lastMessage: Email, participantEmails: string[]): Convers
   if (declared === 'promotions' || declared === 'updates') return 'updates';
   const local = normalizeAddress(lastMessage.from?.email).split('@')[0] || '';
   if (/^(noreply|no-reply|donotreply|do-not-reply|newsletter)/i.test(local)) return 'updates';
-  return participantEmails.length > 1 ? 'groups' : 'log';
+  if (hasDirectMessages) return 'log';
+  return hasGroupMessages ? 'groups' : 'log';
 }
 
 /**
@@ -348,6 +385,10 @@ export function groupEmailsByPerson(
     const lastMessage = messages[messages.length - 1];
     const participantEmails = otherParticipants(messages, currentUserEmail);
     const lastMessageFromMe = isFromMe(lastMessage, currentUserEmail);
+    // P1-E: a bucket is "1:1" when at least one message has exactly one
+    // other participant. Group messages never evict that history to Groups.
+    const hasDirectMessages = messages.some((m) => !isGroupMessage(m, currentUserEmail));
+    const hasGroupMessages = messages.some((m) => isGroupMessage(m, currentUserEmail));
     conversations.push({
       personKey,
       name: displayNameFor(personKey, messages, currentUserEmail),
@@ -357,8 +398,9 @@ export function groupEmailsByPerson(
       lastActivityAt: new Date(messageTime(lastMessage)),
       unreadCount: messages.filter((m) => !m.isRead && !isFromMe(m, currentUserEmail)).length,
       lastMessageFromMe,
-      world: classifyWorld(lastMessage, participantEmails),
+      world: classifyWorld(lastMessage, hasDirectMessages, hasGroupMessages),
       participantEmails,
+      hasGroupMessages,
     });
   }
 

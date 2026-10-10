@@ -138,18 +138,41 @@ export function PeopleList({
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2">
                       <span
-                        className={`truncate text-[15px] ${
+                        className={`flex min-w-0 items-center gap-1.5 truncate text-[15px] ${
                           unread ? 'font-semibold text-white' : 'font-normal text-zinc-300'
                         }`}
                       >
-                        {c.name}
+                        <span dir="auto" className="truncate">
+                          {c.name}
+                        </span>
+                        {/* P1-E: this row also contains group messages. */}
+                        {c.hasGroupMessages && (
+                          <svg
+                            className="size-3.5 flex-none text-zinc-500"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-label="Includes group messages"
+                            role="img"
+                          >
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                          </svg>
+                        )}
                       </span>
                       <span className="flex-none text-xs text-zinc-500">
                         {formatRelativeTime(c.lastActivityAt)}
                       </span>
                     </span>
                     <span className="mt-0.5 flex items-center justify-between gap-2">
-                      <span className="truncate text-sm text-zinc-400">{personSnippet(c)}</span>
+                      <span dir="auto" className="truncate text-sm text-zinc-400">
+                        {personSnippet(c)}
+                      </span>
                       {unread && (
                         <span
                           data-testid="unread-count"
