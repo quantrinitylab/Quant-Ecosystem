@@ -445,7 +445,10 @@ Required: recipient resolution, autosave, attachment upload, Drive insertion, si
 Dependencies: QM-WORK-005; QM-QUANTY-003.
 
 ## QM-SCREEN-007 — Search / command palette / universal search
-Status: [ ] TODO
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane-1/audit-qm-screen-007-search
+Audit started: 2026-10-11 ~00:45 IST (lane-1 deep audit loop)
 Required: Mail + Calendar + Drive + Contacts + QuantGit authorization-aware federation, lexical/semantic boundaries, E2EE/local search where applicable, source hydration, stale ACL invalidation, keyboard/mobile UX.
 Dependencies: QM-WORK-006; QM-WORK-009.
 
