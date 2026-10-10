@@ -1242,6 +1242,12 @@ body {
    rather than occupying a permanent band at the top of a phone screen. */
 .mail-pinned-notice { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.5rem 0.45rem; color: #A1A4AC; font-size: 0.625rem; line-height: 1.4; }
 .mail-pinned-notice svg { color: #ffb547; fill: currentColor; }
+/* QM-UIUX-040: the one-time swipe tip. Same measured list header as the
+   pinned notice; it stays until dismissed and is never shown again. */
+.mail-swipe-hint { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.5rem 0.45rem; color: #A1A4AC; font-size: 0.625rem; line-height: 1.4; }
+.mail-swipe-hint > span { flex: 1; }
+.mail-swipe-hint-dismiss { display: grid; place-items: center; width: 1.25rem; height: 1.25rem; flex: none; border-radius: 0.3rem; color: #A1A4AC; font-size: 0.8rem; line-height: 1; }
+.mail-swipe-hint-dismiss:hover { background: var(--quant-surface-elevated); color: var(--quant-foreground); }
 .mail-empty { display: flex; min-height: 100%; align-items: center; justify-content: center; flex-direction: column; padding: 3rem 1.5rem; text-align: center; }.mail-empty-icon { display: grid; width: 3.4rem; height: 3.4rem; place-items: center; margin-bottom: 1.2rem; border: 1px solid rgba(255, 140, 66,.18); border-radius: 1rem; background: var(--quant-accent-faint); color: var(--quant-primary-hover); }.mail-empty-icon svg { width: 1.25rem; height: 1.25rem; }.mail-empty h2 { margin-top: 0.55rem; font-size: 1.45rem; font-weight: 650; letter-spacing: -.045em; }.mail-empty > p:last-of-type { max-width: 18rem; margin-top: 0.6rem; color: var(--quant-muted-foreground); font-size: 0.72rem; line-height: 1.6; }.mail-empty .signal-button { margin-top: 1.15rem; }.mail-error { display: grid; min-height: 100%; place-items: center; }
 /* The count and the sync state, at 8.96px in #57575C, measured 2.69:1 — the least
    legible text on the page, and it is the line that tells you how much mail you
