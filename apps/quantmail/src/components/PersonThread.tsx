@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Email } from '../types';
 import { isFromMe } from '../lib/threading';
 import { formatBytes } from '../lib/format-bytes';
+import { htmlToPlainText } from '../lib/htmlToPlainText';
 import { IdentityAvatar } from './IdentityAvatar';
 import type { ConversationWorld, PersonConversation } from '../lib/peopleGrouping';
 
@@ -39,22 +40,10 @@ const SNIPPET_LENGTH = 160;
 function plainBodyText(message: Email): string {
   const text = (message.bodyText || '').trim();
   if (text) return text;
-  const html = (message.bodyHtml || '').trim();
-  if (!html) return '';
-  // Simple tag strip + entity decode. We render text only — untrusted markup
-  // is never passed to dangerouslySetInnerHTML.
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#0?39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
+  // Untrusted HTML → plain text via the scanner-based sanitizer
+  // (lib/htmlToPlainText): strips all tags without regex, decodes entities
+  // exactly once, and is rendered as React text only — never injected.
+  return htmlToPlainText(message.bodyHtml);
 }
 
 function formatMessageTime(receivedAt: Date): string {
