@@ -2928,6 +2928,9 @@ importers:
       '@quant/quanty-memory':
         specifier: workspace:*
         version: link:../../packages/quanty-memory
+      '@quant/quanty-observability':
+        specifier: workspace:*
+        version: link:../../packages/quanty-observability
       '@quant/quanty-platform':
         specifier: workspace:*
         version: link:../../packages/quanty-platform
