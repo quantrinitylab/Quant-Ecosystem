@@ -1748,7 +1748,9 @@ Validation: source audit on 2026-10-08 against `main` verified the rename handle
 
 ## QM-SCREEN-059 — QuantDrive trash subtree expansion must not silently truncate at 30 levels
 
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-screen-059-drive-trash-depth
 
 Finding: the live Drive trash endpoint uses the shared `folderTree()` helper to expand a folder before soft-deleting its descendants. That helper hard-caps traversal at `MAX_DEPTH = 30` and then returns the visited IDs without signalling that the frontier was truncated. `POST /drive/files/trash` therefore treats a folder with descendants deeper than 30 levels as fully trashed even though the traversal can stop before reaching the deepest folders. The transaction then marks only the returned folder IDs and their files as deleted, while deeper descendants can remain active. The API still returns `{ ok: true }`, so the client has no indication that the requested subtree was only partially moved to Trash.
 
@@ -2076,9 +2078,8 @@ Scope: apps/quantmail/src/lib/ai-error.ts + its tests.
 Dependencies: none.
 
 ## QM-UIUX-091 — Wire a real data-export UI to the QM-BACK-006 export backend
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-091-export-ui
+Status: [x] DONE — PR #765 merged 2026-10-10 (green merge: gate re-run SUCCESS 02:34:27Z, merged 02:36:44Z; staging @97a5c2e6 live-verified health 3/3 + homepages 9/9). First HONEST export UI: DataExportSettings wired to the real backend under /data-lifecycle/exports (202 requested -> build -> inline counts-only manifest; statuses requested|completed|failed; NO download button, NO delivery promise — v1 delivers the manifest inline, a test pins this). Proxy allow-list gained exactly 3 enumerated entries; list re-read from server (no optimistic rows). Note: PR #632 (QM-UIUX-027) removed the FAKE export control; this adds the first real one.
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/765
 Finding: QM-BACK-006 delivered a real backend export center (apps/quantmail/backend/routes/data-lifecycle.ts: POST /exports, POST /exports/:id/build, GET /exports, GET /exports/:id, backed by requestDataExport/completeDataExport/failDataExport with tests), but NO frontend surface references these routes (zero hits in apps/quantmail/src/). Users have no way to request an export even though the backend exists. Found during QM-UIUX-027 verification (2026-10-10).
 Required: a settings/account export control wired through a frontend proxy route to the real /exports endpoints, with honest pending/building/ready/failed states and NO invented timelines or delivery promises. Tests prove the control calls the real endpoints and surfaces failures honestly.
 Scope: apps/quantmail settings/account surface + proxy route.
