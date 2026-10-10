@@ -100,8 +100,16 @@ vi.mock('../hooks/useContactGroups', () => ({
 vi.mock('../hooks/useInbox', () => ({
   useInbox: () => ({ data: undefined, isPending: false }),
 }));
+// STABILITY IS LOAD-BEARING: the real useThreadRealtime returns a
+// useCallback(..., []) sendTyping, so ConversationalThreadView's
+// [threadId, sendTyping] effect runs once. A fresh vi.fn() per render makes
+// that effect re-run on every render; the effect calls setTypingPeers({})
+// unconditionally, so render -> effect -> setState -> render loops forever
+// inside act() and the worker leaks until OOM (CI attempts 1-9). One stable
+// function identity for the whole file is the fix.
+const stableSendTyping = vi.fn();
 vi.mock('../hooks/useThreadRealtime', () => ({
-  useThreadRealtime: () => ({ sendTyping: vi.fn() }),
+  useThreadRealtime: () => ({ sendTyping: stableSendTyping }),
 }));
 vi.mock('../hooks/usePullToRefresh', () => ({
   usePullToRefresh: () => ({ listProps: {}, pullDistance: 0, isRefreshing: false }),
@@ -134,7 +142,6 @@ vi.mock('../lib/quanty/reactions', () => ({
 // previews, summary card) are what makes importing this 3.4k-line component
 // heavy enough to OOM a small vitest worker. Stubbed at the module seam,
 // exactly like the neighbours above.
-vi.mock('../components/EmailSnooze', () => ({ EmailSnooze: () => null }));
 vi.mock('../components/ThreadBubbleGestures', () => ({
   ThreadBubbleShell: ({ children }: { children?: React.ReactNode }) => (
     <>{children}</>
@@ -175,7 +182,7 @@ vi.mock('../lib/markdown', () => ({
   useSafeMarkdownHtml: () => '',
 }));
 
-// --- framer-motion: the real animation engine is the hang/OOM source --------
+// --- framer-motion: heavy import (118s vs 12s locally), NOT the hang source ---
 // Run-9 evidence (gate job 114183252419): the quarantined solo invocation ran
 // 523.75s for 9 tests with testTimeout=60000 and `tests 0ms` — i.e. every
 // test hung into its 60s timeout while the worker leaked ~8 GB and died.
