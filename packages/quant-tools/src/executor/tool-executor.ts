@@ -19,6 +19,12 @@ export class ToolExecutor {
     this.handlers.set(toolId, handler);
   }
 
+  /** True when a live handler is registered — used by the MCP gateway to
+   *  distinguish "declared but not wired yet" tools from executable ones. */
+  hasHandler(toolId: string): boolean {
+    return this.handlers.has(toolId);
+  }
+
   async execute(plan: ToolPlan, context: ToolExecutionContext): Promise<ToolResult[]> {
     const results: ToolResult[] = [];
     const outputs: Map<string, unknown> = new Map();
