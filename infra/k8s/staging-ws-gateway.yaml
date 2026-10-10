@@ -1,0 +1,73 @@
+# WebSocket gateway (staging) — the realtime entrypoint for QuantChat/QuantMail.
+#
+# WHY THIS FILE EXISTS: deploy-staging.yml (target=ws-gateway) can only UPDATE
+# an existing Deployment (`kubectl get deployment/quant-ws-gateway`, then
+# `kubectl set image`). It never creates one, so the first-ever ws-gateway
+# deploy failed with `deployments.apps "quant-ws-gateway" not found`. This
+# manifest bootstraps the Deployment; every later deploy overwrites the image
+# via `kubectl set image deployment/quant-ws-gateway ws-gateway=<ECR digest>`.
+#
+# The image tag below is a placeholder. It is replaced by the deploy workflow
+# on the first run — do NOT hand-edit it to track releases.
+#
+# Probes mirror infra/k8s/ws-gateway-probe-patch.yaml: raw TCP on the WS port
+# (the gateway speaks WebSocket, not HTTP, on 8080). WS_PORT is set explicitly
+# so the port contract is visible next to the probes; the Dockerfile defaults
+# to the same value.
+#
+# No Service and no Ingress yet: nothing routes to the gateway until a frontend
+# target is wired to it. Its only cluster-visible surface is the WS port.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-ws-gateway
+  namespace: quant-staging
+  labels:
+    app: quant-ws-gateway
+spec:
+  replicas: 1
+  strategy:
+    # Single stateful gateway: Recreate avoids two gateways briefly owning the
+    # same client connections during a rollout (same choice as cdc-relay).
+    type: Recreate
+  selector:
+    matchLabels:
+      app: quant-ws-gateway
+  template:
+    metadata:
+      labels:
+        app: quant-ws-gateway
+    spec:
+      containers:
+        - name: ws-gateway
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-ws-gateway:bootstrap-placeholder
+          ports:
+            - containerPort: 8080
+              name: ws
+          envFrom:
+            # JWT_SECRET / JWT_ISSUER / JWT_AUDIENCE and shared non-sensitive
+            # backend env come from here (same shape as the other staging
+            # service manifests).
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: WS_PORT
+              value: '8080'
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
