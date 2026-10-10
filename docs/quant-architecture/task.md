@@ -538,7 +538,7 @@ NOT VERIFIED (needs live/auth): create/edit/detail/RSVP E2E on real data, occurr
 Live evidence: /tmp/lane1-audit/desktop-calendar-009.png + desktop-event-detail-009.png + mobile-event-detail-009.png (all sign-in redirect).
 
 ## QM-SCREEN-010 — Drive home / folders / files / recent / shared
-Status: [ ] TODO
+Status: [~] IN PROGRESS — Owner: LANE-1, Branch: lane1-audit-010
 Required: object metadata, ACLs, uploads/downloads, resumable transfer, previews, favorites, sharing, trash/restore, offline cache, storage pressure, deletion lifecycle.
 Dependencies: QuantDrive architecture and ecosystem resource contract.
 
