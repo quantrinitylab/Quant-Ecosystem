@@ -2085,9 +2085,8 @@ Scope: apps/quantmail settings/account surface + proxy route.
 Dependencies: none (backend exists).
 
 ## QM-UIUX-092 — Delete dead AIMemoryPanel component + useAIMemory hook
-Status: [~] IN_PROGRESS
-Owner: muse-main
-Branch: fix/qm-uiux-092-dead-memory-panel
+Status: [x] DONE — PR #763 merged 2026-10-10 (pure deletion +0/-293: AIMemoryPanel.tsx -179, useAIMemory.ts -114; zero references repo-wide verified incl. dynamic imports; suite baseline-vs-after zero new failures, zero tests lost; tsc error set identical; ESLint clean)
+PR: https://github.com/quantrinitylab/Quant-Ecosystem/pull/763
 Finding: apps/quantmail/src/components/AIMemoryPanel.tsx and its useAIMemory hook have zero importers on current main (verified 2026-10-10 during QM-UIUX-047). The panel was superseded by DriveAiMemorySubView (Drive aimemory tab); its mount was deliberately removed in a1ebad82e. Dead code duplicates live memory logic and drifts.
 Required: delete AIMemoryPanel.tsx and useAIMemory.ts after re-verifying zero references (code + tests); run the full QuantMail suite.
 Scope: apps/quantmail/src/components/AIMemoryPanel.tsx, useAIMemory hook file.
@@ -2099,7 +2098,9 @@ Owner: muse-main
 Branch: fix/qm-uiux-093-thread-more-menu-fake-success
 
 ## QM-UIUX-094 — AI error sanitizers still leak single-word host:port (P2-D39-1)
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-094-sanitizer-hostport
 Finding: zero-defect run-39 (2026-10-10) — the host:port redaction added by PR #751 (QuantChat sanitize-error.ts) and PR #762 (QuantMail ai-error.ts) still leaks single-word/underscore internal host:port shapes (e.g. backend:9000) in upstream error text shown to users. The current regexes require dotted hostnames. Evidence: hidden_files/zero-defect-shift-2026-10-10-0527/ (run-39 FINAL).
 Required: extend the host:port redaction in BOTH copies (apps/quantmail/src/lib/ai-error.ts and apps/quantchat/src/lib/sanitize-error.ts) to cover single-word and underscore hostnames with ports, without over-redacting legitimate user-visible text (times like 9:30, ratios, version strings). Add regression tests in both apps: the new leak shapes fail on current code, pass after the fix; keep the two implementations byte-consistent in behavior.
 Scope: apps/quantmail/src/lib/ai-error.ts + its tests; apps/quantchat/src/lib/sanitize-error.ts + its tests.
