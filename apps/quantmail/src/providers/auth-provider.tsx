@@ -96,13 +96,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cleanupLegacyBrowserTokens();
       clearMemorySession();
       try {
-        // Timeout after 5 seconds — don't hang forever on auth check
-        const timeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Auth timeout')), 5000),
-        );
-        const session = await Promise.race([browserAuthSession.refresh(), timeout]);
+        // One timeout for the refresh, another for the profile load. The
+        // refresh used to be the only raced call — a slow `/oauth/userinfo`
+        // then left the app on "Authenticating..." for up to 30s (the fetch
+        // timeout) because `loadProfile()` was not timeout-bound. Both legs
+        // now fail closed within 5s each, so the gate can never hang the
+        // first visit to an authenticated route.
+        const timeout = (ms: number) =>
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), ms));
+        const session = await Promise.race([browserAuthSession.refresh(), timeout(5000)]);
         if (!active || !session.success || !session.data?.accessToken) return;
-        await loadProfile();
+        await Promise.race([loadProfile(), timeout(5000)]);
       } catch {
         // Auth failed or timed out — go to login
         if (active) clearMemorySession();
