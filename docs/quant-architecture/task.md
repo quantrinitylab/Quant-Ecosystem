@@ -1227,7 +1227,9 @@ Scope: QuantMail backend + frontend.
 Dependencies: QM-UIUX-052 (notifications must exist first).
 
 ## QM-UIUX-054 — Notification engine facade: wire or delete
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-054-notification-facade
 Finding: `NotificationFanout.fanout()` only returns routing decisions — never persists or sends. `InAppNotificationService` has zero instantiations. `server-core` notifications plugin wires singletons nothing invokes. ws-gateway `'notifications'` channel has zero publishers. ~15 files of dead infrastructure. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/notif-backend-audit.md`.
 Required: wire the engine into the real path (QM-UIUX-052) or delete the dead files.
 Scope: notification engine files.
