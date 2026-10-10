@@ -2503,6 +2503,12 @@ export default function InboxPage() {
       : 'Your Inbox';
 
   const heroSummary = useMemo(() => {
+    // SIA-P1-1: "caught up" is a true-zero state only. Conversations on screen
+    // with zero unread are "all read", never "completely caught up".
+    // While the pool is loading/searching (or errored) it is empty by
+    // definition — claiming "caught up" then would contradict the rows the
+    // moment they arrive, so the hero stays silent until the data is real.
+    if (isLoading || isSearching || error) return '';
     const total = activeThreadPool.length;
     const conversations = `${total} conversation${total === 1 ? '' : 's'}`;
     const unread = `${unreadCount} unread message${unreadCount === 1 ? '' : 's'}`;
@@ -2521,7 +2527,7 @@ export default function InboxPage() {
     if (unreadCount > 0) return `${unread} waiting for review.`;
     if (total === 0) return 'You are completely caught up.';
     return `${conversations}, all read.`;
-  }, [activeThreadPool, debouncedQuery, showArchivedView, unreadCount]);
+  }, [activeThreadPool, debouncedQuery, showArchivedView, unreadCount, isLoading, isSearching, error]);
 
   const toggleSelect = useCallback(
     (id: string, event?: React.MouseEvent | null) => {
