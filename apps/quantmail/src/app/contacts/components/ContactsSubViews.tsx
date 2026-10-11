@@ -229,7 +229,7 @@ export function VipContactsSubView({
                     e.stopPropagation();
                     onCall(contact);
                   }}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-[#38BDF8]/60 bg-[#0E2C48] py-2 text-xs font-bold text-[#38BDF8] hover:bg-[#133A5E] hover:border-[#38BDF8] transition-colors"
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)] bg-[#431E0E] py-2 text-xs font-bold text-[var(--app-accent)] hover:bg-[#5A2813] hover:border-[var(--app-accent)] transition-colors"
                 >
                   <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
@@ -342,7 +342,7 @@ export function CompaniesSubView({
       {/* Companies Header Hero */}
       <div className="rounded-2xl border border-[#1F293D] bg-gradient-to-r from-[#111827] to-[#0D131F] p-5 shadow-lg">
         <div className="flex items-center gap-4">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--quant-info)] to-[#1D4ED8] text-white shadow-md shadow-[var(--quant-info)]/20">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--app-accent)] to-[color-mix(in_srgb,var(--app-accent),black_30%)] text-white shadow-md shadow-[color-mix(in_srgb,var(--app-accent)_20%,transparent)]">
             <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <rect width="16" height="20" x="4" y="2" rx="2" ry="2" />
               <path d="M9 22v-4h6v4" />
@@ -358,7 +358,7 @@ export function CompaniesSubView({
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold text-white tracking-wide">Companies</h2>
               {companyGroups.length > 0 && (
-                <span className="rounded-md border border-[var(--quant-info)]/80 bg-[#1E3A8A]/50 px-2 py-0.5 text-[10px] font-bold text-[#93C5FD] tracking-wider uppercase">
+                <span className="rounded-md border border-[color-mix(in_srgb,var(--app-accent)_80%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_30%,black)]/50 px-2 py-0.5 text-[10px] font-bold text-[var(--app-accent)] tracking-wider uppercase">
                   {companyGroups.length} COMPANIES
                 </span>
               )}
@@ -389,7 +389,7 @@ export function CompaniesSubView({
               {/* Company Header Row */}
               <div className="flex items-center justify-between pb-3.5 border-b border-[#262C3A]">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-xl bg-[#1E2433] border border-[#333D52] text-[#38BDF8]">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-[#1E2433] border border-[#333D52] text-[var(--app-accent)]">
                     <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <rect width="16" height="20" x="4" y="2" rx="2" ry="2" />
                       <path d="M9 22v-4h6v4" />
@@ -418,7 +418,7 @@ export function CompaniesSubView({
                     <div
                       key={member.id || member.email}
                       onClick={() => onInspect(member)}
-                      className="flex items-center justify-between rounded-xl border border-[#1E2433] bg-[#10131B] p-3 hover:border-[#38BDF8]/40 hover:bg-[#141A24] transition-all cursor-pointer"
+                      className="flex items-center justify-between rounded-xl border border-[#1E2433] bg-[#10131B] p-3 hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[#141A24] transition-all cursor-pointer"
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div
@@ -450,7 +450,7 @@ export function CompaniesSubView({
                               e.stopPropagation();
                               onCall(member);
                             }}
-                            className="flex size-7 items-center justify-center rounded-lg border border-[#38BDF8]/40 bg-[#0E2A40] text-[#38BDF8] hover:bg-[#123652] transition-colors"
+                            className="flex size-7 items-center justify-center rounded-lg border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] bg-[#3F1E0E] text-[var(--app-accent)] hover:bg-[#522712] transition-colors"
                             title="Call"
                           >
                             <svg className="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -558,9 +558,9 @@ export function DedupWizardSubView({
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Duplicate Cleaner Summary Hero Card */}
-      <div className="rounded-2xl border border-[#0EA5E9]/50 bg-gradient-to-r from-[#101826] to-[#0A121D] p-5 shadow-lg">
+      <div className="rounded-2xl border border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] bg-gradient-to-r from-[#101826] to-[#0A121D] p-5 shadow-lg">
         <div className="flex items-start gap-4">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#0EA5E9] to-[#10B981] text-white shadow-md shadow-[#0EA5E9]/20">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--app-accent)] to-[color-mix(in_srgb,var(--app-accent),black_30%)] text-white shadow-md shadow-[color-mix(in_srgb,var(--app-accent)_20%,transparent)]">
             <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="m15 4 5 5-11 11H4v-5l11-11Z" />
               <line x1="18.5" y1="7.5" x2="14.5" y2="3.5" />
@@ -573,8 +573,8 @@ export function DedupWizardSubView({
               <span
                 className={`rounded-md border px-2.5 py-0.5 text-xs font-bold tracking-wider ${
                   remaining === 0
-                    ? 'border-[#10B981] bg-[#064E3B]/50 text-[#34D399]'
-                    : 'border-[#38BDF8] bg-[#1E3A5F]/50 text-[#38BDF8]'
+                    ? 'border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_12%,transparent)] text-[var(--app-accent)]'
+                    : 'border-[color-mix(in_srgb,var(--app-accent)_80%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_25%,black)]/50 text-[var(--app-accent)]'
                 }`}
               >
                 {remaining === 0
@@ -617,8 +617,8 @@ export function DedupWizardSubView({
           {renderCollisionRecord(collision.recordB)}
 
           {/* Proposed Unified Record */}
-          <div className="rounded-xl border border-[#10B981]/40 bg-[#0F1B17] p-3.5 space-y-1.5">
-            <div className="flex items-center gap-2 text-xs font-bold text-[#34D399]">
+          <div className="rounded-xl border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_8%,transparent)] p-3.5 space-y-1.5">
+            <div className="flex items-center gap-2 text-xs font-bold text-[var(--app-accent)]">
               <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="10" />
                 <path d="m9 12 2 2 4-4" />
@@ -648,7 +648,7 @@ export function DedupWizardSubView({
             <button
               type="button"
               onClick={() => onMerge(collision.id)}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#10B981] py-2.5 text-xs font-bold text-black hover:bg-[#059669] transition-colors shadow-md shadow-[#10B981]/20"
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] py-2.5 text-xs font-bold text-black hover:bg-[var(--app-accent-hover)] transition-colors shadow-md shadow-[color-mix(in_srgb,var(--app-accent)_20%,transparent)]"
             >
               <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="m15 4 5 5-11 11H4v-5l11-11Z" />
@@ -667,7 +667,7 @@ export function DedupWizardSubView({
               <button
                 type="button"
                 onClick={() => onOpenFullModal(collision.id)}
-                className="flex-1 rounded-xl border border-[#38BDF8]/40 bg-[#0E2C48] py-2 text-xs font-semibold text-[#38BDF8] hover:bg-[#133A5E] transition-colors"
+                className="flex-1 rounded-xl border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_8%,transparent)] py-2 text-xs font-semibold text-[var(--app-accent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_14%,transparent)] transition-colors"
               >
                 Open Advanced Wizard
               </button>
@@ -676,8 +676,8 @@ export function DedupWizardSubView({
         </div>
       ) : (
         /* Honest Clean State Card — rendered when no real collisions exist */
-        <div className="rounded-2xl border border-[#10B981]/60 bg-[#0F1B17] p-8 text-center shadow-lg space-y-3">
-          <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#064E3B]/60 border border-[#10B981] text-[#10B981]">
+        <div className="rounded-2xl border border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_6%,transparent)] p-8 text-center shadow-lg space-y-3">
+          <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)] text-[var(--app-accent)]">
             <svg className="size-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="10" />
               <path d="m9 12 2 2 4-4" />
@@ -691,7 +691,7 @@ export function DedupWizardSubView({
             <button
               type="button"
               onClick={onRescan}
-              className="inline-flex items-center gap-2 rounded-xl border border-[#38BDF8]/40 bg-[#161E2E] px-4 py-2 text-xs font-semibold text-[#38BDF8] hover:bg-[#1C273C] transition-colors"
+              className="inline-flex items-center gap-2 rounded-xl border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_8%,transparent)] px-4 py-2 text-xs font-semibold text-[var(--app-accent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_14%,transparent)] transition-colors"
             >
               <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
@@ -1212,12 +1212,12 @@ export function ContactDetailSheet({
           disabled={!contact.phone}
           className="flex flex-col items-center gap-1.5 group disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         >
-          <div className="size-12 rounded-full border border-[#38BDF8]/40 bg-[#0E2C48] text-[#38BDF8] flex items-center justify-center group-hover:bg-[#133A5E] group-hover:scale-105 transition-all shadow-md shadow-[#38BDF8]/10">
+          <div className="size-12 rounded-full border border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] bg-[#3F1E0E] text-[var(--app-accent)] flex items-center justify-center group-hover:bg-[#522712] group-hover:scale-105 transition-all shadow-md shadow-[color-mix(in_srgb,var(--app-accent)_10%,transparent)]">
             <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
             </svg>
           </div>
-          <span className="text-[11px] font-semibold text-[var(--quant-muted-foreground)] group-hover:text-[#38BDF8] transition-colors">Call</span>
+          <span className="text-[11px] font-semibold text-[var(--quant-muted-foreground)] group-hover:text-[var(--app-accent)] transition-colors">Call</span>
         </button>
 
         {/* Action 2: Email */}
@@ -1241,12 +1241,12 @@ export function ContactDetailSheet({
           onClick={() => onMessage ? onMessage(contact) : (window.location.href = `/compose?to=${encodeURIComponent(contact.email)}`)}
           className="flex flex-col items-center gap-1.5 group cursor-pointer"
         >
-          <div className="size-12 rounded-full border border-[#10B981]/40 bg-[#0A261D] text-[#34D399] flex items-center justify-center group-hover:bg-[#0E3629] group-hover:scale-105 transition-all shadow-md shadow-[#10B981]/10">
+          <div className="size-12 rounded-full border border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] bg-[#3F1E0E] text-[var(--app-accent)] flex items-center justify-center group-hover:bg-[#522712] group-hover:scale-105 transition-all shadow-md shadow-[color-mix(in_srgb,var(--app-accent)_10%,transparent)]">
             <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
           </div>
-          <span className="text-[11px] font-semibold text-[var(--quant-muted-foreground)] group-hover:text-[#34D399] transition-colors">Message</span>
+          <span className="text-[11px] font-semibold text-[var(--quant-muted-foreground)] group-hover:text-[var(--app-accent)] transition-colors">Message</span>
         </button>
 
         {/* Action 4: Share */}
@@ -1261,7 +1261,7 @@ export function ContactDetailSheet({
           }}
           className="flex flex-col items-center gap-1.5 group cursor-pointer"
         >
-          <div className="size-12 rounded-full border border-[#8B5CF6]/40 bg-[#290E44] text-[#8B5CF6] flex items-center justify-center group-hover:bg-[#38135D] group-hover:scale-105 transition-all shadow-md shadow-[#8B5CF6]/10">
+          <div className="size-12 rounded-full border border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] bg-[#3F1E0E] text-[var(--app-accent)] flex items-center justify-center group-hover:bg-[#522712] group-hover:scale-105 transition-all shadow-md shadow-[color-mix(in_srgb,var(--app-accent)_10%,transparent)]">
             <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <circle cx="18" cy="5" r="3" />
               <circle cx="6" cy="12" r="3" />
@@ -1270,7 +1270,7 @@ export function ContactDetailSheet({
               <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
             </svg>
           </div>
-          <span className="text-[11px] font-semibold text-[var(--quant-muted-foreground)] group-hover:text-[#8B5CF6] transition-colors">
+          <span className="text-[11px] font-semibold text-[var(--quant-muted-foreground)] group-hover:text-[var(--app-accent)] transition-colors">
             {copiedField === 'share' ? 'Copied!' : 'Share'}
           </span>
         </button>
@@ -1307,7 +1307,7 @@ export function ContactDetailSheet({
               title="Copy email"
             >
               {copiedField === 'email' ? (
-                <svg className="size-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <svg className="size-3.5 text-[var(--app-accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               ) : (
@@ -1323,14 +1323,14 @@ export function ContactDetailSheet({
           {contact.phone && (
             <div className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[var(--quant-surface-subtle)]">
               <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className="flex size-8 items-center justify-center rounded-lg bg-[#38BDF8]/10 text-[#38BDF8]">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)]">
                   <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
                   </svg>
                 </div>
                 <div className="min-w-0 flex-1">
                   <span className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider block">Phone Number</span>
-                  <a href={`tel:${contact.phone}`} className="text-xs font-mono font-semibold text-white hover:text-[#38BDF8] transition-colors truncate block">
+                  <a href={`tel:${contact.phone}`} className="text-xs font-mono font-semibold text-white hover:text-[var(--app-accent)] transition-colors truncate block">
                     {contact.phone}
                   </a>
                 </div>
@@ -1343,7 +1343,7 @@ export function ContactDetailSheet({
                 title="Copy phone"
               >
                 {copiedField === 'phone' ? (
-                  <svg className="size-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg className="size-3.5 text-[var(--app-accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 ) : (
@@ -1360,7 +1360,7 @@ export function ContactDetailSheet({
           {contact.company && (
             <div className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[var(--quant-surface-subtle)]">
               <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className="flex size-8 items-center justify-center rounded-lg bg-[#A78BFA]/10 text-[#A78BFA]">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)]">
                   <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <rect width="16" height="20" x="4" y="2" rx="2" ry="2" />
                     <path d="M9 22v-4h6v4" />

@@ -69,7 +69,7 @@ function SubviewTabNav({ activeTab, onTabChange }: { activeTab: ContactsTabId; o
           aria-current={activeTab === tab.id ? 'page' : undefined}
           className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
             activeTab === tab.id
-              ? 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] border border-[var(--quant-primary)]/40 shadow-sm'
+              ? 'bg-[var(--app-accent)]/20 text-[var(--app-accent)] border border-[var(--app-accent)]/40 shadow-sm'
               : 'text-[var(--quant-muted-foreground)] hover:text-white border border-transparent'
           }`}
         >
@@ -910,7 +910,7 @@ export default function ContactsPage() {
                       aria-current={activeTab === tab ? 'page' : undefined}
                       className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-semibold capitalize transition-all ${
                         activeTab === tab
-                          ? 'bg-[var(--quant-primary)]/20 text-[var(--quant-primary)] border border-[var(--quant-primary)]/40 shadow-sm'
+                          ? 'bg-[var(--app-accent)]/20 text-[var(--app-accent)] border border-[var(--app-accent)]/40 shadow-sm'
                           : 'text-[var(--quant-muted-foreground)] hover:text-white border border-transparent'
                       }`}
                     >

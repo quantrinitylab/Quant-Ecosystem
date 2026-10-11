@@ -18,7 +18,7 @@
  */
 
 const CHIP =
-  'flex aspect-square items-center justify-center rounded-lg text-[11px] font-bold leading-none tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]';
+  'flex aspect-square items-center justify-center rounded-lg text-[11px] font-bold leading-none tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]';
 
 export interface LetterGroup {
   letter: string;
@@ -71,7 +71,7 @@ export function ContactsLetterIndex({ groups, activeLetter, onJump }: ContactsLe
               } ${group.count === 1 ? 'contact' : 'contacts'}`}
               className={`${CHIP} ${
                 active
-                  ? 'bg-[var(--quant-primary)]/15 text-[var(--quant-primary)] shadow-[inset_0_0_0_1px_rgba(255,140,66,0.35),0_0_12px_rgba(255,140,66,0.15)] font-bold'
+                  ? 'bg-[var(--app-accent)]/15 text-[var(--app-accent)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--app-accent)_35%,transparent),0_0_12px_color-mix(in_srgb,var(--app-accent)_15%,transparent)] font-bold'
                   : 'bg-white/[0.04] text-[var(--quant-muted-foreground)] hover:bg-white/[0.08] hover:text-[var(--quant-foreground)] border border-white/[0.06]'
               }`}
             >
