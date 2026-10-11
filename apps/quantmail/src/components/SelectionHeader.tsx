@@ -25,9 +25,11 @@
 // moved there. A control that exists twice at one width is the duplicate
 // affordance this audit is removing everywhere else.
 //
-// z-[70]: the floating People|Inbox toggle pill sits at z-[60]; the selection
-// bar must win that stacking contest or its right-side "More actions" button
-// lands under the pill and clicks get intercepted (2026-10-10 button audit).
+// z-[70]: sticky, above the virtualised mail rows (which carry
+// `will-change: transform` and form their own stacking contexts). The
+// People|Inbox toggle pill used to float at z-[60] and forced this arms race
+// (2026-10-10 button audit); since 2026-10-11 it renders in-flow, so nothing
+// competes with this bar anymore — z-[70] is kept for the rows.
 
 import { AnchoredMenu } from './AnchoredMenu';
 import { ConfirmDialog } from './ConfirmDialog';
