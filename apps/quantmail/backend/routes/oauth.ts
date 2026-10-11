@@ -7,6 +7,11 @@ import prisma from '@quant/auth/lib/prisma';
 import { generateId } from '@quant/auth/crypto/secure-random';
 import { validateCodeChallenge } from '@quant/auth/crypto/pkce';
 import { oidcKeyService } from '../services/oidc-key.service';
+import {
+  mintConsentToken,
+  consumeConsentToken,
+  type ConsentTokenPayload,
+} from '../services/oauth-consent-session';
 
 /** The OIDC issuer identifier. MUST match the `iss` claim in issued id_tokens
  *  and the `issuer` field of the discovery document (env-overridable). */
@@ -47,6 +52,53 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       return reply.code(401).send({ error: 'invalid_token' });
     }
     (request as any).user = payload;
+  };
+
+  // POST /oauth/consent accepts TWO session shapes:
+  //   1. `Authorization: Bearer <access token>` — programmatic API clients.
+  //      Unchanged: requireAuth semantics plus the AUTH-01 user_id check.
+  //   2. `consent_token` in the body — the HTML consent screen. A browser
+  //      form POST cannot send an Authorization header, so GET
+  //      /oauth/authorize mints a short-lived, single-use, request-bound
+  //      consent token (services/oauth-consent-session.ts) and embeds it as
+  //      a hidden field. The token's subject is authoritative: there is no
+  //      `user_id` field left to spoof, and the token's bound client_id /
+  //      redirect_uri must match the posted values.
+  const requireConsentAuth = async (request: any, reply: any) => {
+    const header = request.headers?.authorization as string | undefined;
+    if (header && header.startsWith('Bearer ')) {
+      const payload = await tokenService.validateAccessToken(header.slice(7));
+      if (!payload) {
+        return reply.code(401).send({ error: 'invalid_token' });
+      }
+      (request as any).user = payload;
+      (request as any).consentSession = null;
+      return;
+    }
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const token = body['consent_token'];
+    if (typeof token !== 'string' || !token) {
+      return reply.code(401).send({ error: 'unauthorized' });
+    }
+    const consent: ConsentTokenPayload | null = await consumeConsentToken(token);
+    if (!consent) {
+      return reply.code(401).send({
+        error: 'invalid_token',
+        error_description: 'Consent session expired, already used, or invalid',
+      });
+    }
+    // Bind the token to this exact authorization request: the posted
+    // client_id / redirect_uri must equal the values the token was minted
+    // for. scope / state / PKCE / nonce come from the token (authoritative),
+    // never from the form.
+    if (body['client_id'] !== consent.clientId || body['redirect_uri'] !== consent.redirectUri) {
+      return reply.code(403).send({
+        error: 'forbidden',
+        error_description: 'Consent session does not match this authorization request',
+      });
+    }
+    (request as any).user = { id: consent.userId, sub: consent.userId };
+    (request as any).consentSession = consent;
   };
 
   const resolveRedirectUri = async (
@@ -399,15 +451,33 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       return reply.redirect(redirectUrl);
     }
 
-    // Show consent screen
+    // Show consent screen.
+    //
+    // The form posts to /api/oauth/consent — the real Next.js proxy route —
+    // never to /oauth/consent (no such Next route exists; that 404 was the
+    // first of the three breaks). A browser form POST cannot send an
+    // Authorization header, so the session rides in `consent_token`: a
+    // short-lived, single-use, request-bound token minted here for the
+    // authenticated user (see services/oauth-consent-session.ts). Its subject
+    // is authoritative — no `user_id` hidden field, nothing left to spoof.
+    const consentToken = await mintConsentToken({
+      userId,
+      clientId: String(client_id ?? ''),
+      redirectUri: String(redirect_uri ?? ''),
+      scope: String(scope || 'openid profile email'),
+      state: String(state || ''),
+      codeChallenge: String(code_challenge || ''),
+      codeChallengeMethod: String(code_challenge_method || ''),
+      nonce: String(nonce || ''),
+    });
     const consentHtml = `
       <html>
         <head><title>QuantMail - Authorize Application</title></head>
-        <body style="font-family: system-ui; max-width: 520px; margin: 60px auto; padding: 20px; line-height: 1.6;">
+        <body style="font-family: system-ui; background: #000; color: #fff; max-width: 520px; margin: 60px auto; padding: 20px; line-height: 1.6;">
           <h2>Authorize Application</h2>
           <p><strong>${esc(client_id)}</strong> wants to access your QuantMail account.</p>
-          
-          <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin: 20px 0;">
+
+          <div style="background: #111; padding: 16px; border-radius: 8px; margin: 20px 0;">
             <strong>Permissions requested:</strong><br>
             ${(scope || 'openid profile email')
               .split(' ')
@@ -415,23 +485,23 @@ export async function oauthRoutes(fastify: FastifyInstance) {
               .join('<br>')}
           </div>
 
-          <form method="POST" action="/oauth/consent">
+          <form method="POST" action="/api/oauth/consent">
+            <input type="hidden" name="consent_token" value="${esc(consentToken)}">
             <input type="hidden" name="client_id" value="${esc(client_id)}">
             <input type="hidden" name="redirect_uri" value="${esc(redirect_uri)}">
-            <input type="hidden" name="user_id" value="${esc(userId)}">
             <input type="hidden" name="scope" value="${esc(scope || 'openid profile email')}">
             <input type="hidden" name="state" value="${esc(state || '')}">
             <input type="hidden" name="code_challenge" value="${esc(code_challenge || '')}">
             <input type="hidden" name="code_challenge_method" value="${esc(code_challenge_method || '')}">
             <input type="hidden" name="nonce" value="${esc(nonce || '')}">
-            
-            <button type="submit" name="action" value="approve" 
-                    style="background: #0066ff; color: white; padding: 14px 28px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer;">
+
+            <button type="submit" name="action" value="approve"
+                    style="background: #ff6a00; color: #000; padding: 14px 28px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: 600;">
               Approve
             </button>
-            
+
             <button type="submit" name="action" value="deny"
-                    style="background: #e0e0e0; color: #333; padding: 14px 28px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; margin-left: 12px;">
+                    style="background: #222; color: #fff; padding: 14px 28px; border: 1px solid #444; border-radius: 8px; font-size: 16px; cursor: pointer; margin-left: 12px;">
               Cancel
             </button>
           </form>
@@ -442,23 +512,38 @@ export async function oauthRoutes(fastify: FastifyInstance) {
     return reply.type('text/html').send(consentHtml);
   });
 
-  // POST /oauth/consent (AUTH-01: require authenticated user session, reject user_id spoofing)
-  fastify.post('/oauth/consent', { preHandler: requireAuth }, async (request: any, reply) => {
+  // POST /oauth/consent.
+  // Session shapes (see requireConsentAuth above):
+  //   - Bearer <access token>: programmatic API clients. AUTH-01 still
+  //     applies — a posted user_id must match the token's subject.
+  //   - consent_token: the browser consent form. The session embedded in
+  //     bound scope/state/PKCE/nonce are authoritative; a posted user_id is
+  //     ignored (the form no longer sends one — nothing left to spoof).
+  fastify.post('/oauth/consent', { preHandler: requireConsentAuth }, async (request: any, reply) => {
     const body = request.body as any;
-    const { action, client_id, redirect_uri, user_id, scope, state } = body;
-    const { code_challenge, code_challenge_method, nonce } = body;
+    const consentSession = (request as any).consentSession as ConsentTokenPayload | null;
+    const { action, client_id, redirect_uri, user_id } = body;
+    const scope = consentSession?.scope ?? body.scope;
+    const state = consentSession?.state ?? body.state;
+    const code_challenge = consentSession?.codeChallenge ?? body.code_challenge;
+    const code_challenge_method =
+      consentSession?.codeChallengeMethod ?? body.code_challenge_method;
+    const nonce = consentSession?.nonce ?? body.nonce;
 
     const authUserId = request.user?.id || request.user?.sub;
     if (!authUserId) {
       return reply.code(401).send({ error: 'unauthorized' });
     }
 
-    // AUTH-01: Reject user_id mismatch with the authenticated session
-    if (user_id && user_id !== authUserId) {
-      return reply.code(403).send({
-        error: 'forbidden',
-        error_description: 'User identity mismatch with authenticated session',
-      });
+    if (!consentSession) {
+      // AUTH-01 (Authorization-header path only): Reject user_id mismatch with the
+      // authenticated session
+      if (user_id && user_id !== authUserId) {
+        return reply.code(403).send({
+          error: 'forbidden',
+          error_description: 'User identity mismatch with authenticated session',
+        });
+      }
     }
     const effectiveUserId = authUserId;
 

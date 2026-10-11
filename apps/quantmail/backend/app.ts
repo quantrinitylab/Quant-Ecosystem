@@ -120,6 +120,13 @@ export function getConfig(): AppConfig {
       '/oauth/token',
       '/oauth/revoke',
       '/oauth/register',
+      // POST /oauth/consent is reached by a plain HTML form POST from the
+      // consent screen, which cannot send an Authorization header. Same
+      // posture as /sso/ticket/resolve: listed here because the caller holds
+      // a consent_token instead of the usual Authorization header, and auth is
+      // enforced inside the handler (requireConsentAuth in routes/oauth.ts). Scoped to POST only:
+      // GET /oauth/consent does not exist.
+      { path: '/oauth/consent', methods: ['POST'], exact: true },
       // SSO ticket resolution is server-to-server: the receiving app's backend
       // presents the ticket plus its OAuth client credentials, so the caller
       // holds no user session. Auth is enforced inside the handler (same

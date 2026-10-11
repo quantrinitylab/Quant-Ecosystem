@@ -28,12 +28,22 @@ export async function POST(request: NextRequest) {
   const cookieHeader = request.headers.get('Cookie');
   if (cookieHeader) headers['Cookie'] = cookieHeader;
 
-  // Forward JSON body: action* (approve|deny), client_id*, redirect_uri*, user_id
-  // (must match Bearer user), scope, state, code_challenge, code_challenge_method, nonce
+  // Forward body: the backend consent screen is a plain HTML form, so it posts
+  // `application/x-www-form-urlencoded`; programmatic callers post JSON.
+  // Either way the backend receives JSON: action* (approve|deny), client_id*,
+  // redirect_uri*, consent_token (browser form) or user_id + Authorization
+  // header (API clients), scope, state, code_challenge, code_challenge_method,
+  // nonce.
   const fetchOptions: RequestInit = { method: 'POST', headers };
   try {
-    const body = await request.json();
-    fetchOptions.body = JSON.stringify(body);
+    const contentType = request.headers.get('content-type') || '';
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      const text = await request.text();
+      fetchOptions.body = JSON.stringify(Object.fromEntries(new URLSearchParams(text)));
+    } else {
+      const body = await request.json();
+      fetchOptions.body = JSON.stringify(body);
+    }
   } catch {
     /* no body — backend will answer 400 invalid_request */
   }
