@@ -4,7 +4,7 @@
 // QuantGit — Pull Requests Engine, 3-Way Merge & CI Review Gate (Screens 27, 73–74, 99–103)
 // ============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type {
   PRItem,
   PRReviewDecision,
@@ -98,61 +98,122 @@ export function PullRequestsTab({
   // check blocks the merge UI.
   const mergeAllowed = !anyCheckFailed;
 
-  // Review decisions
+  // Review decisions — start EMPTY and load only real backend data.
+  // Never seed or invent reviews: a fabricated APPROVED review rendered as
+  // real under "Review decisions: N submitted" was a P0 fake.
   const [isReviewBoxOpen, setIsReviewBoxOpen] = useState<boolean>(false);
   const [reviewDecision, setReviewDecision] = useState<PRReviewDecision>('comment');
   const [reviewCommentText, setReviewCommentText] = useState<string>('');
-  const [reviews, setReviews] = useState<PRReviewItem[]>([
-    {
-      id: 'rev-1',
-      author: 'ai-sdk-factory[bot]',
-      state: 'APPROVED',
-      body: 'Automated CI test gates & CodeQL checks passed with 100% test coverage.',
-      createdAt: '10 minutes ago',
-    },
-  ]);
+  const [reviews, setReviews] = useState<PRReviewItem[]>([]);
 
-  // Inline diff comments
+  // Load real reviews from GET /:id/pulls/:number/reviews whenever the
+  // selected PR changes. An empty list renders the honest empty state.
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedPR) {
+      setReviews([]);
+      return;
+    }
+    const prNumber = (selectedPR as any).number || selectedPR.id;
+    setReviews([]);
+    (async () => {
+      try {
+        const res = await apiFetchRaw(
+          `/api/repos/${encodeURIComponent(repoId)}/pulls/${prNumber}/reviews`,
+        );
+        const json = await res.json().catch(() => null);
+        if (cancelled) return;
+        if (res.ok && json?.success && Array.isArray(json.data)) {
+          setReviews(
+            json.data.map((r: any) => ({
+              id: String(r.id),
+              author:
+                r.reviewer?.username || r.reviewer?.displayName || currentUsername || 'Unknown',
+              state: r.status as PRReviewItem['state'],
+              body: r.body ?? '',
+              createdAt: r.createdAt ? new Date(r.createdAt).toLocaleString() : '',
+            })),
+          );
+        }
+      } catch {
+        // Reviews stay empty — the empty state is honest.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPR, repoId, currentUsername]);
+
+  // Inline diff comments — empty until real data arrives. Never invent
+  // comments or reviewers.
   const [activeCommentLineId, setActiveCommentLineId] = useState<string | null>(null);
   const [lineCommentText, setLineCommentText] = useState<string>('');
-  const [diffComments, setDiffComments] = useState<Record<string, PRDiffComment[]>>({
-    'diff-1-l6': [
-      {
-        id: 'c-1',
-        lineId: 'diff-1-l6',
-        author: 'edward0127',
-        body: 'Make sure speech metric telemetry handles zero-latency web socket disconnects.',
-        createdAt: '15 minutes ago',
-      },
-    ],
-  });
+  const [diffComments, setDiffComments] = useState<Record<string, PRDiffComment[]>>({});
 
   const isAuthor = Boolean(
     selectedPR && selectedPR.author && currentUsername && selectedPR.author === currentUsername,
   );
 
-  const handleAddInlineComment = (lineId: string) => {
-    if (!lineCommentText.trim()) return;
-    const newComment: PRDiffComment = {
-      id: `c-${Date.now()}`,
-      lineId,
-      author: currentUsername,
-      body: lineCommentText.trim(),
-      createdAt: 'Just now',
-    };
-    setDiffComments((prev) => ({
-      ...prev,
-      [lineId]: [...(prev[lineId] || []), newComment],
-    }));
-    setLineCommentText('');
-    setActiveCommentLineId(null);
-    showToast?.('Inline review comment added');
+  const handleAddInlineComment = async (lineId: string) => {
+    const body = lineCommentText.trim();
+    if (!body) return;
+    const prNumber = selectedPR ? (selectedPR as any).number || selectedPR.id : null;
+    if (!prNumber) {
+      showToast?.('Could not add inline comment: no pull request selected.');
+      return;
+    }
+    // The backend needs a real file path and line number. The client-side
+    // lineId is `filePath-l<line>`; never invent values when it cannot be parsed.
+    const match = /^(.*)-l(\d+)$/.exec(lineId);
+    const line = match ? parseInt(match[2], 10) : NaN;
+    if (!match || Number.isNaN(line)) {
+      showToast?.('Could not add inline comment: unrecognized diff line reference.');
+      return;
+    }
+    try {
+      const res = await apiFetchRaw(
+        `/api/repos/${encodeURIComponent(repoId)}/pulls/${prNumber}/comments`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath: match[1], line, side: 'RIGHT', body }),
+        },
+      );
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.success) {
+        // Add to local state ONLY on real API success — never lie.
+        const created = json.data ?? {};
+        const newComment: PRDiffComment = {
+          id: String(created.id ?? `c-${Date.now()}`),
+          lineId,
+          author: created.author?.username || currentUsername,
+          body: created.body ?? body,
+          createdAt: created.createdAt ? new Date(created.createdAt).toLocaleString() : 'Just now',
+        };
+        setDiffComments((prev) => ({
+          ...prev,
+          [lineId]: [...(prev[lineId] || []), newComment],
+        }));
+        setLineCommentText('');
+        setActiveCommentLineId(null);
+        showToast?.('Inline review comment added');
+      } else {
+        showToast?.(json?.error?.message || 'Could not add inline comment');
+      }
+    } catch {
+      showToast?.('Could not add inline comment — network error');
+    }
   };
 
-  const handleSubmitReview = (e: React.FormEvent) => {
+  const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isAuthor && reviewDecision === 'approve') {
       showToast?.('Authors cannot approve their own pull requests.');
+      return;
+    }
+    const prNumber = selectedPR ? (selectedPR as any).number || selectedPR.id : null;
+    if (!prNumber) {
+      showToast?.('Could not submit review: no pull request selected.');
       return;
     }
 
@@ -161,25 +222,52 @@ export function PullRequestsTab({
       request_changes: 'CHANGES_REQUESTED',
       comment: 'COMMENTED',
     };
+    const status = stateMap[reviewDecision];
+    const body =
+      reviewCommentText.trim() ||
+      (reviewDecision === 'approve'
+        ? 'Approved changes.'
+        : reviewDecision === 'request_changes'
+          ? 'Requested changes before merge.'
+          : 'Submitted general comments.');
 
+    // Optimistic add; it rolls back if the API rejects or the network fails.
+    const tempId = `rev-${Date.now()}`;
     const newReview: PRReviewItem = {
-      id: `rev-${Date.now()}`,
+      id: tempId,
       author: currentUsername,
-      state: stateMap[reviewDecision],
-      body:
-        reviewCommentText.trim() ||
-        (reviewDecision === 'approve'
-          ? 'Approved changes.'
-          : reviewDecision === 'request_changes'
-            ? 'Requested changes before merge.'
-            : 'Submitted general comments.'),
+      state: status,
+      body,
       createdAt: 'Just now',
     };
-
     setReviews((prev) => [...prev, newReview]);
     setIsReviewBoxOpen(false);
     setReviewCommentText('');
-    showToast?.(`Review submitted: ${reviewDecision.replace('_', ' ')}`);
+
+    try {
+      const res = await apiFetchRaw(
+        `/api/repos/${encodeURIComponent(repoId)}/pulls/${prNumber}/reviews`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status, body }),
+        },
+      );
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.success) {
+        // Swap the optimistic row for the real server record.
+        setReviews((prev) =>
+          prev.map((r) => (r.id === tempId ? { ...r, id: String(json.data.id ?? r.id) } : r)),
+        );
+        showToast?.(`Review submitted: ${reviewDecision.replace('_', ' ')}`);
+      } else {
+        setReviews((prev) => prev.filter((r) => r.id !== tempId));
+        showToast?.(json?.error?.message || 'Could not submit review');
+      }
+    } catch {
+      setReviews((prev) => prev.filter((r) => r.id !== tempId));
+      showToast?.('Could not submit review — network error');
+    }
   };
 
   const handleExecuteMerge = async () => {
@@ -453,12 +541,17 @@ export function PullRequestsTab({
               </span>
             </h4>
             <div className="space-y-2">
-              {reviews.map((rev) => (
-                <div
-                  key={rev.id}
-                  data-testid={`review-item-${rev.id}`}
-                  className="flex items-start justify-between p-2 rounded bg-[#0D1117] border border-[#21262D] text-[11px]"
-                >
+              {reviews.length === 0 ? (
+                <p data-testid="reviews-empty" className="text-[11px] text-[#8D96A0]">
+                  No reviews submitted yet.
+                </p>
+              ) : (
+                reviews.map((rev) => (
+                  <div
+                    key={rev.id}
+                    data-testid={`review-item-${rev.id}`}
+                    className="flex items-start justify-between p-2 rounded bg-[#0D1117] border border-[#21262D] text-[11px]"
+                  >
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-[#E6EDF3]">{rev.author}</span>
@@ -490,7 +583,8 @@ export function PullRequestsTab({
                   </div>
                   <span className="text-[#8D96A0] text-[10px]">{rev.createdAt}</span>
                 </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 

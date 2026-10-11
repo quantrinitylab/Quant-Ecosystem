@@ -1420,6 +1420,27 @@ function QuantGitContent() {  const router = useRouter();
     }
   };
 
+  const handleForkRepo = async () => {
+    if (!selectedRepo) return;
+    const repoTarget = selectedRepo.id || selectedRepo.name;
+    try {
+      const res = await apiFetch(
+        `/api/repos/${encodeURIComponent(repoTarget)}/forks`,
+        { method: 'POST' },
+      );
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.success) {
+        // Only announce a fork the server really created — never toast
+        // a fake "copied" message again.
+        showToast('Fork created in your workspace');
+      } else {
+        showToast(json?.error?.message || 'Could not fork repository');
+      }
+    } catch {
+      showToast('Could not fork repository — network error');
+    }
+  };
+
   const handleDeleteRepo = async () => {
     if (!selectedRepo) return;
     const repoTarget = selectedRepo.id || selectedRepo.name;
@@ -1993,7 +2014,7 @@ function QuantGitContent() {  const router = useRouter();
             <div className="flex items-center gap-2 text-xs">
               <button
                 type="button"
-                onClick={() => showToast('Fork copied to your workspace')}
+                onClick={handleForkRepo}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
               >
                 <svg className="size-3.5 text-[#7D8590]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
