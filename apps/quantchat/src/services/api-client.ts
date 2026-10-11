@@ -295,8 +295,12 @@ export class QuantChatApiClient {
     return this.post(`/messages/${messageId}/reactions`, { emoji });
   }
 
-  async removeReaction(messageId: string): Promise<ApiResponse<Message>> {
-    return this.delete(`/messages/${messageId}/reactions`);
+  /**
+   * QC-F-020: removal needs the emoji — the old signature sent a bare
+   * DELETE with no way for the backend to know WHICH reaction to remove.
+   */
+  async removeReaction(messageId: string, emoji: string): Promise<ApiResponse<Message>> {
+    return this.request<Message>('DELETE', `/messages/${messageId}/reactions`, { emoji });
   }
 
   async markAsRead(conversationId: string, messageIds: string[]): Promise<ApiResponse<void>> {
