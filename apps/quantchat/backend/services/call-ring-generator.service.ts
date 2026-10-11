@@ -196,7 +196,7 @@ export class CallRingGeneratorService {
     call.state = 'declined';
     call.endedAt = Date.now();
 
-    await this.callService.endCall(callId);
+    await this.callService.endCallInternal(callId);
   }
 
   /**
@@ -230,7 +230,7 @@ export class CallRingGeneratorService {
       call.state = 'completed';
       call.endedAt = Date.now();
       await this.voiceBot.endSession(call.voiceSessionId);
-      await this.callService.endCall(callId);
+      await this.callService.endCallInternal(callId);
     }
 
     return {
@@ -250,7 +250,7 @@ export class CallRingGeneratorService {
     if (call && call.state === 'ringing') {
       call.state = 'missed';
       call.endedAt = Date.now();
-      this.callService.endCall(callId).catch(() => {});
+      this.callService.endCallInternal(callId).catch(() => {});
     }
   }
 }
