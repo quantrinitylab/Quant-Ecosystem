@@ -409,7 +409,7 @@ Scope: flutter_apps/workspaces/phase1/apps/quantmail/flutter/packages/quant_core
 Dependencies: QM-AUTH-008; QM-PLAT-006; QM-PLAT-010.
 
 ## QM-SCREEN-002 — Login / registration / verification / recovery / 2FA
-Status: [~] ROUND-2 REGRESSION (2026-10-11)
+Status: [x] DONE — round-2 regression audit complete 2026-10-11 ~12:45 IST (fixes tracked via their PRs; see FINDINGS above)
 Owner: LANE-1 (round-2 regression)
 Branch: lane1-audit-002-r2
 Scope: M00 auth family.
@@ -417,7 +417,14 @@ Required: Web + Tauri + Capacitor/Flutter parity, responsive states, truthful se
 Dependencies: QM-AUTH-002 through QM-AUTH-010.
 Regression pass started 2026-10-11 ~12:35 IST (round 1 Track A audit 2026-10-10 preserved below).
 ROUND-2 REGRESSION FINDINGS (2026-10-11):
-- (findings appended as the regression proceeds)
+- [ ] FINDING P0: fake phone field still live on /register | expected: no phone collection per 2026-10-05 phone-removal decision | actual: "Phone number (SMS recovery & QuantChat)" + "Used for secure 2-step verification and 1-click QuantChat login." renders live, but handleSubmit only sends {email,password,username,displayName,acceptTerms} — phone never leaves the browser (register/page.tsx:158-173; live shot /tmp/lane1-002r2-register-desktop.png) | fix agent: lane1-fix-002r2-register-phone (in flight)
+- [ ] FINDING P1: emailVerified: true still hardcoded in POST /auth/register (backend/routes/auth.ts:116) — no email-verification flow on main | expected: real verification contract per task requirement | actual: MISSING persists from round 1 | NOTE: deep SSO fix agent (dispatched 2026-10-11, user-locked SSO design) is building the email-verification OTP flow — do NOT duplicate
+- [ ] FINDING P1: /forgot-email still phone-based recovery ("Enter the mobile number you used when creating your address.") | expected: recovery channel consistent with phone-removal decision | actual: full phone-based flow live (shot /tmp/lane1-002r2-forgotemail-desktop.png) | BLOCKERS.md (user decision needed — recovery channel replacement; flagged in QM-SCREEN-018 audit)
+- [ ] FINDING P2: PhoneVerificationCard still mounted in Settings (settings/page.tsx:986 + import :80) | expected: removed per phone-removal decision | actual: STALE persists from round 1 | fix agent: lane1-fix-002r2-settings-phonecard (in flight)
+- [ ] FINDING P2: ?token= raw-access-token handoff STILL live in /login navigateToDestination + /sso handoffSession — all of `token`, `accessToken`, `__quant_sso_ticket` are set to the raw token while comments claim "Only the SSO ticket aliases travel in the URL" (login/page.tsx:91-96, sso/SsoChooserContent.tsx:246-252) | NOTE: owned by deep SSO fix agent (end-to-end OAuth, kill ?token=) + QM-AUTH-011/014 (other agent) — observed only, do NOT duplicate
+- [ ] FINDING P2: unverified "AI triage — Quant AI surfaces what's urgent and drafts the reply." brand copy still on /login + /register brand panels | expected: every word an instruction or provable truth (user rule) | actual: capability claim unchanged from round 1 (shots /tmp/lane1-002r2-login-desktop.png, /tmp/lane1-002r2-register-desktop.png) | design decision → discuss-first; not assigned to a fix agent
+Verified clean: /login renders clean desktop 1440x900 + mobile 390x844 (honest copy, Show toggle, forgot links, Help/Privacy/Terms footer); /sso logged-out renders honest consent card ("Sign in to Quant Account to continue to Quant Ecosystem", "Quant will share your profile..." — shot /tmp/lane1-002r2-sso-desktop.png); no authenticated-content flash on /; recent P2 polish (#864) landed (register helper copy, terms row, forgot-email copy, 44px footer targets); password-reset flow unchanged (genuine per round 1); 2FA lifecycle code unchanged (only Sessions tab changed in security page); phone.ts backend untouched by this pass (out of scope).
+Validation: origin/main code review (register/login/sso/forgot-email/security pages + auth.ts + browser-auth-session.ts) + live desktop+mobile Chrome screenshots of /login, /register, /forgot-email, /sso on quantmail.in. Signed-in flows (2FA end-to-end, recovery-code login, session handoff) needs-auth — not attempted.
 
 ROUND-1 TRACK A AUDIT (2026-10-10, web only; Tauri/Capacitor/Flutter parity NOT covered):
 LIVE VERIFIED (Chrome 154 desktop 1440x900 + mobile 390x844, fresh profile): /login renders clean and responsive; honest copy ("Enter your email address and password"); Forgot email? / Forgot password? links, Show-password toggle, "Create an address" -> /register, Help/Privacy/Terms footer. / shows "Authenticating..." spinner with no authenticated-content flash. /register renders live.
