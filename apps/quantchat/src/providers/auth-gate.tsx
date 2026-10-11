@@ -25,12 +25,18 @@
 // 404 HONESTY (P2): an unknown path is NOT bounced to /login. The gate
 // steps aside and lets the router render its 404, so broken links stay
 // detectable instead of masquerading as auth redirects.
+//
+// DEEP-LINK PRESERVATION (QC-F-049): the bounce to /login carries the
+// intended destination as a validated `returnTo` (src/lib/return-to.ts),
+// so a notification click or cross-app handoff reaches its conversation
+// after sign-in instead of dying on the chat list.
 
 import { useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth, LoadingState } from '@quant/shared-ui';
 import { bootstrapSession } from '../lib/auth-session';
 import { classifyPath, isPublicPath } from '../lib/route-access';
+import { buildLoginRedirect } from '../lib/return-to';
 
 export { isPublicPath };
 
@@ -44,6 +50,13 @@ const SESSION_CHECK_TIMEOUT_MS = 10_000;
 interface AuthGateCoreProps {
   /** Current pathname (query/hash stripped), from either router. */
   pathname: string | null;
+  /**
+   * Everything after the pathname in the current URL ('?query' and/or
+   * '#hash'), from either router. Preserved across the login bounce as the
+   * post-login return target (QC-F-049) — a deep link's query (e.g. a
+   * meet join code) is part of the destination, not decoration.
+   */
+  suffix?: string | null;
   /** Navigate away (router.replace semantics) — supplied by each shell. */
   onRedirect: (path: string) => void;
   children: React.ReactNode;
@@ -54,7 +67,7 @@ interface AuthGateCoreProps {
  * redirect plumbing; everything else — session bootstrap, timeout, fail-
  * closed rendering — is identical for every route in the app.
  */
-export function AuthGateCore({ pathname, onRedirect, children }: AuthGateCoreProps) {
+export function AuthGateCore({ pathname, suffix, onRedirect, children }: AuthGateCoreProps) {
   const { isAuthenticated, isLoading } = useAuth();
   const [sessionTimedOut, setSessionTimedOut] = useState(false);
 
@@ -78,12 +91,15 @@ export function AuthGateCore({ pathname, onRedirect, children }: AuthGateCorePro
 
   // Redirect unauthenticated visitors on real app routes to sign-in (once
   // identity resolution has settled). Public routes pass straight through,
-  // and unknown paths fall through to the router's 404.
+  // and unknown paths fall through to the router's 404. The destination is
+  // carried along as a validated returnTo (QC-F-049): without it, every
+  // deep link — notification clicks, cross-app handoffs, shared chat
+  // links — landed on the chat list after login instead of its target.
   useEffect(() => {
     if (isGated && !isLoading && !isAuthenticated) {
-      onRedirect('/login');
+      onRedirect(buildLoginRedirect(pathname, suffix));
     }
-  }, [isGated, isLoading, isAuthenticated, onRedirect]);
+  }, [isGated, isLoading, isAuthenticated, onRedirect, pathname, suffix]);
 
   if (!isGated) return <>{children}</>;
   if (isLoading) {
@@ -100,8 +116,18 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const onRedirect = useCallback((path: string) => router.replace(path), [router]);
 
+  // The query/hash part of the current URL. usePathname() strips it, and
+  // reading it from window.location in an effect (rather than
+  // useSearchParams in the root layout) avoids opting every route into
+  // client-side rendering. The gate only redirects after the session
+  // check settles, by which time this has synced.
+  const [suffix, setSuffix] = useState<string | null>(null);
+  useEffect(() => {
+    setSuffix(`${window.location.search}${window.location.hash}`);
+  }, [pathname]);
+
   return (
-    <AuthGateCore pathname={pathname} onRedirect={onRedirect}>
+    <AuthGateCore pathname={pathname} suffix={suffix} onRedirect={onRedirect}>
       {children}
     </AuthGateCore>
   );
