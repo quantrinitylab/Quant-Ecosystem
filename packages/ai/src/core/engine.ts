@@ -35,7 +35,35 @@ import {
   validateToolDefinitions,
   parseToolCall,
   type ToolCall,
+  type ToolDefinition,
+  type ToolLoopContext,
+  type HeldToolCalls,
+  type ToolResult as LlmToolResult,
 } from './tool-calling';
+
+/**
+ * Message shape used across tool-loop rounds. Content may be plain text
+ * (initial user/system turns) or Vercel AI SDK content parts (assistant
+ * tool-call parts + tool-result parts fed back to the model).
+ */
+type LoopMessage = {
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string | Array<Record<string, unknown>>;
+};
+
+/**
+ * Normalized result of one model round. `unexecutedToolCalls` carries calls
+ * the model requested but which were NOT executed — the legacy single-round
+ * path, or a loop that hit its step cap.
+ */
+interface RoundResult {
+  text: string;
+  unexecutedToolCalls: ToolCall[];
+  promptTokens: number;
+  completionTokens: number;
+  pendingConfirmation?: AIInferenceResponse['pendingConfirmation'];
+  truncated?: boolean;
+}
 
 /** Default engine configuration */
 const DEFAULT_CONFIG: AIEngineConfig = {
@@ -332,6 +360,273 @@ export class AIEngine {
     }
   }
 
+  /** Build the initial message list for an inference (system + context + user). */
+  private buildInitialMessages(
+    request: AIInferenceRequest,
+    enrichedPrompt: string,
+  ): LoopMessage[] {
+    const messages: LoopMessage[] = [];
+
+    if (request.systemPrompt) {
+      messages.push({ role: 'system', content: request.systemPrompt });
+    }
+
+    if (request.context) {
+      for (const msg of request.context) {
+        messages.push({ role: msg.role, content: msg.content });
+      }
+    }
+
+    messages.push({ role: 'user', content: enrichedPrompt });
+    return messages;
+  }
+
+  /**
+   * Run a single model round: one generateText call with tools attached.
+   * Returns normalized text + parsed tool calls + token counts. Does NOT
+   * execute tool calls — the caller (legacy path or runToolLoop) decides.
+   */
+  private async generateOnce(
+    model: AIModelConfig,
+    messages: LoopMessage[],
+    request: AIInferenceRequest,
+    tools: ToolDefinition[],
+    promptEstimateText: string,
+  ): Promise<RoundResult> {
+    // Amazon Bedrock uses the AWS SDK Converse API directly (no tool support here).
+    if (model.provider === 'bedrock') {
+      const { text, usage } = await this.bedrockConverse(
+        model,
+        messages as Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
+        {
+          temperature: request.temperature ?? 0.7,
+          maxTokens: request.maxTokens ?? model.maxOutputTokens,
+        },
+      );
+      return {
+        text,
+        unexecutedToolCalls: [],
+        promptTokens: usage.inputTokens,
+        completionTokens: usage.outputTokens,
+      };
+    }
+
+    const providerModel = this.getProviderModel(model);
+
+    const generateOptions: Record<string, unknown> = {
+      model: providerModel as any,
+      messages,
+      temperature: request.temperature ?? 0.7,
+      maxOutputTokens: request.maxTokens ?? model.maxOutputTokens,
+    };
+    if (tools.length > 0) {
+      generateOptions['tools'] = toVercelTools(tools);
+      // Map our toolChoice to Vercel SDK format
+      const tc = request.toolChoice ?? 'auto';
+      if (tc === 'auto') generateOptions['toolChoice'] = 'auto';
+      else if (tc === 'none') generateOptions['toolChoice'] = 'none';
+      else if (tc === 'required') generateOptions['toolChoice'] = 'required';
+      else generateOptions['toolChoice'] = { type: 'tool', toolName: tc.toolName };
+    }
+
+    const result = await generateText(generateOptions as any);
+    const text = result.text || '';
+
+    // Extract tool calls requested by the model
+    const toolCalls: ToolCall[] = [];
+    const rawToolCalls = (result as any).toolCalls as Array<{
+      toolCallId: string;
+      toolName: string;
+      input: unknown;
+    }> | undefined;
+    if (rawToolCalls && rawToolCalls.length > 0) {
+      for (const rtc of rawToolCalls) {
+        toolCalls.push(parseToolCall(rtc));
+      }
+    }
+
+    return {
+      text,
+      unexecutedToolCalls: toolCalls,
+      promptTokens:
+        (result.usage as any)?.promptTokens ??
+        result.usage?.inputTokens ??
+        Math.ceil(promptEstimateText.length / 4),
+      completionTokens:
+        (result.usage as any)?.completionTokens ??
+        result.usage?.outputTokens ??
+        Math.ceil(text.length / 4),
+    };
+  }
+
+  /**
+   * Close the LLM tool-calling loop: propose → permission-check → execute →
+   * feed back → repeat, until the model answers without tool calls, a call is
+   * held for Sentinel confirmation, the step cap is hit, or the total
+   * timeout elapses.
+   *
+   * Fail-closed ordering per round: EVERY proposed call goes through
+   * `hooks.checkToolCall` BEFORE any execution. Denied calls are fed back
+   * as tool errors; held calls stop the loop with a pending confirmation.
+   */
+  private async runToolLoop(
+    model: AIModelConfig,
+    initialMessages: LoopMessage[],
+    request: AIInferenceRequest,
+    tools: ToolDefinition[],
+    enrichedPrompt: string,
+    startTime: number,
+  ): Promise<RoundResult> {
+    const hooks = request.toolHooks!;
+    const maxRounds = request.maxToolRounds ?? 5;
+    const timeoutMs = request.toolLoopTimeoutMs ?? 60000;
+    const deadline = startTime + timeoutMs;
+    const loopCtx: ToolLoopContext = {
+      userId: request.userId,
+      permissionTier: request.permissionTier ?? 1,
+    };
+
+    // Fail the whole loop if any awaited step overruns the total budget.
+    const withDeadline = async <T>(promise: Promise<T>, what: string): Promise<T> => {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        throw new Error(`Tool loop timed out ${what}`);
+      }
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        return await Promise.race([
+          promise,
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(
+              () => reject(new Error(`Tool loop timed out ${what}`)),
+              remaining,
+            );
+          }),
+        ]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    };
+
+    const workingMessages: LoopMessage[] = [...initialMessages];
+    let promptTokens = 0;
+    let completionTokens = 0;
+    let rounds = 0;
+    let lastText = '';
+    let pendingConfirmation: RoundResult['pendingConfirmation'];
+    let unexecutedToolCalls: ToolCall[] = [];
+    let truncated = false;
+
+    while (true) {
+      const round = await withDeadline(
+        retryWithBackoff(
+          () => this.generateOnce(model, workingMessages, request, tools, enrichedPrompt),
+          { maxRetries: this.config.retryAttempts, baseDelayMs: this.config.retryDelayMs },
+        ),
+        'waiting for model',
+      );
+      promptTokens += round.promptTokens;
+      completionTokens += round.completionTokens;
+      lastText = round.text;
+
+      const proposed = round.unexecutedToolCalls;
+      if (proposed.length === 0) {
+        break;
+      }
+
+      if (rounds >= maxRounds) {
+        // Step cap hit: stop looping and hand the unexecuted calls back
+        // to the caller instead of executing them.
+        unexecutedToolCalls = proposed;
+        truncated = true;
+        break;
+      }
+      rounds += 1;
+
+      // Gate EVERY proposed call before execution (fail-closed).
+      const executed: LlmToolResult[] = [];
+      let held: HeldToolCalls | null = null;
+      for (const call of proposed) {
+        const verdict = hooks.checkToolCall
+          ? await withDeadline(hooks.checkToolCall(call, loopCtx), `checking tool '${call.name}'`)
+          : { decision: 'allow' as const };
+        if (verdict.decision === 'deny') {
+          executed.push({
+            toolCallId: call.id,
+            name: call.name,
+            success: false,
+            error: `Denied: ${verdict.reason}`,
+          });
+          continue;
+        }
+        if (verdict.decision === 'hold') {
+          held = { holdToken: verdict.holdToken, reason: verdict.reason, calls: proposed };
+          break;
+        }
+        if (!hooks.executeToolCall) {
+          executed.push({
+            toolCallId: call.id,
+            name: call.name,
+            success: false,
+            error: 'No tool executor configured for this loop',
+          });
+          continue;
+        }
+        const res = await withDeadline(
+          hooks.executeToolCall(call, loopCtx),
+          `executing tool '${call.name}'`,
+        );
+        executed.push(res);
+      }
+
+      if (held) {
+        pendingConfirmation = {
+          holdToken: held.holdToken,
+          reason: held.reason,
+          calls: held.calls,
+        };
+        break;
+      }
+
+      // Feed tool results back to the model for the next round.
+      workingMessages.push({
+        role: 'assistant',
+        content: [
+          ...(lastText ? [{ type: 'text', text: lastText }] : []),
+          ...proposed.map((c) => ({
+            type: 'tool-call',
+            toolCallId: c.id,
+            toolName: c.name,
+            input: c.arguments,
+          })),
+        ],
+      });
+      workingMessages.push({
+        role: 'tool',
+        content: executed.map((e) => ({
+          type: 'tool-result',
+          toolCallId: e.toolCallId,
+          toolName: e.name,
+          output: {
+            type: 'text',
+            value: JSON.stringify(
+              e.success ? (e.result ?? null) : { error: e.error ?? 'Tool execution failed' },
+            ),
+          },
+        })),
+      });
+    }
+
+    return {
+      text: lastText,
+      unexecutedToolCalls,
+      promptTokens,
+      completionTokens,
+      pendingConfirmation,
+      truncated,
+    };
+  }
+
   /**
    * Process an AI inference request
    */
@@ -376,83 +671,51 @@ export class AIEngine {
     const startTime = Date.now();
     this.activeRequests++;
 
+    // Function calling: validate tool definitions once up front.
+    const tools = request.tools ?? [];
+    if (tools.length > 0) {
+      validateToolDefinitions(tools);
+    }
+
+    const initialMessages = this.buildInitialMessages(request, enrichedPrompt);
+
+    // Close the tool-calling loop internally when the host provided hooks:
+    // propose → permission-check → execute → feed back → repeat.
+    // (Bedrock has no tool support in this engine — legacy single round.)
+    const runToolLoop =
+      tools.length > 0 &&
+      request.toolHooks != null &&
+      (request.maxToolRounds ?? 5) > 0 &&
+      model.provider !== 'bedrock';
+
     try {
-      const response = await breaker.execute(async () => {
-        return retryWithBackoff(
-          async () => {
-            const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [];
-
-            if (request.systemPrompt) {
-              messages.push({ role: 'system', content: request.systemPrompt });
-            }
-
-            // Add context messages
-            if (request.context) {
-              for (const msg of request.context) {
-                messages.push({ role: msg.role, content: msg.content });
-              }
-            }
-
-            messages.push({ role: 'user', content: enrichedPrompt });
-
-            // Amazon Bedrock uses the AWS SDK Converse API directly.
-            if (model.provider === 'bedrock') {
-              return this.bedrockConverse(model, messages, {
-                temperature: request.temperature ?? 0.7,
-                maxTokens: request.maxTokens ?? model.maxOutputTokens,
-              });
-            }
-
-            const providerModel = this.getProviderModel(model);
-
-            // Function calling: validate and pass tools to the model
-            const tools = request.tools ?? [];
-            if (tools.length > 0) {
-              validateToolDefinitions(tools);
-            }
-
-            const generateOptions: Record<string, unknown> = {
-              model: providerModel as any,
-              messages,
-              temperature: request.temperature ?? 0.7,
-              maxOutputTokens: request.maxTokens ?? model.maxOutputTokens,
-            };
-            if (tools.length > 0) {
-              generateOptions['tools'] = toVercelTools(tools);
-              // Map our toolChoice to Vercel SDK format
-              const tc = request.toolChoice ?? 'auto';
-              if (tc === 'auto') generateOptions['toolChoice'] = 'auto';
-              else if (tc === 'none') generateOptions['toolChoice'] = 'none';
-              else if (tc === 'required') generateOptions['toolChoice'] = 'required';
-              else generateOptions['toolChoice'] = { type: 'tool', toolName: tc.toolName };
-            }
-
-            const result = await generateText(generateOptions as any);
-
-            return result;
-          },
-          { maxRetries: this.config.retryAttempts, baseDelayMs: this.config.retryDelayMs },
+      const round: RoundResult = await breaker.execute(async () => {
+        if (!runToolLoop) {
+          // Legacy single-round path (behavior unchanged).
+          return retryWithBackoff(
+            () => this.generateOnce(model, initialMessages, request, tools, enrichedPrompt),
+            { maxRetries: this.config.retryAttempts, baseDelayMs: this.config.retryDelayMs },
+          );
+        }
+        return this.runToolLoop(
+          model,
+          initialMessages,
+          request,
+          tools,
+          enrichedPrompt,
+          startTime,
         );
       });
 
       const latencyMs = Date.now() - startTime;
 
-      // Calculate usage
+      // Calculate usage (accumulated across loop rounds)
       const usage: TokenUsage = {
-        promptTokens:
-          (response.usage as any)?.promptTokens ??
-          response.usage?.inputTokens ??
-          Math.ceil(enrichedPrompt.length / 4),
-        completionTokens:
-          (response.usage as any)?.completionTokens ??
-          response.usage?.outputTokens ??
-          Math.ceil((response.text || '').length / 4),
-        totalTokens:
-          ((response.usage as any)?.promptTokens ?? response.usage?.inputTokens ?? 0) +
-          ((response.usage as any)?.completionTokens ?? response.usage?.outputTokens ?? 0),
+        promptTokens: round.promptTokens,
+        completionTokens: round.completionTokens,
+        totalTokens: round.promptTokens + round.completionTokens,
         estimatedCost: 0,
       };
-      usage.totalTokens = usage.promptTokens + usage.completionTokens;
       usage.estimatedCost =
         usage.promptTokens * model.costPerInputToken +
         usage.completionTokens * model.costPerOutputToken;
@@ -466,27 +729,18 @@ export class AIEngine {
         usage.estimatedCost,
       );
 
-      const content = response.text || '';
+      const content = round.text || '';
 
-      // Extract tool calls requested by the model
-      const toolCalls: ToolCall[] = [];
-      const rawToolCalls = (response as any).toolCalls as Array<{
-        toolCallId: string;
-        toolName: string;
-        input: unknown;
-      }> | undefined;
-      if (rawToolCalls && rawToolCalls.length > 0) {
-        for (const rtc of rawToolCalls) {
-          toolCalls.push(parseToolCall(rtc));
-        }
-      }
+      // Tool calls the model requested but which were NOT executed: the
+      // legacy single-round path, or a loop that hit its step cap.
+      const toolCalls = round.unexecutedToolCalls;
 
       // Process output through safety pipeline
       const outputSafety = this.safetyPipeline.processOutput(content);
 
       // Cache the response (skip caching when tool calls are involved,
       // since the response depends on tool execution results)
-      if (this.config.enableCaching && toolCalls.length === 0) {
+      if (this.config.enableCaching && toolCalls.length === 0 && !runToolLoop) {
         this.semanticCache.set(safePrompt, outputSafety.text);
       }
 
@@ -497,10 +751,16 @@ export class AIEngine {
         id: this.generateRequestId(),
         content: outputSafety.text,
         model: model.id,
-        finishReason: toolCalls.length > 0 ? 'tool_calls' : 'stop',
+        finishReason: round.pendingConfirmation
+          ? 'confirmation_required'
+          : toolCalls.length > 0
+            ? 'tool_calls'
+            : 'stop',
         usage,
         latencyMs,
         cached: false,
+        pendingConfirmation: round.pendingConfirmation,
+        toolLoopTruncated: round.truncated || undefined,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       };
     } finally {

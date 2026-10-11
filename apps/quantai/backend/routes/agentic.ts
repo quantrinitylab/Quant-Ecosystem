@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { orchestrator, WorkflowEngine } from '@quant/agentic';
 import { getAgentGateway } from '../services/agent-gateway.service';
+import { runLlmAgentChat } from '../services/llm-agent-loop.service';
 import { APP_ENDPOINTS, checkAppHealth } from '../services/app-endpoints';
 
 const workflowSchema = z.object({
@@ -21,6 +22,12 @@ const agenticChatSchema = z.object({
   sessionId: z.string().max(128).optional(),
   stream: z.boolean().optional().default(true),
   dryRun: z.boolean().optional().default(false),
+  /**
+   * Opt-in: LLM tool-calling loop instead of keyword IntentRouter planning.
+   * The model proposes tool calls; each is permission-checked fail-closed
+   * (tier-2+ held via the standard planId -> /agentic/confirm flow).
+   */
+  llm: z.boolean().optional().default(false),
 });
 
 const confirmSchema = z.object({
@@ -132,11 +139,67 @@ export default async function agenticRoutes(fastify: FastifyInstance) {
     const jwt = getUserJwt(request);
     const parsed = agenticChatSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
-    const { message, sessionId, stream, dryRun } = parsed.data;
+    const { message, sessionId, stream, dryRun, llm } = parsed.data;
 
     const requestId =
       (request.headers['x-request-id'] as string | undefined) ??
       `agentic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    // LLM tool-calling loop (opt-in): the model proposes tool calls instead
+    // of the keyword IntentRouter. Same Sentinel confirmation UX.
+    if (llm) {
+      const outcome = await runLlmAgentChat({
+        userId,
+        jwt,
+        message,
+        sessionId,
+        dryRun,
+      });
+      if (outcome.status === 'confirmation_required') {
+        const payload = {
+          success: true,
+          status: 'confirmation_required',
+          planId: outcome.planId,
+          reason: outcome.reason,
+          steps: outcome.calls.map((c) => ({ toolId: c.name, params: c.arguments })),
+        };
+        if (!stream) {
+          return reply.status(202).send(payload);
+        }
+        reply.raw.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+          'x-request-id': requestId,
+        });
+        const sseLlm = (obj: unknown) => reply.raw.write(`data: ${JSON.stringify(obj)}\n\n`);
+        sseLlm({ type: 'confirmation_required', planId: outcome.planId, reason: outcome.reason, steps: payload.steps });
+        sseLlm({ type: 'done' });
+        reply.raw.end();
+        return;
+      }
+      if (!stream) {
+        return reply.send({
+          success: true,
+          data: { content: outcome.content, model: outcome.model, truncated: outcome.truncated ?? false },
+        });
+      }
+      reply.raw.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+        'x-request-id': requestId,
+      });
+      const sseLlm = (obj: unknown) => reply.raw.write(`data: ${JSON.stringify(obj)}\n\n`);
+      try {
+        sseLlm({ type: 'text', delta: outcome.content });
+      } catch (err) {
+        sseLlm({ type: 'error', message: err instanceof Error ? err.message : 'Unknown error' });
+      }
+      sseLlm({ type: 'done' });
+      reply.raw.end();
+      return;
+    }
 
     const gateway = getAgentGateway();
     const plan = gateway.plan(message);

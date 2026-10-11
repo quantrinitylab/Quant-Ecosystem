@@ -38,6 +38,12 @@ export interface GatewayExecuteOptions {
   requestId?: string;
   sessionId?: string;
   dryRun?: boolean;
+  /**
+   * Tool ids already approved via a Sentinel confirmation flow.
+   * The executor's defense-in-depth enforcement honors these for tier-2+
+   * tools; everything else is refused fail-closed.
+   */
+  confirmedToolIds?: string[];
 }
 
 interface HeldPlan {
@@ -66,6 +72,10 @@ class AgentGateway {
     this.executor = new ToolExecutor();
     this.orchestrator = new CrossAppOrchestrator(allTools, undefined, this.executor);
     this.permissions = new PermissionEngine(allTools);
+    // Defense in depth: the executor itself refuses tier-2+ tools without
+    // Sentinel approval and tier-3+ tools the user tier cannot reach, so a
+    // caller that forgets checkPermissions still fails closed.
+    this.executor.setPermissionEngine(this.permissions);
     this.registerHttpHandlers();
   }
 
@@ -145,6 +155,7 @@ class AgentGateway {
       sessionId: opts.sessionId ?? `sess-${Date.now()}`,
       permissions: 1,
       dryRun: opts.dryRun ?? false,
+      confirmedToolIds: opts.confirmedToolIds,
       metadata: {
         jwt: opts.jwt,
         ...(opts.requestId ? { requestId: opts.requestId } : {}),
@@ -173,7 +184,10 @@ class AgentGateway {
     if (!opts.approved) {
       return [];
     }
-    return this.execute(held.plan, opts);
+    // The user approved this exact plan: carry the approval proof into the
+    // executor so its defense-in-depth tier enforcement lets it through.
+    const confirmedToolIds = held.plan.steps.map((s) => s.toolId);
+    return this.execute(held.plan, { ...opts, confirmedToolIds });
   }
 
   /** Bind the held plan to the requesting user (called by the chat route). */
