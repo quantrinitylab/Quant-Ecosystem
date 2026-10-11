@@ -675,7 +675,7 @@ Fix agents dispatched (PR-only, never merge): lane1-fix-015-copy-deadcode (P1 co
 Status: [x] DONE (audit complete: code vs origin/main 0a90b11c + live logged-out desktop+mobile; findings logged; fixes tracked via their PRs separately).
 
 ## QM-SCREEN-016 — Settings / profile / identity / devices / sessions / security
-Status: [ ] TODO
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-016, Run: 2026-10-11)
 Required: account identity, linked devices, sessions, 2FA, recovery, privacy, Quanty grants, memory/personalization, connected apps, data export/deletion, step-up auth.
 Dependencies: QM-WORK-010.
 
