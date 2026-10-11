@@ -8,8 +8,8 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TIMEZONES } from '../../types';
-import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage } from './booking-utils';
-import type { BookingLinkDetails } from './booking-utils';
+import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure } from './booking-utils';
+import type { BookingLinkDetails, BookingLinkLoadStatus } from './booking-utils';
 import {
   IconClock,
   IconVideoCall,
@@ -61,8 +61,10 @@ interface PageProps {
 }
 
 export default function PublicBookingPage(props: PageProps) {
-  // Unwrap Next.js 15 params
-  const [resolvedSlug, setResolvedSlug] = useState<string>('strategy-session');
+  // Unwrap Next.js 15 params. Starts EMPTY (not a guessed slug): fetching is
+  // skipped until the real slug resolves, so we never request — or briefly
+  // error on — a bogus default slug (fix/qm-booking-deadlink-details).
+  const [resolvedSlug, setResolvedSlug] = useState<string>('');
 
   useEffect(() => {
     if (!props?.params) return;
@@ -87,6 +89,19 @@ export default function PublicBookingPage(props: PageProps) {
     hostName: '',
     hostEmail: '',
   });
+
+  // Honest link-load state (fix/qm-booking-deadlink-details).
+  // 'loading'  — fetch in flight; seeded layout is shown as a placeholder.
+  // 'ready'    — backend returned a real, active booking-link record.
+  // 'not-found'/'inactive'/'error' — dead or unreachable link: the booking
+  // UI is replaced by an honest state BEFORE any slot selection, never the
+  // seeded details as if they were real.
+  const [linkStatus, setLinkStatus] = useState<'loading' | 'ready' | BookingLinkLoadStatus>(
+    'loading',
+  );
+  const [linkErrorMessage, setLinkErrorMessage] = useState<string | null>(null);
+  // Bumped by the "Try again" button to re-run the link fetch below.
+  const [linkReloadNonce, setLinkReloadNonce] = useState(0);
 
   // Flow State: Step 1 (Date & Slot) -> Step 2 (Visitor Form) -> Step 3 (Confirmation)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -139,31 +154,69 @@ export default function PublicBookingPage(props: PageProps) {
     if (!resolvedSlug) return;
 
     let isMounted = true;
+
+    const readServerMessage = async (res: Response): Promise<string | undefined> => {
+      try {
+        const errJson = await res.json();
+        const err = errJson?.error;
+        return (
+          (typeof err === 'object' && err ? err.message : undefined) ||
+          (typeof err === 'string' ? err : undefined) ||
+          (typeof errJson?.message === 'string' ? errJson.message : undefined)
+        );
+      } catch {
+        // Error body unreadable — fall through to the status-mapped copy.
+        return undefined;
+      }
+    };
+
     async function fetchLink() {
       try {
         const res = await apiFetchRaw(`/api/calendar/booking/${resolvedSlug}`);
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && json.data && isMounted) {
-            setMeetingDetails((prev) => applyBookingLinkResponse(prev, json.data));
+        if (!res.ok) {
+          // Dead link or server trouble: never keep the seeded meeting
+          // details on screen as if they were real.
+          if (isMounted) {
+            const { status, message } = resolveLinkLoadFailure(
+              res.status,
+              await readServerMessage(res),
+            );
+            setLinkStatus(status);
+            setLinkErrorMessage(message);
           }
+          return;
+        }
+        const json = await res.json();
+        if (json.success && json.data) {
+          // The public GET returns the record even when the host paused it
+          // (no 410 on GET) — an inactive link is a dead link: show the
+          // honest inactive state, never the booking UI.
+          if (json.data.isActive === false) {
+            if (isMounted) {
+              const { status, message } = resolveLinkLoadFailure(410);
+              setLinkStatus(status);
+              setLinkErrorMessage(message);
+            }
+            return;
+          }
+          if (isMounted) {
+            setMeetingDetails((prev) => applyBookingLinkResponse(prev, json.data));
+            setLinkStatus('ready');
+          }
+          return;
+        }
+        // 2xx but unusable payload — honest error, never the seeded fake.
+        if (isMounted) {
+          const { status, message } = resolveLinkLoadFailure(res.status);
+          setLinkStatus(status);
+          setLinkErrorMessage(message);
         }
       } catch {
-        // Fallback to title-derived details
+        // Network failure: never invent meeting details from the slug.
         if (isMounted) {
-          const readableTitle = resolvedSlug
-            .split('-')
-            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-            .join(' ');
-          const durationMatch = resolvedSlug.match(/(\d+)-min/);
-          const dur = durationMatch ? parseInt(durationMatch[1], 10) : 30;
-
-          setMeetingDetails((prev) => ({
-            ...prev,
-            slug: resolvedSlug,
-            title: readableTitle || 'Strategy Session',
-            duration: dur,
-          }));
+          const { status, message } = resolveLinkLoadFailure(0);
+          setLinkStatus(status);
+          setLinkErrorMessage(message);
         }
       }
     }
@@ -172,7 +225,7 @@ export default function PublicBookingPage(props: PageProps) {
     return () => {
       isMounted = false;
     };
-  }, [resolvedSlug]);
+  }, [resolvedSlug, linkReloadNonce]);
 
   // Generate or fetch available slots for the selected date
   const generateSlotsForDate = useCallback(
@@ -222,6 +275,17 @@ export default function PublicBookingPage(props: PageProps) {
   // Fetch slots whenever selectedDate or meetingDetails change
   useEffect(() => {
     let isMounted = true;
+
+    // Never fetch or invent slots for a dead/unreachable link — the honest
+    // link state above replaces the booking UI entirely.
+    if (linkStatus !== 'ready') {
+      setIsLoadingSlots(false);
+      setAvailableSlots([]);
+      return () => {
+        isMounted = false;
+      };
+    }
+
     setIsLoadingSlots(true);
 
     async function loadSlots() {
@@ -250,6 +314,16 @@ export default function PublicBookingPage(props: PageProps) {
             setIsLoadingSlots(false);
             return;
           }
+        } else if ((res.status === 404 || res.status === 410) && isMounted) {
+          // The link died between the initial link load and this slots
+          // fetch (deleted/paused mid-session): flip to the honest dead-link
+          // state instead of rendering — or inventing — slots for it.
+          const { status, message } = resolveLinkLoadFailure(res.status);
+          setLinkStatus(status);
+          setLinkErrorMessage(message);
+          setAvailableSlots([]);
+          setIsLoadingSlots(false);
+          return;
         }
       } catch {
         // Fallback
@@ -272,7 +346,7 @@ export default function PublicBookingPage(props: PageProps) {
     return () => {
       isMounted = false;
     };
-  }, [selectedDate, resolvedSlug, meetingDetails, generateSlotsForDate]);
+  }, [selectedDate, resolvedSlug, meetingDetails, linkStatus, generateSlotsForDate]);
 
   // Handle Month Navigation
   const handlePrevMonth = () => {
@@ -525,7 +599,12 @@ export default function PublicBookingPage(props: PageProps) {
       </header>
 
       {/* Main Calendly-Class 2-Column Container */}
+      {/* Honest dead-link states (fix/qm-booking-deadlink-details): a link
+          that 404s, 410s, or fails to load replaces the booking UI with an
+          honest state BEFORE any slot selection — never seeded details as
+          if they were real. While loading, the seeded layout is a placeholder. */}
       <main className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-10">
+        {linkStatus === 'ready' || linkStatus === 'loading' ? (
         <div className="w-full max-w-5xl rounded-3xl bg-[var(--quant-surface-subtle)] border border-[var(--quant-surface-elevated)] shadow-2xl shadow-black/80 overflow-hidden grid grid-cols-1 md:grid-cols-12 min-h-[580px]">
           {/* ================================================================= */}
           {/* LEFT COLUMN: Host Information, Brand, Timezone & Meeting Info     */}
@@ -985,6 +1064,45 @@ export default function PublicBookingPage(props: PageProps) {
             )}
           </section>
         </div>
+        ) : (
+        <div className="w-full max-w-md rounded-3xl bg-[var(--quant-surface-subtle)] border border-[var(--quant-surface-elevated)] shadow-2xl shadow-black/80 p-8 text-center space-y-4">
+          <div className="size-14 rounded-2xl bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] text-[var(--app-accent)] mx-auto flex items-center justify-center">
+            <IconBan size={26} />
+          </div>
+          <div className="space-y-1.5">
+            <h1 className="text-lg font-black tracking-tight text-white">
+              {linkStatus === 'not-found'
+                ? 'Booking link not found'
+                : linkStatus === 'inactive'
+                  ? 'This booking link is inactive'
+                  : "Couldn't load this booking link"}
+            </h1>
+            <p className="text-xs text-[var(--quant-muted-foreground)] leading-relaxed">
+              {linkErrorMessage || 'This booking link could not be loaded.'}
+            </p>
+            <p className="text-[11px] text-[#5E6472] leading-relaxed">
+              {linkStatus === 'not-found'
+                ? 'Double-check the URL — the link may have been deleted. Ask the host for a fresh one.'
+                : linkStatus === 'inactive'
+                  ? 'The host has paused or disabled this link. Ask them for a new one.'
+                  : 'Nothing was booked — your details were never sent. Check your connection and try again.'}
+            </p>
+          </div>
+          {linkStatus === 'error' && (
+            <button
+              type="button"
+              onClick={() => {
+                setLinkStatus('loading');
+                setLinkErrorMessage(null);
+                setLinkReloadNonce((n) => n + 1);
+              }}
+              className="px-5 py-2.5 rounded-xl bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-[var(--quant-background)] font-bold text-xs shadow-lg shadow-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] transition-all"
+            >
+              Try again
+            </button>
+          )}
+        </div>
+        )}
       </main>
 
       {/* Footer */}

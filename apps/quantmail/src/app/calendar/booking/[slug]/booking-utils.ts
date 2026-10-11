@@ -99,6 +99,10 @@ export interface BookingLinkDetails {
   hostName: string;
   hostEmail: string;
   hostAvatar?: string;
+  // Whether the booking link is active. The public GET returns the record
+  // even when the host paused it (no 410 on GET) — the client must treat
+  // isActive === false as a dead link and never render the booking UI for it.
+  isActive?: boolean;
 }
 
 /**
@@ -123,7 +127,76 @@ export function applyBookingLinkResponse(
     availableDays: data.availableDays || prev.availableDays,
     hostName: data.hostName || '',
     hostEmail: data.hostEmail || '',
+    isActive: data.isActive ?? prev.isActive ?? true,
   };
+}
+
+/**
+ * Honest load state for a failed booking-link GET (fix/qm-booking-deadlink-details).
+ *
+ * A dead or unreachable booking link must NEVER keep the seeded meeting
+ * details ("30 Min Strategy Session" + "Unknown host") on screen as if they
+ * were real, and a network failure must NEVER invent a meeting title from
+ * the URL slug. Every failure resolves to one honest state:
+ *   404 → 'not-found'   (link deleted / never existed)
+ *   410 → 'inactive'    (host paused the link; also used when the GET
+ *                         returns 200 with isActive === false — the public
+ *                         GET never 410s on its own)
+ *   else → 'error'      (server trouble, network failure, malformed payload)
+ * Pure function so the mapping is unit-testable.
+ *
+ * Backend codes (booking-link.service.ts): 404 BOOKING_LINK_NOT_FOUND,
+ * 410 BOOKING_LINK_INACTIVE. Status 0 = network failure (no response).
+ */
+export type BookingLinkLoadStatus = 'not-found' | 'inactive' | 'error';
+
+export function resolveLinkLoadFailure(
+  status: number,
+  serverMessage?: string,
+): { status: BookingLinkLoadStatus; message: string } {
+  if (status === 0) {
+    return {
+      status: 'error',
+      message: 'Could not reach the booking server. Check your connection and try again.',
+    };
+  }
+  switch (status) {
+    case 404:
+      return {
+        status: 'not-found',
+        message: serverMessage || 'This booking link no longer exists or was removed.',
+      };
+    case 410:
+      return {
+        status: 'inactive',
+        message:
+          serverMessage || 'This booking link is no longer active. Please ask the host for a new link.',
+      };
+    case 400:
+      return {
+        status: 'error',
+        message:
+          serverMessage || 'This booking link looks invalid. Please check the URL and try again.',
+      };
+    case 429:
+      return {
+        status: 'error',
+        message: 'Too many requests. Please wait a moment and try again.',
+      };
+    case 500:
+    case 502:
+    case 503:
+    case 504:
+      return {
+        status: 'error',
+        message: 'The booking server ran into a problem. Please try again.',
+      };
+    default:
+      return {
+        status: 'error',
+        message: serverMessage || 'Could not load this booking link. Please try again.',
+      };
+  }
 }
 
 /**
