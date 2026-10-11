@@ -275,7 +275,7 @@ export function CalendarEventForm({
                   type="button"
                   disabled={isSaving}
                   onClick={() => void handleSaveEntry()}
-                  className="px-5 py-1.5 min-h-[44px] sm:min-h-0 rounded-xl bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] active:bg-[var(--app-accent-pressed)] text-[#111111] font-semibold text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                  className="px-5 py-1.5 min-h-[44px] sm:min-h-0 rounded-xl bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] active:bg-[var(--app-accent-pressed)] disabled:opacity-40 disabled:cursor-not-allowed text-[#111111] font-semibold text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                 >
                   {isSaving ? (
                     <>

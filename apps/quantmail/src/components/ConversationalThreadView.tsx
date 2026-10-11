@@ -238,7 +238,8 @@ function formatFullDate(value?: string | Date): string {
  * Read-receipt status for a message bubble, WhatsApp-style.
  *
  * Ticks only ever appear on YOUR messages (outbound) — inbound rows never get
- * them, exactly like a messaging app.
+ * them, exactly like a messaging app. Self-sends (notes to yourself) never get
+ * them either: the only reader is the sender, so the ticks would say nothing.
  *
  * Backed by the read-receipt pipeline: `deliveredAt` is stamped when the
  * message reaches the recipient's mailbox (internal delivery) or the outbound
@@ -249,8 +250,19 @@ function formatFullDate(value?: string | Date): string {
 function receiptStatusOf(
   message: Email,
   isOutbound: boolean,
+  viewerEmail?: string | null,
 ): { status: 'sent' | 'delivered' | 'read' | 'unknown'; readAt?: string; deliveredAt?: string } | null {
   if (!isOutbound) return null;
+  // BB-P2-5: a note to self is outbound, but a read receipt on it says
+  // nothing — the only reader is the sender. Suppress the ticks when every
+  // recipient is the viewer.
+  if (viewerEmail) {
+    const me = viewerEmail.toLowerCase();
+    const recipients = (message.to ?? [])
+      .map((t) => String(t?.email ?? '').toLowerCase())
+      .filter(Boolean);
+    if (recipients.length > 0 && recipients.every((r) => r === me)) return null;
+  }
   const readAt = message.readAt ? String(message.readAt) : undefined;
   const deliveredAt = message.deliveredAt ? String(message.deliveredAt) : undefined;
   if (readAt) return { status: 'read', readAt, deliveredAt };
@@ -352,6 +364,12 @@ export interface ConversationalThreadViewProps {
    * `/thread/<id>` itself.
    */
   onNavigateToThread?: (threadId: string) => void;
+  /**
+   * BB-P2-6: label for the header back button. The thread page derives it
+   * from `returnTo` — "Back to archived" when the thread was opened from the
+   * archived view — instead of the header always claiming the inbox.
+   */
+  backLabel?: string;
 }
 
 /**
@@ -391,6 +409,7 @@ export function ConversationalThreadView({
   isSpam = false,
   onNotSpam,
   onNavigateToThread,
+  backLabel = 'Back to inbox',
 }: ConversationalThreadViewProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -1800,8 +1819,8 @@ export function ConversationalThreadView({
               type="button"
               onClick={onClose}
               className="p-2 -ml-1.5 rounded-xl text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)]/80 active:bg-[#3A404D]/60 transition-all active:scale-95 flex items-center justify-center min-w-[44px] min-h-[44px] sm:min-w-[40px] sm:min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
-              title="Back to inbox"
-              aria-label="Back to inbox"
+              title={backLabel}
+              aria-label={backLabel}
             >
               <svg
                 className="size-5"
@@ -2536,9 +2555,10 @@ export function ConversationalThreadView({
 
             /*
              * Read receipt: WhatsApp-style ticks on YOUR messages only.
-             * `receiptStatusOf` returns null for inbound messages.
+             * `receiptStatusOf` returns null for inbound messages and for
+             * self-sends (a read receipt on a note to yourself says nothing).
              */
-            const receipt = receiptStatusOf(message, isOutbound);
+            const receipt = receiptStatusOf(message, isOutbound, currentEmail);
 
             // Day-group divider (chat-bubble vision): a centered pill whenever
             // the day changes — "Today", "Yesterday", weekday, or full date.

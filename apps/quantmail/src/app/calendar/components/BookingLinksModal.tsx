@@ -162,7 +162,9 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
 
     setCopiedSlug(slug);
     showToast({
-      text: `Copied booking link: /calendar/booking/${slug}`,
+      // BB-P2-8: name the absolute URL that was actually copied to the
+      // clipboard — a relative path here read as if the copy was broken.
+      text: `Copied booking link: ${fullUrl}`,
       type: 'success',
     });
 
@@ -616,7 +618,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 rounded-xl bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-[var(--quant-background)] font-bold shadow-md transition-all disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-[var(--quant-background)] font-bold shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? 'Creating Link…' : 'Create Booking Link'}
                 </button>

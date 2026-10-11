@@ -1365,6 +1365,29 @@ function InboxPageContent() {
   );
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [showArchivedView, setShowArchivedView] = useState(false);
+  /*
+   * BB-P2-6: the archived view used to live only in client state, so opening
+   * a thread (which navigates to /thread/:id?returnTo=...) and coming back,
+   * refreshing, or sharing the link silently dropped the user in the inbox —
+   * and the thread view's back button always said "Back to inbox" even when
+   * the user came from Archived. `archived=1` makes the view addressable:
+   * the thread page's returnTo preserves it, and the back button can label
+   * the real destination. The URL is the source of truth (so the People|Inbox
+   * toggle link, which navigates without the param, also exits the view);
+   * the second effect writes toggles back with replace, never pushing history.
+   */
+  const archivedParam = searchParams?.get('archived') === '1';
+  useEffect(() => {
+    setShowArchivedView(archivedParam);
+  }, [archivedParam]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (showArchivedView) url.searchParams.set('archived', '1');
+    else if (url.searchParams.has('archived')) url.searchParams.delete('archived');
+    else return;
+    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+  }, [showArchivedView, router]);
   /**
    * What the group editor is open on: `null` closed, `'new'` creating, a group to
    * edit that one. One tri-state rather than an `isOpen` plus a nullable target,
@@ -4044,7 +4067,11 @@ function InboxPageContent() {
           )}
           <footer className="inbox-list-footer">
             <span>
-              {threads?.length ?? 0} conversation{threads?.length === 1 ? '' : 's'}
+            {/* BB-P2-1: count the list the footer sits under. `displayThreads`
+                is exactly what the virtualizer renders above — the old
+                `threads` pool described a different list in the archived view
+                or under any lens/filter narrowing. */}
+              {displayThreads.length} conversation{displayThreads.length === 1 ? '' : 's'}
             </span>
             <span>Ecosystem connected · SES/DKIM active</span>
           </footer>
