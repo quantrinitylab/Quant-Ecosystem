@@ -344,9 +344,10 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       icon: 'sidebar',
       keywords: ['collapse', 'expand', 'navigation'],
       // CUST-P1-4: the desktop rail is pinned (toggling is a no-op by design
-      // on wide screens — the hamburger is gone), so the key is only enabled
-      // where it can act: the mobile drawer below `md`. Without this the `?`
-      // sheet advertises a dead key on desktop.
+      // on wide screens), so the key is only enabled where it can act: the
+      // mobile drawer below `md`. Without this the `?` sheet advertises a
+      // dead key on desktop. The touch path is the hamburger in the mobile
+      // pillar top bar (2026-10-11), which dispatches this same event.
       enabled: () => typeof window === 'undefined' || window.innerWidth < 768,
       run: () => {
         window.dispatchEvent(new CustomEvent('quant:sidebar:toggle'));

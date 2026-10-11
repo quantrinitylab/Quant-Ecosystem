@@ -362,8 +362,10 @@ export function AppShell({
   useEffect(() => {
     const handleToggle = () => {
       // The desktop rail is always pinned now — toggling there would hide the
-      // rail with no way back (the hamburger is gone), so ignore it on wide
-      // screens. The mobile drawer still toggles below `md`.
+      // rail with no way back, so ignore it on wide screens. The mobile drawer
+      // still toggles below `md`. On mobile the trigger is the hamburger in the
+      // pillar top bar (2026-10-11: wired via `onMenuClick` below); the `[`
+      // keyboard shortcut remains the keyboard path.
       if (isWide) return;
       setIsSidebarOpen((open) => {
         // Leaving focus on a node inside a drawer that is about to go
@@ -877,6 +879,17 @@ export function AppShell({
                   onQuantyClick={openQuanty}
                   unreadCounts={{ mail: unreadCount }}
                   lensCounts={{ mail: mailLensCounts }}
+                  // The mobile drawer is otherwise unreachable on touch
+                  // (the `[` shortcut needs a physical keyboard), so the
+                  // hamburger renders here — left of the pinned search row —
+                  // and dispatches the same toggle the keyboard path uses.
+                  // `menuTriggerRef` finally gives the drawer's focus-return
+                  // logic a real DOM node (previously unattached).
+                  onMenuClick={() =>
+                    window.dispatchEvent(new CustomEvent('quant:sidebar:toggle'))
+                  }
+                  menuTriggerRef={menuTriggerRef}
+                  menuExpanded={isSidebarOpen}
                 />
               </div>
             ) : null}
