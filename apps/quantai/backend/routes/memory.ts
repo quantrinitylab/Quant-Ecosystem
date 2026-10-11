@@ -13,6 +13,7 @@ import {
   loadQdrantConfig,
 } from '@quant/ai';
 import { MemoryShadowReportRepository } from '@quant/database';
+import { PrismaAIMemoryStore } from '@quant/ai-memory';
 import { MemoryService } from '../services/memory.service';
 import { createQuantaiMemoryFacade, resolveFacadeMode } from '../services/memory-facade.service';
 import { PrismaShadowReportSink } from '../services/shadow-report.service';
@@ -99,7 +100,21 @@ const importBodySchema = z.object({
 });
 
 export default async function memoryRoutes(fastify: FastifyInstance) {
-  const service = new MemoryService();
+  // Durable Postgres store when a Prisma client is decorated (production);
+  // otherwise the process-local in-memory store (dev/test, honestly ephemeral).
+  const prismaClient = (fastify as unknown as { prisma?: unknown }).prisma as
+    | import('@quant/ai-memory').AiMemoryPrismaClient
+    | undefined;
+  const durableStore =
+    process.env['DATABASE_URL'] && prismaClient
+      ? new PrismaAIMemoryStore({ client: prismaClient, appId: 'quantai' })
+      : undefined;
+  if (durableStore) {
+    fastify.log.info('memory routes: using durable PrismaAIMemoryStore (ai_memory_entries)');
+  } else {
+    fastify.log.warn('memory routes: DATABASE_URL/prisma unavailable — in-memory store (ephemeral)');
+  }
+  const service = new MemoryService(durableStore);
 
   // GET / - list memories with optional filters
   fastify.get('/', async (request, reply) => {
@@ -113,7 +128,7 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
       throw queryResult.error;
     }
 
-    const memories = service.listMemories(userId, queryResult.data);
+    const memories = await service.listMemories(userId, queryResult.data);
     return reply.send({ success: true, data: memories });
   });
 
@@ -129,14 +144,14 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
       throw parseResult.error;
     }
 
-    const memory = service.createMemory(userId, parseResult.data);
+    const memory = await service.createMemory(userId, parseResult.data);
     return reply.status(201).send({ success: true, data: memory });
   });
 
   // PUT /:id - update memory
   // NOTE: Ownership enforcement (404 then 403) is implemented in PUT, DELETE, approve, reject.
   // Route-level integration tests for this logic are deferred until Fastify injection test
-  // infrastructure is added. The service.getMemory() + userId comparison pattern is validated
+  // infrastructure is added. The await service.getMemory() + userId comparison pattern is validated
   // at the service layer in memory.service.test.ts.
   fastify.put<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
@@ -144,7 +159,7 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const existing = service.getMemory(request.params.id);
+    const existing = await service.getMemory(request.params.id);
     if (!existing) {
       throw createAppError('Memory not found', 404, 'NOT_FOUND');
     }
@@ -157,7 +172,7 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
       throw parseResult.error;
     }
 
-    const memory = service.updateMemory(request.params.id, parseResult.data);
+    const memory = await service.updateMemory(request.params.id, parseResult.data);
     if (!memory) {
       throw createAppError('Memory not found', 404, 'NOT_FOUND');
     }
@@ -172,7 +187,7 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const existing = service.getMemory(request.params.id);
+    const existing = await service.getMemory(request.params.id);
     if (!existing) {
       throw createAppError('Memory not found', 404, 'NOT_FOUND');
     }
@@ -180,7 +195,7 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
       throw createAppError('Forbidden', 403, 'FORBIDDEN');
     }
 
-    const deleted = service.deleteMemory(request.params.id);
+    const deleted = await service.deleteMemory(request.params.id);
     if (!deleted) {
       throw createAppError('Memory not found', 404, 'NOT_FOUND');
     }
@@ -195,7 +210,7 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const count = service.purgeByTag(userId, request.params.tag);
+    const count = await service.purgeByTag(userId, request.params.tag);
     return reply.send({ success: true, data: { purged: count } });
   });
 
@@ -206,7 +221,7 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const candidates = service.getPendingCandidates(userId);
+    const candidates = await service.getPendingCandidates(userId);
     return reply.send({ success: true, data: candidates });
   });
 
@@ -217,7 +232,7 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const existing = service.getMemory(request.params.id);
+    const existing = await service.getMemory(request.params.id);
     if (!existing) {
       throw createAppError('Candidate not found or not pending', 404, 'NOT_FOUND');
     }
@@ -225,7 +240,7 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
       throw createAppError('Forbidden', 403, 'FORBIDDEN');
     }
 
-    const memory = service.approveCandidate(request.params.id);
+    const memory = await service.approveCandidate(request.params.id);
     if (!memory) {
       throw createAppError('Candidate not found or not pending', 404, 'NOT_FOUND');
     }
@@ -240,7 +255,7 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const existing = service.getMemory(request.params.id);
+    const existing = await service.getMemory(request.params.id);
     if (!existing) {
       throw createAppError('Candidate not found or not pending', 404, 'NOT_FOUND');
     }
@@ -248,7 +263,7 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
       throw createAppError('Forbidden', 403, 'FORBIDDEN');
     }
 
-    const rejected = service.rejectCandidate(request.params.id);
+    const rejected = await service.rejectCandidate(request.params.id);
     if (!rejected) {
       throw createAppError('Candidate not found or not pending', 404, 'NOT_FOUND');
     }
@@ -272,7 +287,7 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
     }
 
     const format = queryResult.data.format ?? 'json';
-    const exported = service.exportMemories(userId, format);
+    const exported = await service.exportMemories(userId, format);
 
     // Send raw content with appropriate content type to avoid double-encoding
     if (format === 'json') {
@@ -296,7 +311,7 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
       throw parseResult.error;
     }
 
-    const imported = service.importMemories(userId, JSON.stringify(parseResult.data));
+    const imported = await service.importMemories(userId, JSON.stringify(parseResult.data));
     return reply.status(201).send({ success: true, data: imported });
   });
 
@@ -307,7 +322,7 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const disclosure = service.getFullDisclosure(userId);
+    const disclosure = await service.getFullDisclosure(userId);
     return reply.send({ success: true, data: disclosure });
   });
 

@@ -1,15 +1,22 @@
 // ============================================================================
 // QuantAI - Memory Service
-// Wraps @quant/ai-memory store and exporter for backend API use
+// Wraps @quant/ai-memory store and exporter for backend API use.
+//
+// The store is injected as the async MemoryStorePort: production passes
+// PrismaAIMemoryStore (durable Postgres); tests / zero-DB environments pass
+// AsyncAIMemoryStoreAdapter over the in-memory AIMemoryStore. All methods are
+// async — a resolved write means it is DURABLE (no silent data loss).
 // ============================================================================
 
 import {
   AIMemoryStore,
+  AsyncAIMemoryStoreAdapter,
   MemoryExporter,
   type MemoryEntry,
   type MemoryCategory,
   type ExportFormat,
   type MemoryAccess,
+  type MemoryStorePort,
 } from '@quant/ai-memory';
 
 export interface MemoryFilters {
@@ -43,16 +50,16 @@ export interface FullDisclosure {
 }
 
 export class MemoryService {
-  private store: AIMemoryStore;
+  private store: MemoryStorePort;
   private exporter: MemoryExporter;
 
-  constructor() {
-    this.store = new AIMemoryStore();
+  constructor(store?: MemoryStorePort) {
+    this.store = store ?? new AsyncAIMemoryStoreAdapter(new AIMemoryStore());
     this.exporter = new MemoryExporter(this.store);
   }
 
-  listMemories(userId: string, filters?: MemoryFilters): MemoryEntry[] {
-    let results = this.store.getUserMemories(userId);
+  async listMemories(userId: string, filters?: MemoryFilters): Promise<MemoryEntry[]> {
+    let results = await this.store.getUserMemories(userId);
 
     if (filters?.category) {
       results = results.filter((m) => m.category === filters.category);
@@ -70,7 +77,7 @@ export class MemoryService {
     return results;
   }
 
-  createMemory(userId: string, data: CreateMemoryData): MemoryEntry {
+  async createMemory(userId: string, data: CreateMemoryData): Promise<MemoryEntry> {
     return this.store.create({
       userId,
       category: data.category,
@@ -86,23 +93,26 @@ export class MemoryService {
     });
   }
 
-  getMemory(id: string): MemoryEntry | undefined {
+  async getMemory(id: string): Promise<MemoryEntry | undefined> {
     return this.store.get(id);
   }
 
-  updateMemory(id: string, data: UpdateMemoryData): MemoryEntry | undefined {
+  async updateMemory(id: string, data: UpdateMemoryData): Promise<MemoryEntry | undefined> {
     return this.store.update(id, data);
   }
 
-  deleteMemory(id: string): boolean {
+  async deleteMemory(id: string): Promise<boolean> {
     return this.store.delete(id);
   }
 
-  purgeByTag(userId: string, tag: string): number {
+  async purgeByTag(userId: string, tag: string): Promise<number> {
     return this.store.purgeByTag(userId, tag);
   }
 
-  createCandidate(userId: string, data: Omit<CreateMemoryData, 'writeSignal'>): MemoryEntry {
+  async createCandidate(
+    userId: string,
+    data: Omit<CreateMemoryData, 'writeSignal'>,
+  ): Promise<MemoryEntry> {
     return this.store.createCandidate({
       userId,
       category: data.category,
@@ -116,33 +126,35 @@ export class MemoryService {
     });
   }
 
-  getPendingCandidates(userId: string): MemoryEntry[] {
+  async getPendingCandidates(userId: string): Promise<MemoryEntry[]> {
     return this.store.getPendingCandidates(userId);
   }
 
-  approveCandidate(id: string): MemoryEntry | undefined {
+  async approveCandidate(id: string): Promise<MemoryEntry | undefined> {
     return this.store.approveCandidate(id);
   }
 
-  rejectCandidate(id: string): boolean {
+  async rejectCandidate(id: string): Promise<boolean> {
     return this.store.rejectCandidate(id);
   }
 
-  exportMemories(userId: string, format: ExportFormat): string {
+  async exportMemories(userId: string, format: ExportFormat): Promise<string> {
     return this.exporter.export(userId, format);
   }
 
-  importMemories(userId: string, json: string): MemoryEntry[] {
+  async importMemories(userId: string, json: string): Promise<MemoryEntry[]> {
     return this.exporter.importFromJson(json, userId);
   }
 
-  getFullDisclosure(userId: string): FullDisclosure {
-    const memories = this.store.getUserMemories(userId);
-    const accessLogs = memories.map((m) => ({
-      memoryId: m.id,
-      content: m.content,
-      logs: this.store.getAccessLog(m.id),
-    }));
+  async getFullDisclosure(userId: string): Promise<FullDisclosure> {
+    const memories = await this.store.getUserMemories(userId);
+    const accessLogs = await Promise.all(
+      memories.map(async (m) => ({
+        memoryId: m.id,
+        content: m.content,
+        logs: await this.store.getAccessLog(m.id),
+      })),
+    );
 
     return { memories, accessLogs };
   }

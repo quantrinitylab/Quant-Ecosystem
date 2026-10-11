@@ -75,11 +75,11 @@ const build = (
 };
 
 describe('resolveFacadeMode', () => {
-  it('defaults to legacy only when the env value is absent', () => {
+  it('defaults to legacy only when the env value is absent', async () => {
     expect(resolveFacadeMode({} as NodeJS.ProcessEnv)).toBe('legacy');
   });
 
-  it('rejects an invalid explicit mode with a structured startup error', () => {
+  it('rejects an invalid explicit mode with a structured startup error', async () => {
     expect(() => resolveFacadeMode({ QUANTAI_MEMORY_MODE: 'chaos' } as NodeJS.ProcessEnv)).toThrow(
       QuantaiMemoryConfigurationError,
     );
@@ -95,7 +95,7 @@ describe('resolveFacadeMode', () => {
     }
   });
 
-  it('honors canary modes case-insensitively', () => {
+  it('honors canary modes case-insensitively', async () => {
     expect(resolveFacadeMode({ QUANTAI_MEMORY_MODE: 'SHADOW' } as NodeJS.ProcessEnv)).toBe(
       'shadow',
     );
@@ -104,7 +104,7 @@ describe('resolveFacadeMode', () => {
     );
   });
 
-  it('rejects new authority until the ADR-011 release gate is approved', () => {
+  it('rejects new authority until the ADR-011 release gate is approved', async () => {
     expect(() => resolveFacadeMode({ QUANTAI_MEMORY_MODE: 'new' } as NodeJS.ProcessEnv)).toThrow(
       /release gate/,
     );
@@ -131,7 +131,7 @@ describe('fail-closed canary dependencies', () => {
     },
   );
 
-  it('rejects programmatic new authority even when durable dependencies are present', () => {
+  it('rejects programmatic new authority even when durable dependencies are present', async () => {
     const dependencies = durableDependencies('shadow');
     expect(() =>
       createQuantaiMemoryFacade({
@@ -143,7 +143,7 @@ describe('fail-closed canary dependencies', () => {
     ).toThrow(/release gate/);
   });
 
-  it('reports every missing shadow dependency with a stable error code', () => {
+  it('reports every missing shadow dependency with a stable error code', async () => {
     try {
       createQuantaiMemoryFacade({ legacyService: new MemoryService(), mode: 'shadow' });
       expect.unreachable('shadow startup should fail closed');
@@ -156,7 +156,7 @@ describe('fail-closed canary dependencies', () => {
     }
   });
 
-  it('requires the durable report sink only for shadow mode', () => {
+  it('requires the durable report sink only for shadow mode', async () => {
     const service = new MemoryService();
     const dependencies = durableDependencies('shadow');
     expect(() =>
@@ -173,22 +173,22 @@ describe('fail-closed canary dependencies', () => {
 describe('legacy mode (default)', () => {
   it('observe lands in the existing store as a PENDING candidate (review flow intact)', async () => {
     const { facade, service } = build('legacy');
-    await facade.observe({
+    await await facade.observe({
       actor: 'u1',
       session: 's1',
       role: 'user',
       content: 'I prefer dark mode',
     });
 
-    const pending = service.getPendingCandidates('u1');
+    const pending = await service.getPendingCandidates('u1');
     expect(pending).toHaveLength(1);
     expect(pending[0]?.content).toBe('I prefer dark mode');
-    expect(service.listMemories('u1')).toHaveLength(0);
+    expect(await service.listMemories('u1')).toHaveLength(0);
   });
 
   it('recall reads from the existing store only', async () => {
     const { facade, service } = build('legacy');
-    service.createMemory('u1', {
+    await service.createMemory('u1', {
       category: 'preferences',
       content: 'dark mode always',
       source: 'test',
@@ -199,7 +199,7 @@ describe('legacy mode (default)', () => {
       tags: [],
     });
 
-    const results = await facade.recall({ actor: 'u1', query: 'dark' });
+    const results = await await facade.recall({ actor: 'u1', query: 'dark' });
     expect(results).toHaveLength(1);
     expect(results[0]?.content).toBe('dark mode always');
     expect(results[0]?.source).toBe('quantai-store');
@@ -207,7 +207,7 @@ describe('legacy mode (default)', () => {
 
   it('collects no shadow reports in legacy mode', async () => {
     const { facade, shadowReports } = build('legacy');
-    await facade.recall({ actor: 'u1', query: 'anything' });
+    await await facade.recall({ actor: 'u1', query: 'anything' });
     expect(shadowReports).toHaveLength(0);
   });
 });
@@ -224,9 +224,9 @@ describe('dual_write mode', () => {
       role: 'user',
       content: 'I live in Patna',
     });
-    expect(service.getPendingCandidates('u2')).toHaveLength(1);
+    expect(await service.getPendingCandidates('u2')).toHaveLength(1);
 
-    service.createMemory('u2', {
+    await service.createMemory('u2', {
       category: 'preferences',
       content: 'chai over coffee',
       source: 't',
@@ -247,7 +247,7 @@ describe('shadow mode', () => {
     const service = new MemoryService();
     const { facade, shadowReports } = createQuantaiMemoryFacade(optionsFor('shadow', service));
 
-    service.createMemory('u3', {
+    await service.createMemory('u3', {
       category: 'preferences',
       content: 'weekly summary emails',
       source: 't',
@@ -258,7 +258,7 @@ describe('shadow mode', () => {
       tags: [],
     });
 
-    const results = await facade.recall({ actor: 'u3', query: 'summary' });
+    const results = await await facade.recall({ actor: 'u3', query: 'summary' });
     expect(results.map((r) => r.content)).toEqual(['weekly summary emails']);
     expect(shadowReports).toHaveLength(1);
     expect(shadowReports[0]?.mode).toBe('shadow');
@@ -274,7 +274,7 @@ describe('canary mode reversibility before cutover approval', () => {
     const cycle: CanaryMode[] = ['legacy', 'dual_write', 'shadow', 'dual_write', 'legacy'];
     expect(cycle).not.toContain('new');
 
-    const seeded = service.createMemory('u4', {
+    const seeded = await service.createMemory('u4', {
       category: 'preferences',
       content: 'seeded memory',
       source: 't',
@@ -298,13 +298,13 @@ describe('canary mode reversibility before cutover approval', () => {
               ...(mode === 'shadow' ? { shadowSink: dependencies.shadowSink } : {}),
             }),
       });
-      await facade.observe({
+      await await facade.observe({
         actor: 'u4',
         session: `s_${mode}`,
         role: 'user',
         content: `turn in ${mode}`,
       });
-      const recalled = await facade.recall({ actor: 'u4', query: 'seeded' });
+      const recalled = await await facade.recall({ actor: 'u4', query: 'seeded' });
       expect(recalled.map(({ id, content }) => ({ id, content }))).toEqual([
         { id: seeded.id, content: 'seeded memory' },
       ]);
@@ -312,12 +312,12 @@ describe('canary mode reversibility before cutover approval', () => {
       shadowReportCount += shadowReports.length;
     }
 
-    const survived = service.getMemory(seeded.id);
+    const survived = await service.getMemory(seeded.id);
     expect(survived?.content).toBe('seeded memory');
-    expect(service.listMemories('u4', { search: 'seeded' })).toHaveLength(1);
+    expect(await service.listMemories('u4', { search: 'seeded' })).toHaveLength(1);
     expect(shadowReportCount).toBe(1);
 
-    const pending = service.getPendingCandidates('u4');
+    const pending = await service.getPendingCandidates('u4');
     expect(pending.filter((candidate) => candidate.content.startsWith('turn in'))).toHaveLength(
       cycle.length,
     );

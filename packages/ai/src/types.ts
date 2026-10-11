@@ -119,6 +119,19 @@ export interface AIEngineConfig {
   cacheTtlMs: number;
   costBudgetPerUser: number;
   costBudgetPerDay: number;
+  /**
+   * Engine memory wiring (M11c follow-up). When `next` is provided, the engine
+   * routes memory through EngineMemoryFacade in the given mode instead of the
+   * legacy ContextManager-only path. `dual_write` (default) keeps legacy reads
+   * authoritative and writes to `next` best-effort — a memory failure can never
+   * break a chat response (fail-open). Omit entirely for byte-identical legacy
+   * behavior.
+   */
+  engineMemory?: {
+    mode?: import('./core/engine-memory').EngineMemoryMode;
+    next?: import('./core/engine-memory').EngineMemory;
+    onSecondaryWriteError?: import('./core/engine-memory').EngineSecondaryWriteErrorSink;
+  };
 }
 
 /** AI inference request */

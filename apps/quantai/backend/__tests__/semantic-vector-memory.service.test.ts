@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import { CloudflareEmbeddingProvider, OpenAIEmbeddingProvider } from '@quant/ai';
 import {
   SemanticVectorMemoryService,
   DeterministicEmbeddingProvider,
+  resolveEmbeddingProvider,
   cosineSimilarity,
 } from '../services/semantic-vector-memory.service';
 
@@ -96,6 +98,32 @@ describe('SemanticVectorMemoryService (Layer 3 Semantic Vector Memory)', () => {
     });
     expect(codeOnly).toHaveLength(1);
     expect(codeOnly[0]?.sourceApp).toBe('codehub');
+  });
+
+  it('resolveEmbeddingProvider prefers Cloudflare, then OpenAI, then the honest dev fallback', () => {
+    const cf = resolveEmbeddingProvider({
+      CLOUDFLARE_API_TOKEN: 'tok',
+    } as NodeJS.ProcessEnv);
+    expect(cf).toBeInstanceOf(CloudflareEmbeddingProvider);
+
+    const oai = resolveEmbeddingProvider({ OPENAI_API_KEY: 'sk-x' } as NodeJS.ProcessEnv);
+    expect(oai).toBeInstanceOf(OpenAIEmbeddingProvider);
+
+    const fallback = resolveEmbeddingProvider({} as NodeJS.ProcessEnv);
+    expect(fallback).toBeInstanceOf(DeterministicEmbeddingProvider);
+    // Honestly labeled: never silently fake.
+    expect((fallback as DeterministicEmbeddingProvider).isSemantic).toBe(false);
+    expect((fallback as DeterministicEmbeddingProvider).kind).toBe('deterministic-dev-fallback');
+  });
+
+  it('service reports non-semantic mode and warns when falling back', async () => {
+    const warnings: string[] = [];
+    const service = new SemanticVectorMemoryService({
+      embeddingProvider: new DeterministicEmbeddingProvider(),
+      log: { warn: (m: string) => warnings.push(m) },
+    });
+    expect(service.isSemantic()).toBe(false);
+    expect(warnings.some((w) => w.includes('NON-SEMANTIC'))).toBe(true);
   });
 
   it('deletes chunks by source and by userId', async () => {

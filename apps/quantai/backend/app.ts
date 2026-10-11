@@ -67,6 +67,7 @@ import { ProjectContextService, projectContextService } from './services/project
 import { ProjectMemoryService } from './services/project-memory.service';
 import { ImageWizardService } from './services/image-wizard.service';
 import { McpConnectorsService } from './services/mcp-connectors.service';
+import { buildEngineMemoryWiring } from './services/engine-memory.service';
 import {
   DocumentExtractorService,
   documentExtractorService,
@@ -109,7 +110,28 @@ export async function buildApp(config?: AppConfig) {
   // One per-process AI engine owns provider selection, safety, rate/cost state,
   // chat inference, and agent-runtime inference. Cloudflare mode therefore
   // cannot silently diverge between the public chat and agent execution paths.
-  const aiEngine = new AIEngine();
+  //
+  // Engine memory: when a database is available, the real observe/recall path
+  // is wired in via EngineMemoryFacade (default dual_write: legacy reads stay
+  // authoritative, durable writes are best-effort and can never break chat).
+  // Fail-open: any wiring problem keeps the legacy engine.
+  const engineMemoryWiring = buildEngineMemoryWiring(
+    (app as unknown as { prisma?: unknown }).prisma,
+    process.env,
+    { info: (m) => app.log.info(m), warn: (m) => app.log.warn(m) },
+  );
+  const aiEngine = new AIEngine(
+    engineMemoryWiring
+      ? {
+          engineMemory: {
+            mode: engineMemoryWiring.mode,
+            next: engineMemoryWiring.next,
+            onSecondaryWriteError: (err) =>
+              app.log.warn({ err }, 'engine memory: best-effort write failed (swallowed)'),
+          },
+        }
+      : {},
+  );
   (app as any).aiEngine = aiEngine;
 
   const agentRuntime = new Orchestrator({

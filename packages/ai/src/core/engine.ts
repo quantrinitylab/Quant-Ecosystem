@@ -88,12 +88,27 @@ export class AIEngine {
     this.circuitBreakerRegistry = new CircuitBreakerRegistry();
     this.modelRouter = new ModelRouter(this.circuitBreakerRegistry);
     this.contextManager = new ContextManager();
-    // Route memory through the facade in `legacy` mode: byte-identical to
-    // calling contextManager.enrichPrompt / addToHistory directly (ADR-011).
-    this.memory = new EngineMemoryFacade({
-      mode: 'legacy',
-      legacy: new LegacyEngineMemory(this.contextManager),
-    });
+    // Route memory through the facade. Default is `legacy` mode: byte-identical
+    // to calling contextManager.enrichPrompt / addToHistory directly (ADR-011).
+    // When config.engineMemory.next is provided, the real observe/recall path
+    // is wired in (default mode `dual_write`: legacy reads stay authoritative,
+    // writes to `next` are best-effort and can never break a chat response).
+    const engineMemoryOpts = this.config.engineMemory;
+    if (engineMemoryOpts?.next) {
+      this.memory = new EngineMemoryFacade({
+        mode: engineMemoryOpts.mode ?? 'dual_write',
+        legacy: new LegacyEngineMemory(this.contextManager),
+        next: engineMemoryOpts.next,
+        ...(engineMemoryOpts.onSecondaryWriteError
+          ? { onSecondaryWriteError: engineMemoryOpts.onSecondaryWriteError }
+          : {}),
+      });
+    } else {
+      this.memory = new EngineMemoryFacade({
+        mode: 'legacy',
+        legacy: new LegacyEngineMemory(this.contextManager),
+      });
+    }
     this.semanticCache = new SemanticCache(this.config.cacheTtlMs);
     this.safetyPipeline = new SafetyPipeline();
     this.costTracker = new CostTracker({
