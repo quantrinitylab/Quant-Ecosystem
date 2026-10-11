@@ -146,7 +146,7 @@ describe('QC-F-019 message list never leaks snap media', () => {
     ]);
     prisma.message.count.mockResolvedValue(2);
 
-    const result = await service.getMessages('conv-1');
+    const result = await service.getMessages('conv-1', 'user-1');
 
     expect(result.data[0]?.mediaUrl).toBeNull();
     expect(result.data[1]?.mediaUrl).toBe('https://cdn.example.com/photo.jpg');

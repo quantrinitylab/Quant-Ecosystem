@@ -142,7 +142,18 @@ describe('MessageService', () => {
   });
 
   describe('getMessages', () => {
+    // QC-F-024: getMessages now requires the caller's userId and verifies
+    // active membership before reading content or count.
+    const memberRow = {
+      id: 'member-1',
+      conversationId: 'conv-1',
+      userId: 'user-1',
+      role: 'MEMBER',
+      leftAt: null,
+    };
+
     it('returns paginated messages', async () => {
+      prisma.conversationMember.findFirst.mockResolvedValue(memberRow);
       const messages = [
         { id: 'msg-1', content: 'Hello', createdAt: new Date() },
         { id: 'msg-2', content: 'World', createdAt: new Date() },
@@ -150,7 +161,7 @@ describe('MessageService', () => {
       prisma.message.findMany.mockResolvedValue(messages);
       prisma.message.count.mockResolvedValue(25);
 
-      const result = await service.getMessages('conv-1', { page: 1, pageSize: 10 });
+      const result = await service.getMessages('conv-1', 'user-1', { page: 1, pageSize: 10 });
 
       expect(result.data).toEqual(messages);
       expect(result.total).toBe(25);
@@ -162,20 +173,22 @@ describe('MessageService', () => {
     });
 
     it('returns last page with hasPrev true and hasNext false', async () => {
+      prisma.conversationMember.findFirst.mockResolvedValue(memberRow);
       prisma.message.findMany.mockResolvedValue([{ id: 'msg-5' }]);
       prisma.message.count.mockResolvedValue(25);
 
-      const result = await service.getMessages('conv-1', { page: 3, pageSize: 10 });
+      const result = await service.getMessages('conv-1', 'user-1', { page: 3, pageSize: 10 });
 
       expect(result.hasNext).toBe(false);
       expect(result.hasPrev).toBe(true);
     });
 
     it('uses default pagination when not specified', async () => {
+      prisma.conversationMember.findFirst.mockResolvedValue(memberRow);
       prisma.message.findMany.mockResolvedValue([]);
       prisma.message.count.mockResolvedValue(0);
 
-      await service.getMessages('conv-1');
+      await service.getMessages('conv-1', 'user-1');
 
       expect(prisma.message.findMany).toHaveBeenCalledWith({
         where: { conversationId: 'conv-1', isDeleted: false },
@@ -183,6 +196,65 @@ describe('MessageService', () => {
         take: 50,
         orderBy: { createdAt: 'desc' },
       });
+    });
+
+    it('checks membership with the exact active-member query shape', async () => {
+      prisma.conversationMember.findFirst.mockResolvedValue(memberRow);
+      prisma.message.findMany.mockResolvedValue([]);
+      prisma.message.count.mockResolvedValue(0);
+
+      await service.getMessages('conv-1', 'user-1');
+
+      expect(prisma.conversationMember.findFirst).toHaveBeenCalledWith({
+        where: { conversationId: 'conv-1', userId: 'user-1', leftAt: null },
+      });
+    });
+
+    it('throws NOT_A_MEMBER for a non-member and never reads messages or count', async () => {
+      prisma.conversationMember.findFirst.mockResolvedValue(null);
+
+      await expect(service.getMessages('conv-1', 'user-outsider')).rejects.toMatchObject({
+        statusCode: 403,
+        code: 'NOT_A_MEMBER',
+      });
+      await expect(service.getMessages('conv-1', 'user-outsider')).rejects.toThrow(
+        'User is not a member of this conversation',
+      );
+      expect(prisma.message.findMany).not.toHaveBeenCalled();
+      expect(prisma.message.count).not.toHaveBeenCalled();
+    });
+
+    it('throws NOT_A_MEMBER for a nonexistent conversation (no 200-empty oracle)', async () => {
+      prisma.conversationMember.findFirst.mockResolvedValue(null);
+
+      await expect(service.getMessages('conv-does-not-exist', 'user-1')).rejects.toMatchObject({
+        statusCode: 403,
+        code: 'NOT_A_MEMBER',
+      });
+      expect(prisma.message.findMany).not.toHaveBeenCalled();
+      expect(prisma.message.count).not.toHaveBeenCalled();
+    });
+
+    it('throws NOT_A_MEMBER for a removed member (leftAt set)', async () => {
+      // Filter-respecting fake: the stored row has leftAt set, so the
+      // service's `leftAt: null` query correctly finds no active membership.
+      prisma.conversationMember.findFirst.mockImplementation(
+        async ({ where }: { where: { conversationId: string; userId: string; leftAt: unknown } }) => {
+          const stored = { ...memberRow, userId: 'user-removed', leftAt: new Date() };
+          const matches =
+            stored.conversationId === where.conversationId &&
+            stored.userId === where.userId &&
+            (where.leftAt === undefined || stored.leftAt === where.leftAt);
+          return matches ? stored : null;
+        },
+      );
+
+      await expect(service.getMessages('conv-1', 'user-removed')).rejects.toMatchObject({
+        statusCode: 403,
+        code: 'NOT_A_MEMBER',
+      });
+      expect(prisma.message.findMany).not.toHaveBeenCalled();
+      expect(prisma.message.count).not.toHaveBeenCalled();
     });
   });
 
