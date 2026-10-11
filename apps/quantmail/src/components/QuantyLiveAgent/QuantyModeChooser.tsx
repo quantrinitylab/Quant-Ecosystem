@@ -137,11 +137,11 @@ export function QuantyModeChooser({ open = false, onSelect, onClose, className =
                 <button
                   type="button"
                   onClick={() => onSelect?.('voice')}
-                  className="group flex min-h-[64px] items-center gap-3 rounded-2xl border border-amber-400/25 bg-amber-500/[0.07] px-4 py-3 text-left transition hover:border-amber-400/50 hover:bg-amber-500/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                  className="group flex min-h-[64px] items-center gap-3 rounded-2xl border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_7%,transparent)] px-4 py-3 text-left transition hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_12%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                 >
                   <span
                     aria-hidden="true"
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-400"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent-hover)]"
                   >
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                       <rect x="7.5" y="2.5" width="5" height="9" rx="2.5" stroke="currentColor" strokeWidth="1.7" />
@@ -156,7 +156,7 @@ export function QuantyModeChooser({ open = false, onSelect, onClose, className =
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2 text-[15px] font-semibold text-zinc-100">
                       Voice Live Agent
-                      <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300">
+                      <span className="rounded-full bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--app-accent-hover)]">
                         {copy.voiceBadge}
                       </span>
                     </span>

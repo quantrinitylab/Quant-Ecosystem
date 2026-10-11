@@ -194,7 +194,7 @@ export function QuantyCopilotView({
                 ) : (
                   <div className="max-w-2xl bg-[var(--quant-surface-elevated)] border border-[#30363D] p-4 rounded-2xl text-xs space-y-3 shadow-md">
                     {/* Bot Message Header */}
-                    <div className="flex items-center justify-between border-b border-[#21262D] pb-2">
+                    <div className="flex items-center justify-between pb-2">
                       <div className="flex items-center gap-2">
                         <BubbleAvatar state="coding" size={28} />
                         <span className="font-bold text-white">Quanty AI</span>
@@ -230,12 +230,12 @@ export function QuantyCopilotView({
                           </span>
                         </button>
                         {expandedThoughts[msg.id] && (
-                          <div className="p-3 text-[11px] font-mono text-[#8B949E] space-y-2 leading-relaxed border-t border-[#21262D]">
+                          <div className="p-3 text-[11px] font-mono text-[#8B949E] space-y-2 leading-relaxed">
                             <pre className="whitespace-pre-wrap font-mono text-[10px] leading-relaxed text-[#7D8590]">
                               {msg.thoughts}
                             </pre>
                             {msg.steps && (
-                              <div className="pt-1.5 border-t border-[#1C2128] space-y-1">
+                              <div className="pt-1.5 space-y-1">
                                 {msg.steps.map((st, i) => (
                                   <div
                                     key={i}
@@ -259,7 +259,7 @@ export function QuantyCopilotView({
 
                     {/* Autonomous Tool Call Executions */}
                     {msg.toolExecutions && msg.toolExecutions.length > 0 && (
-                      <div className="space-y-2 pt-2 border-t border-[#21262D]">
+                      <div className="space-y-2 pt-2">
                         <div className="text-[10px] font-mono uppercase tracking-wider text-[#7D8590] flex items-center gap-1.5">
                           <span className="inline-block w-2 h-2 rounded-full bg-[#58A6FF] animate-pulse" />
                           <span>Autonomous Swarm Execution ({msg.toolExecutions.length})</span>
@@ -310,7 +310,7 @@ export function QuantyCopilotView({
                               </div>
 
                               {/* Details & Quick Action Buttons */}
-                              <div className="mt-2 pt-2 border-t border-[#21262D]/60 text-[11px] text-[#8B949E] flex flex-wrap items-center justify-between gap-2">
+                              <div className="mt-2 pt-2 text-[11px] text-[#8B949E] flex flex-wrap items-center justify-between gap-2">
                                 <div>
                                   {exec.toolName === 'create_repository' && (
                                     <span>
@@ -410,7 +410,7 @@ export function QuantyCopilotView({
 
                     {/* Action Suggestions */}
                     {msg.suggestions && (
-                      <div className="flex flex-wrap gap-2 pt-1 border-t border-[#21262D]/60">
+                      <div className="flex flex-wrap gap-2 pt-1">
                         {msg.suggestions.map((sug) => (
                           <button
                             key={sug}
@@ -427,7 +427,7 @@ export function QuantyCopilotView({
                     )}
 
                     {/* Message Bottom Action Bar */}
-                    <div className="flex items-center gap-3 pt-2 text-[11px] text-[#7D8590] border-t border-[#21262D]">
+                    <div className="flex items-center gap-3 pt-2 text-[11px] text-[#7D8590]">
                       <button
                         type="button"
                         onClick={() => {
@@ -567,7 +567,7 @@ export function QuantyCopilotView({
               ) : activeContextSubmenu === 'repos-files' ? (
                 /* Repos & Files Submenu */
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between pb-2 border-b border-[#21262D]">
+                  <div className="flex items-center justify-between pb-2">
                     <button
                       type="button"
                       onClick={() => setActiveContextSubmenu('none')}
@@ -584,7 +584,7 @@ export function QuantyCopilotView({
                     placeholder="Search repo or file…"
                     className="w-full bg-[#0D1117] border border-[#30363D] rounded px-2.5 py-1 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
                   />
-                  <div className="divide-y divide-[#21262D] max-h-52 overflow-y-auto space-y-1 pt-1">
+                  <div className="max-h-52 overflow-y-auto space-y-1 pt-1">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-[#7D8590] pt-1">
                       Repositories
                     </div>
@@ -670,7 +670,7 @@ export function QuantyCopilotView({
               ) : activeContextSubmenu === 'mention' ? (
                 /* Mention Submenu */
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between pb-2 border-b border-[#21262D]">
+                  <div className="flex items-center justify-between pb-2">
                     <button
                       type="button"
                       onClick={() => setActiveContextSubmenu('none')}
@@ -687,7 +687,7 @@ export function QuantyCopilotView({
                     placeholder="Search mention…"
                     className="w-full bg-[#0D1117] border border-[#30363D] rounded px-2.5 py-1 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
                   />
-                  <div className="divide-y divide-[#21262D] max-h-52 overflow-y-auto pt-1">
+                  <div className="max-h-52 overflow-y-auto space-y-1 pt-1">
                     {[
                       { token: '@Quant-Ecosystem', desc: 'Root repository' },
                       { token: '@quantmail-core', desc: 'Mail, drive & calendar engine' },
@@ -724,7 +724,7 @@ export function QuantyCopilotView({
               ) : (
                 /* Skills Submenu */
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between pb-2 border-b border-[#21262D]">
+                  <div className="flex items-center justify-between pb-2">
                     <button
                       type="button"
                       onClick={() => setActiveContextSubmenu('none')}
@@ -757,7 +757,7 @@ export function QuantyCopilotView({
                       + Add skill
                     </button>
                   </div>
-                  <div className="divide-y divide-[#21262D] max-h-52 overflow-y-auto pt-1">
+                  <div className="max-h-52 overflow-y-auto space-y-1 pt-1">
                     {[
                       {
                         name: 'Git Smart HTTP Engine',
@@ -924,7 +924,7 @@ export function QuantyCopilotView({
                     <span className="text-[#7D8590]">›</span>
                   </button>
 
-                  <div className="pt-2 border-t border-[#21262D]">
+                  <div className="pt-2">
                     <span className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px]">
                       Model Selector
                     </span>
@@ -966,7 +966,7 @@ export function QuantyCopilotView({
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-[#21262D]">
+                  <div className="pt-2">
                     <span className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px]">
                       Reasoning Effort
                     </span>
@@ -991,7 +991,7 @@ export function QuantyCopilotView({
               ) : activeSettingsSubmenu === 'computer' ? (
                 /* Computer Submenu */
                 <div className="space-y-3 p-1">
-                  <div className="flex items-center justify-between pb-2 border-b border-[#21262D]">
+                  <div className="flex items-center justify-between pb-2">
                     <button
                       type="button"
                       onClick={() => setActiveSettingsSubmenu('none')}
@@ -1027,7 +1027,7 @@ export function QuantyCopilotView({
               ) : activeSettingsSubmenu === 'sources' ? (
                 /* Sources Submenu */
                 <div className="space-y-2.5 p-1">
-                  <div className="flex items-center justify-between pb-2 border-b border-[#21262D]">
+                  <div className="flex items-center justify-between pb-2">
                     <button
                       type="button"
                       onClick={() => setActiveSettingsSubmenu('none')}
@@ -1062,7 +1062,7 @@ export function QuantyCopilotView({
                       </div>
                     ))}
                   </div>
-                  <div className="pt-2 border-t border-[#21262D] flex items-center justify-between">
+                  <div className="pt-2 flex items-center justify-between">
                     <button
                       type="button"
                       onClick={() => showToast('Source connector dialog')}
@@ -1079,7 +1079,7 @@ export function QuantyCopilotView({
               ) : activeSettingsSubmenu === 'mcp' ? (
                 /* MCP Servers Submenu */
                 <div className="space-y-2.5 p-1">
-                  <div className="flex items-center justify-between pb-2 border-b border-[#21262D]">
+                  <div className="flex items-center justify-between pb-2">
                     <button
                       type="button"
                       onClick={() => setActiveSettingsSubmenu('none')}
@@ -1117,7 +1117,7 @@ export function QuantyCopilotView({
               ) : (
                 /* Mode Submenu */
                 <div className="space-y-2.5 p-1">
-                  <div className="flex items-center justify-between pb-2 border-b border-[#21262D]">
+                  <div className="flex items-center justify-between pb-2">
                     <button
                       type="button"
                       onClick={() => setActiveSettingsSubmenu('none')}
@@ -1152,7 +1152,7 @@ export function QuantyCopilotView({
                       </button>
                     ))}
                   </div>
-                  <div className="text-[10px] text-[#7D8590] pt-1 border-t border-[#21262D]">
+                  <div className="text-[10px] text-[#7D8590] pt-1">
                     Tip: Cycle through modes with shift+tab
                   </div>
                 </div>
@@ -1164,7 +1164,7 @@ export function QuantyCopilotView({
           <div className="relative rounded-2xl bg-[var(--quant-surface-elevated)] border border-[#30363D] p-3 shadow-2xl focus-within:border-[#58A6FF] transition-all">
             {/* Attached Files Row */}
             {attachedFiles.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 pb-2 border-b border-[#21262D]/60 mb-2">
+              <div className="flex flex-wrap gap-1.5 pb-2 mb-2">
                 {attachedFiles.map((f, idx) => (
                   <span
                     key={idx}
@@ -1202,7 +1202,7 @@ export function QuantyCopilotView({
             />
 
             {/* Bottom Action Bar inside Textarea container */}
-            <div className="flex items-center justify-between pt-2 border-t border-[#21262D]/60 text-xs">
+            <div className="flex items-center justify-between pt-2 text-xs">
               <div className="flex items-center gap-2">
                 {/* Give context (+) button */}
                 <button
