@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-// Components under test
+// Components under test (CalendarRemindersView deleted 2026-10-11: orphaned dead
+// code with hardcoded fake reminders — see calendar-reminders-orphan-guard.test.ts)
 import { CalendarBookingView } from '../app/calendar/components/CalendarBookingView';
 import { CalendarQuantMeetView } from '../app/calendar/components/CalendarQuantMeetView';
-import { CalendarRemindersView } from '../app/calendar/components/CalendarRemindersView';
 import { CalendarContextSubTabs } from '../app/calendar/components/CalendarContextSubTabs';
 import type { CalendarEventLike } from '../app/calendar/types';
 
@@ -164,33 +164,11 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
     });
   });
 
-  // ==========================================================================
-  // 3. Sub-View: `reminders`
-  // ==========================================================================
-  describe('Sub-View: `reminders` (CalendarRemindersView)', () => {
-    it('renders task reminders checklist with toggleable checkboxes, due times, and priority pills', () => {
-      const html = renderToStaticMarkup(<CalendarRemindersView />);
-
-      // Header & Counts
-      expect(html).toContain('Task Reminders');
-      expect(html).toContain('Time-Bound Tasks &amp; Reminders');
-      expect(html).toContain('pending');
-      expect(html).toContain('completed');
-
-      // Due times
-      expect(html).toContain('Due: Today, 5:00 PM');
-      expect(html).toContain('Due: Tomorrow, 10:00 AM');
-
-      // Priority pills
-      expect(html).toContain('urgent');
-      expect(html).toContain('medium');
-      expect(html).toContain('low');
-
-      // Quick add reminder form
-      expect(html).toContain('Add a new reminder…');
-      expect(html).toContain('Add Reminder');
-    });
-  });
+  // NOTE 2026-10-11: the old section 3 here covered `CalendarRemindersView`,
+  // which was orphaned dead code seeded with hardcoded fake reminders and
+  // unreferenced by any production surface (the 'reminders' context tab renders
+  // CalendarScheduleSubView). It was deleted; the orphan-removal guards live in
+  // calendar-reminders-orphan-guard.test.ts.
 
   // ==========================================================================
   // 4. Context Sub-Tabs Selector Component (CalendarContextSubTabs)
@@ -229,10 +207,8 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
       expect(emojiRegex.test(html)).toBe(false);
     });
 
-    it('CalendarRemindersView contains strictly ZERO raw Unicode emojis', () => {
-      const html = renderToStaticMarkup(<CalendarRemindersView />);
-      expect(emojiRegex.test(html)).toBe(false);
-    });
+    // NOTE 2026-10-11: CalendarRemindersView was deleted as orphaned dead code;
+    // the zero-emoji invariant for remaining sub-views stays pinned below.
 
     it('CalendarContextSubTabs contains strictly ZERO raw Unicode emojis', () => {
       const html = renderToStaticMarkup(
