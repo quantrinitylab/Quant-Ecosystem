@@ -4,11 +4,13 @@ import prisma from '@quant/auth/lib/prisma';
 import * as argon2 from 'argon2';
 import {
   REFRESH_COOKIE_NAME,
+  authenticatedUserId,
   clearRefreshCookie,
   createTokenService,
   fail,
   issueBrowserSession,
   requireTrustedOrigin,
+  sessionMetadataFromRequest,
   setRefreshCookie,
 } from '../lib/auth-session';
 import { signTwoFactorChallenge } from '../lib/two-factor';
@@ -68,7 +70,9 @@ export async function authRoutes(fastify: FastifyInstance) {
         });
       }
 
-      return reply.send(await issueBrowserSession(tokenService, reply, user));
+      return reply.send(
+        await issueBrowserSession(tokenService, reply, user, sessionMetadataFromRequest(request)),
+      );
     },
   );
 
@@ -128,7 +132,9 @@ export async function authRoutes(fastify: FastifyInstance) {
         });
       }
 
-      return reply.send(await issueBrowserSession(tokenService, reply, user));
+      return reply.send(
+        await issueBrowserSession(tokenService, reply, user, sessionMetadataFromRequest(request)),
+      );
     },
   );
 
@@ -146,7 +152,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       }
 
       try {
-        const tokens = await tokenService.refreshToken(oldRefreshToken);
+        const tokens = await tokenService.refreshToken(oldRefreshToken, sessionMetadataFromRequest(request));
         setRefreshCookie(reply, tokens.refreshToken);
         return reply.send({
           success: true,
@@ -184,6 +190,149 @@ export async function authRoutes(fastify: FastifyInstance) {
     clearRefreshCookie(reply);
     return reply.send({ success: true, data: { message: 'Signed out.' } });
   });
+
+  /**
+   * GET /auth/sessions — the Security page's Active Sessions tab (QM-SCREEN-016).
+   *
+   * One session = one refresh-token rotation family. Only live families are
+   * listed: not revoked, not expired, and either tagged 'browser' or untagged
+   * (issued before tagging — presumed browser session). Rows tagged 'oauth'
+   * are third-party app grants and belong to the Connected Apps surface, not
+   * this list.
+   *
+   * The presented refresh cookie identifies the current family via the same
+   * one-way digest lookup as logout — the bearer value is never decoded or
+   * persisted. Device metadata is whatever issuance/rotation recorded; NULLs
+   * mean "not recorded" and the UI says so instead of inventing a device.
+   */
+  fastify.get('/auth/sessions', async (request, reply) => {
+    const userId = authenticatedUserId(request);
+    if (!userId) {
+      return fail(reply, 401, 'UNAUTHORIZED', 'Authentication required.');
+    }
+
+    const rows = await prisma.refreshToken.findMany({
+      where: {
+        userId,
+        isRevoked: false,
+        expiresAt: { gt: new Date() },
+        OR: [{ source: 'browser' }, { source: null }],
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    let currentFamily: string | null = null;
+    const presented = (request as { cookies?: Record<string, unknown> }).cookies?.[
+      REFRESH_COOKIE_NAME
+    ];
+    if (typeof presented === 'string' && presented) {
+      const digest = createHash('sha256').update(presented).digest('hex');
+      currentFamily = rows.find((row: { token: string; family: string }) => row.token === digest)?.family ?? null;
+    }
+
+    const byFamily = new Map<string, typeof rows>();
+    for (const row of rows) {
+      const list = byFamily.get(row.family);
+      if (list) {
+        list.push(row);
+      } else {
+        byFamily.set(row.family, [row]);
+      }
+    }
+
+    // Rows arrive oldest-first, so the first row of a family is its first
+    // sign-in and the last row its most recent rotation (last seen active).
+    const sessions = [...byFamily.entries()].map(([family, familyRows]) => {
+      const first = familyRows[0] as (typeof rows)[number];
+      const latest = familyRows[familyRows.length - 1] as (typeof rows)[number];
+      return {
+        id: family,
+        isCurrent: family === currentFamily,
+        firstSeenAt: first.createdAt.toISOString(),
+        lastActiveAt: latest.createdAt.toISOString(),
+        userAgent: latest.userAgent ?? null,
+        ipAddress: latest.ipAddress ?? null,
+      };
+    });
+    sessions.sort((a, b) => {
+      if (a.isCurrent !== b.isCurrent) return a.isCurrent ? -1 : 1;
+      return b.lastActiveAt.localeCompare(a.lastActiveAt);
+    });
+
+    return reply.send({ success: true, data: { sessions } });
+  });
+
+  /**
+   * POST /auth/sessions/revoke-others — "Revoke All" on the Security page.
+   *
+   * Ends every other browser session: all live families except the one holding
+   * the presented refresh cookie. Step-up guarded (K6): invalidating other
+   * logins requires recent strong authentication, not just a live session.
+   *
+   * Fail closed when the current session cannot be identified from the refresh
+   * cookie — revoking "everything except this one" is meaningless when "this
+   * one" is unknown, and silently signing the caller out everywhere would be
+   * the worse outcome.
+   */
+  fastify.post(
+    '/auth/sessions/revoke-others',
+    { preHandler: fastify.requireStepUp() },
+    async (request, reply) => {
+      const userId = authenticatedUserId(request);
+      if (!userId) {
+        return fail(reply, 401, 'UNAUTHORIZED', 'Authentication required.');
+      }
+
+      const presented = (request as { cookies?: Record<string, unknown> }).cookies?.[
+        REFRESH_COOKIE_NAME
+      ];
+      let currentFamily: string | null = null;
+      if (typeof presented === 'string' && presented) {
+        const digest = createHash('sha256').update(presented).digest('hex');
+        const current = await prisma.refreshToken.findFirst({
+          where: { token: digest, userId, isRevoked: false },
+          select: { family: true },
+        });
+        currentFamily = current?.family ?? null;
+      }
+      if (!currentFamily) {
+        return fail(
+          reply,
+          409,
+          'CURRENT_SESSION_UNKNOWN',
+          'Could not identify this session from its sign-in cookie. Sign in again, then retry.',
+        );
+      }
+
+      const others = await prisma.refreshToken.findMany({
+        where: {
+          userId,
+          isRevoked: false,
+          family: { not: currentFamily },
+          OR: [{ source: 'browser' }, { source: null }],
+        },
+        select: { family: true },
+      });
+      const families = [...new Set(others.map((row: { family: string }) => row.family))];
+      if (families.length > 0) {
+        await prisma.refreshToken.updateMany({
+          where: { userId, family: { in: families } },
+          data: { isRevoked: true },
+        });
+      }
+
+      return reply.send({
+        success: true,
+        data: {
+          revokedSessions: families.length,
+          message:
+            families.length === 0
+              ? 'No other sessions to revoke.'
+              : `Signed out ${families.length} other session${families.length === 1 ? '' : 's'}. They will need to sign in again.`,
+        },
+      });
+    },
+  );
 
   fastify.post(
     '/auth/change-password',

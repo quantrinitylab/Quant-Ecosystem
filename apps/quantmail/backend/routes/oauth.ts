@@ -252,6 +252,11 @@ export async function oauthRoutes(fastify: FastifyInstance) {
         { email: user.email, username: user.username, role: user.role },
         scopes as any,
         'quantmail' as any,
+        undefined,
+        undefined,
+        // Third-party app grant, not a browser session: the Active Sessions
+        // tab must never show it as a device.
+        { source: 'oauth' },
       );
 
       // OpenID Connect: when the `openid` scope was granted, mint an RS256

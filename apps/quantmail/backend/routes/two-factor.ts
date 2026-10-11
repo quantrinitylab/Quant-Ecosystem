@@ -25,6 +25,7 @@ import {
   fail,
   issueBrowserSession,
   requireTrustedOrigin,
+  sessionMetadataFromRequest,
 } from '../lib/auth-session';
 import {
   BACKUP_CODE_COUNT,
@@ -322,7 +323,9 @@ export async function twoFactorRoutes(fastify: FastifyInstance) {
         );
       }
 
-      return reply.send(await issueBrowserSession(tokenService, reply, user));
+      return reply.send(
+        await issueBrowserSession(tokenService, reply, user, sessionMetadataFromRequest(request)),
+      );
     },
   );
 

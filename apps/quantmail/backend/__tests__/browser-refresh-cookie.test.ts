@@ -223,7 +223,10 @@ describe('QuantMail browser refresh-token boundary', () => {
       reply,
     );
 
-    expect(mocks.refreshToken).toHaveBeenCalledWith('refresh-token');
+    expect(mocks.refreshToken).toHaveBeenCalledWith(
+      'refresh-token',
+      expect.objectContaining({ source: 'browser' }),
+    );
     expect(reply.body.data).toEqual({
       accessToken: 'rotated-access-token',
       expiresIn: 900,

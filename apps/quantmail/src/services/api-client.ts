@@ -422,6 +422,41 @@ export class QuantMailApiClient {
     return this.post('/auth/change-password', { currentPassword, newPassword });
   }
 
+  /**
+   * Active browser sessions for the Security page (QM-SCREEN-016).
+   *
+   * Backend: GET /auth/sessions — one entry per refresh-token rotation family.
+   * `isCurrent` marks the family holding this browser's refresh cookie.
+   * `userAgent`/`ipAddress` are null for sessions issued before metadata
+   * capture; the UI says "not recorded" for those instead of inventing a
+   * device. Rows tagged as OAuth grants never appear here.
+   */
+  async getSessions(): Promise<
+    ApiResponse<{
+      sessions: {
+        id: string;
+        isCurrent: boolean;
+        firstSeenAt: string;
+        lastActiveAt: string;
+        userAgent: string | null;
+        ipAddress: string | null;
+      }[];
+    }>
+  > {
+    return this.get('/auth/sessions');
+  }
+
+  /**
+   * "Revoke All" on the Security page: ends every other browser session.
+   * Step-up guarded server-side — a stale session gets an honest
+   * STEP_UP_REQUIRED message telling the user to sign in again first.
+   */
+  async revokeOtherSessions(): Promise<
+    ApiResponse<{ revokedSessions: number; message: string }>
+  > {
+    return this.post('/auth/sessions/revoke-others', {});
+  }
+
   async getUserInfo(): Promise<
     ApiResponse<{ id: string; email: string; username: string; displayName: string; role: string }>
   > {

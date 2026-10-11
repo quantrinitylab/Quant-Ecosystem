@@ -20,6 +20,27 @@ interface JWKSKeyPair {
 const hashRefreshToken = (token: string): string =>
   createHash('sha256').update(token).digest('hex');
 
+/**
+ * Device/origin metadata stamped onto the refresh-token row when a session is
+ * issued or rotated. Powers the Security page's Active Sessions tab
+ * (QM-SCREEN-016). Every field is best-effort: a session issued before
+ * metadata capture, or a non-browser grant, carries nothing to show, and the
+ * UI must say that instead of inventing a device.
+ */
+export interface SessionMetadata {
+  userAgent?: string;
+  ipAddress?: string;
+  /**
+   * 'browser' for cookie-based browser sessions, 'oauth' for third-party app
+   * grants. Undefined = issued before tagging (treated as a legacy browser
+   * session by the sessions list).
+   */
+  source?: 'browser' | 'oauth';
+}
+
+/** Whitelist for the source carried forward across refresh rotations. */
+const KNOWN_SESSION_SOURCES: ReadonlySet<string> = new Set(['browser', 'oauth']);
+
 export interface TokenServiceOptions {
   /**
    * KMS provider used to resolve the JWT signing/verification keys at runtime.
@@ -104,6 +125,11 @@ export class TokenService {
      * rotation passes the carried value so silent refreshes never freshen it.
      */
     lastStrongAuthAt?: number,
+    /**
+     * Display metadata for the Active Sessions tab. Stored on the
+     * refresh-token row; absent for non-browser grants and legacy callers.
+     */
+    metadata?: SessionMetadata,
   ): Promise<TokenPair> {
     const tokenId = generateId('tok');
     const refreshTokenId = generateId('tok');
@@ -169,6 +195,12 @@ export class TokenService {
         token: hashRefreshToken(refreshToken),
         family: activeFamilyId,
         expiresAt: new Date((now + this.config.refreshTokenExpiresIn) * 1000),
+        // Session-tab metadata. Truncated: some clients send multi-kilobyte
+        // user-agents and these columns are display-only. Empty becomes NULL
+        // so "not recorded" stays distinguishable from "recorded empty".
+        userAgent: metadata?.userAgent?.trim().slice(0, 512) || undefined,
+        ipAddress: metadata?.ipAddress?.trim().slice(0, 64) || undefined,
+        source: metadata?.source,
       },
     });
 
@@ -180,7 +212,7 @@ export class TokenService {
     };
   }
 
-  async refreshToken(oldRefreshToken: string): Promise<TokenPair> {
+  async refreshToken(oldRefreshToken: string, metadata?: SessionMetadata): Promise<TokenPair> {
     let payload: jose.JWTPayload;
 
     try {
@@ -261,6 +293,18 @@ export class TokenService {
     const carried = payload['lastStrongAuthAt'];
     const lastStrongAuthAt = typeof carried === 'number' && carried > 0 ? carried : 0;
 
+    // Same idea for the session source tag: a rotation is not a new grant, so
+    // the tag survives unless the caller explicitly sets it (the browser
+    // /auth/refresh endpoint always sets 'browser', which is what tags legacy
+    // rows on their first rotation after this ships). Unknown stored values
+    // are dropped rather than propagated.
+    const storedSource = (existingToken as { source?: unknown }).source;
+    const carriedSource: SessionMetadata['source'] =
+      metadata?.source ??
+      (typeof storedSource === 'string' && KNOWN_SESSION_SOURCES.has(storedSource)
+        ? (storedSource as SessionMetadata['source'])
+        : undefined);
+
     return this.generateTokenPair(
       payload.sub,
       {
@@ -272,6 +316,11 @@ export class TokenService {
       (payload['app'] || 'quantmail') as QuantApp,
       existingToken.family,
       lastStrongAuthAt,
+      {
+        userAgent: metadata?.userAgent,
+        ipAddress: metadata?.ipAddress,
+        source: carriedSource,
+      },
     );
   }
 

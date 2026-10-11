@@ -6,6 +6,7 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { IconCheck } from '../../components/icons';
 import { TwoFactorQrCode } from '../../components/security/TwoFactorQrCode';
+import { showToast } from '../../components/InboxToast';
 import { apiClient } from '../../services/api-client';
 
 // ---------------------------------------------------------------------------
@@ -50,6 +51,76 @@ const statusSummary = (status: TwoFactorStatus): string => {
   const left = status.backupCodesRemaining;
   return `${since}${left} recovery ${left === 1 ? 'code' : 'codes'} left.`;
 };
+
+// ---------------------------------------------------------------------------
+// Active Sessions (QM-SCREEN-016)
+//
+// This tab used to be theatrical: a hard-coded "Current session" row, an
+// "Only this device is active" empty state, and a permanently disabled Revoke
+// All — no session list was ever fetched. Now it reads GET /auth/sessions, so
+// every row on screen is a real refresh-token family.
+// ---------------------------------------------------------------------------
+
+interface ActiveSession {
+  id: string;
+  isCurrent: boolean;
+  firstSeenAt: string;
+  lastActiveAt: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+}
+
+/**
+ * A device label from a User-Agent string, without inventing anything.
+ * Returns null when the UA is missing or unrecognizable — the UI then says
+ * the device was not recorded instead of showing a made-up name. Order
+ * matters: Edge and Opera UAs contain a Chrome token, and Chrome's contains
+ * a Safari token.
+ */
+function deviceLabelFromUserAgent(ua: string | null): string | null {
+  if (!ua) return null;
+  const browser = /Edg\//.test(ua)
+    ? 'Edge'
+    : /OPR\//.test(ua)
+      ? 'Opera'
+      : /Firefox\/|FxiOS\//.test(ua)
+        ? 'Firefox'
+        : /Chrome\/|CriOS\//.test(ua)
+          ? 'Chrome'
+          : /Safari\//.test(ua)
+            ? 'Safari'
+            : null;
+  const os = /Windows NT/.test(ua)
+    ? 'Windows'
+    : /Mac OS X/.test(ua)
+      ? 'macOS'
+      : /Android/.test(ua)
+        ? 'Android'
+        : /iPhone|iPad/.test(ua)
+          ? 'iOS'
+          : /Linux/.test(ua)
+            ? 'Linux'
+            : null;
+  if (browser && os) return `${browser} on ${os}`;
+  return browser ?? os;
+}
+
+function relativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(diffMs) || diffMs < 0) return 'just now';
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -111,6 +182,12 @@ export default function SecurityPage() {
   );
   const [passwordError, setPasswordError] = useState('');
 
+  // ─── Sessions State ─────────────────────────────────────────────────────────
+  const [sessions, setSessions] = useState<ActiveSession[] | null>(null);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState('');
+  const [revokingSessions, setRevokingSessions] = useState(false);
+
   // ─── 2FA Handlers ───────────────────────────────────────────────────────────
   const loadStatus = useCallback(async () => {
     setStatusError('');
@@ -125,6 +202,45 @@ export default function SecurityPage() {
   useEffect(() => {
     void loadStatus();
   }, [loadStatus]);
+
+  // ─── Sessions Handlers ──────────────────────────────────────────────────────
+  const loadSessions = useCallback(async () => {
+    setSessionsLoading(true);
+    setSessionsError('');
+    const response = await apiClient.getSessions();
+    setSessionsLoading(false);
+    if (!response.success || !response.data) {
+      setSessionsError(response.error?.message || 'Could not load your active sessions.');
+      return;
+    }
+    setSessions(response.data.sessions);
+  }, []);
+
+  // The tab fetches on first open, not on page mount: most visits never touch
+  // this tab, and a stale list is worse than a fresh one.
+  useEffect(() => {
+    if (activeTab === 'sessions' && sessions === null && !sessionsLoading && !sessionsError) {
+      void loadSessions();
+    }
+  }, [activeTab, sessions, sessionsLoading, sessionsError, loadSessions]);
+
+  const handleRevokeOthers = useCallback(async () => {
+    if (revokingSessions) return;
+    setRevokingSessions(true);
+    const response = await apiClient.revokeOtherSessions();
+    setRevokingSessions(false);
+    if (!response.success || !response.data) {
+      // Step-up failures land here with an honest message: sign in again,
+      // then retry. Shown as-is, never rewritten into something vaguer.
+      showToast({
+        text: response.error?.message || 'Could not revoke other sessions.',
+        type: 'error',
+      });
+      return;
+    }
+    showToast({ text: response.data.message, type: 'success' });
+    await loadSessions();
+  }, [revokingSessions, loadSessions]);
 
   const handleStartSetup = useCallback(async () => {
     setTwoFactorBusy(true);
@@ -641,48 +757,103 @@ export default function SecurityPage() {
                   Active Sessions
                 </h2>
                 <p className="text-sm text-[var(--quant-muted-foreground)] mb-4">
-                  Review where your account is signed in and revoke other devices when they appear.
+                  Every browser signed in to your account. If you don&apos;t
+                  recognize one, revoke it below.
                 </p>
                 <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-6">
-                  <div className="flex items-center gap-3 pb-5 border-b border-[var(--quant-border)]">
-                    <div className="w-10 h-10 rounded-full bg-[var(--brand-primary)]/10 flex items-center justify-center">
-                      <span className="text-[var(--brand-primary)] text-lg">●</span>
+                  {sessionsLoading && sessions === null && (
+                    <div className="space-y-3" aria-label="Loading sessions">
+                      <Skeleton variant="rect" width="100%" height="64px" />
+                      <Skeleton variant="rect" width="100%" height="64px" />
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-[var(--quant-foreground)]">
-                        Current session
-                      </p>
-                      <p className="text-xs text-[var(--quant-muted-foreground)]">
-                        This device · Active now
-                      </p>
-                    </div>
-                    <span className="text-xs font-medium text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full">
-                      Active
-                    </span>
-                  </div>
+                  )}
 
-                  <div className="pt-5 text-center py-8">
-                    <div className="w-14 h-14 rounded-full bg-[var(--quant-muted)] flex items-center justify-center mx-auto mb-4 text-[var(--quant-muted-foreground)]">
-                      <svg
-                        className="size-6"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.75"
-                      >
-                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                        <line x1="8" y1="21" x2="16" y2="21" />
-                        <line x1="12" y1="17" x2="12" y2="21" />
-                      </svg>
+                  {sessionsError && !sessionsLoading && (
+                    <div className="text-center py-8">
+                      <p className="text-sm font-medium text-[var(--quant-foreground)] mb-1">
+                        Could not load sessions
+                      </p>
+                      <p className="text-xs text-[var(--quant-muted-foreground)] max-w-xs mx-auto mb-4">
+                        {sessionsError}
+                      </p>
+                      <Button variant="secondary" onClick={() => void loadSessions()}>
+                        Try again
+                      </Button>
                     </div>
-                    <p className="text-sm font-medium text-[var(--quant-foreground)] mb-1">
-                      Only this device is active
-                    </p>
-                    <p className="text-xs text-[var(--quant-muted-foreground)] max-w-xs mx-auto">
-                      When QuantMail detects other sessions, you&apos;ll review the device,
-                      location, and last active time here before revoking access.
-                    </p>
-                  </div>
+                  )}
+
+                  {!sessionsLoading && !sessionsError && sessions !== null && (
+                    <>
+                      {sessions.length === 0 && (
+                        <div className="text-center py-8">
+                          <p className="text-sm font-medium text-[var(--quant-foreground)] mb-1">
+                            No signed-in browsers found
+                          </p>
+                          <p className="text-xs text-[var(--quant-muted-foreground)] max-w-xs mx-auto">
+                            You are signed in, but the session list came back
+                            empty. Try again in a moment.
+                          </p>
+                        </div>
+                      )}
+
+                      {sessions.length > 0 && (
+                        <ul className="space-y-2">
+                          {sessions.map((session) => {
+                            const device =
+                              deviceLabelFromUserAgent(session.userAgent) ??
+                              'Device details not recorded';
+                            return (
+                              <li
+                                key={session.id}
+                                className="flex items-center gap-3 rounded-lg bg-[var(--quant-muted)]/40 px-4 py-3"
+                              >
+                                <div className="w-10 h-10 rounded-full bg-[var(--brand-primary)]/10 flex items-center justify-center shrink-0">
+                                  <svg
+                                    className="size-5 text-[var(--brand-primary)]"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.75"
+                                  >
+                                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                                    <line x1="8" y1="21" x2="16" y2="21" />
+                                    <line x1="12" y1="17" x2="12" y2="21" />
+                                  </svg>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-[var(--quant-foreground)] truncate">
+                                    {device}
+                                  </p>
+                                  <p className="text-xs text-[var(--quant-muted-foreground)]">
+                                    {session.isCurrent
+                                      ? 'This device \u00b7 Active now'
+                                      : `Last active ${relativeTime(session.lastActiveAt)}`}
+                                  </p>
+                                </div>
+                                {session.isCurrent && (
+                                  <span className="text-xs font-medium text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full shrink-0">
+                                    Current
+                                  </span>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+
+                      {sessions.length === 1 && sessions[0]?.isCurrent && (
+                        <div className="text-center pt-6">
+                          <p className="text-sm font-medium text-[var(--quant-foreground)] mb-1">
+                            Only this device is active
+                          </p>
+                          <p className="text-xs text-[var(--quant-muted-foreground)] max-w-xs mx-auto">
+                            When you sign in on another browser or device, it
+                            will appear here.
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </section>
 
@@ -691,26 +862,35 @@ export default function SecurityPage() {
                   Session Management
                 </h2>
                 <p className="text-sm text-[var(--quant-muted-foreground)] mb-4">
-                  End access on other devices once additional sessions appear here.
+                  End access on other devices. This device stays signed in.
                 </p>
                 <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-[var(--quant-foreground)]">
                         Revoke other sessions
                       </p>
                       <p className="text-xs text-[var(--quant-muted-foreground)]">
-                        Sign out of every device except the one you&apos;re using now.
+                        {(() => {
+                          const others = (sessions ?? []).filter((s) => !s.isCurrent).length;
+                          return others > 0
+                            ? `Sign out ${others} other ${others === 1 ? 'session' : 'sessions'} now.`
+                            : 'Sign out of every device except the one you\u2019re using now.';
+                        })()}
                       </p>
                     </div>
-                    <div className="relative group">
-                      <Button variant="primary" disabled>
-                        Revoke All
-                      </Button>
-                      <div className="absolute bottom-full right-0 mb-2 px-3 py-1.5 text-xs font-medium text-[var(--quant-foreground)] bg-[var(--quant-muted)] border border-[var(--quant-border)] rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-                        Available when another session is active
-                      </div>
-                    </div>
+                    <Button
+                      variant="primary"
+                      disabled={
+                        sessions === null ||
+                        sessionsLoading ||
+                        revokingSessions ||
+                        (sessions ?? []).filter((s) => !s.isCurrent).length === 0
+                      }
+                      onClick={() => void handleRevokeOthers()}
+                    >
+                      {revokingSessions ? 'Revoking\u2026' : 'Revoke All'}
+                    </Button>
                   </div>
                 </div>
               </section>

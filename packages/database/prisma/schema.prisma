@@ -226,6 +226,16 @@ model RefreshToken {
   isRevoked Boolean  @default(false)
   expiresAt DateTime
   createdAt DateTime @default(now())
+  /// QM-SCREEN-016: display metadata for the Security page's Active Sessions
+  /// tab, captured when the session is issued or rotated. NULL for sessions
+  /// issued before this column existed — the UI says so instead of inventing
+  /// a device. Never a security signal: userAgent is client-controlled and
+  /// ipAddress is best-effort behind proxies.
+  userAgent String?
+  ipAddress String?
+  /// 'browser' for cookie-based browser sessions, 'oauth' for third-party app
+  /// grants. NULL = issued before tagging (presumed browser session).
+  source    String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
