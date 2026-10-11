@@ -2101,6 +2101,12 @@ function QuantGitContent() {  const router = useRouter();
       <div className="flex-1 w-full min-h-0 flex flex-col overflow-hidden">
         {/* VIEW A: Contextual Sub-Views (repos, prs, issues, actions, copilot) */}
         {activeDeckTab === 'repos' && !selectedRepo && (
+          // The header notification bell sets `activeGitHubTab` to
+          // 'notifications' — with no repo selected the inbox below would
+          // otherwise render nothing and the bell would appear dead.
+          activeGitHubTab === 'notifications' ? (
+            <NotificationsInbox />
+          ) : (
           <QuantGitSubViews
             activeTab={activeContextSubTab}
             searchQuery={repoSearchQuery}
@@ -2141,6 +2147,7 @@ function QuantGitContent() {  const router = useRouter();
             onNewIssue={() => setModalState('new-issue')}
             showToast={showToast}
           />
+          )
         )}
 
         {/* VIEW B: Repository 10 Tabs */}

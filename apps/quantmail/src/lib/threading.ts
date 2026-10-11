@@ -1116,6 +1116,10 @@ function searchHaystack(thread: ConversationThread, currentEmail?: string): stri
  * Order does not matter and neither does which field each word came from, so
  * `alice budget` finds Alice's thread about the budget.
  *
+ * `from:` and `to:` tokens are field operators: `from:alice` matches when any
+ * message's sender address or name contains "alice", instead of matching the
+ * general haystack.
+ *
  * An empty query matches everything, so a caller can pass whatever is in the box
  * without branching on it.
  */
@@ -1128,7 +1132,38 @@ export function threadMatchesQuery(
   if (tokens.length === 0) return true;
 
   const haystack = searchHaystack(thread, currentEmail);
-  return tokens.every((token) => haystack.includes(token));
+
+  // Field operators: `from:alice` / `to:bob` match against the sender /
+  // recipient addresses instead of the general haystack. Gmail-style, and
+  // the backend's /emails/search already accepts them as separate params —
+  // this is the client-side half so the local filter agrees with the server.
+  const operators: Array<{ field: 'from' | 'to'; value: string }> = [];
+  const plainTokens: string[] = [];
+  for (const token of tokens) {
+    const match = /^(from|to):(.+)$/.exec(token);
+    if (match) operators.push({ field: match[1] as 'from' | 'to', value: match[2] });
+    else plainTokens.push(token);
+  }
+
+  const operatorsMatch = operators.every(({ field, value }) =>
+    thread.messages.some((message) => {
+      const addresses: string[] = [];
+      if (field === 'from') {
+        addresses.push(
+          message.from?.email || '',
+          message.from?.name || '',
+          (message as unknown as Record<string, unknown>).fromAddress as string || '',
+        );
+      } else {
+        for (const person of recipientsOf(message)) {
+          addresses.push(person.email || '', person.name || '');
+        }
+      }
+      return addresses.some((a) => a.toLowerCase().includes(value));
+    }),
+  );
+
+  return operatorsMatch && plainTokens.every((token) => haystack.includes(token));
 }
 
 /**

@@ -34,6 +34,7 @@ import {
   calendarEventMatchesQuery,
   calendarSearchStatus,
 } from './lib/calendar-search';
+import { toRecurrenceRule } from './lib/recurrence';
 import { CalendarHeader } from './components/CalendarHeader';
 import { CalendarEventForm } from './components/CalendarEventForm';
 import { CalendarModals } from './components/CalendarModals';
@@ -989,7 +990,9 @@ function CalendarPageContent() {
       allDay: formState.allDay,
       type: activeSheetType,
       color: formState.color,
-      recurrence: formState.recurrence,
+      // The form holds the human-readable label (or a builder-made RRULE);
+      // the API only accepts real RRULEs, so convert before sending.
+      recurrence: toRecurrenceRule(formState.recurrence),
       reminders: formState.notifications,
       attendees: formState.attendees,
       accountEmail: formState.accountEmail,

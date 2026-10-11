@@ -1,11 +1,16 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button, Modal } from '@quant/shared-ui';
 import { IconCheck, IconClock, IconMapPin, IconVideoCall } from '../../../components/icons';
 import type { CalendarEventLike, FormState } from '../types';
 import { NOTIFICATION_SLIDER_VALUES, RECURRENCE_OPTIONS, TIMEZONES } from '../types';
 import { endOf, startOf } from '../lib/calendar-geometry';
+import {
+  buildCustomRRule,
+  fromRRule,
+  type CustomIntervalUnit,
+} from '../lib/recurrence';
 
 export interface CalendarModalsProps {
   isPeriodCustomizeOpen: boolean;
@@ -46,6 +51,31 @@ export function CalendarModals({
   openEditSheet,
   handleDeleteEvent,
 }: CalendarModalsProps) {
+  // Custom-interval builder state. Lives here (not in page.tsx) because it is
+  // pure UI state for this modal. Reset whenever the modal closes so a
+  // half-built interval never leaks into the next open.
+  const [customBuilderOpen, setCustomBuilderOpen] = useState(false);
+  const [customEvery, setCustomEvery] = useState(2);
+  const [customUnit, setCustomUnit] = useState<CustomIntervalUnit>('week');
+
+  useEffect(() => {
+    if (!isRecurrenceModalOpen) {
+      setCustomBuilderOpen(false);
+    }
+  }, [isRecurrenceModalOpen]);
+
+  const applyCustomInterval = () => {
+    setFormState({ ...formState, recurrence: buildCustomRRule(customEvery, customUnit) });
+    setCustomBuilderOpen(false);
+    setIsRecurrenceModalOpen(false);
+  };
+
+  // The form stores either a label or a previously built RRULE; the selected
+  // row is derived from the label so a custom RRULE still checks the right row.
+  const activeLabel = /^[A-Z]+=/.test(formState.recurrence ?? '')
+    ? fromRRule(formState.recurrence)
+    : formState.recurrence;
+
   return (
     <>
       {/* Period Tracker Customize Settings Modal */}
@@ -150,25 +180,78 @@ export function CalendarModals({
         title="Repeat Option"
       >
         <div className="space-y-1 text-xs">
-          {RECURRENCE_OPTIONS.map((rec) => (
-            <button
-              key={rec}
-              type="button"
-              onClick={() => {
-                setFormState({ ...formState, recurrence: rec });
-                setIsRecurrenceModalOpen(false);
-              }}
-              className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--app-accent)] ${
-                formState.recurrence === rec
-                  ? 'bg-[var(--app-accent)] text-black font-black'
-                  : 'text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
-              }`}
-              aria-pressed={formState.recurrence === rec}
-            >
-              <span>{rec}</span>
-              {formState.recurrence === rec && <IconCheck size={13} />}
-            </button>
-          ))}
+          {RECURRENCE_OPTIONS.map((rec) => {
+            const isCustomRow = rec === 'Custom interval…';
+            return (
+              <button
+                key={rec}
+                type="button"
+                onClick={() => {
+                  if (isCustomRow) {
+                    // Open the interval builder below instead of storing the
+                    // bare label — the label alone is not a valid RRULE and
+                    // the save would fail.
+                    setCustomBuilderOpen(true);
+                    return;
+                  }
+                  setFormState({ ...formState, recurrence: rec });
+                  setIsRecurrenceModalOpen(false);
+                }}
+                className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--app-accent)] ${
+                  activeLabel === rec
+                    ? 'bg-[var(--app-accent)] text-black font-black'
+                    : 'text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
+                }`}
+                aria-pressed={activeLabel === rec}
+              >
+                <span>{rec}</span>
+                {activeLabel === rec && <IconCheck size={13} />}
+              </button>
+            );
+          })}
+
+          {/* Custom-interval builder: "every N day(s)/week(s)/month(s)/year(s)".
+              Writes a real RRULE into the form so the save path accepts it. */}
+          {customBuilderOpen && (
+            <div className="rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-3">
+              <p className="mb-2 font-semibold text-white">Custom interval</p>
+              <div className="flex items-center gap-2">
+                <span className="text-[var(--quant-muted-foreground)]">Every</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={customEvery}
+                  onChange={(e) => setCustomEvery(Number(e.target.value))}
+                  aria-label="Repeat every N"
+                  className="w-16 rounded-lg border border-[var(--quant-border)] bg-black px-2 py-1.5 text-center text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                />
+                <select
+                  value={customUnit}
+                  onChange={(e) => setCustomUnit(e.target.value as CustomIntervalUnit)}
+                  aria-label="Interval unit"
+                  className="flex-1 rounded-lg border border-[var(--quant-border)] bg-black px-2 py-1.5 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                >
+                  <option value="day">day(s)</option>
+                  <option value="week">week(s)</option>
+                  <option value="month">month(s)</option>
+                  <option value="year">year(s)</option>
+                </select>
+              </div>
+              <p className="mt-2 text-[var(--quant-muted-foreground)]">
+                {(() => {
+                  const n = Math.max(1, Math.min(99, Math.floor(customEvery) || 1));
+                  return `Repeats every ${n} ${customUnit}${n === 1 ? '' : 's'}`;
+                })()}
+              </p>
+              <div className="mt-3 flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setCustomBuilderOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={applyCustomInterval}>Done</Button>
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from './AppShell';
 import { AppSidebar } from './AppSidebar';
 import { useInbox } from '../hooks/useInbox';
@@ -31,11 +31,19 @@ import { PeopleList } from './PeopleList';
  */
 export function PeopleHome() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const currentUserEmail = user?.email ?? '';
   const [world, setWorld] = useState<ConversationWorld>('log');
 
-  const { data: emails, isLoading, isError, refetch } = useInbox();
+  // The sidebar's Spam entry links to `/?lens=spam`, which renders this People
+  // view (not the classic inbox). Honor the lens here: spam shows the people
+  // with spam threads, backed by the real SPAM folder query. Any other lens
+  // (or none) shows the regular inbox people.
+  const isSpamLens = searchParams?.get('lens') === 'spam';
+  const { data: emails, isLoading, isError, refetch } = useInbox(
+    isSpamLens ? { folderType: 'SPAM' } : undefined,
+  );
   const [searchQuery, setSearchQuery] = useState('');
 
   const conversations = useMemo<PersonConversation[]>(
@@ -64,9 +72,11 @@ export function PeopleHome() {
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell" aria-label="QuantMail people">
       <div className="flex h-full flex-col bg-black">
         <header className="px-4 pb-2 pt-4 sm:px-6">
-          <h1 className="text-xl font-bold text-white">People</h1>
+          <h1 className="text-xl font-bold text-white">{isSpamLens ? 'Spam' : 'People'}</h1>
           <p className="mt-0.5 text-xs text-[#9BA0AA]">
-            Every person you talk to, in one place — your whole conversation with each of them.
+            {isSpamLens
+              ? 'People with messages flagged as spam — review or rescue them.'
+              : 'Every person you talk to, in one place — your whole conversation with each of them.'}
           </p>
         </header>
 
