@@ -1623,6 +1623,8 @@ export interface CalendarScheduleSubViewProps {
   openDedicatedSheet?: (type: EntryType, date?: Date, endDate?: Date) => void;
   onSelectEvent?: (event: CalendarEventLike) => void;
   className?: string;
+  /** Test seam — which sub-tab renders first. Defaults to 'clock'. */
+  initialSubTab?: 'clock' | 'reminders';
 }
 
 export function CalendarScheduleSubView({
@@ -1631,9 +1633,10 @@ export function CalendarScheduleSubView({
   openDedicatedSheet,
   onSelectEvent,
   className = '',
+  initialSubTab = 'clock',
 }: CalendarScheduleSubViewProps) {
   // Segmented sub-tabs: 'clock' vs 'reminders'
-  const [subTab, setSubTab] = useState<'clock' | 'reminders'>('clock');
+  const [subTab, setSubTab] = useState<'clock' | 'reminders'>(initialSubTab);
 
   // Live World Clocks Tick
   const [now, setNow] = useState<Date>(() => new Date());
@@ -1659,37 +1662,12 @@ export function CalendarScheduleSubView({
     [now],
   );
 
-  // Reminders State
-  const [reminders, setReminders] = useState<ScheduledReminder[]>([
-    {
-      id: 'rem-1',
-      title: 'Review Wave 39 Sovereign Parity Subagents PR',
-      dueTime: 'Today, 5:00 PM',
-      priority: 'urgent',
-      completed: false,
-    },
-    {
-      id: 'rem-2',
-      title: 'Verify RFC 5545 CalDAV sync on Android staging APK',
-      dueTime: 'Tomorrow, 10:00 AM',
-      priority: 'medium',
-      completed: false,
-    },
-    {
-      id: 'rem-3',
-      title: 'Deploy QuantMeet 4K Video Stage to production cluster',
-      dueTime: 'Friday, 2:30 PM',
-      priority: 'medium',
-      completed: false,
-    },
-    {
-      id: 'rem-4',
-      title: 'Update QuantCalendar Booking Links availability slots',
-      dueTime: 'Monday, 9:00 AM',
-      priority: 'low',
-      completed: true,
-    },
-  ]);
+  // Reminders State — starts EMPTY on purpose. There is no reminders backend
+  // yet, so we never seed demo/fabricated items as if they were the user's
+  // own data (fake-reminders purge, fix/qm-schedule-fake-reminders).
+  // The add/toggle/snooze/delete handlers below mutate session-local state
+  // only; the "not synced yet" disclosure is rendered under the add form.
+  const [reminders, setReminders] = useState<ScheduledReminder[]>([]);
 
   const [reminderFilter, setReminderFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [newTitle, setNewTitle] = useState('');
@@ -1966,6 +1944,10 @@ export function CalendarScheduleSubView({
                 <span>Add</span>
               </button>
             </form>
+
+            <p className="text-[10px] text-[var(--quant-muted-foreground)]/60">
+              Reminder sync is not wired up yet — reminders stay on this device for this session only.
+            </p>
           </div>
 
           {/* Filter Pills */}
@@ -2062,8 +2044,9 @@ export function CalendarScheduleSubView({
             ))}
 
             {filteredReminders.length === 0 && (
-              <div className="py-8 text-center text-xs text-[var(--quant-muted-foreground)]/60 bg-[var(--quant-surface)] rounded-xl border border-dashed border-[#232938]">
-                No reminders in this category
+              <div className="py-8 text-center text-xs text-[var(--quant-muted-foreground)]/60 bg-[var(--quant-surface)] rounded-xl border border-dashed border-[#232938] space-y-1">
+                <p className="font-semibold text-[var(--quant-foreground)]">No reminders yet</p>
+                <p>Add your first reminder above to get started.</p>
               </div>
             )}
           </div>
