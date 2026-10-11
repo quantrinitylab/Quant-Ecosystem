@@ -618,9 +618,12 @@ NOT VERIFIED (needs live/auth): signed-in contacts CRUD, groups invite/join flow
 REQUIREMENT GAPS vs Required: contact CRUD IMPLEMENTED; merge/deduplication IMPLEMENTED (dismiss-persist missing, P2); autocomplete UI exists but UNWIRED (P1); avatars STORED-ONLY, never displayed (P1); groups IMPLEMENTED but invite/admin deeper endpoints proxy-broken (P0) and no invite-link UI; communication-history IMPLEMENTED but first-page-only/outbound-blind (P1); privacy block/restrict MISSING (BLOCKER); Mail linking exists, Calendar linking exists, Chat linking missing (BLOCKER); identity-root semantics/relationships out of audit scope (dependencies note).
 
 ## QM-SCREEN-013 — QuantGit / repositories / files / commits / branches / PR/CI
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-013
 Required: repository ownership, refs, code browsing, commit/branch/PR lifecycle, CI status, secrets safety, deployment boundaries, developer profile, QuantMax/QuantCooks creator links.
 Dependencies: QuantGit architecture + creator platform.
+Audit: LANE-1 audit round 2026-10-11 (live + code). Findings below.
 
 ## QM-SCREEN-014 — Quanty workspace / inline / voice / cross-app task graph
 Status: [ ] TODO
