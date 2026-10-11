@@ -56,9 +56,146 @@ interface StoryWithAuthor {
   textContent: string | null;
   duration: number;
   viewCount: number;
+  audience: string;
   createdAt: Date;
   expiresAt: Date;
   user: { id: string; displayName: string; avatarUrl: string | null };
+}
+
+// --- Story audience gate (QC-F-021) ---------------------------------------
+//
+// A story is visible only when BOTH gates pass (QC-F-042 §3.3a AND rule):
+//   1. Per-story audience: 'ALL' passes for anyone; 'CLOSE_FRIENDS' only
+//      for viewers the AUTHOR listed as a close friend (CloseFriend edge
+//      userId=author, friendId=viewer).
+//   2. Per-author privacy pref `whoCanSeeStory` (settings DEFAULT_PRIVACY,
+//      default 'friends'): 'everyone' passes for anyone; 'friends' and
+//      'custom' only for "friends" of the author. 'custom' is treated as
+//      'friends' — no custom-list storage exists in the codebase, and
+//      reading it as 'everyone' would open what the user tried to narrow.
+// "Friend" (v1, same definition as the QC-F-042 brief §3.1): the author
+// listed the viewer as a close friend, OR author and viewer share an
+// active DIRECT conversation (both members, leftAt null). Group
+// membership does NOT count.
+// Missing prefs resolve to the settings defaults ('friends'); a failed
+// prefs/relationship read resolves fail-closed in the same direction
+// (never 'everyone') — see QC-F-042 §4.
+
+type WhoCanSeeStory = 'everyone' | 'friends' | 'custom';
+
+interface FriendContext {
+  /** Authors who listed the viewer as a close friend. */
+  closeFriendAuthors: Set<string>;
+  /** Authors sharing an active DIRECT conversation with the viewer. */
+  directChatAuthors: Set<string>;
+  /** Author id -> whoCanSeeStory pref (absent = default 'friends'). */
+  prefByAuthor: Map<string, WhoCanSeeStory>;
+}
+
+function readWhoCanSeeStory(preferences: unknown): WhoCanSeeStory {
+  if (!preferences || typeof preferences !== 'object') return 'friends';
+  const chat = (preferences as Record<string, unknown>)['chatSettings'];
+  if (!chat || typeof chat !== 'object') return 'friends';
+  const privacy = (chat as Record<string, unknown>)['privacy'];
+  if (!privacy || typeof privacy !== 'object') return 'friends';
+  const value = (privacy as Record<string, unknown>)['whoCanSeeStory'];
+  return value === 'everyone' || value === 'friends' || value === 'custom'
+    ? value
+    : 'friends';
+}
+
+async function loadFriendContext(
+  prisma: PrismaClient,
+  viewerId: string,
+  authorIds: string[],
+): Promise<FriendContext> {
+  const ctx: FriendContext = {
+    closeFriendAuthors: new Set<string>(),
+    directChatAuthors: new Set<string>(),
+    prefByAuthor: new Map<string, WhoCanSeeStory>(),
+  };
+  const authors = [...new Set(authorIds)].filter((id) => id !== viewerId);
+  if (authors.length === 0) return ctx;
+
+  try {
+    const edges = await prisma.closeFriend.findMany({
+      where: { userId: { in: authors }, friendId: viewerId },
+      select: { userId: true },
+    });
+    for (const edge of edges) ctx.closeFriendAuthors.add(edge.userId);
+  } catch {
+    // Fail-closed: no close-friend edges are assumed on error.
+  }
+
+  try {
+    const rows = await prisma.user.findMany({
+      where: { id: { in: authors } },
+      select: { id: true, preferences: true },
+    });
+    for (const row of rows) {
+      ctx.prefByAuthor.set(row.id, readWhoCanSeeStory(row.preferences));
+    }
+  } catch {
+    // Fail-closed: absent pref = default 'friends' in canViewStory.
+  }
+
+  try {
+    const viewerMemberships = await prisma.conversationMember.findMany({
+      where: { userId: viewerId, leftAt: null },
+      select: { conversationId: true },
+    });
+    const conversationIds = viewerMemberships.map((m) => m.conversationId);
+    if (conversationIds.length > 0) {
+      const authorMemberships = await prisma.conversationMember.findMany({
+        where: {
+          conversationId: { in: conversationIds },
+          userId: { in: authors },
+          leftAt: null,
+        },
+        select: { conversationId: true, userId: true },
+      });
+      if (authorMemberships.length > 0) {
+        const direct = await prisma.conversation.findMany({
+          where: {
+            id: { in: [...new Set(authorMemberships.map((m) => m.conversationId))] },
+            type: 'DIRECT',
+          },
+          select: { id: true },
+        });
+        const directIds = new Set(direct.map((c) => c.id));
+        for (const m of authorMemberships) {
+          if (directIds.has(m.conversationId)) ctx.directChatAuthors.add(m.userId);
+        }
+      }
+    }
+  } catch {
+    // Fail-closed: no direct-chat relationships are assumed on error.
+  }
+
+  return ctx;
+}
+
+function canViewStory(
+  viewerId: string,
+  story: { userId: string; audience?: string | null },
+  ctx: FriendContext,
+): boolean {
+  if (story.userId === viewerId) return true;
+  // Gate 1: per-story audience.
+  if (
+    story.audience === 'CLOSE_FRIENDS' &&
+    !ctx.closeFriendAuthors.has(story.userId)
+  ) {
+    return false;
+  }
+  // Gate 2: per-author privacy preference.
+  const pref = ctx.prefByAuthor.get(story.userId) ?? 'friends';
+  if (pref === 'everyone') return true;
+  // 'friends' | 'custom' (custom == friends in v1, see header note).
+  return (
+    ctx.closeFriendAuthors.has(story.userId) ||
+    ctx.directChatAuthors.has(story.userId)
+  );
 }
 
 function serializeStory(story: StoryWithAuthor, isViewed: boolean) {
@@ -74,6 +211,7 @@ function serializeStory(story: StoryWithAuthor, isViewed: boolean) {
     text: story.type === 'TEXT' ? story.textContent ?? undefined : undefined,
     duration: story.duration,
     viewCount: story.viewCount,
+    audience: story.audience ?? 'ALL',
     createdAt: story.createdAt.toISOString(),
     expiresAt: story.expiresAt.toISOString(),
     isViewed,
@@ -101,10 +239,22 @@ export default async function storiesRoutes(fastify: FastifyInstance) {
     ]);
     const viewedIds = new Set(views.map((v) => v.storyId));
 
+    // QC-F-021: drop every story the viewer is not allowed to see BEFORE
+    // grouping, so an invisible story leaves no group/existence trace.
+    const allStories = stories as StoryWithAuthor[];
+    const friendCtx = await loadFriendContext(
+      prisma,
+      userId,
+      allStories.map((s) => s.userId),
+    );
+    const visibleStories = allStories.filter((s) =>
+      canViewStory(userId, s, friendCtx),
+    );
+
     // Group by author, preserving recency order; viewer's own group first.
     const groupOrder: string[] = [];
     const groupsByUser = new Map<string, ReturnType<typeof serializeStory>[]>();
-    for (const story of stories as StoryWithAuthor[]) {
+    for (const story of visibleStories) {
       if (!groupsByUser.has(story.userId)) {
         groupsByUser.set(story.userId, []);
         groupOrder.push(story.userId);
@@ -121,9 +271,7 @@ export default async function storiesRoutes(fastify: FastifyInstance) {
 
     const groups = groupOrder.map((authorId) => {
       const authorStories = groupsByUser.get(authorId)!;
-      const first = stories.find(
-        (s) => s.userId === authorId,
-      ) as unknown as StoryWithAuthor;
+      const first = visibleStories.find((s) => s.userId === authorId)!;
       return {
         userId: authorId,
         userName: first.user.displayName,
@@ -202,6 +350,12 @@ export default async function storiesRoutes(fastify: FastifyInstance) {
     if (!story) {
       throw createAppError('Story not found', 404, 'NOT_FOUND');
     }
+    // QC-F-021: an invisible story answers 404 (not 403) so its existence
+    // is not leaked, and no view is recorded for it.
+    const friendCtx = await loadFriendContext(prisma, userId, [story.userId]);
+    if (!canViewStory(userId, story, friendCtx)) {
+      throw createAppError('Story not found', 404, 'NOT_FOUND');
+    }
 
     if (story.userId !== userId) {
       const existing = await prisma.storyView.findUnique({
@@ -267,9 +421,15 @@ export default async function storiesRoutes(fastify: FastifyInstance) {
 
     const story = await prisma.story.findUnique({
       where: { id: storyId },
-      select: { id: true, userId: true },
+      select: { id: true, userId: true, audience: true },
     });
     if (!story) {
+      throw createAppError('Story not found', 404, 'NOT_FOUND');
+    }
+    // QC-F-021: same audience gate as the feed/view — an invisible story
+    // answers 404 and accepts no reply.
+    const friendCtx = await loadFriendContext(prisma, userId, [story.userId]);
+    if (!canViewStory(userId, story, friendCtx)) {
       throw createAppError('Story not found', 404, 'NOT_FOUND');
     }
     const parsed = replyBodySchema.safeParse(request.body);
