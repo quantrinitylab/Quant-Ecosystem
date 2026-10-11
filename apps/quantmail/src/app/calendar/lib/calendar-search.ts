@@ -17,10 +17,30 @@
 
 import type { CalendarEventLike } from '../types';
 
-/** Strip the internal `__QUANT_META__` header so it can never match a query. */
+const QUANT_META_PREFIX = '__QUANT_META__:';
+const QUANT_META_SUFFIX = ':__END_QUANT_META__';
+
+/**
+ * Strip the internal `__QUANT_META__` header so it can never match a query.
+ *
+ * Linear indexOf/slice scan, mirroring the backend fix in PR #838. This
+ * replaces `description.replace(/__QUANT_META__:[\s\S]*?:__END_QUANT_META__\n?/, '')`,
+ * a polynomial ReDoS on user-controlled descriptions: a string of many
+ * `__QUANT_META__:a` repetitions with no end marker makes the lazy
+ * quantifier rescan to end-of-string from every start marker (quadratic).
+ * indexOf finds the FIRST prefix and the FIRST suffix after it — exactly
+ * what the lazy match returned — in linear time on any input. A start
+ * marker with no end marker leaves the string unchanged, same as the
+ * regex failing to match.
+ */
 export function stripCalendarMeta(description: string | undefined): string {
   if (!description) return '';
-  return description.replace(/__QUANT_META__:[\s\S]*?:__END_QUANT_META__\n?/, '');
+  const start = description.indexOf(QUANT_META_PREFIX);
+  if (start === -1) return description;
+  const end = description.indexOf(QUANT_META_SUFFIX, start + QUANT_META_PREFIX.length);
+  if (end === -1) return description;
+  const rest = description.slice(0, start) + description.slice(end + QUANT_META_SUFFIX.length);
+  return rest.charAt(start) === '\n' ? rest.slice(0, start) + rest.slice(start + 1) : rest;
 }
 
 function attendeeText(attendees: CalendarEventLike['attendees']): string {
