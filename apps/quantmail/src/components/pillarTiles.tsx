@@ -33,13 +33,17 @@ export interface DesktopPillarTile {
 }
 
 export const DESKTOP_PILLAR_TILES: DesktopPillarTile[] = [
+  // SIA-P2-7: marks render at 32px inside 44px (size-11) rail buttons —
+  // keeps the pre-fix icon-to-button ratio while the touch target meets the
+  // 44px minimum. Accent colors and Canvas-2D marks are user-locked; only
+  // sizing changed here.
   {
     id: 'mail',
     label: 'Mail',
     path: '/',
     shortcutNumber: 1,
     accentColor: PILLAR_ACCENTS.mail,
-    renderIcon: () => <QuantMailLogo size={28} interactive={false} showBadge={false} />,
+    renderIcon: () => <QuantMailLogo size={32} interactive={false} showBadge={false} />,
   },
   {
     id: 'calendar',
@@ -47,7 +51,7 @@ export const DESKTOP_PILLAR_TILES: DesktopPillarTile[] = [
     path: '/calendar',
     shortcutNumber: 2,
     accentColor: PILLAR_ACCENTS.calendar,
-    renderIcon: () => <QuantCalendarLogo size={28} />,
+    renderIcon: () => <QuantCalendarLogo size={32} />,
   },
   {
     id: 'drive',
@@ -55,7 +59,7 @@ export const DESKTOP_PILLAR_TILES: DesktopPillarTile[] = [
     path: '/drive',
     shortcutNumber: 3,
     accentColor: PILLAR_ACCENTS.drive,
-    renderIcon: () => <QuantDriveLogo size={28} />,
+    renderIcon: () => <QuantDriveLogo size={32} />,
   },
   {
     id: 'contacts',
@@ -63,7 +67,7 @@ export const DESKTOP_PILLAR_TILES: DesktopPillarTile[] = [
     path: '/contacts',
     shortcutNumber: 4,
     accentColor: PILLAR_ACCENTS.contacts,
-    renderIcon: () => <QuantContactsLogo size={28} />,
+    renderIcon: () => <QuantContactsLogo size={32} />,
   },
   {
     id: 'quantgit',
@@ -71,6 +75,6 @@ export const DESKTOP_PILLAR_TILES: DesktopPillarTile[] = [
     path: '/quantgit',
     shortcutNumber: 5,
     accentColor: PILLAR_ACCENTS.quantgit,
-    renderIcon: () => <QuantGitLogo size={28} />,
+    renderIcon: () => <QuantGitLogo size={32} />,
   },
 ];
