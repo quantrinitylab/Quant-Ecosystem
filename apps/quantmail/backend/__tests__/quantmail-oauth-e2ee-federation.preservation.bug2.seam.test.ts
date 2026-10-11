@@ -96,6 +96,7 @@ vi.mock('@quant/auth/lib/prisma', () => {
     oAuthConsent: { findUnique: vi.fn(), upsert: vi.fn() },
     authorizationCode: { findUnique: vi.fn(), create: vi.fn(), delete: vi.fn() },
     user: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
+    emailVerificationCode: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   };
   return { default: p, prisma: p };
 });
