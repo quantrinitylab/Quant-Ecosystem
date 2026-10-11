@@ -12,7 +12,8 @@ import {
 } from '@quant/queue';
 import { OUTBOUND_DELIVERY_QUEUE } from './outbound-delivery.service';
 import type { DeliverabilityAuthService, DkimSigner } from './deliverability-auth.service';
-import { sendViaSes, isSesConfigured } from '../lib/ses-sender';
+import { sendViaSes, isSesConfigured, buildMultipartBody } from '../lib/ses-sender';
+import { resolveOutboundAttachments, type OutboundAttachmentDb } from '../lib/outbound-attachments';
 import { QUANT_INTERNAL_DOMAINS } from '../lib/domains';
 import { EmailService } from './email.service';
 
@@ -452,6 +453,14 @@ export class DeliveryWorker {
       let status: AttemptStatus = 'sent';
       let response = '250 2.0.0 OK (AWS SES)';
       try {
+        // QM-SCREEN-006 R2: resolve attachments to real bytes so external
+        // recipients actually receive them (raw MIME envelope). Unresolvable
+        // attachments throw ATTACHMENT_UNRESOLVABLE -> deferred, never silent.
+        const attachments = await resolveOutboundAttachments(
+          (email as { attachments?: unknown }).attachments,
+          senderUserId,
+          this.prisma as unknown as OutboundAttachmentDb,
+        );
         await sendViaSes({
           from,
           to: extTo,
@@ -462,6 +471,7 @@ export class DeliveryWorker {
           bodyText:
             email.bodyPlain && email.bodyPlain.trim().length > 0 ? email.bodyPlain : undefined,
           replyTo: fromAddress,
+          attachments,
         });
       } catch (sesErr) {
         status = 'deferred';
@@ -491,6 +501,10 @@ export class DeliveryWorker {
         subject: email.subject ?? '',
         date: this.now().toUTCString(),
         'message-id': messageId,
+        // SES-parity: both SES paths set Reply-To (to fromAddress); the
+        // direct-SMTP fallback must carry the same header so "reply" behaves
+        // identically regardless of which transport delivered the message.
+        'reply-to': fromAddress,
       };
       if (extCc.length > 0) {
         headers.cc = extCc.join(', ');
@@ -500,7 +514,28 @@ export class DeliveryWorker {
       let rawMessage: string | undefined;
       try {
         const signer: DkimSigner = await this.auth.getDkimSigner(fromDomain);
-        rawMessage = signer.signMessage(headers, body);
+        // QM-SCREEN-006 R2: the direct-SMTP fallback dropped attachments the
+        // same silent way SES did — wrap the body in multipart/mixed so the
+        // DKIM-signed message carries them too.
+        const attachments = await resolveOutboundAttachments(
+          (email as { attachments?: unknown }).attachments,
+          senderUserId,
+          this.prisma as unknown as OutboundAttachmentDb,
+        );
+        if (attachments.length > 0) {
+          const mime = buildMultipartBody({
+            bodyText:
+              email.bodyPlain && email.bodyPlain.trim().length > 0 ? email.bodyPlain : undefined,
+            bodyHtml:
+              email.bodyHtml && email.bodyHtml.trim().length > 0 ? email.bodyHtml : undefined,
+            attachments,
+          });
+          headers['mime-version'] = '1.0';
+          headers['content-type'] = mime.contentTypeHeader;
+          rawMessage = signer.signMessage(headers, mime.body);
+        } else {
+          rawMessage = signer.signMessage(headers, body);
+        }
       } catch (err) {
         // Fail closed: if the message cannot be DKIM-signed, defer every recipient
         // for retry rather than transmitting unsigned mail.
