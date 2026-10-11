@@ -8,8 +8,8 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TIMEZONES } from '../../types';
-import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure } from './booking-utils';
-import type { BookingLinkDetails, BookingLinkLoadStatus } from './booking-utils';
+import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolveSlotsResponse } from './booking-utils';
+import type { BookingLinkDetails, BookingLinkLoadStatus, BookingSlotItem } from './booking-utils';
 import {
   IconClock,
   IconVideoCall,
@@ -31,12 +31,8 @@ function formatDateToYmd(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export interface BookingSlotItem {
-  start: Date;
-  end: Date;
-  timeLabel: string;
-  available: boolean;
-}
+// BookingSlotItem lives in ./booking-utils (Next.js rejects non-page value
+// exports from page.tsx; the interface is type-only and shared with tests).
 
 const MONTH_NAMES = [
   'January',
@@ -294,23 +290,14 @@ export default function PublicBookingPage(props: PageProps) {
         const res = await apiFetchRaw(`/api/calendar/booking/${resolvedSlug}/slots?date=${dateStr}`);
         if (res.ok) {
           const json = await res.json();
-          if (json.success && Array.isArray(json.data) && json.data.length > 0 && isMounted) {
-            const mappedSlots: BookingSlotItem[] = json.data.map((s: any) => {
-              const start = new Date(s.start);
-              const end = new Date(s.end);
-              const hours = start.getHours();
-              const minutes = start.getMinutes();
-              const period = hours >= 12 ? 'PM' : 'AM';
-              const displayHours = hours % 12 === 0 ? 12 : hours % 12;
-              const displayMinutes = minutes < 10 ? `0${minutes}` : `${minutes}`;
-              return {
-                start,
-                end,
-                timeLabel: `${String(displayHours).padStart(2, '0')}:${displayMinutes} ${period}`,
-                available: s.available ?? true,
-              };
-            });
-            setAvailableSlots(mappedSlots);
+          const slots = resolveSlotsResponse(json);
+          if (slots !== null && isMounted) {
+            // The backend answer is authoritative — even when it is an empty
+            // array (fully booked date / link inactive for this date). Render
+            // the honest "no slots" state; NEVER fall through to the
+            // client-side generator, which would invent bookable slots the
+            // backend rejects at submit with 409 SLOT_UNAVAILABLE.
+            setAvailableSlots(slots);
             setIsLoadingSlots(false);
             return;
           }

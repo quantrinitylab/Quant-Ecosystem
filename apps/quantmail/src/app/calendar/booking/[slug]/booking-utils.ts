@@ -247,3 +247,54 @@ export function resolveBookingFailureMessage(
       return serverMessage || 'Booking could not be completed. Please try again.';
   }
 }
+
+export interface BookingSlotItem {
+  start: Date;
+  end: Date;
+  timeLabel: string;
+  available: boolean;
+}
+
+/**
+ * Slots-response authority rule (fix/qm-booking-fullybooked-slots).
+ *
+ * The slots endpoint honestly answers { success: true, data: [] } when the
+ * link has no bookable time on the date — booking-link.service
+ * getAvailableSlots returns [] for inactive links and for days outside the
+ * link's availableDays, and marks every slot available:false when the day is
+ * fully booked. An EMPTY array is an authoritative answer: the page must
+ * render the honest "no slots" state. It must NEVER fall through to the
+ * client-side slot generator, which would invent bookable slots the backend
+ * then rejects at submit with 409 SLOT_UNAVAILABLE.
+ *
+ * Returns the mapped slots (possibly []) when the payload is authoritative,
+ * or null when the fetch did not produce a usable answer (success !== true
+ * or data not an array) so the caller takes the genuine-failure path.
+ * Pure function so the rule is unit-testable.
+ */
+export function resolveSlotsResponse(json: unknown): BookingSlotItem[] | null {
+  if (
+    typeof json !== 'object' ||
+    json === null ||
+    (json as { success?: unknown }).success !== true ||
+    !Array.isArray((json as { data?: unknown }).data)
+  ) {
+    return null;
+  }
+  const data = (json as { data: unknown[] }).data;
+  return data.map((s: any) => {
+    const start = new Date(s.start);
+    const end = new Date(s.end);
+    const hours = start.getHours();
+    const minutes = start.getMinutes();
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 === 0 ? 12 : hours % 12;
+    const displayMinutes = minutes < 10 ? `0${minutes}` : `${minutes}`;
+    return {
+      start,
+      end,
+      timeLabel: `${String(displayHours).padStart(2, '0')}:${displayMinutes} ${period}`,
+      available: s.available ?? true,
+    };
+  });
+}
