@@ -2,9 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
-import { Quanty } from './Quanty';
 import { useDeferredMount } from '../hooks/useDeferredMount';
-import { useQuantyMood } from '../lib/quanty/reactions';
 
 /**
  * The way into Quanty, as one primitive instead of a pattern each route
@@ -19,12 +17,13 @@ import { useQuantyMood } from '../lib/quanty/reactions';
  * `size={24}` with `rounded-lg` and no `title` on the other, and only the inbox
  * ever told Quanty what page it was on.
  *
- * The split into two exports is deliberate and structural. The trigger belongs
- * in the header; the drawer must not, because `AppShell` swaps its whole header
- * out for `customHeader` — which the inbox does the moment a message is
- * selected. A drawer mounted inside the header would be unmounted by that swap
- * and take the conversation with it. So the drawer hangs at the shell's top
- * level next to `QuantFab`, and only the trigger disappears with the header.
+ * Quanty now enters through two pieces. The live-agent surface is the entry
+ * point: `AppShell` keeps a `QuantyLiveAgent` handle and opens its mode
+ * chooser ([Chat] [Voice Live Agent]) from the header Quanty button. The
+ * copilot drawer hangs at the shell's top level next to `QuantFab`, because
+ * `AppShell` swaps its whole header out for `customHeader` — which the inbox
+ * does the moment a message is selected, and a drawer mounted inside the
+ * header would be unmounted by that swap and take the conversation with it.
  */
 
 /**
@@ -73,45 +72,14 @@ function viewLabelForRoute(pathname: string): string {
  */
 const QuantyCopilotDrawer = dynamic(() => import('./QuantyCopilotDrawer'), { ssr: false });
 
-export function QuantyTrigger({ onOpen, isOpen }: { onOpen: () => void; isOpen: boolean }) {
-  /*
-   * Live, and this is the one mount where that matters most: the trigger sits in the header of
-   * every route that renders `AppShell`, so it is the only Quanty a session is guaranteed to
-   * see. It used to pass `expression="happy"` — and `happy` is the `arch` eye, a ∩ stroked
-   * rather than filled, which at 22px is indistinguishable from a shut lid. A constant that
-   * renders as closed eyes on every screen is why the mascot read as asleep everywhere.
-   *
-   * All channels, no filter. A header belongs to the whole app, not to one pane: a send, an
-   * upload, a search that came back empty, a lost connection — the corner of the screen is
-   * exactly where the user should be able to catch any of them without looking for a toast.
-   * `idle` is the resting face, which is the *open* capsule eye.
-   */
-  const mood = useQuantyMood();
-
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      /*
-       * 44px on a phone, 36px once there is a pointer — the same step every
-       * other control in this header takes. `size-11` is the floor rather than
-       * padding around a 22px mark, so the tap target is the button, not the
-       * artwork.
-       */
-      className="inline-flex size-11 sm:size-9 items-center justify-center rounded-xl text-[var(--quant-primary)] transition-colors hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--brand-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
-      title="Ask Quanty"
-      aria-label="Ask Quanty"
-      aria-expanded={isOpen}
-    >
-      {/*
-       * `bob={false}`: this is a control in a header, not a mascot on a hero.
-       * A permanently animating 22px figure in the top-right corner of every
-       * route reads as a notification that never clears.
-       */}
-      <Quanty size={22} expression={mood} bob={false} />
-    </button>
-  );
-}
+/*
+ * NOTE 2026-10-11: the `QuantyTrigger` export that used to live here was
+ * removed — repo-wide grep showed zero mount sites (the trigger docstring
+ * claiming it was "the only Quanty a session is guaranteed to see" was false).
+ * The real entry point is the live-agent surface: `AppShell` opens it via
+ * `liveAgentRef.current?.open()` from the header Quanty button, and
+ * `QuantyDrawerHost` below still hosts the copilot drawer conversation.
+ */
 
 export function QuantyDrawerHost({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const pathname = usePathname() ?? '/';

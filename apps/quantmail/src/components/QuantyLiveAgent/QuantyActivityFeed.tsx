@@ -121,7 +121,7 @@ export function QuantyActivityFeed({
       className={`overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/90 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl ${className}`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-white/5 px-4 py-2.5">
+      <div className="flex items-center justify-between px-4 pb-2 pt-2.5">
         <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
           Live progress
         </span>
@@ -185,7 +185,7 @@ export function QuantyActivityFeed({
                           e.stopPropagation();
                           onConfirmStep?.(step.id);
                         }}
-                        className="flex h-9 items-center rounded-lg bg-amber-500 px-3 text-sm font-semibold text-black transition hover:bg-amber-400 active:scale-95"
+                        className="flex h-9 items-center rounded-lg bg-[var(--app-accent)] px-3 text-sm font-semibold text-black transition hover:bg-[var(--app-accent-hover)] active:scale-95"
                       >
                         Haan, karo
                       </button>

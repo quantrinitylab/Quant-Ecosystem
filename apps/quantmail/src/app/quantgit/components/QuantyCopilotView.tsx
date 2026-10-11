@@ -122,8 +122,9 @@ export function QuantyCopilotView({
                 How can I help you build, analyze, or automate today?
               </h2>
               <p className="text-xs text-[#7D8590] leading-relaxed">
-                Autonomous Swarm intelligence powered by Claude Opus 5 & GPT-6 Astra. Fully wired
-                into monorepo ASTs, Git smart HTTP, and verified test pipelines.
+                Ask about your code with the current repository as context. Quanty can also run
+                actions from chat — creating a repository or deploying an agent — and shows
+                each action with its result.
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-xl w-full text-left pt-2">
@@ -1194,7 +1195,9 @@ export function QuantyCopilotView({
                   handleChatSubmit();
                 }
               }}
-              placeholder={isChatSubmitting ? 'Quanty is thinking...' : 'Do anything with AI...'}
+              placeholder={
+                isChatSubmitting ? 'Quanty is thinking...' : 'Ask about your code, or request an action…'
+              }
               className="w-full bg-transparent border-0 resize-none text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none leading-relaxed disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
             />
 

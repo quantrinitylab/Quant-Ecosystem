@@ -87,7 +87,7 @@ export function QuantyResultCard({ task, onUndo, onRetry, onDismiss, className =
               <button
                 type="button"
                 onClick={() => onRetry(task.command)}
-                className="flex h-9 items-center gap-1.5 rounded-xl bg-amber-500 px-3 text-sm font-semibold text-black transition hover:bg-amber-400 active:scale-95"
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-[var(--app-accent)] px-3 text-sm font-semibold text-black transition hover:bg-[var(--app-accent-hover)] active:scale-95"
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                   <path d="M13.5 8a5.5 5.5 0 11-1.6-3.9M13.5 2.5v3h-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />

@@ -131,7 +131,7 @@ export function QuantyToolTimeline({
       aria-label="Quanty actions"
       className="mt-2 rounded-lg border border-white/[0.08] bg-black/20 px-2.5 py-1"
     >
-      <ul className="divide-y divide-white/[0.06]">{executions.map((e) => (
+      <ul className="space-y-1">{executions.map((e) => (
         <ToolStep key={e.callId || `${e.toolName}-${e.status}`} execution={e} />
       ))}</ul>
     </div>
