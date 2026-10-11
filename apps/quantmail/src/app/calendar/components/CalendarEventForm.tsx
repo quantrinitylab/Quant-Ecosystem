@@ -40,6 +40,7 @@ import {
   CLUE_ENERGY,
 } from '../types';
 import { toDateInput } from '../lib/calendar-geometry';
+import { FindATimePanel } from './FindATimePanel';
 
 export interface CalendarEventFormProps {
   activeSheetType: EntryType | null;
@@ -493,6 +494,17 @@ export function CalendarEventForm({
                         ))}
                       </div>
                     )}
+                    <FindATimePanel
+                      attendees={formState.attendees}
+                      startDate={formState.startDate}
+                      endDate={formState.endDate}
+                      startTime={formState.startTime}
+                      endTime={formState.endTime}
+                      allDay={formState.allDay}
+                      onApplySlot={(slot) =>
+                        setFormState((prev) => ({ ...prev, ...slot }))
+                      }
+                    />
                   </div>
 
                   <div className="py-2 border-b border-[var(--quant-surface-elevated)]/60 space-y-1.5">

@@ -1078,6 +1078,23 @@ export class QuantMailApiClient {
     return this.get('/events/today');
   }
 
+  /**
+   * GET /events/free-busy — the organizer's own busy blocks over [start, end).
+   * (qm-calendar-find-a-time: the backend has no per-guest availability, so
+   * Find a time is honestly "free on YOUR calendar"; guest free/busy is never
+   * invented or scraped.)
+   */
+  async getFreeBusy(options: { start: string; end: string }): Promise<
+    ApiResponse<{
+      timeRange: { start: string; end: string };
+      busy: Array<{ start: string; end: string }>;
+      conflictsCount: number;
+      busyBlocksCount: number;
+    }>
+  > {
+    return this.get('/events/free-busy', { params: options });
+  }
+
   async createEvent(
     data: Partial<CalendarEvent> & { title: string; startTime: string; endTime: string },
   ): Promise<ApiResponse<CalendarEvent>> {
