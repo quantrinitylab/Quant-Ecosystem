@@ -18,7 +18,12 @@ export interface AuthConfig {
  * ConnectionAuth
  *
  * Handles JWT authentication for WebSocket upgrade requests.
- * Extracts tokens from query parameters or Authorization header.
+ * Extracts tokens from the Authorization header or the
+ * Sec-WebSocket-Protocol header — NEVER from the URL query string.
+ * Query-string tokens (?token=) leak into access logs, browser history
+ * and Referer headers; the REST side already rejects them for exactly
+ * that reason (packages/server-core/src/plugins/auth.ts), and the WS
+ * side follows the same policy (QC-F-037).
  */
 export class ConnectionAuth {
   private secret: Uint8Array;
@@ -45,18 +50,11 @@ export class ConnectionAuth {
 
   /**
    * Extract token from the request.
-   * Checks query parameter ?token= first, then Authorization header.
+   * Checks the Authorization header first, then Sec-WebSocket-Protocol.
+   * The URL query string is deliberately NOT consulted: a ?token= in the
+   * URL must neither authenticate a request nor override a header token.
    */
   extractToken(request: IncomingMessage): string | null {
-    // Try query parameter
-    const url = request.url || '';
-    const queryStart = url.indexOf('?');
-    if (queryStart !== -1) {
-      const params = new URLSearchParams(url.slice(queryStart));
-      const token = params.get('token');
-      if (token) return token;
-    }
-
     // Try Authorization header
     const authHeader = request.headers['authorization'];
     if (authHeader && authHeader.startsWith('Bearer ')) {
