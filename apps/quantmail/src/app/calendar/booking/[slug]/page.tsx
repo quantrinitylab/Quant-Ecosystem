@@ -827,7 +827,7 @@ export default function PublicBookingPage(props: PageProps) {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-6 py-2.5 rounded-xl bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-[var(--quant-background)] font-bold text-xs shadow-lg shadow-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] transition-all disabled:opacity-50 flex items-center gap-2"
+                    className="px-6 py-2.5 rounded-xl bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-[var(--quant-background)] font-bold text-xs shadow-lg shadow-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {isSubmitting ? (
                       <>

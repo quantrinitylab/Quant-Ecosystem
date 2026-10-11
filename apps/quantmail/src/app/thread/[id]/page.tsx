@@ -37,6 +37,21 @@ export default function ThreadPage() {
     [searchParams],
   );
 
+  /*
+   * BB-P2-6: the header back button names the real destination. The archived
+   * view is URL-addressable now (`archived=1`), so a thread opened from it
+   * says "Back to archived" instead of always claiming the inbox.
+   */
+  const backLabel = useMemo(() => {
+    if (!returnTo) return 'Back to inbox';
+    try {
+      const params = new URL(returnTo, 'https://quantmail.in').searchParams;
+      return params.get('archived') === '1' ? 'Back to archived' : 'Back to inbox';
+    } catch {
+      return 'Back to inbox';
+    }
+  }, [returnTo]);
+
   const leaveThread = useCallback(
     (replace = false) => {
       if (returnTo) {
@@ -120,6 +135,7 @@ export default function ThreadPage() {
         <ConversationalThreadView
           threadId={threadId}
           onClose={() => leaveThread(false)}
+          backLabel={backLabel}
           /*
            * These mutations are optimistic and queued through the outbox, so they
            * survive navigation. Navigating to returnTo preserves the user's lens

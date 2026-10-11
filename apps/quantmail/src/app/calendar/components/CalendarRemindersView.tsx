@@ -261,7 +261,7 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
           <button
             type="submit"
             disabled={!newTitle.trim()}
-            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] disabled:opacity-50 text-black text-xs font-bold transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed text-black text-xs font-bold transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
           >
             <PlusIcon className="size-3.5 text-black" />
             <span>Add Reminder</span>

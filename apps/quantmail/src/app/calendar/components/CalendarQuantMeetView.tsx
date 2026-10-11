@@ -217,7 +217,7 @@ export function CalendarQuantMeetView({ className = '' }: CalendarQuantMeetViewP
                 }
               }}
               disabled={!meetingCode.trim()}
-              className="px-4 py-2.5 rounded-xl bg-[var(--quant-surface-elevated)] hover:bg-[#1f2230] disabled:opacity-50 text-xs font-semibold text-[var(--app-accent)] border border-[#232938] transition-all focus-visible:outline-none"
+              className="px-4 py-2.5 rounded-xl bg-[var(--quant-surface-elevated)] hover:bg-[#1f2230] disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold text-[var(--app-accent)] border border-[#232938] transition-all focus-visible:outline-none"
             >
               Join
             </button>
