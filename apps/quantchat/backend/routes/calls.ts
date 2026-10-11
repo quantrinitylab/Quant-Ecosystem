@@ -270,7 +270,9 @@ export default async function callsRoutes(fastify: FastifyInstance) {
     // Fail closed without LiveKit: token issuance requires LIVEKIT_API_SECRET.
     const callService = getCallService();
     const token = await callService.generateCallToken(request.params.id, userId);
-    return reply.send({ success: true, data: { token } });
+    const serverUrl =
+      process.env['LIVEKIT_WS_URL'] ?? process.env['LIVEKIT_URL'] ?? '';
+    return reply.send({ success: true, data: { token, serverUrl } });
   });
 
   // POST /calls/:id/leave - Leave a call (only removes the requesting participant)
@@ -299,6 +301,8 @@ export default async function callsRoutes(fastify: FastifyInstance) {
     // Fail closed without LiveKit: token issuance requires LIVEKIT_API_SECRET.
     const callService = getCallService();
     const token = await callService.generateCallToken(request.params.id, userId);
-    return reply.send({ success: true, data: { token } });
+    const serverUrl =
+      process.env['LIVEKIT_WS_URL'] ?? process.env['LIVEKIT_URL'] ?? '';
+    return reply.send({ success: true, data: { token, serverUrl } });
   });
 }

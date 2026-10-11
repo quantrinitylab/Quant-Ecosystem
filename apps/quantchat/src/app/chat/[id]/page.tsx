@@ -1,10 +1,12 @@
 'use client';
 
 import { use, useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { spring } from '@quant/brand';
 import { ChatBubble, ChatInput, TypingIndicator, TopBar } from '@quant/shared-ui';
 import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
+import { apiClient } from '../../../services/api-client';
 import { useMessages } from '../../../hooks/useMessages';
 import { useConversations } from '../../../hooks/useConversations';
 import { useMe } from '../../../hooks/useMe';
@@ -72,6 +74,7 @@ const STATUS_RANK: Record<DeliveryStatus, number> = { sent: 1, delivered: 2, rea
 
 export default function ChatPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const { data, isLoading, error, refetch } = useMessages(id);
   const sendMessage = useSendMessage();
   const { conversations } = useConversations();
@@ -98,6 +101,40 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       candidate?.username?.trim();
     return name || 'Chat';
   }, [conversations, id, me?.id, me?.username]);
+
+  // Real voice/video calls (LiveKit backend). Initiates via POST
+  // /calls/initiate and routes to the call room. Fails closed with an honest
+  // error when calls are unavailable — never a fake call UI.
+  const [isStartingCall, setIsStartingCall] = useState(false);
+  const [callError, setCallError] = useState<string | null>(null);
+  const startCall = useCallback(async () => {
+    if (isStartingCall) return;
+    const conversation = conversations.find((c) => c.id === id);
+    const participants = conversation?.participants ?? [];
+    const other = participants.find(
+      (p) => p.userId !== me?.id && p.username !== me?.username,
+    );
+    const calleeId = other?.userId;
+    if (!calleeId) {
+      setCallError('Could not determine who to call.');
+      return;
+    }
+    setIsStartingCall(true);
+    setCallError(null);
+    try {
+      const res = await apiClient.initiate1v1Call(calleeId);
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message || 'Could not start the call.');
+      }
+      const raw = res.data as unknown as { callId?: unknown };
+      const callId = typeof raw?.callId === 'string' ? raw.callId : null;
+      if (!callId) throw new Error('Could not start the call.');
+      router.push(`/calls/${callId}`);
+    } catch (e) {
+      setCallError(e instanceof Error ? e.message : 'Could not start the call.');
+      setIsStartingCall(false);
+    }
+  }, [conversations, id, me?.id, me?.username, isStartingCall, router]);
   const { typingUsers, incomingMessages, isConnected, sendRealtimeMessage, setTyping, markRead } =
     useRealtimeChat(id);
   const [reactions, setReactions] = useState<Record<string, string[]>>({});
@@ -622,13 +659,35 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         title={chatDisplayName}
         subtitle={
           disappearSeconds > 0
-            ? `🔥 5 Day Streak · ⏱️ ${formatTimerLabel(disappearSeconds)} · Active now`
-            : '🔥 5 Day Streak · Active now'
+            ? `🔥 5 Day Streak · ⏱️ ${formatTimerLabel(disappearSeconds)} · ${isConnected ? 'Active now' : 'Reconnecting…'}`
+            : `🔥 5 Day Streak · ${isConnected ? 'Active now' : 'Reconnecting…'}`
         }
         onBack={() => {
           window.location.href = '/';
         }}
         rightActions={[
+          <button
+            key="voice-call"
+            type="button"
+            onClick={() => void startCall()}
+            disabled={isStartingCall}
+            aria-label="Start voice call"
+            className="min-w-touch min-h-touch flex items-center justify-center text-lg transition-opacity disabled:opacity-40"
+            title="Voice call"
+          >
+            {isStartingCall ? '…' : '📞'}
+          </button>,
+          <button
+            key="video-call"
+            type="button"
+            onClick={() => void startCall()}
+            disabled={isStartingCall}
+            aria-label="Start video call"
+            className="min-w-touch min-h-touch flex items-center justify-center text-lg transition-opacity disabled:opacity-40"
+            title="Video call"
+          >
+            {isStartingCall ? '…' : '📹'}
+          </button>,
           <button
             key="games"
             type="button"
@@ -693,6 +752,21 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         )}
       </AnimatePresence>
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {callError && (
+          <div
+            role="alert"
+            className="mx-1 rounded-xl bg-red-500/10 border border-red-500/30 px-3 py-2 text-sm text-red-600"
+          >
+            {callError}{' '}
+            <button
+              type="button"
+              onClick={() => setCallError(null)}
+              className="underline font-medium"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         {messages.length === 0 ? (
           <EmptyState
             title="No messages yet"

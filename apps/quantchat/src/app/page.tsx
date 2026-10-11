@@ -208,6 +208,9 @@ function SwipeableChatItem({ item, onSelect, onArchive, onPin }: SwipeableChatIt
 
 export default function ChatListPage() {
   const router = useRouter();
+  // Current user id — used by displayNameFor below to resolve 1:1 chats to the
+  // OTHER participant's real name (declared here, not in UserIndicator).
+  const { user } = useAuth();
   const { conversations, isLoading, error, refetch } = useConversations();
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
@@ -302,6 +305,18 @@ export default function ChatListPage() {
     return 'offline';
   };
 
+  // Derive an honest display name per conversation: for 1:1 chats the other
+  // participant's real name (never a fabricated "Chat" placeholder); for groups
+  // the group's real name. Rows are never invented — only real conversations
+  // render, and an empty list shows the honest empty state below.
+  const displayNameFor = (conv: (typeof conversationList)[number]): string => {
+    const participants = conv.participants ?? [];
+    const isGroup = conv.type === 'group' || participants.length > 2;
+    if (isGroup) return conv.name || 'Group chat';
+    const other = participants.find((p) => p.userId !== user?.id);
+    return other?.displayName || other?.username || conv.name || 'Unknown contact';
+  };
+
   const enhancedItems: EnhancedConversation[] = conversationList
     .map((conv) => {
       const fallback = conv as unknown as Partial<EnhancedConversation>;
@@ -309,16 +324,17 @@ export default function ChatListPage() {
       const lastMsgText =
         typeof rawMsg === 'string'
           ? rawMsg
-          : (rawMsg as { content?: string } | undefined)?.content || 'Tap to start chatting';
+          : (rawMsg as { content?: string } | undefined)?.content || 'No messages yet';
       const rawTimestamp = conv.lastActivityAt
         ? conv.lastActivityAt instanceof Date
           ? conv.lastActivityAt.toISOString()
           : String(conv.lastActivityAt)
         : fallback.timestamp || '';
+      const displayName = displayNameFor(conv);
 
       return {
         id: conv.id,
-        name: conv.name || 'Chat',
+        name: displayName,
         lastMessage: lastMsgText,
         timestamp: formatRelativeTime(rawTimestamp),
         unreadCount: conv.unreadCount || 0,
@@ -327,7 +343,7 @@ export default function ChatListPage() {
           presenceForConversation((conv.participants ?? []).map((p) => p.userId)),
         isPinned: pinnedIds.has(conv.id) || Boolean(fallback.isPinned),
         isArchived: archivedIds.has(conv.id) || Boolean(fallback.isArchived),
-        avatarInitial: fallback.avatarInitial || (conv.name || 'C').charAt(0).toUpperCase(),
+        avatarInitial: fallback.avatarInitial || displayName.charAt(0).toUpperCase(),
       };
     })
     .filter((item) => !item.isArchived)

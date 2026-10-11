@@ -94,6 +94,18 @@ vi.mock('../components/chat/DisappearingMessage', () => ({ DisappearingMessage: 
 vi.mock('../components/chat/DisappearingTimerPicker', () => ({ DisappearingTimerPicker: () => null }));
 vi.mock('../components/DisappearingTimer', () => ({ default: () => null }));
 
+// The page calls useRouter() (call buttons navigate to /calls/[callId]);
+// without an app router mounted this invariant-throws in jsdom.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+    prefetch: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
+
 // Imported after mocks are registered.
 import ChatPage from '../app/chat/[id]/page';
 

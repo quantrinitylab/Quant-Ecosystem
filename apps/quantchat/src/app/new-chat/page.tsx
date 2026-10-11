@@ -47,6 +47,46 @@ export default function NewChatPage() {
   const [isCreating, setIsCreating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Group creation (WhatsApp standard): pick members, name the group, create.
+  const [groupMode, setGroupMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [groupName, setGroupName] = useState('');
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const createGroup = async () => {
+    if (isCreatingGroup || selectedIds.size === 0 || !groupName.trim()) return;
+    setIsCreatingGroup(true);
+    setError(null);
+    try {
+      const res = await apiClient.createConversation(
+        [...selectedIds],
+        groupName.trim(),
+        'group',
+      );
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message || 'Could not create group');
+      }
+      const raw = res.data as unknown;
+      const conversationId =
+        typeof raw === 'object' && raw !== null && 'id' in raw
+          ? String((raw as { id: unknown }).id)
+          : null;
+      if (!conversationId) throw new Error('Could not create group');
+      router.push(`/chat/${conversationId}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not create group');
+      setIsCreatingGroup(false);
+    }
+  };
 
   const runSearch = useCallback(async (q: string) => {
     const trimmed = q.trim();
@@ -112,13 +152,60 @@ export default function NewChatPage() {
     <AppShell
       topBar={
         <TopBar
-          title="New chat"
-          subtitle="Find people to message"
-          onBack={() => router.back()}
+          title={groupMode ? 'New group' : 'New chat'}
+          subtitle={groupMode ? 'Add members, then name your group' : 'Find people to message'}
+          onBack={() => (groupMode ? setGroupMode(false) : router.back())}
         />
       }
     >
       <div className="flex flex-col h-full pb-16">
+        {/* New group entry point */}
+        {!groupMode && (
+          <button
+            onClick={() => setGroupMode(true)}
+            className="mx-4 mt-3 flex items-center gap-3 px-3 py-3 rounded-2xl bg-indigo-50 text-left active:bg-indigo-100 transition-colors"
+            aria-label="Create a new group chat"
+          >
+            <span
+              aria-hidden
+              className="w-12 h-12 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xl font-semibold"
+            >
+              👥
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block font-medium text-[var(--quant-foreground)]">
+                New group
+              </span>
+              <span className="block text-sm text-gray-500">
+                Chat with several people at once
+              </span>
+            </span>
+          </button>
+        )}
+
+        {/* Group name field (group mode) */}
+        {groupMode && (
+          <div className="px-4 pt-3">
+            <label htmlFor="new-group-name" className="sr-only">
+              Group name
+            </label>
+            <input
+              id="new-group-name"
+              type="text"
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              placeholder="Group name"
+              maxLength={100}
+              className="w-full h-11 px-4 rounded-full bg-gray-100 text-[var(--quant-foreground)] placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            {selectedIds.size > 0 && (
+              <p className="mt-2 text-sm text-gray-500" aria-live="polite">
+                {selectedIds.size} member{selectedIds.size === 1 ? '' : 's'} selected
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Search field */}
         <div className="px-4 pt-3 pb-2 sticky top-0 bg-white z-10">
           <label htmlFor="new-chat-search" className="sr-only">
@@ -172,37 +259,80 @@ export default function NewChatPage() {
           )}
 
           {!isSearching &&
-            contacts.map((contact) => (
-              <button
-                key={contact.id}
-                role="listitem"
-                onClick={() => void startChat(contact)}
-                disabled={isCreating !== null}
-                className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-gray-100 active:bg-gray-200 text-left transition-colors disabled:opacity-60"
-                aria-label={`Start chat with ${contact.displayName} (@${contact.username})`}
-              >
-                <ContactAvatar contact={contact} />
-                <span className="flex-1 min-w-0">
-                  <span className="block font-medium text-[var(--quant-foreground)] truncate">
-                    {contact.displayName}
+            contacts.map((contact) => {
+              const selected = selectedIds.has(contact.id);
+              return (
+                <button
+                  key={contact.id}
+                  role="listitem"
+                  onClick={() =>
+                    groupMode ? toggleSelect(contact.id) : void startChat(contact)
+                  }
+                  disabled={isCreating !== null}
+                  aria-pressed={groupMode ? selected : undefined}
+                  className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-gray-100 active:bg-gray-200 text-left transition-colors disabled:opacity-60"
+                  aria-label={
+                    groupMode
+                      ? `${selected ? 'Remove' : 'Add'} ${contact.displayName} (@${contact.username}) ${selected ? 'from' : 'to'} group`
+                      : `Start chat with ${contact.displayName} (@${contact.username})`
+                  }
+                >
+                  <ContactAvatar contact={contact} />
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-medium text-[var(--quant-foreground)] truncate">
+                      {contact.displayName}
+                    </span>
+                    <span className="block text-sm text-gray-500 truncate">
+                      @{contact.username}
+                      {contact.bio ? ` · ${contact.bio}` : ''}
+                    </span>
                   </span>
-                  <span className="block text-sm text-gray-500 truncate">
-                    @{contact.username}
-                    {contact.bio ? ` · ${contact.bio}` : ''}
-                  </span>
-                </span>
-                {isCreating === contact.id ? (
-                  <span className="text-sm text-gray-500" aria-live="polite">
-                    Starting…
-                  </span>
-                ) : (
-                  <span aria-hidden className="text-indigo-600 text-xl">
-                    💬
-                  </span>
-                )}
-              </button>
-            ))}
+                  {groupMode ? (
+                    <span
+                      aria-hidden
+                      className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-sm ${
+                        selected
+                          ? 'bg-indigo-500 border-indigo-500 text-white'
+                          : 'border-gray-300 text-transparent'
+                      }`}
+                    >
+                      ✓
+                    </span>
+                  ) : isCreating === contact.id ? (
+                    <span className="text-sm text-gray-500" aria-live="polite">
+                      Starting…
+                    </span>
+                  ) : (
+                    <span aria-hidden className="text-indigo-600 text-xl">
+                      💬
+                    </span>
+                  )}
+                </button>
+              );
+            })}
         </div>
+
+        {/* Create group action (group mode) */}
+        {groupMode && (
+          <div className="px-4 pb-2 pt-1 sticky bottom-16">
+            <button
+              onClick={() => void createGroup()}
+              disabled={
+                isCreatingGroup || selectedIds.size === 0 || !groupName.trim()
+              }
+              className="w-full h-12 rounded-full bg-indigo-500 text-white font-medium disabled:opacity-40 disabled:cursor-not-allowed active:bg-indigo-600 transition-colors"
+            >
+              {isCreatingGroup
+                ? 'Creating group…'
+                : `Create group${selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}`}
+            </button>
+            {selectedIds.size === 0 && (
+              <p className="mt-1 text-center text-xs text-gray-500">
+                Search and select at least one member above
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <BottomNav
