@@ -1659,9 +1659,12 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           checksStatus: 'none',
           commentsCount: 0,
           createdAt: pull.createdAt.toISOString(),
-          additions: 0,
-          deletions: 0,
-          changedFiles: 0,
+          // Diff stats are NOT computed for list responses — that would run a
+          // git diff per PR row. Report explicit unknown (null) instead of
+          // invented zeros; see GET /:id/pulls/:number for computed stats.
+          additions: null,
+          deletions: null,
+          changedFiles: null,
         })),
       });
     },
@@ -1711,9 +1714,11 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         checksStatus: 'none',
         commentsCount: 0,
         createdAt: pr.createdAt.toISOString(),
-        additions: 0,
-        deletions: 0,
-        changedFiles: 0,
+        // A freshly created PR has no computed diff stats yet — report
+        // explicit unknown (null), never invented zeros.
+        additions: null,
+        deletions: null,
+        changedFiles: null,
       },
     });
   });
@@ -1732,9 +1737,11 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       });
       if (!pr) throw createAppError('Pull request not found', 404, 'PR_NOT_FOUND');
 
-      let additions = 0;
-      let deletions = 0;
-      let changedFiles = 0;
+      // Stats stay null (unknown) unless the git diff below actually runs —
+      // never report 0 when nothing was measured.
+      let additions: number | null = null;
+      let deletions: number | null = null;
+      let changedFiles: number | null = null;
       let diffText = '';
 
       const repoPath = await resolveRepoPath(repo);
@@ -1757,6 +1764,10 @@ export default async function reposRoutes(fastify: FastifyInstance) {
 
         if (baseSha && headSha) {
           try {
+            // The diff actually ran: zero is now a real measured value.
+            additions = 0;
+            deletions = 0;
+            changedFiles = 0;
             const range = `${baseSha}..${headSha}`;
             const [{ stdout: patch }, { stdout: numstat }] = await Promise.all([
               execFileAsync('git', ['diff', '-p', '--end-of-options', range, '--'], {
@@ -1782,7 +1793,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
               }
             }
           } catch {
-            // fallback
+            // Stats stay null (unknown) — a failed diff is not a zero diff.
           }
         }
       }

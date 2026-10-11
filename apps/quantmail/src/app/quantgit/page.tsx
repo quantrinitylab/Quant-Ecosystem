@@ -802,9 +802,11 @@ function QuantGitContent() {  const router = useRouter();
               commentsCount: item.commentsCount || 0,
               createdAt: item.createdAt || 'recently',
               body: item.body || '',
-              additions: item.additions || 12,
-              deletions: item.deletions || 2,
-              changedFiles: item.changedFiles || 1,
+              // Diff stats: pass through honestly — the list endpoint reports
+              // null (unknown) and must never become invented +12/-2 counts.
+              additions: item.additions ?? undefined,
+              deletions: item.deletions ?? undefined,
+              changedFiles: item.changedFiles ?? undefined,
             }));
             setPulls(mappedPulls);
           }
@@ -1246,9 +1248,11 @@ function QuantGitContent() {  const router = useRouter();
           checksStatus: 'unknown',
           commentsCount: 0,
           createdAt: 'just now',
-          additions: item.additions || 12,
-          deletions: item.deletions || 2,
-          changedFiles: item.changedFiles || 1,
+          // Diff stats: pass through honestly — null/undefined stays
+          // unknown ('—' in the UI), never invented +12/-2 counts.
+          additions: item.additions ?? undefined,
+          deletions: item.deletions ?? undefined,
+          changedFiles: item.changedFiles ?? undefined,
         };
         setPulls((prev) => [created, ...prev]);
         setNewPrTitle('');
@@ -1314,9 +1318,11 @@ function QuantGitContent() {  const router = useRouter();
             checksStatus: 'unknown',
             commentsCount: 0,
             createdAt: 'just now',
-            additions: item.additions || 12,
-            deletions: item.deletions || 2,
-            changedFiles: item.changedFiles || 1,
+            // Diff stats: pass through honestly — null/undefined stays
+            // unknown ('—' in the UI), never invented +12/-2 counts.
+            additions: item.additions ?? undefined,
+            deletions: item.deletions ?? undefined,
+            changedFiles: item.changedFiles ?? undefined,
           };
         } else {
           throw new Error('Failed to create pull request on server');
