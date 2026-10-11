@@ -318,6 +318,8 @@ export type {
 // Config
 export {
   getAvailableProviders,
+  getProviderConfig,
+  listProviderIds,
 } from './config/providers';
 export type { ProviderConfig, FallbackChainConfig } from './config/providers';
 export { isFailClosedMode } from './config/runtime';

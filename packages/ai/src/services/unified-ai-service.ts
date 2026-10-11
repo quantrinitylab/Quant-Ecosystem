@@ -27,6 +27,8 @@ export interface GenerateTextOptions {
   temperature?: number;
   maxTokens?: number;
   userId?: string;
+  /** Admin-configured provider priority/failover order (ordered provider ids). */
+  providerPriorityOrder?: string[];
 }
 
 /** Options for generateStream */
@@ -36,6 +38,8 @@ export interface GenerateStreamOptions {
   temperature?: number;
   maxTokens?: number;
   userId?: string;
+  /** Admin-configured provider priority/failover order (ordered provider ids). */
+  providerPriorityOrder?: string[];
 }
 
 /**
@@ -99,6 +103,9 @@ export class UnifiedAIService {
         userId: options.userId ?? 'anonymous',
         app: 'quantai',
         feature: 'unified_text',
+        ...(options.providerPriorityOrder
+          ? { providerPriorityOrder: options.providerPriorityOrder }
+          : {}),
       };
 
       return await this.engine.infer(request);
@@ -137,6 +144,9 @@ export class UnifiedAIService {
         app: 'quantai',
         feature: 'unified_stream',
         stream: true,
+        ...(options.providerPriorityOrder
+          ? { providerPriorityOrder: options.providerPriorityOrder }
+          : {}),
       };
 
       for await (const chunk of this.engine.stream(request)) {

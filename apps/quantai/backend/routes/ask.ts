@@ -1,11 +1,23 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
-import { UnifiedAIService } from '@quant/ai';
+import { UnifiedAIService, getProviderConfig } from '@quant/ai';
 import {
   UserModelPreferenceService,
   DEFAULT_USER_MODEL,
 } from '../services/user-model-preference.service';
+import { AiProviderSettingsService } from '../services/ai-provider-settings.service';
+
+/**
+ * Explicit allow-list for per-user model choice: Meta's own models plus the
+ * OpenRouter-routed ids. An absent/empty allow-list would permit any model id
+ * (audit P1-9), so this list is always passed — arbitrary ids are rejected
+ * with 400 and fall back to the platform default on resolve.
+ */
+const MODEL_ALLOW_LIST: string[] = [
+  ...(getProviderConfig('meta')?.models ?? []),
+  ...(getProviderConfig('openrouter')?.models ?? []),
+];
 
 const askBodySchema = z.object({
   question: z.string().min(1, 'Question is required'),
@@ -23,7 +35,13 @@ export default async function askRoutes(fastify: FastifyInstance) {
   function prefService(): UserModelPreferenceService | null {
     const prisma = (fastify as unknown as { prisma?: unknown }).prisma;
     if (!prisma) return null;
-    return new UserModelPreferenceService(prisma as never);
+    return new UserModelPreferenceService(prisma as never, { allowed: MODEL_ALLOW_LIST });
+  }
+
+  function providerSettingsService(): AiProviderSettingsService | null {
+    const prisma = (fastify as unknown as { prisma?: unknown }).prisma;
+    if (!prisma) return null;
+    return new AiProviderSettingsService(prisma as never);
   }
 
   function requireUserId(request: unknown): string {
@@ -70,15 +88,25 @@ export default async function askRoutes(fastify: FastifyInstance) {
 
     // Per-user routing: request model wins, else the user's stored preference,
     // else the platform default. Falls back gracefully when the store is absent.
+    // The allow-list is enforced (disallowed ids fall back to the default).
     const svc = prefService();
     const resolvedModel = svc
       ? (await svc.resolve(userId, model)).model
       : model?.trim() || DEFAULT_USER_MODEL;
 
+    // Admin-configured provider priority/failover order, resolved per request.
+    // Fail-open: getProviderOrder() returns the compiled default on DB error,
+    // so chat never breaks because the settings lookup failed.
+    const settingsSvc = providerSettingsService();
+    const providerPriorityOrder = settingsSvc
+      ? await settingsSvc.getProviderOrder()
+      : undefined;
+
     const response = await aiService.generateText(question, {
       model: resolvedModel,
       systemPrompt,
       userId,
+      ...(providerPriorityOrder ? { providerPriorityOrder } : {}),
     });
 
     return reply.send({

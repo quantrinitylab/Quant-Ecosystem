@@ -3498,6 +3498,24 @@ model UserModelPreference {
   @@map("user_model_preferences")
 }
 
+// AiProviderSettings — the admin-controlled AI provider priority/failover
+// order, persisted so the platform default (Meta-first) survives restarts and
+// can be changed at runtime via PUT /admin/ai/providers (admin role only).
+// One row per scope ("global" by default). providerOrder is an ordered JSON
+// array of provider ids (a permutation of a subset of the known ids in
+// @quant/ai's PROVIDER_CONFIGS). The ModelRouter reads it per request
+// (fail-open to the compiled default when the lookup fails).
+model AiProviderSettings {
+  id            String   @id @default(cuid())
+  scope         String   @unique @default("global")
+  providerOrder Json     @default("[]")
+  updatedBy     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("ai_provider_settings")
+}
+
 /// A QuantMax squad — a persistent group of users (for party games / group
 /// video rooms). Durable; the creator is the OWNER.
 model Squad {

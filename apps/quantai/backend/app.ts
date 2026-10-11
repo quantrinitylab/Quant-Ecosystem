@@ -44,6 +44,7 @@ import codeAgentRoutes from './routes/code-agent';
 import userOwnedAiRoutes from './routes/user-owned-ai';
 import promptTemplateRoutes from './routes/prompt-templates';
 import askRoutes from './routes/ask';
+import adminAiProvidersRoutes from './routes/admin-ai-providers';
 import mcpRoutes from './routes/mcp';
 import automationsRoutes from './routes/automations';
 import goalRoutes from './routes/goals';
@@ -155,6 +156,7 @@ export async function buildApp(config?: AppConfig) {
   // (/api/auth/userinfo). Without it SSO round-trips silently bounce.
   await app.register(authRoutes, { prefix: '/auth' });
   await app.register(askRoutes);
+  await app.register(adminAiProvidersRoutes);
   await app.register(scheduledTasksRoutes, { prefix: '/agents/scheduled' });
   await app.register(mcpConnectorsRoutes, { prefix: '/connectors' });
   await app.register(fileLibraryRoutes, { prefix: '/files/library' });
