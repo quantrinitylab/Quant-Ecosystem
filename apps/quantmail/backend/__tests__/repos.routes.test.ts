@@ -2940,3 +2940,81 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     });
   });
 });
+
+describe('QuantGit Security Endpoints Honesty (no security-scan theater)', () => {
+  beforeEach(() => {
+    resetRepoStores();
+  });
+
+  it('GET /repos/:id/security/alerts returns honest empty lists and never seeds fabricated findings', async () => {
+    const app = await buildApp();
+
+    const first = await app.inject({ method: 'GET', url: '/repos/repo-1/security/alerts' });
+    expect(first.statusCode).toBe(200);
+    const firstBody = first.json();
+    expect(firstBody.success).toBe(true);
+    expect(firstBody.data.scanAvailable).toBe(false);
+    expect(firstBody.data.note).toContain('not wired up');
+    expect(firstBody.data.dependabot).toEqual([]);
+    expect(firstBody.data.secrets).toEqual([]);
+    expect(firstBody.data.codeql).toEqual([]);
+
+    // A second hit must not conjure alerts either — no first-hit seeding.
+    const second = await app.inject({ method: 'GET', url: '/repos/repo-1/security/alerts' });
+    expect(second.statusCode).toBe(200);
+    const secondBody = second.json();
+    expect(secondBody.data.dependabot).toEqual([]);
+    expect(secondBody.data.secrets).toEqual([]);
+    expect(secondBody.data.codeql).toEqual([]);
+
+    const raw = JSON.stringify(secondBody);
+    expect(raw).not.toContain('sec-0');
+    expect(raw).not.toContain('secret-1');
+    expect(raw).not.toContain('codeql-1');
+  });
+
+  it('POST /repos/:id/security/scan is honest: scanAvailable false, zeroed counts, no fake duration', async () => {
+    const app = await buildApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/security/scan',
+      payload: { scanType: 'all' },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.scanAvailable).toBe(false);
+    expect(body.data.scannedFiles).toBe(0);
+    expect(body.data.scannedCommits).toBe(0);
+    expect(body.data.scanDurationMs).toBe(0);
+    expect(body.data.findings).toEqual({ dependabot: 0, secrets: 0, codeql: 0 });
+    expect(body.data.message).toContain('not wired up');
+  });
+
+  it('POST /repos/:id/security/scan does not fabricate the old hardcoded 48/14/124 numbers', async () => {
+    const app = await buildApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/security/scan',
+      payload: { scanType: 'secrets' },
+    });
+    const body = res.json();
+    const raw = JSON.stringify(body);
+    expect(raw).not.toContain('48 files and 14 commits analyzed');
+    expect(body.data.scannedFiles).not.toBe(48);
+    expect(body.data.scannedCommits).not.toBe(14);
+    expect(body.data.scanDurationMs).not.toBe(124);
+  });
+
+  it('revoking a nonexistent secret alert fails with 404 instead of touching fabricated data', async () => {
+    const app = await buildApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/security/secrets/secret-1/revoke',
+    });
+    expect(res.statusCode).toBe(404);
+  });
+});
