@@ -888,7 +888,7 @@ LIVE logged-out (desktop 1440x900 + mobile 390x844 via local Chrome + proxy 127.
 R2 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 2 P2. No fix agents spawned (no P0/P1). Rotation → QM-SCREEN-017 (admin) R2.
 
 ## QM-SCREEN-017 — Admin / domains / DLP / audit / organization policy
-Status: [x] DONE
+Status: [~] IN_PROGRESS — LANE-1 R2 regression audit (branch lane1-audit-017r2, claimed 2026-10-12 ~03:40 IST; R1 findings incl. P0 retention-any-auth, P1 prefix-role, P1 UI-gaps, P1 incident-visibility; R1 fix PR #855 merged)
 Owner: LANE-1
 Branch: lane1-audit-017
 Required: capability RBAC, tenant isolation, domain verification, DLP, audit explorer, legal hold, retention, export/deletion, incident visibility, break-glass controls.
