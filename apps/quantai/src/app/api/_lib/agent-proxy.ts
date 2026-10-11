@@ -83,17 +83,17 @@ export async function proxyAgentRequest(
       );
     }
     if (path.startsWith('/usage/stats')) {
+      // P1 fix (2026-10-11): NEVER fabricate usage stats. The previous
+      // fallback returned invented token counts with `success: true`, which
+      // the UI rendered as the user's real stats. Honest 503 instead — the
+      // UI stays quiet on error (see useUsageStats / StatsHeader).
       return NextResponse.json(
         {
-          success: true,
-          data: {
-            promptTokens: 120,
-            completionTokens: 450,
-            totalTokens: 570,
-            estimatedCostUsd: 0.0,
-          },
+          success: false,
+          error: 'Usage service unavailable. Please try again in a moment.',
+          code: 'UPSTREAM_UNAVAILABLE',
         },
-        { status: 200 },
+        { status: 503 },
       );
     }
     if (path === '/models') {

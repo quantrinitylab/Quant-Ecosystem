@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { apiFetchRaw } from '@quant/api-client';
+import { getAuthToken } from '../lib/auth';
 
 interface Persona {
   id: string;
@@ -180,6 +181,9 @@ export default function PersonasPage(): JSX.Element {
           message: userMessage,
           systemPrompt: `You are "${persona?.name}". ${persona?.description || ''} Personality: ${persona?.personality || ''}`,
         }),
+        // P1 fix: forward the session bearer token — without it the backend
+        // rejects the call and persona chat is dead-on-arrival.
+        token: getAuthToken() ?? undefined,
       });
       const data = (await res.json().catch(() => ({}))) as {
         response?: string;
