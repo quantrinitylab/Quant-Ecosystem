@@ -81,6 +81,7 @@ export function getConfig(): AppConfig {
     env,
     publicPaths: [
       '/auth/login',
+      '/auth/refresh',
       '/auth/otp/request',
       '/auth/otp/verify',
       '/auth/sso/exchange',

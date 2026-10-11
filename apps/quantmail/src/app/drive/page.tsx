@@ -315,7 +315,7 @@ function MediaPreviewStatus({ loading, error }: { loading: boolean; error: strin
   if (loading) {
     return (
       <div className="py-12 text-center text-xs text-[var(--quant-muted-foreground)] space-y-3">
-        <div className="w-6 h-6 border-2 border-[var(--app-accent)] border-t-transparent rounded-full animate-spin mx-auto" />
+        <svg className="w-6 h-6 animate-spin mx-auto text-[var(--app-accent)]" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="4" /><path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" /></svg>
         <p>Loading preview…</p>
       </div>
     );
@@ -1303,7 +1303,7 @@ function DrivePageContent() {
          * Folder and Upload into it) plus the secondary Quanty / Duplicates
          * actions.
          */}
-        <div className="relative z-30 flex items-center gap-2 border-b border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-2 sm:px-8">
+        <div className="relative z-30 flex items-center gap-2 bg-[var(--quant-surface)] px-4 py-2 sm:px-8">
           {/* Breadcrumbs — hidden at root on mobile, where "My Drive" is redundant */}
           <nav
             className={`min-w-0 shrink items-center gap-1.5 text-xs text-[var(--quant-muted-foreground)] ${
@@ -1558,7 +1558,7 @@ function DrivePageContent() {
 
         {/* Batch Selection Action Bar */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center justify-between px-4 py-2 sm:px-8 bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border-b border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] text-xs">
+          <div className="flex items-center justify-between px-4 py-2 sm:px-8 bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-xs">
             <span className="font-semibold text-white">
               {selectedIds.size} item{selectedIds.size > 1 ? 's' : ''} selected
             </span>
@@ -1618,7 +1618,7 @@ function DrivePageContent() {
 
         {/* Search Mode Indicator (Task D21) */}
         {searchQuery.trim() && (
-          <div className="flex items-center justify-between px-4 py-2 sm:px-8 bg-[var(--quant-surface-elevated)] border-b border-[var(--quant-surface-elevated)] text-xs">
+          <div className="flex items-center justify-between px-4 py-2 sm:px-8 bg-[var(--quant-surface-elevated)] text-xs">
             <div className="flex items-center gap-2 text-[var(--quant-muted-foreground)]">
               <svg
                 className="size-3.5 text-[var(--app-accent)]"
@@ -1818,7 +1818,7 @@ function DrivePageContent() {
 
           {(activeTab === 'home' || activeTab === 'files') && activeFilter === 'trash' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-[var(--quant-border)]">
+              <div className="flex items-center justify-between pb-1">
                 <div>
                   <h3 className="text-sm font-bold text-[var(--quant-foreground)]">Trash</h3>
                   <p className="text-xs text-[var(--quant-muted-foreground)]">
@@ -2196,7 +2196,7 @@ function DrivePageContent() {
               </div>
             ) : previewItem && isTextOrCodeFile(previewItem.mimeType, previewItem.name) ? (
               <div className="rounded-xl bg-[var(--quant-surface)] p-4 text-left shadow-[inset_0_0_0_1px_var(--quant-surface-elevated)]">
-                <div className="flex items-center justify-between border-b border-[var(--quant-surface-elevated)] pb-3 mb-3">
+                <div className="flex items-center justify-between pb-1 mb-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-[var(--app-accent)] shrink-0">
                       <svg
@@ -2289,7 +2289,7 @@ function DrivePageContent() {
 
                 {isLoadingTextPreview ? (
                   <div className="py-12 text-center text-xs text-[var(--quant-muted-foreground)] space-y-3">
-                    <div className="w-6 h-6 border-2 border-[var(--app-accent)] border-t-transparent rounded-full animate-spin mx-auto" />
+                    <svg className="w-6 h-6 animate-spin mx-auto text-[var(--app-accent)]" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="4" /><path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" /></svg>
                     <p>Loading code preview…</p>
                   </div>
                 ) : textPreviewError ? (

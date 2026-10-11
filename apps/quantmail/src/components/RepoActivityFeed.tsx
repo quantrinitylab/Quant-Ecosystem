@@ -94,8 +94,18 @@ export function RepoActivityFeed({ activities, repoName }: RepoActivityFeedProps
   );
 }
 
-function formatRelativeTime(timestamp: string): string {
-  const diff = Date.now() - new Date(timestamp).getTime();
+/**
+ * Relative-time label for the activity-time slot.
+ *
+ * Guard (same defect family as PeopleList's formatRelativeTime): an unparseable
+ * activity timestamp must degrade to an empty fallback — never the literal
+ * "NaNd" in the time slot (NaN falls through every `min < 1` / `min < 60` /
+ * `hr < 24` comparison and the day branch interpolates NaN).
+ */
+export function formatRelativeTime(timestamp: string): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return '';
+  const diff = Date.now() - date.getTime();
   const min = Math.floor(diff / 60000);
   if (min < 1) return 'now';
   if (min < 60) return `${min}m`;

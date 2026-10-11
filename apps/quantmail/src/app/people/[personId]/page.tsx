@@ -55,6 +55,25 @@ export default function PersonPage() {
     setPendingSends([]);
   }, [personKey]);
 
+  /**
+   * Withdraw one optimistic bubble, identified by its (text, subject) —
+   * shared by the failure path (P1-C: a failed send must never look like a
+   * sent message) and by undoing a queued send inside the recall window
+   * (the message never went out). Sends are serialized per composer in the
+   * direct path, and the undo queue flushes an earlier queued send when a
+   * second one arrives, so the last matching entry is the right one.
+   */
+  const withdrawPendingSend = useCallback((text: string, subject: string) => {
+    setPendingSends((prev) => {
+      for (let i = prev.length - 1; i >= 0; i -= 1) {
+        if (prev[i].bodyText === text && prev[i].subject === subject) {
+          return [...prev.slice(0, i), ...prev.slice(i + 1)];
+        }
+      }
+      return prev;
+    });
+  }, []);
+
   const conversation = useMemo(() => {
     if (!personKey) return undefined;
     return groupEmailsByPerson(emails ?? [], currentUserEmail).find(
@@ -234,25 +253,16 @@ export default function PersonPage() {
                         { clientId, bodyText: text, subject, sentAt: new Date() },
                       ]);
                     }}
-                    onSent={() => {
-                      // The send succeeded: refetch, then swap the optimistic
-                      // bubbles for the confirmed messages.
-                      void refetch().finally(() => setPendingSends([]));
+                    onSent={(text, subject) => {
+                      // The send is CONFIRMED (real send resolved after the
+                      // undo window): refetch, then swap only this send's
+                      // optimistic bubble for the confirmed message — a
+                      // second send may still be inside its own recall window
+                      // and its bubble must stay.
+                      void refetch().finally(() => withdrawPendingSend(text, subject));
                     }}
-                    onSendError={(text, subject) => {
-                      // The send failed: withdraw the optimistic bubble so it
-                      // never looks like a sent message. Sends are serialized
-                      // per composer (the isSending gate), so the last
-                      // matching entry is the failed one.
-                      setPendingSends((prev) => {
-                        for (let i = prev.length - 1; i >= 0; i -= 1) {
-                          if (prev[i].bodyText === text && prev[i].subject === subject) {
-                            return [...prev.slice(0, i), ...prev.slice(i + 1)];
-                          }
-                        }
-                        return prev;
-                      });
-                    }}
+                    onSendError={withdrawPendingSend}
+                    onSendUndo={withdrawPendingSend}
                   />
                 )
               }

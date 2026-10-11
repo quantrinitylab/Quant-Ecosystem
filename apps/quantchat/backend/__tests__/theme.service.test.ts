@@ -10,6 +10,15 @@ function createMockPrisma() {
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    // QC-F-017: theme access is membership-gated; default requester is a member.
+    conversationMember: {
+      findFirst: vi.fn().mockResolvedValue({
+        id: 'member-1',
+        conversationId: 'conv-1',
+        userId: 'user-1',
+        role: 'MEMBER',
+      }),
+    },
   };
 }
 
@@ -27,7 +36,7 @@ describe('ThemeService', () => {
       prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', themeId: null });
       prisma.conversation.update.mockResolvedValue({ id: 'conv-1', themeId: 'nebula' });
 
-      const result = await service.setConversationTheme('conv-1', 'nebula');
+      const result = await service.setConversationTheme('conv-1', 'nebula', 'user-1');
 
       expect(result.themeId).toBe('nebula');
       expect(prisma.conversation.update).toHaveBeenCalledWith({
@@ -38,7 +47,7 @@ describe('ThemeService', () => {
 
     it('throws CONVERSATION_NOT_FOUND for a missing conversation', async () => {
       prisma.conversation.findUnique.mockResolvedValue(null);
-      await expect(service.setConversationTheme('missing', 'nebula')).rejects.toThrow(
+      await expect(service.setConversationTheme('missing', 'nebula', 'user-1')).rejects.toThrow(
         'Conversation not found',
       );
     });
@@ -47,12 +56,12 @@ describe('ThemeService', () => {
   describe('getConversationThemeId', () => {
     it('returns the stored theme id', async () => {
       prisma.conversation.findUnique.mockResolvedValue({ themeId: 'quantum-void' });
-      expect(await service.getConversationThemeId('conv-1')).toBe('quantum-void');
+      expect(await service.getConversationThemeId('conv-1', 'user-1')).toBe('quantum-void');
     });
 
     it('returns null when no theme is set', async () => {
       prisma.conversation.findUnique.mockResolvedValue({ themeId: null });
-      expect(await service.getConversationThemeId('conv-1')).toBeNull();
+      expect(await service.getConversationThemeId('conv-1', 'user-1')).toBeNull();
     });
   });
 

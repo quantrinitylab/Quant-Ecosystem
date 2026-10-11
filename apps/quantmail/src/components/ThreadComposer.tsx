@@ -1,14 +1,22 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { apiClient } from '../services/api-client';
 import { showToast } from '../components/InboxToast';
+import { UndoSendContext } from './UndoSendCountdownBar';
 import type { PersonConversation } from '../lib/peopleGrouping';
 
 export interface ThreadComposerProps {
   conversation: PersonConversation;
   currentUserEmail: string;
-  onSent?: () => void;
+  /**
+   * Fired when the send is CONFIRMED — i.e. after the undo window closes and
+   * the real compose+send resolved. The host refetches and swaps the
+   * optimistic bubble for the confirmed message. Carries (text, subject) so
+   * the host can withdraw only this send's bubble: a second send may still
+   * be inside its own recall window.
+   */
+  onSent?: (text: string, subject: string) => void;
   /**
    * P1-C: fired the moment the user hits send, before the network round-trip.
    * The host renders an optimistic "Sending…" bubble so the thread never
@@ -20,9 +28,18 @@ export interface ThreadComposerProps {
    * Fired when the send fails (compose or delivery), right after the error
    * toast. The host must withdraw the optimistic "Sending…" bubble that
    * `onSendStart` added — a failed send must never look like a sent message.
-   * The typed text stays in the box (the failure contract is unchanged).
+   * The typed text is handed back to the box (the failure contract is
+   * unchanged).
    */
   onSendError?: (text: string, subject: string) => void;
+  /**
+   * Fired when the user recalls a queued send inside the undo window (the
+   * bar's Undo button, or the Z key). Nothing was sent, so this is neither
+   * success nor failure: the host must withdraw the optimistic "Sending…"
+   * bubble exactly like `onSendError`, and the composer itself hands the
+   * words back to the box.
+   */
+  onSendUndo?: (text: string, subject: string) => void;
 }
 
 /**
@@ -112,7 +129,7 @@ export async function executeThreadSend(
  * text is preserved, nothing navigates, and no discard handler is ever
  * called — there is no `onDiscard` prop on this component by design.
  */
-export function ThreadComposer({ conversation, onSent, onSendStart, onSendError }: ThreadComposerProps) {
+export function ThreadComposer({ conversation, onSent, onSendStart, onSendError, onSendUndo }: ThreadComposerProps) {
   const [body, setBody] = useState('');
   const [newTopic, setNewTopic] = useState(false);
   const [customSubject, setCustomSubject] = useState('');
@@ -141,36 +158,97 @@ export function ThreadComposer({ conversation, onSent, onSendStart, onSendError 
 
   const canSend = body.trim().length > 0 && !isSending;
 
+  /**
+   * The undo queue shared by the whole app (AppShell's UndoSendProvider).
+   * Null when the composer renders without a provider above it — the send
+   * then falls back to the direct path with today's exact behavior, so the
+   * composer is never broken by its host's wiring.
+   */
+  const undoSend = useContext(UndoSendContext);
+
   const handleSend = async () => {
     const text = body.trim();
     if (!text || isSending) return;
     setIsSending(true);
     // P1-C: optimistic bubble first — the host shows it as "Sending…".
     onSendStart?.(text, subject);
+    // The box clears the moment Send is pressed (like quick reply's bar and
+    // the composer closing on Send): the words now live in the optimistic
+    // bubble, and the undo queue below owns the in-flight state. A failed
+    // send or an Undo hands them back via restoreDraft.
+    const wasNewTopic = newTopic;
+    const savedCustomSubject = customSubject;
+    setBody('');
+    setCustomSubject('');
+    setNewTopic(false);
+
+    // Never clobber a newer draft the user started typing during the recall
+    // window — same guard as quick reply's restoreToReplyBar.
+    const restoreDraft = () => {
+      setBody((prev) => (prev.trim() ? prev : text));
+      if (wasNewTopic) {
+        setNewTopic(true);
+        setCustomSubject((prev) => (prev.trim() ? prev : savedCustomSubject));
+      }
+    };
+
+    const deps: ThreadSendDeps = {
+      composeEmail: (data) => apiClient.composeEmail(data),
+      sendEmail: (draftId) => apiClient.sendEmail(draftId),
+      toast: (t, type) => showToast({ text: t, type }),
+    };
+
     try {
-      const outcome = await executeThreadSend(
-        {
-          composeEmail: (data) => apiClient.composeEmail(data),
-          sendEmail: (draftId) => apiClient.sendEmail(draftId),
-          toast: (text, type) => showToast({ text, type }),
-        },
-        conversation,
-        subject,
-        text,
-      );
-      if (outcome.ok) {
-        setBody('');
-        setCustomSubject('');
-        setNewTopic(false);
-        onSent?.();
+      if (undoSend) {
+        // The 10-second recall window shared with EmailComposer,
+        // DockedComposer, quick reply and QuantyCopilotDrawer. compose+send
+        // run ONLY when the window closes (`onSendNow`); until then the
+        // provider's countdown bar is the undo control (Undo button, Z key,
+        // Send Now). The failure contract stays P1-C: the optimistic bubble
+        // is withdrawn and the words come back — and the bar never claims
+        // "sent" for a failed send (`onSendNow` rejects on failure;
+        // `executeThreadSend` already showed the honest error toast, so no
+        // second toast is fired here).
+        undoSend.queueSend({
+          to: conversation.name || conversation.email,
+          subject,
+          body: text,
+          onSendNow: async () => {
+            const outcome = await executeThreadSend(deps, conversation, subject, text);
+            if (!outcome.ok) {
+              throw new Error(outcome.errorMessage || 'Failed to send message');
+            }
+            onSent?.(text, subject);
+          },
+          onSendFailed: () => {
+            onSendError?.(text, subject);
+            restoreDraft();
+          },
+          onUndo: () => {
+            onSendUndo?.(text, subject);
+            restoreDraft();
+            // The words are back — put the caret there so the user can edit.
+            requestAnimationFrame(() => textareaRef.current?.focus());
+          },
+        });
       } else {
-        // Failure path: the text stays in the box (unchanged), and the host
-        // withdraws the optimistic bubble — a failed send must never look
-        // like a sent message.
-        onSendError?.(text, subject);
+        // No undo provider above this composer: the direct send keeps
+        // today's exact behavior — success toasts and clears, failure toasts
+        // and keeps the text. Nothing navigates, nothing is discarded.
+        const outcome = await executeThreadSend(deps, conversation, subject, text);
+        if (outcome.ok) {
+          onSent?.(text, subject);
+        } else {
+          onSendError?.(text, subject);
+          restoreDraft();
+        }
       }
       // No navigation, no discard — `executeThreadSend` has no access to either.
     } finally {
+      // In the queued path the undo queue owns the in-flight state from
+      // here — the box is usable again immediately (a second send flushes
+      // the first, the manager's documented contract). In the direct path
+      // the send has settled by now, so this is a plain reset.
       setIsSending(false);
     }
   };

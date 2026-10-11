@@ -23,8 +23,15 @@ import { useUndoSend } from './UndoSendCountdownBar';
 import { SmartReplySuggestions } from './SmartReplySuggestions';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
+import { EmailSafetyBanner } from './EmailSafetyBanner';
 import { MessageKindBadge, ThreadKindBadge } from './MessageKindBadge';
 import { AttachmentPreview } from './AttachmentPreview';
+import {
+  QuantyThreadEvidence,
+  SubjectChangeSeparator,
+  ThreadRelatedSection,
+  subjectChangedNewSubject,
+} from './ThreadRelatedPanel';
 import { EmailReadReceipt } from './EmailReadReceipt';
 import { Quanty } from './Quanty';
 import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
@@ -2535,6 +2542,13 @@ export function ConversationalThreadView({
             const showDivider = thisDay !== null && thisDay !== prevDay;
             const dividerLabel = showDivider ? formatDayDivider(message.receivedAt) : '';
 
+            /*
+             * QM-SCREEN-005 R2 P2-1: subject-change separator parity with the
+             * people-view thread — "Naya vishay: <subject>" when the topic
+             * genuinely changes mid-conversation (Re:/Fwd: prefixes ignored).
+             */
+            const subjectChange = subjectChangedNewSubject(messages, index);
+
             return (
               <Fragment key={message.id || index}>
                 {showDivider && dividerLabel && (
@@ -2548,6 +2562,7 @@ export function ConversationalThreadView({
                     </span>
                   </div>
                 )}
+                {subjectChange !== null && <SubjectChangeSeparator subject={subjectChange} />}
               <ThreadBubbleShell
                 message={message}
                 senderName={msgFromName}
@@ -2693,6 +2708,21 @@ export function ConversationalThreadView({
                         : 'rounded-bl-md bg-[#1F232B] text-[var(--quant-foreground)]'
                     }`}
                   >
+                    {/*
+                      QM-SCREEN-005 R2: sender-safety indicators on inbound chat
+                      lines — external-sender note plus the real backend phishing
+                      scan (lazy, per message). Your own lines are never scanned.
+                    */}
+                    {!isOutbound && (
+                      <div className="mb-1.5">
+                        <EmailSafetyBanner
+                          email={message}
+                          currentUserEmail={currentEmail}
+                          isOutbound={false}
+                          variant="compact"
+                        />
+                      </div>
+                    )}
                     {/* Tail */}
                     <span
                       aria-hidden="true"
@@ -2878,6 +2908,23 @@ export function ConversationalThreadView({
                       </div>
                     </div>
 
+                    {/*
+                      QM-SCREEN-005 R2: sender-safety indicators on inbound
+                      letters — external-sender note plus the real backend
+                      phishing scan (lazy, per message). Your own sends are
+                      never scanned.
+                    */}
+                    {!isOutbound && (
+                      <div className="px-4 sm:px-5 pb-1">
+                        <EmailSafetyBanner
+                          email={message}
+                          currentUserEmail={currentEmail}
+                          isOutbound={false}
+                          variant="full"
+                        />
+                      </div>
+                    )}
+
                     {/* Expandable "to me ⌵" Security Metadata */}
                     <AnimatePresence>
                       {isDetailsExpanded && (
@@ -3058,6 +3105,26 @@ export function ConversationalThreadView({
           );
         })()}
 
+        {/*
+         * QM-SCREEN-005 R2 P2 bundle, end of the stream:
+         * - QuantyThreadEvidence: honest hidden state — no per-thread Quanty
+         *   draft/evidence store exists on the backend yet (`POST /ai/reply` is
+         *   on-demand, the copilot drawer's drafts are ephemeral chat-envelope
+         *   drafts), so drafts={[]} renders nothing instead of inventing UI.
+         *   The typed prop is the wiring point when the backend lands.
+         * - ThreadRelatedSection: real cross-app relations only — attachments
+         *   the thread's messages actually carry (Drive files) plus calendar
+         *   events matched by attendee overlap with the thread's participants.
+         *   QuantGit has no thread linkage on the backend, so nothing renders
+         *   for it — no fabricated references.
+         */}
+        {!isLoading && messages.length > 0 && (
+          <>
+            <QuantyThreadEvidence drafts={[]} />
+            <ThreadRelatedSection messages={messages} currentEmail={currentEmail} />
+          </>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -3116,7 +3183,7 @@ export function ConversationalThreadView({
               type="button"
               onClick={() => setQuotedMessage(null)}
               aria-label="Cancel quoted reply"
-              className="flex size-8 shrink-0 items-center justify-center rounded-full text-[var(--quant-muted-foreground)] transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="relative flex size-8 shrink-0 items-center justify-center rounded-full after:absolute after:-inset-[6px] after:content-[''] text-[var(--quant-muted-foreground)] transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
                 <path d="M18 6 6 18M6 6l12 12" />
@@ -3152,7 +3219,7 @@ export function ConversationalThreadView({
                   type="button"
                   onClick={() => setComposeMode(mode)}
                   aria-pressed={isActive}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors min-h-[44px] sm:min-h-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
+                  className={`relative inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors min-h-[44px] sm:min-h-0 after:absolute after:-inset-[8px] after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                     isActive
                       ? 'bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] shadow-[inset_0_0_0_1px_rgba(255,140,66,0.30)]'
                       : 'text-[var(--quant-muted-foreground)] hover:bg-white/[0.04] hover:text-[#EDEDED]'
@@ -3172,7 +3239,10 @@ export function ConversationalThreadView({
         </div>
 
 
-        {/* Main Floating Input Bar */}
+        {/* Main Floating Input Bar.
+            SIA-P2-4: quick-reply bar buttons are compact at every breakpoint; each carries
+            an invisible ::after halo (after:-inset-[Npx]) sized so the hit target is >=44px.
+            Visuals unchanged. */}
         <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] shadow-2xl">
           {/*
             Attachment. The complaint was that there was no way to send a photo, and
@@ -3191,7 +3261,7 @@ export function ConversationalThreadView({
           <button
             type="button"
             disabled
-            className="flex min-h-[44px] min-w-[44px] shrink-0 cursor-not-allowed items-center justify-center rounded-xl p-1.5 text-[var(--quant-muted-foreground)] opacity-40 sm:min-h-0 sm:min-w-0 sm:p-2"
+            className="relative flex min-h-[44px] min-w-[44px] shrink-0 cursor-not-allowed items-center justify-center rounded-xl p-1.5 after:absolute after:-inset-[7px] after:content-[''] text-[var(--quant-muted-foreground)] opacity-40 sm:min-h-0 sm:min-w-0 sm:p-2"
             title="Attachments aren't supported in quick reply yet"
             aria-label="Attachments aren't supported in quick reply yet"
             aria-disabled="true"
@@ -3211,7 +3281,7 @@ export function ConversationalThreadView({
           <button
             type="button"
             onClick={() => setIsQuantyOpen(true)}
-            className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl p-1 text-[var(--quant-primary)] transition-all hover:bg-[var(--quant-primary)]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] sm:min-h-0 sm:min-w-0 sm:p-1.5"
+            className="relative flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl p-1 after:absolute after:-inset-[8px] after:content-[''] text-[var(--quant-primary)] transition-all hover:bg-[var(--quant-primary)]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] sm:min-h-0 sm:min-w-0 sm:p-1.5"
             title="Ask Quanty AI to write response"
             aria-label="Ask Quanty AI to write a response"
           >
@@ -3254,7 +3324,7 @@ export function ConversationalThreadView({
               composeMode === 'chat' &&
               (!quickReplyText.trim() || isSendingQuickReply)
             }
-            className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] active:bg-[var(--brand-primary-pressed)] text-[#111111] text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-30 disabled:pointer-events-none shrink-0 flex items-center gap-1.5 min-h-[44px] sm:min-h-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)]"
+            className="relative px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] active:bg-[var(--brand-primary-pressed)] text-[#111111] text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-30 disabled:pointer-events-none shrink-0 flex items-center gap-1.5 min-h-[44px] sm:min-h-0 after:absolute after:-inset-[8px] after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)]"
           >
             <span>{composeMode === 'mail' ? 'Compose' : isSendingQuickReply ? '…' : 'Send'}</span>
             {composeMode === 'mail' ? (

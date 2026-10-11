@@ -18,6 +18,7 @@ import { isFromMe } from '../lib/threading';
 import { formatBytes } from '../lib/format-bytes';
 import { htmlToPlainText } from '../lib/htmlToPlainText';
 import { IdentityAvatar } from './IdentityAvatar';
+import { EmailSafetyBanner } from './EmailSafetyBanner';
 import type { ConversationWorld, PersonConversation } from '../lib/peopleGrouping';
 
 // Re-exported so thread consumers can get the contract types from one place.
@@ -70,6 +71,7 @@ function MessageRow({
   showSenderName,
   showSubjectChange,
   senderLabel,
+  currentUserEmail,
 }: {
   message: Email;
   fromMe: boolean;
@@ -77,6 +79,8 @@ function MessageRow({
   /** The new subject when it differs from the previous message's, else null. */
   showSubjectChange: string | null;
   senderLabel: string;
+  /** The signed-in user's address — drives the external-sender indicator. */
+  currentUserEmail: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   // P1-F: the htmlToPlainText scanner runs once per message identity, not on
@@ -94,6 +98,21 @@ function MessageRow({
 
   return (
     <div data-testid="thread-message" data-sent={fromMe ? 'true' : 'false'}>
+      {/*
+        QM-SCREEN-005 R2: sender-safety indicators on inbound messages —
+        external-sender note plus the real backend phishing scan (lazy, per
+        message). Your own sends are never scanned.
+      */}
+      {!fromMe && (
+        <div className="mb-1.5 w-full max-w-[85%] sm:max-w-[70%]">
+          <EmailSafetyBanner
+            email={message}
+            currentUserEmail={currentUserEmail}
+            isOutbound={false}
+            variant="compact"
+          />
+        </div>
+      )}
       {showSubjectChange !== null && (
         <div
           data-testid="subject-change"
@@ -346,6 +365,7 @@ export function PersonThread({
                     ? message.from.name
                     : message.from?.email || conversation.email
                 }
+                currentUserEmail={currentUserEmail}
               />
             );
           })}

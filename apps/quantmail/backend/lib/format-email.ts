@@ -116,6 +116,24 @@ export function formatEmailRecord<T extends Record<string, any>>(email: T): T {
       typeof email.isArchived === 'boolean'
         ? email.isArchived
         : (email as { folder?: { type?: string } | null }).folder?.type === 'ARCHIVE',
+    /*
+     * Snooze-state bridging: the database tracks snooze on `EmailThread`
+     * (there is no `snoozedUntil` column on Email), but the client's
+     * `belongsInFolder` predicate reads `email.snoozedUntil`. Without this
+     * mapping the SNOOZED list filtered server-side on the thread relation
+     * but shipped rows with `snoozedUntil` undefined, so the offline seed
+     * dropped every row and a cold load of the snoozed view showed an empty
+     * state for mail that exists.
+     *
+     * Explicitly-set values win (the snooze/unsnooze optimistic patches set
+     * them directly on the client object); the thread relation is only
+     * consulted when present — queries that don't include it behave exactly
+     * as before.
+     */
+    snoozedUntil:
+      email.snoozedUntil ??
+      (email as { thread?: { snoozedUntil?: unknown } | null }).thread?.snoozedUntil ??
+      undefined,
     trashedAt:
       email.trashedAt ?? (email.isTrash ? (email.deletedAt ?? email.updatedAt ?? null) : undefined),
   };

@@ -93,7 +93,7 @@ export function DriveMobileTabStrip({
   ];
 
   return (
-    <div className="relative md:hidden border-b border-[#232938] bg-[var(--quant-background)]/95 backdrop-blur-md sticky top-0 z-20">
+    <div className="relative md:hidden bg-[var(--quant-background)]/95 backdrop-blur-md sticky top-0 z-20">
       <div
         role="tablist"
         aria-label="Drive sections"

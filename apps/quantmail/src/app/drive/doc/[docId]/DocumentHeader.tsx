@@ -64,7 +64,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-40 flex h-14 w-full items-center justify-between border-b border-[#30363D] bg-[#0D1117]/95 px-4 backdrop-blur-md">
+      <header className="sticky top-0 z-40 flex h-14 w-full items-center justify-between bg-[var(--quant-background)]/95 px-4 backdrop-blur-md">
         {/* Left Cluster: Back to Drive & Breadcrumbs */}
         <div className="flex items-center gap-2 min-w-0">
           <Link
@@ -171,14 +171,14 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                 <div
                   key={collab.clientId}
                   title={`${collab.name} is actively editing`}
-                  className="w-6 h-6 rounded-full border-2 border-[#0D1117] flex items-center justify-center text-[10px] font-bold text-white shadow-sm"
+                  className="w-6 h-6 rounded-full border-2 border-black flex items-center justify-center text-[10px] font-bold text-white shadow-sm"
                   style={{ backgroundColor: collab.color }}
                 >
                   {collab.name[0].toUpperCase()}
                 </div>
               ))}
               {collaborators.length > 4 && (
-                <div className="w-6 h-6 rounded-full border-2 border-[#0D1117] bg-[#21262D] text-[#8B949E] flex items-center justify-center text-[var(--q-type-xs)] font-semibold">
+                <div className="w-6 h-6 rounded-full border-2 border-black bg-[#21262D] text-[#8B949E] flex items-center justify-center text-[var(--q-type-xs)] font-semibold">
                   +{collaborators.length - 4}
                 </div>
               )}
@@ -278,7 +278,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
 
             {showMoreMenu && (
               <div className="absolute right-0 top-full mt-1.5 w-52 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] p-1.5 shadow-2xl z-50 space-y-1">
-                <div className="px-2.5 py-1.5 border-b border-[#21262D] text-[11px] text-[#8B949E]">
+                <div className="px-2.5 py-1.5 text-[11px] text-[#8B949E]">
                   <p>
                     {wordCount} words • {readingTime} min read
                   </p>
@@ -382,7 +382,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                 )}
 
                 {onDeleteDocument && (
-                  <div className="border-t border-[#21262D] pt-1 mt-1">
+                  <div className="pt-1 mt-1">
                     <button
                       type="button"
                       onClick={() => {

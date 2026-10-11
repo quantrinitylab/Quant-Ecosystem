@@ -23,6 +23,7 @@ import { useRouter } from 'next/router';
 import { logger } from '@quant/common';
 import { getAuthHeaders, getAuthHeadersWithContent } from '../lib/auth';
 import { sanitizeErrorMessage } from '../lib/sanitize-error';
+import { signOut } from '../lib/auth-session';
 import { apiFetchRaw } from '@quant/api-client';
 
 interface PrivacySettings {
@@ -723,26 +724,46 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
         )}
 
         {activeSection === 'account' && (
-          <section className="rounded-2xl border border-red-500/30 bg-[var(--quant-surface)] p-4">
-            <h2 className="mb-2 text-base font-semibold">Account</h2>
-            <h3 className="text-sm font-semibold text-red-500">Delete Account</h3>
-            <p className="mt-1 text-sm text-[var(--quant-muted-foreground)]">
-              This action is permanent and cannot be undone. All your data will be deleted.
-            </p>
-            {showDeleteConfirm ? (
-              <div className="mt-3 space-y-3">
-                <label className="block text-sm" htmlFor="delete-confirm-input">
-                  Type DELETE to confirm:
-                </label>
-                <input
-                  id="delete-confirm-input"
-                  type="text"
-                  value={deleteConfirmText}
-                  onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  placeholder="DELETE"
-                  className={`${selectClassName} w-full`}
-                />
-                <div className="flex flex-wrap gap-2">
+          <section className="space-y-4">
+            <div className="rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-4">
+              <h2 className="mb-2 text-base font-semibold">Account</h2>
+              <h3 className="text-sm font-semibold">Sign Out</h3>
+              <p className="mt-1 text-sm text-[var(--quant-muted-foreground)]">
+                Sign out of QuantChat on this device. Your Quant account stays active.
+              </p>
+              <button
+                type="button"
+                onClick={async () => {
+                  // Full sign-out: expire the HttpOnly session cookies
+                  // server-side + clear every local token trace, then hard-
+                  // navigate so no in-memory state can resurrect the session.
+                  await signOut();
+                  window.location.href = '/login';
+                }}
+                className="quant-btn quant-btn-secondary mt-3 min-h-[44px] rounded-full px-4 text-sm"
+              >
+                Sign Out
+              </button>
+            </div>
+            <section className="rounded-2xl border border-red-500/30 bg-[var(--quant-surface)] p-4">
+              <h3 className="text-sm font-semibold text-red-500">Delete Account</h3>
+              <p className="mt-1 text-sm text-[var(--quant-muted-foreground)]">
+                This action is permanent and cannot be undone. All your data will be deleted.
+              </p>
+              {showDeleteConfirm ? (
+                <div className="mt-3 space-y-3">
+                  <label className="block text-sm" htmlFor="delete-confirm-input">
+                    Type DELETE to confirm:
+                  </label>
+                  <input
+                    id="delete-confirm-input"
+                    type="text"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="DELETE"
+                    className={`${selectClassName} w-full`}
+                  />
+                  <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => void handleDeleteAccount()}
@@ -768,7 +789,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
               >
                 Delete My Account
               </button>
-            )}
+              )}
+            </section>
           </section>
         )}
       </main>

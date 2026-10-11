@@ -409,10 +409,18 @@ export default async function emailsRoutes(
         throw createAppError('Invalid sendAt timestamp', 400, 'VALIDATION_ERROR');
       }
       const now = Date.now();
-      if (parsedDate.getTime() > now) {
-        delayMs = parsedDate.getTime() - now;
-        scheduledSendAt = parsedDate;
+      // A past sendAt must never fall through to an immediate send while the
+      // UI claims "scheduled" — reject with an honest 400 instead (the modal
+      // blocks past times client-side; this is the backstop).
+      if (parsedDate.getTime() <= now) {
+        throw createAppError(
+          'sendAt is in the past — pick a future time, or send now without one',
+          400,
+          'VALIDATION_ERROR',
+        );
       }
+      delayMs = parsedDate.getTime() - now;
+      scheduledSendAt = parsedDate;
     }
 
     const shouldSend = Boolean(d.send) || Boolean(scheduledSendAt);
@@ -573,10 +581,18 @@ export default async function emailsRoutes(
         throw createAppError('Invalid sendAt timestamp', 400, 'VALIDATION_ERROR');
       }
       const now = Date.now();
-      if (parsedDate.getTime() > now) {
-        delayMs = parsedDate.getTime() - now;
-        scheduledSendAt = parsedDate;
+      // A past sendAt must never fall through to an immediate send while the
+      // UI claims "scheduled" — reject with an honest 400 instead (the modal
+      // blocks past times client-side; this is the backstop).
+      if (parsedDate.getTime() <= now) {
+        throw createAppError(
+          'sendAt is in the past — pick a future time, or send now without one',
+          400,
+          'VALIDATION_ERROR',
+        );
       }
+      delayMs = parsedDate.getTime() - now;
+      scheduledSendAt = parsedDate;
     }
 
     const sent = await sendService.send(userId, email.id, sentFolder.id, {
@@ -1490,30 +1506,42 @@ export default async function emailsRoutes(
           ],
         }
       : null;
+    // Cursor mode fetches one row past the page as the "has next" probe;
+    // offset mode fetches exactly the page.
+    //
+    // The folder relation is included (type only) so `formatEmailRecord`
+    // can bridge `isArchived` truthfully on every row. Without it the
+    // ARCHIVE list filtered server-side on the folder but never sent it,
+    // so archived rows arrived with `isArchived: false`; the client's
+    // offline seed (`belongsInFolder(row, 'ARCHIVE')`) then dropped all of
+    // them and the archive view showed "Nothing archived yet." while the
+    // inbox shelf showed the real count — two Archive truths, one lying.
+    //
+    // The same class of bug hit SNOOZED: the where filters on the thread
+    // relation (`thread.is.snoozedUntil > now`) but rows arrived without it,
+    // so the offline seed (`belongsInFolder(row, 'SNOOZED')`, which reads
+    // `email.snoozedUntil`) dropped every row and a cold load of the
+    // snoozed view seeded to []. The thread relation is therefore included
+    // (snoozedUntil only, SNOOZED view only) so `formatEmailRecord` can
+    // bridge it onto the wire row the same way the folder bridge does.
+    const listInclude: Prisma.EmailInclude = {
+      folder: { select: { type: true } },
+      ...(folderType === 'SNOOZED' ? { thread: { select: { snoozedUntil: true } } } : {}),
+    };
     const [rows, total, unreadCount] = await Promise.all([
-      // Cursor mode fetches one row past the page as the "has next" probe;
-      // offset mode fetches exactly the page.
-      //
-      // The folder relation is included (type only) so `formatEmailRecord`
-      // can bridge `isArchived` truthfully on every row. Without it the
-      // ARCHIVE list filtered server-side on the folder but never sent it,
-      // so archived rows arrived with `isArchived: false`; the client's
-      // offline seed (`belongsInFolder(row, 'ARCHIVE')`) then dropped all of
-      // them and the archive view showed "Nothing archived yet." while the
-      // inbox shelf showed the real count — two Archive truths, one lying.
       listWhere
         ? prisma.email.findMany({
             where: listWhere,
             take: pageSize + 1,
             orderBy: timelineOrder,
-            include: { folder: { select: { type: true } } },
+            include: listInclude,
           })
         : prisma.email.findMany({
             where,
             skip,
             take: pageSize,
             orderBy: timelineOrder,
-            include: { folder: { select: { type: true } } },
+            include: listInclude,
           }),
       prisma.email.count({ where }),
       prisma.email.count({ where: { ...where, isRead: false } }),

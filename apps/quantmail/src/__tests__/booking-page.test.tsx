@@ -15,6 +15,7 @@ import {
   applyBookingLinkResponse,
   generateIcsContent,
   generateGoogleCalendarUrl,
+  resolveBookingFailureMessage,
 } from '../app/calendar/booking/[slug]/booking-utils';
 import {
   BookingLinksModal,
@@ -223,6 +224,63 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
       expect(gcalUrl).toContain('dates=20260930T100000Z%2F20260930T103000Z');
       expect(gcalUrl).toContain('details=Discussing+Quant+Architecture+Roadmap');
       expect(gcalUrl).toContain('location=QuantMeet+Video+Call');
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 2b. Honest booking-failure copy (fix/qm-booking-fake-confirm):
+  // a failed booking POST must never render a fake "Booking Confirmed!"
+  // --------------------------------------------------------------------------
+  describe('resolveBookingFailureMessage (honest errors, no fake confirmation)', () => {
+    it('maps 409 slot-taken to an honest pick-another-time message', () => {
+      // No backend message: the status-mapped copy is used.
+      const msg = resolveBookingFailureMessage(409);
+      expect(msg).toContain('taken');
+      expect(msg).toContain('another time');
+    });
+
+    it('prefers the real backend message when the server supplies one', () => {
+      expect(resolveBookingFailureMessage(409, 'Slot is no longer available')).toBe(
+        'Slot is no longer available',
+      );
+      expect(resolveBookingFailureMessage(404, 'Booking link not found')).toBe(
+        'Booking link not found',
+      );
+      expect(resolveBookingFailureMessage(410, 'Booking link is inactive')).toBe(
+        'Booking link is inactive',
+      );
+      expect(resolveBookingFailureMessage(400, 'Invalid booking slot')).toBe(
+        'Invalid booking slot',
+      );
+    });
+
+    it('falls back to honest status copy when the backend sends no message', () => {
+      expect(resolveBookingFailureMessage(404)).toContain('no longer exists');
+      expect(resolveBookingFailureMessage(410)).toContain('no longer active');
+      expect(resolveBookingFailureMessage(400)).toContain('invalid');
+      expect(resolveBookingFailureMessage(418)).toBe('Booking could not be completed. Please try again.');
+    });
+
+    it('rate-limits and server errors ask for a retry, never confirm', () => {
+      expect(resolveBookingFailureMessage(429)).toContain('wait a moment');
+      expect(resolveBookingFailureMessage(500)).toContain('try again');
+      expect(resolveBookingFailureMessage(502)).toContain('try again');
+      expect(resolveBookingFailureMessage(503)).toContain('try again');
+    });
+
+    it('network failure (status 0) is honest about connectivity', () => {
+      const msg = resolveBookingFailureMessage(0);
+      expect(msg).toContain('Could not reach');
+      expect(msg).toContain('try again');
+    });
+
+    it('never contains any confirmation language', () => {
+      for (const status of [0, 400, 404, 409, 410, 429, 500, 502, 503, 504, 418]) {
+        const msg = resolveBookingFailureMessage(status).toLowerCase();
+        expect(msg).not.toContain('confirmed');
+        expect(msg).not.toContain('success');
+        expect(msg).not.toContain('scheduled for you');
+      }
     });
   });
 

@@ -2238,6 +2238,16 @@ body {
 /* ==========================================================================
    Sent Page — delivery trail design
    ========================================================================== */
+/*
+  SIA-P2-5: `.workspace-page::before` paints a faint 48px grid texture behind
+  every workspace page; on the Sent delivery trail it lowers row contrast, so
+  it is disabled on this surface only. Every other workspace page keeps its
+  texture — this rule is scoped to `.sent-workspace` and wins on source order
+  over the shared `.workspace-page::before` (identical specificity).
+*/
+.sent-workspace::before {
+  background-image: none;
+}
 .sent-header {
   display: flex;
   align-items: flex-end;

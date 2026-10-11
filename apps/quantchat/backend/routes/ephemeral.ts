@@ -41,7 +41,11 @@ export default async function ephemeralRoutes(fastify: FastifyInstance) {
 
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new DisappearingService(prisma as never);
-    const result = await service.setConversationTimer(request.params.id, parseResult.data.seconds);
+    const result = await service.setConversationTimer(
+      request.params.id,
+      parseResult.data.seconds,
+      userId,
+    );
 
     return reply.send({ success: true, data: result });
   });

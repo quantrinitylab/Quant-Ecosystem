@@ -14,6 +14,15 @@ function createMockPrisma() {
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    // QC-F-017: the disappear timer is membership-gated; default requester is a member.
+    conversationMember: {
+      findFirst: vi.fn().mockResolvedValue({
+        id: 'member-1',
+        conversationId: 'c1',
+        userId: 'user-1',
+        role: 'MEMBER',
+      }),
+    },
   };
 }
 
@@ -36,7 +45,7 @@ describe('DisappearingService (Tasks 14.8 / 14.9 / 14.10)', () => {
     it('stores a supported duration', async () => {
       prisma.conversation.findUnique.mockResolvedValue({ id: 'c1' });
       prisma.conversation.update.mockResolvedValue({});
-      const result = await service.setConversationTimer('c1', 30);
+      const result = await service.setConversationTimer('c1', 30, 'user-1');
       expect(result.disappearTimer).toBe(30);
       expect(prisma.conversation.update).toHaveBeenCalledWith({
         where: { id: 'c1' },
@@ -47,13 +56,13 @@ describe('DisappearingService (Tasks 14.8 / 14.9 / 14.10)', () => {
     it('normalizes 0 / null to disabled', async () => {
       prisma.conversation.findUnique.mockResolvedValue({ id: 'c1' });
       prisma.conversation.update.mockResolvedValue({});
-      const result = await service.setConversationTimer('c1', 0);
+      const result = await service.setConversationTimer('c1', 0, 'user-1');
       expect(result.disappearTimer).toBeNull();
     });
 
     it('rejects unsupported durations', async () => {
       prisma.conversation.findUnique.mockResolvedValue({ id: 'c1' });
-      await expect(service.setConversationTimer('c1', 7)).rejects.toThrow(
+      await expect(service.setConversationTimer('c1', 7, 'user-1')).rejects.toThrow(
         'Unsupported disappear timer duration',
       );
     });

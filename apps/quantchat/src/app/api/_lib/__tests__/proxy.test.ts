@@ -4,7 +4,7 @@ import { proxyToBackend } from '../proxy';
 
 const originalFetch = global.fetch;
 
-describe('QuantChat Proxy Resiliency (proxyToBackend)', () => {
+describe('QuantChat Proxy Honesty (proxyToBackend)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -19,51 +19,39 @@ describe('QuantChat Proxy Resiliency (proxyToBackend)', () => {
       global.fetch = vi.fn().mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:3002'));
     });
 
-    it('returns HTTP 200 with fallback conversation array for /conversations', async () => {
+    it('returns HTTP 503 UPSTREAM_UNAVAILABLE for /conversations — never fabricated data', async () => {
       const req = new NextRequest('http://localhost:3000/api/conversations');
       const res = await proxyToBackend(req, '/conversations');
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(503);
       const json = await res.json();
-      expect(json.success).toBe(true);
-      expect(Array.isArray(json.data)).toBe(true);
-      expect(json.data).toHaveLength(1);
-
-      const conv = json.data[0];
-      expect(conv.id).toBe('conv_general');
-      expect(conv.name).toBe('General Chat');
-      expect(conv.type).toBe('GROUP');
-      expect(conv.lastMessage).toBe('Welcome to QuantChat!');
-      expect(typeof conv.timestamp).toBe('string');
-      expect(conv.unreadCount).toBe(0);
-      expect(conv.avatarInitial).toBe('Q');
-      expect(conv.presence).toBe('online');
-      expect(conv.isPinned).toBe(true);
-      expect(conv.isArchived).toBe(false);
-      expect(conv.participants).toEqual([]);
+      expect(json.success).toBe(false);
+      expect(json.error.code).toBe('UPSTREAM_UNAVAILABLE');
+      expect(json.error.statusCode).toBe(503);
+      // The old fabricated "General Chat" fallback must never come back.
+      expect(json.data).toBeUndefined();
     });
 
-    it('returns HTTP 200 with fallback conversation array for /conversations/ with trailing slash', async () => {
+    it('returns HTTP 503 for /conversations/ with trailing slash', async () => {
       const req = new NextRequest('http://localhost:3000/api/conversations/');
       const res = await proxyToBackend(req, '/conversations/');
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(503);
       const json = await res.json();
-      expect(json.success).toBe(true);
-      expect(json.data[0].id).toBe('conv_general');
+      expect(json.success).toBe(false);
+      expect(json.error.code).toBe('UPSTREAM_UNAVAILABLE');
     });
 
-    it('returns HTTP 200 with fallback conversation array for /conversations with query parameters', async () => {
+    it('returns HTTP 503 for /conversations with query parameters', async () => {
       const req = new NextRequest('http://localhost:3000/api/conversations?limit=20&page=1');
       const res = await proxyToBackend(req, '/conversations');
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(503);
       const json = await res.json();
-      expect(json.success).toBe(true);
-      expect(json.data[0].id).toBe('conv_general');
+      expect(json.success).toBe(false);
     });
 
-    it('returns HTTP 503 UPSTREAM_OFFLINE for other routes (/channels)', async () => {
+    it('returns HTTP 503 UPSTREAM_UNAVAILABLE for other routes (/channels)', async () => {
       const req = new NextRequest('http://localhost:3000/api/channels');
       const res = await proxyToBackend(req, '/channels');
 
@@ -72,63 +60,50 @@ describe('QuantChat Proxy Resiliency (proxyToBackend)', () => {
       expect(json).toEqual({
         success: false,
         error: {
-          code: 'UPSTREAM_OFFLINE',
-          message: 'Backend service is offline in development mode',
+          code: 'UPSTREAM_UNAVAILABLE',
+          message: 'Backend service is unavailable',
           statusCode: 503,
         },
       });
     });
 
-    it('returns HTTP 200 with fallback conversation for conversation sub-id routes (/conversations/conv_123)', async () => {
+    it('returns HTTP 503 for conversation sub-id routes (/conversations/conv_123)', async () => {
       const req = new NextRequest('http://localhost:3000/api/conversations/conv_123');
       const res = await proxyToBackend(req, '/conversations/conv_123');
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(503);
       const json = await res.json();
-      expect(json.success).toBe(true);
-      expect(json.data.id).toBe('conv_123');
-      expect(json.data.name).toBe('General Chat');
-      expect(json.data.type).toBe('GROUP');
+      expect(json.success).toBe(false);
+      expect(json.data).toBeUndefined();
     });
 
-    it('returns HTTP 200 with fallback messages for GET /conversations/:id/messages', async () => {
+    it('returns HTTP 503 for GET /conversations/:id/messages — no invented messages', async () => {
       const req = new NextRequest('http://localhost:3000/api/conversations/conv_123/messages');
       const res = await proxyToBackend(req, '/conversations/conv_123/messages');
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(503);
       const json = await res.json();
-      expect(json.success).toBe(true);
-      expect(Array.isArray(json.data)).toBe(true);
-      expect(json.data).toHaveLength(4);
-      expect(json.data[0].id).toBe('msg_welcome');
-      expect(json.data[1].id).toBe('msg_voice');
-      expect(json.data[1].type).toBe('voice');
-      expect(json.data[1].voiceDurationMs).toBe(4200);
-      expect(json.data[2].status).toBe('delivered');
-      expect(json.data[3].status).toBe('read');
+      expect(json.success).toBe(false);
+      expect(json.data).toBeUndefined();
     });
 
-    it('returns HTTP 200 with created message for POST /conversations/:id/messages', async () => {
+    it('returns HTTP 503 for POST /conversations/:id/messages — a send must never fake success', async () => {
       const req = new NextRequest('http://localhost:3000/api/conversations/conv_123/messages', {
         method: 'POST',
         body: JSON.stringify({ content: 'Hello', type: 'text' }),
       });
       const res = await proxyToBackend(req, '/conversations/conv_123/messages');
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(503);
       const json = await res.json();
-      expect(json.success).toBe(true);
-      expect(json.data.id).toMatch(/^msg_\d+$/);
-      expect(json.data.conversationId).toBe('conv_123');
-      expect(json.data.content).toBe('Hello');
-      expect(json.data.type).toBe('text');
-      expect(json.data.senderId).toBe('user_me');
+      expect(json.success).toBe(false);
+      expect(json.data).toBeUndefined();
     });
   });
 
   describe('Timeout Handling', () => {
-    it('returns fallback 200 when fetch aborts due to timeout for /conversations', async () => {
-      global.fetch = vi.fn().mockImplementation(
+    const abortingFetch = () =>
+      vi.fn().mockImplementation(
         () =>
           new Promise((_, reject) => {
             const err = new Error('The operation was aborted');
@@ -136,32 +111,65 @@ describe('QuantChat Proxy Resiliency (proxyToBackend)', () => {
             reject(err);
           }),
       );
+
+    it('returns 503 when fetch aborts due to timeout for /conversations', async () => {
+      global.fetch = abortingFetch();
 
       const req = new NextRequest('http://localhost:3000/api/conversations');
       const res = await proxyToBackend(req, '/conversations');
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(503);
       const json = await res.json();
-      expect(json.success).toBe(true);
-      expect(json.data[0].id).toBe('conv_general');
+      expect(json.success).toBe(false);
+      expect(json.error.code).toBe('UPSTREAM_UNAVAILABLE');
     });
 
     it('returns 503 when fetch aborts due to timeout for other routes', async () => {
-      global.fetch = vi.fn().mockImplementation(
-        () =>
-          new Promise((_, reject) => {
-            const err = new Error('The operation was aborted');
-            err.name = 'AbortError';
-            reject(err);
-          }),
-      );
+      global.fetch = abortingFetch();
 
       const req = new NextRequest('http://localhost:3000/api/spotlight');
       const res = await proxyToBackend(req, '/spotlight');
 
       expect(res.status).toBe(503);
       const json = await res.json();
-      expect(json.error.code).toBe('UPSTREAM_OFFLINE');
+      expect(json.error.code).toBe('UPSTREAM_UNAVAILABLE');
+    });
+  });
+
+  describe('Persistent 401 (expired session, exchange cannot recover)', () => {
+    it('returns the backend real 401 — never a fabricated conversation list', async () => {
+      const backend401 = {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Token expired', statusCode: 401 },
+      };
+      global.fetch = vi
+        .fn()
+        // 1st call: the data request itself 401s.
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify(backend401), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
+        // 2nd call: the transparent SSO exchange also fails (token is a
+        // native QuantChat token, not a QuantMail SSO token).
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ success: false, error: { code: 'INVALID_SSO_TOKEN' } }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+
+      const req = new NextRequest('http://localhost:3000/api/conversations', {
+        headers: { Authorization: 'Bearer expired-native-token' },
+      });
+      const res = await proxyToBackend(req, '/conversations');
+
+      expect(res.status).toBe(401);
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.error.code).toBe('UNAUTHORIZED');
+      expect(json.data).toBeUndefined();
     });
   });
 

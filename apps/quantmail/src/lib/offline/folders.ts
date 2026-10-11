@@ -76,6 +76,19 @@ export function belongsInFolder(email: Email, folderType: string | undefined): b
       // server-sent field the client `Email` type does not declare; read it
       // the same way `lib/threading.ts` does.
       return !isTrashed && (email as { isSent?: boolean }).isSent === true;
+    case 'DRAFTS':
+      // Drafts is the server's `isDraft` flag, not a folder: the backend's
+      // `GET /emails?folderType=DRAFTS` filters `isDraft = true, isTrash = false`
+      // (backend/routes/emails.ts). Falling through to `default` admitted
+      // every non-trashed message into the cached drafts list, so the /drafts
+      // view's offline seed / error fallback (useInbox) listed received mail
+      // as drafts, and the optimistic reconcile fan-out appended any patched
+      // non-trashed row to the warm drafts list AppSidebar keeps for the
+      // draft-count badge — the same bug class as the SENT/SPAM cases above
+      // (QM-UIUX-082 / PAUD-P0-1). `isDraft` is a first-class column the wire
+      // and the client `Email` type both carry, so the client predicate can
+      // mirror the server filter exactly.
+      return !isTrashed && email.isDraft === true;
     case 'SNOOZED':
       return !isTrashed && Boolean(email.snoozedUntil);
     case 'INBOX':

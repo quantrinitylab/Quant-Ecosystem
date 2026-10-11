@@ -146,6 +146,17 @@ export class QuantChatApiClient {
     this.refreshToken = refreshToken;
   }
 
+  /** Drop the in-memory tokens (sign-out / unrecoverable auth failure). */
+  clearTokens(): void {
+    this.accessToken = null;
+    this.refreshToken = null;
+  }
+
+  /** Adopt the stable per-device id persisted by the session layer. */
+  setDeviceId(deviceId: string): void {
+    if (deviceId) this.deviceId = deviceId;
+  }
+
   setCallbacks(callbacks: {
     onTokenRefresh?: (tokens: AuthTokens) => void;
     onAuthError?: () => void;
@@ -220,9 +231,14 @@ export class QuantChatApiClient {
   }
 
   async logout(): Promise<void> {
-    await this.post('/auth/logout', {});
-    this.accessToken = null;
-    this.refreshToken = null;
+    // The cookie-expiry POST is best-effort: the in-memory tokens must be
+    // dropped even when the network is down, otherwise the "signed-out"
+    // client keeps sending the old bearer until a full page reload.
+    try {
+      await this.post('/auth/logout', {});
+    } finally {
+      this.clearTokens();
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -289,6 +305,19 @@ export class QuantChatApiClient {
 
   async pinMessage(messageId: string): Promise<ApiResponse<Message>> {
     return this.post(`/messages/${messageId}/pin`, {});
+  }
+
+  /**
+   * QC-F-019: consume a view-once snap through the backend endpoint
+   * (POST /messages/:id/view-once). This is the ONLY path that delivers
+   * snap media: the server records the view, returns the one-time media
+   * payload (presigned URL or inline data), and destroys its stored copy.
+   * A second call fails with 410 SNAP_CONSUMED.
+   */
+  async consumeSnap(
+    messageId: string,
+  ): Promise<ApiResponse<{ mediaUrl: string; duration: number }>> {
+    return this.post(`/messages/${messageId}/view-once`, {});
   }
 
   async setTyping(conversationId: string, isTyping: boolean): Promise<ApiResponse<void>> {

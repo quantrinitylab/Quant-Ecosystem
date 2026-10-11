@@ -112,6 +112,52 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
 
 
 
+  // ==========================================================================
+  // 1. Orphan-removal guard: CalendarQuantMeetView stays deleted
+  //    (orphaned fabricated meeting UI + fake WebRTC actions were removed;
+  //    regression = it creeping back)
+  // ==========================================================================
+  describe('Orphan-removal guard: CalendarQuantMeetView', () => {
+    const thisDir = dirname(fileURLToPath(import.meta.url));
+    const componentsDir = join(thisDir, '..', 'app', 'calendar', 'components');
+    const srcDir = join(thisDir, '..');
+
+    function walkSourceFiles(dir: string, acc: string[] = []): string[] {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        const stat = statSync(full);
+        if (stat.isDirectory()) {
+          // Skip test directories — they legitimately discuss removed views.
+          if (entry === '__tests__') continue;
+          walkSourceFiles(full, acc);
+        } else if (/\.(ts|tsx|js|jsx)$/.test(entry)) {
+          acc.push(full);
+        }
+      }
+      return acc;
+    }
+
+    it('CalendarQuantMeetView.tsx file does not exist', () => {
+      expect(existsSync(join(componentsDir, 'CalendarQuantMeetView.tsx'))).toBe(false);
+    });
+
+    it('no source file (outside __tests__) imports or references CalendarQuantMeetView', () => {
+      const offenders = walkSourceFiles(srcDir).filter((file) => {
+        const content = readFileSync(file, 'utf8');
+        return /CalendarQuantMeetView/.test(content);
+      });
+      expect(offenders).toEqual([]);
+    });
+
+    it('no fabricated meeting fixtures survive in production source (outside __tests__)', () => {
+      const offenders = walkSourceFiles(srcDir).filter((file) => {
+        const content = readFileSync(file, 'utf8');
+        return content.includes('Weekly Ecosystem Architecture Sync');
+      });
+      expect(offenders).toEqual([]);
+    });
+  });
+
   // NOTE 2026-10-11: the old section 2 here covered `CalendarQuantMeetView`,
   // which was deleted on origin/main as orphaned dead code with fabricated
   // meeting fixtures (sibling branch fix/qm-calendar-quantmeet-orphan, PR #871,
@@ -124,7 +170,7 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
   // calendar-reminders-orphan-guard.test.ts.
 
   // ==========================================================================
-  // 4. Context Sub-Tabs Selector Component (CalendarContextSubTabs)
+  // 3. Context Sub-Tabs Selector Component (CalendarContextSubTabs)
   // ==========================================================================
   describe('Context Sub-Tabs Selector (CalendarContextSubTabs)', () => {
     it('renders all 5 contextual tabs matching ContextBottomNavBar specification', () => {
@@ -143,7 +189,7 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
 
 
   // ==========================================================================
-  // 5. Zero Raw Unicode Emojis Invariant
+  // 4. Zero Raw Unicode Emojis Invariant
   // ==========================================================================
   describe('Zero Raw Unicode Emojis Invariant', () => {
     const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
@@ -161,7 +207,7 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
   });
 
   // ==========================================================================
-  // 6. Orphan-removal guard: CalendarBookingView stays deleted
+  // 5. Orphan-removal guard: CalendarBookingView stays deleted
   //    (fake hardcoded booking flow was removed; regression = it creeping back)
   // ==========================================================================
   describe('Orphan-removal guard: CalendarBookingView', () => {

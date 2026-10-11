@@ -130,3 +130,127 @@ describe('belongsInFolder — ARCHIVE (archive-counts-divergent P1)', () => {
     expect(seeded.map((e) => e.id)).toEqual(['kept']);
   });
 });
+
+describe('belongsInFolder — SNOOZED (snoozed-offline-seed P1)', () => {
+  // `snoozedUntil` lives only on EmailThread server-side; the SNOOZED list
+  // query now includes the thread relation so `formatEmailRecord` bridges it
+  // onto the wire row. The predicate is deliberately thin — it trusts the
+  // server's `snoozedUntil > now` filter — so the server must send the field
+  // truthfully. These tests pin the client half of that contract, in the
+  // exact wire shape (ISO string) the route serialises.
+  const snoozedEmail = (overrides: Partial<Email> = {}): Email =>
+    email({ ...overrides, snoozedUntil: new Date('2026-10-20T10:00:00.000Z') });
+
+  it('admits a row carrying the bridged snoozedUntil (Date)', () => {
+    expect(belongsInFolder(snoozedEmail(), 'SNOOZED')).toBe(true);
+  });
+
+  it('admits a row carrying the wire-format snoozedUntil (ISO string)', () => {
+    // Fastify serialises the Date to an ISO string; the predicate must stay
+    // truthy on that shape or every cold seed drops every row again.
+    const wireRow = { ...snoozedEmail(), snoozedUntil: '2026-10-20T10:00:00.000Z' } as unknown as Email;
+    expect(belongsInFolder(wireRow, 'SNOOZED')).toBe(true);
+  });
+
+  it('rejects a row without snoozedUntil — the pre-fix wire shape', () => {
+    // Before the backend fix the SNOOZED rows shipped with `snoozedUntil`
+    // undefined, so the seed dropped every cached snoozed row.
+    expect(belongsInFolder(email({}), 'SNOOZED')).toBe(false);
+    expect(belongsInFolder(email({ snoozedUntil: undefined }), 'SNOOZED')).toBe(false);
+  });
+
+  it('keeps trashed mail out of SNOOZED even when snoozed', () => {
+    expect(belongsInFolder(snoozedEmail({ trashedAt: new Date() }), 'SNOOZED')).toBe(false);
+  });
+
+  it('INBOX rejects a row that carries snoozedUntil', () => {
+    // The INBOX server filter excludes snoozed threads, so a row that does
+    // carry the field (e.g. an optimistic patch mid-snooze) must not linger
+    // in the cached inbox list.
+    expect(belongsInFolder(snoozedEmail(), 'INBOX')).toBe(false);
+  });
+
+  it('the offline seed keeps server-marked rows and drops unmarked ones', () => {
+    // Mirrors useInbox's seed: cached.filter((e) => belongsInFolder(e, 'SNOOZED')).
+    const cached: Email[] = [
+      snoozedEmail({ id: 'kept' }),
+      email({ id: 'dropped' }),
+    ];
+    const seeded = cached.filter((e) => belongsInFolder(e, 'SNOOZED'));
+    expect(seeded.map((e) => e.id)).toEqual(['kept']);
+  });
+
+  it('reconcileList moves a freshly-snoozed message into the cached SNOOZED list', () => {
+    const cached: Email[] = [];
+    const patched = new Map<string, Email>([
+      ['m1', snoozedEmail({ id: 'm1' })],
+    ]);
+    const next = reconcileList(cached, patched, 'SNOOZED');
+    expect(next.map((m) => m.id)).toEqual(['m1']);
+  });
+});
+
+describe('belongsInFolder — DRAFTS (drafts-offline-seed P1)', () => {
+  // The backend's `GET /emails?folderType=DRAFTS` filters
+  // `isDraft = true, isTrash = false` (backend/routes/emails.ts), and
+  // `isDraft` is a first-class column the wire and the client `Email` type
+  // both carry — so the client predicate mirrors the server exactly.
+  it('admits a genuine draft into DRAFTS', () => {
+    expect(belongsInFolder(email({ isDraft: true }), 'DRAFTS')).toBe(true);
+  });
+
+  it('does not admit received mail into DRAFTS', () => {
+    // Before the fix DRAFTS had no case and fell through to `default`
+    // ("everything but the trash"), so the /drafts view's offline seed and
+    // error fallback (useInbox) listed every non-trashed cached email as a
+    // draft, and the optimistic reconcile fan-out appended patched rows to
+    // the warm drafts list AppSidebar keeps for the draft-count badge.
+    expect(belongsInFolder(email({ isDraft: false }), 'DRAFTS')).toBe(false);
+    expect(belongsInFolder(email({}), 'DRAFTS')).toBe(false);
+  });
+
+  it('keeps trashed drafts out of DRAFTS even when flagged', () => {
+    expect(belongsInFolder(email({ isDraft: true, trashedAt: new Date() }), 'DRAFTS')).toBe(false);
+  });
+
+  it('mirrors the server: an archived draft still admits (server filters isTrash only)', () => {
+    expect(belongsInFolder(email({ isDraft: true, isArchived: true }), 'DRAFTS')).toBe(true);
+  });
+
+  it('the offline seed keeps drafts and drops received mail', () => {
+    // Mirrors useInbox's seed: cached.filter((e) => belongsInFolder(e, 'DRAFTS')).
+    const cached: Email[] = [
+      email({ id: 'draft-1', isDraft: true }),
+      email({ id: 'received-1', isDraft: false }),
+    ];
+    const seeded = cached.filter((e) => belongsInFolder(e, 'DRAFTS'));
+    expect(seeded.map((e) => e.id)).toEqual(['draft-1']);
+  });
+
+  it('reconcileList drops a draft from the cached DRAFTS list once it is sent', () => {
+    // The send path clears isDraft; the warm drafts list must shed the row
+    // instead of keeping a ghost draft after "Sent".
+    const cached: Email[] = [email({ id: 'draft-1', isDraft: true })];
+    const patched = new Map<string, Email>([
+      ['draft-1', email({ id: 'draft-1', isDraft: false })],
+    ]);
+    const next = reconcileList(cached, patched, 'DRAFTS');
+    expect(next.map((m) => m.id)).toEqual([]);
+  });
+
+  it('reconcileList admits a freshly-drafted message into the cached DRAFTS list', () => {
+    const cached: Email[] = [];
+    const patched = new Map<string, Email>([['m1', email({ id: 'm1', isDraft: true })]]);
+    const next = reconcileList(cached, patched, 'DRAFTS');
+    expect(next.map((m) => m.id)).toEqual(['m1']);
+  });
+
+  it('reconcileList does not admit a patched non-draft row into the cached DRAFTS list', () => {
+    // The applyOptimistic fan-out used to append any patched non-trashed
+    // row (e.g. an archived message) to the warm drafts query.
+    const cached: Email[] = [email({ id: 'draft-1', isDraft: true })];
+    const patched = new Map<string, Email>([['m1', email({ id: 'm1', isArchived: true })]]);
+    const next = reconcileList(cached, patched, 'DRAFTS');
+    expect(next.map((m) => m.id)).toEqual(['draft-1']);
+  });
+});

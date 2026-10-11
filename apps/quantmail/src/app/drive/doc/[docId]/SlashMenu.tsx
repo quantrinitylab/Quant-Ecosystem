@@ -172,7 +172,7 @@ export const SlashMenu: React.FC<SlashMenuProps> = ({ query, onSelect, onClose, 
         left: position ? `${position.left}px` : 'auto',
       }}
     >
-      <div className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#8B949E] border-b border-[#21262D] mb-1 flex items-center justify-between">
+      <div className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#8B949E] mb-1 flex items-center justify-between">
         <span>Basic Blocks</span>
         {cleanQuery && <span className="text-[var(--app-accent)]">Filter: &ldquo;{cleanQuery}&rdquo;</span>}
       </div>
@@ -203,7 +203,7 @@ export const SlashMenu: React.FC<SlashMenuProps> = ({ query, onSelect, onClose, 
                   className={`w-7 h-7 rounded-md flex items-center justify-center text-xs font-mono font-bold shrink-0 border ${
                     isSelected
                       ? 'border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)]'
-                      : 'border-[#30363D] bg-[#0D1117] text-[#8B949E]'
+                      : 'border-[#30363D] bg-[var(--quant-background)] text-[#8B949E]'
                   }`}
                 >
                   {cmd.icon}
@@ -212,7 +212,7 @@ export const SlashMenu: React.FC<SlashMenuProps> = ({ query, onSelect, onClose, 
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-medium text-[#F0F6FC] truncate">{cmd.title}</span>
                     {cmd.badge && (
-                      <span className="text-[10px] font-mono px-1.5 py-px rounded bg-[#0D1117] text-[#8B949E] border border-[#30363D]">
+                      <span className="text-[10px] font-mono px-1.5 py-px rounded bg-[var(--quant-background)] text-[#8B949E] border border-[#30363D]">
                         {cmd.badge}
                       </span>
                     )}

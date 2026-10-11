@@ -1025,12 +1025,23 @@ export function EmailComposer({
         // only fires after the awaited send has actually completed (on the
         // modal path `sendNow` runs as queueSend's post-countdown callback),
         // so that copy is true when it appears.
-        const pageOwnsToast = Boolean(onSend) && !draftSnapshot.scheduledAt;
+        //
+        // The 'Email scheduled' label must be true when it appears too: only
+        // claim a scheduled send when scheduledAt is a valid future
+        // timestamp. A past scheduledAt can no longer survive (the modal
+        // blocks past times, the backend 400s them) — this is belt-and-braces
+        // on the label itself.
+        const scheduledAtMs = draftSnapshot.scheduledAt
+          ? new Date(draftSnapshot.scheduledAt).getTime()
+          : NaN;
+        const isGenuinelyScheduled = !Number.isNaN(scheduledAtMs) && scheduledAtMs > Date.now();
 
-        quantyReact(draftSnapshot.scheduledAt ? 'mail:scheduled' : 'mail:sent');
+        const pageOwnsToast = Boolean(onSend) && !isGenuinelyScheduled;
+
+        quantyReact(isGenuinelyScheduled ? 'mail:scheduled' : 'mail:sent');
         if (!pageOwnsToast) {
           showToast({
-            text: draftSnapshot.scheduledAt ? 'Email scheduled' : 'Message sent',
+            text: isGenuinelyScheduled ? 'Email scheduled' : 'Message sent',
             type: 'success',
           });
         }
@@ -1323,7 +1334,7 @@ export function EmailComposer({
               <button
                 type="button"
                 onClick={handleBack}
-                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-xl text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:after:absolute sm:after:-inset-[8px] sm:after:content-[''] p-1.5 rounded-xl text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 title="Back (1 page)"
               >
                 <svg
@@ -1397,7 +1408,7 @@ export function EmailComposer({
                   aria-expanded={showThreeDotsMenu}
                   aria-controls={showThreeDotsMenu ? 'composer-more-menu' : undefined}
                   aria-label="More composer options"
-                  className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-xl text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                  className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:after:absolute sm:after:-inset-[8px] sm:after:content-[''] p-1.5 rounded-xl text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                   title="More options"
                 >
                   <svg
@@ -1550,7 +1561,7 @@ export function EmailComposer({
                       <button
                         type="button"
                         onClick={() => setShowCc(true)}
-                        className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] font-medium px-1.5 py-0.5 rounded hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:after:absolute sm:after:-inset-[12px] sm:after:content-[''] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] font-medium px-1.5 py-0.5 rounded hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                       >
                         Cc
                       </button>
@@ -1559,7 +1570,7 @@ export function EmailComposer({
                       <button
                         type="button"
                         onClick={() => setShowBcc(true)}
-                        className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] font-medium px-1.5 py-0.5 rounded hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:after:absolute sm:after:-inset-[12px] sm:after:content-[''] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] font-medium px-1.5 py-0.5 rounded hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                       >
                         Bcc
                       </button>
@@ -1649,7 +1660,7 @@ export function EmailComposer({
               <button
                 type="button"
                 onClick={() => setIsTemplateMode((prev) => !prev)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 min-h-[44px] sm:min-h-0 rounded-full text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
+                className={`relative inline-flex items-center gap-1.5 px-3 py-1 min-h-[44px] sm:min-h-0 sm:after:absolute sm:after:-inset-[10px] sm:after:content-[''] rounded-full text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                   isTemplateMode
                     ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)] border border-[var(--quant-primary)]/40'
                     : 'bg-[var(--quant-surface)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] border border-[var(--quant-surface-elevated)]'
@@ -1953,7 +1964,7 @@ export function EmailComposer({
                     <button
                       type="button"
                       onClick={handleAddDetail}
-                      className="inline-flex items-center gap-1 min-h-[44px] sm:min-h-0 text-[11px] font-semibold text-[var(--quant-primary)] hover:text-[var(--brand-accent)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
+                      className="relative inline-flex items-center gap-1 min-h-[44px] sm:min-h-0 sm:after:absolute sm:after:-inset-[14px] sm:after:content-[''] text-[11px] font-semibold text-[var(--quant-primary)] hover:text-[var(--brand-accent)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
                     >
                       <IconPlus size={12} />
                       <span>Add detail / line</span>
@@ -2062,7 +2073,7 @@ export function EmailComposer({
                         onClick={() =>
                           setAttachments((prev) => prev.filter((a) => a.id !== file.id))
                         }
-                        className="relative inline-flex items-center justify-center size-4 shrink-0 rounded text-[var(--quant-text-muted)] hover:text-rose-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] after:absolute after:-inset-y-[13px] after:-inset-x-[10px] after:content-['']"
+                        className="relative inline-flex items-center justify-center size-4 shrink-0 rounded text-[var(--quant-text-muted)] hover:text-rose-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] after:absolute after:-inset-y-[14px] after:-inset-x-[14px] after:content-['']"
                         aria-label={`Remove attachment ${file.name}`}
                       >
                         <IconX size={11} />
@@ -2074,7 +2085,11 @@ export function EmailComposer({
             )}
           </div>
 
-          {/* Formatting Bar (Hidden during Print) */}
+          {/* Formatting Bar (Hidden during Print).
+              SIA-P2-4: toolbar buttons keep their compact desktop look, but each one
+              carries an invisible ::after halo (sm:after:-inset-[Npx]) sized so the
+              HIT TARGET is >=44px. Mobile already renders min-h-[44px], so the halos
+              are sm-gated and mobile is pixel-identical. */}
           <AnimatePresence>
             {showFormattingBar && (
               <motion.div
@@ -2089,7 +2104,7 @@ export function EmailComposer({
                     type="button"
                     ref={fontTriggerRef}
                     onClick={() => setShowFontPicker((prev) => !prev)}
-                    className="flex items-center gap-1 px-2.5 py-1 min-h-[44px] sm:min-h-0 rounded-lg bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="relative flex items-center gap-1 px-2.5 py-1 min-h-[44px] sm:min-h-0 sm:after:absolute sm:after:-inset-[10px] sm:after:content-[''] rounded-lg bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     aria-expanded={showFontPicker}
                     aria-controls={showFontPicker ? 'composer-font-panel' : undefined}
                     aria-label={`Font family: ${selectedFont.name}`}
@@ -2138,7 +2153,7 @@ export function EmailComposer({
                     type="button"
                     ref={sizeTriggerRef}
                     onClick={() => setShowSizePicker((prev) => !prev)}
-                    className="flex items-center gap-1 px-2 py-1 min-h-[44px] sm:min-h-0 rounded-lg bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="relative flex items-center gap-1 px-2 py-1 min-h-[44px] sm:min-h-0 sm:after:absolute sm:after:-inset-[10px] sm:after:content-[''] rounded-lg bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     aria-expanded={showSizePicker}
                     aria-controls={showSizePicker ? 'composer-size-panel' : undefined}
                     aria-label={`Font size: ${selectedSize.name}`}
@@ -2198,7 +2213,7 @@ export function EmailComposer({
                   onClick={() => setIsBold((prev) => !prev)}
                   aria-pressed={isBold}
                   aria-label="Bold"
-                  className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg font-bold text-xs ${
+                  className={`relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:after:absolute sm:after:-inset-[8px] sm:after:content-[''] p-1.5 rounded-lg font-bold text-xs ${
                     isBold
                       ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)] border border-[var(--quant-primary)]/40'
                       : 'text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)]'
@@ -2214,7 +2229,7 @@ export function EmailComposer({
                   onClick={() => setIsItalic((prev) => !prev)}
                   aria-pressed={isItalic}
                   aria-label="Italic"
-                  className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg italic text-xs font-serif ${
+                  className={`relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:after:absolute sm:after:-inset-[8px] sm:after:content-[''] p-1.5 rounded-lg italic text-xs font-serif ${
                     isItalic
                       ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)] border border-[var(--quant-primary)]/40'
                       : 'text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)]'
@@ -2230,7 +2245,7 @@ export function EmailComposer({
                   onClick={() => setIsUnderline((prev) => !prev)}
                   aria-pressed={isUnderline}
                   aria-label="Underline"
-                  className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg underline text-xs ${
+                  className={`relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:after:absolute sm:after:-inset-[8px] sm:after:content-[''] p-1.5 rounded-lg underline text-xs ${
                     isUnderline
                       ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)] border border-[var(--quant-primary)]/40'
                       : 'text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)]'
@@ -2246,7 +2261,7 @@ export function EmailComposer({
                   onClick={() => setIsStrikethrough((prev) => !prev)}
                   aria-pressed={isStrikethrough}
                   aria-label="Strikethrough"
-                  className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg line-through text-xs ${
+                  className={`relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:after:absolute sm:after:-inset-[8px] sm:after:content-[''] p-1.5 rounded-lg line-through text-xs ${
                     isStrikethrough
                       ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)] border border-[var(--quant-primary)]/40'
                       : 'text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)]'
@@ -2265,7 +2280,7 @@ export function EmailComposer({
                     aria-expanded={showColorPicker}
                     aria-controls={showColorPicker ? 'composer-color-panel' : undefined}
                     aria-label={`Text colour: ${textColor.label}`}
-                    className="inline-flex items-center justify-center gap-1 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="relative inline-flex items-center justify-center gap-1 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:after:absolute sm:after:-inset-[8px] sm:after:content-[''] p-1.5 rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     title="Text colour"
                   >
                     <span
@@ -2335,7 +2350,7 @@ export function EmailComposer({
                         tabIndex={rovingTabIndex(index, activeAlignIndex)}
                         onClick={() => setTextAlign(alignment.value)}
                         onKeyDown={(event) => onAlignKeyDown(event, index)}
-                        className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
+                        className={`relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:after:absolute sm:after:-inset-[9px] sm:after:content-[''] p-1.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                           isOn
                             ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)]'
                             : 'text-[var(--quant-muted-foreground)] hover:text-white'
@@ -2370,7 +2385,7 @@ export function EmailComposer({
                   onClick={() => setListMode((prev) => (prev === 'bullet' ? 'none' : 'bullet'))}
                   aria-pressed={listMode === 'bullet'}
                   aria-label="Bulleted list"
-                  className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg text-xs ${
+                  className={`relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:after:absolute sm:after:-inset-[8px] sm:after:content-[''] p-1.5 rounded-lg text-xs ${
                     listMode === 'bullet'
                       ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)] border border-[var(--quant-primary)]/40'
                       : 'text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)]'
@@ -2388,7 +2403,7 @@ export function EmailComposer({
                   onClick={() => setListMode((prev) => (prev === 'numbered' ? 'none' : 'numbered'))}
                   aria-pressed={listMode === 'numbered'}
                   aria-label="Numbered list"
-                  className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg text-xs ${
+                  className={`relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:after:absolute sm:after:-inset-[8px] sm:after:content-[''] p-1.5 rounded-lg text-xs ${
                     listMode === 'numbered'
                       ? 'bg-[var(--quant-primary)]/20 text-[var(--brand-accent)] border border-[var(--quant-primary)]/40'
                       : 'text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)]'
@@ -2409,7 +2424,7 @@ export function EmailComposer({
                     aria-expanded={showEmojiPicker}
                     aria-controls={showEmojiPicker ? 'composer-emoji-panel' : undefined}
                     aria-label="Insert emoji"
-                    className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                    className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:after:absolute sm:after:-inset-[8px] sm:after:content-[''] p-1.5 rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     title="Insert emoji"
                   >
                     <span aria-hidden="true" className="text-base leading-none">
@@ -2480,7 +2495,7 @@ export function EmailComposer({
                     setTextColor(TEXT_COLORS[0]);
                     setTextAlign('left');
                   }}
-                  className="ml-auto inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                  className="relative ml-auto inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:after:absolute sm:after:-inset-[8px] sm:after:content-[''] p-1.5 rounded-lg text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                   title="Clear formatting"
                 >
                   T<span className="text-[10px]">x</span>
@@ -2507,7 +2522,7 @@ export function EmailComposer({
                   disabled={busy || sendBlockReason !== null}
                   aria-disabled={busy || sendBlockReason !== null}
                   title={sendBlockReason ?? undefined}
-                  className="flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 min-h-[44px] sm:min-h-0 text-[#111111] text-xs sm:text-sm font-semibold hover:brightness-105 active:scale-95 disabled:opacity-40 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#111111]"
+                  className="relative flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 min-h-[44px] sm:min-h-0 sm:after:absolute sm:after:-inset-[6px] sm:after:content-[''] text-[#111111] text-xs sm:text-sm font-semibold hover:brightness-105 active:scale-95 disabled:opacity-40 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#111111]"
                 >
                   {isSending ? (
                     <span>Sending…</span>
@@ -2535,7 +2550,7 @@ export function EmailComposer({
                     setShowSendOptionsDropdown((prev) => !prev);
                   }}
                   disabled={busy}
-                  className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 px-2 py-2 border-l border-[#111111]/20 text-[#111111] hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#111111]"
+                  className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:after:absolute sm:after:-inset-[7px] sm:after:content-[''] px-2 py-2 border-l border-[#111111]/20 text-[#111111] hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#111111]"
                   title="Send options (Save draft / Schedule send)"
                   aria-expanded={showSendOptionsDropdown}
                   aria-label="Send options"
@@ -2656,7 +2671,7 @@ export function EmailComposer({
               <button
                 type="button"
                 onClick={() => setIsQuantyDrawerOpen(true)}
-                className="hidden sm:flex p-2 rounded-xl text-[var(--quant-primary)] hover:text-[var(--brand-accent)] hover:bg-[var(--quant-primary)]/10 transition-all ml-0.5 items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                className="relative hidden sm:flex p-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] text-[var(--quant-primary)] hover:text-[var(--brand-accent)] hover:bg-[var(--quant-primary)]/10 transition-all ml-0.5 items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 title="Open Quanty AI Copilot"
                 aria-label="Open Quanty AI Copilot"
               >

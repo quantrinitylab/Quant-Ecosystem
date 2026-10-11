@@ -11,6 +11,7 @@ import { IdentityAvatar } from '../../components/IdentityAvatar';
 import { showToast } from '../../components/InboxToast';
 import { useInbox } from '../../hooks/useInbox';
 import { resolveThreadTarget } from '../../lib/route-ids';
+import { formatSentRecipientLine } from './recipients';
 import { apiClient } from '../../services/api-client';
 import type { Email, EmailStatus } from '../../types';
 
@@ -293,7 +294,13 @@ export default function SentPage() {
                   <div className="sent-row-content">
                     <div className="sent-row-meta">
                       <span className="sent-row-recipients">
-                        {email.to?.map((t) => t.name || t.email).join(', ') || 'Unknown'}
+                        {/*
+                          SIA-P2-5: this line is the RECIPIENT, never the
+                          sender — self-rows rendered just the sender's own
+                          handle ("kundan") with no recipient signal. The "To: "
+                          prefix comes from formatSentRecipientLine.
+                        */}
+                        {formatSentRecipientLine(email.to)}
                       </span>
                       <DeliveryStatus
                         status={email.status}

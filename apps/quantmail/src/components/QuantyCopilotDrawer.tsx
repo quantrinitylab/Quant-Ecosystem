@@ -10,7 +10,7 @@ import { browserAuthSession } from '../services/browser-auth-session';
 import { readAIIntent, clientTimeoutForIntent } from '../lib/ai-intent-preference';
 import { apiClient } from '../services/api-client';
 import { useUndoSend } from './UndoSendCountdownBar';
-import type { Email } from '../types';
+import type { Email, ComposeEmailRequest } from '../types';
 import { useI18n } from '../i18n';
 import { QuantyToolTimeline } from './QuantyToolTimeline';
 import { QuantyConfirmationCard } from './QuantyConfirmationCard';
@@ -94,6 +94,98 @@ export function unwrapToolCallResponse(text: string): string {
     // fall through to the marker-strip fallback below
   }
   return text.replace(/tool_call\s*\{[\s\S]*\}/, '').trim() || text;
+}
+
+/**
+ * Localized copy for the Quanty send-draft confirmation (qm-auto
+ * findings-queue P2): send-state copy follows the app locale (English
+ * default, Devanagari for 'hi') — the same convention as the Ask-Quanty mode
+ * chooser (PR #868) and the BB-P1-11 drawer summary fix. No Roman-script
+ * Hinglish for every user. Exported for tests.
+ */
+export function quantyDraftSendCopy(locale: 'en' | 'hi') {
+  const hi = locale === 'hi';
+  return {
+    composeFailed: hi ? 'ड्राफ्ट नहीं बन पाया' : 'Could not create the draft',
+    sendFailed: hi ? 'भेजा नहीं जा सका' : 'Could not send the email',
+    sentNote: (to: string) =>
+      hi ? `भेज दिया — ${to} को ईमेल चला गया।` : `Sent — email delivered to ${to}.`,
+    failedNote: (detail: string) =>
+      hi
+        ? `भेजने में दिक्कत हुई: ${detail}। कुछ नहीं भेजा गया — दोबारा कोशिश करें या Edit से composer में खोलें।`
+        : `Could not send: ${detail}. Nothing was sent — try again or open it in the composer via Edit.`,
+    sendFailedToast: hi ? 'ईमेल नहीं भेजा जा सका' : 'Email could not be sent',
+  };
+}
+
+export interface QuantyDraftSendDeps {
+  to: string;
+  subject: string;
+  body: string;
+  copy: ReturnType<typeof quantyDraftSendCopy>;
+  composeEmail: (data: ComposeEmailRequest) => Promise<{
+    success: boolean;
+    data?: { id?: string } | null;
+    error?: { message?: string } | null;
+  }>;
+  sendEmail: (id: string) => Promise<{ success: boolean; error?: { message?: string } | null }>;
+  appendAssistantNote: (text: string) => void;
+  showToast: (toast: { text: string; type: 'success' | 'error' }) => void;
+  onSettled: () => void;
+}
+
+/**
+ * Builds the `onSendNow` callback for the Quanty send-draft confirmation.
+ *
+ * Contract (c1f9fa01, QueueSendOptions.onSendNow): the returned promise MUST
+ * resolve only after the send truly completed and MUST reject on failure.
+ * The old code swallowed every error in its catch, so the promise always
+ * resolved and the undo-send bar celebrated "Message sent!" for sends that
+ * never happened (while the drawer itself showed a failure toast). The catch
+ * still surfaces the failure honestly (error toast + assistant note) and
+ * then rethrows — the bar's failure path runs instead of markSent.
+ */
+export function buildQuantyDraftSendNow(deps: QuantyDraftSendDeps): () => Promise<void> {
+  const {
+    to,
+    subject,
+    body,
+    copy,
+    composeEmail,
+    sendEmail,
+    appendAssistantNote,
+    showToast,
+    onSettled,
+  } = deps;
+  return async () => {
+    try {
+      const composeRes = await composeEmail({
+        to: [{ email: to }],
+        subject: subject || `Message for ${to}`,
+        bodyText: body,
+        messageKind: 'mail',
+      });
+      if (!composeRes.success || !composeRes.data?.id) {
+        throw new Error(composeRes.error?.message || copy.composeFailed);
+      }
+      const sendRes = await sendEmail(composeRes.data.id);
+      if (!sendRes.success) {
+        throw new Error(sendRes.error?.message || copy.sendFailed);
+      }
+      appendAssistantNote(copy.sentNote(to));
+      showToast({ text: `Email sent to ${to}`, type: 'success' });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : 'Unknown error';
+      appendAssistantNote(copy.failedNote(detail));
+      showToast({ text: copy.sendFailedToast, type: 'error' });
+      // Rethrow: the promise must reject so UndoSendManager never marks this
+      // failed send as sent. The drawer's own failure surface above is the
+      // only honest one.
+      throw err;
+    } finally {
+      onSettled();
+    }
+  };
 }
 
 export function parseEmailActionFromText(text: string): QuantyEmailAction {
@@ -717,32 +809,26 @@ export function QuantyCopilotDrawer({
       to,
       subject,
       body,
-      onSendNow: async () => {
-        try {
-          const composeRes = await apiClient.composeEmail({
-            to: [{ email: to }],
-            subject: subject || `Message for ${to}`,
-            bodyText: body,
-            messageKind: 'mail',
-          });
-          if (!composeRes.success || !composeRes.data?.id) {
-            throw new Error(composeRes.error?.message || 'Draft nahi ban paya');
-          }
-          const sendRes = await apiClient.sendEmail(composeRes.data.id);
-          if (!sendRes.success) {
-            throw new Error(sendRes.error?.message || 'Bheja nahi ja saka');
-          }
-          appendAssistantNote(`Bhej diya — ${to} ko email chali gayi.`);
-          showToast({ text: `Email sent to ${to}`, type: 'success' });
-        } catch (err) {
-          const detail = err instanceof Error ? err.message : 'Unknown error';
-          appendAssistantNote(`Bhejne me dikkat hui: ${detail}. Kuch nahi bheja gaya — dobara try karein ya Edit se composer me kholein.`);
-          showToast({ text: 'Email nahi bheja ja saka', type: 'error' });
-        } finally {
+      onSendNow: buildQuantyDraftSendNow({
+        to,
+        subject,
+        body,
+        copy: quantyDraftSendCopy(locale),
+        composeEmail: (data) => apiClient.composeEmail(data),
+        sendEmail: (id) => apiClient.sendEmail(id),
+        appendAssistantNote,
+        showToast,
+        onSettled: () => {
           setDraftSending(false);
           setPendingEmailDraft(null);
-        }
-      },
+        },
+      }),
+      // The drawer's catch already surfaced the failure (error toast +
+      // assistant note) before rethrowing — that is the one honest failure
+      // surface. Without this hook the manager would fall back to onUndo,
+      // which appends a "send cancelled" note that wrongly implies the user
+      // cancelled. onUndo itself is unchanged: it still runs for real undos.
+      onSendFailed: () => {},
       onUndo: async () => {
         // Undo inside the recall window: the email was never composed, so
         // there is nothing to retract server-side — just say so honestly.

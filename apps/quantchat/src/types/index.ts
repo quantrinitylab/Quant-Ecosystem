@@ -883,6 +883,7 @@ export interface SendMessageRequest {
   replyTo?: string;
   disappearMode?: DisappearMode;
   mentions?: string[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface CreateStoryRequest {

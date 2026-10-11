@@ -91,7 +91,7 @@ export function DriveContextTabsHeader({
       // (<MobileSubTabStrip />) for drive's tabs, so a mid-page duplicate row
       // is the exact double-stack the mobile QA shots flagged.
       // `hidden md:flex` keeps the desktop layout pixel-identical.
-      className="hidden md:flex items-center gap-1.5 overflow-x-auto no-scrollbar py-2.5 px-4 sm:px-8 border-b border-[#232938] bg-[var(--quant-background)]/95 backdrop-blur-md sticky top-0 z-20"
+      className="hidden md:flex items-center gap-1.5 overflow-x-auto no-scrollbar py-2.5 px-4 sm:px-8 bg-[var(--quant-background)]/95 backdrop-blur-md sticky top-0 z-20"
     >
       {tabs.map((tab) => {
         const Icon = tab.icon;

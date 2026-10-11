@@ -85,7 +85,7 @@ export function DriveCleanerSubView({ clusters = [] }: DriveCleanerSubViewProps)
                 key={cluster.clusterId}
                 className="p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#232938] pb-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
                   <div>
                     <h5 className="text-xs font-bold text-[#F8FAFC]">{cluster.title}</h5>
                     <p className="text-[11px] text-[#38BDF8] font-medium mt-0.5">

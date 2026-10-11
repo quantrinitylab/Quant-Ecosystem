@@ -137,7 +137,9 @@ export function DesktopAppRail({
                 aria-label={`${tile.label}, keyboard shortcut ${isMac ? 'Command' : 'Ctrl'}+${tile.shortcutNumber}`}
                 title={`${tile.label} — ${isMac ? `⌘${tile.shortcutNumber}` : `Ctrl+${tile.shortcutNumber}`}`}
                 onClick={() => handlePillarClick(tile)}
-                className={`relative flex size-10 items-center justify-center rounded-xl transition-opacity duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 ${
+                // SIA-P2-7: tile touch targets must be >= 44px (Apple HIG /
+                // WCAG 2.5.8). Buttons are size-11 (44px) with 32px marks.
+                className={`relative flex size-11 items-center justify-center rounded-xl transition-opacity duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 ${
                   isActive ? '' : 'hover:bg-[var(--quant-surface-elevated)] opacity-60 hover:opacity-100'
                 }`}
               >
@@ -182,7 +184,7 @@ export function DesktopAppRail({
         <MoreAppsMenu
           align="left"
           buttonTestId="desktop-app-rail-tile-more"
-          buttonClassName="relative flex size-10 items-center justify-center rounded-xl text-white/60 opacity-60 transition-opacity duration-200 hover:bg-[var(--quant-surface-elevated)] hover:text-white hover:opacity-100 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+          buttonClassName="relative flex size-11 items-center justify-center rounded-xl text-white/60 opacity-60 transition-opacity duration-200 hover:bg-[var(--quant-surface-elevated)] hover:text-white hover:opacity-100 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
           ariaLabel="More Quant apps — open QuantChat or QuantAI"
           title="More Quant apps"
         />

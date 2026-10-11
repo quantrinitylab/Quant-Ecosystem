@@ -27,6 +27,29 @@ const MONTH_NAMES = [
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
+/**
+ * Build the exact Date the modal will schedule from its date + clock state
+ * (12-hour clock + AM/PM, seconds/millis zeroed). Exported for tests — the
+ * past-time validation in handleConfirm must stay in lockstep with this.
+ */
+export function buildScheduledSendDate(
+  selectedDate: Date,
+  hour12: number,
+  minute: number,
+  period: 'AM' | 'PM',
+): Date {
+  const finalDate = new Date(selectedDate);
+  let finalHour = hour12 % 12;
+  if (period === 'PM') finalHour += 12;
+  finalDate.setHours(finalHour, minute, 0, 0);
+  return finalDate;
+}
+
+/** True when the chosen schedule is not in the future (already passed). */
+export function isPastScheduleTime(scheduled: Date, now: Date = new Date()): boolean {
+  return scheduled.getTime() <= now.getTime();
+}
+
 export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendModalProps) {
   const today = useMemo(() => new Date(), []);
 
@@ -48,6 +71,12 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
   // Clock ref for touch/drag gestures
   const clockRef = useRef<HTMLDivElement>(null);
   const isDraggingClock = useRef<boolean>(false);
+
+  // Past-time guard: the old handleConfirm built the ISO straight from the
+  // clock, so "Today 6:00 PM" stayed tappable after 6 PM and the UI claimed
+  // "scheduled" for a send the backend delivered immediately. Reject here
+  // with an honest message instead (the backend 400 is the backstop).
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   // Days in selected view month
   const calendarDays = useMemo(() => {
@@ -106,6 +135,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
 
   const handleSelectDay = (date: Date, isPast: boolean) => {
     if (isPast) return;
+    setScheduleError(null);
     setSelectedDate(date);
     setViewYear(date.getFullYear());
     setViewMonth(date.getMonth());
@@ -114,6 +144,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
   // Quick Preset Handlers (Today Evening, Tomorrow Morning, Tomorrow Afternoon)
   const handleQuickPreset = (type: 'today_evening' | 'tomorrow_morning' | 'tomorrow_afternoon') => {
     const d = new Date();
+    setScheduleError(null);
     if (type === 'today_evening') {
       setSelectedDate(d);
       setViewYear(d.getFullYear());
@@ -199,14 +230,19 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
   };
 
   const handleConfirm = () => {
-    const finalDate = new Date(selectedDate);
-    let finalHour = hour % 12;
-    if (period === 'PM') finalHour += 12;
-    finalDate.setHours(finalHour, minute, 0, 0);
-
+    const finalDate = buildScheduledSendDate(selectedDate, hour, minute, period);
+    if (isPastScheduleTime(finalDate)) {
+      setScheduleError('That time has already passed — pick a future time to schedule your send.');
+      return;
+    }
+    setScheduleError(null);
     onSchedule(finalDate.toISOString());
     onClose();
   };
+
+  // "Today 6:00 PM" is only bookable while 6 PM today is still in the future.
+  // Computed fresh each render so a modal left open past 6 PM disables it.
+  const todayEveningPresetPast = isPastScheduleTime(buildScheduledSendDate(new Date(), 6, 0, 'PM'));
 
   // Clock Numbers (Standard 1 to 12 & 00 to 55)
   const hoursList = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
@@ -269,7 +305,13 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
               <button
                 type="button"
                 onClick={() => handleQuickPreset('today_evening')}
-                className="px-3.5 py-2.5 rounded-2xl bg-[var(--quant-surface)]/80 hover:bg-[var(--quant-surface-elevated)]/90 border border-[var(--quant-surface-elevated)] text-left transition-all hover:border-[var(--quant-primary)]/40 group"
+                disabled={todayEveningPresetPast}
+                title={
+                  todayEveningPresetPast
+                    ? '6:00 PM has already passed — pick another time'
+                    : undefined
+                }
+                className="px-3.5 py-2.5 rounded-2xl bg-[var(--quant-surface)]/80 hover:bg-[var(--quant-surface-elevated)]/90 border border-[var(--quant-surface-elevated)] text-left transition-all hover:border-[var(--quant-primary)]/40 group disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--quant-surface-elevated)]"
               >
                 <span className="block font-medium text-[var(--quant-foreground)] text-xs group-hover:text-white">
                   Today
@@ -516,33 +558,40 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
             </div>
 
             {/* Footer Preview & Actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-[var(--quant-surface-elevated)]">
-              <div className="text-xs text-[var(--quant-muted-foreground)] truncate pr-2">
-                <span>Send on: </span>
-                <strong className="text-[var(--quant-primary)] font-semibold">
-                  {`${selectedDate.toLocaleDateString([], {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })} at ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${period}`}
-                </strong>
-              </div>
+            <div className="pt-3 border-t border-[var(--quant-surface-elevated)] space-y-2">
+              {scheduleError && (
+                <p role="alert" className="text-xs text-red-300">
+                  {scheduleError}
+                </p>
+              )}
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-[var(--quant-muted-foreground)] truncate pr-2">
+                  <span>Send on: </span>
+                  <strong className="text-[var(--quant-primary)] font-semibold">
+                    {`${selectedDate.toLocaleDateString([], {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })} at ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${period}`}
+                  </strong>
+                </div>
 
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirm}
-                  className="px-4 py-1.5 rounded-xl bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-[#111111] text-xs font-semibold shadow-sm transition-all"
-                >
-                  Schedule Send
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirm}
+                    className="px-4 py-1.5 rounded-xl bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-[#111111] text-xs font-semibold shadow-sm transition-all"
+                  >
+                    Schedule Send
+                  </button>
+                </div>
               </div>
             </div>
           </motion.div>

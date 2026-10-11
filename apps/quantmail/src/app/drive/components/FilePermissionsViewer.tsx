@@ -40,7 +40,7 @@ function PermissionBadge({ permission }: { permission: string }) {
 
 function ShareRow({ share }: { share: FileShareEntry }) {
   return (
-    <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-[#0D1117] border border-[#21262D]">
+    <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-[var(--quant-background)] border border-[#21262D]">
       <div className="flex items-center gap-2.5 min-w-0">
         <div
           aria-hidden="true"
@@ -64,7 +64,7 @@ function ShareRow({ share }: { share: FileShareEntry }) {
 
 function LinkRow({ link }: { link: FileLinkEntry }) {
   return (
-    <div className="p-3 rounded-lg bg-[#0D1117] border border-[#21262D] space-y-2">
+    <div className="p-3 rounded-lg bg-[var(--quant-background)] border border-[#21262D] space-y-2">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <div
@@ -170,7 +170,7 @@ export function FileAccessView({
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-[#6E7681] p-3 rounded-lg bg-[#0D1117] border border-[#21262D]">
+              <p className="text-xs text-[#6E7681] p-3 rounded-lg bg-[var(--quant-background)] border border-[#21262D]">
                 No one else has access to &ldquo;{fileName}&rdquo;.
               </p>
             )}
@@ -186,7 +186,7 @@ export function FileAccessView({
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-[#6E7681] p-3 rounded-lg bg-[#0D1117] border border-[#21262D]">
+              <p className="text-xs text-[#6E7681] p-3 rounded-lg bg-[var(--quant-background)] border border-[#21262D]">
                 No share links for &ldquo;{fileName}&rdquo;.
               </p>
             )}
@@ -195,7 +195,7 @@ export function FileAccessView({
       )}
 
       {/* Footer — the viewer never changes access; changes live in FileShareModal */}
-      <div className="flex items-center justify-between gap-3 pt-2 border-t border-[#30363D]">
+      <div className="flex items-center justify-between gap-3 pt-1">
         <p className="text-[11px] text-[#6E7681]">Only the file owner can change sharing.</p>
         <Button variant="secondary" onClick={onManageSharing} className="text-xs whitespace-nowrap">
           Manage sharing

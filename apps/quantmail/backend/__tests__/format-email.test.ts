@@ -104,3 +104,52 @@ describe('formatEmailRecord: folder-state bridging', () => {
     expect(formatted.isArchived).toBe(true);
   });
 });
+
+/**
+ * Snooze-state bridging for the client's `belongsInFolder` predicate.
+ *
+ * The database tracks snooze on `EmailThread` (there is no `snoozedUntil`
+ * column on Email), but the client predicate reads `email.snoozedUntil`.
+ * GET /emails?folderType=SNOOZED filtered server-side on the thread relation
+ * without including it, so rows shipped with `snoozedUntil` undefined and the
+ * offline seed dropped every row. The SNOOZED list query now includes the
+ * thread relation (snoozedUntil only) and the formatter bridges it on.
+ */
+describe('formatEmailRecord: snooze-state bridging', () => {
+  const row = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    id: 'email-1',
+    fromAddress: 'sender@example.com',
+    toAddresses: ['me@quantmail.in'],
+    subject: 'Design review',
+    bodyPlain: 'Hello',
+    ...over,
+  });
+
+  it('derives snoozedUntil from the thread relation when present', () => {
+    const until = new Date('2026-10-20T10:00:00.000Z');
+    const formatted = formatEmailRecord(row({ thread: { snoozedUntil: until } }));
+    expect(formatted.snoozedUntil).toBe(until);
+  });
+
+  it('leaves snoozedUntil undefined when the thread relation is absent', () => {
+    // Only the SNOOZED list query includes the thread relation; every other
+    // query must keep its old behaviour exactly.
+    expect(formatEmailRecord(row()).snoozedUntil).toBeUndefined();
+    expect(formatEmailRecord(row({ thread: null })).snoozedUntil).toBeUndefined();
+  });
+
+  it('bridges a null thread snoozedUntil to undefined, never to null', () => {
+    const formatted = formatEmailRecord(row({ thread: { snoozedUntil: null } }));
+    expect(formatted.snoozedUntil).toBeUndefined();
+  });
+
+  it('preserves an explicitly set snoozedUntil over the thread relation', () => {
+    // The snooze optimistic patch sets the value directly on the client
+    // object; the formatter must not let a stale relation overwrite it.
+    const explicit = new Date('2026-10-25T10:00:00.000Z');
+    const formatted = formatEmailRecord(
+      row({ snoozedUntil: explicit, thread: { snoozedUntil: new Date('2026-10-20T10:00:00.000Z') } }),
+    );
+    expect(formatted.snoozedUntil).toBe(explicit);
+  });
+});

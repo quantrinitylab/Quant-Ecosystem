@@ -2,6 +2,7 @@ import type { PrismaClient, Email } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import type { OutboundDeliveryPipeline } from './outbound-delivery.service';
 import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
+import { resolveOutboundAttachments, type OutboundAttachmentDb } from '../lib/outbound-attachments';
 import { QUANT_INTERNAL_DOMAINS, isInternalDomain, getSenderDomain } from '../lib/domains';
 import { suppressionService, SuppressionService } from './suppression.service';
 import { MailFilterService } from './mail-filter.service';
@@ -686,6 +687,14 @@ export class EmailService {
 
           // MAIL-03: Separate envelope Bcc from visible To/Cc headers.
           // MAIL-06: Support plain text fallback when HTML is empty.
+          // QM-SCREEN-006 R2: resolve attachments so external recipients
+          // receive the files (raw MIME envelope); unresolvable -> the
+          // ATTACHMENT_UNRESOLVABLE error below flips this send to deferred.
+          const attachments = await resolveOutboundAttachments(
+            (email as { attachments?: unknown }).attachments,
+            userId,
+            this.prisma as unknown as OutboundAttachmentDb,
+          );
           await sendViaSes({
             from,
             /*
@@ -703,6 +712,7 @@ export class EmailService {
             ...(bodyHtmlClean ? { bodyHtml: bodyHtmlClean } : {}),
             ...(bodyPlainClean ? { bodyText: bodyPlainClean } : {}),
             replyTo: fromAddress,
+            attachments,
           });
           deliveryStatus = 'delivered';
           deliveryError = undefined;
