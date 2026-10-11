@@ -42,6 +42,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     pathname?.startsWith('/sso') ||
     pathname?.startsWith('/oauth') ||
     pathname?.startsWith('/quantgit') ||
+    // Invite / group-join previews for logged-out invitees (QM-SCREEN-018):
+    // the join page renders a public preview before the visitor signs in,
+    // so the AuthGuard must not hard-bounce them to /login.
+    pathname?.startsWith('/invite/') ||
+    pathname?.startsWith('/groups/join/') ||
     isInternalLabPath(pathname ?? '');
 
   useEffect(() => {

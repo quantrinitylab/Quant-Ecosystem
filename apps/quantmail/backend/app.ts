@@ -127,6 +127,11 @@ export function getConfig(): AppConfig {
       // have an account yet. Accepting an invite stays authenticated.
       '/public/invites',
       '/public/invites/*',
+      // Group join-link preview (GET /contact-groups/invite/:token): public
+      // preview of a join link. No auth — the join page shows this before the
+      // visitor signs in. Scoped to GET only: POST /contact-groups/join and
+      // POST|GET|DELETE /contact-groups/:id/invite-link stay authenticated.
+      { path: '/contact-groups/invite', methods: ['GET'], exact: false },
       '/.well-known',
       '/.well-known/*',
       // Authenticated by the AWS SNS message signature, not by a JWT — SNS
