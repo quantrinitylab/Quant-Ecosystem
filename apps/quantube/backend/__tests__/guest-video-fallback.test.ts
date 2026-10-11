@@ -41,7 +41,9 @@ describe('GET /videos/:id sample fallback (P0-1)', () => {
     const body = res.json();
     expect(body.success).toBe(true);
     expect(body.data.id).toBe('guest-vid-1');
-    expect(body.data.videoUrl).toMatch(/^https:\/\/.+\.mp4$/);
+    // Samples are self-hosted on the same origin (relative /samples/*.mp4 paths),
+    // never a fabricated absolute CDN URL.
+    expect(body.data.videoUrl).toMatch(/^\/samples\/.+\.mp4$/);
     expect(body.data.videoUrl).not.toContain('cdn.quantube.com');
     expect(body.data.url).toBe('/watch/guest-vid-1');
     expect(body.data.isSample).toBe(true);
