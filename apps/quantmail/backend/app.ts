@@ -51,6 +51,12 @@ import { InboundIngestAdapter } from './services/inbound-ingest.service';
 import { MailFilterService } from './services/mail-filter.service';
 import { MemoryBackedLearnedInboxCategoryStore } from './services/learned-inbox-category.service';
 import { SmartInboxService } from './services/smart-inbox.service';
+import {
+  sweepDueCallReminders,
+  type CallReminderEventStore,
+  type CallReminderNotificationStore,
+} from './services/call-reminder-notify.service';
+import type { PushSubscriptionStore } from './services/push-delivery.service';
 import websocketPlugin from '@fastify/websocket';
 import { setupWSConnection } from './services/yjs-server';
 import { sloPlugin } from '@quant/server-core';
@@ -460,5 +466,53 @@ export async function buildApp(config?: AppConfig) {
   await app.register(enterpriseDomainsRoutes, { prefix: '/api/domains' });
   await app.register(wellKnownRoutes);
   await app.register(davRoutes, { prefix: '/dav' });
+
+  // QM-SCREEN-015: periodic call-reminder sweep. GET /events/alarms/due had
+  // zero frontend consumers, so persisting on that route alone would still
+  // leave reminders undelivered — this timer runs the same persist + push
+  // path for every user on a cadence. Env-gated
+  // (CALL_REMINDER_SWEEP_INTERVAL_MS, default 60s; 0 or non-finite disables)
+  // and skipped under NODE_ENV=test so suites never see timer-driven writes.
+  // The handle is unref'd and cleared onClose so it can neither hold the
+  // process open nor fire after shutdown. Failures are logged, never thrown.
+  const reminderSweepIntervalMs = Number(process.env['CALL_REMINDER_SWEEP_INTERVAL_MS'] ?? 60_000);
+  if (
+    process.env['NODE_ENV'] !== 'test' &&
+    Number.isFinite(reminderSweepIntervalMs) &&
+    reminderSweepIntervalMs > 0
+  ) {
+    const sweepStores = db as unknown as {
+      event: CallReminderEventStore;
+      notification: CallReminderNotificationStore;
+      pushSubscription: PushSubscriptionStore;
+    };
+    const reminderSweep = setInterval(() => {
+      sweepDueCallReminders(
+        {
+          events: sweepStores.event,
+          notifications: sweepStores.notification,
+          push: { store: sweepStores.pushSubscription },
+          log: app.log,
+        },
+        new Date(),
+      ).then(
+        (result) => {
+          if (result.persisted > 0 || result.truncated) {
+            app.log.info(
+              `[call-reminder] sweep: persisted=${result.persisted} ` +
+                `already-existed=${result.skippedExisting} users=${result.users} ` +
+                `truncated=${result.truncated}`,
+            );
+          }
+        },
+        (error: unknown) => app.log.error(`[call-reminder] sweep failed: ${String(error)}`),
+      );
+    }, reminderSweepIntervalMs);
+    if (typeof reminderSweep.unref === 'function') reminderSweep.unref();
+    app.addHook('onClose', async () => {
+      clearInterval(reminderSweep);
+    });
+  }
+
   return app;
 }

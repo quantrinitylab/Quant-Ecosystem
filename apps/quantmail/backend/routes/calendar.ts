@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { CalendarService } from '../services/calendar.service';
-import { AlarmService, type AlarmEvent } from '../services/alarm.service';
+import { persistDueCallReminders } from '../services/call-reminder-notify.service';
 import { BookingLinkService } from '../services/booking-link.service';
 import { RecurringService, type CalendarEvent } from '../services/recurring.service';
 import { CalendarCallAlertService } from '../services/calendar-call-alert.service';
@@ -221,16 +221,6 @@ function reminderLabels(raw: unknown): string[] {
       return Number.isFinite(minutes) ? labelFromMinutes(minutes) : '';
     })
     .filter(Boolean);
-}
-function alarmReminders(raw: unknown): AlarmEvent['reminders'] {
-  return parseJsonArray(raw).flatMap((entry) => {
-    if (!entry || typeof entry !== 'object') return [];
-    const reminder = entry as { type?: unknown; minutesBefore?: unknown };
-    const minutesBefore = Number(reminder.minutesBefore);
-    return typeof reminder.type === 'string' && Number.isFinite(minutesBefore)
-      ? [{ type: reminder.type, minutesBefore }]
-      : [];
-  });
 }
 function normalizeRecurrenceRule(
   value: string | null | undefined,
@@ -1353,21 +1343,24 @@ export default async function calendarRoutes(
   });
   fastify.get('/events/alarms/due', async (request, reply) => {
     const userId = requireUserId(request);
-    const alarms = new AlarmService();
-    const now = new Date();
-    const { start, end } = alarms.fetchWindow(now);
-    const rows = (await getPrisma(fastify).event.findMany({
-      where: { userId, startTime: { lt: end }, endTime: { gt: start } },
-      orderBy: { startTime: 'asc' },
-    })) as EventRow[];
-    const events: AlarmEvent[] = rows.map((event) => ({
-      id: event.id,
-      title: event.title,
-      startTime: event.startTime,
-      status: event.status,
-      reminders: alarmReminders(event.reminders),
-    }));
-    return reply.send({ success: true, data: alarms.getDueCallAlarms(events, now) });
+    const prisma = getPrisma(fastify);
+    // QM-SCREEN-015: the due alarms computed here used to die in this
+    // response — the endpoint had zero consumers, so call reminders never
+    // reached anyone. The computation now also persists one `call_reminder`
+    // notification row per due alarm (userId-scoped, idempotent) and pushes
+    // it via deliverPushToUser; both are contained, so a persistence or push
+    // failure never fails this read. The response contract is unchanged.
+    const result = await persistDueCallReminders(
+      {
+        events: prisma.event,
+        notifications: prisma.notification,
+        push: { store: prisma.pushSubscription },
+        log: request.log,
+      },
+      userId,
+      new Date(),
+    );
+    return reply.send({ success: true, data: result.due });
   });
   fastify.get('/events/alerts/scheduled', async (request, reply) => {
     return reply.send({
