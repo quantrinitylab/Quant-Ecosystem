@@ -912,9 +912,10 @@ R2 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 2 P2. No fix agents spawned (no P0/P1).
 Rotation → QM-SCREEN-018 (help) R2, queued.
 
 ## QM-SCREEN-018 — Help / privacy / terms / invite / groups / SSO / legacy route disposition
-Status: [x] DONE
+Status: [~] IN_PROGRESS (ROUND 2 regression)
 Owner: LANE-1
-Branch: lane1-audit-018
+Branch: lane1-audit-018r2
+R2-AUDIT (2026-10-12 ~04:40 IST): re-checking all 6 R1 findings against origin/main (both R1 fix PRs #862 + #863 MERGED 2026-10-11) + new-finding hunt on help/privacy/terms/invite/groups/sso pages + live desktop+mobile Chrome. Signed-in flows needs-auth.
 AUDIT-VALIDATION: code read on origin/main 596a49b0859d (help/privacy/terms/invite/groups/sso pages, AuthGuard, api-client, backend workspaces/contact-groups routes, backend/app.ts publicPaths, routes-config.ts, next.config redirects) + live desktop Chrome 1440x900 screenshots (/help, /privacy, /terms, /sso, /invite/badtoken123) + live curl (/codehub, /repos → 308; /api/public/invites/badtoken123 → 404 INVITE_NOT_FOUND; /api/contact-groups/invite/badtoken → 401 UNAUTHORIZED). All 18 screens of LANE-1 ROUND 1 now audited (002→018). Fix PRs tracked separately (lane1-fix-018-invite-public, lane1-fix-018-privacy-badge).
 Audit: 2026-10-11 ~11:45 IST. Scope: /help /privacy /terms /invite/[token] /groups/join/[token] /sso (logged-out) + legacy redirects. Code on origin/main 596a49b0859d + live Chrome desktop 1440x900 + curl.
 - [ ] FINDING P0: invite links unusable for logged-out invitees — AuthGuard PUBLIC_PATHS (apps/quantmail/src/components/AuthGuard.tsx) omits /invite/* and /groups/join/*, so a logged-out visitor opening an invite link is hard-bounced via window.location.replace to /login and the public preview never renders. | expected: invitee sees who-invited-them preview before signing in (the backend was deliberately built for this: /public/invites/:token is public) | actual: /invite/badtoken123 → login page | evidence: live screenshot /tmp/lane1-018-invite.png shows "Sign in to QuantMail"; AuthGuard.tsx PUBLIC_PATHS list has no invite/join entries.
