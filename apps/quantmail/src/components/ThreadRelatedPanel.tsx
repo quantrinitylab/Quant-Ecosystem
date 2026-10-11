@@ -277,6 +277,13 @@ export function ThreadRelatedSection({
       setRelatedEvents([]);
       return;
     }
+    if (typeof apiClient.getEvents !== 'function') {
+      // Some hand-rolled apiClient mocks (and older clients) do not
+      // implement getEvents — the section degrades to the files the
+      // thread already carries instead of throwing in the effect.
+      setRelatedEvents([]);
+      return;
+    }
     apiClient
       .getEvents({ start: window.start.toISOString(), end: window.end.toISOString() })
       .then((res) => {
