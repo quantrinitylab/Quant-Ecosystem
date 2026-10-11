@@ -123,26 +123,109 @@ describe('CallService', () => {
   });
 
   describe('endCall', () => {
-    it('deletes the LiveKit room and removes the call', async () => {
+    async function roomClientMock() {
+      const { RoomServiceClient } = await import('livekit-server-sdk');
+      return (RoomServiceClient as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value;
+    }
+
+    it('deletes the LiveKit room and removes the call when the initiator ends it', async () => {
       const call = await service.initiate1v1Call('user-a', 'user-b');
-      await service.endCall(call.callId);
+      await service.endCall(call.callId, 'user-a');
+
+      expect(service.getCall(call.callId)).toBeUndefined();
+    });
+
+    it('lets a non-initiator participant end a 1:1 call', async () => {
+      const mockInstance = await roomClientMock();
+      const call = await service.initiate1v1Call('user-a', 'user-b');
+
+      await service.endCall(call.callId, 'user-b');
+
+      expect(mockInstance.deleteRoom).toHaveBeenCalledTimes(1);
+      expect(mockInstance.deleteRoom).toHaveBeenCalledWith(call.roomName);
+      expect(service.getCall(call.callId)).toBeUndefined();
+    });
+
+    it('rejects a non-participant with CALL_NOT_PARTICIPANT and leaves the call alive', async () => {
+      const mockInstance = await roomClientMock();
+      const call = await service.initiate1v1Call('user-a', 'user-b');
+
+      await expect(service.endCall(call.callId, 'user-x')).rejects.toMatchObject({
+        statusCode: 403,
+        code: 'CALL_NOT_PARTICIPANT',
+      });
+      await expect(service.endCall(call.callId, 'user-x')).rejects.toThrow(
+        'User is not a participant of this call',
+      );
+
+      // The sabotage itself is what must be blocked: no room teardown happened.
+      expect(mockInstance.deleteRoom).not.toHaveBeenCalled();
+      expect(service.getCall(call.callId)).toBeDefined();
+    });
+
+    it('lets any group participant end the call, but not an outsider', async () => {
+      const call = await service.initiateGroupCall('user-a', ['user-b', 'user-c']);
+
+      await expect(service.endCall(call.callId, 'user-x')).rejects.toMatchObject({
+        statusCode: 403,
+        code: 'CALL_NOT_PARTICIPANT',
+      });
+      expect(service.getCall(call.callId)).toBeDefined();
+
+      await service.endCall(call.callId, 'user-c');
+      expect(service.getCall(call.callId)).toBeUndefined();
+    });
+
+    it('rejects a participant who already left (no longer a current participant)', async () => {
+      const call = await service.initiateGroupCall('user-a', ['user-b', 'user-c']);
+      await service.leaveCall(call.callId, 'user-b');
+
+      await expect(service.endCall(call.callId, 'user-b')).rejects.toMatchObject({
+        statusCode: 403,
+        code: 'CALL_NOT_PARTICIPANT',
+      });
+      expect(service.getCall(call.callId)).toBeDefined();
+    });
+
+    it('throws CALL_NOT_FOUND for unknown call ID', async () => {
+      await expect(service.endCall('nonexistent', 'user-a')).rejects.toThrow('Call not found');
+    });
+
+    it('checks participation before attempting room deletion', async () => {
+      const mockInstance = await roomClientMock();
+      const call = await service.initiate1v1Call('user-a', 'user-b');
+
+      // The gate runs before destroyCall: a non-participant is rejected with
+      // 403 and room deletion is never even attempted.
+      await expect(service.endCall(call.callId, 'user-x')).rejects.toMatchObject({
+        statusCode: 403,
+        code: 'CALL_NOT_PARTICIPANT',
+      });
+      expect(mockInstance.deleteRoom).not.toHaveBeenCalled();
+    });
+
+    it('throws CALL_END_FAILED when room deletion fails and keeps the call registered', async () => {
+      const mockInstance = await roomClientMock();
+
+      const call = await service.initiate1v1Call('user-a', 'user-b');
+      mockInstance.deleteRoom.mockRejectedValueOnce(new Error('network error'));
+
+      await expect(service.endCall(call.callId, 'user-a')).rejects.toThrow('Failed to end call');
+      expect(service.getCall(call.callId)).toBeDefined();
+    });
+  });
+
+  describe('endCallInternal (system teardown, no requesting user)', () => {
+    it('deletes the LiveKit room and removes the call without a participant check', async () => {
+      const call = await service.initiate1v1Call('quanty-voice-bot', 'user-a');
+
+      await service.endCallInternal(call.callId);
 
       expect(service.getCall(call.callId)).toBeUndefined();
     });
 
     it('throws CALL_NOT_FOUND for unknown call ID', async () => {
-      await expect(service.endCall('nonexistent')).rejects.toThrow('Call not found');
-    });
-
-    it('throws CALL_END_FAILED when room deletion fails', async () => {
-      const { RoomServiceClient } = await import('livekit-server-sdk');
-      const mockInstance = (RoomServiceClient as unknown as ReturnType<typeof vi.fn>).mock
-        .results[0]?.value;
-
-      const call = await service.initiate1v1Call('user-a', 'user-b');
-      mockInstance.deleteRoom.mockRejectedValueOnce(new Error('network error'));
-
-      await expect(service.endCall(call.callId)).rejects.toThrow('Failed to end call');
+      await expect(service.endCallInternal('nonexistent')).rejects.toThrow('Call not found');
     });
   });
 

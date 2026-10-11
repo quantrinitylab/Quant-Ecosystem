@@ -143,19 +143,55 @@ export class CallService {
     return { ended: false };
   }
 
-  async endCall(callId: string): Promise<void> {
+  /**
+   * End a call on behalf of a requesting user (HTTP path).
+   *
+   * Authorization: the requester must be a CURRENT participant of the call —
+   * the same gate `leaveCall` and `generateCallToken` already apply
+   * (404 CALL_NOT_FOUND first, then 403 CALL_NOT_PARTICIPANT). A participant
+   * who already left is no longer in `participantIds` and cannot end the call.
+   */
+  async endCall(callId: string, userId: string): Promise<void> {
     const call = this.calls.get(callId);
     if (!call) {
       throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
     }
 
+    if (!call.participantIds.includes(userId)) {
+      throw createAppError('User is not a participant of this call', 403, 'CALL_NOT_PARTICIPANT');
+    }
+
+    await this.destroyCall(call);
+  }
+
+  /**
+   * SYSTEM ONLY — end a call with NO authorization check.
+   *
+   * Reserved for trusted in-process callers that have no requesting user:
+   * the call-ring generator's decline / dialogue-end / ring-timeout teardown
+   * (those paths carry their own authorization and session state). No HTTP
+   * route may call this — HTTP callers must use `endCall(callId, userId)` so
+   * the participant gate always applies. Never make the userId on `endCall`
+   * optional instead: an optional bypass would silently reopen this hole if
+   * a future route forgot to pass it.
+   */
+  async endCallInternal(callId: string): Promise<void> {
+    const call = this.calls.get(callId);
+    if (!call) {
+      throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
+    }
+
+    await this.destroyCall(call);
+  }
+
+  private async destroyCall(call: CallInfo): Promise<void> {
     try {
       await this.roomClient.deleteRoom(call.roomName);
     } catch (err) {
       throw createAppError(`Failed to end call: ${(err as Error).message}`, 502, 'CALL_END_FAILED');
     }
 
-    this.calls.delete(callId);
+    this.calls.delete(call.callId);
   }
 
   /**
