@@ -54,6 +54,14 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
   const rooms = new Map<string, Set<WebSocket>>();
   const socketUsers = new Map<WebSocket, string>();
+  /**
+   * QC-F-037 — conversations whose membership has been verified for a given
+   * socket on THIS connection. Populated only by a successful membership
+   * check; used as a cache for high-frequency typing frames. Write frames
+   * with durable side effects (chat_message, receipts) always re-verify
+   * against the DB. Cleared when the socket closes.
+   */
+  const verifiedRooms = new Map<WebSocket, Set<string>>();
   /** Per-channel recent envelopes for §20 resume. Keyed by canonical channel. */
   const resumeBuffers = new Map<string, ChatEventEnvelope[]>();
 
@@ -252,6 +260,126 @@ export async function websocketRoutes(fastify: FastifyInstance) {
   }
 
   /**
+   * QC-F-037 — membership gate. The WS layer previously joined ANY
+   * authenticated socket to ANY conversation room without ever checking
+   * that the user belongs to the conversation (BOLA): a logged-in user
+   * could read live events + resume replays, inject chat_message/typing
+   * frames, and record forged delivery/read receipts for conversations
+   * they are not a member of. Identity comes only from the verified JWT
+   * (the `userId` bound to the socket at upgrade time); the check mirrors
+   * MessageService.sendMessage's membership query exactly
+   * (`conversationMember.findFirst({ conversationId, userId, leftAt: null })`).
+   *
+   * Fail-closed: with no Prisma client, no membership delegate, or a DB
+   * error, membership is treated as NOT proven and the join/frame is
+   * denied — never assumed.
+   */
+  async function isConversationMember(
+    conversationId: string,
+    userId: string,
+  ): Promise<boolean> {
+    if (!prismaClient) return false;
+    const prisma = prismaClient as {
+      conversationMember?: {
+        findFirst(args: unknown): Promise<unknown>;
+      };
+    };
+    if (!prisma.conversationMember?.findFirst) return false;
+    try {
+      const membership = await prisma.conversationMember.findFirst({
+        where: { conversationId, userId, leftAt: null },
+      });
+      return membership !== null && membership !== undefined;
+    } catch (err: unknown) {
+      fastify.log.error(
+        { err, conversationId, userId },
+        'conversation membership check failed; denying (fail-closed)',
+      );
+      return false;
+    }
+  }
+
+  /**
+   * QC-F-037 — room-level denial. The socket is NOT closed: web clients use
+   * one shared singleton socket for every conversation, so closing it would
+   * drop the user's legitimate rooms too. Instead the client receives the
+   * WS form of the REST convention (403 NOT_A_MEMBER) scoped to this one
+   * conversation; the socket and its other rooms are unaffected.
+   */
+  function sendNotMember(socket: WebSocket, conversationId: string): void {
+    if (socket.readyState === socket.OPEN) {
+      socket.send(
+        JSON.stringify({
+          type: 'error',
+          code: 'NOT_A_MEMBER',
+          conversationId,
+          message: 'User is not a member of this conversation',
+        }),
+      );
+    }
+  }
+
+  /** Remember a verified membership for this socket/connection. */
+  function markVerified(socket: WebSocket, conversationId: string): void {
+    let set = verifiedRooms.get(socket);
+    if (!set) {
+      set = new Set<string>();
+      verifiedRooms.set(socket, set);
+    }
+    set.add(conversationId);
+  }
+
+  /**
+   * QC-F-037 — gated join used by BOTH join paths (connect-time
+   * `?conversationId=` and the `join_conversation` frame). A non-member is
+   * never added to the room, never subscribed, and `resumeForJoin` is never
+   * called for them — so they receive no replay, no `resumed` frame and not
+   * even the channel's latest cursor (which would leak activity metadata).
+   */
+  async function tryJoinRoom(
+    conversationId: string,
+    socket: WebSocket,
+    userId: string,
+    lastEventCursor: unknown,
+  ): Promise<boolean> {
+    if (!(await isConversationMember(conversationId, userId))) {
+      sendNotMember(socket, conversationId);
+      return false;
+    }
+    markVerified(socket, conversationId);
+    if (joinRoom(conversationId, socket)) {
+      ensureSubscribed(conversationId);
+    }
+    resumeForJoin(socket, conversationId, lastEventCursor);
+    return true;
+  }
+
+  /**
+   * QC-F-037 — gate for a write/side-effect frame. Frames can arrive without
+   * any prior join, so room membership in the local Map is not proof.
+   * `fresh: true` (chat_message, receipts — durable/visible effects) always
+   * re-checks the DB, like REST sendMessage does per request. `fresh: false`
+   * (typing — high-frequency, ephemeral) may reuse this connection's
+   * verified set, falling back to a fresh DB check on a miss.
+   */
+  async function ensureFrameMember(
+    conversationId: string,
+    socket: WebSocket,
+    userId: string,
+    opts: { fresh: boolean },
+  ): Promise<boolean> {
+    if (!opts.fresh && verifiedRooms.get(socket)?.has(conversationId)) {
+      return true;
+    }
+    if (await isConversationMember(conversationId, userId)) {
+      markVerified(socket, conversationId);
+      return true;
+    }
+    sendNotMember(socket, conversationId);
+    return false;
+  }
+
+  /**
    * Subscribe this instance to a conversation channel the first time a local
    * socket joins the room (Requirement 4.1). Subscription is idempotent at the
    * backplane level, so a redundant call is harmless.
@@ -404,6 +532,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
    * channel for that conversation (Requirement 4.2).
    */
   function leaveAllRooms(socket: WebSocket): void {
+    verifiedRooms.delete(socket);
     for (const [conversationId, room] of rooms) {
       if (!room.delete(socket)) continue;
       if (room.size === 0) {
@@ -452,13 +581,18 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
       const query = request.query as { conversationId?: string };
       if (query.conversationId) {
-        if (joinRoom(query.conversationId, socket)) {
-          ensureSubscribed(query.conversationId);
-        }
-        resumeForJoin(socket, query.conversationId, undefined);
+        // QC-F-037 — membership-gated: a non-member is not joined, not
+        // resumed, and receives only a NOT_A_MEMBER error frame (the socket
+        // itself stays open for the user's legitimate conversations).
+        await tryJoinRoom(query.conversationId, socket, userId, undefined);
       }
 
-      socket.on('message', (rawData: Buffer | string) => {
+      // QC-F-037 — frames are handled through a per-socket promise queue.
+      // The membership gates are async (DB lookup), and without sequencing
+      // two frames sent back-to-back could interleave at an await point and
+      // publish out of order. The queue preserves the exact per-socket
+      // frame ordering the previous synchronous handler had.
+      const handleMessage = async (rawData: Buffer | string): Promise<void> => {
         try {
           const message = JSON.parse(rawData.toString());
 
@@ -473,37 +607,58 @@ export async function websocketRoutes(fastify: FastifyInstance) {
           }
 
           if (message.type === 'join_conversation' && typeof message.conversationId === 'string') {
-            if (joinRoom(message.conversationId, socket)) {
-              ensureSubscribed(message.conversationId);
-            }
-            // K25 §20 — resume from the client's last cursor when provided.
-            resumeForJoin(socket, message.conversationId, message.last_event_cursor);
+            // QC-F-037 — membership-gated join; resume (§20) only ever runs
+            // for a verified member (see tryJoinRoom).
+            await tryJoinRoom(
+              message.conversationId,
+              socket,
+              userId,
+              message.last_event_cursor,
+            );
           }
 
           if (message.type === 'chat_message' && typeof message.conversationId === 'string') {
-            // Sender identity is stamped server-side from the authenticated
-            // session — never trusted from the client frame.
-            void publishRoomEvent(message.conversationId, 'chat.message.created.v1', {
-              resourceRef:
-                typeof message.client_message_id === 'string' && message.client_message_id
-                  ? message.client_message_id
-                  : `ws-${Date.now()}`,
-              aggregateVersion: 1,
-              data: { ...message, senderId: userId },
-            });
+            // QC-F-037 — a non-member must not inject a live message into a
+            // conversation (nor into its resume buffer). Fresh DB check on
+            // every frame, mirroring REST sendMessage.
+            if (
+              await ensureFrameMember(message.conversationId, socket, userId, {
+                fresh: true,
+              })
+            ) {
+              // Sender identity is stamped server-side from the authenticated
+              // session — never trusted from the client frame.
+              void publishRoomEvent(message.conversationId, 'chat.message.created.v1', {
+                resourceRef:
+                  typeof message.client_message_id === 'string' && message.client_message_id
+                    ? message.client_message_id
+                    : `ws-${Date.now()}`,
+                aggregateVersion: 1,
+                data: { ...message, senderId: userId },
+              });
+            }
           }
 
           if (message.type === 'typing' && typeof message.conversationId === 'string') {
-            void publishRoomEvent(
-              message.conversationId,
-              'chat.typing.v1',
-              {
-                resourceRef: userId,
-                aggregateVersion: 1,
-                data: { userId, isTyping: Boolean(message.isTyping) },
-              },
-              { exclude: socket },
-            );
+            // QC-F-037 — typing ghosts from non-members are dropped. Typing
+            // is high-frequency + ephemeral, so this connection's verified
+            // set may be reused (fresh DB check on a miss).
+            if (
+              await ensureFrameMember(message.conversationId, socket, userId, {
+                fresh: false,
+              })
+            ) {
+              void publishRoomEvent(
+                message.conversationId,
+                'chat.typing.v1',
+                {
+                  resourceRef: userId,
+                  aggregateVersion: 1,
+                  data: { userId, isTyping: Boolean(message.isTyping) },
+                },
+                { exclude: socket },
+              );
+            }
           }
 
           // W3 — delivery acknowledgement (Requirement 10.1). A recipient socket
@@ -518,7 +673,13 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             typeof message.conversationId === 'string'
           ) {
             const { messageId, conversationId } = message;
-            recordAndFan('recordDelivered', 'delivered', messageId, conversationId, userId);
+            // QC-F-037 — receipts persist + fan out, so a non-member must
+            // never record a forged delivered tick. Fresh DB check.
+            if (
+              await ensureFrameMember(conversationId, socket, userId, { fresh: true })
+            ) {
+              recordAndFan('recordDelivered', 'delivered', messageId, conversationId, userId);
+            }
           }
 
           // W3 — read receipt (Requirements 10.2, 10.4). A recipient reads a
@@ -531,11 +692,21 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             typeof message.conversationId === 'string'
           ) {
             const { messageId, conversationId } = message;
-            recordAndFan('recordRead', 'read', messageId, conversationId, userId);
+            // QC-F-037 — same gate as delivery_ack: a forged "read" tick
+            // from a non-member is a lie to the sender. Fresh DB check.
+            if (
+              await ensureFrameMember(conversationId, socket, userId, { fresh: true })
+            ) {
+              recordAndFan('recordRead', 'read', messageId, conversationId, userId);
+            }
           }
         } catch (err) {
           fastify.log.error({ err }, 'WebSocket message handling failed');
         }
+      };
+      let messageQueue: Promise<void> = Promise.resolve();
+      socket.on('message', (rawData: Buffer | string) => {
+        messageQueue = messageQueue.then(() => handleMessage(rawData));
       });
 
       socket.on('close', () => {
