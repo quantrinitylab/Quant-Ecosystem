@@ -18,6 +18,8 @@ import {
 } from '../lib/email-body';
 import { loadDefaultSignatureHtml } from '../lib/email-signature-preference';
 import type { Attachment } from './EmailComposer';
+import { createPortal } from 'react-dom';
+import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
 
 /**
  * Superhuman/Gmail-class floating bottom-right docked composer widget.
@@ -26,7 +28,7 @@ import type { Attachment } from './EmailComposer';
  * - Fixed: bottom-4 right-6 z-40 w-[540px] max-w-[calc(100vw-32px)] rounded-2xl border border-[#232938] bg-[var(--quant-surface-subtle)]/98 backdrop-blur-xl shadow-2xl overflow-hidden
  * - Header bar: title ('New Message'), minimize/collapse button, expand-to-fullscreen button, close button.
  * - Inputs: To, Cc/Bcc toggle, Subject, rich body editor.
- * - Bottom toolbar: Molten amber Send (⌘↵) button, formatting tools, attachment button (with 25MB guard), writing-assistant (local templates) trigger.
+ * - Bottom toolbar: Molten amber Send (⌘↵) button, formatting tools, attachment button (with 25MB guard), writing-assistant (local templates) trigger, saved email templates (backend /email-templates CRUD) entry point.
  * - Strictly ZERO raw Unicode emojis - pure SVG vector icons only.
  */
 
@@ -177,6 +179,19 @@ function IconList({ className = 'size-3.5' }: { className?: string }) {
       <line x1="3" y1="6" x2="3.01" y2="6" strokeWidth="3" />
       <line x1="3" y1="12" x2="3.01" y2="12" strokeWidth="3" />
       <line x1="3" y1="18" x2="3.01" y2="18" strokeWidth="3" />
+    </svg>
+  );
+}
+
+// Saved email templates (backend /email-templates CRUD) — document icon, pure
+// SVG like the rest of this file's icon set.
+function IconTemplate({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="8" y="2" width="8" height="4" rx="1" />
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+      <line x1="9" y1="12" x2="15" y2="12" />
+      <line x1="9" y1="16" x2="13" y2="16" />
     </svg>
   );
 }
@@ -359,6 +374,13 @@ export function DockedComposer({
   const [isSending, setIsSending] = useState(false);
   const [showAssistMenu, setShowAssistMenu] = useState(false);
   const [isInsertingTemplate, setIsInsertingTemplate] = useState(false);
+
+  // Saved email templates (backend /email-templates CRUD) — the EmailTemplates
+  // picker anchored above the toolbar button, portaled to document.body so the
+  // toolbar's horizontal scroll can never clip it.
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templatesMenuPos, setTemplatesMenuPos] = useState<{ left: number; bottom: number } | null>(null);
+  const templatesAnchorRef = useRef<HTMLDivElement>(null);
 
   // Autocomplete suggestions for To:
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -680,6 +702,26 @@ export function DockedComposer({
       setIsInsertingTemplate(false);
     }
   };
+
+  // Saved email templates (backend /email-templates CRUD, via the
+  // EmailTemplates picker). Non-destructive: the subject is filled only when
+  // empty, and the body is replaced only when empty — otherwise the template
+  // text is appended, so the user's draft is never silently clobbered. The
+  // old body's format ranges would point at words that no longer exist after
+  // a replace, so they are dropped on replace; on append the existing ranges
+  // survive untouched (same convention as handleWritingAssist above).
+  const applySavedTemplate = useCallback((template: EmailTemplate) => {
+    setShowTemplates(false);
+    if (!subject.trim()) setSubject(template.subject);
+    if (!body.trim()) {
+      setBody(template.body);
+      setBodyFormats([]);
+    } else {
+      setBody((prev) => `${prev}\n\n${template.body}`);
+    }
+    showToast({ text: `Template "${template.name}" applied`, type: 'success' });
+    bodyRef.current?.focus();
+  }, [subject, body]);
 
   // Format action helpers (QM-UIUX-081)
   //
@@ -1335,6 +1377,35 @@ export function DockedComposer({
               </div>
             )}
           </div>
+
+          {/* Saved email templates — the real backend-backed picker
+              (EmailTemplates.tsx, /email-templates CRUD). Anchored to the
+              button via the portaled popover below. */}
+          <div className="relative" ref={templatesAnchorRef}>
+            <button
+              type="button"
+              onClick={() => {
+                // Capture the anchor rect BEFORE toggling, so the portaled
+                // popover can position itself above the button even though the
+                // toolbar scrolls horizontally on mobile.
+                if (!showTemplates && templatesAnchorRef.current) {
+                  const rect = templatesAnchorRef.current.getBoundingClientRect();
+                  setTemplatesMenuPos({
+                    left: Math.max(8, Math.min(rect.left, window.innerWidth - 348)),
+                    bottom: Math.max(8, window.innerHeight - rect.top + 8),
+                  });
+                }
+                setShowTemplates((prev) => !prev);
+              }}
+              aria-expanded={showTemplates}
+              aria-label="Insert a saved email template"
+              className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] border border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 hover:border-[var(--quant-primary)] transition-all text-xs font-semibold"
+              title="Insert a saved email template"
+            >
+              <IconTemplate className="size-3.5" />
+              <span>Templates</span>
+            </button>
+          </div>
         </div>
 
         {/* Discard Draft — same close path as X (QM-UIUX-083) */}
@@ -1348,6 +1419,39 @@ export function DockedComposer({
         </button>
       </div>
       {confirmDialog}
+      {/* Saved-templates picker — portaled to document.body with fixed
+          positioning so the toolbar's horizontal scroll (overflow-x-auto on
+          mobile) can never clip it. Reads from the real backend
+          /email-templates CRUD via the Next proxy. */}
+      {showTemplates &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setShowTemplates(false)}
+              aria-hidden="true"
+            />
+            <div
+              className="fixed z-50"
+              style={
+                templatesMenuPos
+                  ? { left: templatesMenuPos.left, bottom: templatesMenuPos.bottom }
+                  : { left: 12, bottom: 76 }
+              }
+              role="dialog"
+              aria-label="Saved email templates"
+            >
+              <EmailTemplates
+                isOpen={showTemplates}
+                onClose={() => setShowTemplates(false)}
+                onSelectTemplate={applySavedTemplate}
+                variant="popover"
+              />
+            </div>
+          </>,
+          document.body
+        )}
     </div>
   );
 }

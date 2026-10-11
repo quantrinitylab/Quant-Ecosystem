@@ -40,6 +40,7 @@ import {
 import { useConfirm } from '../hooks/useConfirm';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { apiClient } from '../services/api-client';
+import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
 
 /**
  * The composer's three heavy overlays, split out of its chunk.
@@ -605,6 +606,13 @@ export function EmailComposer({
   const [showThreeDotsMenu, setShowThreeDotsMenu] = useState(false);
   const [showSendOptionsDropdown, setShowSendOptionsDropdown] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  // Saved email templates (backend /email-templates CRUD, via the
+  // EmailTemplates picker). Anchored to the toolbar button via a portaled
+  // popover (fixed positioning) so the scrollable toolbar's overflow can
+  // never clip it — same pattern as the Send-options dropup above.
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templatesMenuPos, setTemplatesMenuPos] = useState<{ left: number; bottom: number } | null>(null);
+  const templatesAnchorRef = useRef<HTMLDivElement | null>(null);
   // Anchor + position for the Send-options dropup. The menu renders via portal
   // (fixed positioning) so the scrollable toolbar's overflow can never clip it.
   const sendOptionsAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -1287,6 +1295,17 @@ export function EmailComposer({
     if (action.closing) setClosing(action.closing);
     if (action.signoff) setSignoff(action.signoff);
     if (action.senderName) setSenderName(action.senderName);
+  };
+
+  // Saved email templates (backend /email-templates CRUD, via the
+  // EmailTemplates picker). Non-destructive: the subject is filled only when
+  // empty, and the body is replaced only when empty — otherwise the template
+  // text is appended, so the user's draft is never silently clobbered.
+  const applySavedTemplate = (template: EmailTemplate) => {
+    setShowTemplates(false);
+    if (!subject.trim()) setSubject(template.subject);
+    setBody((prev) => (prev.trim() ? `${prev}\n\n${template.body}` : template.body));
+    showToast({ text: `Template "${template.name}" applied`, type: 'success' });
   };
 
   // Insert Link to Body
@@ -2509,7 +2528,7 @@ export function EmailComposer({
               targets exceed 360px viewports, so the bar scrolls instead of
               clipping trailing buttons. Scrollbar hidden for a clean look. */}
           <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-2.5 border-t border-[var(--quant-surface-elevated)]/80 bg-[var(--quant-surface-elevated)] shrink-0 w-full max-w-full box-border overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {/* Left Toolbar Group: Send + Dropup, Formatting, Attach, Link, Drive, Discard, Desktop Quanty */}
+            {/* Left Toolbar Group: Send + Dropup, Formatting, Attach, Link, Drive, Templates, Discard, Desktop Quanty */}
             <div className="flex items-center gap-1 sm:gap-2 min-w-max [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {/* Primary Send Button with Dropup Menu for Save draft & Schedule send */}
               <div
@@ -2655,6 +2674,35 @@ export function EmailComposer({
               >
                 <IconFolder className="size-4" />
               </button>
+
+              {/* Saved email templates — the real backend-backed picker
+                  (EmailTemplates.tsx, /email-templates CRUD). The picker
+                  popover is portaled to document.body (see below) so the
+                  toolbar's horizontal scroll can never clip it. */}
+              <div className="relative inline-flex" ref={templatesAnchorRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Capture the anchor rect BEFORE toggling, so the portaled
+                    // popover can position itself above the button even though
+                    // the toolbar scrolls horizontally on mobile.
+                    if (!showTemplates && templatesAnchorRef.current) {
+                      const rect = templatesAnchorRef.current.getBoundingClientRect();
+                      setTemplatesMenuPos({
+                        left: Math.max(8, Math.min(rect.left, window.innerWidth - 348)),
+                        bottom: Math.max(8, window.innerHeight - rect.top + 8),
+                      });
+                    }
+                    setShowTemplates((prev) => !prev);
+                  }}
+                  aria-expanded={showTemplates}
+                  className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[var(--quant-primary)] hover:text-[var(--brand-accent)] hover:bg-[var(--quant-primary)]/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                  title="Insert a saved email template"
+                  aria-label="Insert a saved email template"
+                >
+                  <IconFileText className="size-4" />
+                </button>
+              </div>
 
               {/* Discard Draft Trash Button (Right next to QuantDrive) */}
               <button
@@ -2812,6 +2860,40 @@ export function EmailComposer({
               onApplyAction={handleApplyQuantyAction}
             />
           )}
+
+          {/* Saved-templates picker — portaled to document.body with fixed
+              positioning so the toolbar's horizontal scroll can never clip it.
+              Reads from the real backend /email-templates CRUD via the Next
+              proxy. */}
+          {showTemplates &&
+            typeof document !== 'undefined' &&
+            createPortal(
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowTemplates(false)}
+                  aria-hidden="true"
+                />
+                <div
+                  className="fixed z-50"
+                  style={
+                    templatesMenuPos
+                      ? { left: templatesMenuPos.left, bottom: templatesMenuPos.bottom }
+                      : { left: 12, bottom: 76 }
+                  }
+                  role="dialog"
+                  aria-label="Saved email templates"
+                >
+                  <EmailTemplates
+                    isOpen={showTemplates}
+                    onClose={() => setShowTemplates(false)}
+                    onSelectTemplate={applySavedTemplate}
+                    variant="popover"
+                  />
+                </div>
+              </>,
+              document.body
+            )}
 
           {/* Unsaved-changes confirm dialog for back/close/discard */}
           {confirmDialog}
