@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,7 +19,9 @@ import { useSafeEmailHtml } from '../lib/safe-html';
 import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
-import { RecipientChipInput, parseEmailString, type RecipientOption } from './RecipientChipInput';
+import { parseEmailString, type RecipientOption } from './RecipientChipInput';
+import { ContactAutocomplete, type ContactSuggestion } from './ContactAutocomplete';
+import { useContactSuggestions } from '../hooks/useContactSuggestions';
 import {
   IconArrowRight,
   IconChevronDown,
@@ -34,7 +37,6 @@ import {
   IconTrash,
   IconX,
 } from './icons';
-import { useContacts } from '../hooks/useContacts';
 import { useConfirm } from '../hooks/useConfirm';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { apiClient } from '../services/api-client';
@@ -325,6 +327,57 @@ const SMART_PREDICTIONS: Array<{ regex: RegExp; suggestion: string }> = [
   { regex: /\bhave a wonderful\s*$/i, suggestion: ' weekend.' },
 ];
 
+/**
+ * QM-SCREEN-012 fix 3: the composer's recipient rows (To/Cc/Bcc) are wired to
+ * ContactAutocomplete, fed by useContactSuggestions — the real
+ * GET /contacts/frequent backend, frequency-ranked and capped at 100 — instead
+ * of a single 20-row contacts page. The `RecipientOption[]` state shape is
+ * unchanged: this is a UI swap at the recipient field, not a second recipient
+ * model. Suggestions dropdown + keyboard select come from ContactAutocomplete;
+ * validation and send logic still read the same recipient arrays.
+ */
+function ComposerRecipientField({
+  id,
+  label,
+  required,
+  recipients,
+  onChange,
+  suggestions,
+  placeholder,
+  rightAction,
+}: {
+  id: string;
+  label: string;
+  required?: boolean;
+  recipients: RecipientOption[];
+  onChange: (recipients: RecipientOption[]) => void;
+  suggestions: ContactSuggestion[];
+  placeholder?: string;
+  rightAction?: ReactNode;
+}) {
+  return (
+    <div className="relative flex items-start gap-2 sm:gap-3 w-full">
+      <span className="text-xs font-semibold text-[var(--quant-muted-foreground)] w-12 sm:w-16 shrink-0 select-none flex items-center gap-0.5 pt-2">
+        <span>{label}</span>
+        {required && <span className="text-rose-500">*</span>}:
+      </span>
+      <div className="flex-1 min-w-0">
+        <ContactAutocomplete
+          id={id}
+          aria-label={label}
+          value={recipients
+            .map((r) => (r.name ? `${r.name} <${r.email}>` : r.email))
+            .join(', ')}
+          onChange={(v) => onChange(parseEmailString(v))}
+          contacts={suggestions}
+          placeholder={placeholder}
+        />
+      </div>
+      {rightAction && <div className="shrink-0 pt-1.5">{rightAction}</div>}
+    </div>
+  );
+}
+
 export function EmailComposer({
   initialTo = '',
   initialSubject = '',
@@ -354,7 +407,7 @@ export function EmailComposer({
     authUser = null;
   }
 
-  const { data: contacts } = useContacts();
+  const { contacts: frequentSuggestions } = useContactSuggestions();
 
   // Core Fields
   const [toRecipients, setToRecipients] = useState<RecipientOption[]>(() =>
@@ -1459,14 +1512,13 @@ export function EmailComposer({
             {/* Recipient Rows (To, Cc, Bcc) */}
             <div className="border-b border-[var(--quant-surface-elevated)]/80 pb-2 space-y-2 w-full max-w-full">
               {/* To: Row */}
-              <RecipientChipInput
+              <ComposerRecipientField
                 id="composer-to"
-                name="to"
                 label="To"
                 required
                 recipients={toRecipients}
                 onChange={setToRecipients}
-                contacts={contacts}
+                suggestions={frequentSuggestions}
                 placeholder="Add recipients (name or email)…"
                 rightAction={
                   <div className="flex items-center gap-1 shrink-0 text-xs">
@@ -1495,13 +1547,12 @@ export function EmailComposer({
               {/* Cc: Row */}
               {showCc && (
                 <div className="pt-1 border-t border-[var(--quant-surface)] w-full max-w-full">
-                  <RecipientChipInput
+                  <ComposerRecipientField
                     id="composer-cc"
-                    name="cc"
                     label="Cc"
                     recipients={ccRecipients}
                     onChange={setCcRecipients}
-                    contacts={contacts}
+                    suggestions={frequentSuggestions}
                     placeholder="Add Cc recipients…"
                     rightAction={
                       <button
@@ -1524,13 +1575,12 @@ export function EmailComposer({
               {/* Bcc: Row */}
               {showBcc && (
                 <div className="pt-1 border-t border-[var(--quant-surface)] w-full max-w-full">
-                  <RecipientChipInput
+                  <ComposerRecipientField
                     id="composer-bcc"
-                    name="bcc"
                     label="Bcc"
                     recipients={bccRecipients}
                     onChange={setBccRecipients}
-                    contacts={contacts}
+                    suggestions={frequentSuggestions}
                     placeholder="Add Bcc recipients…"
                     rightAction={
                       <button

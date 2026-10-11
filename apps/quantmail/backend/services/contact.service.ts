@@ -82,6 +82,15 @@ export interface DuplicateGroup {
   reason: 'email' | 'name' | 'phone';
 }
 
+/**
+ * Order-normalized pair key for a dismissed duplicate pair: the two contact
+ * ids sorted and joined, so the key is identical whichever side the detector
+ * reported as primary.
+ */
+export function duplicatePairKey(contactIdA: string, contactIdB: string): string {
+  return [contactIdA, contactIdB].sort().join('::');
+}
+
 export class ContactService {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -418,6 +427,10 @@ export class ContactService {
       const lines = ['BEGIN:VCARD', 'VERSION:3.0', `FN:${c.name}`, `EMAIL:${c.email}`];
       if (c.phone) lines.push(`TEL:${c.phone}`);
       if (c.company) lines.push(`ORG:${c.company}`);
+      // Round-trips the avatar stored by import or the create/edit form. The
+      // avatar column only ever holds URL strings, so PHOTO is always
+      // URL-valued here — never a base64 blob.
+      if (c.avatar) lines.push(`PHOTO:${c.avatar}`);
       if (c.tags && c.tags.length > 0) lines.push(`CATEGORIES:${c.tags.join(',')}`);
       lines.push('END:VCARD');
       cards.push(lines.join('\r\n'));
@@ -438,6 +451,7 @@ export class ContactService {
       let phone: string | undefined;
       let company: string | undefined;
       let tags: string[] | undefined;
+      let avatar: string | undefined;
 
       const lines = block.split(/\r?\n/);
       for (const rawLine of lines) {
@@ -464,6 +478,19 @@ export class ContactService {
           if (colonIdx !== -1) {
             company = line.slice(colonIdx + 1).trim();
           }
+        } else if (upper.startsWith('PHOTO:') || upper.startsWith('PHOTO;')) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) {
+            const photo = line.slice(colonIdx + 1).trim();
+            // Only a URL-valued PHOTO becomes the contact avatar. A
+            // base64-embedded photo (ENCODING=b, or a data: URI) is skipped
+            // honestly: storing it as a giant data URL in the avatar column
+            // would bloat the row, and no crop/upload pipeline exists to host
+            // it. The import still succeeds for the rest of the card.
+            if (/^https?:\/\//i.test(photo)) {
+              avatar = photo;
+            }
+          }
         } else if (upper.startsWith('CATEGORIES:') || upper.startsWith('CATEGORIES;')) {
           const colonIdx = line.indexOf(':');
           if (colonIdx !== -1) {
@@ -486,6 +513,7 @@ export class ContactService {
           userId,
           name,
           email,
+          avatar,
           phone,
           company,
           tags,
@@ -647,7 +675,51 @@ export class ContactService {
       }
     }
 
-    return groups;
+    // A pair the user explicitly marked "keep separate" must not reappear on
+    // rescan. Dismissal is per pair, not per group: a group that still has
+    // non-dismissed duplicates keeps showing with those.
+    const dismissed = await this.getDismissedPairKeys(userId);
+    if (dismissed.size > 0) {
+      for (const group of groups) {
+        group.duplicates = group.duplicates.filter(
+          (dup) => !dismissed.has(duplicatePairKey(group.primaryContact.id, dup.id)),
+        );
+      }
+    }
+
+    return groups.filter((group) => group.duplicates.length > 0);
+  }
+
+  /**
+   * Persist a "keep separate" decision for one duplicate pair. Both ids are
+   * ownership-checked first — a dismissal row for a contact that is not the
+   * caller's would be meaningless. Idempotent: dismissing twice is a no-op.
+   */
+  async dismissDuplicatePair(
+    userId: string,
+    contactIdA: string,
+    contactIdB: string,
+  ): Promise<void> {
+    await this.requireOwnedContact(contactIdA, userId);
+    await this.requireOwnedContact(contactIdB, userId);
+    const dismissedPairModel = (
+      this.prisma as unknown as { dismissedDuplicatePair: DismissedPairModel }
+    ).dismissedDuplicatePair;
+    await dismissedPairModel.upsert({
+      where: {
+        userId_pairKey: { userId, pairKey: duplicatePairKey(contactIdA, contactIdB) },
+      },
+      update: {},
+      create: { userId, pairKey: duplicatePairKey(contactIdA, contactIdB) },
+    });
+  }
+
+  private async getDismissedPairKeys(userId: string): Promise<Set<string>> {
+    const dismissedPairModel = (
+      this.prisma as unknown as { dismissedDuplicatePair: DismissedPairModel }
+    ).dismissedDuplicatePair;
+    const rows = await dismissedPairModel.findMany({ where: { userId } });
+    return new Set(rows.map((row) => row.pairKey));
   }
 
   async mergeContacts(userId: string, primaryId: string, duplicateIds: string[]): Promise<Contact> {
@@ -796,6 +868,7 @@ export class ContactService {
       email: string;
       phone?: string | null;
       company?: string | null;
+      avatar?: string | null;
       tags: string[];
     }> = [];
 
@@ -807,6 +880,7 @@ export class ContactService {
         let email = '';
         let phone: string | undefined;
         let company: string | undefined;
+        let avatar: string | undefined;
         const tags: string[] = [];
 
         const lines = block.split(/\r?\n/);
@@ -850,6 +924,16 @@ export class ContactService {
               const note = line.slice(colonIdx + 1).trim();
               if (note) tags.push(note);
             }
+          } else if (upper.startsWith('PHOTO:') || upper.startsWith('PHOTO;')) {
+            const colonIdx = line.indexOf(':');
+            if (colonIdx !== -1) {
+              const photo = line.slice(colonIdx + 1).trim();
+              // Same rule as importVCard: only URL-valued PHOTO becomes the
+              // avatar; base64-embedded photos are skipped honestly.
+              if (/^https?:\/\//i.test(photo)) {
+                avatar = photo;
+              }
+            }
           }
         }
 
@@ -863,6 +947,7 @@ export class ContactService {
           email,
           phone: phone || null,
           company: company || null,
+          avatar: avatar || null,
           tags: Array.from(new Set(tags)),
         });
       }
@@ -985,6 +1070,7 @@ export class ContactService {
               name: existing.name || item.name,
               phone: existing.phone || item.phone,
               company: existing.company || item.company,
+              avatar: existing.avatar || item.avatar || null,
               tags: Array.from(new Set([...existing.tags, ...item.tags])),
             },
           });
@@ -997,6 +1083,7 @@ export class ContactService {
               email: item.email,
               phone: item.phone,
               company: item.company,
+              avatar: item.avatar || null,
               tags: item.tags,
               isFavorite: false,
               frequency: 0,
@@ -1031,4 +1118,9 @@ interface ContactModel {
   update(args: unknown): Promise<Contact>;
   upsert(args: unknown): Promise<Contact>;
   delete(args: unknown): Promise<Contact>;
+}
+
+interface DismissedPairModel {
+  findMany(args: unknown): Promise<Array<{ pairKey: string }>>;
+  upsert(args: unknown): Promise<unknown>;
 }

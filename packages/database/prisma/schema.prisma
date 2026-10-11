@@ -93,6 +93,7 @@ model User {
   labels        Label[]
   contacts      Contact[]
   contactGroups ContactGroup[]
+  dismissedDuplicatePairs DismissedDuplicatePair[]
 
   // QuantMail productivity features
   mailFilters       MailFilter[]
@@ -1851,6 +1852,24 @@ model Contact {
   // The Favorites tab filters on exactly this pair.
   @@index([userId, isFavorite])
   @@map("contacts")
+}
+
+// Duplicate pairs the user explicitly marked "keep separate" in the Dedup tab.
+// `pairKey` is the order-normalized `${contactIdA}::${contactIdB}` (ids sorted,
+// so the key is stable whichever side the detector reported as primary).
+// findDuplicates() drops any pair whose key is recorded here, so a dismissed
+// pair never reappears on rescan.
+model DismissedDuplicatePair {
+  id        String   @id @default(cuid())
+  userId    String
+  pairKey   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pairKey])
+  @@index([userId])
+  @@map("dismissed_duplicate_pairs")
 }
 
 /// A named set of addresses the user writes to as a unit — "Family", "Standup".
