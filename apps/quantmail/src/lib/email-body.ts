@@ -590,7 +590,17 @@ export function composeMessageBodies(
   formatting?: MessageFormatting,
 ): ComposedBodies {
   const text = body.trim();
-  const signature = signatureHtml.trim();
+  let signature = signatureHtml.trim();
+
+  // BB-P2-4: a signature that flattens to nothing but dashes (a lone "-",
+  // "--", em/en-dash runs) is a leftover separator artifact or a placeholder —
+  // not a real signature. Appending it would leave a bare "-" dangling at the
+  // end of the message, which then renders as an artifact on calendar/booking/
+  // event surfaces that show message text. Treat it as no signature, so neither
+  // the "-- " delimiter nor the <hr /> gets appended.
+  if (signature && /^[\s\-–—]+$/.test(htmlToPlainText(signature))) {
+    signature = '';
+  }
 
   // QM-UIUX-081: formatting ranges index the body as the editor held it
   // (untrimmed); shift them into trimmed-text coordinates before rendering.
