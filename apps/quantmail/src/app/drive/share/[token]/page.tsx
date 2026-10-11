@@ -200,7 +200,7 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
           variant="primary"
           fullWidth
           onClick={handleDownload}
-          style={{ background: DRIVE_GREEN, borderColor: DRIVE_GREEN, color: '#000' }}
+          className="bg-[var(--app-accent,#22c55e)] border-[var(--app-accent,#22c55e)] text-black"
         >
           Download file
         </Button>
@@ -252,7 +252,7 @@ function DocumentCard({ share }: { share: ResolvedShare & { kind: 'document' } }
           variant="primary"
           fullWidth
           onClick={() => window.open(`/drive/doc/${document.id}`, '_blank', 'noopener')}
-          style={{ background: DRIVE_GREEN, borderColor: DRIVE_GREEN, color: '#000' }}
+          className="bg-[var(--app-accent,#22c55e)] border-[var(--app-accent,#22c55e)] text-black"
         >
           Open in QuantDrive
         </Button>
@@ -336,7 +336,7 @@ export default function DriveShareLandingPage() {
                 onClick={() =>
                   router.push(`/login?returnTo=${encodeURIComponent(`/drive/share/${token}`)}`)
                 }
-                style={{ background: DRIVE_GREEN, borderColor: DRIVE_GREEN, color: '#000' }}
+                className="bg-[var(--app-accent,#22c55e)] border-[var(--app-accent,#22c55e)] text-black"
               >
                 Sign in to view
               </Button>
