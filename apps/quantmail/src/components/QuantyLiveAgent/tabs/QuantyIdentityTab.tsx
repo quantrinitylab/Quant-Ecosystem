@@ -7,6 +7,11 @@ import type { QuantyIdentityData } from '../types';
 export interface QuantyIdentityTabProps {
   identity?: QuantyIdentityData | null;
   loading?: boolean;
+  /**
+   * Reserved for a future SOUL/MEMORY editing surface. Today nothing in the
+   * app passes this in (AppShell never wires onEditIdentity), so the Edit
+   * buttons render disabled and honest instead of silently doing nothing.
+   */
   onEdit?: (kind: 'soul' | 'memory') => void;
   className?: string;
 }
@@ -23,8 +28,13 @@ function Skeleton() {
 
 /**
  * Identity tab — the SOUL and MEMORY cards side by side, Muse-style.
- * "ACCESS WITH CARE" is literal: these files shape how Quanty behaves, so
- * the edit affordance is deliberate, not hidden.
+ * "ACCESS WITH CARE" is literal: these files shape how Quanty behaves.
+ *
+ * The Edit buttons are intentionally DISABLED: no identity-editing surface
+ * exists yet (AppShell never passes onEditIdentity), so an enabled button
+ * would be a silent no-op. They render visibly disabled with a truthful
+ * tooltip instead of pretending to work. Wire `onEdit` for real once an
+ * editing surface lands, and re-enable them then.
  */
 export function QuantyIdentityTab({ identity, loading = false, onEdit, className = '' }: QuantyIdentityTabProps) {
   if (loading) return <Skeleton />;
@@ -68,8 +78,10 @@ export function QuantyIdentityTab({ identity, loading = false, onEdit, className
             </p>
             <button
               type="button"
-              onClick={() => onEdit?.(kind)}
-              className="mt-3 flex h-9 items-center justify-center gap-1.5 rounded-xl bg-white/[0.06] text-xs font-semibold text-zinc-200 transition hover:bg-white/[0.1] active:scale-[0.98]"
+              disabled
+              title="Not wired yet — editing SOUL and MEMORY isn't available in this build"
+              aria-label={`Edit ${title} (not available yet)`}
+              className="mt-3 flex h-9 cursor-not-allowed items-center justify-center gap-1.5 rounded-xl bg-white/[0.06] text-xs font-semibold text-zinc-500 opacity-60"
             >
               <EditIcon width={13} height={13} />
               Edit
