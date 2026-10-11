@@ -78,11 +78,20 @@ describe('QuantAI Professional Login UI/UX Suite', () => {
       expect(html).not.toContain('Voice Latency');
     });
 
-    it('renders the Quant Account SSO button with a pure SVG vector mark', () => {
+    it('renders the Continue with QuantMail SSO hero with first-visit helper copy', () => {
       const html = renderToStaticMarkup(React.createElement(LoginPage));
-      expect(html).toContain('Continue with Quant Account');
-      expect(html).toContain('One account for QuantAI, QuantMail and QuantChat');
+      expect(html).toContain('Continue with QuantMail');
+      expect(html).toContain('One account for the ecosystem — no new password needed');
+      expect(html).toContain('Already have a QuantMail account?');
+      expect(html).toContain('your account stays safe');
+      expect(html).not.toContain('Continue with Quant Account');
       expect(html).toContain('<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"');
+    });
+
+    it('routes Forgot password? to QuantMail password reset', () => {
+      const html = renderToStaticMarkup(React.createElement(LoginPage));
+      expect(html).toContain('Forgot password?');
+      expect(html).toContain('https://quantmail.in/forgot-password');
     });
 
     it('renders accessible email and password credential inputs', () => {

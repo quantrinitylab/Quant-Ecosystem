@@ -2,9 +2,12 @@
 
 // ============================================================================
 // QuantAI — Sign-in page.
-// Unified QuantID authentication: continue with your Quant account or sign in
-// with email + password. Honest UI: no invented performance claims, no fake
-// security badges — every statement on this screen is verifiably true.
+// Identity spec: QuantMail is the identity root. First-visit users with a
+// QuantMail account get the hero "Continue with QuantMail" SSO path (no new
+// password; account stays safe); email/password stays secondary below it.
+// "Forgot password?" routes to QuantMail's reset page; account creation goes
+// through QuantMail's register. Honest UI: no invented performance claims, no
+// fake security badges — every statement on this screen is verifiably true.
 // Brand lockup uses the official @quant/brand QuantAI logo (single source of
 // truth, same asset family as QuantMail / QuantChat).
 // ============================================================================
@@ -110,7 +113,7 @@ function LoginForm() {
     })();
   }, [router, destination]);
 
-  // "Continue with Quant Account" always performs a real SSO handshake with QuantMail.
+  // "Continue with QuantMail" always performs a real SSO handshake with QuantMail.
   // We deliberately do NOT short-circuit on a locally stored token: reusing a stale/expired
   // local token makes the button appear dead and prevents account switching.
   const handleQuantSSO = useCallback(() => {
@@ -205,10 +208,14 @@ function LoginForm() {
           >
             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="currentColor" fillOpacity="0.25" />
           </svg>
-          <span>Continue with Quant Account</span>
+          <span>Continue with QuantMail</span>
         </button>
         <p className="mt-2.5 text-center text-xs text-zinc-500">
-          One account for QuantAI, QuantMail and QuantChat
+          One account for the ecosystem — no new password needed
+        </p>
+        <p className="mt-1.5 text-center text-xs leading-relaxed text-zinc-500">
+          Already have a QuantMail account? Continue with QuantMail — your account stays safe, no
+          new password.
         </p>
 
         {/* Divider */}
@@ -247,6 +254,14 @@ function LoginForm() {
               <label htmlFor="login-password" className="block text-[13px] font-medium text-zinc-300">
                 Password
               </label>
+              <a
+                href="https://quantmail.in/forgot-password"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[13px] font-medium text-violet-300 transition-colors hover:text-violet-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 rounded"
+              >
+                Forgot password?
+              </a>
             </div>
             <div className="relative flex overflow-hidden rounded-xl border border-white/10 bg-zinc-950/70 transition focus-within:border-violet-500/60 focus-within:ring-2 focus-within:ring-violet-500/20">
               <input
