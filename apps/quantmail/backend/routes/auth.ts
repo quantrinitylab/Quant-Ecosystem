@@ -25,6 +25,10 @@ import {
   verificationCodeMatches,
 } from '../lib/email-verification';
 
+// Sentinel thrown inside the verify-email transaction when the code's
+// compare-and-set burn loses a race — caught below, never escapes as a 500.
+const VERIFICATION_CODE_ALREADY_USED = Symbol('verification-code-already-used');
+
 export async function authRoutes(fastify: FastifyInstance) {
   const tokenService = createTokenService();
 
@@ -236,23 +240,39 @@ export async function authRoutes(fastify: FastifyInstance) {
         return fail(reply, 400, 'INVALID_CODE', 'The verification code is wrong.');
       }
 
-      // Success: burn this code and every other pending code for the user,
-      // then mark the address proven. One transaction so two racing confirms
-      // cannot both win.
-      await prisma.$transaction([
-        prisma.emailVerificationCode.update({
-          where: { id: row.id },
-          data: { usedAt: new Date() },
-        }),
-        prisma.emailVerificationCode.updateMany({
-          where: { userId: user.id, usedAt: null },
-          data: { usedAt: new Date() },
-        }),
-        prisma.user.update({
-          where: { id: user.id },
-          data: { emailVerified: true },
-        }),
-      ]);
+      // Success: burn this code atomically, then mark the address proven.
+      //
+      // Race note: two confirms can both read usedAt: null above before
+      // either commits, so that read is NOT a guard. The burn below is a
+      // compare-and-set — updateMany on { id, usedAt: null } with a required
+      // affected-count of 1 is the linearization point (single atomic
+      // statement in the database; the first committer wins the row lock).
+      // A loser sees count 0, rolls back, and gets an honest error.
+      try {
+        await prisma.$transaction(async (tx: any) => {
+          const claimed = await tx.emailVerificationCode.updateMany({
+            where: { id: row.id, usedAt: null },
+            data: { usedAt: new Date() },
+          });
+          if (claimed.count !== 1) {
+            throw VERIFICATION_CODE_ALREADY_USED;
+          }
+          // Burn any other pending codes for this user, then mark proven.
+          await tx.emailVerificationCode.updateMany({
+            where: { userId: user.id, usedAt: null },
+            data: { usedAt: new Date() },
+          });
+          await tx.user.update({
+            where: { id: user.id },
+            data: { emailVerified: true },
+          });
+        });
+      } catch (err) {
+        if (err === VERIFICATION_CODE_ALREADY_USED) {
+          return fail(reply, 400, 'CODE_ALREADY_USED', 'This verification code has already been used.');
+        }
+        throw err;
+      }
 
       return reply.send({ success: true, data: { emailVerified: true } });
     },
