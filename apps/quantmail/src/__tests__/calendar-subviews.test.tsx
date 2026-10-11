@@ -112,7 +112,6 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
 
 
   // ==========================================================================
-  // ==========================================================================
   // 1. Orphan-removal guard: CalendarQuantMeetView stays deleted
   //    (orphaned fabricated meeting UI + fake WebRTC actions were removed;
   //    regression = it creeping back)
@@ -155,38 +154,6 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
         return content.includes('Weekly Ecosystem Architecture Sync');
       });
       expect(offenders).toEqual([]);
-    });
-  });
-
-  // ==========================================================================
-  describe('Sub-View: `quantmeet` (component removed)', () => {
-    it('CalendarQuantMeetView component file does not exist (no orphaned fabricated meeting UI)', () => {
-      expect(
-        fs.existsSync(
-          path.join(__dirname, '../app/calendar/components/CalendarQuantMeetView.tsx'),
-        ),
-      ).toBe(false);
-    });
-
-    it('no fabricated meeting fixtures survive in production source (outside __tests__)', () => {
-      const walk = (dir: string): string[] =>
-        fs
-          .readdirSync(dir, { withFileTypes: true })
-          .flatMap((e) =>
-            e.isDirectory()
-              ? walk(path.join(dir, e.name))
-              : path.join(dir, e.name),
-          );
-      const src = path.join(__dirname, '..');
-      const fabricated = walk(src).filter(
-        (f) =>
-          !f.includes('__tests__') &&
-          /\.(tsx?|jsx?)$/.test(f) &&
-          fs
-            .readFileSync(f, 'utf8')
-            .includes('Weekly Ecosystem Architecture Sync'),
-      );
-      expect(fabricated).toEqual([]);
     });
   });
 
