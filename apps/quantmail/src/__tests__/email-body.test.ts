@@ -118,6 +118,28 @@ describe('composeMessageBodies', () => {
     }
   });
 
+  it('drops a dangling-separator signature so no bare "-" renders (BB-P2-4)', () => {
+    // A signature that flattens to nothing but dashes — a mangled "-- "
+    // separator or a "-" placeholder — is not content. Appending it would
+    // leave a lone hyphen at the end of both halves of the message, which is
+    // the artifact users saw on calendar/booking/event surfaces.
+    for (const signature of ['-', '--', '-- ', ' - - ', '—', '<p>-</p>']) {
+      const { bodyText, bodyHtml } = composeMessageBodies('Hi', signature);
+      expect(bodyText).toBe('Hi');
+      expect(bodyHtml).toBe('<p>Hi</p>');
+      expect(bodyText).not.toContain(SIGNATURE_DELIMITER);
+      expect(bodyHtml).not.toContain('<hr');
+    }
+  });
+
+  it('keeps a real signature that starts with a dash', () => {
+    // Only a signature made *entirely* of dashes is dropped — a dash followed
+    // by actual content is a legitimate sign-off.
+    const { bodyText, bodyHtml } = composeMessageBodies('Hi', '<p>- Kundan</p>');
+    expect(bodyText).toBe(`Hi\n\n${SIGNATURE_DELIMITER}\n- Kundan`);
+    expect(bodyHtml).toBe('<p>Hi</p>\n<hr />\n<p>- Kundan</p>');
+  });
+
   it('does not escape the signature, which is already markup', () => {
     const { bodyHtml } = composeMessageBodies('Hi', '<a href="https://quantmail.in">Site</a>');
     expect(bodyHtml).toContain('<a href="https://quantmail.in">Site</a>');
