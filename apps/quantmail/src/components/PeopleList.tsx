@@ -38,7 +38,13 @@ const MAIL_ACCENT = APP_THEMES.mail.accent;
  * message arrived tomorrow.
  */
 export function formatRelativeTime(at: Date): string {
-  const time = at instanceof Date ? at.getTime() : new Date(at).getTime();
+  const date = at instanceof Date ? at : new Date(at);
+  // Guard the same defect family as formatMessageTime (PersonThread) and
+  // dayKey/formatDayDivider (ConversationalThreadView): an unparseable
+  // lastActivityAt must degrade to an empty fallback — never the literal
+  // "Invalid Date" in the People-list row time slot.
+  if (Number.isNaN(date.getTime())) return '';
+  const time = date.getTime();
   const diffMs = Date.now() - time;
   if (diffMs < 60_000) return 'now';
   const startOfDay = (d: Date) => {
