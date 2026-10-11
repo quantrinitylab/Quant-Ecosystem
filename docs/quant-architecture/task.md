@@ -452,9 +452,9 @@ Round-2 regression (2026-10-11 ~13:35–13:55 IST, LANE-1): re-read AppShell.tsx
 - [x] FINDING P0 (COVERED — NOT re-spawned, owned by deep SSO fix agent): SsoChooserContent.tsx handoffSession() still sets the raw access token into the URL via three query params (`token`, `accessToken`, `__quant_sso_ticket`) while the inline comment claims "only the SSO ticket aliases travel in the URL" and the legacy token param "is no longer sent" | expected: no Bearer <redacted> in URLs (kills the ?token= leak) | actual: full access token in URL on external https returnTo handoffs | evidence: apps/quantmail/src/app/sso/SsoChooserContent.tsx ~L240-251; COVERED by open PR #861 (branch fix/quantmail-sso-smooth — verified its handoffSession exchanges short-lived `sso_ticket` only, L284-285).
 
 ## QM-SCREEN-004 — Inbox / triage / priority / bulk actions
-Status: [x] DONE
-Owner: Track A screen-audit subagent
-Branch: architecture/quant-company-system-v1
+Status: [~] — ROUND-2 regression audit in progress (2026-10-11 ~14:40 IST)
+Owner: LANE-1 (round-2 regression)
+Branch: lane1-audit-004-r2
 Required: cursor pagination, virtualized lists, unread/read, archive/delete/spam, labels/folders, bulk actions, swipe, keyboard, pull-to-refresh, smart brief only from real data, offline sync and conflict handling.
 Dependencies: QM-WORK-003.
 Track A audit (2026-10-10, web code; inbox rendering NEEDS-AUTH; Flutter parity NOT covered):
