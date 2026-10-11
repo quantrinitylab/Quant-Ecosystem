@@ -36,6 +36,36 @@ function awarenessFrame(state: Record<string, unknown>): Uint8Array {
   return frame(MESSAGE_AWARENESS, SYNC_UPDATE, new TextEncoder().encode(JSON.stringify(state)));
 }
 
+// ============================================================================
+// Collab WebSocket handshake auth — SECURITY
+// The session access token must NEVER be placed in the WebSocket URL query
+// string: query params land in reverse-proxy/server access logs and in browser
+// history. Browsers cannot set an `Authorization` header on a WebSocket upgrade
+// request, so the bearer token travels as a `Sec-WebSocket-Protocol` offer
+// (`bearer.<jwt>`) instead; the backend reads it from the offered protocol
+// list and never echoes it back in the 101 response.
+// ============================================================================
+export const COLLAB_WS_SUBPROTOCOL = 'collab-v1';
+const COLLAB_WS_BEARER_PREFIX = 'bearer.';
+
+export function buildCollabWsHandshake(opts: {
+  docId: string;
+  wsHost: string;
+  secure: boolean;
+  token: string | null;
+}): { url: string; protocols: string[] } {
+  const protocol = opts.secure ? 'wss:' : 'ws:';
+  const url = `${protocol}//${opts.wsHost}/collab/${encodeURIComponent(opts.docId)}`;
+  const protocols = [COLLAB_WS_SUBPROTOCOL];
+  const token = opts.token?.trim();
+  if (token) {
+    // JWTs are base64url segments joined by '.' — all valid
+    // Sec-WebSocket-Protocol token characters (RFC 7230 tchar).
+    protocols.push(`${COLLAB_WS_BEARER_PREFIX}${token}`);
+  }
+  return { url, protocols };
+}
+
 function generateCollaboratorColor(): string {
   const colors = [
     'var(--quant-primary)', // Quant Orange
@@ -291,7 +321,6 @@ export function useCollabDoc(docId: string) {
       if (isDisposed) return;
 
       const token = browserAuthSession.getAccessToken();
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 
       // Determine backend WS host:
       // Priority: NEXT_PUBLIC_WS_URL -> NEXT_PUBLIC_QUANTMAIL_BACKEND_URL -> local 3010
@@ -307,11 +336,17 @@ export function useCollabDoc(docId: string) {
         wsHost = `${window.location.hostname}:3010`;
       }
 
-      const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
-      const wsUrl = `${protocol}//${wsHost}/collab/${encodeURIComponent(docId)}${tokenParam}`;
+      // SECURITY: the token never goes into the URL query string — it travels
+      // as a Sec-WebSocket-Protocol `bearer.<jwt>` offer instead.
+      const { url: wsUrl, protocols } = buildCollabWsHandshake({
+        docId,
+        wsHost,
+        secure: window.location.protocol === 'https:',
+        token,
+      });
 
       try {
-        ws = new WebSocket(wsUrl);
+        ws = new WebSocket(wsUrl, protocols);
         ws.binaryType = 'arraybuffer';
         wsRef.current = ws;
 
