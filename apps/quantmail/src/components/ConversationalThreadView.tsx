@@ -23,6 +23,7 @@ import { useUndoSend } from './UndoSendCountdownBar';
 import { SmartReplySuggestions } from './SmartReplySuggestions';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
+import { EmailSafetyBanner } from './EmailSafetyBanner';
 import { MessageKindBadge, ThreadKindBadge } from './MessageKindBadge';
 import { AttachmentPreview } from './AttachmentPreview';
 import { EmailReadReceipt } from './EmailReadReceipt';
@@ -2693,6 +2694,21 @@ export function ConversationalThreadView({
                         : 'rounded-bl-md bg-[#1F232B] text-[var(--quant-foreground)]'
                     }`}
                   >
+                    {/*
+                      QM-SCREEN-005 R2: sender-safety indicators on inbound chat
+                      lines — external-sender note plus the real backend phishing
+                      scan (lazy, per message). Your own lines are never scanned.
+                    */}
+                    {!isOutbound && (
+                      <div className="mb-1.5">
+                        <EmailSafetyBanner
+                          email={message}
+                          currentUserEmail={currentEmail}
+                          isOutbound={false}
+                          variant="compact"
+                        />
+                      </div>
+                    )}
                     {/* Tail */}
                     <span
                       aria-hidden="true"
@@ -2877,6 +2893,23 @@ export function ConversationalThreadView({
                         </button>
                       </div>
                     </div>
+
+                    {/*
+                      QM-SCREEN-005 R2: sender-safety indicators on inbound
+                      letters — external-sender note plus the real backend
+                      phishing scan (lazy, per message). Your own sends are
+                      never scanned.
+                    */}
+                    {!isOutbound && (
+                      <div className="px-4 sm:px-5 pb-1">
+                        <EmailSafetyBanner
+                          email={message}
+                          currentUserEmail={currentEmail}
+                          isOutbound={false}
+                          variant="full"
+                        />
+                      </div>
+                    )}
 
                     {/* Expandable "to me ⌵" Security Metadata */}
                     <AnimatePresence>

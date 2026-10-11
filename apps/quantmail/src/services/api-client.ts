@@ -1501,6 +1501,21 @@ export class QuantMailApiClient {
     return this.post('/ai/summarize-thread', { messages });
   }
 
+  /**
+   * QM-SCREEN-005 R2: real sender-safety scan. Calls the backend AI phishing
+   * detector via the Next proxy (`POST /api/emails/:id/detect-phishing` →
+   * backend `/emails/:id/detect-phishing`, auth-gated). The thread views call
+   * this per inbound message, lazily, through `usePhishingCheck` — a failed
+   * scan must never resolve to an all-clear (see that hook's contract).
+   */
+  async detectPhishing(
+    emailId: string,
+  ): Promise<
+    ApiResponse<{ emailId: string; isPhishing: boolean; confidence: number; indicators: string[] }>
+  > {
+    return this.post(`/emails/${encodeURIComponent(emailId)}/detect-phishing`, {});
+  }
+
   async aiCategorize(
     emailIds: string[],
   ): Promise<ApiResponse<Array<{ emailId: string; category: string }>>> {
