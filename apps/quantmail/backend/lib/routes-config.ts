@@ -29,6 +29,21 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   // Contact groups. `/contacts` and `/contacts/:id` have their own route files;
   // these do not, because the pattern list is the cheaper place to add a resource
   // and every method below has an export at the bottom of this file.
+  //
+  // ORDER MATTERS: `find()` returns the first matching row, so the specific
+  // static-segment entries below come BEFORE the generic `:id` entry. Otherwise
+  // `contact-groups/join` falls through to `^contact-groups\/[^/]+$` and its
+  // POST 405s — the exact P0 this block fixes (QM-SCREEN-012).
+  // Contact-group membership and invite links. Every one of these has a real
+  // backend export (backend/routes/contact-groups.ts). `invite` and `join`
+  // are static segments, so they cannot collide with an `:id` here — but the
+  // rows stay anchored anyway.
+  { pattern: /^contact-groups\/[^/]+\/invite-link$/, methods: ['GET', 'POST', 'DELETE'] },
+  { pattern: /^contact-groups\/[^/]+\/admins$/, methods: ['POST'] },
+  { pattern: /^contact-groups\/[^/]+\/admins\/[^/]+$/, methods: ['DELETE'] },
+  { pattern: /^contact-groups\/[^/]+\/members\/[^/]+$/, methods: ['DELETE'] },
+  { pattern: /^contact-groups\/invite\/[^/]+$/, methods: ['GET'] },
+  { pattern: /^contact-groups\/join$/, methods: ['POST'] },
   { pattern: /^contact-groups$/, methods: ['GET', 'POST'] },
   { pattern: /^contact-groups\/[^/]+$/, methods: ['GET', 'PUT', 'DELETE'] },
   { pattern: /^ai\/compose$/, methods: ['POST'] },

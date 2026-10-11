@@ -25,6 +25,7 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { ContactsDedupeModal } from './components/ContactsDedupeModal';
 import type { DuplicateCluster } from './components/ContactsDedupeModal';
 import { ContactGroupModal } from './components/ContactGroupModal';
+import { GroupInviteLinkCard } from './components/GroupInviteLinkCard';
 import {
   ContactDetailSheet,
   CompaniesSubView,
@@ -920,6 +921,17 @@ export default function ContactsPage() {
                       );
                     })}
                   </div>
+                )}
+
+                {/* Invite-link manager for the selected group — create/copy/regenerate/revoke
+                    against the real backend link (GET/POST/DELETE /contact-groups/:id/invite-link).
+                    Mounted per group id so switching groups never shows a stale link. */}
+                {activeGroup && (
+                  <GroupInviteLinkCard
+                    key={activeGroup.id}
+                    groupId={activeGroup.id}
+                    groupName={activeGroup.name}
+                  />
                 )}
 
                 {/* Quick Secondary Actions Bar */}

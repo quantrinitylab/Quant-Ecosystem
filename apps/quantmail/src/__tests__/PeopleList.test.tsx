@@ -263,9 +263,20 @@ describe('PeopleList', () => {
 
 describe('formatRelativeTime', () => {
   it('says "now" for the last minute and "Xm"/"Xh" within the day', () => {
-    expect(formatRelativeTime(new Date(Date.now() - 30_000))).toBe('now');
-    expect(formatRelativeTime(new Date(Date.now() - 5 * 60_000))).toBe('5m');
-    expect(formatRelativeTime(new Date(Date.now() - 2 * 3_600_000))).toBe('2h');
+    // Pin the clock to midday so a relative offset can never cross a calendar
+    // day boundary: without this, running at ~00:3x UTC makes "2h ago" land on
+    // the previous calendar day and formatRelativeTime returns 'Yesterday'.
+    vi.useFakeTimers();
+    try {
+      const midday = new Date();
+      midday.setHours(12, 0, 0, 0);
+      vi.setSystemTime(midday);
+      expect(formatRelativeTime(new Date(Date.now() - 30_000))).toBe('now');
+      expect(formatRelativeTime(new Date(Date.now() - 5 * 60_000))).toBe('5m');
+      expect(formatRelativeTime(new Date(Date.now() - 2 * 3_600_000))).toBe('2h');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('says "Yesterday" for the previous calendar day', () => {
