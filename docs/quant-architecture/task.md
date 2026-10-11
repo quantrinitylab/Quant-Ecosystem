@@ -599,7 +599,7 @@ NOT VERIFIED (needs live/auth): signed-in E2E of preview/upload/share/version fl
 REQUIREMENT GAPS vs Required: resumable transfer MISSING (P0 above); offline cache MISSING; malware/scan state IMPLEMENTED but listing-invisible (P1); signed delivery IMPLEMENTED (session proxy + scoped share links); preview matrix IMPLEMENTED (honest); versioning IMPLEMENTED; share links IMPLEMENTED; editor handoff IMPLEMENTED; Quanty save/summarize IMPLEMENTED.
 
 ## QM-SCREEN-012 — Contacts / people / relationship context
-Status: [ ] TODO
+Status: [~] IN_PROGRESS — Owner: LANE-1, Branch: lane1-audit-012 (claimed 2026-10-11 ~05:35 IST)
 Required: identity-root semantics, contact CRUD, merge/deduplication, autocomplete, avatars, groups, communication history references, privacy, block/restrict boundaries, Mail/Chat/Calendar linking.
 Dependencies: ecosystem identity/resource contracts.
 
