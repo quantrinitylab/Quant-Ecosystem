@@ -3,8 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // The "Ask Quant" single-shot Q&A proxy. Targets the real QuantAI backend
 // `POST /ask` (UnifiedAIService), which lives on port 3004 — NOT the legacy
 // `/assistant/chat` path on 3020 that never existed.
-const BACKEND_URL = process.env.QUANTAI_BACKEND_URL || 'http://localhost:3004';
-
+import { QUANTAI_BACKEND_URL } from '../../_lib/agent-proxy';
 interface AskChatBody {
   message?: string;
   question?: string;
@@ -20,7 +19,7 @@ export async function POST(request: NextRequest) {
   const authHeader = request.headers.get('Authorization');
   if (authHeader) headers['Authorization'] = authHeader;
 
-  const res = await fetch(`${BACKEND_URL}/ask`, {
+  const res = await fetch(`${QUANTAI_BACKEND_URL}/ask`, {
     method: 'POST',
     headers,
     body: JSON.stringify({

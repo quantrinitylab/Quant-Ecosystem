@@ -9,7 +9,7 @@ import type { AIInferenceResponse, StreamChunk, ModerationResult } from '../type
  */
 export function generateMockTextResponse(prompt: string): AIInferenceResponse {
   const truncatedPrompt = prompt.length > 80 ? prompt.slice(0, 80) + '...' : prompt;
-  const content = `Based on your question about "${truncatedPrompt}", here is a helpful response. This is a mock response generated because no AI provider API keys are configured. To get real AI responses, set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY in your environment.`;
+  const content = `Based on your question about "${truncatedPrompt}", here is a helpful response. This is a mock response generated because no AI provider API keys are configured. To get real AI responses, set META_API_KEY (primary), OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY in your environment.`;
 
   return {
     id: `mock_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`,

@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const BACKEND_URL =
-  process.env.QUANTAI_BACKEND_URL ??
-  process.env.NEXT_PUBLIC_QUANTAI_BACKEND_URL ??
-  'http://localhost:3004';
+import { QUANTAI_BACKEND_URL } from '../../_lib/agent-proxy';
 
 /**
  * FAIL-CLOSED response when the upstream auth backend is unavailable.
@@ -109,7 +105,7 @@ export async function GET(request: NextRequest | Request) {
   const timeoutId = setTimeout(() => controller.abort(), 1500);
 
   try {
-    const res = await fetch(new URL('/auth/me', BACKEND_URL).toString(), {
+    const res = await fetch(new URL('/auth/me', QUANTAI_BACKEND_URL).toString(), {
       method: 'GET',
       headers: { Authorization: authHeader },
       signal: controller.signal,
@@ -132,7 +128,7 @@ export async function GET(request: NextRequest | Request) {
       // If this backend does not implement /auth/sso/exchange, the fetch
       // fails or returns non-ok and we fail closed with 401 below.
       try {
-        const exchangeRes = await fetch(new URL('/auth/sso/exchange', BACKEND_URL).toString(), {
+        const exchangeRes = await fetch(new URL('/auth/sso/exchange', QUANTAI_BACKEND_URL).toString(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ssoToken: token }),

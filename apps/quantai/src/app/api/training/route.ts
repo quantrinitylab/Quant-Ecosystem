@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.QUANTAI_BACKEND_URL || 'http://localhost:3020';
-
+import { QUANTAI_BACKEND_URL } from '../_lib/agent-proxy';
 export async function GET(request: NextRequest) {
-  const res = await fetch(`${BACKEND_URL}/training`, {
+  const res = await fetch(`${QUANTAI_BACKEND_URL}/training`, {
     headers: { Authorization: request.headers.get('Authorization') || '' },
   });
   const data = await res.json();
@@ -12,7 +11,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const res = await fetch(`${BACKEND_URL}/training`, {
+  const res = await fetch(`${QUANTAI_BACKEND_URL}/training`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

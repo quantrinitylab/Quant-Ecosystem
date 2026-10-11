@@ -20,6 +20,20 @@ export interface FallbackChainConfig {
 
 const PROVIDER_CONFIGS: ProviderConfig[] = [
   {
+    // Meta is the ecosystem's primary provider (Muse Spark models, multimodal,
+    // voice, agentic). Listed first so availability checks and the fallback
+    // chain prefer it. Matches AIEngine routing (engine.ts), which reads
+    // META_API_KEY (falling back to META_AI_API_KEY) and serves
+    // https://api.meta.ai/v1.
+    id: 'meta',
+    name: 'Meta',
+    apiKeyEnvVar: 'META_API_KEY',
+    baseUrl: 'https://api.meta.ai/v1',
+    models: ['muse-spark-1.3', 'muse-spark-1.3-voice'],
+    isAvailable: () => Boolean(process.env['META_API_KEY'] ?? process.env['META_AI_API_KEY']),
+    costMultiplier: 0.5,
+  },
+  {
     id: 'openai',
     name: 'OpenAI',
     apiKeyEnvVar: 'OPENAI_API_KEY',
@@ -75,7 +89,7 @@ export function getAvailableProviders(): ProviderConfig[] {
 
 /**
  * Get the fallback chain based on which providers are available.
- * Returns providers in priority order: OpenAI > Anthropic > Google.
+ * Returns providers in priority order: Meta > OpenAI > Anthropic > Google.
  * Returns null if no providers are available.
  */
 export function getFallbackChain(): FallbackChainConfig | null {

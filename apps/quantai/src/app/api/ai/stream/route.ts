@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 
-const BACKEND_URL = process.env.QUANTAI_BACKEND_URL || 'http://localhost:3020';
-
+import { QUANTAI_BACKEND_URL } from '../../_lib/agent-proxy';
 /**
  * Dedicated streaming endpoint - always returns SSE (no JSON fallback).
  * POST /api/ai/stream
@@ -23,7 +22,7 @@ export async function POST(request: NextRequest) {
   });
 
   try {
-    const backendResponse = await fetch(`${BACKEND_URL}/assistant/chat`, {
+    const backendResponse = await fetch(`${QUANTAI_BACKEND_URL}/assistant/chat`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ ...body, stream: true }),
