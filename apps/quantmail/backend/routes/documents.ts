@@ -920,7 +920,10 @@ export default async function documentRoutes(fastify: FastifyInstance) {
         token,
         role,
         expiresAt,
-        shareUrl: `/documents/public/share/${token}`,
+        // ONE canonical share path for every link the product hands out:
+        // /drive/share/<token>. The landing page there resolves document
+        // tokens via GET /documents/public/share/:token.
+        shareUrl: `/drive/share/${token}`,
       },
     });
   });
