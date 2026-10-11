@@ -205,7 +205,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               type="text"
               readOnly
               value={directDocUrl}
-              className="flex-1 bg-[#0D1117] border border-[#30363D] rounded-xl px-3 py-2 text-xs font-mono text-[#C9D1D9] select-all focus:outline-none focus:border-[var(--app-accent)]"
+              className="flex-1 bg-[var(--quant-background)] border border-[#30363D] rounded-xl px-3 py-2 text-xs font-mono text-[#C9D1D9] select-all focus:outline-none focus:border-[var(--app-accent)]"
             />
             <Button
               variant="secondary"
@@ -251,7 +251,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 aria-label="Public share permission"
                 value={publicRole}
                 onChange={(e) => setPublicRole(e.target.value as 'view' | 'edit')}
-                className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-1.5 text-xs text-[#F0F6FC] focus:outline-none focus:border-[var(--app-accent)]"
+                className="bg-[var(--quant-background)] border border-[#30363D] rounded-xl px-2.5 py-1.5 text-xs text-[#F0F6FC] focus:outline-none focus:border-[var(--app-accent)]"
               >
                 <option value="view">Can View</option>
                 <option value="edit">Can Edit</option>
@@ -260,7 +260,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 aria-label="Share link expiration"
                 value={expiresIn}
                 onChange={(e) => setExpiresIn(e.target.value as any)}
-                className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-1.5 text-xs text-[#F0F6FC] focus:outline-none focus:border-[var(--app-accent)]"
+                className="bg-[var(--quant-background)] border border-[#30363D] rounded-xl px-2.5 py-1.5 text-xs text-[#F0F6FC] focus:outline-none focus:border-[var(--app-accent)]"
               >
                 <option value="1d">Expires in 1 day</option>
                 <option value="7d">Expires in 7 days</option>
@@ -284,7 +284,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                   readOnly
                   aria-label="Public share URL"
                   value={publicShareUrl}
-                  className="flex-1 bg-[#0D1117] border border-[#238636]/50 rounded-xl px-3 py-2 text-xs font-mono text-[#3FB950] select-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                  className="flex-1 bg-[var(--quant-background)] border border-[#238636]/50 rounded-xl px-3 py-2 text-xs font-mono text-[#3FB950] select-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                 />
                 <Button
                   variant="primary"
@@ -320,13 +320,13 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               aria-label="Invite by email"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              className="flex-1 bg-[#0D1117] border border-[#30363D] rounded-xl px-3 py-2 text-xs text-[#F0F6FC] placeholder-[#6E7681] focus:outline-none focus:border-[var(--app-accent)]"
+              className="flex-1 bg-[var(--quant-background)] border border-[#30363D] rounded-xl px-3 py-2 text-xs text-[#F0F6FC] placeholder-[#6E7681] focus:outline-none focus:border-[var(--app-accent)]"
             />
             <select
               aria-label="Invite role"
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value as 'viewer' | 'editor' | 'admin')}
-              className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-2 text-xs text-[#F0F6FC] focus:outline-none focus:border-[var(--app-accent)]"
+              className="bg-[var(--quant-background)] border border-[#30363D] rounded-xl px-2.5 py-2 text-xs text-[#F0F6FC] focus:outline-none focus:border-[var(--app-accent)]"
             >
               <option value="viewer">Can View</option>
               <option value="editor">Can Edit</option>
@@ -347,9 +347,9 @@ export const ShareModal: React.FC<ShareModalProps> = ({
         <div className="space-y-2">
           <label className="block text-xs font-semibold text-[#8B949E]">Collaborators</label>
           <div className="space-y-1.5 max-h-40 overflow-y-auto">
-            <div className="flex items-center justify-between p-2.5 rounded-lg bg-[#0D1117] border border-[#21262D]">
+            <div className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--quant-background)] border border-[#21262D]">
               <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-full bg-[var(--app-accent)] text-[#0D1117] flex items-center justify-center text-[10px] font-bold">
+                <div className="w-6 h-6 rounded-full bg-[var(--app-accent)] text-black flex items-center justify-center text-[10px] font-bold">
                   Y
                 </div>
                 <div>
@@ -363,10 +363,10 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             {visibleCollaborators.map((c, i) => (
               <div
                 key={c.id || i}
-                className="flex items-center justify-between p-2.5 rounded-lg bg-[#0D1117] border border-[#21262D]"
+                className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--quant-background)] border border-[#21262D]"
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-full bg-[#58A6FF] text-[#0D1117] flex items-center justify-center text-[10px] font-bold">
+                  <div className="w-6 h-6 rounded-full bg-[#58A6FF] text-black flex items-center justify-center text-[10px] font-bold">
                     {c.email[0].toUpperCase()}
                   </div>
                   <div>
@@ -381,7 +381,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
         </div>
 
         {/* Footer actions */}
-        <div className="flex items-center justify-end pt-2 border-t border-[#30363D]">
+        <div className="flex items-center justify-end pt-1">
           <Button variant="secondary" onClick={onClose} className="text-xs">
             Done
           </Button>

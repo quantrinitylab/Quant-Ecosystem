@@ -456,7 +456,7 @@ export function DriveFilesSubView({
                     </div>
                   </div>
 
-                  <div className="mt-3 pt-2 border-t border-[#232938] flex items-center justify-between text-[11px]">
+                  <div className="mt-3 pt-1 flex items-center justify-between text-[11px]">
                     <span className="text-[#64748B] font-mono text-[10px]">CAS: 64KB</span>
                     <div className="flex items-center gap-1.5">
                       <button

@@ -70,7 +70,7 @@ function scopeTitle(scope: LinkScope): string {
 }
 
 const inputClass =
-  'bg-[#0D1117] border border-[#30363D] rounded-xl px-3 py-2 text-xs text-[#F0F6FC] placeholder-[#6E7681] focus:outline-none focus:border-[#38BDF8]';
+  'bg-[var(--quant-background)] border border-[#30363D] rounded-xl px-3 py-2 text-xs text-[#F0F6FC] placeholder-[#6E7681] focus:outline-none focus:border-[#38BDF8]';
 
 export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileName }) => {
   const [links, setLinks] = useState<DriveLinkEntry[] | null>(null);
@@ -309,7 +309,7 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
               {links.map((link) => (
                 <div
                   key={link.id}
-                  className="p-3 rounded-lg bg-[#0D1117] border border-[#21262D] space-y-1.5"
+                  className="p-3 rounded-lg bg-[var(--quant-background)] border border-[#21262D] space-y-1.5"
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-[#F0F6FC]">
@@ -366,7 +366,7 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
             </div>
           )}
           {createdLink && (
-            <div className="p-3 rounded-lg bg-[#0D1117] border border-[#238636]/50 space-y-2">
+            <div className="p-3 rounded-lg bg-[var(--quant-background)] border border-[#238636]/50 space-y-2">
               <p className="text-xs font-medium text-[#3FB950]">Link created</p>
               <div className="flex items-center gap-2">
                 <input
@@ -378,7 +378,7 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
                       ? `${window.location.origin}${createdLink.shareUrl}`
                       : createdLink.shareUrl
                   }
-                  className="flex-1 bg-[#0D1117] border border-[#238636]/50 rounded-xl px-3 py-2 text-xs font-mono text-[#3FB950] select-all focus:outline-none"
+                  className="flex-1 bg-[var(--quant-background)] border border-[#238636]/50 rounded-xl px-3 py-2 text-xs font-mono text-[#3FB950] select-all focus:outline-none"
                 />
                 <Button
                   variant="primary"
@@ -405,7 +405,7 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
                 className={`flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
                   scope === opt.value
                     ? 'border-[#38BDF8] bg-[#38BDF8]/5'
-                    : 'border-[#21262D] bg-[#0D1117] hover:border-[#30363D]'
+                    : 'border-[#21262D] bg-[var(--quant-background)] hover:border-[#30363D]'
                 }`}
               >
                 <input
@@ -562,9 +562,9 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
       {view === 'confirm' && (
         <div className="space-y-3 pt-1">
           <p className="text-sm font-semibold text-[#F0F6FC]">{confirmCopy().title}</p>
-          <div className="rounded-lg bg-[#0D1117] border border-[#21262D] divide-y divide-[#21262D]">
+          <div className="rounded-lg bg-[var(--quant-background)] border border-[#21262D]">
             {summaryRows().map(([label, value]) => (
-              <div key={label} className="flex items-start justify-between gap-3 px-3 py-2">
+              <div key={label} className="flex items-start justify-between gap-3 px-3 py-2.5">
                 <span className="text-[11px] text-[#8B949E] shrink-0">{label}</span>
                 <span className="text-xs text-[#F0F6FC] text-right break-words">{value}</span>
               </div>

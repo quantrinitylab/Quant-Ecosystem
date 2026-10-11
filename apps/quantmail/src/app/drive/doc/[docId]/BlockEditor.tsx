@@ -415,7 +415,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                     >
                       Move Down
                     </button>
-                    <div className="border-t border-[#21262D] pt-0.5 mt-0.5">
+                    <div className="pt-1 mt-1">
                       <button
                         type="button"
                         onClick={() => {
@@ -538,7 +538,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                           ),
                         );
                       }}
-                      className="mt-1 w-4 h-4 rounded border-[#30363D] bg-[#0D1117] text-[var(--app-accent)] focus:ring-0 accent-[var(--app-accent)] cursor-pointer"
+                      className="mt-1 w-4 h-4 rounded border-[#30363D] bg-[var(--quant-background)] text-[var(--app-accent)] focus:ring-0 accent-[var(--app-accent)] cursor-pointer"
                     />
                     <input
                       ref={(el) => {
@@ -673,14 +673,14 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                 )}
 
                 {block.type === 'divider' && (
-                  <div className="py-3 my-1">
-                    <hr className="border-t border-[#30363D]" />
-                  </div>
+                  /* Pure-black / no-divider-lines lock: a user-inserted divider
+                     block renders as spacing-based separation, not a line. */
+                  <div className="py-4 my-1" role="separator" aria-label="Divider" />
                 )}
 
                 {block.type === 'code' && (
-                  <div className="rounded-xl border border-[#30363D] bg-[#0D1117] overflow-hidden my-2 shadow-sm font-mono text-sm">
-                    <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--quant-surface-elevated)] border-b border-[#30363D] text-xs">
+                  <div className="rounded-xl border border-[#30363D] bg-[var(--quant-background)] overflow-hidden my-2 shadow-sm font-mono text-sm">
+                    <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--quant-surface-elevated)] text-xs">
                       <select
                         value={block.language || 'typescript'}
                         onChange={(e) => {
@@ -722,13 +722,13 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                         onCursorMove?.(block.id);
                       }}
                       onBlur={() => onCursorMove?.(undefined)}
-                      className="w-full bg-[#0D1117] p-3 text-xs font-mono text-[#58A6FF] placeholder-[#484F58] focus:outline-none leading-relaxed resize-y border-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                      className="w-full bg-[var(--quant-background)] p-3 text-xs font-mono text-[#58A6FF] placeholder-[#484F58] focus:outline-none leading-relaxed resize-y border-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                     />
                   </div>
                 )}
 
                 {block.type === 'table' && (
-                  <div className="overflow-x-auto my-2 rounded-xl border border-[#30363D] bg-[#0D1117]">
+                  <div className="overflow-x-auto my-2 rounded-xl border border-[#30363D] bg-[var(--quant-background)]">
                     <table className="w-full text-left text-xs border-collapse">
                       <tbody>
                         {(
@@ -773,7 +773,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                         ))}
                       </tbody>
                     </table>
-                    <div className="flex items-center gap-2 p-2 bg-[var(--quant-surface-elevated)]/50 border-t border-[#30363D] text-[11px] text-[#8B949E]">
+                    <div className="flex items-center gap-2 p-2 bg-[var(--quant-surface-elevated)]/50 text-[11px] text-[#8B949E]">
                       <button
                         type="button"
                         onClick={() => {

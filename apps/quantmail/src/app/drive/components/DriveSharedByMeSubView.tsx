@@ -254,7 +254,7 @@ export function DriveSharedByMeSubView({
 
                 {/* Expandable recipient list — the real current access */}
                 {isExpanded && (
-                  <div className="mt-3 pt-3 border-t border-[#232938] space-y-2">
+                  <div className="mt-3 space-y-2">
                     {item.sharedWith.map((person, idx) => {
                       const initials = getInitials(person.name, person.email);
                       const sharedOn = person.sharedAt

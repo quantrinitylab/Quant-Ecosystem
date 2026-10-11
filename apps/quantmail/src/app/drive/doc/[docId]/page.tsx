@@ -182,7 +182,7 @@ export default function DocumentPage() {
       className="quantmail-shell"
       searchPlaceholder="Search document content..."
     >
-      <div className="flex flex-col h-full bg-[#0D1117] text-[#C9D1D9] overflow-hidden">
+      <div className="flex flex-col h-full bg-[var(--quant-background)] text-[#C9D1D9] overflow-hidden">
         {/* Notion-class Header Bar */}
         <DocumentHeader
           docId={docId}
@@ -266,7 +266,7 @@ export default function DocumentPage() {
                 />
 
                 {/* Subpages Section */}
-                <div className="mt-2 mb-6 pt-3 border-t border-[#21262D]">
+                <div className="mt-4 mb-6">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2 text-xs font-semibold text-[#8B949E] uppercase tracking-wider">
                       <svg
