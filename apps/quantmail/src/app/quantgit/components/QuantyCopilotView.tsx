@@ -13,6 +13,16 @@ import type {
   Effort,
 } from '../types';
 
+/**
+ * The old model selector is gone on purpose: the client never chose the
+ * model. Every request goes to /api/ai/chat, whose server resolves an
+ * intent tier (fast / balanced / deep) and routes the model there — the
+ * selected id only ever reached the backend as prompt text. Any of these
+ * ids arriving as `msg.model` is therefore not a real model name and must
+ * not be shown as one.
+ */
+const INVENTED_MODEL_IDS = ['opus-5', 'sonnet-35', 'quant-slm'];
+
 export interface QuantyCopilotViewProps {
   chatMessages: ChatMessage[];
   setPromptInput: (p: string | ((prev: string) => string)) => void;
@@ -196,9 +206,11 @@ export function QuantyCopilotView({
                       <div className="flex items-center gap-2">
                         <BubbleAvatar state="coding" size={28} />
                         <span className="font-bold text-white">Quanty AI</span>
-                        <span className="px-1.5 py-px rounded bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-accent)] text-[10px] font-mono font-bold">
-                          {msg.model || 'Opus 5'}
-                        </span>
+                        {msg.model && !INVENTED_MODEL_IDS.includes(msg.model) ? (
+                          <span className="px-1.5 py-px rounded bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-accent)] text-[10px] font-mono font-bold">
+                            {msg.model}
+                          </span>
+                        ) : null}
                       </div>
                       <span className="text-[10px] text-[#7D8590]">{msg.timestamp}</span>
                     </div>
@@ -255,12 +267,12 @@ export function QuantyCopilotView({
                       {msg.text}
                     </div>
 
-                    {/* Autonomous Tool Call Executions */}
+                    {/* Tool call executions */}
                     {msg.toolExecutions && msg.toolExecutions.length > 0 && (
                       <div className="space-y-2 pt-2">
                         <div className="text-[10px] font-mono uppercase tracking-wider text-[#7D8590] flex items-center gap-1.5">
                           <span className="inline-block w-2 h-2 rounded-full bg-[#58A6FF] animate-pulse" />
-                          <span>Autonomous Swarm Execution ({msg.toolExecutions.length})</span>
+                          <span>Tool executions ({msg.toolExecutions.length})</span>
                         </div>
                         <div className="grid gap-2">
                           {msg.toolExecutions.map((exec, idx) => (
@@ -291,7 +303,7 @@ export function QuantyCopilotView({
                                     {exec.toolName === 'read_file_blob' &&
                                       `📄 Read: ${exec.input?.path}`}
                                     {exec.toolName === 'deploy_agent' &&
-                                      `🤖 Swarm Agent: ${exec.result?.name || exec.input?.name}`}
+                                      `🤖 Agent: ${exec.result?.name || exec.input?.name}`}
                                     {![
                                       'create_repository',
                                       'commit_file',
@@ -547,7 +559,7 @@ export function QuantyCopilotView({
                     type="button"
                     onClick={() => {
                       setPromptInput(
-                        'Create an interactive architecture diagram of Quant Ecosystem swarm',
+                        'Create an interactive architecture diagram of the Quant Ecosystem',
                       );
                       setIsContextOpen(false);
                     }}
@@ -929,44 +941,13 @@ export function QuantyCopilotView({
 
                   <div className="pt-2">
                     <span className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px]">
-                      Model Selector
+                      Model
                     </span>
-                    <div className="grid grid-cols-1 gap-1 mt-1">
-                      {[
-                        {
-                          id: 'opus-5',
-                          name: 'Claude Opus 5 / GPT-6 Astra',
-                          desc: 'Deep architecture, reasoning & swarm leader',
-                        },
-                        {
-                          id: 'sonnet-35',
-                          name: 'Claude 3.5 Sonnet',
-                          desc: 'High-speed code synthesis & diff generation',
-                        },
-                        {
-                          id: 'quant-slm',
-                          name: 'Quant AI Fast SLM',
-                          desc: 'Instant local triage & AST queries',
-                        },
-                      ].map((m) => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => {
-                            setActiveModel(m.id as any);
-                            showToast(`Selected: ${m.name}`);
-                          }}
-                          className={`p-2 rounded-lg text-left transition-colors border ${
-                            activeModel === m.id
-                              ? 'border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-white'
-                              : 'border-transparent hover:bg-[#21262D] text-[#7D8590]'
-                          }`}
-                        >
-                          <div className="font-bold text-xs text-white">{m.name}</div>
-                          <div className="text-[10px] text-[#7D8590]">{m.desc}</div>
-                        </button>
-                      ))}
-                    </div>
+                    <p className="text-[11px] text-[#7D8590] mt-1 leading-relaxed">
+                      The model is chosen on the server for each request — Fast
+                      or Deep, following the Reasoning Effort setting below. No
+                      model is selected on this device.
+                    </p>
                   </div>
 
                   <div className="pt-2">
@@ -1247,7 +1228,7 @@ export function QuantyCopilotView({
                       ? 'bg-[#30363D] border-[#58A6FF] text-white'
                       : 'bg-[#21262D] border-[#30363D] text-[#7D8590] hover:text-white hover:bg-[#30363D]'
                   }`}
-                  title="Model & Execution Settings"
+                  title="Execution Settings"
                 >
                   <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
                     <path d="M14 10.5a.75.75 0 0 1-.75.75H10v1.5a.75.75 0 0 1-1.5 0v-1.5H2.75a.75.75 0 0 1 0-1.5H8.5V8.25a.75.75 0 0 1 1.5 0V9.75h3.25a.75.75 0 0 1 .75.75ZM6 5.5a.75.75 0 0 1-.75.75H2.75a.75.75 0 0 1 0-1.5H5.25V3.25a.75.75 0 0 1 1.5 0v1.5h6.5a.75.75 0 0 1 0 1.5H6.75v1.5a.75.75 0 0 1-1.5 0v-1.5Z" />
@@ -1256,12 +1237,7 @@ export function QuantyCopilotView({
 
                 {/* Active model & mode pill */}
                 <span className="text-[10px] font-semibold text-[#7D8590] bg-[#21262D] px-2 py-0.5 rounded-md border border-[#30363D]">
-                  {activeModel === 'opus-5'
-                    ? 'Opus 5'
-                    : activeModel === 'sonnet-35'
-                      ? 'Sonnet 3.5'
-                      : 'Quant SLM'}{' '}
-                  · {notionMode === 'default' ? 'Default' : 'Ask'} ·{' '}
+                  {notionMode === 'default' ? 'Default' : 'Ask'} ·{' '}
                   {effort === 'deep' ? '32k' : '1k'}
                 </span>
               </div>
