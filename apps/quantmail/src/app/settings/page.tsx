@@ -77,7 +77,6 @@ import { AppSidebar } from '../../components/AppSidebar';
 import { apiClient } from '../../services/api-client';
 import { VacationResponderSettings } from './VacationResponderSettings';
 import { MailFiltersSettings } from './MailFiltersSettings';
-import { PhoneVerificationCard } from '../../components/PhoneVerificationCard';
 import { showToast } from '../../components/InboxToast';
 import { ShortcutKeys } from '../../components/ShortcutKeys';
 import { useDesktopNotifications } from '../../hooks/useDesktopNotifications';
@@ -982,8 +981,6 @@ export default function SettingsPage() {
                   <StatusPill>Configured</StatusPill>
                 </div>
               </SettingsSection>
-
-              <PhoneVerificationCard />
 
               <SettingsSection
                 title="Privacy &amp; Data Safety"
