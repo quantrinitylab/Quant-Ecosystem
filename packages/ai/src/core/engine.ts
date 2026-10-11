@@ -19,6 +19,7 @@ import type {
   AIInferenceResponse,
   AIModelConfig,
   AIProvider,
+  SafetyResult,
   StreamChunk,
   TokenUsage,
 } from '../types';
@@ -28,7 +29,7 @@ import { ModelRouter } from './model-router';
 import { CircuitBreakerRegistry } from './circuit-breaker';
 import { retryWithBackoff } from './retry';
 import { SemanticCache } from './semantic-cache';
-import { SafetyPipeline } from './safety';
+import { SafetyPipeline, SAFETY_REFUSAL_MESSAGE, buildSafetyBlockLog } from './safety';
 import { CostTracker } from './cost-tracker';
 import {
   toVercelTools,
@@ -333,15 +334,75 @@ export class AIEngine {
   }
 
   /**
+   * Build the fail-closed refusal for a prompt the safety screen flagged.
+   * Nothing is sent to the model, the semantic cache, tool execution, or
+   * memory recording — the caller gets an honest `content_filter` result.
+   */
+  private refuseUnsafeRequest(
+    request: AIInferenceRequest,
+    safetyResult: SafetyResult,
+    path: 'infer' | 'stream',
+    startMs: number,
+  ): AIInferenceResponse {
+    this.recordSafetyBlock(request, safetyResult, path);
+    return {
+      id: this.generateRequestId(),
+      content: SAFETY_REFUSAL_MESSAGE,
+      model: request.model ?? this.config.defaultModel,
+      finishReason: 'content_filter',
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0 },
+      latencyMs: Date.now() - startMs,
+      cached: false,
+    };
+  }
+
+  /**
+   * Emit the structured audit entry for a blocked attempt: pattern ids +
+   * timestamp, never the prompt text or any extracted PII.
+   */
+  private recordSafetyBlock(
+    request: AIInferenceRequest,
+    safetyResult: SafetyResult,
+    path: 'infer' | 'stream',
+  ): void {
+    // Structured JSON on a single line for log ingestion.
+    console.warn(
+      JSON.stringify(
+        buildSafetyBlockLog({
+          path,
+          userId: request.userId,
+          app: request.app,
+          feature: request.feature,
+          patternIds: safetyResult.matchedInjectionPatterns ?? [],
+          categories: safetyResult.categories
+            .filter((category) => category.flagged)
+            .map((category) => category.name),
+          promptLength: request.prompt.length,
+        }),
+      ),
+    );
+  }
+
+  /**
    * Process an AI inference request
    */
   async infer(request: AIInferenceRequest): Promise<AIInferenceResponse> {
+    const inferStartMs = Date.now();
+
     // Check rate limits and budgets
     this.costTracker.checkBudget(request.userId);
     this.costTracker.checkRateLimit(request.userId);
 
     // Process input through safety pipeline
     const safetyResult = this.safetyPipeline.processInput(request.prompt);
+
+    // Enforce the injection screen fail-closed: a flagged prompt never
+    // reaches the model, the cache, tool execution, or memory. The caller
+    // gets an honest content_filter refusal instead of a faked success.
+    if (!safetyResult.isSafe) {
+      return this.refuseUnsafeRequest(request, safetyResult, 'infer', inferStartMs);
+    }
+
     const safePrompt = safetyResult.text;
 
     // Check semantic cache
@@ -518,6 +579,20 @@ export class AIEngine {
 
     // Process input through safety pipeline
     const safetyResult = this.safetyPipeline.processInput(request.prompt);
+
+    // Fail-closed gate: a flagged prompt never reaches the model. Yield a
+    // single honest refusal chunk instead of streaming model output.
+    if (!safetyResult.isSafe) {
+      this.recordSafetyBlock(request, safetyResult, 'stream');
+      yield {
+        id: this.generateRequestId(),
+        content: SAFETY_REFUSAL_MESSAGE,
+        done: true,
+        finishReason: 'content_filter',
+      };
+      return;
+    }
+
     const safePrompt = safetyResult.text;
 
     const model = this.modelRouter.selectModel(request);

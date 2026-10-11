@@ -240,7 +240,8 @@ export { retryWithBackoff } from './core/retry';
 // Import it directly from '@quant/ai/core/prompt-registry' when needed on the server.
 // export { PromptRegistry } from './core/prompt-registry';
 export { SemanticCache } from './core/semantic-cache';
-export { SafetyPipeline } from './core/safety';
+export { SafetyPipeline, SAFETY_REFUSAL_MESSAGE, buildSafetyBlockLog } from './core/safety';
+export type { InjectionPattern, SafetyBlockLogEntry } from './core/safety';
 export { CostTracker } from './core/cost-tracker';
 export { AIProviderUnavailableError, OpenRouterNotConfiguredError } from './core/errors';
 export { RoutingTable } from './core/routing-table';

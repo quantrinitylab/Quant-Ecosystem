@@ -1,4 +1,4 @@
-import { AIEngine as CoreAIEngine } from '@quant/ai';
+import { AIEngine as CoreAIEngine, SAFETY_REFUSAL_MESSAGE, buildSafetyBlockLog } from '@quant/ai';
 import { createAppError } from '@quant/server-core';
 import type {
   AIEngineInterface,
@@ -44,9 +44,45 @@ export class AIEngine implements AIEngineInterface {
     this.workersAI = new CloudflareWorkersAIClient(options);
   }
 
-  private prepareWorkersRequest(request: AIInferenceRequest): AIInferenceRequest {
+  /**
+   * Enforce the injection screen on the Workers AI path too: a flagged
+   * prompt is refused fail-closed (same honest refusal shape the core
+   * engine returns) rather than redacted-and-continued.
+   */
+  private gateWorkersInput(
+    request: AIInferenceRequest,
+    path: 'infer' | 'stream',
+  ): { safePrompt: string } | { refusal: AIInferenceResponse } {
     const safeInput = this.engine.getSafetyPipeline().processInput(request.prompt);
-    return { ...request, prompt: safeInput.text };
+    if (safeInput.isSafe) return { safePrompt: safeInput.text };
+
+    console.warn(
+      JSON.stringify(
+        buildSafetyBlockLog({
+          path: `workers-ai-${path}`,
+          userId: request.userId ?? null,
+          app: 'quantai',
+          feature: request.feature ?? null,
+          patternIds: safeInput.matchedInjectionPatterns ?? [],
+          categories: safeInput.categories
+            .filter((category) => category.flagged)
+            .map((category) => category.name),
+          promptLength: request.prompt.length,
+        }),
+      ),
+    );
+
+    return {
+      refusal: {
+        id: `infer-${Date.now()}`,
+        content: SAFETY_REFUSAL_MESSAGE,
+        model: this.workersAI.getConfiguredModel() ?? request.model ?? 'workers-ai',
+        finishReason: 'content_filter',
+        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0 },
+        latencyMs: 0,
+        cached: false,
+      },
+    };
   }
 
   private checkWorkersBudget(request: AIInferenceRequest): void {
@@ -76,7 +112,9 @@ export class AIEngine implements AIEngineInterface {
   async infer(request: AIInferenceRequest): Promise<AIInferenceResponse> {
     if (this.workersAI.isSelected()) {
       this.checkWorkersBudget(request);
-      const response = await this.workersAI.infer(this.prepareWorkersRequest(request));
+      const gate = this.gateWorkersInput(request, 'infer');
+      if ('refusal' in gate) return gate.refusal;
+      const response = await this.workersAI.infer({ ...request, prompt: gate.safePrompt });
       const safeOutput = this.engine.getSafetyPipeline().processOutput(response.content);
       this.trackWorkersUsage(
         request,
@@ -118,7 +156,17 @@ export class AIEngine implements AIEngineInterface {
   async *stream(request: AIInferenceRequest): AsyncGenerator<StreamChunk> {
     if (this.workersAI.isSelected()) {
       this.checkWorkersBudget(request);
-      const prepared = this.prepareWorkersRequest(request);
+      const gate = this.gateWorkersInput(request, 'stream');
+      if ('refusal' in gate) {
+        yield {
+          id: gate.refusal.id,
+          content: gate.refusal.content,
+          done: true,
+          finishReason: gate.refusal.finishReason,
+        };
+        return;
+      }
+      const prepared = { ...request, prompt: gate.safePrompt };
       let completion = '';
       const model = this.workersAI.getConfiguredModel();
       for await (const chunk of this.workersAI.stream(prepared)) {

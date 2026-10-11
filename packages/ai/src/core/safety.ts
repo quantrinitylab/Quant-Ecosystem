@@ -51,20 +51,78 @@ const BENIGN_HARMFUL_CONTEXTS = [
  * Deterministic, offline prompt-injection screen. Patterns require an
  * instruction-boundary attack, privilege/role override, safety bypass, or
  * sensitive-data exfiltration command rather than generic security words.
+ *
+ * Each pattern carries a stable id (PI-01..PI-11) so blocked attempts can be
+ * attributed in audit logs without storing the offending prompt.
  */
-const PROMPT_INJECTION_PATTERNS = [
-  /\b(?:ignore|disregard|forget|override)\b.{0,80}\b(?:previous|prior|above|system|developer|all|your)?\s*(?:instructions?|rules?|prompts?)\b/i,
-  /\b(?:reveal|show|print|output|repeat|leak|expose)\b.{0,60}\b(?:system|developer|hidden|initial)\s+(?:prompts?|instructions?|messages?)\b/i,
-  /\b(?:you are now|act as|pretend to be|switch to)\b.{0,60}\b(?:unrestricted|unsafe|developer|admin|root|dan|no restrictions?)\b/i,
-  /\b(?:disable|bypass|remove|turn off|evade)\b.{0,50}\b(?:safety|guardrails?|filters?|restrictions?|policy|moderation)\b/i,
-  /\b(?:do not|don't|never)\s+(?:mention|tell|disclose|reveal)\b.{0,40}\b(?:this|these instructions?|that)\b/i,
-  /\b(?:forward|send|upload|exfiltrate|output)\b.{0,80}\b(?:emails?|memories|secrets?|tokens?|credentials?|private data)\b/i,
-  /\b(?:pichl[ei]|pehle ki|upar wali)\b.{0,60}\b(?:instructions?|hidayat|nirdesh)\b.{0,40}\b(?:ignore|bhool|mat mano)\b/i,
-  /\b(?:system|developer)\s*prompt\b.{0,40}\b(?:dikha|bata|print|reveal|show)\b/i,
-  /(?:पुराने|पिछले|ऊपर वाले).{0,40}(?:निर्देश|नियम).{0,40}(?:नज़रअंदाज़|भूल|मत मानो)/i,
-  /(?:सिस्टम|डेवलपर)\s*प्रॉम्प्ट.{0,40}(?:दिखाओ|बताओ|प्रिंट)/i,
-  /\b(?:ignora|ignorez?|olvida|oublie)\b.{0,80}\b(?:instrucciones|instructions|reglas|règles)\b/i,
+export interface InjectionPattern {
+  id: string;
+  regex: RegExp;
+}
+
+const PROMPT_INJECTION_PATTERNS: InjectionPattern[] = [
+  { id: 'PI-01', regex: /\b(?:ignore|disregard|forget|override)\b.{0,80}\b(?:previous|prior|above|system|developer|all|your)?\s*(?:instructions?|rules?|prompts?)\b/i },
+  { id: 'PI-02', regex: /\b(?:reveal|show|print|output|repeat|leak|expose)\b.{0,60}\b(?:system|developer|hidden|initial)\s+(?:prompts?|instructions?|messages?)\b/i },
+  { id: 'PI-03', regex: /\b(?:you are now|act as|pretend to be|switch to)\b.{0,60}\b(?:unrestricted|unsafe|developer|admin|root|dan|no restrictions?)\b/i },
+  { id: 'PI-04', regex: /\b(?:disable|bypass|remove|turn off|evade)\b.{0,50}\b(?:safety|guardrails?|filters?|restrictions?|policy|moderation)\b/i },
+  { id: 'PI-05', regex: /\b(?:do not|don't|never)\s+(?:mention|tell|disclose|reveal)\b.{0,40}\b(?:this|these instructions?|that)\b/i },
+  { id: 'PI-06', regex: /\b(?:forward|send|upload|exfiltrate|output)\b.{0,80}\b(?:emails?|memories|secrets?|tokens?|credentials?|private data)\b/i },
+  { id: 'PI-07', regex: /\b(?:pichl[ei]|pehle ki|upar wali)\b.{0,60}\b(?:instructions?|hidayat|nirdesh)\b.{0,40}\b(?:ignore|bhool|mat mano)\b/i },
+  { id: 'PI-08', regex: /\b(?:system|developer)\s*prompt\b.{0,40}\b(?:dikha|bata|print|reveal|show)\b/i },
+  { id: 'PI-09', regex: /(?:पुराने|पिछले|ऊपर वाले).{0,40}(?:निर्देश|नियम).{0,40}(?:नज़रअंदाज़|भूल|मत मानो)/i },
+  { id: 'PI-10', regex: /(?:सिस्टम|डेवलपर)\s*प्रॉम्प्ट.{0,40}(?:दिखाओ|बताओ|प्रिंट)/i },
+  { id: 'PI-11', regex: /\b(?:ignora|ignorez?|olvida|oublie)\b.{0,80}\b(?:instrucciones|instructions|reglas|règles)\b/i },
 ];
+
+/**
+ * Honest, user-facing refusal served when the input safety screen flags a
+ * prompt. Names nothing about internals — no pattern ids, no scores.
+ */
+export const SAFETY_REFUSAL_MESSAGE = "I can't help with that request.";
+
+/**
+ * Structured audit entry for a blocked attempt. Carries pattern ids and a
+ * timestamp, never the prompt text or any extracted PII — attribution
+ * without exfiltration of the attack content itself.
+ */
+export interface SafetyBlockLogEntry {
+  event: 'ai.safety.block';
+  timestamp: string;
+  path: string;
+  userId: string | null;
+  app: string | null;
+  feature: string | null;
+  patternIds: string[];
+  categories: string[];
+  promptLength: number;
+}
+
+/**
+ * Build the audit entry for a blocked attempt from a `SafetyResult`.
+ * Callers emit it (e.g. a single JSON line on stderr/stdout) on their log
+ * pipeline; this function intentionally performs no I/O itself.
+ */
+export function buildSafetyBlockLog(input: {
+  path: string;
+  userId?: string | null;
+  app?: string | null;
+  feature?: string | null;
+  patternIds: string[];
+  categories: string[];
+  promptLength: number;
+}): SafetyBlockLogEntry {
+  return {
+    event: 'ai.safety.block',
+    timestamp: new Date().toISOString(),
+    path: input.path,
+    userId: input.userId ?? null,
+    app: input.app ?? null,
+    feature: input.feature ?? null,
+    patternIds: input.patternIds,
+    categories: input.categories,
+    promptLength: input.promptLength,
+  };
+}
 
 const SAFETY_THRESHOLD = 0.6;
 
@@ -79,6 +137,7 @@ export class SafetyPipeline {
       safetyScore: score,
       isSafe: score < SAFETY_THRESHOLD,
       categories,
+      matchedInjectionPatterns: this.detectInjectionPatterns(text),
     };
   }
 
@@ -92,7 +151,23 @@ export class SafetyPipeline {
       safetyScore: score,
       isSafe: score < SAFETY_THRESHOLD,
       categories,
+      matchedInjectionPatterns: this.detectInjectionPatterns(text),
     };
+  }
+
+  /**
+   * Return the ids of the injection-screen patterns that match `text`.
+   * Used for structured audit attribution without persisting the prompt.
+   */
+  detectInjectionPatterns(text: string): string[] {
+    const matched: string[] = [];
+    for (const pattern of PROMPT_INJECTION_PATTERNS) {
+      // Reset global-stateful regexes defensively (none are global today,
+      // but a future `g` flag must not leak matches across calls).
+      pattern.regex.lastIndex = 0;
+      if (pattern.regex.test(text)) matched.push(pattern.id);
+    }
+    return matched;
   }
 
   redactPii(text: string): { redactedText: string; entities: PiiEntity[] } {
@@ -172,7 +247,7 @@ export class SafetyPipeline {
       maxScore = Math.max(maxScore, score);
     }
 
-    const injectionDetected = PROMPT_INJECTION_PATTERNS.some((pattern) => pattern.test(text));
+    const injectionDetected = this.detectInjectionPatterns(text).length > 0;
     const injectionScore = injectionDetected ? 1 : 0;
     categories.push({
       name: 'prompt_injection',

@@ -342,6 +342,12 @@ export interface SafetyResult {
   safetyScore: number;
   isSafe: boolean;
   categories: SafetyCategory[];
+  /**
+   * Ids (PI-01..PI-11) of the injection-screen patterns that matched the input.
+   * Present (possibly empty) so callers can attribute blocked attempts in
+   * audit logs without persisting the offending prompt.
+   */
+  matchedInjectionPatterns?: string[];
 }
 
 /** Detected PII entity */
