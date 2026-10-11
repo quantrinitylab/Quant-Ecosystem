@@ -130,3 +130,62 @@ describe('belongsInFolder — ARCHIVE (archive-counts-divergent P1)', () => {
     expect(seeded.map((e) => e.id)).toEqual(['kept']);
   });
 });
+
+describe('belongsInFolder — SNOOZED (snoozed-offline-seed P1)', () => {
+  // `snoozedUntil` lives only on EmailThread server-side; the SNOOZED list
+  // query now includes the thread relation so `formatEmailRecord` bridges it
+  // onto the wire row. The predicate is deliberately thin — it trusts the
+  // server's `snoozedUntil > now` filter — so the server must send the field
+  // truthfully. These tests pin the client half of that contract, in the
+  // exact wire shape (ISO string) the route serialises.
+  const snoozedEmail = (overrides: Partial<Email> = {}): Email =>
+    email({ ...overrides, snoozedUntil: new Date('2026-10-20T10:00:00.000Z') });
+
+  it('admits a row carrying the bridged snoozedUntil (Date)', () => {
+    expect(belongsInFolder(snoozedEmail(), 'SNOOZED')).toBe(true);
+  });
+
+  it('admits a row carrying the wire-format snoozedUntil (ISO string)', () => {
+    // Fastify serialises the Date to an ISO string; the predicate must stay
+    // truthy on that shape or every cold seed drops every row again.
+    const wireRow = { ...snoozedEmail(), snoozedUntil: '2026-10-20T10:00:00.000Z' } as unknown as Email;
+    expect(belongsInFolder(wireRow, 'SNOOZED')).toBe(true);
+  });
+
+  it('rejects a row without snoozedUntil — the pre-fix wire shape', () => {
+    // Before the backend fix the SNOOZED rows shipped with `snoozedUntil`
+    // undefined, so the seed dropped every cached snoozed row.
+    expect(belongsInFolder(email({}), 'SNOOZED')).toBe(false);
+    expect(belongsInFolder(email({ snoozedUntil: undefined }), 'SNOOZED')).toBe(false);
+  });
+
+  it('keeps trashed mail out of SNOOZED even when snoozed', () => {
+    expect(belongsInFolder(snoozedEmail({ trashedAt: new Date() }), 'SNOOZED')).toBe(false);
+  });
+
+  it('INBOX rejects a row that carries snoozedUntil', () => {
+    // The INBOX server filter excludes snoozed threads, so a row that does
+    // carry the field (e.g. an optimistic patch mid-snooze) must not linger
+    // in the cached inbox list.
+    expect(belongsInFolder(snoozedEmail(), 'INBOX')).toBe(false);
+  });
+
+  it('the offline seed keeps server-marked rows and drops unmarked ones', () => {
+    // Mirrors useInbox's seed: cached.filter((e) => belongsInFolder(e, 'SNOOZED')).
+    const cached: Email[] = [
+      snoozedEmail({ id: 'kept' }),
+      email({ id: 'dropped' }),
+    ];
+    const seeded = cached.filter((e) => belongsInFolder(e, 'SNOOZED'));
+    expect(seeded.map((e) => e.id)).toEqual(['kept']);
+  });
+
+  it('reconcileList moves a freshly-snoozed message into the cached SNOOZED list', () => {
+    const cached: Email[] = [];
+    const patched = new Map<string, Email>([
+      ['m1', snoozedEmail({ id: 'm1' })],
+    ]);
+    const next = reconcileList(cached, patched, 'SNOOZED');
+    expect(next.map((m) => m.id)).toEqual(['m1']);
+  });
+});
