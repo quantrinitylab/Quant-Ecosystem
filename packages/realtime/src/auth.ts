@@ -84,6 +84,17 @@ export class ConnectionAuth {
         issuer: this.issuer,
         audience: this.audience,
       });
+      // QC-F-030 token-kind gate: QuantChat's issuer signs access (1h) and
+      // refresh (30d) tokens with the same secret/issuer/audience — `kind`
+      // is the only separator — so a refresh token must never open a
+      // WebSocket as if it were an access token. Phase-1 policy matches
+      // the server-core REST gate: a present kind that is not 'access' is
+      // rejected; a missing kind (the ecosystem's live kind-less access
+      // tokens) is accepted.
+      const kind = payload['kind'];
+      if (kind !== undefined && kind !== 'access') {
+        throw new AuthError('Invalid token', 4001);
+      }
       return this.extractPayload(payload);
     } catch (error) {
       if (error instanceof Error && error.message.includes('expired')) {
