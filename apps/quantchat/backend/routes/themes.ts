@@ -27,9 +27,14 @@ export default async function themesRoutes(fastify: FastifyInstance) {
 
   // GET /conversations/:id/theme - get the current theme id
   fastify.get<{ Params: { id: string } }>('/:id/theme', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new ThemeService(prisma as never);
-    const themeId = await service.getConversationThemeId(request.params.id);
+    const themeId = await service.getConversationThemeId(request.params.id, userId);
     return reply.send({ success: true, data: { themeId } });
   });
 
@@ -50,6 +55,7 @@ export default async function themesRoutes(fastify: FastifyInstance) {
     const conversation = await service.setConversationTheme(
       request.params.id,
       parseResult.data.themeId,
+      userId,
     );
 
     return reply.send({
