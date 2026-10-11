@@ -24,6 +24,9 @@ const inboxState = vi.hoisted(() => ({
 }));
 const groupState = vi.hoisted(() => ({ convos: [] as unknown[] }));
 const navState = vi.hoisted(() => ({ params: {} as Record<string, string>, push: vi.fn() }));
+// Last conversation the (mocked) PersonThread rendered — the page-level
+// phantom-bubble test reads this after a failed send settles.
+const capturedThreadConversation = vi.hoisted(() => ({ current: null as any }));
 
 vi.mock('../services/api-client', () => ({
   apiClient: { composeEmail: composeMock, sendEmail: sendMock },
@@ -73,12 +76,17 @@ vi.mock('../components/PeopleList', () => ({
   ),
 }));
 vi.mock('../components/PersonThread', () => ({
-  PersonThread: ({ conversation, renderComposer }: any) => (
-    <div data-testid="person-thread">
-      <span data-testid="thread-name">{conversation.name}</span>
-      {renderComposer}
-    </div>
-  ),
+  PersonThread: ({ conversation, renderComposer }: any) => {
+    // Captured for the phantom-bubble tests: the page-level assertion reads
+    // the conversation the thread actually rendered after a failed send.
+    capturedThreadConversation.current = conversation;
+    return (
+      <div data-testid="person-thread">
+        <span data-testid="thread-name">{conversation.name}</span>
+        {renderComposer}
+      </div>
+    );
+  },
 }));
 vi.mock('../components/AppShell', () => ({
   AppShell: ({ children }: any) => <div data-testid="app-shell">{children}</div>,
@@ -356,6 +364,132 @@ describe('ThreadComposer rendering', () => {
   });
 });
 
+// DOM helper: mount the real composer, type text, click send, let the send
+// settle. Returns the container for assertions.
+async function mountComposerAndSend(
+  text: string,
+  handlers: { onSendStart?: () => void; onSendError?: (text: string, subject: string) => void; onSent?: () => void },
+) {
+  const { act } = await import('react');
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  const { createRoot } = await import('react-dom/client');
+
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(
+      <ThreadComposer
+        conversation={makeConversation() as any}
+        currentUserEmail="me@quantmail.in"
+        onSendStart={handlers.onSendStart as any}
+        onSendError={handlers.onSendError}
+        onSent={handlers.onSent}
+      />,
+    );
+  });
+
+  const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+  expect(textarea).not.toBeNull();
+  await act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(
+      Object.getPrototypeOf(textarea),
+      'value',
+    )?.set;
+    setter?.call(textarea, text);
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
+  const sendButton = container.querySelector(
+    'button[aria-label="Send message"]',
+  ) as HTMLButtonElement;
+  expect(sendButton).not.toBeNull();
+  expect(sendButton.disabled).toBe(false);
+  await act(async () => {
+    sendButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+
+  return { container, root, act, textarea };
+}
+
+describe('ThreadComposer onSendError (phantom-bubble fix)', () => {
+  it('fires onSendError with (text, subject) on send failure — and keeps the text', async () => {
+    composeMock.mockResolvedValue(okCompose('draft-x'));
+    sendMock.mockResolvedValue({ success: false, data: undefined, error: { message: 'SMTP down' } });
+
+    const onSendStart = vi.fn();
+    const onSendError = vi.fn();
+    const onSent = vi.fn();
+    const { container, root, act, textarea } = await mountComposerAndSend('doomed message', {
+      onSendStart,
+      onSendError,
+      onSent,
+    });
+
+    // The optimistic bubble went up first…
+    expect(onSendStart).toHaveBeenCalledTimes(1);
+    expect(onSent).not.toHaveBeenCalled();
+    // …then the failure withdrew it. The host needs (text, subject) to know
+    // which bubble to remove.
+    expect(onSendError).toHaveBeenCalledTimes(1);
+    expect(onSendError).toHaveBeenCalledWith('doomed message', 'Re: Hi there');
+    // The failure contract is unchanged: error toast shown, text preserved.
+    expect(toastMock).toHaveBeenCalledWith({ text: 'SMTP down', type: 'error' });
+    expect(textarea.value).toBe('doomed message');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('fires onSendError on compose failure too (not just send failure)', async () => {
+    composeMock.mockResolvedValue({ success: false, data: undefined, error: { message: 'Quota exceeded' } });
+
+    const onSendStart = vi.fn();
+    const onSendError = vi.fn();
+    const { container, root, act, textarea } = await mountComposerAndSend('never composed', {
+      onSendStart,
+      onSendError,
+    });
+
+    expect(onSendStart).toHaveBeenCalledTimes(1);
+    expect(onSendError).toHaveBeenCalledTimes(1);
+    expect(onSendError).toHaveBeenCalledWith('never composed', 'Re: Hi there');
+    expect(textarea.value).toBe('never composed');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('never fires onSendError on a successful send', async () => {
+    composeMock.mockResolvedValue(okCompose());
+    sendMock.mockResolvedValue(okSend());
+
+    const onSendStart = vi.fn();
+    const onSendError = vi.fn();
+    const onSent = vi.fn();
+    const { container, root, act, textarea } = await mountComposerAndSend('happy path', {
+      onSendStart,
+      onSendError,
+      onSent,
+    });
+
+    expect(onSendStart).toHaveBeenCalledTimes(1);
+    expect(onSent).toHaveBeenCalledTimes(1);
+    expect(onSendError).not.toHaveBeenCalled();
+    // Success clears the box (unchanged).
+    expect(textarea.value).toBe('');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+});
+
 describe('/people home', () => {
   it('renders world tabs with counts and the filtered person list', () => {
     groupState.convos = [
@@ -451,5 +585,59 @@ describe('/people/[personId] thread page', () => {
     expect(html).toContain('Retry');
     expect(html).not.toContain('Conversation not found');
     expect(html).not.toContain('data-testid="person-thread"');
+  });
+
+  it('P1 phantom-bubble: a failed send leaves no optimistic bubble in the rendered thread', async () => {
+    groupState.convos = [makeConversation()];
+    navState.params = { personId: encodeURIComponent('ada') };
+    composeMock.mockResolvedValue(okCompose('draft-f'));
+    sendMock.mockResolvedValue({ success: false, data: undefined, error: { message: 'SMTP down' } });
+
+    const { act } = await import('react');
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const { createRoot } = await import('react-dom/client');
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(<PersonPage />);
+    });
+
+    const textarea = container.querySelector(
+      'textarea#people-reply-input',
+    ) as HTMLTextAreaElement;
+    expect(textarea).not.toBeNull();
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(
+        Object.getPrototypeOf(textarea),
+        'value',
+      )?.set;
+      setter?.call(textarea, 'will fail');
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const sendButton = container.querySelector(
+      'button[aria-label="Send message"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      sendButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    // The error toasted (send genuinely failed) …
+    expect(toastMock).toHaveBeenCalledWith({ text: 'SMTP down', type: 'error' });
+    // …but the thread the page rendered carries no phantom sent message: the
+    // optimistic bubble was withdrawn on failure instead of sticking around.
+    const rendered = capturedThreadConversation.current;
+    expect(rendered).not.toBeNull();
+    const phantoms = (rendered.messages as Array<{ pendingSend?: boolean }>).filter(
+      (message) => message.pendingSend === true,
+    );
+    expect(phantoms).toHaveLength(0);
+    // The failed text is still in the box for a retry.
+    expect(textarea.value).toBe('will fail');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
   });
 });

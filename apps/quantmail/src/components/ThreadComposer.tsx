@@ -16,6 +16,13 @@ export interface ThreadComposerProps {
    * send actually fails (see handleSend).
    */
   onSendStart?: (text: string, subject: string) => void;
+  /**
+   * Fired when the send fails (compose or delivery), right after the error
+   * toast. The host must withdraw the optimistic "Sending…" bubble that
+   * `onSendStart` added — a failed send must never look like a sent message.
+   * The typed text stays in the box (the failure contract is unchanged).
+   */
+  onSendError?: (text: string, subject: string) => void;
 }
 
 /**
@@ -105,7 +112,7 @@ export async function executeThreadSend(
  * text is preserved, nothing navigates, and no discard handler is ever
  * called — there is no `onDiscard` prop on this component by design.
  */
-export function ThreadComposer({ conversation, onSent, onSendStart }: ThreadComposerProps) {
+export function ThreadComposer({ conversation, onSent, onSendStart, onSendError }: ThreadComposerProps) {
   const [body, setBody] = useState('');
   const [newTopic, setNewTopic] = useState(false);
   const [customSubject, setCustomSubject] = useState('');
@@ -156,9 +163,13 @@ export function ThreadComposer({ conversation, onSent, onSendStart }: ThreadComp
         setCustomSubject('');
         setNewTopic(false);
         onSent?.();
+      } else {
+        // Failure path: the text stays in the box (unchanged), and the host
+        // withdraws the optimistic bubble — a failed send must never look
+        // like a sent message.
+        onSendError?.(text, subject);
       }
-      // Failure path: the text stays in the box. No navigation, no discard —
-      // `executeThreadSend` has no access to either.
+      // No navigation, no discard — `executeThreadSend` has no access to either.
     } finally {
       setIsSending(false);
     }

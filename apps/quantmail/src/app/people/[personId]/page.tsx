@@ -239,6 +239,20 @@ export default function PersonPage() {
                       // bubbles for the confirmed messages.
                       void refetch().finally(() => setPendingSends([]));
                     }}
+                    onSendError={(text, subject) => {
+                      // The send failed: withdraw the optimistic bubble so it
+                      // never looks like a sent message. Sends are serialized
+                      // per composer (the isSending gate), so the last
+                      // matching entry is the failed one.
+                      setPendingSends((prev) => {
+                        for (let i = prev.length - 1; i >= 0; i -= 1) {
+                          if (prev[i].bodyText === text && prev[i].subject === subject) {
+                            return [...prev.slice(0, i), ...prev.slice(i + 1)];
+                          }
+                        }
+                        return prev;
+                      });
+                    }}
                   />
                 )
               }
