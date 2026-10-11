@@ -2008,21 +2008,10 @@ function QuantGitContent() {  const router = useRouter();
               </span>
             </div>
 
+            {/* Watch button removed (QM-SCREEN-013 P2): it toasted
+                'Notification settings updated' with no API behind it. Watch
+                returns when a real subscription endpoint exists. */}
             <div className="flex items-center gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => showToast('Notification settings updated')}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
-              >
-                <svg className="size-3.5 text-[#7D8590]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-                <span>Watch</span>
-                <span className="px-1.5 py-px rounded-full bg-[#30363D] text-[10px] text-[#7D8590]">
-                  {selectedRepo.watching}
-                </span>
-              </button>
               <button
                 type="button"
                 onClick={() => showToast('Fork copied to your workspace')}

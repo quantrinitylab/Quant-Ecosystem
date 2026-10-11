@@ -50,6 +50,12 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^ai\/chat$/, methods: ['POST'] },
   { pattern: /^ai\/chat\/health$/, methods: ['GET'] },
   { pattern: /^repos(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
+  // Git Smart HTTP transport (QM-SCREEN-013 P1). The backend advertises clone
+  // URLs as /api/code/gitd/... and dual-registers gitTransportRoutes at both
+  // /api/code/gitd and /code/gitd (modules/code/index.ts) because the staging
+  // ingress strips /api and the Next proxy forwards without it. This row lets
+  // the proxy path through; git needs GET (info/refs) and POST (upload-pack).
+  { pattern: /^code\/gitd(?:\/(?:[^/]+))*$/, methods: ['GET', 'POST'] },
   { pattern: /^drive(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
   { pattern: /^documents(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
   // The Pipelines page. `backend/routes/ci.ts` implements six routes and its

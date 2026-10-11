@@ -135,6 +135,13 @@ export async function registerQuantCodeModule(app: FastifyInstance): Promise<voi
   await app.register(quantCodeRoutes, { prefix: '/api/v1' });
   // Leaf transport prefix. Never mount product/admin routes beneath this path.
   await app.register(gitTransportRoutes, { prefix: '/api/code/gitd' });
+  // Dual registration (QM-SCREEN-013 P1): the staging ingress rewrites /api/*
+  // to the backend root, and the Next.js catch-all proxy forwards without the
+  // /api prefix — so the backend sees /code/gitd/..., which 404'd before this
+  // alias existed. Same pattern as the /repos + /api/repos dual registration
+  // in backend/app.ts. Keeps the advertised clone URL
+  // https://quantmail.in/api/code/gitd/repos/<owner>/<name>.git working.
+  await app.register(gitTransportRoutes, { prefix: '/code/gitd' });
 }
 
 export default registerQuantCodeModule;

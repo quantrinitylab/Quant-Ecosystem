@@ -5,7 +5,7 @@
 // Dependabot, Secret Scanning, CodeQL SAST, and Security Policy & Branch Rules
 // ============================================================================
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type {
   SecurityAlert,
   SecretScanningAlert,
@@ -17,10 +17,7 @@ import type {
   SecretAlertStatus,
   Repo,
 } from '../types';
-import {
-  INITIAL_BRANCH_SECURITY_RULES,
-  DEFAULT_SECURITY_POLICY,
-} from '../constants';
+import { DEFAULT_SECURITY_POLICY } from '../constants';
 import { apiFetchRaw } from '@quant/api-client';
 
 export interface SecurityTabProps {
@@ -86,10 +83,82 @@ export function SecurityTab({
   // 4. Security Policy & Branch Rules State
   const [securityPolicy, setSecurityPolicy] = useState<string>(DEFAULT_SECURITY_POLICY);
   const [isEditingPolicy, setIsEditingPolicy] = useState<boolean>(false);
-  const [branchRules, setBranchRules] = useState<BranchSecurityRules>(
-    INITIAL_BRANCH_SECURITY_RULES,
-  );
+  // Honest initial state (QM-SCREEN-013 P2): nothing is "enforced" until the
+  // real GET /:id/branch-protection endpoint below says so. An empty rule set
+  // renders as "not set" — never pre-checked.
+  const [branchRules, setBranchRules] = useState<BranchSecurityRules>({
+    requirePullRequestReviews: false,
+    requireStatusChecks: false,
+    requireCleanSecretScanning: false,
+  });
+  const [branchRulesConfigured, setBranchRulesConfigured] = useState(false);
+  const [branchRulesLoading, setBranchRulesLoading] = useState(false);
   const [isSavingBranchRules, setIsSavingBranchRules] = useState<boolean>(false);
+  const protectionBranch = selectedRepo?.defaultBranch || 'main';
+
+  // Read the real branch-protection rows. Only a rule whose branchPattern
+  // matches this repo's default branch counts — anything else is "not set".
+  useEffect(() => {
+    const target = repoId || selectedRepo?.id;
+    if (!target) {
+      setBranchRules({
+        requirePullRequestReviews: false,
+        requireStatusChecks: false,
+        requireCleanSecretScanning: false,
+      });
+      setBranchRulesConfigured(false);
+      setBranchRulesLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setBranchRulesLoading(true);
+    apiFetchRaw(`/api/repos/${encodeURIComponent(target)}/branch-protection`)
+      .then(async (res) => {
+        if (cancelled) return;
+        if (!res.ok) {
+          setBranchRulesConfigured(false);
+          return;
+        }
+        const json = (await res.json().catch(() => null)) as {
+          success?: boolean;
+          data?: Array<{
+            branchPattern?: string;
+            requiredApprovals?: number;
+            requireStatusChecks?: boolean;
+          }>;
+        } | null;
+        const rule = Array.isArray(json?.data)
+          ? json.data.find((r) => r?.branchPattern === protectionBranch)
+          : undefined;
+        if (rule) {
+          setBranchRules({
+            requirePullRequestReviews: (rule.requiredApprovals ?? 0) > 0,
+            requireStatusChecks: !!rule.requireStatusChecks,
+            // The branch-protection API has no secret-scanning field, so this
+            // row can never be "configured" from the backend. It stays off and
+            // disabled below with an honest note.
+            requireCleanSecretScanning: false,
+          });
+          setBranchRulesConfigured(true);
+        } else {
+          setBranchRules({
+            requirePullRequestReviews: false,
+            requireStatusChecks: false,
+            requireCleanSecretScanning: false,
+          });
+          setBranchRulesConfigured(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setBranchRulesConfigured(false);
+      })
+      .finally(() => {
+        if (!cancelled) setBranchRulesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [repoId, selectedRepo?.id, protectionBranch]);
 
   // --------------------------------------------------------------------------
   // Dependabot Calculations & Filtering
@@ -270,12 +339,43 @@ export function SecurityTab({
     showToast('SECURITY.md vulnerability policy saved successfully!');
   };
 
-  const handleSaveBranchRules = () => {
+  // Real save (QM-SCREEN-013 P2): persists to POST /:id/branch-protection.
+  // Only the fields the API accepts are sent; the secret-scanning row has no
+  // backend field and is never claimed to be saved.
+  const handleSaveBranchRules = async () => {
+    const target = repoId || selectedRepo?.id;
+    if (!target) {
+      showToast('Select a repository before saving branch rules.');
+      return;
+    }
     setIsSavingBranchRules(true);
-    setTimeout(() => {
+    try {
+      const res = await apiFetchRaw(
+        `/api/repos/${encodeURIComponent(target)}/branch-protection`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            branchPattern: protectionBranch,
+            requiredApprovals: branchRules.requirePullRequestReviews ? 1 : 0,
+            requireStatusChecks: branchRules.requireStatusChecks,
+          }),
+        },
+      );
+      if (!res.ok) {
+        const errJson = (await res.json().catch(() => null)) as {
+          error?: { message?: string };
+        } | null;
+        showToast(errJson?.error?.message || 'Failed to save branch protection rules.');
+        return;
+      }
+      setBranchRulesConfigured(true);
+      showToast('Branch protection rules saved.');
+    } catch {
+      showToast('Failed to save branch protection rules.');
+    } finally {
       setIsSavingBranchRules(false);
-      showToast('Branch security protection rules updated and enforced!');
-    }, 400);
+    }
   };
 
   // Helper badge styles
@@ -1065,15 +1165,34 @@ export function SecurityTab({
                   <span>🔒 Branch Protection Security Checks</span>
                   <span
                     data-testid="branch-rules-enforced-badge"
-                    className="px-2 py-px rounded-full bg-[#238636]/20 text-[#3FB950] font-mono text-[10px] font-bold"
+                    className={`px-2 py-px rounded-full font-mono text-[10px] font-bold ${
+                      branchRulesConfigured &&
+                      (branchRules.requirePullRequestReviews || branchRules.requireStatusChecks)
+                        ? 'bg-[#238636]/20 text-[#3FB950]'
+                        : 'bg-[#8B949E]/20 text-[#8B949E]'
+                    }`}
                   >
-                    main: Enforced
+                    {branchRulesLoading
+                      ? 'Loading…'
+                      : !branchRulesConfigured
+                        ? `${protectionBranch}: Not set`
+                        : branchRules.requirePullRequestReviews || branchRules.requireStatusChecks
+                          ? `${protectionBranch}: Enforced`
+                          : `${protectionBranch}: Not enforced`}
                   </span>
                 </h3>
                 <p className="text-[#7D8590] text-xs mt-0.5">
                   Protect branches from unreviewed commits, failing security checks, or leaked
                   credentials.
                 </p>
+                {!branchRulesLoading && !branchRulesConfigured && (
+                  <p
+                    data-testid="branch-rules-not-set-note"
+                    className="text-[#7D8590] text-xs mt-0.5"
+                  >
+                    No branch protection rules are configured for this branch yet.
+                  </p>
+                )}
               </div>
 
               <button
@@ -1144,22 +1263,22 @@ export function SecurityTab({
                 </div>
               </label>
 
-              {/* Check 3: Require secret scanning to be clean before merge */}
+              {/* Check 3: Require secret scanning to be clean before merge.
+                  The branch-protection API has no field for this rule, so it
+                  cannot be persisted or enforced — it stays disabled with an
+                  honest note rather than pretending to save. */}
               <label
                 data-testid="rule-require-clean-secrets"
-                className="flex items-start gap-3 pt-3 cursor-pointer group"
+                className="flex items-start gap-3 pt-3 cursor-not-allowed group opacity-70"
+                aria-disabled="true"
               >
                 <input
                   type="checkbox"
                   data-testid="checkbox-require-clean-secrets"
-                  checked={branchRules.requireCleanSecretScanning}
-                  onChange={(e) =>
-                    setBranchRules((prev) => ({
-                      ...prev,
-                      requireCleanSecretScanning: e.target.checked,
-                    }))
-                  }
-                  className="mt-0.5 rounded border-[#30363D] bg-[#0D1117] text-[#58A6FF] focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                  checked={false}
+                  disabled
+                  onChange={() => {}}
+                  className="mt-0.5 rounded border-[#30363D] bg-[#0D1117] text-[#58A6FF] focus:ring-0 focus:ring-offset-0 cursor-not-allowed"
                 />
                 <div className="space-y-0.5">
                   <span className="font-semibold text-white group-hover:text-[#58A6FF] transition-colors">
@@ -1168,6 +1287,9 @@ export function SecurityTab({
                   <p className="text-[11px] text-[#7D8590]">
                     Blocks merging pull requests if any new active credentials (AWS keys, OpenAI
                     tokens, database URIs, RSA keys) are detected in the diff.
+                  </p>
+                  <p className="text-[11px] text-[#7D8590] italic">
+                    Not yet supported by the branch-protection API — cannot be enforced yet.
                   </p>
                 </div>
               </label>

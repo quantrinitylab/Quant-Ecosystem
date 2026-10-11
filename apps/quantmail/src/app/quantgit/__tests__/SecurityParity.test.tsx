@@ -277,7 +277,10 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
 
       expect(html).toContain('data-testid="branch-protection-rules-view"');
       expect(html).toContain('Branch Protection Security Checks');
-      expect(html).toContain('main: Enforced');
+      // Honest empty state (QM-SCREEN-013 P2): with no repo selected and no
+      // backend rules, nothing is claimed "Enforced".
+      expect(html).toContain('main: Not set');
+      expect(html).toContain('data-testid="branch-rules-not-set-note"');
       expect(html).toContain('data-testid="save-branch-rules-btn"');
       expect(html).toContain('Save branch rules');
 

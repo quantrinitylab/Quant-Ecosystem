@@ -184,7 +184,7 @@ export function ActionsTab({
                 <p className="text-[11px] text-[#8D96A0]">
                   Triggered by{' '}
                   <span className="text-[#C9D1D9] font-medium">
-                    {activeRun.actor || 'ai-agent'}
+                    {activeRun.actor || 'Unknown'}
                   </span>{' '}
                   via <span className="font-mono text-[#58A6FF]">{activeRun.event || 'push'}</span>{' '}
                   on branch <span className="font-mono text-[#E6EDF3]">{activeRun.branch}</span> ·
@@ -480,7 +480,7 @@ export function ActionsTab({
                         </h5>
 
                         <p className="text-[11px] text-[#8D96A0]">
-                          <span className="font-medium text-[#C9D1D9]">{run.actor}</span> triggered
+                          <span className="font-medium text-[#C9D1D9]">{run.actor || 'Unknown'}</span> triggered
                           via{' '}
                           <span className="font-mono text-[#58A6FF]">{run.event || 'push'}</span> on{' '}
                           <span className="font-mono">{run.branch}</span>
@@ -489,7 +489,7 @@ export function ActionsTab({
                     </div>
 
                     <div className="flex items-center gap-3 shrink-0 text-[11px] text-[#8D96A0]">
-                      <span>{run.createdAt}</span>
+                      <span>{run.timeAgo || '—'}</span>
                       <span className="font-mono px-2 py-0.5 rounded bg-[#21262D]">
                         {run.duration || '—'}
                       </span>

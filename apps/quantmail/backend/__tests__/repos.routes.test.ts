@@ -1358,6 +1358,62 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     expect(Array.isArray(body.data)).toBe(true);
   });
 
+  it('GET /repos/:id/actions computes honest durations, times, names — never invented (QM-SCREEN-013 P1)', async () => {
+    const app = await buildApp();
+    const now = Date.now();
+    prisma.ciRun.findMany.mockResolvedValueOnce([
+      {
+        id: 'run-1',
+        repoId: 'repo-1',
+        branch: 'main',
+        commitSha: 'a'.repeat(40),
+        status: 'SUCCESS',
+        triggeredBy: 'kundan',
+        startedAt: new Date(now - 330_000),
+        completedAt: new Date(now - 35_000), // 295s -> '4m 55s' by real math
+        createdAt: new Date(now - 2 * 3_600_000),
+        jobs: [
+          {
+            id: 'job-1',
+            name: 'build',
+            status: 'SUCCESS',
+            startedAt: new Date(now - 300_000),
+            completedAt: new Date(now - 170_000), // 130s -> '2m 10s' by real math
+          },
+        ],
+      },
+      {
+        id: 'run-2',
+        repoId: 'repo-1',
+        branch: 'main',
+        commitSha: 'b'.repeat(40),
+        status: 'PENDING',
+        triggeredBy: null,
+        startedAt: null,
+        completedAt: null,
+        createdAt: new Date(now - 30_000),
+        jobs: [],
+      },
+    ]);
+    const res = await app.inject({ method: 'GET', url: '/repos/repo-1/actions' });
+    expect(res.statusCode).toBe(200);
+    const [first, second] = res.json().data;
+    // Real computed values — never the old hardcoded '4m 55s' / 'recently'.
+    expect(first.duration).toBe('4m 55s');
+    expect(first.timeAgo).toBe('2h ago');
+    expect(first.name).toBe('Build triggered by kundan');
+    expect(first.actor).toBe('kundan');
+    expect(first.workflow).toBe('build');
+    expect(first.jobs[0].duration).toBe('2m 10s');
+    // Missing data renders honest placeholders — never invented names/times.
+    expect(second.name).toBe('Unknown');
+    expect(second.actor).toBeNull();
+    expect(second.duration).toBe('—');
+    expect(second.timeAgo).toBe('just now');
+    expect(second.workflow).toBe('—');
+    expect(second.jobs).toEqual([]);
+  });
+
   it('POST /repos/:id/actions/trigger returns 201 without dev gating in production environment', async () => {
     const previousNodeEnv = process.env.NODE_ENV;
     const previousSeeding = process.env.ENABLE_DEV_REPO_SEEDING;

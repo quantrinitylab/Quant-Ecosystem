@@ -581,7 +581,7 @@ export function QuantGitPrsSubView({
   const handleMergeClick = (pr: PullRequestItem) => {
     setMergedPrs((prev) => ({ ...prev, [pr.id]: true }));
     onMergePR?.(pr.id);
-    showToast?.(`1-Click 3-Way Merge completed for PR #${pr.prNumber}!`);
+    showToast?.(`Pull request #${pr.prNumber} merged!`);
   };
 
   const openCount = prs.filter((p) => !mergedPrs[p.id] && p.status !== 'closed').length;
@@ -603,12 +603,9 @@ export function QuantGitPrsSubView({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Pull Requests Dashboard</h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30">
-                  3-WAY MERGE READY
-                </span>
               </div>
               <p className="text-xs text-[#8B949E] mt-0.5">
-                Continuous integration, atomic 3-way tree diffs & automated signed approvals
+                Review and merge pull requests
               </p>
             </div>
           </div>
