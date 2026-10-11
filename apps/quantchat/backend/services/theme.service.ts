@@ -15,13 +15,31 @@ import { createAppError } from '@quant/server-core';
 export class ThemeService {
   constructor(private readonly prisma: PrismaClient) {}
 
+  /**
+   * QC-F-017 (folded route): theme read/write is conversation-scoped, so the
+   * requester must be an active member — same 403 NOT_A_MEMBER convention as
+   * ConversationService / MessageService.
+   */
+  private async requireMembership(conversationId: string, requesterId: string): Promise<void> {
+    const membership = await this.prisma.conversationMember.findFirst({
+      where: { conversationId, userId: requesterId, leftAt: null },
+    });
+
+    if (!membership) {
+      throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
+    }
+  }
+
   /** List all predefined chat themes stored in the database. */
   async listThemes(): Promise<ChatTheme[]> {
     return this.prisma.chatTheme.findMany();
   }
 
   /** Get the theme id currently applied to a conversation (null if none). */
-  async getConversationThemeId(conversationId: string): Promise<string | null> {
+  async getConversationThemeId(
+    conversationId: string,
+    requesterId: string,
+  ): Promise<string | null> {
     const conversation = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
       select: { themeId: true },
@@ -31,6 +49,8 @@ export class ThemeService {
       throw createAppError('Conversation not found', 404, 'CONVERSATION_NOT_FOUND');
     }
 
+    await this.requireMembership(conversationId, requesterId);
+
     return conversation.themeId ?? null;
   }
 
@@ -39,7 +59,11 @@ export class ThemeService {
    * client theme catalog (or a ChatTheme row); it is stored verbatim so all
    * participants resolve the same theme.
    */
-  async setConversationTheme(conversationId: string, themeId: string): Promise<Conversation> {
+  async setConversationTheme(
+    conversationId: string,
+    themeId: string,
+    requesterId: string,
+  ): Promise<Conversation> {
     const conversation = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
     });
@@ -47,6 +71,8 @@ export class ThemeService {
     if (!conversation) {
       throw createAppError('Conversation not found', 404, 'CONVERSATION_NOT_FOUND');
     }
+
+    await this.requireMembership(conversationId, requesterId);
 
     return this.prisma.conversation.update({
       where: { id: conversationId },

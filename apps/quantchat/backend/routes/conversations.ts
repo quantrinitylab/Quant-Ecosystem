@@ -73,9 +73,14 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
 
   // GET /conversations/:id - Get a conversation
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new ConversationService(prisma as never);
-    const conversation = await service.getConversation(request.params.id);
+    const conversation = await service.getConversation(request.params.id, userId);
 
     if (!conversation) {
       throw createAppError('Conversation not found', 404, 'CONVERSATION_NOT_FOUND');
@@ -91,9 +96,18 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
       throw parseResult.error;
     }
 
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new ConversationService(prisma as never);
-    const conversation = await service.updateConversation(request.params.id, parseResult.data);
+    const conversation = await service.updateConversation(
+      request.params.id,
+      userId,
+      parseResult.data,
+    );
 
     return reply.send({ success: true, data: conversation });
   });
@@ -105,10 +119,16 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
       throw parseResult.error;
     }
 
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new ConversationService(prisma as never);
     const member = await service.addMember(
       request.params.id,
+      userId,
       parseResult.data.userId,
       parseResult.data.role,
     );
@@ -120,9 +140,14 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
   fastify.delete<{ Params: { id: string; userId: string } }>(
     '/:id/members/:userId',
     async (request, reply) => {
+      const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+      if (!userId) {
+        throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+      }
+
       const prisma = (fastify as unknown as { prisma: unknown }).prisma;
       const service = new ConversationService(prisma as never);
-      await service.removeMember(request.params.id, request.params.userId);
+      await service.removeMember(request.params.id, userId, request.params.userId);
 
       return reply.send({ success: true });
     },

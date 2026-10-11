@@ -123,12 +123,24 @@ export class DisappearingService {
   async setConversationTimer(
     conversationId: string,
     seconds: number | null,
+    requesterId: string,
   ): Promise<{ conversationId: string; disappearTimer: number | null }> {
     const conversation = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
     });
     if (!conversation) {
       throw createAppError('Conversation not found', 404, 'CONVERSATION_NOT_FOUND');
+    }
+
+    // QC-F-017 (folded route): the disappear timer is conversation-scoped —
+    // only an active member may change it (403 NOT_A_MEMBER convention, same
+    // as ConversationService / MessageService). The /view and /screenshot
+    // endpoints are a separate finding (QC-F-038) and are not touched here.
+    const membership = await this.prisma.conversationMember.findFirst({
+      where: { conversationId, userId: requesterId, leftAt: null },
+    });
+    if (!membership) {
+      throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
     }
 
     const normalized = seconds && seconds > 0 ? seconds : null;
