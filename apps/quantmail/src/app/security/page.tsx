@@ -7,18 +7,59 @@ import { AppSidebar } from '../../components/AppSidebar';
 import { IconCheck } from '../../components/icons';
 import { TwoFactorQrCode } from '../../components/security/TwoFactorQrCode';
 import { showToast } from '../../components/InboxToast';
-import { apiClient } from '../../services/api-client';
+import {
+  apiClient,
+  type OAuthGrant,
+  type PersonalAccessToken,
+  type MintedPersonalAccessToken,
+} from '../../services/api-client';
 
 // ---------------------------------------------------------------------------
 // Security Tabs — GitHub/Gmail-quality tabbed navigation
 // ---------------------------------------------------------------------------
-type SecurityTab = 'password-auth' | 'sessions' | 'connected-apps';
+type SecurityTab = 'password-auth' | 'sessions' | 'connected-apps' | 'personal-tokens';
 
 const TABS: { key: SecurityTab; label: string }[] = [
   { key: 'password-auth', label: 'Password & Authentication' },
   { key: 'sessions', label: 'Active Sessions' },
   { key: 'connected-apps', label: 'Connected Apps & Integrations' },
+  { key: 'personal-tokens', label: 'Personal Access Tokens' },
 ];
+
+// ---------------------------------------------------------------------------
+// OAuth scope descriptions
+//
+// These are the scopes this backend actually grants (see backend
+// /oauth/authorize defaults and the OIDC discovery document): openid, profile,
+// email. Descriptions follow what each scope discloses per the code — the
+// id_token claims and the /oauth/userinfo response — not marketing copy.
+// ---------------------------------------------------------------------------
+const OAUTH_SCOPE_DESCRIPTIONS: Record<string, string> = {
+  openid: 'Sign you in — proves your identity to the app',
+  profile: 'Basic profile — your name and username',
+  email: 'Your email address',
+};
+
+const describeOAuthScope = (scope: string): string =>
+  OAUTH_SCOPE_DESCRIPTIONS[scope] ?? scope;
+
+// ---------------------------------------------------------------------------
+// Personal access token scopes
+//
+// The backend mints tokens only for these scopes
+// (backend/routes/settings-tokens.ts). Offered verbatim — nothing else exists.
+// ---------------------------------------------------------------------------
+const PAT_SCOPES = [
+  { value: 'repo:read', label: 'repo:read', description: 'Read repositories' },
+  { value: 'repo:write', label: 'repo:write', description: 'Read and write repositories' },
+  { value: 'repo:admin', label: 'repo:admin', description: 'Full repository administration' },
+] as const;
+
+const PAT_EXPIRIES = [
+  { value: 30, label: '30 days' },
+  { value: 90, label: '90 days' },
+  { value: 365, label: '1 year' },
+] as const;
 
 // ---------------------------------------------------------------------------
 // Two-factor authentication
@@ -121,6 +162,39 @@ function relativeTime(iso: string): string {
     year: 'numeric',
   });
 }
+
+const formatDate = (iso: string | null | undefined): string =>
+  iso
+    ? new Date(iso).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      })
+    : 'Unknown';
+
+/** Group grants by scope so the permission summary is derived from real data. */
+function groupGrantsByScope(grants: OAuthGrant[]): { scope: string; clientNames: string[] }[] {
+  const map = new Map<string, string[]>();
+  for (const grant of grants) {
+    for (const scope of grant.scopes) {
+      const names = map.get(scope);
+      if (names) {
+        if (!names.includes(grant.clientName)) names.push(grant.clientName);
+      } else {
+        map.set(scope, [grant.clientName]);
+      }
+    }
+  }
+  return [...map.entries()].map(([scope, clientNames]) => ({ scope, clientNames }));
+}
+
+type PersonalAccessTokenStatus = 'active' | 'expired' | 'revoked';
+
+const personalAccessTokenStatus = (token: PersonalAccessToken): PersonalAccessTokenStatus => {
+  if (token.revokedAt) return 'revoked';
+  if (new Date(token.expiresAt).getTime() < Date.now()) return 'expired';
+  return 'active';
+};
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -359,6 +433,145 @@ export default function SecurityPage() {
     setPasswordForm({ current: '', newPassword: '', confirm: '' });
   }, [passwordForm]);
 
+  // ─── Connected Apps (OAuth grants) ────────────────────────────────────────
+  //
+  // This tab used to hardcode "No third-party apps connected" and assert that
+  // no app held email/profile permission — without ever asking the server.
+  // Every claim below comes from GET /oauth/grants. `grants === null` means
+  // "not loaded yet"; an empty array is the only honest empty state.
+  const [grants, setGrants] = useState<OAuthGrant[] | null>(null);
+  const [grantsError, setGrantsError] = useState('');
+  const [grantsLoading, setGrantsLoading] = useState(false);
+  const [confirmRevokeClientId, setConfirmRevokeClientId] = useState<string | null>(null);
+  const [revokingClientId, setRevokingClientId] = useState<string | null>(null);
+  const [grantsNotice, setGrantsNotice] = useState('');
+
+  const loadGrants = useCallback(async () => {
+    setGrantsLoading(true);
+    setGrantsError('');
+    const response = await apiClient.getOAuthGrants();
+    setGrantsLoading(false);
+    if (!response.success || !response.data) {
+      setGrantsError(response.error?.message || 'Could not load connected apps.');
+      return;
+    }
+    setGrants(response.data);
+  }, []);
+
+  const handleRevokeGrant = useCallback(
+    async (clientId: string) => {
+      setRevokingClientId(clientId);
+      setGrantsNotice('');
+      const response = await apiClient.revokeOAuthGrant(clientId);
+      setRevokingClientId(null);
+      setConfirmRevokeClientId(null);
+      if (!response.success) {
+        setGrantsError(response.error?.message || 'Could not revoke access.');
+        return;
+      }
+      setGrantsNotice('Access revoked. The app must ask your permission again to reconnect.');
+      await loadGrants();
+    },
+    [loadGrants],
+  );
+
+  // ─── Personal Access Tokens ───────────────────────────────────────────────
+  //
+  // The backend routes existed with no UI. The raw token value is shown once,
+  // at mint time, from the POST response — it is never stored client-side.
+  const [tokens, setTokens] = useState<PersonalAccessToken[] | null>(null);
+  const [tokensLoading, setTokensLoading] = useState(false);
+  const [tokensError, setTokensError] = useState('');
+  const [tokensNotice, setTokensNotice] = useState('');
+  const [tokenName, setTokenName] = useState('');
+  const [tokenScopes, setTokenScopes] = useState<string[]>(['repo:read']);
+  const [tokenExpiryDays, setTokenExpiryDays] = useState<number>(90);
+  const [minting, setMinting] = useState(false);
+  const [mintError, setMintError] = useState('');
+  const [freshToken, setFreshToken] = useState<MintedPersonalAccessToken | null>(null);
+  const [freshTokenCopied, setFreshTokenCopied] = useState(false);
+  const [confirmRevokeTokenId, setConfirmRevokeTokenId] = useState<string | null>(null);
+  const [revokingTokenId, setRevokingTokenId] = useState<string | null>(null);
+
+  const loadTokens = useCallback(async () => {
+    setTokensLoading(true);
+    setTokensError('');
+    const response = await apiClient.getPersonalAccessTokens();
+    setTokensLoading(false);
+    if (!response.success || !response.data) {
+      setTokensError(response.error?.message || 'Could not load personal access tokens.');
+      return;
+    }
+    setTokens(response.data);
+  }, []);
+
+  const toggleTokenScope = useCallback((scope: string) => {
+    setTokenScopes((prev) =>
+      prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope],
+    );
+  }, []);
+
+  const handleMintToken = useCallback(async () => {
+    setMintError('');
+    setTokensNotice('');
+    const name = tokenName.trim();
+    if (!name) {
+      setMintError('Give the token a name so you can tell it apart later.');
+      return;
+    }
+    if (tokenScopes.length === 0) {
+      setMintError('Choose at least one scope.');
+      return;
+    }
+    setMinting(true);
+    const expiresAt = new Date(Date.now() + tokenExpiryDays * 24 * 60 * 60 * 1000).toISOString();
+    const response = await apiClient.createPersonalAccessToken({
+      name,
+      scopes: tokenScopes,
+      expiresAt,
+    });
+    setMinting(false);
+    if (!response.success || !response.data) {
+      // STEP_UP_REQUIRED (401) means the session's last strong authentication
+      // is stale: the backend's own message says to sign in again and retry.
+      setMintError(response.error?.message || 'Could not create the token.');
+      return;
+    }
+    setFreshToken(response.data);
+    setFreshTokenCopied(false);
+    setTokenName('');
+    setTokenScopes(['repo:read']);
+    setTokensNotice('Token created.');
+    await loadTokens();
+  }, [tokenName, tokenScopes, tokenExpiryDays, loadTokens]);
+
+  const handleRevokeToken = useCallback(
+    async (id: string) => {
+      setRevokingTokenId(id);
+      setTokensNotice('');
+      const response = await apiClient.revokePersonalAccessToken(id);
+      setRevokingTokenId(null);
+      setConfirmRevokeTokenId(null);
+      if (!response.success) {
+        setTokensError(response.error?.message || 'Could not revoke the token.');
+        return;
+      }
+      setTokensNotice('Token revoked. It stops working immediately.');
+      await loadTokens();
+    },
+    [loadTokens],
+  );
+
+  // Lazy-load each tab's data the first time it is opened.
+  useEffect(() => {
+    if (activeTab === 'connected-apps' && grants === null && !grantsLoading) {
+      void loadGrants();
+    }
+    if (activeTab === 'personal-tokens' && tokens === null && !tokensLoading) {
+      void loadTokens();
+    }
+  }, [activeTab, grants, grantsLoading, loadGrants, tokens, tokensLoading, loadTokens]);
+
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
@@ -369,7 +582,7 @@ export default function SecurityPage() {
             Security
           </h1>
           <p className="text-sm text-[var(--quant-muted-foreground)] mt-0.5">
-            Manage passwords, two-factor authentication, sessions and connected apps.
+            Manage passwords, two-factor authentication, sessions, connected apps, and API tokens.
           </p>
         </div>
 
@@ -906,26 +1119,139 @@ export default function SecurityPage() {
                 <p className="text-sm text-[var(--quant-muted-foreground)] mb-4">
                   Third-party applications that have access to your QuantMail account.
                 </p>
-                <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-6">
-                  <div className="text-center py-8">
-                    <div className="w-14 h-14 rounded-full bg-[var(--quant-muted)] flex items-center justify-center mx-auto mb-4 text-[var(--quant-muted-foreground)]">
-                      <svg
-                        className="size-6"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.75"
-                      >
-                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                      </svg>
-                    </div>
-                    <p className="text-sm font-medium text-[var(--quant-foreground)] mb-1">
-                      No third-party apps connected
+                <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
+                  {grantsNotice ? (
+                    <p
+                      role="status"
+                      aria-live="polite"
+                      className="rounded-md border border-[var(--quant-success)]/25 bg-[var(--quant-success)]/10 px-3 py-2 text-sm text-[var(--quant-success)] mb-4"
+                    >
+                      {grantsNotice}
                     </p>
-                    <p className="text-xs text-[var(--quant-muted-foreground)] max-w-xs mx-auto">
-                      When you authorize third-party applications to access your account, they will
-                      appear here. You can revoke access at any time.
+                  ) : null}
+
+                  {grantsError ? (
+                    <div role="alert" className="flex flex-wrap items-center gap-3 mb-4">
+                      <p className="text-sm text-[var(--quant-destructive)]">{grantsError}</p>
+                      <Button variant="secondary" size="sm" onClick={() => void loadGrants()}>
+                        Try again
+                      </Button>
+                    </div>
+                  ) : null}
+
+                  {(grants === null && !grantsError) || grantsLoading ? (
+                    <div className="space-y-3">
+                      <Skeleton variant="rect" width="100%" height="76px" />
+                      <Skeleton variant="rect" width="100%" height="76px" />
+                    </div>
+                  ) : null}
+
+                  {grants && grants.length === 0 && !grantsError ? (
+                    <div className="text-center py-8">
+                      <div className="w-14 h-14 rounded-full bg-[var(--quant-muted)] flex items-center justify-center mx-auto mb-4 text-[var(--quant-muted-foreground)]">
+                        <svg
+                          className="size-6"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.75"
+                        >
+                          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                        </svg>
+                      </div>
+                      <p className="text-sm font-medium text-[var(--quant-foreground)] mb-1">
+                        No third-party apps connected
+                      </p>
+                      <p className="text-xs text-[var(--quant-muted-foreground)] max-w-xs mx-auto">
+                        When you authorize third-party applications to access your account, they
+                        will appear here. You can revoke access at any time.
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {grants && grants.length > 0 && !grantsError ? (
+                    <ul className="space-y-3">
+                      {grants.map((grant) => (
+                        <li
+                          key={grant.clientId}
+                          className="rounded-md border border-[var(--quant-border)] p-4"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="w-9 h-9 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0">
+                              <span className="text-sm font-semibold text-[var(--quant-primary)]">
+                                {grant.clientName.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-sm font-medium text-[var(--quant-foreground)]">
+                                  {grant.clientName}
+                                </p>
+                                {grant.isFirstParty ? (
+                                  <span className="text-[11px] font-medium text-[var(--quant-muted-foreground)] bg-[var(--quant-muted)] px-2 py-0.5 rounded-full">
+                                    Quant
+                                  </span>
+                                ) : null}
+                              </div>
+                              {grant.clientDescription ? (
+                                <p className="text-xs text-[var(--quant-muted-foreground)] mt-0.5">
+                                  {grant.clientDescription}
+                                </p>
+                              ) : null}
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {grant.scopes.map((scope) => (
+                                  <span
+                                    key={scope}
+                                    title={describeOAuthScope(scope)}
+                                    className="text-[11px] font-mono text-[var(--quant-muted-foreground)] bg-[var(--quant-muted)] px-2 py-0.5 rounded-full"
+                                  >
+                                    {scope}
+                                  </span>
+                                ))}
+                              </div>
+                              <p className="text-xs text-[var(--quant-muted-foreground)] mt-1.5">
+                                Connected {formatDate(grant.grantedAt)}
+                              </p>
+                            </div>
+                            {confirmRevokeClientId === grant.clientId ? (
+                              <div className="flex items-center gap-2 shrink-0">
+                                <Button
+                                  variant="danger"
+                                  size="sm"
+                                  disabled={revokingClientId === grant.clientId}
+                                  onClick={() => void handleRevokeGrant(grant.clientId)}
+                                >
+                                  {revokingClientId === grant.clientId ? 'Revoking…' : 'Confirm'}
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => setConfirmRevokeClientId(null)}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => setConfirmRevokeClientId(grant.clientId)}
+                              >
+                                Revoke
+                              </Button>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+
+                  <div className="pt-3 mt-4 border-t border-[var(--quant-border)]">
+                    <p className="text-xs text-[var(--quant-muted-foreground)]">
+                      Revoking removes the app&apos;s saved authorization — it must ask your
+                      permission again to reconnect. Tokens it already holds keep working until
+                      they expire (15 minutes).
                     </p>
                   </div>
                 </div>
@@ -938,84 +1264,314 @@ export default function SecurityPage() {
                 <p className="text-sm text-[var(--quant-muted-foreground)] mb-4">
                   Control which apps can access your data through OAuth 2.0.
                 </p>
-                <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5 space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5 text-[var(--quant-primary)]">
-                      <svg
-                        className="size-4"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <rect x="2" y="4" width="20" height="16" rx="2" />
-                        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                      </svg>
+                <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
+                  {(grants === null && !grantsError) || grantsLoading ? (
+                    <div className="space-y-3">
+                      <Skeleton variant="rect" width="100%" height="44px" />
+                      <Skeleton variant="rect" width="80%" height="44px" />
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-[var(--quant-foreground)]">
-                        Email read access
-                      </p>
-                      <p className="text-xs text-[var(--quant-muted-foreground)]">
-                        No apps currently have permission to read your emails
-                      </p>
-                    </div>
-                  </div>
+                  ) : null}
 
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5 text-[var(--quant-primary)]">
-                      <svg
-                        className="size-4"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
+                  {grantsError ? (
+                    <p className="text-sm text-[var(--quant-muted-foreground)]">
+                      Could not load permission details.{' '}
+                      <button
+                        type="button"
+                        className="underline underline-offset-2 hover:text-[var(--quant-foreground)]"
+                        onClick={() => void loadGrants()}
                       >
-                        <path d="M12 19l7-7 3 3-7 7-3-3z" />
-                        <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
-                        <path d="M2 2l7.586 7.586" />
-                        <circle cx="11" cy="11" r="2" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-[var(--quant-foreground)]">
-                        Email send access
-                      </p>
-                      <p className="text-xs text-[var(--quant-muted-foreground)]">
-                        No apps currently have permission to send emails on your behalf
-                      </p>
-                    </div>
-                  </div>
+                        Try again
+                      </button>
+                    </p>
+                  ) : null}
 
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5 text-[var(--quant-primary)]">
-                      <svg
-                        className="size-4"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-[var(--quant-foreground)]">
-                        Profile access
-                      </p>
-                      <p className="text-xs text-[var(--quant-muted-foreground)]">
-                        No apps currently have access to your profile information
-                      </p>
-                    </div>
-                  </div>
+                  {grants && grants.length === 0 && !grantsError ? (
+                    <p className="text-sm text-[var(--quant-muted-foreground)]">
+                      No permissions granted. When you authorize an app, the permissions it holds
+                      will be listed here.
+                    </p>
+                  ) : null}
 
-                  <div className="pt-3 border-t border-[var(--quant-border)]">
+                  {grants && grants.length > 0 && !grantsError ? (
+                    <div className="space-y-4">
+                      {groupGrantsByScope(grants).map(({ scope, clientNames }) => (
+                        <div key={scope} className="flex items-start gap-3">
+                          <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5 text-[var(--quant-primary)]">
+                            <svg
+                              className="size-4"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <path d="M20 6 9 17l-5-5" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-[var(--quant-foreground)] font-mono">
+                              {scope}
+                            </p>
+                            <p className="text-xs text-[var(--quant-muted-foreground)]">
+                              {describeOAuthScope(scope)} · granted to {clientNames.join(', ')}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="pt-3 mt-4 border-t border-[var(--quant-border)]">
                     <p className="text-xs text-[var(--quant-muted-foreground)]">
-                      OAuth apps will appear here once you authorize them. You can always revoke
-                      access from this page.
+                      These permissions come from the apps listed above. Revoke an app to take
+                      back every permission it holds.
                     </p>
                   </div>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'personal-tokens' && (
+            <div className="w-full space-y-8">
+              <section>
+                <h2 className="text-base font-semibold text-[var(--quant-foreground)] mb-1">
+                  Personal Access Tokens
+                </h2>
+                <p className="text-sm text-[var(--quant-muted-foreground)] mb-4">
+                  Long-lived tokens for scripts and API access. They act as you — treat them like
+                  passwords and revoke any you no longer use.
+                </p>
+                <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
+                  {tokensNotice ? (
+                    <p
+                      role="status"
+                      aria-live="polite"
+                      className="rounded-md border border-[var(--quant-success)]/25 bg-[var(--quant-success)]/10 px-3 py-2 text-sm text-[var(--quant-success)] mb-4"
+                    >
+                      {tokensNotice}
+                    </p>
+                  ) : null}
+
+                  {tokensError ? (
+                    <div role="alert" className="flex flex-wrap items-center gap-3 mb-4">
+                      <p className="text-sm text-[var(--quant-destructive)]">{tokensError}</p>
+                      <Button variant="secondary" size="sm" onClick={() => void loadTokens()}>
+                        Try again
+                      </Button>
+                    </div>
+                  ) : null}
+
+                  {(tokens === null && !tokensError) || tokensLoading ? (
+                    <div className="space-y-3">
+                      <Skeleton variant="rect" width="100%" height="64px" />
+                      <Skeleton variant="rect" width="100%" height="64px" />
+                    </div>
+                  ) : null}
+
+                  {tokens && tokens.length === 0 && !tokensError ? (
+                    <div className="text-center py-8">
+                      <p className="text-sm font-medium text-[var(--quant-foreground)] mb-1">
+                        No personal access tokens
+                      </p>
+                      <p className="text-xs text-[var(--quant-muted-foreground)] max-w-xs mx-auto">
+                        Create one below when a script or integration needs to call the API on
+                        your behalf.
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {tokens && tokens.length > 0 && !tokensError ? (
+                    <ul className="space-y-3">
+                      {tokens.map((token) => {
+                        const status = personalAccessTokenStatus(token);
+                        return (
+                          <li
+                            key={token.id}
+                            className="rounded-md border border-[var(--quant-border)] p-4"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-sm font-medium text-[var(--quant-foreground)]">
+                                    {token.name}
+                                  </p>
+                                  <span
+                                    className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                                      status === 'active'
+                                        ? 'text-green-400 bg-green-500/10'
+                                        : status === 'expired'
+                                          ? 'text-amber-400 bg-amber-500/10'
+                                          : 'text-[var(--quant-muted-foreground)] bg-[var(--quant-muted)]'
+                                    }`}
+                                  >
+                                    {status === 'active'
+                                      ? 'Active'
+                                      : status === 'expired'
+                                        ? 'Expired'
+                                        : 'Revoked'}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                  {token.scopes.map((scope) => (
+                                    <span
+                                      key={scope}
+                                      className="text-[11px] font-mono text-[var(--quant-muted-foreground)] bg-[var(--quant-muted)] px-2 py-0.5 rounded-full"
+                                    >
+                                      {scope}
+                                    </span>
+                                  ))}
+                                </div>
+                                <p className="text-xs text-[var(--quant-muted-foreground)] mt-1.5">
+                                  Created {formatDate(token.createdAt)} · Expires{' '}
+                                  {formatDate(token.expiresAt)} · Last used{' '}
+                                  {token.lastUsedAt ? formatDate(token.lastUsedAt) : 'Never'}
+                                </p>
+                              </div>
+                              {status === 'active' ? (
+                                confirmRevokeTokenId === token.id ? (
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <Button
+                                      variant="danger"
+                                      size="sm"
+                                      disabled={revokingTokenId === token.id}
+                                      onClick={() => void handleRevokeToken(token.id)}
+                                    >
+                                      {revokingTokenId === token.id ? 'Revoking…' : 'Confirm'}
+                                    </Button>
+                                    <Button
+                                      variant="secondary"
+                                      size="sm"
+                                      onClick={() => setConfirmRevokeTokenId(null)}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => setConfirmRevokeTokenId(token.id)}
+                                  >
+                                    Revoke
+                                  </Button>
+                                )
+                              ) : null}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : null}
+                </div>
+              </section>
+
+              <section>
+                <h2 className="text-base font-semibold text-[var(--quant-foreground)] mb-1">
+                  Create a token
+                </h2>
+                <p className="text-sm text-[var(--quant-muted-foreground)] mb-4">
+                  Mint a new token. The value is shown once — copy it before you leave.
+                </p>
+                <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
+                  {freshToken ? (
+                    <div className="space-y-4">
+                      <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-4 space-y-3">
+                        <p className="text-sm font-medium text-amber-400">
+                          Copy your token now — you won&apos;t see it again.
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 min-w-0 text-xs font-mono break-all bg-black/40 rounded px-3 py-2 text-[var(--quant-foreground)]">
+                            {freshToken.token}
+                          </code>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() =>
+                              void copyToClipboard(freshToken.token).then(setFreshTokenCopied)
+                            }
+                          >
+                            {freshTokenCopied ? 'Copied' : 'Copy'}
+                          </Button>
+                        </div>
+                      </div>
+                      <Button variant="primary" size="sm" onClick={() => setFreshToken(null)}>
+                        I have saved it
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 max-w-sm">
+                      <FormField label="Token name" required>
+                        <Input
+                          value={tokenName}
+                          onChange={(e) => setTokenName(e.target.value)}
+                          placeholder="e.g. CI deploy script"
+                          maxLength={100}
+                        />
+                      </FormField>
+
+                      <div>
+                        <p className="text-sm font-medium text-[var(--quant-foreground)] mb-2">
+                          Scopes
+                        </p>
+                        <div className="space-y-2">
+                          {PAT_SCOPES.map((scope) => (
+                            <label
+                              key={scope.value}
+                              className="flex items-start gap-2.5 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={tokenScopes.includes(scope.value)}
+                                onChange={() => toggleTokenScope(scope.value)}
+                                className="mt-1 accent-[var(--brand-primary)]"
+                              />
+                              <span>
+                                <span className="text-sm font-mono text-[var(--quant-foreground)]">
+                                  {scope.label}
+                                </span>
+                                <span className="text-xs text-[var(--quant-muted-foreground)] block">
+                                  {scope.description}
+                                </span>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <FormField label="Expires">
+                        <select
+                          value={tokenExpiryDays}
+                          onChange={(e) => setTokenExpiryDays(Number(e.target.value))}
+                          className="w-full rounded-md border border-[var(--quant-border)] bg-[var(--quant-surface)] px-3 py-2 text-sm text-[var(--quant-foreground)]"
+                        >
+                          {PAT_EXPIRIES.map((expiry) => (
+                            <option key={expiry.value} value={expiry.value}>
+                              {expiry.label}
+                            </option>
+                          ))}
+                        </select>
+                      </FormField>
+
+                      {mintError ? (
+                        <div
+                          role="alert"
+                          className="rounded-md bg-[var(--quant-destructive)]/10 border border-[var(--quant-destructive)]/20 px-3 py-2"
+                        >
+                          <p className="text-sm text-[var(--quant-destructive)]">{mintError}</p>
+                        </div>
+                      ) : null}
+
+                      <div className="pt-1">
+                        <Button
+                          variant="primary"
+                          disabled={minting}
+                          onClick={() => void handleMintToken()}
+                        >
+                          {minting ? 'Creating…' : 'Create token'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </section>
             </div>
