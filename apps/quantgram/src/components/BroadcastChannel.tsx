@@ -30,12 +30,6 @@ interface ChannelState {
 
 const QUICK_REACTIONS = ['🔥', '❤️', '👏', '😍', '🙌', '💯'];
 
-const MOCK_MSGS: BroadcastMsg[] = [
-  { id: 'bm1', text: 'Big announcement coming tomorrow at noon! Stay tuned!', mediaUrl: null, reactions: { '🔥': 456, '❤️': 234 }, timestamp: '2024-01-15T18:00:00Z' },
-  { id: 'bm2', text: 'New content dropping this week - which topic should I cover first?', mediaUrl: null, reactions: { '🙌': 123, '💯': 89 }, timestamp: '2024-01-15T12:00:00Z' },
-  { id: 'bm3', text: 'Behind the scenes from today shoot!', mediaUrl: '/media/bts.jpg', reactions: { '😍': 678, '🔥': 345 }, timestamp: '2024-01-14T16:00:00Z' },
-];
-
 const BroadcastChannel: React.FC<BroadcastChannelProps> = ({ channelId, channelName, isOwner, subscriberCount }) => {
   const [state, setState] = useState<ChannelState>({
     messages: [], loading: true, composing: false, composeText: '', reacting: null,
@@ -45,8 +39,8 @@ const BroadcastChannel: React.FC<BroadcastChannelProps> = ({ channelId, channelN
 
   useEffect(() => {
     const load = async () => {
-      await new Promise(resolve => setTimeout(resolve, 300));
-      setState(prev => ({ ...prev, messages: MOCK_MSGS, loading: false }));
+      // Broadcast backend not wired yet — honestly empty until then.
+      setState(prev => ({ ...prev, messages: [], loading: false }));
     };
     load();
   }, [channelId]);

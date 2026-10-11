@@ -46,86 +46,6 @@ interface CollabPageState {
   searching: boolean;
 }
 
-const MOCK_COLLABS: CollabPost[] = [
-  {
-    id: 'col1',
-    creators: [
-      { id: 'me', username: 'my_account', avatar: '/avatars/me.jpg', isVerified: false },
-      { id: 'u1', username: 'alex_photo', avatar: '/avatars/alex.jpg', isVerified: true },
-    ],
-    imageUrl: '/posts/collab1.jpg',
-    caption: 'Amazing collab shoot at sunset! #photography #collab',
-    likeCount: 4523,
-    commentCount: 89,
-    status: 'published',
-    createdAt: '2024-01-14T10:00:00Z',
-  },
-  {
-    id: 'col2',
-    creators: [
-      { id: 'me', username: 'my_account', avatar: '/avatars/me.jpg', isVerified: false },
-      { id: 'u2', username: 'travel_emma', avatar: '/avatars/emma.jpg', isVerified: true },
-    ],
-    imageUrl: '/posts/collab2.jpg',
-    caption: 'Travel buddies forever! #wanderlust',
-    likeCount: 8901,
-    commentCount: 234,
-    status: 'published',
-    createdAt: '2024-01-10T12:00:00Z',
-  },
-];
-
-const MOCK_PENDING: CollabPost[] = [
-  {
-    id: 'col3',
-    creators: [
-      { id: 'u3', username: 'foodie_mark', avatar: '/avatars/mark.jpg', isVerified: false },
-      { id: 'me', username: 'my_account', avatar: '/avatars/me.jpg', isVerified: false },
-    ],
-    imageUrl: '/posts/collab3.jpg',
-    caption: 'Recipe collab coming soon!',
-    likeCount: 0,
-    commentCount: 0,
-    status: 'pending',
-    createdAt: '2024-01-15T08:00:00Z',
-  },
-];
-
-const MOCK_SEARCH: SearchResult[] = [
-  {
-    id: 'u10',
-    username: 'style_queen',
-    avatar: '/avatars/sq.jpg',
-    fullName: 'Style Queen',
-    followers: 125000,
-    isVerified: true,
-  },
-  {
-    id: 'u11',
-    username: 'art_collective',
-    avatar: '/avatars/ac.jpg',
-    fullName: 'Art Collective',
-    followers: 89000,
-    isVerified: false,
-  },
-  {
-    id: 'u12',
-    username: 'fitness_pro',
-    avatar: '/avatars/fp.jpg',
-    fullName: 'Fitness Pro',
-    followers: 234000,
-    isVerified: true,
-  },
-  {
-    id: 'u13',
-    username: 'music_vibes',
-    avatar: '/avatars/mv.jpg',
-    fullName: 'Music Vibes',
-    followers: 67000,
-    isVerified: false,
-  },
-];
-
 const CollabPage: React.FC = () => {
   const [state, setState] = useState<CollabPageState>({
     collabs: [],
@@ -143,11 +63,11 @@ const CollabPage: React.FC = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        await new Promise((resolve) => setTimeout(resolve, 400));
+        // Collabs backend not wired yet — honestly empty until then.
         setState((prev) => ({
           ...prev,
-          collabs: MOCK_COLLABS,
-          pendingInvites: MOCK_PENDING,
+          collabs: [],
+          pendingInvites: [],
           loading: false,
         }));
       } catch (err) {
@@ -159,16 +79,8 @@ const CollabPage: React.FC = () => {
 
   const searchUsers = useCallback(async (query: string) => {
     setState((prev) => ({ ...prev, searchQuery: query, searching: true }));
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const results =
-      query.length > 0
-        ? MOCK_SEARCH.filter(
-            (u) =>
-              u.username.includes(query.toLowerCase()) ||
-              u.fullName.toLowerCase().includes(query.toLowerCase()),
-          )
-        : [];
-    setState((prev) => ({ ...prev, searchResults: results, searching: false }));
+    // User search not wired yet — no fabricated results.
+    setState((prev) => ({ ...prev, searchResults: [], searching: false }));
   }, []);
 
   const selectCollaborator = useCallback((user: SearchResult) => {
@@ -378,6 +290,13 @@ const CollabPage: React.FC = () => {
                       className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-pink-500 mb-3"
                     />
                     <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {state.searchQuery.trim().length > 0 &&
+                        state.searchResults.length === 0 &&
+                        !state.searching && (
+                          <p className="text-center text-gray-500 text-xs py-4">
+                            User search isn&apos;t wired up yet
+                          </p>
+                        )}
                       {state.searchResults.map((user) => (
                         <div
                           key={user.id}
