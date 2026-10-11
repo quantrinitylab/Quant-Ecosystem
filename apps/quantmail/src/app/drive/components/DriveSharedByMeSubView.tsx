@@ -168,7 +168,7 @@ export function DriveSharedByMeSubView({
                   <div className="flex items-center gap-3.5 min-w-0 flex-1">
                     <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[#232938] flex items-center justify-center text-[var(--app-accent)] shrink-0">
                       {item.type === 'folder' ? (
-                        <FolderIcon className="size-5 text-[var(--quant-primary)]" />
+                        <FolderIcon className="size-5 text-[var(--app-accent)]" />
                       ) : (
                         <SharedUsersIcon className="size-5" />
                       )}
