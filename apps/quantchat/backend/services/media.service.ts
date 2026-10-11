@@ -97,18 +97,30 @@ export class MediaService {
     };
   }
 
-  async getMediaMetadata(mediaId: string): Promise<MediaMetadata> {
+  async getMediaMetadata(mediaId: string, requesterUserId: string): Promise<MediaMetadata> {
     const meta = this.metadata.get(mediaId);
     if (!meta) {
       throw createAppError('Media not found', 404, 'MEDIA_NOT_FOUND');
     }
+    // QC-F-031: media metadata (incl. the plain storage URL, which embeds the
+    // uploader id and original filename) is owner-only. The data model has
+    // no conversation linkage, so there is no member case to honour here.
+    if (meta.userId !== requesterUserId) {
+      throw createAppError('Only the media owner can access this media', 403, 'NOT_MEDIA_OWNER');
+    }
     return meta;
   }
 
-  async deleteMedia(mediaId: string): Promise<void> {
+  async deleteMedia(mediaId: string, requesterUserId: string): Promise<void> {
     const meta = this.metadata.get(mediaId);
     if (!meta) {
       throw createAppError('Media not found', 404, 'MEDIA_NOT_FOUND');
+    }
+    // QC-F-031 (§4.4 hardening): no DELETE route wires this yet, but the
+    // signature is owner-gated now so a future route is fail-closed by
+    // construction instead of inheriting the old unchecked pattern.
+    if (meta.userId !== requesterUserId) {
+      throw createAppError('Only the media owner can access this media', 403, 'NOT_MEDIA_OWNER');
     }
     this.metadata.delete(mediaId);
   }
