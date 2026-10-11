@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TIMEZONES } from '../../types';
-import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse } from './booking-utils';
+import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage } from './booking-utils';
 import type { BookingLinkDetails } from './booking-utils';
 import {
   IconClock,
@@ -369,6 +369,13 @@ export default function PublicBookingPage(props: PageProps) {
     let serverHostName: string | undefined;
     let serverHostEmail: string | undefined;
 
+    // A failed booking must NEVER advance to the confirmation step:
+    // setConfirmedBooking + setCurrentStep(3) run ONLY after a 2xx response.
+    const failBooking = (message: string) => {
+      setSubmitError(message);
+      setIsSubmitting(false);
+    };
+
     try {
       const res = await apiFetchRaw(`/api/calendar/booking/${resolvedSlug}/book`, {
         method: 'POST',
@@ -376,23 +383,44 @@ export default function PublicBookingPage(props: PageProps) {
         body: JSON.stringify(bookingPayload),
       });
 
-      if (res.ok) {
-        const json = await res.json();
-        // The backend returns { event, icsContent, hostName, hostEmail } —
-        // icsContent is generated server-side with the REAL organizer and
-        // must be preferred over any client-side fallback.
-        const data = json?.data;
-        if (data?.icsContent) {
-          icsResult = data.icsContent;
-        } else if (data?.icsData) {
-          // Legacy tolerance for older backends.
-          icsResult = data.icsData;
+      if (!res.ok) {
+        // Honest failure: 409 slot-taken, 410 inactive link, 404 unknown slug,
+        // 400 invalid payload, 429 rate-limited, 5xx server problem.
+        // Stay on step 2 with the real reason — never render "Booking Confirmed!".
+        let serverMessage: string | undefined;
+        try {
+          const errJson = await res.json();
+          const err = errJson?.error;
+          serverMessage =
+            (typeof err === 'object' && err ? err.message : undefined) ||
+            (typeof err === 'string' ? err : undefined) ||
+            (typeof errJson?.message === 'string' ? errJson.message : undefined);
+        } catch {
+          // Error body unreadable — fall through to the status-mapped copy.
         }
-        if (data?.hostName) serverHostName = data.hostName;
-        if (data?.hostEmail) serverHostEmail = data.hostEmail;
+        failBooking(resolveBookingFailureMessage(res.status, serverMessage));
+        return;
       }
+
+      const json = await res.json();
+      // The backend returns { event, icsContent, hostName, hostEmail } —
+      // icsContent is generated server-side with the REAL organizer and
+      // must be preferred over any client-side fallback.
+      const data = json?.data;
+      if (data?.icsContent) {
+        icsResult = data.icsContent;
+      } else if (data?.icsData) {
+        // Legacy tolerance for older backends.
+        icsResult = data.icsData;
+      }
+      if (data?.hostName) serverHostName = data.hostName;
+      if (data?.hostEmail) serverHostEmail = data.hostEmail;
     } catch {
-      // Gracefully continue to local confirmation & standard RFC 5545 generator
+      // Network failure: the booking POST may never have reached the server.
+      // Honest error and stay on step 2 — NEVER show a confirmation for a
+      // booking that was not created.
+      failBooking(resolveBookingFailureMessage(0));
+      return;
     }
 
     const hostName = serverHostName || meetingDetails.hostName || '';
