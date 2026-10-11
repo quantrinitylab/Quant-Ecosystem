@@ -57,136 +57,18 @@ export async function proxyToBackend(
       signal: controller.signal,
     });
   } catch (_err) {
-    const cleanPath = backendPath.split('?')[0].replace(/^\/+|\/+$/g, '');
-    const pathParts = cleanPath.split('/');
-    const isConversationsList = cleanPath === 'conversations';
-    const isSingleConversation = pathParts[0] === 'conversations' && pathParts.length === 2;
-    const isConversationMessages =
-      pathParts[0] === 'conversations' && pathParts[2] === 'messages' && pathParts.length === 3;
-
-    if (isConversationsList) {
-      return NextResponse.json(
-        {
-          success: true,
-          data: [
-            {
-              id: 'conv_general',
-              name: 'General Chat',
-              type: 'GROUP',
-              lastMessage: 'Welcome to QuantChat!',
-              timestamp: new Date().toISOString(),
-              unreadCount: 0,
-              avatarInitial: 'Q',
-              presence: 'online',
-              isPinned: true,
-              isArchived: false,
-              participants: [],
-            },
-          ],
-        },
-        { status: 200 },
-      );
-    }
-
-    if (isSingleConversation && method === 'GET') {
-      return NextResponse.json(
-        {
-          success: true,
-          data: {
-            id: pathParts[1],
-            name: 'General Chat',
-            type: 'GROUP',
-            isPinned: true,
-            participants: [],
-          },
-        },
-        { status: 200 },
-      );
-    }
-
-    if (isConversationMessages) {
-      if (method === 'GET') {
-        return NextResponse.json(
-          {
-            success: true,
-            data: [
-              {
-                id: 'msg_welcome',
-                type: 'text',
-                content: 'Welcome to QuantChat!',
-                senderId: 'quanty',
-                createdAt: new Date(Date.now() - 60000).toISOString(),
-                status: 'sent',
-                reactions: [],
-              },
-              {
-                id: 'msg_voice',
-                type: 'voice',
-                mediaUrl: 'https://example.com/audio.mp3',
-                voiceDurationMs: 4200,
-                senderId: 'quanty',
-                createdAt: new Date(Date.now() - 40000).toISOString(),
-                status: 'sent',
-                reactions: [],
-              },
-              {
-                id: 'msg_status',
-                type: 'text',
-                content: 'Delivered message',
-                senderId: 'user_me',
-                createdAt: new Date(Date.now() - 20000).toISOString(),
-                status: 'delivered',
-                reactions: [],
-              },
-              {
-                id: 'msg_read',
-                type: 'text',
-                content: 'Read message',
-                senderId: 'user_me',
-                createdAt: new Date().toISOString(),
-                status: 'read',
-                reactions: [],
-              },
-            ],
-          },
-          { status: 200 },
-        );
-      } else if (method === 'POST') {
-        let body: any = {};
-        if (options?.body) {
-          body = options.body;
-        } else if (fetchOptions.body) {
-          try {
-            body = JSON.parse(fetchOptions.body as string);
-          } catch (e) {
-            // ignore
-          }
-        }
-        return NextResponse.json(
-          {
-            success: true,
-            data: {
-              id: 'msg_' + Date.now(),
-              conversationId: pathParts[1],
-              content: body.content,
-              type: body.type || 'text',
-              senderId: 'user_me',
-              createdAt: new Date().toISOString(),
-              status: 'sent',
-              reactions: [],
-            },
-          },
-          { status: 200 },
-        );
-      }
-    }
-
+    // FAIL HONEST: the backend is unreachable. This proxy used to fabricate a
+    // fake "General Chat" conversation list, fake welcome messages, and even
+    // fake successful message sends with `success: true` — the user saw a
+    // working-looking app while every byte was invented, and a 401 (expired
+    // session) was silently masked the same way. Never invent data: surface
+    // a real 503 so the client can show an honest offline/retry state.
     return NextResponse.json(
       {
         success: false,
         error: {
-          code: 'UPSTREAM_OFFLINE',
-          message: 'Backend service is offline in development mode',
+          code: 'UPSTREAM_UNAVAILABLE',
+          message: 'Backend service is unavailable',
           statusCode: 503,
         },
       },
@@ -241,36 +123,24 @@ export async function proxyToBackend(
             }
           }
         } catch {
-          // Transparent exchange threw an error — fallback to resilient response
+          // Transparent exchange threw — fall through to the honest 401 below
         }
       }
     }
 
-    // Graceful fallback for chat views when 401 persists
-    const cleanPath = backendPath.split('?')[0].replace(/^\/+|\/+$/g, '');
-    if (cleanPath === 'conversations') {
-      return NextResponse.json(
-        {
-          success: true,
-          data: [
-            {
-              id: 'conv_general',
-              name: 'General Chat',
-              type: 'GROUP',
-              lastMessage: 'Welcome to QuantChat!',
-              timestamp: new Date().toISOString(),
-              unreadCount: 0,
-              avatarInitial: 'Q',
-              presence: 'online',
-              isPinned: true,
-              isArchived: false,
-              participants: [],
-            },
-          ],
-        },
-        { status: 200 },
-      );
-    }
+    // The transparent SSO exchange did not recover the session. FAIL
+    // HONEST: return the backend's real 401 so the client can clear the
+    // dead session and prompt a fresh sign-in. (This used to fabricate a
+    // fake conversation list with success:true, silently masking expired
+    // sessions behind invented data.)
+    const errData = await res.json().catch(() => null);
+    return NextResponse.json(
+      errData ?? {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Unauthorized', statusCode: 401 },
+      },
+      { status: 401 },
+    );
   }
 
   try {
