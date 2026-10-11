@@ -1201,41 +1201,60 @@ body {
  * so there is no first-frame jump, and applies it in the same tick as the
  * click (see `changeDensity` in settings/page.tsx).
  *
- * Compact buys its rows back from *spacing*, never from content: the padding,
- * the column gap and the two margins between the sender, the subject and the
- * preview. The preview line in particular stays — a density control that hides
- * the line telling you whether a message is worth opening is a different feature
- * wearing this one's label, and on a phone it is the line people actually read.
+ * DESKTOP ONLY (user lock): every rule below lives inside
+ * `@media (min-width: 768px)`. Narrow viewports keep the one comfortable row
+ * height they were designed around — the picker still shows on mobile, but
+ * these rules simply do not match there, so nothing changes on a phone.
  *
- * `3.9rem` is 62.4px, so a compact row still clears the 44px touch floor with
- * room to spare. Comfortable needs no rules of its own: it is the declared
- * values above, which is why `themeBootstrap` writes the attribute pre-paint
- * rather than leaving it absent — an unset attribute and `comfortable` must not
- * be two different code paths.
+ * Compact is the single-line step (Gmail parity): sender + subject only, the
+ * preview line is not rendered. The preview is hidden from *spacing* too —
+ * its margin goes with it — so the row collapses to one line instead of
+ * keeping an empty gap where the line used to be.
  *
  * Cozy is the middle step Gmail ships: halfway between the two in row height,
  * padding and avatar size.
  *
- * These land at (0,3,0)/(0,3,1), above `overrides.css`'s `.mail-row-copy h3`
- * and above the `max-width: 640px` block's `.mail-row`, so neither file order
- * nor the phone breakpoint can quietly undo them.
+ * Comfortable needs no rules of its own: it is the declared values above,
+ * which is why `themeBootstrap` writes the attribute pre-paint rather than
+ * leaving it absent — an unset attribute and `comfortable` must not be two
+ * different code paths.
  */
-:root[data-density='compact'] .mail-list { padding: 0.25rem 0.4rem; }
-:root[data-density='compact'] .mail-row { min-height: 3.9rem; padding: 0.42rem 0.6rem; gap: 0.55rem; }
-:root[data-density='compact'] .mail-row-copy h3 { margin-top: 0.1rem; }
-:root[data-density='compact'] .mail-row-copy p { margin-top: 0.05rem; }
-:root[data-density='compact'] .mail-pinned-notice { padding: 0.2rem 0.4rem 0.3rem; }
-:root[data-density='cozy'] .mail-list { padding: 0.4rem 0.55rem; }
-:root[data-density='cozy'] .mail-row { min-height: 4.35rem; padding: 0.52rem 0.6rem; gap: 0.62rem; }
-:root[data-density='cozy'] .mail-row-copy h3 { margin-top: 0.14rem; }
-:root[data-density='cozy'] .mail-row-copy p { margin-top: 0.1rem; }
-:root[data-density='cozy'] .mail-pinned-notice { padding: 0.25rem 0.45rem 0.38rem; }
-/* Avatar follows density: the comfortable default is the `size="sm"` 2rem
-   avatar; cozy steps it down a touch, compact a touch more. The hook class
-   comes from `EmailRow` (`mail-row-avatar`); specificity (0,3,0) beats the
-   Tailwind size utilities without touching the shared component. */
-:root[data-density='cozy'] .mail-row-avatar { width: 1.875rem; height: 1.875rem; font-size: 10px; }
-:root[data-density='compact'] .mail-row-avatar { width: 1.7rem; height: 1.7rem; font-size: 10px; }
+@media (min-width: 768px) {
+  :root[data-density='compact'] .mail-list { padding: 0.25rem 0.4rem; }
+  :root[data-density='compact'] .mail-row { min-height: 3.9rem; padding: 0.42rem 0.6rem; gap: 0.55rem; }
+  :root[data-density='compact'] .mail-row-copy h3 { margin-top: 0.1rem; }
+  :root[data-density='compact'] .mail-row-copy p { display: none; }
+  :root[data-density='compact'] .mail-pinned-notice { padding: 0.2rem 0.4rem 0.3rem; }
+  :root[data-density='cozy'] .mail-list { padding: 0.4rem 0.55rem; }
+  :root[data-density='cozy'] .mail-row { min-height: 4.35rem; padding: 0.52rem 0.6rem; gap: 0.62rem; }
+  :root[data-density='cozy'] .mail-row-copy h3 { margin-top: 0.14rem; }
+  :root[data-density='cozy'] .mail-row-copy p { margin-top: 0.1rem; }
+  :root[data-density='cozy'] .mail-pinned-notice { padding: 0.25rem 0.45rem 0.38rem; }
+  /* Avatar follows density: the comfortable default is the `size="sm"` 2rem
+     avatar; cozy steps it down a touch, compact a touch more. The hook class
+     comes from `EmailRow` (`mail-row-avatar`); specificity (0,2,0) inside the
+     media query beats the Tailwind size utilities without touching the shared
+     component. */
+  :root[data-density='cozy'] .mail-row-avatar { width: 1.875rem; height: 1.875rem; font-size: 10px; }
+  :root[data-density='compact'] .mail-row-avatar { width: 1.7rem; height: 1.7rem; font-size: 10px; }
+
+  /*
+   * The same density contract for the unified People-view conversation list
+   * (`PeopleList`). Hook classes come from the component (`people-row`,
+   * `people-row-avatar`, `people-row-snippet`); the rules are desktop-only
+   * like the ones above, so the shared component's mobile rendering is
+   * untouched.
+   */
+  :root[data-density='cozy'] .people-row { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+  :root[data-density='compact'] .people-row { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+  :root[data-density='cozy'] .people-row-avatar { width: 2rem; height: 2rem; font-size: 11px; }
+  :root[data-density='compact'] .people-row-avatar { width: 1.75rem; height: 1.75rem; font-size: 10px; }
+  /* Compact is single-line: the snippet text is hidden but the unread pill
+     (still in `.people-row-snippet`) survives, so unread rows keep their real
+     count — same as `.mail-row`, whose pill lives in the meta line. */
+  :root[data-density='compact'] .people-row-snippet { margin-top: 0; }
+  :root[data-density='compact'] .people-row-snippet-text { display: none; }
+}
 .mail-star { display: grid; width: 1.85rem; height: 1.85rem; flex: none; place-items: center; border-radius: 0.45rem; color: #6B6E76; opacity: 0; }.mail-row:hover .mail-star, .mail-star.is-starred { opacity: 1; }.mail-star.is-starred { color: #ffb547; }.mail-star.is-starred svg { fill: currentColor; }
 /* Says out loud that the sort is starred-first, then newest. Sits in the measured
    list header above the first row, so it scrolls away with the archived shelf
