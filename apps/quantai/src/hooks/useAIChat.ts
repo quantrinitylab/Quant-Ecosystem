@@ -12,6 +12,7 @@ import {
   savePreservedChatState,
   loadPreservedChatState,
 } from '../lib/auth';
+import { authSession } from '../services/auth-session';
 import type { ToolCall } from '../types/tool-calls';
 import { apiFetchRaw } from '@quant/api-client';
 
@@ -121,10 +122,33 @@ export function honestStreamErrorContent(reason: string, code: string | null): s
 }
 
 /**
- * A 401/403 from the API means the stored session is expired or revoked.
- * Clear it and send the user to /login instead of showing a fake "error"
- * bubble — a signed-in-looking user with a dead token otherwise sees
- * "Sorry, I encountered an error." on every message forever.
+ * A 401/403 from the API usually means the short-lived access token expired.
+ * Try one silent refresh before destroying the session: nuking a valid
+ * session on the first 401 is what made "Send" look like a logout button.
+ * Only when refresh also fails is the session truly dead — then clear it and
+ * send the user to /login instead of showing a fake "error" bubble.
+ *
+ * Returns true when a fresh token was obtained (caller should retry once).
+ */
+async function refreshOrReLogin(): Promise<boolean> {
+  try {
+    const session = await authSession.refresh();
+    if (session.success && session.data?.accessToken) return true;
+  } catch {
+    // Refresh endpoint unreachable — fall through to re-login.
+  }
+  try {
+    clearAuthSession();
+  } catch {}
+  if (typeof window !== 'undefined') {
+    window.location.href = `/login?returnTo=${encodeURIComponent('/')}`;
+  }
+  return false;
+}
+
+/**
+ * Legacy direct re-login (no refresh attempt). Kept for call sites that
+ * already know the session is dead.
  */
 function forceReLogin(): void {
   try {
@@ -133,6 +157,32 @@ function forceReLogin(): void {
   if (typeof window !== 'undefined') {
     window.location.href = `/login?returnTo=${encodeURIComponent('/')}`;
   }
+}
+
+/**
+ * Authenticated fetch with one transparent retry: on 401/403, attempt a
+ * silent token refresh and retry the request once with the fresh token
+ * before giving up. This is what stops an expired (but refreshable) session
+ * from looking like a logout button.
+ *
+ * Returns the final response — callers still handle a terminal 401/403 via
+ * forceReLogin().
+ */
+async function apiFetchAuthed(
+  url: string,
+  init: RequestInit,
+  retried = false,
+): Promise<Response> {
+  const res = await apiFetchRaw(url, {
+    ...init,
+    headers: { ...(init.headers as Record<string, string> | undefined), ...authHeaders(true) },
+  });
+  if ((res.status === 401 || res.status === 403) && !retried) {
+    if (await refreshOrReLogin()) {
+      return apiFetchAuthed(url, init, true);
+    }
+  }
+  return res;
 }
 
 function mapServerMessage(m: ServerMessage): ChatMessage {
@@ -304,7 +354,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
 
   const createConversation = useCallback(async (): Promise<string | null> => {
     try {
-      const res = await apiFetchRaw(`${API_BASE}/sessions`, {
+      const res = await apiFetchAuthed(`${API_BASE}/sessions`, {
         method: 'POST',
         headers: authHeaders(true),
         body: JSON.stringify({ model: currentModel }),
@@ -328,6 +378,8 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
           ? Number(err.message.match(/Failed to create conversation: (\d+)/)?.[1])
           : null;
       if (status === 401 || status === 403) {
+        // apiFetchAuthed already tried a silent refresh + retry; reaching
+        // here means the session is truly dead.
         forceReLogin();
         return null;
       }
@@ -441,7 +493,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
         let streamErrorCode: string | null = null;
 
         try {
-          const res = await apiFetchRaw(`${API_BASE}/sessions/${convId}/messages/stream`, {
+          const res = await apiFetchAuthed(`${API_BASE}/sessions/${convId}/messages/stream`, {
             method: 'POST',
             headers: authHeaders(true),
             body: JSON.stringify({ content: trimmed }),
@@ -468,6 +520,8 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
               // Non-JSON body — fall through to the status-based error.
             }
             if (res.status === 401 || res.status === 403) {
+              // apiFetchAuthed already tried a silent refresh + retry; the
+              // session is truly dead — re-login instead of a fake bubble.
               forceReLogin();
               return;
             }

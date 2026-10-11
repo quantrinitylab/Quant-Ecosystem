@@ -60,17 +60,20 @@ describe('QuantAI Luxury Neural Login UI/UX Suite', () => {
     });
   });
 
-  describe('LoginPage Executive Console', () => {
-    it('renders sovereign intelligence headline and frontier agent subtitle', () => {
+  describe('LoginPage', () => {
+    it('renders an honest headline and subtitle (no invented claims)', () => {
       const html = renderToStaticMarkup(React.createElement(LoginPage));
-      expect(html).toContain('QuantAI Sovereign Intelligence');
-      expect(html).toContain('Frontier Agent OS · Real-time Voice · Neural Canvas');
+      expect(html).toContain('QuantAI');
+      expect(html).toContain('Sign in to chat with AI');
+      expect(html).not.toContain('Sovereign Intelligence');
+      expect(html).not.toContain('Frontier Agent OS');
+      expect(html).not.toContain('Neural Canvas');
     });
 
-    it('renders the real-time telemetry status pill', () => {
+    it('does not render a fake telemetry status pill', () => {
       const html = renderToStaticMarkup(React.createElement(LoginPage));
-      expect(html).toContain('Quanty 3.8 Flash Active');
-      expect(html).toContain('&lt;120ms Voice Latency');
+      expect(html).not.toContain('Quanty 3.8 Flash Active');
+      expect(html).not.toContain('Voice Latency');
     });
 
     it('renders hero SSO button with obsidian-titanium style and pure SVG vector mark', () => {
@@ -95,12 +98,12 @@ describe('QuantAI Luxury Neural Login UI/UX Suite', () => {
       expect(html).toContain('Sign in with Email');
     });
 
-    it('renders ecosystem registration link and sovereign encryption badge', () => {
+    it('renders ecosystem registration link without invented security claims', () => {
       const html = renderToStaticMarkup(React.createElement(LoginPage));
       expect(html).toContain('https://quantmail.in/register');
       expect(html).toContain('Create a QuantID');
-      expect(html).toContain('End-to-End Sovereign Encryption');
-      expect(html).toContain('Zero Telemetry Leakage');
+      expect(html).not.toContain('End-to-End Sovereign Encryption');
+      expect(html).not.toContain('Zero Telemetry Leakage');
     });
 
     it('guarantees ZERO raw Unicode emojis across the rendered markup', () => {

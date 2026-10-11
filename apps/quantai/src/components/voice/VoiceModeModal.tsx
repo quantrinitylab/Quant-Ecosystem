@@ -49,6 +49,28 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
 
   const selectedPersona = SOVEREIGN_PERSONAS[config.persona] || SOVEREIGN_PERSONAS.aura;
 
+  // Honest capability gating: the backend reports whether speech recognition
+  // is actually configured. If not, show an honest unavailable state instead
+  // of a voice UI that can never transcribe.
+  const [voiceCap, setVoiceCap] = useState<{ stt: string } | null>(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetchRaw('/api/voice/status');
+        const json = (await res.json().catch(() => null)) as { stt?: string } | null;
+        if (!cancelled) setVoiceCap({ stt: json?.stt ?? 'unknown' });
+      } catch {
+        if (!cancelled) setVoiceCap({ stt: 'unknown' });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+  const voiceUnavailable = voiceCap !== null && voiceCap.stt !== 'meta' && voiceCap.stt !== 'openai';
+
   // Voice State Machine
   const [voiceState, setVoiceState] = useState<VoiceState>('listening');
   // Real mic capture: getUserMedia + AudioWorklet PCM + AnalyserNode levels.
@@ -292,6 +314,34 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
   }, []);
 
   if (!isOpen) return null;
+
+  if (voiceUnavailable) {
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Voice Mode unavailable"
+        data-testid="voice-mode-modal"
+        className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-zinc-950/95 p-8 text-center text-zinc-100"
+      >
+        <div className="max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-8">
+          <h2 className="text-base font-semibold">Voice input isn&apos;t available right now</h2>
+          <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+            The server doesn&apos;t have speech recognition configured, so voice
+            mode can&apos;t transcribe anything yet. You can still type in Chat
+            Mode.
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-6 rounded-xl bg-zinc-800 px-5 py-2.5 text-sm font-semibold text-zinc-100 transition-colors hover:bg-zinc-700"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

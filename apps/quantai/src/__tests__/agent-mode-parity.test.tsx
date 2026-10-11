@@ -48,33 +48,20 @@ describe('QuantAI Agent Mode Suites', () => {
   });
 
   describe('AgentCodeTerminal', () => {
-    it('renders interactive dark terminal with prompt quanty@agent:~$', () => {
+    it('is honest: no fake terminal, shows not-available-yet state', () => {
       const html = renderToStaticMarkup(
         React.createElement(AgentCodeTerminal, {
           currentModelName: 'Claude 3.5 Sonnet / Codex',
         }),
       );
 
-      expect(html).toContain('quanty@agent:~$');
-      expect(html).toContain('Claude 3.5 Sonnet / Codex');
-      expect(html).toContain('QUANTY AUTONOMOUS AGENTIC OS');
-      expect(html).toContain('/run');
-      expect(html).toContain('/build');
-      expect(html).toContain('/test');
-      expect(html).toContain('/git');
-    });
-
-    it('renders multi-step execution tree with tools and reasoning', () => {
-      const html = renderToStaticMarkup(
-        React.createElement(AgentCodeTerminal, {
-          currentModelName: 'GPT-4o',
-        }),
-      );
-
-      expect(html).toContain('Real-Time Reasoning &amp; Architecture Plan');
-      expect(html).toContain('Goal:');
-      expect(html).toContain('read_file');
-      expect(html).toContain('bash');
+      expect(html).toContain('Agent / Code Mode isn');
+      expect(html).toContain('available yet');
+      // No fake simulation: no canned prompt, no fake tool outputs.
+      expect(html).not.toContain('quanty@agent:~$');
+      expect(html).not.toContain('QUANTY AUTONOMOUS AGENTIC OS');
+      expect(html).not.toContain('Real-Time Reasoning');
+      expect(html).not.toContain('read_file');
     });
   });
 
