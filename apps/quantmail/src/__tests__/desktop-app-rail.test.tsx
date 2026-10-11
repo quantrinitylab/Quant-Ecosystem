@@ -148,4 +148,32 @@ describe('DesktopAppRail (slim 5-app switcher)', () => {
     // Closed by default: no spontaneous panel in SSR markup.
     expect(html).not.toContain('data-testid="ecosystem-apps-panel"');
   });
+
+  it('SIA-P2-7: rail touch targets are >= 44px', () => {
+    mockCurrentPathname = '/';
+    const html = renderToStaticMarkup(
+      <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
+        <div>Inbox Content</div>
+      </AppShell>,
+    );
+
+    // All 5 pillar tiles + the "More apps" tile must carry the 44px
+    // (size-11) touch target class — 40px (size-10) fails the minimum.
+    for (const tile of DESKTOP_PILLAR_TILES) {
+      const marker = `data-testid="desktop-app-rail-tile-${tile.id}"`;
+      const idx = html.indexOf(marker);
+      expect(idx).toBeGreaterThan(-1);
+      const btnStart = html.lastIndexOf('<button', idx);
+      const btnEnd = html.indexOf('>', idx);
+      const btnTag = html.slice(btnStart, btnEnd);
+      expect(btnTag).toContain('size-11');
+      expect(btnTag).not.toContain('size-10');
+    }
+
+    const moreIdx = html.indexOf('data-testid="desktop-app-rail-tile-more"');
+    expect(moreIdx).toBeGreaterThan(-1);
+    const moreBtnStart = html.lastIndexOf('<button', moreIdx);
+    const moreBtnEnd = html.indexOf('>', moreIdx);
+    expect(html.slice(moreBtnStart, moreBtnEnd)).toContain('size-11');
+  });
 });
