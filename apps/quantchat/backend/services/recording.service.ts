@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createAppError } from '@quant/server-core';
 import type { LiveKitGateway, S3EgressConfig } from './livekit-gateway.service';
+import type { MeetingRoomRow } from './room.service';
 
 export interface StorageClient {
   getSignedUrl?(key: string, options?: { expiresIn?: number }): Promise<string>;
@@ -35,6 +36,16 @@ export interface RecordingRow {
 }
 
 export interface RecordingPrisma {
+  // QC-F-040: recording authorization lives in this service layer, so the
+  // service must be able to load the owning room (host + participants +
+  // settings) for every recording operation. Fail-closed: no room row, no
+  // recording access.
+  meetingRoom: {
+    findUnique(args: {
+      where: { id: string };
+      include?: { participants?: boolean };
+    }): Promise<MeetingRoomRow | null>;
+  };
   recording: {
     create(args: { data: Record<string, unknown> }): Promise<RecordingRow>;
     findUnique(args: { where: { id: string } }): Promise<RecordingRow | null>;
@@ -58,7 +69,57 @@ export class RecordingService {
     private readonly s3Config?: S3EgressConfig,
   ) {}
 
+  // QC-F-040 authorization helpers. Meetings vocabulary is host/participant
+  // (NOT_A_MEMBER belongs to conversations/channels — do not reuse here).
+  private async loadRoom(roomId: string): Promise<MeetingRoomRow> {
+    const row = await this.prisma.meetingRoom.findUnique({
+      where: { id: roomId },
+      include: { participants: true },
+    });
+    if (!row) {
+      throw createAppError('Room not found', 404, 'ROOM_NOT_FOUND');
+    }
+    return row;
+  }
+
+  private isRoomParticipant(room: MeetingRoomRow, userId: string): boolean {
+    return (
+      room.hostId === userId ||
+      (room.participants ?? []).some((participant) => participant.userId === userId)
+    );
+  }
+
+  private requireRoomHost(room: MeetingRoomRow, userId: string): void {
+    if (room.hostId !== userId) {
+      throw createAppError('Only the host can manage recordings', 403, 'NOT_MEETING_HOST');
+    }
+  }
+
+  private requireRoomParticipant(room: MeetingRoomRow, userId: string): void {
+    if (!this.isRoomParticipant(room, userId)) {
+      throw createAppError('Not a participant of this meeting', 403, 'NOT_A_PARTICIPANT');
+    }
+  }
+
+  private roomRecordingEnabled(room: MeetingRoomRow): boolean {
+    const settings =
+      room.settings && typeof room.settings === 'object'
+        ? (room.settings as Record<string, unknown>)
+        : {};
+    // Default is OFF (RoomService DEFAULT_SETTINGS.enableRecording = false):
+    // a missing/non-boolean flag must never silently enable recording.
+    return settings['enableRecording'] === true;
+  }
+
   async startRecording(roomId: string, userId: string): Promise<Recording> {
+    // QC-F-040: recording is a host-sovereign, consent-bearing action.
+    // Host-only, and only when the host enabled recording for the room.
+    const room = await this.loadRoom(roomId);
+    this.requireRoomHost(room, userId);
+    if (!this.roomRecordingEnabled(room)) {
+      throw createAppError('Recording is disabled for this meeting', 403, 'RECORDING_DISABLED');
+    }
+
     const activeCount = await this.prisma.recording.count({
       where: { roomId, status: 'recording' },
     });
@@ -105,10 +166,22 @@ export class RecordingService {
     return this.toRecording(row);
   }
 
-  async stopRecording(recordingId: string): Promise<Recording> {
+  async stopRecording(recordingId: string, userId: string): Promise<Recording> {
     const existing = await this.prisma.recording.findUnique({ where: { id: recordingId } });
     if (!existing) {
       throw createAppError('Recording not found', 404, 'RECORDING_NOT_FOUND');
+    }
+
+    // QC-F-040: only the meeting host or the user who started this recording
+    // may stop it. Authorization runs before the active-state check so a
+    // denied stop reveals nothing and writes nothing. If the room row is
+    // gone, only the recorder remains authorized (fail-closed otherwise).
+    const room = await this.prisma.meetingRoom.findUnique({
+      where: { id: existing.roomId },
+      include: { participants: true },
+    });
+    if (existing.userId !== userId && room?.hostId !== userId) {
+      throw createAppError('Only the host can manage recordings', 403, 'NOT_MEETING_HOST');
     }
 
     if (existing.status !== 'recording') {
@@ -150,15 +223,23 @@ export class RecordingService {
     return this.toRecording(row);
   }
 
-  async getRecordingUrl(recordingId: string): Promise<string> {
+  async getRecordingUrl(recordingId: string, userId: string): Promise<string> {
     const recording = await this.getRecording(recordingId);
+    // QC-F-040: the storageKey is the locator for the recorded media — only
+    // meeting participants (host included) may resolve it.
+    const room = await this.loadRoom(recording.roomId);
+    this.requireRoomParticipant(room, userId);
     if (recording.status !== 'completed') {
       throw createAppError('Recording not yet available', 400, 'RECORDING_NOT_READY');
     }
     return recording.storageKey;
   }
 
-  async listRecordings(roomId: string): Promise<Recording[]> {
+  async listRecordings(roomId: string, userId: string): Promise<Recording[]> {
+    // QC-F-040: listing leaks every recording's metadata + storageKey, so it
+    // is participant-gated. An unknown room is now 404 (was: empty list).
+    const room = await this.loadRoom(roomId);
+    this.requireRoomParticipant(room, userId);
     const rows = await this.prisma.recording.findMany({
       where: { roomId },
       orderBy: { startedAt: 'desc' },

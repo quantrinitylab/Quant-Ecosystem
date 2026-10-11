@@ -34,7 +34,10 @@ const createRoomSchema = z.object({
 
 const joinRoomSchema = z.object({
   displayName: z.string().min(1).max(100).optional(),
-  role: z.enum(['host', 'co-host', 'participant']).optional(),
+  // QC-F-040: no `role` field — a joiner must never self-assign 'host' or
+  // 'co-host'. Zod strips unknown fields, so legacy clients that still send
+  // `role` are ignored (not rejected); the stored role is server-derived in
+  // the join handler from room.hostId.
   audioEnabled: z.boolean().optional(),
   videoEnabled: z.boolean().optional(),
 });
@@ -172,7 +175,10 @@ export default async function meetingsRoutes(fastify: FastifyInstance) {
         room = await roomService.joinRoom(request.params.id, {
           userId,
           displayName: parsed.data.displayName ?? userId,
-          role: parsed.data.role ?? (current.hostId === userId ? 'host' : 'participant'),
+          // QC-F-040: role is always server-derived — host iff the caller
+          // owns the room, otherwise participant. There is no join path to
+          // 'co-host' (that requires a future host-granted promotion).
+          role: current.hostId === userId ? 'host' : 'participant',
           audioEnabled: parsed.data.audioEnabled ?? true,
           videoEnabled: parsed.data.videoEnabled ?? true,
         });
@@ -298,21 +304,21 @@ export default async function meetingsRoutes(fastify: FastifyInstance) {
   );
 
   fastify.post<{ Params: { id: string } }>('/recordings/:id/stop', async (request, reply) => {
-    requireUserId(request);
-    return reply.send(await recordingService.stopRecording(request.params.id));
+    const userId = requireUserId(request);
+    return reply.send(await recordingService.stopRecording(request.params.id, userId));
   });
 
   fastify.get<{ Params: { roomId: string } }>(
     '/rooms/:roomId/recordings',
     async (request, reply) => {
-      requireUserId(request);
-      return reply.send(await recordingService.listRecordings(request.params.roomId));
+      const userId = requireUserId(request);
+      return reply.send(await recordingService.listRecordings(request.params.roomId, userId));
     },
   );
 
   fastify.get<{ Params: { id: string } }>('/recordings/:id/url', async (request, reply) => {
-    requireUserId(request);
-    const url = await recordingService.getRecordingUrl(request.params.id);
+    const userId = requireUserId(request);
+    const url = await recordingService.getRecordingUrl(request.params.id, userId);
     return reply.send({ url });
   });
 
