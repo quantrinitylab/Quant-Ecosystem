@@ -14,6 +14,7 @@ import {
   type ChatEventType,
 } from '../services/chat-event-envelope';
 import { DeliveryReceiptService } from '../services/delivery-receipt.service';
+import { getPrivacyService, type PrivacyService } from '../services/privacy.service';
 
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
@@ -76,6 +77,15 @@ export async function websocketRoutes(fastify: FastifyInstance) {
   // recording is skipped but realtime fan-out of the tick event still happens.
   const prismaClient = (fastify as unknown as { prisma?: unknown }).prisma;
   const deliveryReceipts = prismaClient ? new DeliveryReceiptService(prismaClient as never) : null;
+
+  // QC-F-042 — privacy enforcement for the realtime layer. One shared
+  // PrivacyService (30s-cached resolver) gates presence publication, the
+  // presence list, typing frames, and read-receipt fan-out below. When no
+  // Prisma is wired (minimal harness) there is no prefs store to consult
+  // and the layer keeps its previous behaviour.
+  const privacy: PrivacyService | null = prismaClient
+    ? getPrivacyService(prismaClient)
+    : null;
 
   // W2 — Cross-instance realtime fan-out (design Component 2 / Algorithm 4).
   // Select the backplane implementation here (Task 6.2): use the Redis pub/sub
@@ -218,6 +228,17 @@ export async function websocketRoutes(fastify: FastifyInstance) {
    * K25 — carried as a `chat.presence.v1` §18 envelope (ephemeral, §19).
    */
   async function publishPresence(userId: string, status: 'online' | 'offline'): Promise<void> {
+    // QC-F-042: a user with showOnlineStatus off never has their transitions
+    // published — not to this instance's sockets and not over the backplane
+    // (which is why remote instances need no second gate: the event simply
+    // never exists). The presence ZSET itself is untouched — the
+    // DeliveryWorker's offline check depends on it; only PUBLICATION is
+    // gated. A prefs read failure resolves most-restrictive (false), so an
+    // error hides the transition instead of leaking it.
+    if (privacy) {
+      const { prefs } = await privacy.resolve(userId);
+      if (!prefs.showOnlineStatus) return;
+    }
     // Sender identity comes from the authenticated socket — never from client
     // input (fail-closed, QuantWave radar P0 lesson).
     const envelope = await buildChatEvent({
@@ -519,6 +540,25 @@ export async function websocketRoutes(fastify: FastifyInstance) {
       return;
     }
 
+    // QC-F-042 reader-side gate (WS path): when the reader's
+    // showReadReceipts is off, the read is neither persisted nor fanned
+    // out — the REST path in ReceiptService.markMessageRead applies the
+    // same rule. Delivered receipts are never gated. The check runs before
+    // recording so a suppressed read leaves no row behind.
+    if (method === 'recordRead' && privacy) {
+      void (async () => {
+        const { prefs } = await privacy.resolve(recipientId);
+        if (!prefs.showReadReceipts) return;
+        try {
+          await deliveryReceipts[method](messageId, recipientId);
+          fan();
+        } catch (err: unknown) {
+          fastify.log.error({ err, messageId, recipientId, receipt }, 'receipt recording failed');
+        }
+      })();
+      return;
+    }
+
     deliveryReceipts[method](messageId, recipientId)
       .then(fan)
       .catch((err: unknown) => {
@@ -648,16 +688,28 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 fresh: false,
               })
             ) {
-              void publishRoomEvent(
-                message.conversationId,
-                'chat.typing.v1',
-                {
-                  resourceRef: userId,
-                  aggregateVersion: 1,
-                  data: { userId, isTyping: Boolean(message.isTyping) },
-                },
-                { exclude: socket },
-              );
+              const conversationId = message.conversationId;
+              const isTyping = Boolean(message.isTyping);
+              // QC-F-042: the sender's showTypingIndicator gates their own
+              // typing frames. A suppressed frame is dropped SILENTLY — no
+              // error frame back to the sender (typing is a soft signal; an
+              // error would invite client retries/spam).
+              void (async () => {
+                if (privacy) {
+                  const { prefs } = await privacy.resolve(userId);
+                  if (!prefs.showTypingIndicator) return;
+                }
+                await publishRoomEvent(
+                  conversationId,
+                  'chat.typing.v1',
+                  {
+                    resourceRef: userId,
+                    aggregateVersion: 1,
+                    data: { userId, isTyping },
+                  },
+                  { exclude: socket },
+                );
+              })();
             }
           }
 
@@ -722,6 +774,14 @@ export async function websocketRoutes(fastify: FastifyInstance) {
   );
 
   fastify.get('/presence', async () => {
-    return { online: presence.getOnlineInApp('quantchat') };
+    const online = presence.getOnlineInApp('quantchat');
+    // QC-F-042: users with showOnlineStatus off are filtered out of the
+    // snapshot (their ZSET entry stays — only visibility is gated). A
+    // prefs failure hides the user rather than failing the whole list.
+    if (!privacy || online.length === 0) return { online };
+    const resolved = await privacy.resolveMany(online);
+    return {
+      online: online.filter((id) => resolved.get(id)?.prefs.showOnlineStatus ?? false),
+    };
   });
 }

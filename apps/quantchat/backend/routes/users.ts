@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
+import { getPrivacyService } from '../services/privacy.service';
 
 // ============================================================================
 // QuantChat — user directory routes (contact discovery for new chats)
@@ -68,6 +69,23 @@ export default async function usersRoutes(fastify: FastifyInstance) {
       orderBy: { displayName: 'asc' },
     });
 
-    return reply.send({ success: true, data: users });
+    // QC-F-042: hideFromSearch post-filter. A user who turned on "Hide
+    // profile from search" must not be discoverable here — by username,
+    // display name, OR email (the query above matches all three). Prefs are
+    // batch-resolved from the same store; a prefs failure hides the user
+    // (fail-closed — being undiscoverable for one page is reversible,
+    // being exposed after opting out is not) and never 500s the search.
+    // Honest v1 limit: the query's `take: limit` applies before this
+    // filter, so a page can come back shorter than `limit` when hidden
+    // users matched; over-fetching to backfill is a deliberate non-goal
+    // here (it would change the query's cost profile silently).
+    const privacy = getPrivacyService(prisma);
+    const resolved = await privacy.resolveMany(users.map((u) => u.id));
+    const visible = users.filter((u) => {
+      const entry = resolved.get(u.id);
+      return !(entry?.prefs.hideFromSearch ?? false);
+    });
+
+    return reply.send({ success: true, data: visible });
   });
 }

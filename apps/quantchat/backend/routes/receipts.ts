@@ -77,6 +77,13 @@ const receiptsRoutes: FastifyPluginAsync = async (fastify) => {
     const recipientId = requireUserId(request);
     const result = await receiptService.markMessageRead(messageId, recipientId);
 
+    // QC-F-042: the reader's showReadReceipts was off — nothing was
+    // persisted, so no realtime tick may be fanned out either (a tick for
+    // an unrecorded receipt would be a fabricated read signal).
+    if (result.suppressed) {
+      return reply.send({ success: true, data: result });
+    }
+
     // K25 — realtime tick for REST-recorded read receipts.
     const conversationId = await conversationIdForMessage(fastify, messageId);
     if (conversationId) {
