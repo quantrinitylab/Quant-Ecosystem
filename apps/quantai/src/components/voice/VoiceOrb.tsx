@@ -136,6 +136,191 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({
     speaking: `${currentPersona.name} is speaking`,
   };
 
+  // F-050 root-cause fix: the orb is the primary mic/interrupt control, so it
+  // renders a native <button> (Tab focus, Enter/Space activation) instead of a
+  // mouse-only div with onClick. The outer element keeps role="status" as the
+  // live region that announces state changes to assistive tech.
+  const isInteractive = typeof onClick === 'function';
+  const controlLabel =
+    state === 'speaking'
+      ? `Interrupt ${currentPersona.name}`
+      : state === 'listening'
+        ? isMuted
+          ? 'Stop muted listening session'
+          : 'Finish voice turn and send'
+        : `Talk to ${currentPersona.name}`;
+  const controlHint =
+    state === 'speaking'
+      ? `Press Enter or Space to interrupt ${currentPersona.name} immediately.`
+      : state === 'listening'
+        ? 'Press Enter or Space to finish this voice turn.'
+        : `Press Enter or Space to start speaking with ${currentPersona.name}.`;
+
+  // Central 3D fluid audio sphere core (shared by the interactive button and
+  // the decorative fallback so visuals stay identical in both cases).
+  const orbCore = (
+    <motion.div
+      className={`relative rounded-full shadow-2xl flex items-center justify-center overflow-hidden ${sizeConfig.core}`}
+      animate={animationVariants as any}
+      style={{
+        boxShadow: `0 0 50px -10px ${colors.c1}, 0 0 30px -5px ${colors.c2}`,
+      }}
+    >
+      {/* Multi-gradient Fluid Sphere Surface (SVG Mesh Simulation) */}
+      <svg
+        viewBox="0 0 200 200"
+        className="w-full h-full transform scale-110"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <defs>
+          <radialGradient id={`orbGrad-${currentPersona.id}`} cx="35%" cy="30%" r="75%">
+            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.85" />
+            <stop offset="25%" stopColor={colors.c2} stopOpacity="0.9" />
+            <stop offset="65%" stopColor={colors.c1} stopOpacity="0.95" />
+            <stop offset="100%" stopColor={colors.c3} stopOpacity="1" />
+          </radialGradient>
+          <linearGradient id={`sheenGrad-${currentPersona.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.5" />
+            <stop offset="50%" stopColor="transparent" stopOpacity="0" />
+            <stop offset="100%" stopColor={colors.c2} stopOpacity="0.3" />
+          </linearGradient>
+          <filter id="fluidTurbulence" x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency={state === 'speaking' ? '0.04' : '0.02'}
+              numOctaves="3"
+              result="noise"
+            />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="noise"
+              scale="12"
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
+        </defs>
+
+        {/* Primary 3D Sphere Base */}
+        <circle
+          cx="100"
+          cy="100"
+          r="88"
+          fill={`url(#orbGrad-${currentPersona.id})`}
+          filter="url(#fluidTurbulence)"
+        />
+
+        {/* Iridescent Specular Highlighting */}
+        <ellipse
+          cx="75"
+          cy="65"
+          rx="50"
+          ry="30"
+          fill="url(#sheenGrad-aura)"
+          transform="rotate(-25 75 65)"
+          opacity="0.75"
+        />
+
+        {/* Speaking Internal Frequency Waves */}
+        {state === 'speaking' && (
+          <g opacity="0.6">
+            <path
+              d="M 40 100 Q 70 80, 100 100 T 160 100"
+              fill="none"
+              stroke="#FFFFFF"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+            >
+              <animate
+                attributeName="d"
+                dur="1.2s"
+                repeatCount="indefinite"
+                values="
+                    M 40 100 Q 70 70, 100 100 T 160 100;
+                    M 40 100 Q 70 130, 100 100 T 160 100;
+                    M 40 100 Q 70 70, 100 100 T 160 100
+                  "
+              />
+            </path>
+            <path
+              d="M 50 115 Q 80 135, 100 115 T 150 115"
+              fill="none"
+              stroke={colors.c3}
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            >
+              <animate
+                attributeName="d"
+                dur="0.9s"
+                repeatCount="indefinite"
+                values="
+                    M 50 115 Q 80 140, 100 115 T 150 115;
+                    M 50 115 Q 80 90, 100 115 T 150 115;
+                    M 50 115 Q 80 140, 100 115 T 150 115
+                  "
+              />
+            </path>
+          </g>
+        )}
+
+        {/* Listening Acoustic Frequency Bars Indicator inside Orb */}
+        {state === 'listening' && (
+          <g opacity="0.75" transform="translate(60, 85)">
+            <rect x="0" y="5" width="4" height="20" rx="2" fill="#FFFFFF">
+              <animate attributeName="height" values="8;24;8" dur="0.8s" repeatCount="indefinite" />
+              <animate attributeName="y" values="12;4;12" dur="0.8s" repeatCount="indefinite" />
+            </rect>
+            <rect x="12" y="0" width="4" height="30" rx="2" fill="#FFFFFF">
+              <animate attributeName="height" values="14;34;14" dur="0.6s" repeatCount="indefinite" />
+              <animate attributeName="y" values="9;-1;9" dur="0.6s" repeatCount="indefinite" />
+            </rect>
+            <rect x="24" y="2" width="4" height="26" rx="2" fill="#FFFFFF">
+              <animate attributeName="height" values="10;28;10" dur="0.75s" repeatCount="indefinite" />
+              <animate attributeName="y" values="11;3;11" dur="0.75s" repeatCount="indefinite" />
+            </rect>
+            <rect x="36" y="0" width="4" height="30" rx="2" fill="#FFFFFF">
+              <animate attributeName="height" values="12;32;12" dur="0.65s" repeatCount="indefinite" />
+              <animate attributeName="y" values="10;0;10" dur="0.65s" repeatCount="indefinite" />
+            </rect>
+            <rect x="48" y="5" width="4" height="20" rx="2" fill="#FFFFFF">
+              <animate
+                attributeName="height"
+                values="6;22;6"
+                dur="0.85s"
+                repeatCount="indefinite"
+              />
+              <animate attributeName="y" values="13;5;13" dur="0.85s" repeatCount="indefinite" />
+            </rect>
+          </g>
+        )}
+
+        {/* Thinking Central Gyro Core */}
+        {state === 'thinking' && (
+          <g transform="translate(100, 100)">
+            <circle r="14" fill="#FFFFFF" opacity="0.85">
+              <animate attributeName="r" values="10;18;10" dur="1.5s" repeatCount="indefinite" />
+              <animate
+                attributeName="opacity"
+                values="0.6;1;0.6"
+                dur="1.5s"
+                repeatCount="indefinite"
+              />
+            </circle>
+          </g>
+        )}
+      </svg>
+
+      {/* Muted Visual Indicator Overlay */}
+      {isMuted && (
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center">
+          <span className="text-2xl text-red-400" aria-label="Microphone muted">
+            🔇
+          </span>
+        </div>
+      )}
+    </motion.div>
+  );
+
   return (
     <div
       role="status"
@@ -144,8 +329,7 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({
       data-testid="voice-orb"
       data-state={state}
       data-persona={currentPersona.id}
-      onClick={onClick}
-      className={`relative flex items-center justify-center select-none cursor-pointer ${sizeConfig.container} ${className}`}
+      className={`relative flex items-center justify-center select-none ${sizeConfig.container} ${className}`}
     >
       {/* Background Multi-layer Soundwave Ripples for Speaking & Listening */}
       {showRipples && !prefersReducedMotion && (
@@ -279,193 +463,33 @@ export const VoiceOrb: React.FC<VoiceOrbProps> = ({
         </motion.div>
       )}
 
-      {/* Central 3D Fluid Animated Audio Sphere Core */}
-      <motion.div
-        className={`relative rounded-full shadow-2xl flex items-center justify-center overflow-hidden ${sizeConfig.core}`}
-        animate={animationVariants as any}
-        style={{
-          boxShadow: `0 0 50px -10px ${colors.c1}, 0 0 30px -5px ${colors.c2}`,
-        }}
-      >
-        {/* Multi-gradient Fluid Sphere Surface (SVG Mesh Simulation) */}
-        <svg
-          viewBox="0 0 200 200"
-          className="w-full h-full transform scale-110"
-          xmlns="http://www.w3.org/2000/svg"
+      {/* Primary mic/interrupt control: native button when an onClick handler is
+          provided (keyboard-operable), decorative wrapper otherwise. */}
+      {isInteractive ? (
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label={controlLabel}
+          aria-describedby="voice-orb-hint"
+          data-testid="voice-orb-control"
+          className={`relative rounded-full cursor-pointer p-0 bg-transparent border-0 ${sizeConfig.core} focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/70 focus-visible:ring-offset-4 focus-visible:ring-offset-zinc-950`}
         >
-          <defs>
-            <radialGradient id={`orbGrad-${currentPersona.id}`} cx="35%" cy="30%" r="75%">
-              <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.85" />
-              <stop offset="25%" stopColor={colors.c2} stopOpacity="0.9" />
-              <stop offset="65%" stopColor={colors.c1} stopOpacity="0.95" />
-              <stop offset="100%" stopColor={colors.c3} stopOpacity="1" />
-            </radialGradient>
-            <linearGradient
-              id={`sheenGrad-${currentPersona.id}`}
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.5" />
-              <stop offset="50%" stopColor="transparent" stopOpacity="0" />
-              <stop offset="100%" stopColor={colors.c2} stopOpacity="0.3" />
-            </linearGradient>
-            <filter id="fluidTurbulence" x="-20%" y="-20%" width="140%" height="140%">
-              <feTurbulence
-                type="fractalNoise"
-                baseFrequency={state === 'speaking' ? '0.04' : '0.02'}
-                numOctaves="3"
-                result="noise"
-              />
-              <feDisplacementMap
-                in="SourceGraphic"
-                in2="noise"
-                scale="12"
-                xChannelSelector="R"
-                yChannelSelector="G"
-              />
-            </filter>
-          </defs>
+          {orbCore}
+        </button>
+      ) : (
+        <div className={`relative ${sizeConfig.core}`} data-testid="voice-orb-visual">
+          {orbCore}
+        </div>
+      )}
 
-          {/* Primary 3D Sphere Base */}
-          <circle
-            cx="100"
-            cy="100"
-            r="88"
-            fill={`url(#orbGrad-${currentPersona.id})`}
-            filter="url(#fluidTurbulence)"
-          />
-
-          {/* Iridescent Specular Highlighting */}
-          <ellipse
-            cx="75"
-            cy="65"
-            rx="50"
-            ry="30"
-            fill="url(#sheenGrad-aura)"
-            transform="rotate(-25 75 65)"
-            opacity="0.75"
-          />
-
-          {/* Speaking Internal Frequency Waves */}
-          {state === 'speaking' && (
-            <g opacity="0.6">
-              <path
-                d="M 40 100 Q 70 80, 100 100 T 160 100"
-                fill="none"
-                stroke="#FFFFFF"
-                strokeWidth="3.5"
-                strokeLinecap="round"
-              >
-                <animate
-                  attributeName="d"
-                  dur="1.2s"
-                  repeatCount="indefinite"
-                  values="
-                    M 40 100 Q 70 70, 100 100 T 160 100;
-                    M 40 100 Q 70 130, 100 100 T 160 100;
-                    M 40 100 Q 70 70, 100 100 T 160 100
-                  "
-                />
-              </path>
-              <path
-                d="M 50 115 Q 80 135, 100 115 T 150 115"
-                fill="none"
-                stroke={colors.c3}
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              >
-                <animate
-                  attributeName="d"
-                  dur="0.9s"
-                  repeatCount="indefinite"
-                  values="
-                    M 50 115 Q 80 140, 100 115 T 150 115;
-                    M 50 115 Q 80 90, 100 115 T 150 115;
-                    M 50 115 Q 80 140, 100 115 T 150 115
-                  "
-                />
-              </path>
-            </g>
-          )}
-
-          {/* Listening Acoustic Frequency Bars Indicator inside Orb */}
-          {state === 'listening' && (
-            <g opacity="0.75" transform="translate(60, 85)">
-              <rect x="0" y="5" width="4" height="20" rx="2" fill="#FFFFFF">
-                <animate
-                  attributeName="height"
-                  values="8;24;8"
-                  dur="0.8s"
-                  repeatCount="indefinite"
-                />
-                <animate attributeName="y" values="12;4;12" dur="0.8s" repeatCount="indefinite" />
-              </rect>
-              <rect x="12" y="0" width="4" height="30" rx="2" fill="#FFFFFF">
-                <animate
-                  attributeName="height"
-                  values="14;34;14"
-                  dur="0.6s"
-                  repeatCount="indefinite"
-                />
-                <animate attributeName="y" values="9;-1;9" dur="0.6s" repeatCount="indefinite" />
-              </rect>
-              <rect x="24" y="2" width="4" height="26" rx="2" fill="#FFFFFF">
-                <animate
-                  attributeName="height"
-                  values="10;28;10"
-                  dur="0.75s"
-                  repeatCount="indefinite"
-                />
-                <animate attributeName="y" values="11;3;11" dur="0.75s" repeatCount="indefinite" />
-              </rect>
-              <rect x="36" y="0" width="4" height="30" rx="2" fill="#FFFFFF">
-                <animate
-                  attributeName="height"
-                  values="12;32;12"
-                  dur="0.65s"
-                  repeatCount="indefinite"
-                />
-                <animate attributeName="y" values="10;0;10" dur="0.65s" repeatCount="indefinite" />
-              </rect>
-              <rect x="48" y="5" width="4" height="20" rx="2" fill="#FFFFFF">
-                <animate
-                  attributeName="height"
-                  values="6;22;6"
-                  dur="0.85s"
-                  repeatCount="indefinite"
-                />
-                <animate attributeName="y" values="13;5;13" dur="0.85s" repeatCount="indefinite" />
-              </rect>
-            </g>
-          )}
-
-          {/* Thinking Central Gyro Core */}
-          {state === 'thinking' && (
-            <g transform="translate(100, 100)">
-              <circle r="14" fill="#FFFFFF" opacity="0.85">
-                <animate attributeName="r" values="10;18;10" dur="1.5s" repeatCount="indefinite" />
-                <animate
-                  attributeName="opacity"
-                  values="0.6;1;0.6"
-                  dur="1.5s"
-                  repeatCount="indefinite"
-                />
-              </circle>
-            </g>
-          )}
-        </svg>
-
-        {/* Muted Visual Indicator Overlay */}
-        {isMuted && (
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center">
-            <span className="text-2xl text-red-400" aria-label="Microphone muted">
-              🔇
-            </span>
-          </div>
-        )}
-      </motion.div>
+      {/* Screen-reader-only keyboard hint for the mic/interrupt control
+          (improvement pass: operating instructions announced alongside the
+          control's accessible name). */}
+      {isInteractive && (
+        <span id="voice-orb-hint" className="sr-only">
+          {controlHint}
+        </span>
+      )}
 
       {/* Floating State Badge underneath Orb */}
       <div className="absolute -bottom-6 flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-900/80 border border-zinc-700/60 backdrop-blur-md text-[11px] font-medium text-zinc-300 shadow-lg pointer-events-none">
