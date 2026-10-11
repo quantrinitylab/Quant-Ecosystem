@@ -17,6 +17,7 @@ import {
   generateGoogleCalendarUrl,
   resolveBookingFailureMessage,
   resolveLinkLoadFailure,
+  resolveSlotsResponse,
 } from '../app/calendar/booking/[slug]/booking-utils';
 import {
   BookingLinksModal,
@@ -336,6 +337,65 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
         expect(message).not.toContain('Strategy Session');
         expect(message).not.toContain('min');
       }
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 2d. Empty backend availability is authoritative (fix/qm-booking-fullybooked-slots):
+  // { success: true, data: [] } must surface as the honest "no slots" state —
+  // never fall through to client-side slot generation, which invents bookable
+  // slots the backend then rejects at submit with 409 SLOT_UNAVAILABLE.
+  // --------------------------------------------------------------------------
+  describe('resolveSlotsResponse (empty backend availability is authoritative)', () => {
+    const slotPayload = (start: string, available?: boolean) => ({
+      start,
+      end: '2026-10-12T10:30:00.000Z',
+      ...(available === undefined ? {} : { available }),
+    });
+
+    it('treats an empty data array as authoritative — returns [] instead of null', () => {
+      // Regression: the old `json.data.length > 0` guard fell through to
+      // generateSlotsForDate and rendered invented bookable slots.
+      expect(resolveSlotsResponse({ success: true, data: [] })).toEqual([]);
+    });
+
+    it('maps real slots with formatted labels and preserves available:false', () => {
+      const slots = resolveSlotsResponse({
+        success: true,
+        data: [
+          slotPayload('2026-10-12T09:00:00.000Z', true),
+          slotPayload('2026-10-12T09:30:00.000Z', false),
+        ],
+      });
+
+      expect(slots).toHaveLength(2);
+      expect(slots![0].start).toBeInstanceOf(Date);
+      expect(slots![0].end).toBeInstanceOf(Date);
+      expect(slots![0].timeLabel).toMatch(/^\d{2}:\d{2} (AM|PM)$/);
+      expect(slots![0].available).toBe(true);
+      // Fully-booked date: backend marks every slot unavailable — honored,
+      // never dropped or flipped to bookable.
+      expect(slots![1].available).toBe(false);
+    });
+
+    it('defaults available to true when the backend omits the flag', () => {
+      const slots = resolveSlotsResponse({
+        success: true,
+        data: [slotPayload('2026-10-12T09:00:00.000Z')],
+      });
+
+      expect(slots).toHaveLength(1);
+      expect(slots![0].available).toBe(true);
+    });
+
+    it('returns null for non-authoritative payloads so the caller takes the failure path', () => {
+      expect(resolveSlotsResponse({ success: false, data: [] })).toBeNull();
+      expect(resolveSlotsResponse({ success: true })).toBeNull();
+      expect(resolveSlotsResponse({ success: true, data: 'nope' })).toBeNull();
+      expect(resolveSlotsResponse({ success: true, data: null })).toBeNull();
+      expect(resolveSlotsResponse(null)).toBeNull();
+      expect(resolveSlotsResponse(undefined)).toBeNull();
+      expect(resolveSlotsResponse('garbage')).toBeNull();
     });
   });
 
