@@ -15,7 +15,15 @@ import {
 import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
-import { inboxLensTarget, inboxResetTarget, syncSearchParam } from '../lib/inbox-nav';
+import {
+  inboxLensTarget,
+  inboxResetTarget,
+  normalizeSearchFolderParam,
+  SEARCH_FOLDER_OPTIONS,
+  syncSearchFolderParam,
+  syncSearchParam,
+  type SearchFolderScope,
+} from '../lib/inbox-nav';
 import { AppSidebar } from '../components/AppSidebar';
 import { EmailSafetyBanner } from '../components/EmailSafetyBanner';
 import { EmailSnooze } from '../components/EmailSnooze';
@@ -1348,6 +1356,21 @@ function InboxPageContent() {
   const filterGroupLabelId = useId();
   const filterPanelId = useId();
   /**
+   * SIA-P2-6: the search-folder scope chip. Search answers from the whole
+   * mailbox by default ("All mail"); the chip narrows back to one folder.
+   * The menu is the same disclosure pattern as the filter popover (button +
+   * absolutely positioned radiogroup, outside-click/Escape dismiss below).
+   */
+  const [searchFolder, setSearchFolder] = useState<SearchFolderScope>(() =>
+    typeof window === 'undefined'
+      ? 'all'
+      : normalizeSearchFolderParam(new URLSearchParams(window.location.search).get('sf')),
+  );
+  const [isScopeMenuOpen, setIsScopeMenuOpen] = useState(false);
+  const scopeMenuRef = useRef<HTMLDivElement | null>(null);
+  const scopeTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const scopePanelId = useId();
+  /**
    * The tablist's other half. A `role="tab"` owes a reader the thing it controls —
    * `aria-controls` is required on a tab, not advisory — and without it the chips
    * announce "Unread, tab, 2 of 4, selected" attached to nothing: no relationship
@@ -1836,6 +1859,41 @@ function InboxPageContent() {
     if (target !== null) router.replace(target, { scroll: false });
   }, [debouncedQuery, router]);
 
+  /*
+   * SIA-P2-6: every freshly typed search starts at "All mail" — the scope chip
+   * then reflects only the user's deliberate narrowing, never a stale scope
+   * from the previous search. The ref is seeded from ?q= so a deep-linked
+   * search (?q=…&sf=…) isn't mistaken for a brand-new one on mount.
+   */
+  const prevQueryForScopeRef = useRef<string>(
+    typeof window === 'undefined'
+      ? ''
+      : (new URLSearchParams(window.location.search).get('q') ?? ''),
+  );
+  useEffect(() => {
+    if (prevQueryForScopeRef.current === '' && debouncedQuery !== '') {
+      setSearchFolder('all');
+    }
+    prevQueryForScopeRef.current = debouncedQuery;
+  }, [debouncedQuery]);
+
+  /*
+   * SIA-P2-6: keep `sf` coherent with `q` — the same replace-not-push contract
+   * as `syncSearchParam` (pure decision in `syncSearchFolderParam`, unit-tested).
+   * The scope is meaningless without a query, so it is only written while one
+   * is active; dropping the query drops the scope with it. The `searchQuery`
+   * guard skips the run where a query is typed but not yet debounced, so a
+   * deep-linked ?q=…&sf=… isn't stripped and re-added on mount.
+   */
+  useEffect(() => {
+    if (!debouncedQuery && searchQuery) return;
+    const target = syncSearchFolderParam(
+      window.location.href,
+      debouncedQuery ? searchFolder : 'all',
+    );
+    if (target !== null) router.replace(target, { scroll: false });
+  }, [debouncedQuery, searchFolder, searchQuery, router]);
+
   const { user: currentUser } = useAuth();
   const currentEmail = currentUser?.email || '';
 
@@ -1852,38 +1910,76 @@ function InboxPageContent() {
   }, [debouncedQuery, searchResults]);
 
   /**
-   * What a query is answered from.
+   * SIA-P2-6: what a query is answered from — the whole mailbox, not the
+   * current view's pool.
    *
-   * Searching used to *replace* the corpus with the server's answer, which threw away
-   * everything the client already had: the response is one page of loose messages, so
-   * conversations lost the rest of their messages and the participants, counts and
-   * focus computed from them. Now it widens instead — the mailbox already loaded, plus
-   * the server hits it did not contain — and one grouping pass rebuilds whole
-   * conversations from the union, exactly as the unsearched inbox does.
+   * The backend (`GET /search/emails`) is folder-agnostic — no folder param on
+   * the request, no folder filter in the query — so the client's four folder
+   * queries plus the server hits are the full answer. The old corpus widened
+   * only the *inbox* pool (and deliberately dropped archived hits), so an
+   * Archive-view search never saw inbox results and an Inbox search never saw
+   * archived ones: the bug this fixes.
    *
-   * Hits that are archived are left out on purpose: they belong to the archived shelf's
-   * pool below, and adding them here would put an archived conversation in the inbox.
+   * One grouping pass still rebuilds whole conversations from the union,
+   * exactly as the unsearched inbox does — the response is one page of loose
+   * messages, so replacing the corpus with it would lose the rest of each
+   * conversation and the participants, counts and focus computed from them.
    */
-  const searchedEmails = useMemo(() => {
-    const local = allEmails ?? [];
-    if (!debouncedQuery) return local;
-
-    const archivedIds = new Set((archivedEmails ?? []).map((m) => m.id));
-    const seen = new Set(local.map((m) => m.id));
-    const corpus = [...local];
-
-    for (const hit of searchResults ?? []) {
-      if (!hit?.id || seen.has(hit.id) || archivedIds.has(hit.id)) continue;
-      seen.add(hit.id);
-      corpus.push(hit);
-    }
-
+  const searchCorpus = useMemo(() => {
+    if (!debouncedQuery) return null;
+    const seen = new Set<string>();
+    const corpus: Email[] = [];
+    const add = (list: Email[] | undefined) => {
+      for (const m of list ?? []) {
+        if (!m?.id || seen.has(m.id)) continue;
+        seen.add(m.id);
+        corpus.push(m);
+      }
+    };
+    add(allEmails);
+    add(archivedEmails);
+    add(spamEmails);
+    add(snoozedEmails);
+    add(searchResults);
     return corpus;
-  }, [debouncedQuery, allEmails, archivedEmails, searchResults]);
+  }, [debouncedQuery, allEmails, archivedEmails, spamEmails, snoozedEmails, searchResults]);
+
+  /**
+   * Folder attribution for the scope chip, by membership in the folder
+   * queries — the client's ground truth. A server hit the client holds in no
+   * folder (e.g. past the first page of a folder query) is unknown-folder:
+   * it appears under "All mail" and under no narrowed scope, because a
+   * narrowed scope must only claim mail it knows is in that folder.
+   */
+  const searchFolderIdSets = useMemo(
+    () => ({
+      inbox: new Set((allEmails ?? []).map((m) => m.id)),
+      archive: new Set((archivedEmails ?? []).map((m) => m.id)),
+      spam: new Set((spamEmails ?? []).map((m) => m.id)),
+      snoozed: new Set((snoozedEmails ?? []).map((m) => m.id)),
+    }),
+    [allEmails, archivedEmails, spamEmails, snoozedEmails],
+  );
+
+  /**
+   * The search answer: whole-mailbox threads matching the query (local text
+   * match or a server hit), narrowed to the scope chip's folder when the user
+   * narrowed. A conversation can span folders — a reply archived while the
+   * original sits in the inbox — so a folder owns the threads it has mail in,
+   * and each view keeps its conversations whole.
+   */
+  const searchThreads = useMemo(() => {
+    if (!searchCorpus) return null;
+    const grouped = groupEmailsIntoThreads(searchCorpus, currentEmail);
+    const matched = filterThreadsByQuery(grouped, debouncedQuery, currentEmail, serverHitIds);
+    if (searchFolder === 'all') return matched;
+    const ids = searchFolderIdSets[searchFolder];
+    return matched.filter((t) => t.messages.some((m) => ids.has(m.id)));
+  }, [searchCorpus, debouncedQuery, currentEmail, serverHitIds, searchFolder, searchFolderIdSets]);
 
   const groupedThreads = useMemo(
-    () => groupEmailsIntoThreads(searchedEmails, currentEmail),
-    [searchedEmails, currentEmail],
+    () => groupEmailsIntoThreads(allEmails ?? [], currentEmail),
+    [allEmails, currentEmail],
   );
   const threads = useMemo(
     () => filterThreadsByQuery(groupedThreads, debouncedQuery, currentEmail, serverHitIds),
@@ -2210,6 +2306,29 @@ function InboxPageContent() {
     };
   }, [isFilterMenuOpen]);
 
+  /** Dismiss the search-scope popover on an outside click or Escape. */
+  useEffect(() => {
+    if (!isScopeMenuOpen) return;
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      if (!scopeMenuRef.current?.contains(event.target as Node)) setIsScopeMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setIsScopeMenuOpen(false);
+      // Same contract as the filter popover: Escape is a keyboard gesture,
+      // so focus goes back to the trigger it came from.
+      scopeTriggerRef.current?.focus();
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isScopeMenuOpen]);
+
   /**
    * The population the visible list is drawn from, before the category tab
    * narrows it.
@@ -2224,14 +2343,19 @@ function InboxPageContent() {
    */
   const activeThreadPool = useMemo(
     () =>
-      showArchivedView
-        ? allArchivedThreads
-        : activeLens === 'spam'
-          ? allSpamThreads
-          : activeLens === 'snoozed'
-            ? allSnoozedThreads
-            : (threads ?? []),
-    [showArchivedView, allArchivedThreads, activeLens, allSpamThreads, allSnoozedThreads, threads],
+      // SIA-P2-6: an active search answers from the whole mailbox (the scope
+      // chip narrows it), regardless of which tab the query was typed in — a
+      // query typed in the Archive tab no longer misses inbox results.
+      debouncedQuery
+        ? (searchThreads ?? [])
+        : showArchivedView
+          ? allArchivedThreads
+          : activeLens === 'spam'
+            ? allSpamThreads
+            : activeLens === 'snoozed'
+              ? allSnoozedThreads
+              : (threads ?? []),
+    [debouncedQuery, searchThreads, showArchivedView, allArchivedThreads, activeLens, allSpamThreads, allSnoozedThreads, threads],
   );
 
   // True when the windowed list is showing the inbox pool itself (not the
@@ -2254,7 +2378,14 @@ function InboxPageContent() {
    * false statement; the chip shows no badge until it can show a true one.
    */
   const lensCounts = useMemo(() => {
-    const basePool = showArchivedView ? allArchivedThreads : (threads ?? []);
+    // SIA-P2-6: when a query is active the chips count the search answer, not
+    // the folder pool — a count that ignores the query would promise rows the
+    // list will not show.
+    const basePool = debouncedQuery
+      ? (searchThreads ?? [])
+      : showArchivedView
+        ? allArchivedThreads
+        : (threads ?? []);
     const pool = narrowThreads(basePool, 'all', activeTurn, activeFilters);
     let allUnread = 0;
     let allTotal = 0;
@@ -2350,6 +2481,8 @@ function InboxPageContent() {
     };
     return counts;
   }, [
+    debouncedQuery,
+    searchThreads,
     showArchivedView,
     allArchivedThreads,
     threads,
@@ -2593,10 +2726,10 @@ function InboxPageContent() {
     [activeThreadPool],
   );
 
-  const heroTitle = showArchivedView
-    ? 'Archived'
-    : debouncedQuery
-      ? 'Search results'
+  const heroTitle = debouncedQuery
+    ? 'Search results'
+    : showArchivedView
+      ? 'Archived'
       : 'Your Inbox';
 
   /**
@@ -2606,10 +2739,10 @@ function InboxPageContent() {
    * over results, Spam/Snoozed/Trash over their folder views, Archive over
    * archived mail. It matches `heroTitle`'s state branches by construction.
    */
-  const heroKicker = showArchivedView
-    ? 'Archive'
-    : debouncedQuery
-      ? 'Search'
+  const heroKicker = debouncedQuery
+    ? 'Search'
+    : showArchivedView
+      ? 'Archive'
       : activeLens === 'spam'
         ? 'Spam'
         : activeLens === 'snoozed'
@@ -3098,6 +3231,103 @@ function InboxPageContent() {
               </p>
               <h1>{heroTitle}</h1>
               <p>{heroSummary}</p>
+              {/*
+                SIA-P2-6: the search-folder scope chip. Search answers from the
+                whole mailbox by default; the chip narrows back to one folder.
+                Only rendered while a query is active — a scope without a query
+                is meaningless, and the `sf` sync effect drops it with the query.
+                The wrapper is `relative z-30` so the popover paints above the
+                mail rows below (same paint-order contract as the filter row's
+                `relative z-30`): the rows carry `will-change: transform`, and a
+                static hero would let the panel render underneath them.
+              */}
+              {debouncedQuery !== '' && (
+                <div className="relative z-30 mt-2 w-fit" ref={scopeMenuRef}>
+                  <button
+                    type="button"
+                    ref={scopeTriggerRef}
+                    onClick={() => setIsScopeMenuOpen((prev) => !prev)}
+                    aria-expanded={isScopeMenuOpen}
+                    aria-controls={isScopeMenuOpen ? scopePanelId : undefined}
+                    aria-label={`Search folder: ${SEARCH_FOLDER_OPTIONS.find((option) => option.key === searchFolder)?.label}. Change search folder.`}
+                    data-testid="search-scope-button"
+                    className={`inline-flex items-center gap-1.5 px-3 min-h-[44px] sm:min-h-[32px] rounded-full text-xs font-medium border whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
+                      searchFolder !== 'all' || isScopeMenuOpen
+                        ? 'bg-[var(--quant-primary)]/12 text-[var(--quant-primary)] border-[var(--quant-primary)]/35 font-semibold'
+                        : 'bg-[var(--quant-surface)] text-[var(--quant-muted-foreground)] border-white/[0.08] hover:text-[var(--quant-foreground)] hover:bg-white/[0.04] hover:border-white/[0.14]'
+                    }`}
+                  >
+                    <span>{SEARCH_FOLDER_OPTIONS.find((option) => option.key === searchFolder)?.label}</span>
+                    <svg
+                      className={`size-3.5 transition-transform ${isScopeMenuOpen ? 'rotate-180' : ''}`}
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+                  <AnimatePresence>
+                    {isScopeMenuOpen && (
+                      <motion.div
+                        id={scopePanelId}
+                        role="group"
+                        aria-label="Search folder scope"
+                        data-testid="search-scope-menu"
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.14 }}
+                        className="absolute left-0 top-full mt-2 z-30 w-60 rounded-2xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] shadow-[0_4px_16px_rgba(0,0,0,0.6)] overflow-hidden"
+                      >
+                        <p className="px-3 pt-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--quant-muted-foreground)]">
+                          Search in
+                        </p>
+                        <div role="radiogroup" aria-label="Search in folder">
+                          {SEARCH_FOLDER_OPTIONS.map((option) => {
+                            const isOn = searchFolder === option.key;
+                            return (
+                              <button
+                                key={option.key}
+                                type="button"
+                                role="radio"
+                                aria-checked={isOn}
+                                onClick={() => {
+                                  setSearchFolder(option.key);
+                                  setIsScopeMenuOpen(false);
+                                }}
+                                className="w-full min-h-[44px] px-3 flex items-center gap-2.5 text-left text-xs transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)]"
+                              >
+                                <span
+                                  aria-hidden="true"
+                                  className={`size-[18px] shrink-0 rounded-full border inline-flex items-center justify-center transition-colors ${
+                                    isOn ? 'border-[var(--quant-primary)]' : 'border-[#3A404D]'
+                                  }`}
+                                >
+                                  <span
+                                    className={`size-2 rounded-full transition-colors ${
+                                      isOn ? 'bg-[var(--quant-primary)]' : 'bg-transparent'
+                                    }`}
+                                  />
+                                </span>
+                                <span
+                                  className={`flex-1 truncate ${isOn ? 'text-[var(--quant-foreground)] font-semibold' : 'text-[var(--quant-muted-foreground)]'}`}
+                                >
+                                  {option.label}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
             </div>
             {/*
               SIA-P1-2: one primary Compose per screen. The left-nav Compose
