@@ -256,13 +256,13 @@ export function QuantGitFeedSubView({ events = [] }: QuantGitFeedSubViewProps) {
         {/* Header Hero */}
         <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
-            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-[#8B5CF6]">
               <SvgFeedIcon className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Activity Feed</h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#8B5CF6]/15 text-[#8B5CF6] border border-[#8B5CF6]/30">
                   {events.length} EVENTS
                 </span>
               </div>
@@ -295,14 +295,14 @@ export function QuantGitFeedSubView({ events = [] }: QuantGitFeedSubViewProps) {
                 data-testid={`quantgit-feed-event-${event.id}`}
                 className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-4 flex items-start gap-3"
               >
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#A78BFA]/15 border border-[#A78BFA]/30 text-[#A78BFA] text-xs font-bold uppercase">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#8B5CF6]/15 border border-[#8B5CF6]/30 text-[#8B5CF6] text-xs font-bold uppercase">
                   {event.actor.trim().charAt(0) || '?'}
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm text-[#E6EDF3]">
                     <span className="font-bold text-white">{event.actor}</span>
                     <span className="text-[#8B949E]"> {event.action} </span>
-                    <span className="font-semibold text-[#A78BFA]">{event.target}</span>
+                    <span className="font-semibold text-[#8B5CF6]">{event.target}</span>
                   </p>
                   <p className="text-xs text-[#6E7681] mt-1">{event.createdAt}</p>
                 </div>
@@ -372,13 +372,13 @@ export function QuantGitReposSubView({
         {/* Top Header Banner */}
         <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
-            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-[#8B5CF6]">
               <SvgRepoIcon className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Sovereign Repositories</h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#8B5CF6]/15 text-[#8B5CF6] border border-[#8B5CF6]/30">
                   {filtered.length} ACTIVE
                 </span>
               </div>
@@ -392,7 +392,7 @@ export function QuantGitReposSubView({
             <button
               type="button"
               onClick={onNewRepo}
-              className="px-4 py-2 rounded-xl bg-[#A78BFA] hover:bg-[#906FFA] text-black font-bold text-xs shadow-lg shadow-[#A78BFA]/20 transition-all flex items-center gap-2"
+              className="px-4 py-2 rounded-xl bg-[#8B5CF6] hover:bg-[#906FFA] text-black font-bold text-xs shadow-lg shadow-[#8B5CF6]/20 transition-all flex items-center gap-2"
             >
               <span>+</span>
               <span>New Repository</span>
@@ -414,7 +414,7 @@ export function QuantGitReposSubView({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Find a repository..."
                 aria-label="Find a repository"
-                className="w-full bg-[var(--quant-surface)] border border-[#232938] rounded-xl px-3.5 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] focus:outline-none focus:border-[#A78BFA] transition-colors"
+                className="w-full bg-[var(--quant-surface)] border border-[#232938] rounded-xl px-3.5 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] focus:outline-none focus:border-[#8B5CF6] transition-colors"
               />
             </div>
           )}
@@ -422,7 +422,7 @@ export function QuantGitReposSubView({
             <select
               aria-label="Filter by type" value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as any)}
-              className="bg-[var(--quant-surface)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#E6EDF3] focus:outline-none focus:border-[#A78BFA]"
+              className="bg-[var(--quant-surface)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#E6EDF3] focus:outline-none focus:border-[#8B5CF6]"
             >
               <option value="all">Type: All</option>
               <option value="public">Public</option>
@@ -431,7 +431,7 @@ export function QuantGitReposSubView({
             <select
               aria-label="Filter by language" value={langFilter}
               onChange={(e) => setLangFilter(e.target.value)}
-              className="bg-[var(--quant-surface)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#E6EDF3] focus:outline-none focus:border-[#A78BFA]"
+              className="bg-[var(--quant-surface)] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#E6EDF3] focus:outline-none focus:border-[#8B5CF6]"
             >
               <option value="all">Language: All</option>
               <option value="typescript">TypeScript</option>
@@ -450,7 +450,7 @@ export function QuantGitReposSubView({
               data-testid="quantgit-repos-empty"
               className="w-full max-w-md rounded-2xl border border-dashed border-[#232938] bg-[var(--quant-surface)] p-8 text-center"
             >
-              <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+              <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-[#8B5CF6]">
                 <SvgRepoIcon className="size-5" />
               </div>
               <h2 className="text-base font-bold text-white">No repositories yet</h2>
@@ -466,7 +466,7 @@ export function QuantGitReposSubView({
                 <button
                   type="button"
                   onClick={onNewRepo}
-                  className="mt-5 text-xs font-semibold text-[#A78BFA] hover:text-white hover:underline transition-colors"
+                  className="mt-5 text-xs font-semibold text-[#8B5CF6] hover:text-white hover:underline transition-colors"
                 >
                   + Create a new repository
                 </button>
@@ -479,7 +479,7 @@ export function QuantGitReposSubView({
             <div
               key={repo.id}
               data-testid={`repo-card-${repo.name}`}
-              className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-5 flex flex-col justify-between hover:border-[#A78BFA]/50 transition-all shadow-md group"
+              className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-5 flex flex-col justify-between hover:border-[#8B5CF6]/50 transition-all shadow-md group"
             >
               <div>
                 {/* Header: Title & Badges */}
@@ -487,9 +487,9 @@ export function QuantGitReposSubView({
                   <button
                     type="button"
                     onClick={() => onSelectRepo?.(repo.name)}
-                    className="text-left font-bold text-sm text-white group-hover:text-[#A78BFA] hover:underline transition-colors flex items-center gap-2"
+                    className="text-left font-bold text-sm text-white group-hover:text-[#8B5CF6] hover:underline transition-colors flex items-center gap-2"
                   >
-                    <SvgRepoIcon className="size-4 text-[#A78BFA]" />
+                    <SvgRepoIcon className="size-4 text-[#8B5CF6]" />
                     <span>{repo.name}</span>
                   </button>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[#232938] bg-[#181C28] text-[#8B949E]">
@@ -516,7 +516,7 @@ export function QuantGitReposSubView({
                         <span
                           title="Protected branch (enforces CI gates and signed PR reviews)"
                           data-testid="protected-branch-badge"
-                          className="ml-1 inline-flex items-center gap-0.5 text-[var(--q-type-xs)] font-bold text-[#A78BFA] bg-[#A78BFA]/10 px-1 py-px rounded border border-[#A78BFA]/30"
+                          className="ml-1 inline-flex items-center gap-0.5 text-[var(--q-type-xs)] font-bold text-[#8B5CF6] bg-[#8B5CF6]/10 px-1 py-px rounded border border-[#8B5CF6]/30"
                         >
                           <SvgShieldIcon className="size-2.5" />
                           <span>Protected</span>
@@ -541,7 +541,7 @@ export function QuantGitReposSubView({
                 <div className="flex items-center gap-3">
                   <div
                     data-testid={`star-count-${repo.name}`}
-                    className="flex items-center gap-1 text-[#C9D1D9] hover:text-[#A78BFA] cursor-pointer"
+                    className="flex items-center gap-1 text-[#C9D1D9] hover:text-[#8B5CF6] cursor-pointer"
                   >
                     <SvgStarIcon className="size-3.5 text-[var(--quant-warning)]" />
                     <span>{repo.stars.toLocaleString()}</span>
@@ -597,7 +597,7 @@ export function QuantGitPrsSubView({
         {/* Header Hero */}
         <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
-            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-[#8B5CF6]">
               <SvgPullRequestIcon className="size-5" />
             </div>
             <div>
@@ -630,7 +630,7 @@ export function QuantGitPrsSubView({
               onClick={() => setFilterState('merged')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                 filterState === 'merged'
-                  ? 'bg-[#A78BFA]/20 text-[#A78BFA] border border-[#A78BFA]/40'
+                  ? 'bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/40'
                   : 'bg-[var(--quant-surface)] text-[#8B949E] border border-[#232938] hover:text-white'
               }`}
             >
@@ -670,14 +670,14 @@ export function QuantGitPrsSubView({
               <div
                 key={pr.id}
                 data-testid={`pr-card-${pr.prNumber}`}
-                className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-5 shadow-md hover:border-[#A78BFA]/40 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-5 shadow-md hover:border-[#8B5CF6]/40 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
               >
                 <div className="space-y-2.5 flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span
                       className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
                         isMerged
-                          ? 'bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30'
+                          ? 'bg-[#8B5CF6]/15 text-[#8B5CF6] border border-[#8B5CF6]/30'
                           : pr.status === 'approved_ready'
                           ? 'bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30'
                           : 'bg-[var(--quant-warning)]/15 text-[var(--quant-warning)] border border-[var(--quant-warning)]/30'
@@ -699,7 +699,7 @@ export function QuantGitPrsSubView({
                     <button
                       type="button"
                       onClick={() => onOpenPR?.(pr.id)}
-                      className="font-bold text-sm text-white hover:text-[#A78BFA] hover:underline transition-colors text-left"
+                      className="font-bold text-sm text-white hover:text-[#8B5CF6] hover:underline transition-colors text-left"
                     >
                       PR #{pr.prNumber}: {pr.title}
                     </button>
@@ -754,7 +754,7 @@ export function QuantGitPrsSubView({
                     className={`px-4 py-2 rounded-xl text-xs font-bold shadow-lg transition-all flex items-center gap-2 ${
                       isMerged
                         ? 'bg-[#181C28] text-[#8B949E] border border-[#232938] cursor-not-allowed'
-                        : 'bg-[#A78BFA] hover:bg-[#906FFA] text-black shadow-[#A78BFA]/20 active:scale-95'
+                        : 'bg-[#8B5CF6] hover:bg-[#906FFA] text-black shadow-[#8B5CF6]/20 active:scale-95'
                     }`}
                   >
                     <SvgMergeIcon className="size-4" />
@@ -801,13 +801,13 @@ export function QuantGitIssuesSubView({
         {/* Header Hero */}
         <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
-            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-[#8B5CF6]">
               <SvgIssueIcon className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Sovereign Issue Tracker</h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#8B5CF6]/15 text-[#8B5CF6] border border-[#8B5CF6]/30">
                   PRIORITY RADAR
                 </span>
               </div>
@@ -839,7 +839,7 @@ export function QuantGitIssuesSubView({
               data-testid="filter-pill-closed"
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                 filterState === 'closed'
-                  ? 'bg-[#A78BFA]/20 text-[#A78BFA] border border-[#A78BFA]/40'
+                  ? 'bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/40'
                   : 'bg-[var(--quant-surface)] text-[#8B949E] border border-[#232938] hover:text-white'
               }`}
             >
@@ -851,7 +851,7 @@ export function QuantGitIssuesSubView({
               <button
                 type="button"
                 onClick={onNewIssue}
-                className="ml-2 px-3.5 py-1.5 rounded-xl bg-[#A78BFA] hover:bg-[#906FFA] text-black font-bold text-xs shadow-md transition-all"
+                className="ml-2 px-3.5 py-1.5 rounded-xl bg-[#8B5CF6] hover:bg-[#906FFA] text-black font-bold text-xs shadow-md transition-all"
               >
                 + New Issue
               </button>
@@ -874,7 +874,7 @@ export function QuantGitIssuesSubView({
             <div
               key={issue.id}
               data-testid={`issue-card-${issue.issueNumber}`}
-              className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-4 sm:p-5 shadow-md hover:border-[#A78BFA]/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-4 sm:p-5 shadow-md hover:border-[#8B5CF6]/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
             >
               <div className="space-y-2 flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -894,7 +894,7 @@ export function QuantGitIssuesSubView({
                   <button
                     type="button"
                     onClick={() => onSelectIssue?.(issue.id)}
-                    className="font-bold text-sm text-white hover:text-[#A78BFA] hover:underline transition-colors text-left"
+                    className="font-bold text-sm text-white hover:text-[#8B5CF6] hover:underline transition-colors text-left"
                   >
                     Issue #{issue.issueNumber}: {issue.title}
                   </button>
@@ -919,7 +919,7 @@ export function QuantGitIssuesSubView({
 
               {/* Comments Count */}
               <div className="flex items-center gap-1.5 text-xs text-[#8B949E] px-3 py-1 rounded-lg bg-[#181C28] border border-[#232938] shrink-0">
-                <SvgMessageIcon className="size-3.5 text-[#A78BFA]" />
+                <SvgMessageIcon className="size-3.5 text-[#8B5CF6]" />
                 <span className="font-semibold">{issue.commentsCount}</span>
               </div>
             </div>
@@ -955,7 +955,7 @@ export function QuantGitActionsSubView({
         {/* Header Hero */}
         <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
-            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-[#8B5CF6]">
               <SvgActionsIcon className="size-5" />
             </div>
             <div>
@@ -977,7 +977,7 @@ export function QuantGitActionsSubView({
             <button
               type="button"
               onClick={onTriggerWorkflow}
-              className="px-4 py-2 rounded-xl bg-[#A78BFA] hover:bg-[#906FFA] text-black font-bold text-xs shadow-lg shadow-[#A78BFA]/20 transition-all flex items-center gap-2"
+              className="px-4 py-2 rounded-xl bg-[#8B5CF6] hover:bg-[#906FFA] text-black font-bold text-xs shadow-lg shadow-[#8B5CF6]/20 transition-all flex items-center gap-2"
             >
               <SvgActionsIcon className="size-3.5" />
               <span>Trigger Pipeline</span>
@@ -1195,13 +1195,13 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
         {/* Header Hero */}
         <div className="flex items-center justify-between pb-3 sm:pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
-            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/15 border border-[#A78BFA]/30 text-[#A78BFA] shadow-lg shadow-[#A78BFA]/10">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#8B5CF6]/15 border border-[#8B5CF6]/30 text-[#8B5CF6] shadow-lg shadow-[#8B5CF6]/10">
               <SvgCopilotIcon className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Quanty AI In-Repo Copilot</h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/20 text-[#A78BFA] border border-[#A78BFA]/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/30">
                   NODE B AGENT OS
                 </span>
               </div>
@@ -1221,9 +1221,9 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
               type="button"
               data-testid={`prompt-chip-${chip.label.replace(/[^a-zA-Z0-9]/g, '-')}`}
               onClick={() => handleChipClick(chip.label, chip.query)}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[var(--quant-surface)] hover:bg-[#1A1F2C] text-[#C9D1D9] hover:text-white border border-[#232938] hover:border-[#A78BFA]/60 shadow-sm transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[var(--quant-surface)] hover:bg-[#1A1F2C] text-[#C9D1D9] hover:text-white border border-[#232938] hover:border-[#8B5CF6]/60 shadow-sm transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
             >
-              <SvgCopilotIcon className="size-3 text-[#A78BFA]" />
+              <SvgCopilotIcon className="size-3 text-[#8B5CF6]" />
               <span>[{chip.label}]</span>
             </button>
           ))}
@@ -1241,12 +1241,12 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
               <div
                 className={`max-w-[85%] rounded-2xl p-4.5 text-xs leading-relaxed shadow-md ${
                   m.role === 'user'
-                    ? 'bg-[#A78BFA] text-black font-semibold'
+                    ? 'bg-[#8B5CF6] text-black font-semibold'
                     : 'bg-[var(--quant-surface)] text-[#E6EDF3] border border-[#232938]'
                 }`}
               >
                 {m.role === 'assistant' && (
-                  <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#232938] text-[11px] font-bold text-[#A78BFA]">
+                  <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#232938] text-[11px] font-bold text-[#8B5CF6]">
                     <SvgCopilotIcon className="size-3.5" />
                     <span>Quanty Assistant Preview</span>
                   </div>
@@ -1267,9 +1267,9 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
           {activeSuggestion && (
             <div
               data-testid="suggestion-bubble"
-              className="rounded-xl border border-[#A78BFA]/30 bg-[#A78BFA]/10 p-3 text-xs text-[#C4B5FD] flex items-center gap-2 animate-in fade-in"
+              className="rounded-xl border border-[#8B5CF6]/30 bg-[#8B5CF6]/10 p-3 text-xs text-[#C4B5FD] flex items-center gap-2 animate-in fade-in"
             >
-              <SvgCopilotIcon className="size-4 shrink-0 text-[#A78BFA]" />
+              <SvgCopilotIcon className="size-4 shrink-0 text-[#8B5CF6]" />
               <span>
                 Active inspection: <strong>{activeSuggestion}</strong> context loaded into reasoning buffer.
               </span>
@@ -1279,7 +1279,7 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
 
         {/* Input Bar */}
         <form onSubmit={handleSend} className="pt-2">
-          <div className="flex items-center gap-2 bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-1.5 focus-within:border-[#A78BFA] transition-colors shadow-lg">
+          <div className="flex items-center gap-2 bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-1.5 focus-within:border-[#8B5CF6] transition-colors shadow-lg">
             <input
               type="text"
               value={inputVal}
@@ -1290,7 +1290,7 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
             <button
               type="submit"
               disabled={!inputVal.trim()}
-              className="px-4 py-2 rounded-xl bg-[#A78BFA] hover:bg-[#906FFA] text-black font-bold text-xs disabled:opacity-40 transition-all flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl bg-[#8B5CF6] hover:bg-[#906FFA] text-black font-bold text-xs disabled:opacity-40 transition-all flex items-center gap-1.5"
             >
               <span>Send</span>
               <SvgSendIcon className="size-3" />

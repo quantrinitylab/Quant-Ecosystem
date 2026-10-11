@@ -1229,7 +1229,7 @@ export function ContactDetailSheet({
           }}
           className="flex flex-col items-center gap-1.5 group cursor-pointer"
         >
-          <div className="size-12 rounded-full border border-[#A855F7]/40 bg-[#290E44] text-[#C084FC] flex items-center justify-center group-hover:bg-[#38135D] group-hover:scale-105 transition-all shadow-md shadow-[#A855F7]/10">
+          <div className="size-12 rounded-full border border-[#8B5CF6]/40 bg-[#290E44] text-[#8B5CF6] flex items-center justify-center group-hover:bg-[#38135D] group-hover:scale-105 transition-all shadow-md shadow-[#8B5CF6]/10">
             <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <circle cx="18" cy="5" r="3" />
               <circle cx="6" cy="12" r="3" />
@@ -1238,7 +1238,7 @@ export function ContactDetailSheet({
               <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
             </svg>
           </div>
-          <span className="text-[11px] font-semibold text-[var(--quant-muted-foreground)] group-hover:text-[#C084FC] transition-colors">
+          <span className="text-[11px] font-semibold text-[var(--quant-muted-foreground)] group-hover:text-[#8B5CF6] transition-colors">
             {copiedField === 'share' ? 'Copied!' : 'Share'}
           </span>
         </button>

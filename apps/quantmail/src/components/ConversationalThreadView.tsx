@@ -550,11 +550,11 @@ export function ConversationalThreadView({
    */
   const [composeMode, setComposeMode] = useState<MessageKind>('chat');
 
-  // Attachments in quick reply bar
-  const [pendingAttachments, setPendingAttachments] = useState<
-    Array<{ name: string; size: number; dataUrl: string; type: string }>
-  >([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Quick-reply attachments are intentionally unsupported: the reply endpoint
+  // has no attachment pipeline (and a ~1MB body limit), so a picker here could
+  // only pretend — the bytes would never leave the browser while the
+  // optimistic bubble fabricated them onto the sent message. The attach
+  // button below is disabled with an honest note instead of a fake picker.
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   /**
@@ -1510,38 +1510,9 @@ export function ConversationalThreadView({
     [conversationMessageIds, queryClient],
   );
 
-  // Attachment upload in quick bar
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (file.size > 25 * 1024 * 1024) {
-        showToast({ text: `File "${file.name}" exceeds 25MB limit`, type: 'error' });
-        continue;
-      }
-
-      const reader = new FileReader();
-      reader.onload = () => {
-        setPendingAttachments((prev) => [
-          ...prev,
-          {
-            name: file.name,
-            size: file.size,
-            dataUrl: reader.result as string,
-            type: file.type || 'application/octet-stream',
-          },
-        ]);
-      };
-      reader.readAsDataURL(file);
-    }
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const removePendingAttachment = (index: number) => {
-    setPendingAttachments((prev) => prev.filter((_, i) => i !== index));
-  };
+  // Attachment upload in quick bar — REMOVED (honesty fix): the picker
+  // rendered chips and enabled send while the bytes never left the browser.
+  // See the disabled attach button in the input bar below.
 
   // Send quick reply — through the shared undo-send queue (QM-UIUX-087).
   //
@@ -1558,7 +1529,7 @@ export function ConversationalThreadView({
   // error toast and restores the words, so a failed reply is never celebrated
   // and never silently eaten.
   const handleSendReply = useCallback(() => {
-    if ((!quickReplyText.trim() && pendingAttachments.length === 0) || isSendingQuickReply) return;
+    if (!quickReplyText.trim() || isSendingQuickReply) return;
     setReplyError(null);
     // A latch, cleared by whichever outcome arrives below. The reply bar has no spinner of
     // its own beyond the button label going to `…`, so the mascot beside it is the only
@@ -1566,7 +1537,6 @@ export function ConversationalThreadView({
     quantyReact('mail:sending');
 
     const replyContent = quickReplyText.trim();
-    const attachmentsSnapshot = pendingAttachments;
     const quotedSnapshot = quotedMessage;
     // A quoted reply answers the message the gesture targeted; otherwise the
     // latest message, as before.
@@ -1587,7 +1557,6 @@ export function ConversationalThreadView({
     // clobbering a newer reply the user started typing during the window.
     const restoreToReplyBar = () => {
       setQuickReplyText((prev) => (prev.trim() ? prev : replyContent));
-      setPendingAttachments((prev) => (prev.length > 0 ? prev : attachmentsSnapshot));
       if (quotedSnapshot) setQuotedMessage((prev) => prev ?? quotedSnapshot);
     };
 
@@ -1647,17 +1616,11 @@ export function ConversationalThreadView({
           receivedAt: new Date(),
           createdAt: new Date(),
           updatedAt: new Date(),
-          attachments: attachmentsSnapshot.map((a, i) => ({
-            id: `att-${i}`,
-            emailId: `reply-${Date.now()}`,
-            filename: a.name,
-            mimeType: a.type,
-            size: a.size,
-            url: a.dataUrl,
-            isInline: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })),
+          // HONESTY: quick reply carries no attachments (the picker is disabled —
+          // the endpoint has no attachment pipeline). The old code fabricated
+          // the picked files onto this optimistic bubble while the bytes never
+          // left the browser. An empty list is the truth.
+          attachments: [],
         };
 
         setMessages((prev) => {
@@ -1738,11 +1701,9 @@ export function ConversationalThreadView({
     // and Undo (or a failed send) restores the words via `restoreToReplyBar`.
     setQuickReplyText('');
     stopOwnTyping();
-    setPendingAttachments([]);
     setQuotedMessage(null);
   }, [
     quickReplyText,
-    pendingAttachments,
     isSendingQuickReply,
     messages,
     quotedMessage,
@@ -3200,59 +3161,9 @@ export function ConversationalThreadView({
           </div>
         </div>
 
-        {/* Pending Attachment Previews */}
-        {pendingAttachments.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap px-2 py-1">
-            {pendingAttachments.map((att, index) => (
-              <span
-                key={index}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] text-xs text-[var(--quant-foreground)]"
-              >
-                <svg
-                  className="w-3.5 h-3.5 text-[var(--quant-primary)]"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.8}
-                    d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"
-                  />
-                </svg>
-                <span className="truncate max-w-[150px]">{att.name}</span>
-                <button
-                  type="button"
-                  onClick={() => removePendingAttachment(index)}
-                  className="text-[var(--quant-text-muted)] hover:text-[#F87171] p-0.5 rounded transition-colors"
-                  aria-label="Remove attachment"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
 
         {/* Main Floating Input Bar */}
         <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] shadow-2xl">
-          {/* File Attachment Hidden Input */}
-          <input aria-label="Attach file"
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileSelect}
-            multiple
-            className="hidden"
-          />
-
           {/*
             Attachment. The complaint was that there was no way to send a photo, and
             there had been one here all along — behind a `size-4.5` that Tailwind's
@@ -3261,12 +3172,19 @@ export function ConversationalThreadView({
             existed, did work, and could not be seen or reliably hit. Sized in pixels
             now, and given the 44px target the bar's Send button already had.
           */}
+          {/*
+            Attachments aren't supported in quick reply yet — the reply endpoint
+            has no attachment pipeline, so a working picker here would be a lie
+            (the old one rendered chips and enabled send while the bytes never
+            left the browser). Disabled with an honest note, not a fake picker.
+          */}
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl p-1.5 text-[var(--quant-muted-foreground)] transition-all hover:bg-[var(--quant-surface-elevated)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] sm:min-h-0 sm:min-w-0 sm:p-2"
-            title="Attach Files / Photos"
-            aria-label="Attach files or photos"
+            disabled
+            className="flex min-h-[44px] min-w-[44px] shrink-0 cursor-not-allowed items-center justify-center rounded-xl p-1.5 text-[var(--quant-muted-foreground)] opacity-40 sm:min-h-0 sm:min-w-0 sm:p-2"
+            title="Attachments aren't supported in quick reply yet"
+            aria-label="Attachments aren't supported in quick reply yet"
+            aria-disabled="true"
           >
             <svg
               className="size-[18px] sm:size-5"
@@ -3324,7 +3242,7 @@ export function ConversationalThreadView({
             onClick={handleBarSend}
             disabled={
               composeMode === 'chat' &&
-              ((!quickReplyText.trim() && pendingAttachments.length === 0) || isSendingQuickReply)
+              (!quickReplyText.trim() || isSendingQuickReply)
             }
             className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] active:bg-[var(--brand-primary-pressed)] text-[#111111] text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-30 disabled:pointer-events-none shrink-0 flex items-center gap-1.5 min-h-[44px] sm:min-h-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)]"
           >

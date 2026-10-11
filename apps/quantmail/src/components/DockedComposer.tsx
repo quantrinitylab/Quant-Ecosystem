@@ -9,7 +9,6 @@ import { useConfirm } from '../hooks/useConfirm';
 import { apiClient } from '../services/api-client';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
-import { apiFetchRaw } from '@quant/api-client';
 import {
   adjustRangesForEdit,
   applyInlineFormat,
@@ -383,24 +382,73 @@ export function DockedComposer({
   }, []);
 
   // Draft autosave: the docked composer previously had no draft saving at all —
-  // work was lost if the user closed it without sending. Now a real timer saves
+  // work was lost if the user closed it without sending. A real timer saves
   // 10s after the last edit, only when dirty, only with content.
+  //
+  // HONESTY: this used to POST to `/api/emails/drafts`, a route that does not
+  // exist — the 404 was swallowed and the "Saved" indicator lied. Now it uses
+  // the real draft lifecycle: POST /emails/compose creates the server draft
+  // once, PUT /emails/:id updates it. The "Saved" indicator means the bytes
+  // are on the server, or it says "Couldn't save".
+  const serverDraftIdRef = useRef<string | null>(null);
   const saveDraftToServer = async (): Promise<boolean> => {
-    const { bodyText } = composeMessageBodies(body, signatureHtml, { inline: bodyFormats });
+    const { bodyText, bodyHtml } = composeMessageBodies(body, signatureHtml, {
+      inline: bodyFormats,
+    });
+    const toList = to
+      .split(/[,;\s]+/)
+      .filter(Boolean)
+      .map((email) => ({ email }));
+    const ccList = cc
+      ? cc
+          .split(/[,;\s]+/)
+          .filter(Boolean)
+          .map((email) => ({ email }))
+      : undefined;
+    const bccList = bcc
+      ? bcc
+          .split(/[,;\s]+/)
+          .filter(Boolean)
+          .map((email) => ({ email }))
+      : undefined;
+    // The backend requires a non-empty subject to create a draft; without one
+    // the save honestly fails and the indicator says "Couldn't save" instead
+    // of pretending.
+    if (!subject.trim()) return false;
     try {
-      await apiFetchRaw('/api/emails/drafts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: to.trim(),
-          cc: cc.trim() || undefined,
-          bcc: bcc.trim() || undefined,
+      if (!serverDraftIdRef.current) {
+        const res = await apiClient.composeEmail({
+          to: toList,
+          cc: ccList,
+          bcc: bccList,
           subject: subject.trim(),
-          body: bodyText,
-          attachments,
+          bodyText,
+          bodyHtml,
+          attachments: attachments as any,
           inReplyTo: replyToId,
-        }),
-      });
+          messageKind: initialMessageKind,
+        });
+        if (!res.success || !res.data?.id) return false;
+        serverDraftIdRef.current = res.data.id;
+      } else {
+        const res = await apiClient.updateDraft(serverDraftIdRef.current, {
+          to: toList,
+          cc: ccList,
+          bcc: bccList,
+          subject: subject.trim(),
+          bodyText,
+          bodyHtml,
+          attachments: attachments as any,
+          inReplyTo: replyToId,
+          messageKind: initialMessageKind,
+        });
+        if (!res.success) {
+          // The draft may have been sent or deleted elsewhere — drop the id
+          // so the next save creates a fresh draft instead of 404ing forever.
+          serverDraftIdRef.current = null;
+          return false;
+        }
+      }
       return true;
     } catch {
       return false;
@@ -503,13 +551,19 @@ export function DockedComposer({
     [attachments]
   );
 
-  // Handle file uploads with 25MB guard
+  // Handle file uploads with 25MB guard.
+  //
+  // HONESTY: this used to store `URL.createObjectURL(file)` — a blob: URL that
+  // only exists in this browser tab. The server (and every recipient) received
+  // a dead link while the UI showed the file as attached. Now the bytes are
+  // read as a data URL like EmailComposer does, so what is sent and saved is
+  // the actual file.
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     let runningTotal = totalAttachmentBytes;
-    const newAttachments: Attachment[] = [];
+    const accepted: File[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -527,29 +581,49 @@ export function DockedComposer({
         });
         break;
       }
-
       runningTotal += file.size;
-      const objectUrl = URL.createObjectURL(file);
-      newAttachments.push({
-        id: `att-${Date.now()}-${i}`,
-        name: file.name,
-        filename: file.name,
-        size: file.size,
-        type: file.type,
-        mimeType: file.type || 'application/octet-stream',
-        url: objectUrl,
-      });
+      accepted.push(file);
     }
 
-    if (newAttachments.length > 0) {
-      setAttachments((prev) => [...prev, ...newAttachments]);
-      showToast({
-        text: `Attached ${newAttachments.length} file${newAttachments.length > 1 ? 's' : ''}`,
-        type: 'info',
-      });
+    if (accepted.length === 0) {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
     }
 
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    let pending = accepted.length;
+    const settle = () => {
+      pending -= 1;
+      if (pending === 0 && fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    accepted.forEach((file, i) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setAttachments((prev) => [
+          ...prev,
+          {
+            id: `att-${Date.now()}-${i}`,
+            name: file.name,
+            filename: file.name,
+            size: file.size,
+            type: file.type,
+            mimeType: file.type || 'application/octet-stream',
+            url: reader.result as string,
+          },
+        ]);
+        settle();
+      };
+      reader.onerror = () => {
+        showToast({ text: `Could not read ${file.name}`, type: 'error' });
+        settle();
+      };
+      reader.readAsDataURL(file);
+    });
+
+    showToast({
+      text: `Attached ${accepted.length} file${accepted.length > 1 ? 's' : ''}`,
+      type: 'info',
+    });
   };
 
   const handleRemoveAttachment = (id: string) => {
@@ -639,7 +713,19 @@ export function DockedComposer({
     }, 50);
   };
 
-  // Send action with 10s Recall Window
+  // Send action with a GENUINE 10s recall window.
+  //
+  // HONESTY: this used to fire compose+send IMMEDIATELY and then show the
+  // countdown bar's "Undo" — but the message was already delivered, so
+  // "Send cancelled. Draft restored." was a lie twice over (sent anyway,
+  // and the "restored" draft went into an unmounted composer nobody saw).
+  //
+  // Now the real send lives ONLY in `onSendNow`, which the UndoSendManager
+  // invokes after the recall window closes (or when "Send Now" is pressed).
+  // Undo during the window cancels before a single byte is delivered, so the
+  // toast tells the truth. The composer minimizes (stays mounted) instead of
+  // closing, so Undo can hand the draft back visibly; the real close happens
+  // when the send actually fires. This mirrors EmailComposer's modal path.
   const handleSend = async () => {
     if (!to.trim()) {
       showToast({ text: 'Please specify at least one recipient (To:)', type: 'error' });
@@ -669,80 +755,126 @@ export function DockedComposer({
       replyToId,
     };
 
-    // Close the docked composer immediately
-    onClose();
+    const toList = draftSnapshot.to
+      .split(/[,;\s]+/)
+      .filter(Boolean)
+      .map((email) => ({ email }));
 
-    // Queue Send via UndoSendManager with 10-second recall
+    const ccList = draftSnapshot.cc
+      ? draftSnapshot.cc
+          .split(/[,;\s]+/)
+          .filter(Boolean)
+          .map((email) => ({ email }))
+      : undefined;
+
+    const bccList = draftSnapshot.bcc
+      ? draftSnapshot.bcc
+          .split(/[,;\s]+/)
+          .filter(Boolean)
+          .map((email) => ({ email }))
+      : undefined;
+
+    // A chat message is a thread start, not a letter: the backend requires a
+    // non-empty subject, so fall back to the recipient line.
+    const sendSubject =
+      draftSnapshot.subject ||
+      (initialMessageKind === 'chat' ? `Chat with ${toList.map((t) => t.email).join(', ')}` : '');
+
+    // Hand the words back to a visible composer — shared by Undo and by a
+    // failed send, so a message is never silently eaten and never falsely
+    // "restored" into a closed composer.
+    const restoreDraft = () => {
+      setTo(draftSnapshot.to);
+      setCc(draftSnapshot.cc);
+      setBcc(draftSnapshot.bcc);
+      setSubject(draftSnapshot.subject);
+      setBody(draftSnapshot.body);
+      setBodyFormats(draftSnapshot.bodyFormats);
+      setAttachments(draftSnapshot.attachments);
+      setIsMinimized(false);
+    };
+
+    // The REAL send. Runs only after the recall window closes (or "Send Now").
+    // Rejects on failure so the countdown bar never claims "Message sent!"
+    // for a delivery that never happened. Reuses the autosaved server draft
+    // when one exists instead of orphaning it with a second compose.
+    const doRealSend = async (): Promise<void> => {
+      setIsSending(true);
+      try {
+        let emailId = serverDraftIdRef.current;
+        if (emailId) {
+          const updateRes = await apiClient.updateDraft(emailId, {
+            to: toList,
+            cc: ccList,
+            bcc: bccList,
+            subject: sendSubject,
+            bodyText: draftSnapshot.bodyText,
+            bodyHtml: draftSnapshot.bodyHtml,
+            attachments: draftSnapshot.attachments as any,
+            inReplyTo: draftSnapshot.replyToId,
+            messageKind: initialMessageKind,
+          });
+          if (!updateRes.success) {
+            // Draft went away (sent/deleted elsewhere) — fall through and
+            // compose fresh rather than failing the send.
+            emailId = null;
+          }
+        }
+        if (!emailId) {
+          const composeRes = await apiClient.composeEmail({
+            to: toList,
+            cc: ccList,
+            bcc: bccList,
+            subject: sendSubject,
+            bodyText: draftSnapshot.bodyText,
+            bodyHtml: draftSnapshot.bodyHtml,
+            attachments: draftSnapshot.attachments as any,
+            inReplyTo: draftSnapshot.replyToId,
+            messageKind: initialMessageKind,
+          });
+          if (!composeRes.success || !composeRes.data?.id) {
+            throw new Error(composeRes.error?.message || 'Failed to compose email');
+          }
+          emailId = composeRes.data.id;
+        }
+
+        const sendRes = await apiClient.sendEmail(emailId);
+        if (!sendRes.success) {
+          throw new Error(sendRes.error?.message || 'Failed to deliver email');
+        }
+
+        serverDraftIdRef.current = null;
+        onClose();
+        onSendSuccess?.();
+      } finally {
+        setIsSending(false);
+      }
+    };
+
+    // Minimize, don't close: the composer must stay mounted so Undo can
+    // restore the draft visibly. The real close happens in doRealSend.
+    setIsMinimized(true);
+
+    // Queue the send with a 10-second recall window. Nothing is delivered
+    // until the window closes — Undo genuinely cancels.
     queueSend({
       to: draftSnapshot.to,
       subject: draftSnapshot.subject,
       body: draftSnapshot.bodyText || draftSnapshot.body,
-      onUndo: async () => {
-        // User clicked Undo / pressed Z: restore fields
-        setTo(draftSnapshot.to);
-        setCc(draftSnapshot.cc);
-        setBcc(draftSnapshot.bcc);
-        setSubject(draftSnapshot.subject);
-        setBody(draftSnapshot.body);
-        setBodyFormats(draftSnapshot.bodyFormats);
-        setAttachments(draftSnapshot.attachments);
+      onSendNow: () => doRealSend(),
+      onSendFailed: (error: unknown) => {
+        // The message never went out — hand the words back with the truth.
+        restoreDraft();
+        const message =
+          error instanceof Error && error.message ? error.message : 'Failed to deliver message';
+        showToast({ text: message, type: 'error' });
+      },
+      onUndo: () => {
+        // Nothing was delivered — the API call only exists inside doRealSend.
+        restoreDraft();
         showToast({ text: 'Send cancelled. Draft restored.', type: 'info' });
       },
     });
-
-    try {
-      setIsSending(true);
-      const toList = draftSnapshot.to
-        .split(/[,;\s]+/)
-        .filter(Boolean)
-        .map((email) => ({ email }));
-
-      const ccList = draftSnapshot.cc
-        ? draftSnapshot.cc
-            .split(/[,;\s]+/)
-            .filter(Boolean)
-            .map((email) => ({ email }))
-        : undefined;
-
-      const bccList = draftSnapshot.bcc
-        ? draftSnapshot.bcc
-            .split(/[,;\s]+/)
-            .filter(Boolean)
-            .map((email) => ({ email }))
-        : undefined;
-
-      // A chat message is a thread start, not a letter: the backend requires a
-      // non-empty subject, so fall back to the recipient line.
-      const sendSubject =
-        draftSnapshot.subject ||
-        (initialMessageKind === 'chat' ? `Chat with ${toList.map((t) => t.email).join(', ')}` : '');
-      const composeRes = await apiClient.composeEmail({
-        to: toList,
-        cc: ccList,
-        bcc: bccList,
-        subject: sendSubject,
-        bodyText: draftSnapshot.bodyText,
-        bodyHtml: draftSnapshot.bodyHtml,
-        attachments: draftSnapshot.attachments as any,
-        inReplyTo: draftSnapshot.replyToId,
-        messageKind: initialMessageKind,
-      });
-
-      if (!composeRes.success || !composeRes.data?.id) {
-        throw new Error(composeRes.error?.message || 'Failed to compose email');
-      }
-
-      const sendRes = await apiClient.sendEmail(composeRes.data.id);
-      if (!sendRes.success) {
-        throw new Error(sendRes.error?.message || 'Failed to deliver email');
-      }
-
-      onSendSuccess?.();
-    } catch (err: any) {
-      showToast({ text: err.message || 'Failed to deliver message', type: 'error' });
-    } finally {
-      setIsSending(false);
-    }
   };
 
   // Keyboard shortcut: Cmd+Enter / Ctrl+Enter triggers send
@@ -1154,7 +1286,7 @@ export function DockedComposer({
               type="button"
               onClick={() => setShowAssistMenu(!showAssistMenu)}
               disabled={isInsertingTemplate}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#A855F7]/40 bg-[#3B0764]/20 text-[#C084FC] hover:bg-[#3B0764]/40 hover:border-[#A855F7] transition-all text-xs font-semibold"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#8B5CF6]/40 bg-[#3B0764]/20 text-[#8B5CF6] hover:bg-[#3B0764]/40 hover:border-[#8B5CF6] transition-all text-xs font-semibold"
               title="Writing assistant — local templates, no AI"
             >
               <IconSparkle className="size-3.5 animate-pulse" />
@@ -1169,7 +1301,7 @@ export function DockedComposer({
                   onClick={() => handleWritingAssist('draft')}
                   className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
                 >
-                  <IconSparkle className="size-3.5 text-[#C084FC]" />
+                  <IconSparkle className="size-3.5 text-[#8B5CF6]" />
                   <span>Draft Full Email</span>
                 </button>
                 <button
@@ -1177,7 +1309,7 @@ export function DockedComposer({
                   onClick={() => handleWritingAssist('formal')}
                   className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
                 >
-                  <IconFormat className="size-3.5 text-[#C084FC]" />
+                  <IconFormat className="size-3.5 text-[#8B5CF6]" />
                   <span>Make More Formal</span>
                 </button>
                 <button
@@ -1185,7 +1317,7 @@ export function DockedComposer({
                   onClick={() => handleWritingAssist('concise')}
                   className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
                 >
-                  <IconMinus className="size-3.5 text-[#C084FC]" />
+                  <IconMinus className="size-3.5 text-[#8B5CF6]" />
                   <span>Make Concise &amp; Punchy</span>
                 </button>
                 <button
@@ -1193,7 +1325,7 @@ export function DockedComposer({
                   onClick={() => handleWritingAssist('followup')}
                   className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
                 >
-                  <IconSend className="size-3.5 text-[#C084FC]" />
+                  <IconSend className="size-3.5 text-[#8B5CF6]" />
                   <span>Polite Follow-Up</span>
                 </button>
               </div>

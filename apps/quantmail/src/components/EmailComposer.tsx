@@ -40,7 +40,6 @@ import {
 import { useConfirm } from '../hooks/useConfirm';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { apiClient } from '../services/api-client';
-import { apiFetchRaw } from '@quant/api-client';
 
 /**
  * The composer's three heavy overlays, split out of its chunk.
@@ -1111,6 +1110,11 @@ export function EmailComposer({
   // The actual server write, shared by the manual "Save draft" button and the
   // autosave timer below. Returns true on success. Quiet by design — toasts
   // and mascot reactions are the manual handler's job, not the timer's.
+  //
+  // HONESTY: the no-`onSaveDraft` fallback used to POST to `/api/emails/drafts`,
+  // a route that does not exist — the "Saved" indicator lied. It now uses the
+  // real draft lifecycle (POST /emails/compose once, PUT /emails/:id after).
+  const fallbackDraftIdRef = useRef<string | null>(null);
   const saveDraftToServer = async (): Promise<boolean> => {
     const { bodyText, bodyHtml } = buildOutgoingBodies();
     const toList = to
@@ -1144,18 +1148,38 @@ export function EmailComposer({
           inReplyTo: inReplyTo || initialReplyToId,
         });
       } else {
-        await apiFetchRaw('/api/emails/drafts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: to.trim(),
-            cc: cc.trim() || undefined,
-            bcc: bcc.trim() || undefined,
+        if (!subject.trim()) return false;
+        if (!fallbackDraftIdRef.current) {
+          const res = await apiClient.composeEmail({
+            to: toList,
+            cc: ccList,
+            bcc: bccList,
             subject: subject.trim(),
-            body: bodyText,
-            attachments,
-          }),
-        });
+            bodyText,
+            bodyHtml,
+            attachments: attachments as any,
+            inReplyTo: inReplyTo || initialReplyToId,
+            messageKind: initialMessageKind,
+          });
+          if (!res.success || !res.data?.id) return false;
+          fallbackDraftIdRef.current = res.data.id;
+        } else {
+          const res = await apiClient.updateDraft(fallbackDraftIdRef.current, {
+            to: toList,
+            cc: ccList,
+            bcc: bccList,
+            subject: subject.trim(),
+            bodyText,
+            bodyHtml,
+            attachments: attachments as any,
+            inReplyTo: inReplyTo || initialReplyToId,
+            messageKind: initialMessageKind,
+          });
+          if (!res.success) {
+            fallbackDraftIdRef.current = null;
+            return false;
+          }
+        }
       }
       return true;
     } catch {
