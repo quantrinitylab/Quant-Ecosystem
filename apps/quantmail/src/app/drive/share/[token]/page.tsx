@@ -28,7 +28,7 @@ import {
 } from './share-resolve';
 
 // Locked Drive accent via app theme var; hex fallback only for standalone public pages.
-const DRIVE_GREEN = 'var(--app-accent, #22c55e)';
+const DRIVE_GREEN = 'var(--app-accent, var(--quant-success))';
 
 function FileGlyph() {
   return (
@@ -200,7 +200,7 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
           variant="primary"
           fullWidth
           onClick={handleDownload}
-          className="bg-[var(--app-accent,#22c55e)] border-[var(--app-accent,#22c55e)] text-black"
+          className="bg-[var(--app-accent,var(--quant-success))] border-[var(--app-accent,var(--quant-success))] text-black"
         >
           Download file
         </Button>
@@ -252,7 +252,7 @@ function DocumentCard({ share }: { share: ResolvedShare & { kind: 'document' } }
           variant="primary"
           fullWidth
           onClick={() => window.open(`/drive/doc/${document.id}`, '_blank', 'noopener')}
-          className="bg-[var(--app-accent,#22c55e)] border-[var(--app-accent,#22c55e)] text-black"
+          className="bg-[var(--app-accent,var(--quant-success))] border-[var(--app-accent,var(--quant-success))] text-black"
         >
           Open in QuantDrive
         </Button>
@@ -336,7 +336,7 @@ export default function DriveShareLandingPage() {
                 onClick={() =>
                   router.push(`/login?returnTo=${encodeURIComponent(`/drive/share/${token}`)}`)
                 }
-                className="bg-[var(--app-accent,#22c55e)] border-[var(--app-accent,#22c55e)] text-black"
+                className="bg-[var(--app-accent,var(--quant-success))] border-[var(--app-accent,var(--quant-success))] text-black"
               >
                 Sign in to view
               </Button>
