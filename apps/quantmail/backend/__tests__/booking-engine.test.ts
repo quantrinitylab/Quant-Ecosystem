@@ -712,7 +712,7 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
       });
 
       const slot = new Date(Date.now() + 48 * 60 * 60 * 1000);
-      slot.setMinutes(0, 0, 0);
+      slot.setHours(10, 0, 0, 0);
       const result = await service.confirmBooking('confirm-real-host', slot, {
         name: 'Clara Client',
         email: 'clara@client.com',
@@ -735,7 +735,7 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
       });
 
       const slot = new Date(Date.now() + 72 * 60 * 60 * 1000);
-      slot.setMinutes(0, 0, 0);
+      slot.setHours(10, 0, 0, 0);
       const result = await service.confirmBooking('confirm-unknown-host', slot, {
         name: 'Clara Client',
         email: 'clara@client.com',
