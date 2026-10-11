@@ -632,6 +632,10 @@ FINDINGS (code audit against origin/main by code-audit agent + lane-1 live test)
 - [ ] FINDING P2: "Calculating..." stuck on logged-out view | expected: real value or nothing without auth | actual: bottom-left "Cloud Storage / Calculating..." spins forever logged-out | evidence: live screenshots /tmp/lane1-013-quantgit-desktop.png, /tmp/lane1-013-mobile.png
 VERDICT-LIVE: /quantgit publicly reachable, no sign-in redirect; empty states honest (repos/PRs/issues/feed/actions), no data leak, "No repositories yet" + "+ New Repository" modal real; create flows 401-gated server-side per requireUserId — signed-in flows needs-auth (not reachable from this run). Shots: /tmp/lane1-013-*.png (desktop+mobile).
 FIX AGENTS (PR-only, tracked separately): lane1-fix-013-security-theater (P0 fake scan), lane1-fix-013-ci-clone-ui (P1 CI fields + P1 clone-URL routing + P2 watch + P2 branch-protection).
+PRs OPEN (unmerged) 2026-10-11 ~07:10 IST: #833 lane1-fix-013-security-theater (P0 fake security scan — 107/107 quantgit + 104/104 backend tests green, tsc/eslint clean); #835 lane1-fix-013-ci-clone-ui (all 6 items: real CI durations, clone-URL dual registration + allow-list, toast-only Watch removed, branch-protection wired, honest PR copy, storage meter hides on 401/403 — new gitd-dual-registration.test.ts).
+FOLLOW-UP FINDINGS (honest-errors, left out of fix-agent scope):
+- [ ] FINDING P1: SECURITY.md save toasts success with no API | expected: real save or honest error | actual: SecurityTab SECURITY.md save toasts success with no backing API call | evidence: SecurityTab.tsx (noted by lane1-fix-013-ci-clone-ui fix agent, out of scope)
+- [ ] FINDING P1: handleMergePR marks PR merged on failed responses | expected: failure shows failure | actual: page.tsx handleMergePR marks PRs merged even when merge response failed | evidence: src/app/quantgit/page.tsx (noted by lane1-fix-013-ci-clone-ui fix agent, out of scope)
 
 ## QM-SCREEN-014 — Quanty workspace / inline / voice / cross-app task graph
 Status: [ ] TODO
