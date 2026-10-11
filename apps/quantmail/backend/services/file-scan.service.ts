@@ -65,9 +65,13 @@ export function isQuarantined(status: unknown): boolean {
  * generic error: it names the state, the blocked action, and what the user
  * can do about it.
  */
-export function quarantineBlockedMessage(action: 'download' | 'preview' | 'copy'): string {
+export function quarantineBlockedMessage(
+  action: 'download' | 'preview' | 'copy' | 'restore',
+): string {
   return (
-    `This file is quarantined and cannot be ${action === 'copy' ? 'copied' : `${action}ed`}. ` +
+    `This file is quarantined and cannot be ${
+      action === 'copy' ? 'copied' : action.endsWith('e') ? `${action}d` : `${action}ed`
+    }. ` +
     'It was flagged by a security scan as potentially harmful. ' +
     'Contact your workspace administrator to request a security review — do not share this file.'
   );

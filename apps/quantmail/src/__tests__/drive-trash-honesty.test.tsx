@@ -104,6 +104,40 @@ describe('QM-FIX: Drive trash honesty (DriveTrashItemsList)', () => {
   });
 });
 
+describe('QM-SCREEN-011 R2: trash rows surface the security scan state', () => {
+  it('renders a Quarantined badge for a quarantined trash item — never silent', () => {
+    const html = renderToStaticMarkup(
+      <DriveTrashItemsList
+        items={[{ ...realTrashItem, scanStatus: 'quarantined', scanReason: 'EICAR test signature' }]}
+      />,
+    );
+    expect(html).toContain('data-scan-status="quarantined"');
+    expect(html).toContain('Quarantined');
+    assertNoFabrications(html);
+  });
+
+  it('renders other non-clean states honestly (pending, unknown) — never as safe', () => {
+    const pendingHtml = renderToStaticMarkup(
+      <DriveTrashItemsList items={[{ ...realTrashItem, scanStatus: 'pending' }]} />,
+    );
+    expect(pendingHtml).toContain('data-scan-status="pending"');
+    const unknownHtml = renderToStaticMarkup(
+      <DriveTrashItemsList items={[{ ...realTrashItem, scanStatus: 'unknown' }]} />,
+    );
+    expect(unknownHtml).toContain('data-scan-status="unknown"');
+    expect(unknownHtml).toContain('Not scanned');
+    assertNoFabrications(unknownHtml);
+  });
+
+  it('keeps clean rows quiet — no badge when the scan honestly passed', () => {
+    const html = renderToStaticMarkup(
+      <DriveTrashItemsList items={[{ ...realTrashItem, scanStatus: 'clean' }]} />,
+    );
+    expect(html).not.toContain('data-scan-status');
+    assertNoFabrications(html);
+  });
+});
+
 describe('QM-FIX: DriveHomeSubView trash category never fabricates items', () => {
   it('trash category badge shows real count (0) with empty trash — no fake rows possible', () => {
     // categoryItems is an internal memo, but the badge count and the trash card

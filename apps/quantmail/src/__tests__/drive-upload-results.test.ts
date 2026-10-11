@@ -173,6 +173,18 @@ describe('Drive operation promise contracts', () => {
     expect(state.chunkPlan.initiateCalls).toBe(1);
   });
 
+  it('refuses empty files up front with an honest message — no upload path is attempted', async () => {
+    const empty = new File([], 'empty.txt');
+    await expect(useDrive().uploadFiles([empty])).rejects.toThrow(
+      "Empty files can't be uploaded yet",
+    );
+    // Neither the chunk protocol nor the legacy one-shot POST /api/drive/upload
+    // may be called for a 0-byte file (both reject it server-side anyway).
+    const urls = state.request.mock.calls.map((call) => String(call[0]));
+    expect(urls.some((u) => u.endsWith('/api/drive/upload'))).toBe(false);
+    expect(urls.some((u) => u.includes('/drive/upload/chunk/initiate'))).toBe(false);
+  });
+
   it('rejects a file larger than the chunked cap with the honest 413 message', async () => {
     const big = new File(['x'], 'big.bin');
     Object.defineProperty(big, 'size', { value: 6 * 1024 * 1024 * 1024 });

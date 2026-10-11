@@ -2388,6 +2388,18 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       prisma.folder.count({ where: { userId, isDeleted: true, trashRootId: id } }),
     ]);
     if (count[0] + count[1] === 0) throw createAppError('Trash item not found', 404, 'NOT_FOUND');
+    // QM-SCREEN-011 R2: restore must never be a silent path out of
+    // quarantine. Block with the same verbatim instruction the
+    // preview/download blocks use (403 FILE_QUARANTINED).
+    const quarantinedInTrash = await prisma.file.findFirst({
+      where: { userId, isDeleted: true, trashRootId: id, scanStatus: 'quarantined' },
+      select: { id: true },
+    });
+    if (quarantinedInTrash) {
+      throw createAppError(quarantineBlockedMessage('restore'), 403, 'FILE_QUARANTINED', {
+        scanStatus: 'quarantined',
+      });
+    }
     await prisma.$transaction([
       prisma.file.updateMany({
         where: { userId, isDeleted: true, trashRootId: id },

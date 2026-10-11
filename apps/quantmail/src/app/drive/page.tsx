@@ -669,6 +669,12 @@ function DrivePageContent() {
 
     const controller = new AbortController();
     let objectUrl: string | null = null;
+    // QM-SCREEN-011 R2: cancelled flag closes the revocation race — cleanup
+    // revokes the URL created so far, but a .then already queued past
+    // `await res.blob()` would still mint a new URL after cleanup ran. The
+    // post-abort check is synchronous with the createObjectURL call (no await
+    // between them), so no URL can leak or be double-revoked.
+    let cancelled = false;
     setIsLoadingMediaPreview(true);
     setMediaPreviewError(null);
     setMediaPreviewUrl(null);
@@ -686,6 +692,7 @@ function DrivePageContent() {
           throw new Error(instruction || `Failed to load file preview (${res.status})`);
         }
         const blob = await res.blob();
+        if (cancelled || controller.signal.aborted) return;
         objectUrl = URL.createObjectURL(blob);
         setMediaPreviewUrl(objectUrl);
       })
@@ -700,6 +707,7 @@ function DrivePageContent() {
       });
 
     return () => {
+      cancelled = true;
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
@@ -1128,9 +1136,16 @@ function DrivePageContent() {
       await restoreFile(id);
       showToast({ text: `Restored "${name}"`, type: 'success', subject: `drive-restore-${id}` });
       await loadTrash();
-    } catch {
+    } catch (err) {
+      // QM-SCREEN-011 R2: when the backend blocked the restore with an
+      // honest instruction (e.g. the quarantine block), show it verbatim;
+      // otherwise fall back to the named generic failure.
+      const detail = err instanceof Error ? err.message : '';
       showToast({
-        text: `Failed to restore "${name}"`,
+        text:
+          detail && detail !== 'Failed to restore file'
+            ? detail
+            : `Failed to restore "${name}"`,
         type: 'error',
         subject: `drive-restore-${id}`,
       });

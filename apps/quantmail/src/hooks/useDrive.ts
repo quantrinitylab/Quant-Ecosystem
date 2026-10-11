@@ -6,7 +6,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { logger } from '@quant/common';
 import { browserApiRequest as apiRequest } from '../services/browser-api-request';
-import { browserAuthSession } from '../services/browser-auth-session';
 import { getUploadBatchError } from '../lib/drive-upload-results';
 
 export interface DriveFile {
@@ -366,28 +365,6 @@ const completeChunkedSession = async (
   if (!response.ok) throw new Error(await extractChunkApiError(response, 'Upload failed'));
 };
 
-/**
- * The chunked protocol requires a non-empty file; an empty file keeps the
- * legacy one-shot route so it is still uploadable instead of being rejected.
- */
-const uploadEmptyFileOneShot = async (
-  file: File,
-  folderId: string | null,
-  signal: AbortSignal,
-): Promise<void> => {
-  const formData = new FormData();
-  formData.append('file', file);
-  if (folderId) formData.append('folderId', folderId);
-  // authenticatedFetch, not browserApiRequest — the JSON Content-Type default
-  // would corrupt the multipart body.
-  const response = await browserAuthSession.authenticatedFetch('/api/drive/upload', {
-    method: 'POST',
-    body: formData,
-    signal,
-  });
-  if (!response.ok) throw new Error(await extractChunkApiError(response, 'Upload failed'));
-};
-
 interface ResumableUploadTask {
   file: File;
   folderId: string | null;
@@ -401,10 +378,12 @@ interface ResumableUploadTask {
 const uploadFileResumable = async (task: ResumableUploadTask): Promise<void> => {
   const { file, folderId, signal, onProgress, onSession } = task;
 
+  // QM-SCREEN-011 R2: empty files have no upload path — the chunked protocol
+  // requires a non-empty file and the backend one-shot route rejects them
+  // with 400 'Empty file'. Refuse up front with an honest message instead of
+  // calling the one-shot route (it can never succeed for 0-byte files).
   if (file.size === 0) {
-    await uploadEmptyFileOneShot(file, folderId, signal);
-    onProgress?.(100);
-    return;
+    throw new Error("Empty files can't be uploaded yet");
   }
   // Client-side guard mirrors the backend 413 so the limit is visible up
   // front; the backend stays the authority — its message surfaces verbatim.
@@ -948,7 +927,13 @@ export function useDrive(): UseDriveReturn {
       const response = await apiRequest(`/api/drive/files/${fileId}/restore`, {
         method: 'POST',
       });
-      if (!response.ok) throw new Error('Failed to restore file');
+      if (!response.ok) {
+        // QM-SCREEN-011 R2: a blocked restore (e.g. FILE_QUARANTINED) must
+        // surface the backend's honest instruction verbatim, never a generic
+        // failure — the toast in the page handler shows this message.
+        const instruction = await readErrorInstruction(response);
+        throw new Error(instruction ?? 'Failed to restore file');
+      }
     } catch (err) {
       const msg = getDriveErrorMessage(err, 'Failed to restore file');
       setError(msg);
