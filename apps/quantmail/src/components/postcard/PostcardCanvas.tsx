@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { PostcardTemplate, PostcardPayload, PostcardSticker } from '../../types/postcard';
-import { IconCheck, IconMailHeart } from '../icons';
+import { IconMailHeart } from '../icons';
 
 interface PostcardCanvasProps {
   template: PostcardTemplate;
@@ -384,7 +384,8 @@ export function PostcardCanvas({
                     </span>
                   </div>
 
-                  {/* Encrypted Transit Hash Line */}
+                  {/* Transit Seal Line — TLS in transit only. Postcards are NOT
+                      end-to-end encrypted, so no E2EE verification claim is shown. */}
                   <div
                     className="border-b border-dashed pb-0.5 flex items-center justify-between text-[var(--q-type-xs)] font-mono opacity-70"
                     style={{
@@ -393,10 +394,6 @@ export function PostcardCanvas({
                     }}
                   >
                     <span>SEAL: QM-SEC-2026-TLS</span>
-                    <span className="inline-flex items-center gap-0.5">
-                      <IconCheck size={8} />
-                      E2EE VERIFIED
-                    </span>
                   </div>
                 </div>
               </div>

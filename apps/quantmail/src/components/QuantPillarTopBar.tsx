@@ -390,7 +390,8 @@ export const PILLAR_LENSES: Record<PillarId, PillarLens[]> = {
     { id: 'all-files', label: 'All Files', queryParam: { key: 'filter', value: 'all' } },
     { id: 'docs', label: 'Docs', queryParam: { key: 'filter', value: 'docs' } },
     { id: 'media', label: 'Media', queryParam: { key: 'filter', value: 'media' } },
-    { id: 'vault', label: 'Vault', badge: 'E2EE', queryParam: { key: 'filter', value: 'vault' } },
+    // Vault: no E2EE badge — client-side encryption is not implemented yet (see DriveVaultSubView).
+    { id: 'vault', label: 'Vault', queryParam: { key: 'filter', value: 'vault' } },
     { id: 'cleaner', label: 'FastCDC Clean', queryParam: { key: 'filter', value: 'cleaner' } },
   ],
   contacts: [
