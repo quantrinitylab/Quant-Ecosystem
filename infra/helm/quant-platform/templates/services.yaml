@@ -9,6 +9,9 @@ metadata:
     {{- include "quant-platform.serviceLabels" (dict "root" $ "name" $name) | nindent 4 }}
 spec:
   type: ClusterIP
+  {{- if $svc.serviceAffinity }}
+  sessionAffinity: {{ $svc.serviceAffinity }}
+  {{- end }}
   ports:
     - port: {{ $svc.port }}
       targetPort: http
