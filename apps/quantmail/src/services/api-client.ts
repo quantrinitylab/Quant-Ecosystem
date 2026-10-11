@@ -391,8 +391,14 @@ export class QuantMailApiClient {
   // Auth API
   // --------------------------------------------------------------------------
 
-  async verifyEmail(token: string): Promise<ApiResponse<{ message: string }>> {
-    return this.get('/auth/verify-email', { params: { token } });
+  // Email address ownership proof (POST, 6-digit code — replaces the dead
+  // GET /auth/verify-email?token= which never existed on the backend).
+  async verifyEmailCode(email: string, code: string): Promise<ApiResponse<{ emailVerified: boolean; alreadyVerified?: boolean }>> {
+    return this.post('/auth/verify-email', { email, code });
+  }
+
+  async resendVerificationEmail(email: string): Promise<ApiResponse<{ emailSent: boolean; alreadyVerified?: boolean }>> {
+    return this.post('/auth/resend-verification', { email });
   }
 
   async requestPasswordReset(email: string): Promise<ApiResponse<{ message: string }>> {

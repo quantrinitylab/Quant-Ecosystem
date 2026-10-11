@@ -14,6 +14,16 @@ import {
   setRefreshCookie,
 } from '../lib/auth-session';
 import { signTwoFactorChallenge } from '../lib/two-factor';
+import {
+  MAX_VERIFICATION_ATTEMPTS,
+  generateVerificationCode,
+  hashVerificationCode,
+  isVerificationCodeExpired,
+  looksLikeVerificationCode,
+  sendVerificationEmail,
+  verificationCodeExpiry,
+  verificationCodeMatches,
+} from '../lib/email-verification';
 
 export async function authRoutes(fastify: FastifyInstance) {
   const tokenService = createTokenService();
@@ -113,7 +123,10 @@ export async function authRoutes(fastify: FastifyInstance) {
           displayName: displayName || username,
           passwordHash,
           status: 'ACTIVE',
-          emailVerified: true,
+          // The address is NOT proven at this point. Creating users with
+          // emailVerified: true here was how any address could be claimed
+          // with no proof of ownership — /auth/verify-email flips it.
+          emailVerified: false,
         },
       });
 
@@ -132,9 +145,161 @@ export async function authRoutes(fastify: FastifyInstance) {
         });
       }
 
-      return reply.send(
-        await issueBrowserSession(tokenService, reply, user, sessionMetadataFromRequest(request)),
+      // Prove-it-later: the new account is not yet entitled to claim this
+      // address. A real 6-digit code goes out over SES (no phone/SMS — that
+      // channel was removed by user order), and only its hash is stored.
+      const verificationCode = generateVerificationCode();
+      await prisma.emailVerificationCode.create({
+        data: {
+          userId: user.id,
+          codeHash: hashVerificationCode(verificationCode),
+          expiresAt: verificationCodeExpiry(),
+          requestedIp: typeof request.ip === 'string' ? request.ip : null,
+        },
+      });
+      const verificationEmailSent = await sendVerificationEmail({
+        to: email,
+        code: verificationCode,
+        name: user.displayName,
+      });
+
+      const session = await issueBrowserSession(
+        tokenService,
+        reply,
+        user,
+        sessionMetadataFromRequest(request),
       );
+      // The response must not claim the address is verified — it is not.
+      // verificationEmailSent is reported honestly: false means the mailer
+      // failed and /auth/resend-verification should be offered.
+      return reply.send({
+        ...session,
+        data: {
+          ...session.data,
+          emailVerification: {
+            required: true,
+            emailVerified: false,
+            emailSent: verificationEmailSent,
+          },
+        },
+      });
+    },
+  );
+
+  // Email address ownership proof: POST /auth/verify-email { email, code }.
+  // A wrong code and a nonexistent account get the same answer, so the
+  // endpoint is not an account-enumeration oracle beyond what /auth/register
+  // already reveals (409 USER_EXISTS). Single-use, 15-minute-bounded,
+  // constant-time compare, attempt-capped.
+  fastify.post(
+    '/auth/verify-email',
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      if (!requireTrustedOrigin(request, reply)) return;
+      const { email, code } = request.body as any;
+
+      if (!email || !looksLikeVerificationCode(code)) {
+        return fail(reply, 400, 'VALIDATION_ERROR', 'Email and a 6-digit verification code are required.');
+      }
+
+      const user = await prisma.user.findUnique({ where: { email } });
+      if (user?.emailVerified) {
+        return reply.send({ success: true, data: { emailVerified: true, alreadyVerified: true } });
+      }
+
+      const row = user
+        ? await prisma.emailVerificationCode.findFirst({
+            where: { userId: user.id, usedAt: null },
+            orderBy: { createdAt: 'desc' },
+          })
+        : null;
+
+      // No account, no live code, or an expired code all look the same from
+      // the outside: wrong-or-expired, nothing more.
+      if (!user || !row || isVerificationCodeExpired(row.expiresAt)) {
+        return fail(reply, 400, 'INVALID_OR_EXPIRED_CODE', 'The verification code is wrong or has expired.');
+      }
+      if (row.attempts >= MAX_VERIFICATION_ATTEMPTS) {
+        return fail(
+          reply,
+          429,
+          'TOO_MANY_ATTEMPTS',
+          'Too many wrong codes. Request a new code and try again.',
+        );
+      }
+
+      if (!verificationCodeMatches(code, row.codeHash)) {
+        await prisma.emailVerificationCode.update({
+          where: { id: row.id },
+          data: { attempts: { increment: 1 } },
+        });
+        return fail(reply, 400, 'INVALID_CODE', 'The verification code is wrong.');
+      }
+
+      // Success: burn this code and every other pending code for the user,
+      // then mark the address proven. One transaction so two racing confirms
+      // cannot both win.
+      await prisma.$transaction([
+        prisma.emailVerificationCode.update({
+          where: { id: row.id },
+          data: { usedAt: new Date() },
+        }),
+        prisma.emailVerificationCode.updateMany({
+          where: { userId: user.id, usedAt: null },
+          data: { usedAt: new Date() },
+        }),
+        prisma.user.update({
+          where: { id: user.id },
+          data: { emailVerified: true },
+        }),
+      ]);
+
+      return reply.send({ success: true, data: { emailVerified: true } });
+    },
+  );
+
+  // Re-send the code when the first mail did not arrive. Register already
+  // reveals existence (409 USER_EXISTS), so 404 here reveals nothing new.
+  fastify.post(
+    '/auth/resend-verification',
+    { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      if (!requireTrustedOrigin(request, reply)) return;
+      const { email } = request.body as any;
+
+      if (!email) {
+        return fail(reply, 400, 'VALIDATION_ERROR', 'Email is required.');
+      }
+
+      const user = await prisma.user.findUnique({ where: { email } });
+      if (!user) {
+        return fail(reply, 404, 'USER_NOT_FOUND', 'No account uses this email address.');
+      }
+      if (user.emailVerified) {
+        return reply.send({ success: true, data: { emailVerified: true, alreadyVerified: true } });
+      }
+
+      await prisma.emailVerificationCode.updateMany({
+        where: { userId: user.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+
+      const verificationCode = generateVerificationCode();
+      await prisma.emailVerificationCode.create({
+        data: {
+          userId: user.id,
+          codeHash: hashVerificationCode(verificationCode),
+          expiresAt: verificationCodeExpiry(),
+          requestedIp: typeof request.ip === 'string' ? request.ip : null,
+        },
+      });
+      const emailSent = await sendVerificationEmail({
+        to: email,
+        code: verificationCode,
+        name: user.displayName,
+      });
+
+      return reply.send({ success: true, data: { emailSent } });
     },
   );
 

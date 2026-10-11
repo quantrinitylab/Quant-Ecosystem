@@ -59,6 +59,7 @@ model User {
   refreshTokens      RefreshToken[]
   twoFactorBackupCodes TwoFactorBackupCode[]
   passwordResetTokens  PasswordResetToken[]
+  emailVerificationCodes EmailVerificationCode[]
   personalAccessTokens PersonalAccessToken[]
   oauthClients       OAuthClient[]        @relation("UserOwnedClients")
   oauthConsents      OAuthConsent[]
@@ -293,6 +294,31 @@ model PasswordResetToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("password_reset_tokens")
+}
+
+/**
+ * Email address ownership proof for /auth/register.
+ *
+ * Register used to create users with `emailVerified: true` without ever
+ * verifying the address — anyone could claim any address. A row now stores
+ * only the SHA-256 digest of a single-use 6-digit code, never the code itself,
+ * so a leaked table is not a set of live verification codes.
+ */
+model EmailVerificationCode {
+  id         String    @id @default(cuid())
+  userId     String
+  codeHash   String
+  expiresAt  DateTime
+  usedAt     DateTime?
+  attempts   Int       @default(0)
+  requestedIp String?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("email_verification_codes")
 }
 
 model PersonalAccessToken {

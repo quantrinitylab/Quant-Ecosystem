@@ -8,6 +8,12 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
     pattern: /^auth\/(?:password-reset(?:\/confirm)?|change-password)$/,
     methods: ['POST'],
   },
+  // Email address ownership proof (6-digit SES code). Reached without a
+  // session: the code IS the credential for the verify step.
+  {
+    pattern: /^auth\/(?:verify-email|resend-verification)$/,
+    methods: ['POST'],
+  },
   // The only mutable field on an identity. `email` and `username` are not
   // editable anywhere, so there is no PUT here to advertise.
   { pattern: /^auth\/profile$/, methods: ['PATCH'] },
