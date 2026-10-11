@@ -12,10 +12,14 @@
  *   - client → server: { type: 'typing', typing: boolean } (rate-limited)
  *   - client → server: { type: 'ping' } → { type: 'pong' }
  *
- * Auth mirrors the /collab gateway: session token via `?token=`, the
- * `quant_access_token` cookie, or a Bearer header. Thread membership is fail
- * closed — only the thread's owner may subscribe (the reply route only ever
- * lets the owner post, so the owner is the only viewer this gateway needs).
+ * Auth mirrors the /collab gateway: the session token travels as a
+ * `Sec-WebSocket-Protocol` `bearer.<jwt>` offer (browsers cannot set an
+ * `Authorization` header on a WebSocket upgrade request), the
+ * `quant_access_token` cookie, or a Bearer header. SECURITY: tokens in the
+ * URL query string are never accepted — they land in proxy/server access
+ * logs and browser history. Thread membership is fail closed — only the
+ * thread's owner may subscribe (the reply route only ever lets the owner
+ * post, so the owner is the only viewer this gateway needs).
  */
 import type { FastifyInstance } from 'fastify';
 import * as jose from 'jose';
@@ -25,37 +29,13 @@ import {
   threadRealtimeHub,
   type WireEvent,
 } from '../services/thread-realtime';
+import { extractThreadWsToken } from '../services/thread-ws-auth';
 
 const HEARTBEAT_INTERVAL_MS = 25_000;
 const HEARTBEAT_TIMEOUT_MS = 60_000;
 
 function getPrisma(fastify: FastifyInstance): PrismaClient {
   return (fastify as unknown as { prisma: PrismaClient }).prisma;
-}
-
-function extractSessionToken(req: {
-  query?: Record<string, unknown>;
-  cookies?: Record<string, string | undefined>;
-  headers: Record<string, string | string[] | undefined>;
-  url?: string;
-}): string | null {
-  const q = req.query;
-  if (q && typeof q['token'] === 'string' && (q['token'] as string).trim()) {
-    return (q['token'] as string).trim();
-  }
-  const cookieToken = req.cookies?.['quant_access_token'];
-  if (typeof cookieToken === 'string' && cookieToken.trim()) return cookieToken.trim();
-  const rawCookie = req.headers.cookie;
-  if (typeof rawCookie === 'string') {
-    const match = rawCookie.match(/(?:^|;\s*)quant_access_token=([^;]+)/);
-    if (match?.[1]) return decodeURIComponent(match[1].trim());
-  }
-  const auth = req.headers.authorization;
-  if (typeof auth === 'string' && auth.startsWith('Bearer ')) {
-    const bearer = auth.slice('Bearer '.length).trim();
-    if (bearer) return bearer;
-  }
-  return null;
 }
 
 async function verifySessionToken(token: string): Promise<{
@@ -94,7 +74,12 @@ export async function threadRealtimeRoutes(fastify: FastifyInstance): Promise<vo
           });
         }
 
-        const token = extractSessionToken(req as never);
+        // SECURITY: query-string tokens are never accepted (they leak into
+        // proxy/server logs and browser history). The browser client sends
+        // the token as a Sec-WebSocket-Protocol `bearer.<jwt>` offer instead.
+        const token = extractThreadWsToken(
+          req as unknown as Parameters<typeof extractThreadWsToken>[0],
+        );
         if (!token) {
           return reply.code(401).send({
             success: false,
