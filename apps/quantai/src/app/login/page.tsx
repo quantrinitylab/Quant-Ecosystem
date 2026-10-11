@@ -1,10 +1,9 @@
 'use client';
 
 // ============================================================================
-// QuantAI — Executive Sovereign Intelligence Sign-in Console.
-// Unified QuantID authentication with WebGL/Canvas neural synaptic field,
-// frosted glass console, obsidian-titanium luxury sheen SSO button,
-// and hardened token bridge handoff.
+// QuantAI — Sign-in page.
+// Unified QuantID authentication: continue with your Quant account or sign in
+// with email + password.
 // ============================================================================
 import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -123,7 +122,15 @@ function LoginForm() {
         const resolvedToken = consumed?.session?.token;
 
         if (resolvedToken) {
-          ingestSSOToken(resolvedToken);
+          // Store the server-verified identity too — without it the UI falls
+          // back to fabricated placeholders.
+          const s = consumed?.session;
+          ingestSSOToken(
+            resolvedToken,
+            s && s.userId && s.email
+              ? { id: s.userId, email: s.email, name: s.displayName || undefined }
+              : null,
+          );
           try {
             const url = scrubSsoHandoffParams(new URL(window.location.href));
             const cleanUrl = url.pathname + (url.search ? url.search : '') + url.hash;
@@ -203,24 +210,11 @@ function LoginForm() {
           <AICoreLattice />
 
           <h1 className="text-2xl font-bold tracking-tight text-white sm:text-[25px]">
-            QuantAI Sovereign Intelligence
+            QuantAI
           </h1>
           <p className="mt-1.5 text-xs font-normal tracking-wide text-zinc-400 sm:text-[13px]">
-            Frontier Agent OS · Real-time Voice · Neural Canvas
+            Sign in to chat with AI
           </p>
-
-          {/* Telemetry Status Pill */}
-          <div className="mt-4 flex items-center justify-center">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-3 py-1 shadow-[0_0_14px_rgba(16,185,129,0.12)]">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-              </span>
-              <span className="font-mono text-[11px] font-medium tracking-wide text-emerald-300">
-                Quanty 3.8 Flash Active · &lt;120ms Voice Latency
-              </span>
-            </div>
-          </div>
         </div>
 
         {/* 2FA Notice */}
@@ -454,19 +448,7 @@ function LoginForm() {
           </p>
 
           <div className="mt-5 flex items-center justify-center gap-1.5 border-t border-white/[0.06] pt-4 text-[11px] text-zinc-500">
-            <svg
-              className="h-3 w-3 text-zinc-500"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-            <span>End-to-End Sovereign Encryption · Zero Telemetry Leakage</span>
+            <span>Your chats are tied to your Quant account</span>
           </div>
         </div>
       </div>

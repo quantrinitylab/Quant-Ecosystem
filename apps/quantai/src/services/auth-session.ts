@@ -14,6 +14,13 @@ export interface SessionData {
   twoFactorRequired?: boolean;
   challenge?: string;
   expiresIn?: number;
+  user?: {
+    id: string;
+    email: string;
+    username?: string;
+    displayName?: string | null;
+    name?: string;
+  } | null;
 }
 
 export interface SessionResult {
@@ -39,9 +46,12 @@ export function clearAccessToken(): void {
 }
 
 /** Ingests an SSO ticket/token, syncing memory, apiClient, and localStorage. */
-export function ingestSSOToken(token: string): void {
+export function ingestSSOToken(
+  token: string,
+  user?: { id: string; email: string; name?: string } | null,
+): void {
   setAccessToken(token);
-  setAuthToken(token);
+  setAuthToken(token, user ?? null);
 }
 
 export function isTwoFactorChallenge(
@@ -69,7 +79,19 @@ async function postAuth(action: string, body?: unknown): Promise<SessionResult> 
     // NO_SESSION is a clean unauthenticated state, not a hard failure.
     if (json.data?.accessToken) {
       setAccessToken(json.data.accessToken);
-      setAuthToken(json.data.accessToken);
+      // Persist the user profile too — without it the UI falls back to
+      // fabricated placeholders like 'user@quantmail.in'.
+      const u = json.data.user;
+      setAuthToken(
+        json.data.accessToken,
+        u
+          ? {
+              id: u.id,
+              email: u.email,
+              name: u.displayName ?? u.name ?? u.username,
+            }
+          : null,
+      );
     }
     return json;
   } catch {

@@ -1,6 +1,7 @@
 import { createApp } from '@quant/server-core';
 import type { AppConfig } from '@quant/server-core';
 import chatRoutes from './routes/chat';
+import authRoutes from './routes/auth';
 import agentsRoutes from './routes/agents';
 import sessionsRoutes from './routes/sessions';
 import messagesRoutes from './routes/messages';
@@ -150,6 +151,9 @@ export async function buildApp(config?: AppConfig) {
   app.decorate('fluxStylesService', fluxStylesService);
 
   await app.register(chatRoutes, { prefix: '/chat' });
+  // Identity: GET /auth/me backs the frontend SSO ticket verification
+  // (/api/auth/userinfo). Without it SSO round-trips silently bounce.
+  await app.register(authRoutes, { prefix: '/auth' });
   await app.register(askRoutes);
   await app.register(scheduledTasksRoutes, { prefix: '/agents/scheduled' });
   await app.register(mcpConnectorsRoutes, { prefix: '/connectors' });

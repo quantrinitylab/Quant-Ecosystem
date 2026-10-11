@@ -23,10 +23,10 @@ import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { PersonaSelector } from '../components/PersonaSelector';
 import type { Persona } from '../components/PersonaSelector';
+import { useAuth } from '../providers/auth-provider';
 import {
   getAuthToken,
   getAuthUser,
-  clearAuthSession,
   savePreservedChatState,
   type AuthUser,
 } from '../lib/auth';
@@ -54,6 +54,7 @@ import { HeroPromptBento } from '../components/chat/HeroPromptBento';
 export default function AIPage() {
   const brandName = useBrandName();
   const { resolvedTheme } = useTheme();
+  const { logout: providerLogout } = useAuth();
   const { models, currentModel, switchModel } = useModelSelector();
   const {
     messages,
@@ -177,12 +178,21 @@ export default function AIPage() {
     router.push('/login');
   }, [conversations, activeConversation, router]);
 
-  const handleSignOut = useCallback(() => {
-    clearAuthSession();
+  // Sign-out must go through the AuthProvider: it clears the in-memory token,
+  // localStorage, AND the server-side refresh cookie, and flips the provider's
+  // own isAuthenticated. The old bare clearAuthSession() left the provider
+  // thinking the user was still signed in, which bounced /login straight back
+  // to / — an infinite redirect loop that looked like a stuck spinner.
+  const handleSignOut = useCallback(async () => {
+    try {
+      await providerLogout();
+    } catch {
+      // Server logout is best-effort; client state is still cleared below.
+    }
     setIsAuthenticated(false);
     setAuthUser(null);
     setShowProfileMenu(false);
-  }, []);
+  }, [providerLogout]);
 
   const handleQuantSSO = useCallback(() => {
     // Preserve current chat state before redirecting to SSO
@@ -520,7 +530,7 @@ export default function AIPage() {
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
             <span className="truncate text-[11px] text-[var(--foreground)] font-medium">
-              {authUser?.email || 'Quant Member'}
+              {authUser?.email || 'Signed in'}
             </span>
           </div>
           <Link
@@ -622,11 +632,16 @@ export default function AIPage() {
                 </button>
               </div>
 
-              <ModelSelector
-                currentModel={currentModel}
-                models={models}
-                onSelect={handleModelSwitch}
-              />
+              {/* The picker is decorative with a single model — hide it until
+                  multiple real models exist. A one-option "picker" whose
+                  switching is a no-op is a fake control. */}
+              {models.length > 1 ? (
+                <ModelSelector
+                  currentModel={currentModel}
+                  models={models}
+                  onSelect={handleModelSwitch}
+                />
+              ) : null}
 
               {activeMode === 'chat' && (
                 <PersonaSelector
@@ -682,13 +697,15 @@ export default function AIPage() {
                       <div className="absolute right-0 mt-1.5 w-56 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] shadow-2xl p-2 z-50 text-xs">
                         <div className="px-3 py-2 border-b border-[var(--quant-border)]">
                           <div className="font-semibold text-[var(--foreground)] truncate">
-                            {authUser?.name || 'Quant Member'}
+                            {authUser?.name || authUser?.email || 'My Account'}
                           </div>
-                          <div className="text-[11px] text-[var(--foreground-secondary)] truncate">
-                            {authUser?.email || 'user@quantmail.in'}
-                          </div>
+                          {authUser?.email ? (
+                            <div className="text-[11px] text-[var(--foreground-secondary)] truncate">
+                              {authUser.email}
+                            </div>
+                          ) : null}
                           <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                            ACTIVE • CLOUD SYNC
+                            SIGNED IN
                           </span>
                         </div>
                         <div className="py-1">
