@@ -716,7 +716,7 @@ NOT VERIFIED (needs live/auth): signed-in E2E of trash/restore/purge/accept/decl
 FIX AGENTS (PR-only, tracked separately): lane1-fix-010r2-fake-purge (revive/port #826 onto current main, all STILL-BROKEN items above), lane1-fix-010r2-drive-accent (R2-P1-4 blue→green). Rotation → QM-SCREEN-011 R2.
 
 ## QM-SCREEN-011 — Drive upload / file preview / editor handoff
-Status: [x] DONE — LANE-1, branch lane1-audit-011. AUDIT COMPLETE (2026-10-11 ~05:10 IST): 2 P0, 1 P1, 3 P2 logged in task body (code audited against origin/main). Live: /drive → sign-in desktop+mobile (clean, shots /tmp/lane1-011-desktop-drive.png + /tmp/lane1-011-mobile-drive.png); /api/drive/upload + /api/drive/files/<id>/download → 401 logged out (airtight). Signed-in flows needs-auth — not verified live. FIX AGENTS (PR-only, tracked separately): lane1-fix-011-preview-auth (P0 preview 401s), lane1-fix-011-upload-scan (P0 resumable upload + P1 scan badges). Rotation → QM-SCREEN-012.
+Status: [~] ROUND 2 REGRESSION — LANE-1, branch lane-1/audit-qm-screen-011-upload-r2 (claimed 2026-10-11 ~21:40 IST). R1 fixes #827 (preview-auth) + #829 (upload-scan) both MERGED to main 2026-10-11 ~05:06/05:16 IST. R2 regression in flight.
 Required: resumable uploads, malware/security scan state, signed delivery, preview capability matrix, versioning, share links, editor/Docs handoff, Quanty save/summarize actions.
 Dependencies: QM-SCREEN-010.
 
