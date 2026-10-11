@@ -13,6 +13,15 @@ const mocks = vi.hoisted(() => ({
       findFirst: vi.fn(),
       updateMany: vi.fn(),
     },
+    // The real-email-verification change (register creates a verification-code
+    // row via prisma.emailVerificationCode) needs this model on the mock or
+    // the registration path throws "Cannot read properties of undefined".
+    emailVerificationCode: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    },
   },
   generateTokenPair: vi.fn(),
   refreshToken: vi.fn(),
@@ -168,6 +177,21 @@ describe('QuantMail browser refresh-token boundary', () => {
 
     expect(reply.body.data).not.toHaveProperty('refreshToken');
     expect(reply.cookie.value).toBe('refresh-token');
+    // Register must prove-it-later: a verification-code row for the new user,
+    // and the response must not claim the address is verified.
+    expect(mocks.prisma.emailVerificationCode.create).toHaveBeenCalledWith({
+      data: {
+        userId: 'user-2',
+        codeHash: expect.any(String),
+        expiresAt: expect.any(Date),
+        requestedIp: null,
+      },
+    });
+    expect(reply.body.data.emailVerification).toEqual({
+      required: true,
+      emailVerified: false,
+      emailSent: expect.any(Boolean),
+    });
   });
 
   it('rejects login and registration from a missing or untrusted Origin', async () => {
