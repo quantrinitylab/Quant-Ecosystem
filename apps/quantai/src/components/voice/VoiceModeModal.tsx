@@ -16,6 +16,7 @@ import {
 import { VoiceOrb } from './VoiceOrb';
 import { VoiceFloatingChip } from './VoiceFloatingChip';
 import { useVoiceCapture } from '../../hooks/useVoiceCapture';
+import { useBargeInWatch, stopAssistantPlayback } from './barge-in';
 import { apiFetchRaw } from '@quant/api-client';
 
 export interface VoiceModeModalProps {
@@ -110,6 +111,8 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
   const transcriptScrollRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const synthUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  /** Backend-TTS <audio> element, so interrupt can stop it too (F-045). */
+  const backendAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Auto-scroll transcript ticker to bottom
   useEffect(() => {
@@ -120,11 +123,17 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
 
 
 
-  // Interrupt active assistant speech (Voice Activity Detection trigger or tap)
+  // Interrupt active assistant speech. Fired two ways:
+  //  1. the user taps the interrupt button / orb (manual), or
+  //  2. the barge-in voice-activity watch (see useBargeInWatch below) detects
+  //     sustained mic energy while the "Auto-Interrupt (VAD)" toggle is on.
+  // Stops BOTH playback channels — backend TTS <audio> and browser TTS.
   const handleInterrupt = useCallback(() => {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
+    stopAssistantPlayback(
+      backendAudioRef.current,
+      typeof window !== 'undefined' ? window.speechSynthesis : undefined,
+    );
+    backendAudioRef.current = null;
     setVoiceState('listening');
     setTranscripts((prev) => {
       if (prev.length === 0) return prev;
@@ -138,6 +147,15 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
       return prev;
     });
   }, []);
+
+  // Real barge-in (F-045): while the assistant is speaking AND the
+  // "Auto-Interrupt (VAD)" toggle is on, keep a mic energy meter running.
+  // Sustained voice energy (~500ms above threshold) cancels playback and
+  // flips back to listening. Toggle off => manual tap only, exactly as before.
+  useBargeInWatch(
+    voiceState === 'speaking' && config.autoInterrupt && !config.isMuted,
+    handleInterrupt,
+  );
 
   // Mute / Unmute live microphone
   const toggleMute = useCallback(() => {
@@ -198,12 +216,15 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
           if (buf.byteLength > 0) {
             const url = URL.createObjectURL(new Blob([buf], { type: 'audio/mpeg' }));
             const audio = new Audio(url);
+            backendAudioRef.current = audio;
             audio.onended = () => {
               URL.revokeObjectURL(url);
+              if (backendAudioRef.current === audio) backendAudioRef.current = null;
               setVoiceState('listening');
             };
             audio.onerror = () => {
               URL.revokeObjectURL(url);
+              if (backendAudioRef.current === audio) backendAudioRef.current = null;
               setVoiceState('listening');
             };
             await audio.play();
@@ -327,12 +348,14 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
     }
   }, [captureState, config.isMuted, finishVoiceTurn, handleVoiceTurn]);
 
-  // Clean up Web Speech API on unmount or close
+  // Clean up assistant playback on unmount or close
   useEffect(() => {
     return () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
+      stopAssistantPlayback(
+        backendAudioRef.current,
+        typeof window !== 'undefined' ? window.speechSynthesis : undefined,
+      );
+      backendAudioRef.current = null;
     };
   }, []);
 
@@ -638,11 +661,19 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
                         onChange={(e) =>
                           setConfig((prev) => ({ ...prev, autoInterrupt: e.target.checked }))
                         }
+                        aria-label="Auto-Interrupt (VAD): speak during the assistant's reply to cut it off"
                         className="rounded accent-violet-500 cursor-pointer"
                       />
                       <span>Auto-Interrupt (VAD)</span>
                     </label>
                   </div>
+                  {/* Honest barge-in copy (F-045): the toggle is now a real
+                      voice-activity interrupt, so say exactly what it does. */}
+                  <p className="text-[11px] leading-relaxed text-zinc-500">
+                    {config.autoInterrupt
+                      ? 'On: speak while the assistant is talking to cut in — no tap needed. The mic stays live during replies.'
+                      : 'Off: interrupt stays manual — tap the button while the assistant speaks.'}
+                  </p>
                 </div>
 
                 <button
@@ -698,8 +729,17 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
                     data-testid="interrupt-button"
                     className="px-4 py-1.5 rounded-full bg-zinc-800/90 hover:bg-zinc-700/90 border border-zinc-600 text-xs font-semibold text-zinc-200 hover:text-white shadow-xl flex items-center gap-2 cursor-pointer transition-all active:scale-95"
                   >
-                    <span>✋</span>
-                    <span>Tap to interrupt</span>
+                    {config.autoInterrupt && !config.isMuted ? (
+                      <>
+                        <span>🎙️</span>
+                        <span>Speak or tap to interrupt</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>✋</span>
+                        <span>Tap to interrupt</span>
+                      </>
+                    )}
                   </motion.button>
                 )}
               </AnimatePresence>
