@@ -227,7 +227,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     ];
     if (typeof presented === 'string' && presented) {
       const digest = createHash('sha256').update(presented).digest('hex');
-      currentFamily = rows.find((row) => row.token === digest)?.family ?? null;
+      currentFamily = rows.find((row: { token: string; family: string }) => row.token === digest)?.family ?? null;
     }
 
     const byFamily = new Map<string, typeof rows>();
@@ -313,7 +313,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         },
         select: { family: true },
       });
-      const families = [...new Set(others.map((row) => row.family))];
+      const families = [...new Set(others.map((row: { family: string }) => row.family))];
       if (families.length > 0) {
         await prisma.refreshToken.updateMany({
           where: { userId, family: { in: families } },
