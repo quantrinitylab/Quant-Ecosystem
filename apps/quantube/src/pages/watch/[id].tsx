@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { spring } from '@quant/brand';
 import { LoadingState, ErrorState, EmptyState, SpringButton } from '@quant/shared-ui';
 import { useVideo } from '../../hooks/useVideo';
+import { getSampleRecommendations } from '../../data/public-videos';
 import { useComments } from '../../hooks/useComments';
 import { useSegmentSkip } from '../../hooks/useSegmentSkip';
 import { topicJumpTarget } from '../../lib/segment-skip';
@@ -35,74 +36,7 @@ interface CommentItem {
   replies?: CommentItem[];
 }
 
-interface RecommendedVideo {
-  id: string;
-  title: string;
-  thumbnail: string;
-  channelName: string;
-  views: number;
-  duration: number;
-  publishedAt: string;
-}
-
 const QUALITIES: VideoQuality[] = ['144p', '360p', '720p', '1080p', '4K'];
-
-const FALLBACK_RECOMMENDATIONS: RecommendedVideo[] = [
-  {
-    id: 'rec1',
-    title: 'Building Scalable APIs with Node.js',
-    thumbnail: '/thumbs/node-api.jpg',
-    channelName: 'DevMastery',
-    views: 245000,
-    duration: 1840,
-    publishedAt: '3 days ago',
-  },
-  {
-    id: 'rec2',
-    title: 'React 19 - What You Need to Know',
-    thumbnail: '/thumbs/react19.jpg',
-    channelName: 'WebDev Pro',
-    views: 890000,
-    duration: 1200,
-    publishedAt: '1 week ago',
-  },
-  {
-    id: 'rec3',
-    title: 'System Design Interview Prep',
-    thumbnail: '/thumbs/sysdesign.jpg',
-    channelName: 'TechInterviews',
-    views: 1200000,
-    duration: 3600,
-    publishedAt: '2 weeks ago',
-  },
-  {
-    id: 'rec4',
-    title: 'Rust for TypeScript Developers',
-    thumbnail: '/thumbs/rust-ts.jpg',
-    channelName: 'RustLang',
-    views: 156000,
-    duration: 2400,
-    publishedAt: '5 days ago',
-  },
-  {
-    id: 'rec5',
-    title: 'Docker Compose Deep Dive',
-    thumbnail: '/thumbs/docker.jpg',
-    channelName: 'ContainerPro',
-    views: 312000,
-    duration: 1560,
-    publishedAt: '4 days ago',
-  },
-];
-
-const FALLBACK_CHAPTERS: Chapter[] = [
-  { id: 'ch1', title: 'Introduction', startTime: 0, endTime: 120 },
-  { id: 'ch2', title: 'Setup & Installation', startTime: 120, endTime: 360 },
-  { id: 'ch3', title: 'Core Concepts', startTime: 360, endTime: 720 },
-  { id: 'ch4', title: 'Building the Project', startTime: 720, endTime: 1200 },
-  { id: 'ch5', title: 'Deployment & Testing', startTime: 1200, endTime: 1600 },
-  { id: 'ch6', title: 'Summary & Next Steps', startTime: 1600, endTime: 1800 },
-];
 
 const WatchPage: React.FC = () => {
   const router = useRouter();
@@ -273,11 +207,20 @@ const WatchPage: React.FC = () => {
     duration?: number;
   };
 
-  // P0-1 root cause: the page read only `v.url` while the backend returns
-  // `videoUrl`, so <video src> was empty (dead black player). Accept both.
-  const videoSrc = v.videoUrl || v.url || '';
+  // The player must ONLY ever receive a real media URL. `v.url` is the watch
+  // *page* URL (e.g. /watch/guest-vid-1) — feeding it to <video> produced the
+  // "Unable to play media" dead player. If no media URL exists, the honest
+  // error state below renders instead of a fake/black player.
+  const videoSrc = v.videoUrl || '';
 
-  const chapters: Chapter[] = v.chapters && v.chapters.length > 0 ? v.chapters : FALLBACK_CHAPTERS;
+  // Real chapters only — never invented filler chapters on videos that
+  // don't have them. Empty => the Chapters section is hidden below.
+  const chapters: Chapter[] = v.chapters && v.chapters.length > 0 ? v.chapters : [];
+
+  // Honest recommendations: other REAL playable samples from the shared
+  // catalog (never fabricated entries, never dead links, never fake views).
+  // [] for anything else => honest empty state below.
+  const recommendations = useMemo(() => getSampleRecommendations(id, 8), [id]);
   const rawComments = comments as any;
   const commentList: CommentItem[] = Array.isArray(rawComments)
     ? rawComments
@@ -303,19 +246,30 @@ const WatchPage: React.FC = () => {
                 : 'w-full aspect-video rounded-xl shadow-lg'
             }`}
           >
-            <video
-              ref={videoRef}
-              src={videoSrc}
-              poster={v.thumbnailUrl || v.thumbnail}
-              controls
-              className="w-full h-full object-contain"
-              aria-label={v.title}
-              onLoadedMetadata={(e) => {
-                const d = e.currentTarget.duration;
-                if (Number.isFinite(d) && d > 0) setDuration(d);
-              }}
-              onTimeUpdate={handleTimeUpdate}
-            />
+            {videoSrc ? (
+              <video
+                ref={videoRef}
+                src={videoSrc}
+                poster={v.thumbnailUrl || v.thumbnail}
+                controls
+                className="w-full h-full object-contain"
+                aria-label={v.title}
+                onLoadedMetadata={(e) => {
+                  const d = e.currentTarget.duration;
+                  if (Number.isFinite(d) && d > 0) setDuration(d);
+                }}
+                onTimeUpdate={handleTimeUpdate}
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-6 text-center">
+                <p className="text-white font-semibold">
+                  This video can&apos;t be played right now
+                </p>
+                <p className="text-sm text-white/60">
+                  The video file isn&apos;t available. Please check back later.
+                </p>
+              </div>
+            )}
             {/* Controls overlay: Theater toggle & Quality selector */}
             <div className="absolute top-3 right-3 flex items-center gap-2">
               <button
@@ -605,65 +559,77 @@ const WatchPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Chapters */}
-          <div className="mb-6">
-            <h3 className="text-sm font-bold text-[var(--quant-foreground)] mb-3">Chapters</h3>
-            <div className="space-y-1 max-h-[300px] overflow-y-auto">
-              {chapters.map((ch) => (
-                <button
-                  key={ch.id}
-                  onClick={() => handleChapterClick(ch)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors min-h-[44px] ${
-                    activeChapter === ch.id
-                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                      : 'hover:bg-[var(--quant-muted)] text-[var(--quant-foreground)]'
-                  }`}
-                >
-                  <span className="text-xs font-mono text-[var(--quant-muted-foreground)] w-12 flex-shrink-0">
-                    {formatDuration(ch.startTime)}
-                  </span>
-                  <span className="text-sm truncate">{ch.title}</span>
-                </button>
-              ))}
+          {/* Chapters — real chapters only; hidden when the video has none */}
+          {chapters.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-bold text-[var(--quant-foreground)] mb-3">Chapters</h3>
+              <div className="space-y-1 max-h-[300px] overflow-y-auto">
+                {chapters.map((ch) => (
+                  <button
+                    key={ch.id}
+                    onClick={() => handleChapterClick(ch)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors min-h-[44px] ${
+                      activeChapter === ch.id
+                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                        : 'hover:bg-[var(--quant-muted)] text-[var(--quant-foreground)]'
+                    }`}
+                  >
+                    <span className="text-xs font-mono text-[var(--quant-muted-foreground)] w-12 flex-shrink-0">
+                      {formatDuration(ch.startTime)}
+                    </span>
+                    <span className="text-sm truncate">{ch.title}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Recommendations */}
+          {/* Recommendations — real playable videos only, never fabricated */}
           <div>
             <h3 className="text-sm font-bold text-[var(--quant-foreground)] mb-3">Recommended</h3>
-            <div className="space-y-3">
-              {FALLBACK_RECOMMENDATIONS.map((rec) => (
-                <div
-                  key={rec.id}
-                  className="flex gap-2 cursor-pointer group"
-                  onClick={() => {
-                    window.location.href = `/watch/${rec.id}`;
-                  }}
-                >
-                  <div className="relative w-40 flex-shrink-0 rounded-lg overflow-hidden">
-                    <img
-                      src={rec.thumbnail}
-                      alt={rec.title}
-                      className="w-full aspect-video object-cover group-hover:opacity-80 transition"
-                    />
-                    <span className="absolute bottom-1 right-1 text-xs bg-black/80 text-white px-1 py-0.5 rounded">
-                      {formatDuration(rec.duration)}
-                    </span>
+            {recommendations.length > 0 ? (
+              <div className="space-y-3">
+                {recommendations.map((rec) => (
+                  <div
+                    key={rec.id}
+                    className="flex gap-2 cursor-pointer group"
+                    onClick={() => {
+                      window.location.href = `/watch/${rec.id}`;
+                    }}
+                  >
+                    <div className="relative w-40 flex-shrink-0 rounded-lg overflow-hidden">
+                      <img
+                        src={rec.thumbnailUrl}
+                        alt={rec.title}
+                        className="w-full aspect-video object-cover group-hover:opacity-80 transition"
+                        loading="lazy"
+                      />
+                      <span className="absolute bottom-1 right-1 text-xs bg-black/80 text-white px-1 py-0.5 rounded">
+                        {formatDuration(rec.duration)}
+                      </span>
+                      {rec.isSample && (
+                        <span className="absolute top-1 left-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/90 text-black">
+                          SAMPLE
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-medium text-[var(--quant-foreground)] line-clamp-2">
+                        {rec.title}
+                      </h4>
+                      <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
+                        {rec.channelName}
+                      </p>
+                      {/* Samples carry no engagement metadata: no fake views/dates. */}
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-medium text-[var(--quant-foreground)] line-clamp-2">
-                      {rec.title}
-                    </h4>
-                    <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
-                      {rec.channelName}
-                    </p>
-                    <p className="text-xs text-[var(--quant-muted-foreground)]">
-                      {formatViews(rec.views)} &middot; {rec.publishedAt}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--quant-muted-foreground)]">
+                No recommendations yet — check back when the catalog grows.
+              </p>
+            )}
           </div>
         </aside>
       </div>

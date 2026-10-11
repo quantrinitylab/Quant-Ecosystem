@@ -119,3 +119,20 @@ export function resolveWatchVideo(id: string): WatchSampleVideo | undefined {
     isSample: true,
   };
 }
+
+/**
+ * Honest "up next" recommendations for the watch page.
+ *
+ * Returns OTHER playable samples from the shared catalog (never the video
+ * being watched). These are real records with real playable videoUrls and
+ * real thumbnails — never fabricated entries, never dead links, never fake
+ * view counts. Returns [] for non-sample ids: without a real recommendations
+ * source the page must show an honest empty state instead of inventing one.
+ */
+export function getSampleRecommendations(
+  currentId: string,
+  limit = 8,
+): PublicFeaturedVideo[] {
+  if (!currentId.startsWith('guest-vid-')) return [];
+  return PUBLIC_FEATURED_VIDEOS.filter((v) => v.id !== currentId).slice(0, limit);
+}

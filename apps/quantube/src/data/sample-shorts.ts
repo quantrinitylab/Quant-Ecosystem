@@ -1,9 +1,11 @@
 // ============================================================================
 // QuantTube - Sample Shorts
 // ----------------------------------------------------------------------------
-// Built-in sample shorts with REAL playable video URLs (Google's public sample
-// bucket) and real thumbnails. The old MOCK_SHORTS pointed at /videos/shortN.mp4
-// and /thumbs/shortN.jpg, which do not exist (404 → black player).
+// Built-in sample shorts with REAL playable video URLs (self-hosted generated
+// clips under public/samples/) and real thumbnails. The old MOCK_SHORTS pointed
+// at /videos/shortN.mp4 and /thumbs/shortN.jpg, which do not exist (404 → black
+// player). Engagement metadata is intentionally neutral (0 likes/comments/shares)
+// and channels are the neutral "Sample Channel" — no fake counts or creators.
 // Everything here is sample content: `isSample: true` must be surfaced in the UI.
 // ============================================================================
 
@@ -30,22 +32,20 @@ export interface SampleShort {
   isSample: true;
 }
 
-const BUCKET = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample';
-
 export const SAMPLE_SHORTS: SampleShort[] = [
   {
     id: 'sh1',
-    videoUrl: `${BUCKET}/ForBiggerBlazes.mp4`,
+    videoUrl: '/samples/short-01.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=600&auto=format&fit=crop&q=80',
     title: '60-second coding tutorial #react',
-    channelName: 'CodeSnippets',
+    channelName: 'Sample Channel',
     channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=CodeSnippets',
     channelId: 'ch1',
     isSubscribed: false,
-    likeCount: 45200,
-    commentCount: 892,
-    shareCount: 2340,
+    likeCount: 0,
+    commentCount: 0,
+    shareCount: 0,
     soundName: 'Lo-fi Coding Beats',
     soundArtist: 'ChillHop',
     soundId: 'snd1',
@@ -57,17 +57,17 @@ export const SAMPLE_SHORTS: SampleShort[] = [
   },
   {
     id: 'sh2',
-    videoUrl: `${BUCKET}/WeAreGoingOnBullrun.mp4`,
+    videoUrl: '/samples/short-02.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=600&auto=format&fit=crop&q=80',
     title: 'Insane basketball trick shot',
-    channelName: 'TrickShots',
+    channelName: 'Sample Channel',
     channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=TrickShots',
     channelId: 'ch2',
     isSubscribed: true,
-    likeCount: 128000,
-    commentCount: 3400,
-    shareCount: 15600,
+    likeCount: 0,
+    commentCount: 0,
+    shareCount: 0,
     soundName: 'Original Sound',
     soundArtist: 'TrickShots',
     soundId: 'snd2',
@@ -79,17 +79,17 @@ export const SAMPLE_SHORTS: SampleShort[] = [
   },
   {
     id: 'sh3',
-    videoUrl: `${BUCKET}/ForBiggerFun.mp4`,
+    videoUrl: '/samples/short-03.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=600&auto=format&fit=crop&q=80',
     title: 'Making the perfect latte art',
-    channelName: 'CoffeeArtist',
+    channelName: 'Sample Channel',
     channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=CoffeeArtist',
     channelId: 'ch3',
     isSubscribed: false,
-    likeCount: 67300,
-    commentCount: 1200,
-    shareCount: 8900,
+    likeCount: 0,
+    commentCount: 0,
+    shareCount: 0,
     soundName: 'Morning Vibes',
     soundArtist: 'LoFi Records',
     soundId: 'snd3',
@@ -101,17 +101,17 @@ export const SAMPLE_SHORTS: SampleShort[] = [
   },
   {
     id: 'sh4',
-    videoUrl: `${BUCKET}/WhatCarCanYouGetForAGrand.mp4`,
+    videoUrl: '/samples/short-04.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1508614589041-895b88991e3e?w=600&auto=format&fit=crop&q=80',
     title: 'Drone footage of Iceland glaciers',
-    channelName: 'NatureViews',
+    channelName: 'Sample Channel',
     channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=NatureViews',
     channelId: 'ch4',
     isSubscribed: true,
-    likeCount: 234000,
-    commentCount: 5600,
-    shareCount: 42000,
+    likeCount: 0,
+    commentCount: 0,
+    shareCount: 0,
     soundName: 'Epic Cinematic',
     soundArtist: 'SoundScapes',
     soundId: 'snd4',
@@ -123,17 +123,17 @@ export const SAMPLE_SHORTS: SampleShort[] = [
   },
   {
     id: 'sh5',
-    videoUrl: `${BUCKET}/BigBuckBunny.mp4`,
+    videoUrl: '/samples/short-05.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&auto=format&fit=crop&q=80',
     title: 'Dog learns to open door',
-    channelName: 'PetLife',
+    channelName: 'Sample Channel',
     channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=PetLife',
     channelId: 'ch5',
     isSubscribed: false,
-    likeCount: 890000,
-    commentCount: 12000,
-    shareCount: 67000,
+    likeCount: 0,
+    commentCount: 0,
+    shareCount: 0,
     soundName: 'Funny Moments',
     soundArtist: 'Meme Sounds',
     soundId: 'snd5',

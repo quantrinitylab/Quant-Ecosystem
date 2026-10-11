@@ -1,11 +1,15 @@
 // P0-1/P0-2 regression tests: the shared sample catalog must always serve
 // REAL playable videos — never dead placeholder URLs like the old
 // cdn.quantube.com fallback that produced the black watch player.
+//
+// Samples are self-hosted generated clips under public/samples/ (relative
+// /samples/*.mp4 URLs): zero external dependencies, playable everywhere.
 import { describe, it, expect } from 'vitest';
 import { SAMPLE_CATALOG, findSampleVideo, toSampleApiRecord } from '../../backend/lib/sample-catalog';
 import {
   PUBLIC_FEATURED_VIDEOS,
   getGuestFeaturedVideos,
+  getSampleRecommendations,
   resolveWatchVideo,
 } from '../data/public-videos';
 
@@ -16,11 +20,14 @@ describe('sample video catalog (P0-1/P0-2)', () => {
     expect(new Set(ids).size).toBe(12);
   });
 
-  it('every videoUrl is a real, absolute https URL (never a dead placeholder)', () => {
+  it('every videoUrl is a self-hosted /samples/*.mp4 path (never a dead external URL)', () => {
     for (const v of SAMPLE_CATALOG) {
-      expect(v.videoUrl, `${v.id} videoUrl`).toMatch(/^https:\/\/.+\.mp4$/);
+      expect(v.videoUrl, `${v.id} videoUrl`).toMatch(/^\/samples\/vid-\d{2}\.mp4$/);
       expect(v.videoUrl, `${v.id} must not use the dead fallback CDN`).not.toContain(
         'cdn.quantube.com',
+      );
+      expect(v.videoUrl, `${v.id} must not depend on the blocked Google bucket`).not.toContain(
+        'commondatastorage.googleapis.com',
       );
     }
   });
@@ -38,7 +45,7 @@ describe('sample video catalog (P0-1/P0-2)', () => {
 
   it('toSampleApiRecord populates BOTH videoUrl and url (empty <video src> root cause)', () => {
     const rec = toSampleApiRecord(SAMPLE_CATALOG[0]) as Record<string, unknown>;
-    expect(rec.videoUrl).toMatch(/^https:\/\/.+\.mp4$/);
+    expect(rec.videoUrl).toBe('/samples/vid-01.mp4');
     expect(rec.url).toBe('/watch/guest-vid-1');
     expect(rec.isSample).toBe(true);
   });
@@ -48,7 +55,7 @@ describe('sample video catalog (P0-1/P0-2)', () => {
     expect(PUBLIC_FEATURED_VIDEOS.map((v) => v.id)).toEqual(SAMPLE_CATALOG.map((v) => v.id));
     for (const v of PUBLIC_FEATURED_VIDEOS) {
       expect(v.isSample).toBe(true);
-      expect(v.videoUrl).toMatch(/^https:\/\//);
+      expect(v.videoUrl).toMatch(/^\/samples\//);
     }
   });
 
@@ -62,12 +69,32 @@ describe('sample video catalog (P0-1/P0-2)', () => {
   it('resolveWatchVideo returns a playable record for sample ids', () => {
     const w = resolveWatchVideo('guest-vid-1');
     expect(w).toBeDefined();
-    expect(w!.videoUrl).toMatch(/^https:\/\/.+\.mp4$/);
+    expect(w!.videoUrl).toBe('/samples/vid-01.mp4');
     expect(w!.url).toBe('/watch/guest-vid-1');
     expect(w!.isSample).toBe(true);
   });
 
   it('resolveWatchVideo returns undefined for unknown ids (honest 404 path)', () => {
     expect(resolveWatchVideo('nope-unknown-id')).toBeUndefined();
+  });
+
+  it('getSampleRecommendations returns real playable samples, never the current video', () => {
+    const recs = getSampleRecommendations('guest-vid-1', 8);
+    expect(recs).toHaveLength(8);
+    expect(recs.every((r) => r.id !== 'guest-vid-1')).toBe(true);
+    expect(recs.every((r) => r.isSample)).toBe(true);
+    for (const r of recs) {
+      // Real playable media + real thumbnails: no dead links, no fake views.
+      expect(r.videoUrl).toMatch(/^\/samples\/vid-\d{2}\.mp4$/);
+      expect(r.thumbnailUrl).toMatch(/^https:\/\//);
+      expect(r.views).toBe(0);
+    }
+    const ids = recs.map((r) => r.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('getSampleRecommendations returns [] for non-sample ids (honest empty state)', () => {
+    expect(getSampleRecommendations('real-video-123')).toEqual([]);
+    expect(getSampleRecommendations('rec1')).toEqual([]);
   });
 });
