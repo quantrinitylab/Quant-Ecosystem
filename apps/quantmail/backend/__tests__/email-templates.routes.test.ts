@@ -62,7 +62,7 @@ async function buildApp(
       (request as unknown as { auth: { userId: string } }).auth = { userId };
     }
   });
-  app.decorate('prisma', prisma);
+  app.decorate('prisma', prisma as unknown as never);
   await app.register(emailTemplatesRoutes, { prefix: '/email-templates' });
   await app.ready();
   return app;
