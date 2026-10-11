@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
 import { AuthShell } from '../../components/auth/AuthShell';
 import { PasswordStrengthMeter } from '../../components/auth/PasswordStrengthMeter';
@@ -14,6 +14,7 @@ import {
   toQuantAddress,
 } from '../../config/identity';
 import { browserAuthSession } from '../../services/browser-auth-session';
+import { safeReturnPath } from '../../lib/safe-return-path';
 
 interface RegistrationErrors {
   username?: string;
@@ -23,8 +24,9 @@ interface RegistrationErrors {
   terms?: string;
 }
 
-export default function RegisterPage() {
+function RegisterContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [username, setUsername] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [countryCode, setCountryCode] = useState('+91');
@@ -72,9 +74,15 @@ export default function RegisterPage() {
         acceptTerms: termsAccepted,
       });
       if (response.success) {
-        router.push(
-          `/login?success=${encodeURIComponent(`Welcome to QuantMail. Sign in as ${address}`)}`,
-        );
+        // Cross-app signup handoffs: honor ?returnTo= so an app that sent the
+        // user here to create an account gets them back after sign-in. The
+        // login page continues the handoff from there.
+        const returnTo = safeReturnPath(searchParams?.get('returnTo'));
+        const params = new URLSearchParams({
+          success: `Welcome to QuantMail. Sign in as ${address}`,
+        });
+        if (returnTo) params.set('returnTo', returnTo);
+        router.push(`/login?${params.toString()}`);
       } else {
         setError(response.error?.message || 'Registration failed. Try again.');
       }
@@ -363,5 +371,13 @@ export default function RegisterPage() {
         </div>
       </AuthShell>
     </PageTransition>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterContent />
+    </Suspense>
   );
 }

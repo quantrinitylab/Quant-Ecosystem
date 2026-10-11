@@ -3,6 +3,13 @@
 /**
  * Set a new password from an emailed link.
  *
+ * CANONICAL PASSWORD-RESET URL: https://quantmail.in/reset-password?token=…
+ * This is THE url every Quant app's "Forgot password?" flow points to — the
+ * reset mail (POST /auth/password-reset, POST /oauth/forgot-password) links
+ * here, the user opens it in QuantMail, sets the new password here, and then
+ * signs in on the requesting app with it. Do not rename or move this route
+ * without updating every app's forgot-password copy.
+ *
  * The other half of `/forgot-password`, which has existed and worked since before
  * there was a backend behind it. Three things this screen has to get right that a
  * plain form does not:
