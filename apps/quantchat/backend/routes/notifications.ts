@@ -208,8 +208,23 @@ export default async function notificationsRoutes(fastify: FastifyInstance) {
     if (!parsed.success) {
       throw createAppError('Invalid notification payload', 400, 'VALIDATION_ERROR');
     }
-    // Target user defaults to the authenticated caller (self-send).
-    const targetUserId = parsed.data.userId ?? requireUserId(request);
+    // QC-F-021: the target is the authenticated caller, never a body-supplied
+    // stranger. Previously ANY logged-in user could push arbitrary
+    // title/body/deepLink notifications to ANY userId (and, at route level,
+    // a body userId even skipped the auth requirement entirely). Server-side
+    // notifications to other users are dispatched in-process via
+    // dispatchNotification (see backend services) and never traverse this
+    // HTTP route — no legitimate cross-user caller of this endpoint exists.
+    // Identity comes only from verified auth (QC-F-018 pattern).
+    const callerId = requireUserId(request);
+    const targetUserId = parsed.data.userId ?? callerId;
+    if (targetUserId !== callerId) {
+      throw createAppError(
+        'You can only send notifications to yourself',
+        403,
+        'FORBIDDEN',
+      );
+    }
 
     // Respect the user's per-category toggle (Req 9.6).
     const settings = memorySettings.get(targetUserId) ?? defaultSettings();
