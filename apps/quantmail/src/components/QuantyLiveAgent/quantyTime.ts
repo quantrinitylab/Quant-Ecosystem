@@ -6,7 +6,13 @@
 /** "5:48pm" style clock time. */
 export function formatClockTime(iso: string): string {
   try {
-    return new Date(iso)
+    const date = new Date(iso);
+    // Guard the same defect family as PeopleList.formatRelativeTime and
+    // PersonThread.formatMessageTime: `new Date(garbage)` never throws, so the
+    // try/catch below is dead — an unparseable timestamp must degrade to an
+    // empty fallback, never the literal "Invalid Date".
+    if (Number.isNaN(date.getTime())) return '';
+    return date
       .toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
       .toLowerCase()
       .replace(' ', '');
@@ -18,7 +24,12 @@ export function formatClockTime(iso: string): string {
 /** "7h ago", "3d ago", "just now". */
 export function formatRelativeTime(iso: string, now = new Date()): string {
   try {
-    const diffMs = now.getTime() - new Date(iso).getTime();
+    const date = new Date(iso);
+    // Same NaN guard as formatClockTime: NaN falls through every numeric
+    // comparison to the toLocaleDateString call, which would render the
+    // literal "Invalid Date".
+    if (Number.isNaN(date.getTime())) return '';
+    const diffMs = now.getTime() - date.getTime();
     if (diffMs < 0) return 'soon';
     const mins = Math.floor(diffMs / 60000);
     if (mins < 1) return 'just now';
@@ -29,7 +40,7 @@ export function formatRelativeTime(iso: string, now = new Date()): string {
     if (days < 7) return `${days}d ago`;
     const weeks = Math.floor(days / 7);
     if (weeks < 5) return `${weeks}w ago`;
-    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   } catch {
     return '';
   }
