@@ -153,7 +153,13 @@ describe('ConversationService', () => {
   describe('addMember', () => {
     it('adds a new member to a group conversation', async () => {
       prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', type: 'group' });
-      prisma.conversationMember.findFirst.mockResolvedValue(null);
+      // QC-F-017: requester (user-1) is an existing member; target is not.
+      prisma.conversationMember.findFirst.mockImplementation(
+        async ({ where }: { where: { userId: string } }) =>
+          where.userId === 'user-1'
+            ? { id: 'member-1', conversationId: 'conv-1', userId: 'user-1', role: 'MEMBER' }
+            : null,
+      );
       prisma.conversationMember.create.mockResolvedValue({
         id: 'member-new',
         conversationId: 'conv-1',
@@ -161,7 +167,7 @@ describe('ConversationService', () => {
         role: 'MEMBER',
       });
 
-      const result = await service.addMember('conv-1', 'user-3');
+      const result = await service.addMember('conv-1', 'user-1', 'user-3');
 
       expect(result.userId).toBe('user-3');
       expect(result.role).toBe('MEMBER');
@@ -170,26 +176,37 @@ describe('ConversationService', () => {
     it('throws DIRECT_CONVERSATION when adding to direct chat', async () => {
       prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', type: 'DIRECT' });
 
-      await expect(service.addMember('conv-1', 'user-3')).rejects.toThrow(
+      await expect(service.addMember('conv-1', 'user-1', 'user-3')).rejects.toThrow(
         'Cannot add members to direct conversations',
       );
     });
 
     it('throws ALREADY_MEMBER when user is already in conversation', async () => {
       prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', type: 'group' });
-      prisma.conversationMember.findFirst.mockResolvedValue({
-        id: 'member-existing',
-        userId: 'user-3',
-      });
+      // QC-F-017: both requester and target resolve to member rows.
+      prisma.conversationMember.findFirst.mockImplementation(
+        async ({ where }: { where: { userId: string } }) => ({
+          id: `member-${where.userId}`,
+          conversationId: 'conv-1',
+          userId: where.userId,
+          role: 'MEMBER',
+        }),
+      );
 
-      await expect(service.addMember('conv-1', 'user-3')).rejects.toThrow(
+      await expect(service.addMember('conv-1', 'user-1', 'user-3')).rejects.toThrow(
         'User is already a member',
       );
     });
 
     it('allows specifying a role', async () => {
       prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', type: 'group' });
-      prisma.conversationMember.findFirst.mockResolvedValue(null);
+      // QC-F-017: an ADMIN requester may assign roles; target is not a member.
+      prisma.conversationMember.findFirst.mockImplementation(
+        async ({ where }: { where: { userId: string } }) =>
+          where.userId === 'user-admin'
+            ? { id: 'member-admin-self', conversationId: 'conv-1', userId: 'user-admin', role: 'ADMIN' }
+            : null,
+      );
       prisma.conversationMember.create.mockResolvedValue({
         id: 'member-admin',
         conversationId: 'conv-1',
@@ -197,7 +214,7 @@ describe('ConversationService', () => {
         role: 'ADMIN',
       });
 
-      const result = await service.addMember('conv-1', 'user-3', 'ADMIN');
+      const result = await service.addMember('conv-1', 'user-admin', 'user-3', 'ADMIN');
 
       expect(prisma.conversationMember.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ role: 'ADMIN' }),
@@ -208,7 +225,7 @@ describe('ConversationService', () => {
     it('throws CONVERSATION_NOT_FOUND for missing conversation', async () => {
       prisma.conversation.findUnique.mockResolvedValue(null);
 
-      await expect(service.addMember('missing', 'user-1')).rejects.toThrow(
+      await expect(service.addMember('missing', 'user-1', 'user-2')).rejects.toThrow(
         'Conversation not found',
       );
     });
@@ -223,7 +240,7 @@ describe('ConversationService', () => {
       });
       prisma.conversationMember.update.mockResolvedValue({});
 
-      await service.removeMember('conv-1', 'user-2');
+      await service.removeMember('conv-1', 'user-2', 'user-2');
 
       expect(prisma.conversationMember.update).toHaveBeenCalledWith({
         where: { id: 'member-1' },
@@ -234,7 +251,7 @@ describe('ConversationService', () => {
     it('throws NOT_A_MEMBER when user is not in conversation', async () => {
       prisma.conversationMember.findFirst.mockResolvedValue(null);
 
-      await expect(service.removeMember('conv-1', 'user-unknown')).rejects.toThrow(
+      await expect(service.removeMember('conv-1', 'user-1', 'user-unknown')).rejects.toThrow(
         'User is not a member of this conversation',
       );
     });
@@ -344,7 +361,7 @@ describe('ConversationService', () => {
     it('QM-CHAT-001: returns null for a missing conversation', async () => {
       prisma.conversation.findUnique.mockResolvedValue(null);
 
-      await expect(service.getConversation('missing')).resolves.toBeNull();
+      await expect(service.getConversation('missing', 'user-1')).resolves.toBeNull();
     });
 
     it('QM-CHAT-001: includes participants mapped from active members', async () => {
@@ -362,7 +379,7 @@ describe('ConversationService', () => {
         ],
       });
 
-      const result = await service.getConversation('conv-9');
+      const result = await service.getConversation('conv-9', 'user-1');
 
       expect(result).not.toBeNull();
       expect(result!.participants).toHaveLength(1);
@@ -385,8 +402,15 @@ describe('ConversationService', () => {
     it('updates conversation fields', async () => {
       prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', name: 'Old Name' });
       prisma.conversation.update.mockResolvedValue({ id: 'conv-1', name: 'New Name' });
+      // QC-F-017: renaming is an admin action — requester is the OWNER.
+      prisma.conversationMember.findFirst.mockResolvedValue({
+        id: 'member-1',
+        conversationId: 'conv-1',
+        userId: 'user-1',
+        role: 'OWNER',
+      });
 
-      const result = await service.updateConversation('conv-1', { name: 'New Name' });
+      const result = await service.updateConversation('conv-1', 'user-1', { name: 'New Name' });
 
       expect(result.name).toBe('New Name');
     });
@@ -394,7 +418,7 @@ describe('ConversationService', () => {
     it('throws CONVERSATION_NOT_FOUND for missing conversation', async () => {
       prisma.conversation.findUnique.mockResolvedValue(null);
 
-      await expect(service.updateConversation('missing', { name: 'Test' })).rejects.toThrow(
+      await expect(service.updateConversation('missing', 'user-1', { name: 'Test' })).rejects.toThrow(
         'Conversation not found',
       );
     });
