@@ -6,7 +6,6 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Components under test
-import { CalendarQuantMeetView } from '../app/calendar/components/CalendarQuantMeetView';
 import { CalendarRemindersView } from '../app/calendar/components/CalendarRemindersView';
 import { CalendarContextSubTabs } from '../app/calendar/components/CalendarContextSubTabs';
 import type { CalendarEventLike } from '../app/calendar/types';
@@ -113,30 +112,53 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
 
 
   // ==========================================================================
-  // 2. Sub-View: `quantmeet`
+  // 1. Orphan-removal guard: CalendarQuantMeetView stays deleted
+  //    (orphaned fabricated meeting UI + fake WebRTC actions were removed;
+  //    regression = it creeping back)
   // ==========================================================================
-  describe('Sub-View: `quantmeet` (CalendarQuantMeetView)', () => {
-    it('renders QuantMeet HD video meeting launcher with action card, calls list, and WebRTC status', () => {
-      const html = renderToStaticMarkup(<CalendarQuantMeetView />);
+  describe('Orphan-removal guard: CalendarQuantMeetView', () => {
+    const thisDir = dirname(fileURLToPath(import.meta.url));
+    const componentsDir = join(thisDir, '..', 'app', 'calendar', 'components');
+    const srcDir = join(thisDir, '..');
 
-      // Action card: Start Instant Meeting
-      expect(html).toContain('Start Instant Meeting');
-      expect(html).toContain('QuantMeet HD Video');
-      expect(html).toContain('WebRTC 4K P2P');
+    function walkSourceFiles(dir: string, acc: string[] = []): string[] {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        const stat = statSync(full);
+        if (stat.isDirectory()) {
+          // Skip test directories — they legitimately discuss removed views.
+          if (entry === '__tests__') continue;
+          walkSourceFiles(full, acc);
+        } else if (/\.(ts|tsx|js|jsx)$/.test(entry)) {
+          acc.push(full);
+        }
+      }
+      return acc;
+    }
 
-      // WebRTC status: Mic: Ready · Camera: Ready
-      expect(html).toContain('Mic: Ready · Camera: Ready');
+    it('CalendarQuantMeetView.tsx file does not exist', () => {
+      expect(existsSync(join(componentsDir, 'CalendarQuantMeetView.tsx'))).toBe(false);
+    });
 
-      // Upcoming video calls list with [Join HD Call] pills
-      expect(html).toContain('Upcoming Video Calls');
-      expect(html).toContain('Join HD Call');
-      expect(html).toContain('Weekly Ecosystem Architecture Sync');
-      expect(html).toContain('Sprint 42 Retrospective &amp; Tripartite Handover');
+    it('no source file (outside __tests__) imports or references CalendarQuantMeetView', () => {
+      const offenders = walkSourceFiles(srcDir).filter((file) => {
+        const content = readFileSync(file, 'utf8');
+        return /CalendarQuantMeetView/.test(content);
+      });
+      expect(offenders).toEqual([]);
+    });
+
+    it('no fabricated meeting fixtures survive in production source (outside __tests__)', () => {
+      const offenders = walkSourceFiles(srcDir).filter((file) => {
+        const content = readFileSync(file, 'utf8');
+        return content.includes('Weekly Ecosystem Architecture Sync');
+      });
+      expect(offenders).toEqual([]);
     });
   });
 
   // ==========================================================================
-  // 3. Sub-View: `reminders`
+  // 2. Sub-View: `reminders`
   // ==========================================================================
   describe('Sub-View: `reminders` (CalendarRemindersView)', () => {
     it('renders task reminders checklist with toggleable checkboxes, due times, and priority pills', () => {
@@ -164,7 +186,7 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
   });
 
   // ==========================================================================
-  // 4. Context Sub-Tabs Selector Component (CalendarContextSubTabs)
+  // 3. Context Sub-Tabs Selector Component (CalendarContextSubTabs)
   // ==========================================================================
   describe('Context Sub-Tabs Selector (CalendarContextSubTabs)', () => {
     it('renders all 5 contextual tabs matching ContextBottomNavBar specification', () => {
@@ -183,15 +205,10 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
 
 
   // ==========================================================================
-  // 5. Zero Raw Unicode Emojis Invariant
+  // 4. Zero Raw Unicode Emojis Invariant
   // ==========================================================================
   describe('Zero Raw Unicode Emojis Invariant', () => {
     const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
-
-    it('CalendarQuantMeetView contains strictly ZERO raw Unicode emojis', () => {
-      const html = renderToStaticMarkup(<CalendarQuantMeetView />);
-      expect(emojiRegex.test(html)).toBe(false);
-    });
 
     it('CalendarRemindersView contains strictly ZERO raw Unicode emojis', () => {
       const html = renderToStaticMarkup(<CalendarRemindersView />);
@@ -208,7 +225,7 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
   });
 
   // ==========================================================================
-  // 6. Orphan-removal guard: CalendarBookingView stays deleted
+  // 5. Orphan-removal guard: CalendarBookingView stays deleted
   //    (fake hardcoded booking flow was removed; regression = it creeping back)
   // ==========================================================================
   describe('Orphan-removal guard: CalendarBookingView', () => {
