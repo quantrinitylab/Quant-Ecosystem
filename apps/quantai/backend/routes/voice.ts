@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { voiceInterface } from '@quant/agentic';
+import { AgentVoiceInterface, voiceInterface } from '@quant/agentic';
 import { createAppError } from '@quant/server-core';
 import {
   listAvailableVoices,
@@ -7,6 +7,10 @@ import {
   generateSsml,
   type TTSProvider,
 } from '../services/voiceover-tts.service';
+import {
+  resolveServerTtsVoice,
+  DEFAULT_SERVER_TTS_VOICE,
+} from '../services/persona-voice';
 import {
   transcribeWithMeta,
   isMetaSTTConfigured,
@@ -57,6 +61,23 @@ export default async function voiceRoutes(fastify: FastifyInstance) {
   // before any STT/TTS provider call, so no credits can be burned.
   const paidGuard = { preHandler: fastify.requireAuth() };
 
+  // Per-voice AgentVoiceInterface instances so a persona's voiceId actually
+  // reaches the TTS provider (F-046): the shared voiceInterface singleton
+  // always synthesizes with the default voice, so persona-mapped voices get
+  // lazily-built instances whose config.voice flows into
+  // backend.synthesize(text, config) -> the provider's `voice` parameter.
+  // Instances are cached per voice so we don't rebuild backends per request.
+  const ttsByVoice = new Map<string, AgentVoiceInterface>();
+  function ttsForVoice(voice: string): AgentVoiceInterface {
+    if (voice === DEFAULT_SERVER_TTS_VOICE) return voiceInterface;
+    let tts = ttsByVoice.get(voice);
+    if (!tts) {
+      tts = new AgentVoiceInterface({ voice });
+      ttsByVoice.set(voice, tts);
+    }
+    return tts;
+  }
+
   // Honest capability reporting — the frontend gates voice UI on this.
   // Read-only metadata, no provider cost: intentionally left public.
   fastify.get('/status', async (_request, reply) => {
@@ -70,7 +91,8 @@ export default async function voiceRoutes(fastify: FastifyInstance) {
   });
 
   fastify.post('/tts', paidGuard, async (request, reply) => {
-    const { text } = request.body as any;
+    const body = (request.body ?? {}) as { text?: unknown; voiceId?: unknown };
+    const { text } = body;
 
     // Bounded input: reject empty/oversized text before any provider call so a
     // single request cannot burn unbounded TTS credits on junk.
@@ -85,7 +107,18 @@ export default async function voiceRoutes(fastify: FastifyInstance) {
       });
     }
 
-    const audio = await voiceInterface.textToSpeech(text);
+    // F-046: honor the persona voiceId the client sends. Unknown/missing ids
+    // fall back to the default voice with a logged warning — never a silent
+    // no-op, never an invented provider voice.
+    const { voice, known } = resolveServerTtsVoice(body.voiceId);
+    if (!known) {
+      request.log.warn(
+        { voiceId: body.voiceId },
+        '[voice/tts] unknown or missing voiceId — using default server voice',
+      );
+    }
+
+    const audio = await ttsForVoice(voice).textToSpeech(text);
 
     reply.header('Content-Type', 'audio/mpeg');
     return reply.send(audio);

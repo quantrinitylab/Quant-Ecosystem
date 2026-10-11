@@ -468,6 +468,16 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
                       </span>
                       <span className="text-[10px] text-zinc-400">4 Trademarks</span>
                     </div>
+                    {/* Honest voice attribution (F-046): each persona changes the
+                        actual spoken voice — a dedicated voice on the server TTS
+                        path when configured, otherwise the device's speech
+                        engine with this persona's pitch & rate. */}
+                    <p className="px-3 pt-2 text-[11px] leading-relaxed text-zinc-500">
+                      Each persona speaks with its own voice in replies: a
+                      dedicated server voice when TTS is configured, otherwise
+                      your device&apos;s speech using the persona&apos;s pitch
+                      &amp; rate.
+                    </p>
 
                     <div className="py-1 space-y-1">
                       {PERSONA_LIST.map((p) => {
