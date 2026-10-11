@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  buildClearSessionCookies,
+  buildTokenSessionCookies,
+} from '@quant/api-client/sso-server';
 
 // QuantWave auth entry. QuantWave does not issue tokens — the ecosystem identity
 // root does (QuantMail backend, JWT issuer https://quantrinity.in). This handler
@@ -95,10 +99,45 @@ export async function POST(
       );
     }
 
+    const responseHeaders = copyBackendHeaders(backendResponse.headers);
+
+    // The access token must never live in JavaScript/localStorage. When the
+    // identity service returns one (login/refresh), relay it into our httpOnly
+    // + Secure + SameSite=Lax session cookie so the browser holds no token.
+    if ((action === 'login' || action === 'refresh') && backendResponse.ok) {
+      try {
+        const peek = (await backendResponse.clone().json()) as {
+          success?: boolean;
+          data?: { accessToken?: unknown; refreshToken?: unknown; expiresIn?: unknown };
+        } | null;
+        const token = peek?.data?.accessToken;
+        if (peek?.success !== false && typeof token === 'string' && token.length > 0) {
+          const expiresIn =
+            typeof peek?.data?.expiresIn === 'number' ? peek.data.expiresIn : undefined;
+          const refreshToken =
+            typeof peek?.data?.refreshToken === 'string' && peek.data.refreshToken.length > 0
+              ? peek.data.refreshToken
+              : undefined;
+          for (const cookie of buildTokenSessionCookies({ accessToken: token, refreshToken, expiresIn })) {
+            responseHeaders.append('set-cookie', cookie);
+          }
+        }
+      } catch {
+        // Unparseable body — return the proxied response unchanged.
+      }
+    }
+
+    // Logout clears the SSO session cookies alongside the backend's own.
+    if (action === 'logout') {
+      for (const cookie of buildClearSessionCookies()) {
+        responseHeaders.append('set-cookie', cookie);
+      }
+    }
+
     return new Response(backendResponse.body, {
       status: backendResponse.status,
       statusText: backendResponse.statusText,
-      headers: copyBackendHeaders(backendResponse.headers),
+      headers: responseHeaders,
     });
   } catch {
     return errorResponse(

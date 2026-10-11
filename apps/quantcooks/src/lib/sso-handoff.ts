@@ -1,59 +1,36 @@
 // ============================================================================
-// QuantCooks — SSO handoff helpers (consumer side).
+// QuantCooks — SSO handoff helpers (Contract B, consumer side).
 //
-// QuantMail's SSO account chooser returns the user to QuantCooks with a
-// QuantMail-issued JWT in the URL (?token=...&accessToken=...&__quant_sso_ticket=...,
-// plus userId/email/displayName). This module is the consumer half of that
-// handoff: read the token out of the URL, and scrub the URL afterwards so the
-// token never lingers in the address bar.
+// QuantMail's /sso account chooser hands back a single-use ticket as
+// `?sso_ticket=`. The ticket is NOT a token — the login page scrubs it from
+// the URL immediately (history.replaceState) and POSTs it to the same-origin
+// /api/auth/sso/ticket route, which verifies it back-channel with QuantMail
+// before minting an app session.
+//
+// Legacy token params (?token= / ?accessToken= / ?access_token= /
+// ?__quant_sso_ticket=) are still scrubbed defensively — tokens must never
+// linger in the address bar — but they are never trusted or exchanged.
 //
 // Pure functions — no DOM/React — so they are unit-testable.
 // ============================================================================
 
-/** URL params the QuantMail SSO chooser may carry the handoff token in. */
-export const SSO_TOKEN_PARAM_NAMES = [
-  'token',
-  'accessToken',
-  'access_token',
-  '__quant_sso_ticket',
-] as const;
+export { scrubSsoParamsFromUrl, SSO_HANDOFF_PARAM_NAMES } from '@quant/shared-ui';
 
-/** Extra handoff params worth scrubbing (identity hints, not secrets). */
-const SSO_PII_PARAM_NAMES = ['__quant_return', 'userId', 'email', 'displayName'] as const;
+/** The Contract B ticket param QuantMail's /sso chooser appends. */
+export const SSO_TICKET_PARAM = 'sso_ticket';
 
 /**
- * Extract the first non-empty SSO token from a query string. `search` may be
- * `window.location.search` (leading `?`) or a bare `a=1&token=...` string.
- * Returns null when no handoff token is present.
+ * Extract the Contract B ticket from a query string. `search` may be
+ * `window.location.search` (leading `?`) or a bare `a=1&sso_ticket=...` string.
+ * Returns null when no handoff ticket is present.
  */
-export function readSsoTokenFromSearch(search: string): string | null {
+export function readSsoTicketFromSearch(search: string): string | null {
   try {
     const query = search.startsWith('?') ? search.slice(1) : search;
     const params = new URLSearchParams(query);
-    for (const name of SSO_TOKEN_PARAM_NAMES) {
-      const value = params.get(name);
-      if (value !== null && value.trim().length > 0) {
-        return value.trim();
-      }
-    }
-    return null;
+    const value = params.get(SSO_TICKET_PARAM);
+    return value && value.trim() ? value.trim() : null;
   } catch {
     return null;
-  }
-}
-
-/**
- * Strip every SSO handoff param (tokens AND the userId/email/displayName hints
- * the chooser appends) from a full URL, preserving everything else — including
- * `returnTo` and the hash. Safe to call when no handoff params exist.
- */
-export function scrubSsoParamsFromUrl(href: string): string {
-  try {
-    const url = new URL(href);
-    for (const name of SSO_TOKEN_PARAM_NAMES) url.searchParams.delete(name);
-    for (const name of SSO_PII_PARAM_NAMES) url.searchParams.delete(name);
-    return `${url.pathname}${url.search}${url.hash}`;
-  } catch {
-    return href;
   }
 }

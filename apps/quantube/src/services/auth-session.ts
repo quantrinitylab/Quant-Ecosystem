@@ -1,15 +1,27 @@
 // ============================================================================
-// Quantube — browser auth session.
-// Talks only to this app's same-origin /auth/* proxy (see app/api ../auth/[action]).
-// The access token lives in memory (never localStorage); the refresh token is an
-// HttpOnly cookie the identity service manages. On every load the app tries to
-// restore a session with /auth/refresh, and rotates before the access token expires.
+// QuantTube — browser auth session.
+// Talks only to this app's same-origin auth routes. Tokens live ONLY in
+// httpOnly + Secure + SameSite=Lax cookies minted server-side (by
+// /api/auth/sso/callback for QuantMail OAuth, /api/auth/sso/ticket for /sso
+// chooser tickets, or the /auth/[action] proxy for password login).
+// JavaScript never sees, stores, or transmits a token — session state here is
+// just the verified user profile from GET /api/auth/session.
 // ============================================================================
-import { apiClient } from './api-client';
 import { apiFetchRaw } from '@quant/api-client';
 
+export interface SessionUser {
+  id: string;
+  email: string;
+  username?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+}
+
+export type SessionType = 'oauth' | 'sso-ticket';
+
 export interface SessionData {
-  accessToken?: string;
+  user?: SessionUser;
+  sessionType?: SessionType;
   twoFactorRequired?: boolean;
   challenge?: string;
   expiresIn?: number;
@@ -21,37 +33,9 @@ export interface SessionResult {
   error?: { code?: string; message?: string };
 }
 
-let accessToken: string | null = null;
-
-export function getAccessToken(): string | null {
-  if (typeof window !== 'undefined') {
-    return (
-      accessToken || localStorage.getItem('quant_access_token') || localStorage.getItem('token')
-    );
-  }
-  return accessToken;
-}
-
-function setAccessToken(token: string | null): void {
-  accessToken = token;
-  apiClient.setToken(token ?? '');
-  if (typeof window !== 'undefined') {
-    if (token) {
-      localStorage.setItem('quant_access_token', token);
-      localStorage.setItem('token', token);
-      document.cookie = `quant_access_token=${encodeURIComponent(token)}; path=/; SameSite=Lax`;
-    } else {
-      localStorage.removeItem('quant_access_token');
-      localStorage.removeItem('token');
-      document.cookie =
-        'quant_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
-    }
-  }
-}
-
-export function clearAccessToken(): void {
-  setAccessToken(null);
-}
+export type LoginOutcome =
+  | { status: 'signed-in' }
+  | { status: 'two-factor-required'; challenge: string; expiresIn: number };
 
 export function isTwoFactorChallenge(
   data: SessionData,
@@ -59,14 +43,12 @@ export function isTwoFactorChallenge(
   return Boolean(data.twoFactorRequired && data.challenge);
 }
 
-async function postAuth(action: string, body?: unknown): Promise<SessionResult> {
+async function requestJson(path: string, init?: RequestInit): Promise<SessionResult> {
   try {
-    const res = await apiFetchRaw(`/auth/${action}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: body ? JSON.stringify(body) : undefined,
+    const res = await apiFetchRaw(path, {
       credentials: 'same-origin',
       cache: 'no-store',
+      ...init,
     });
     const json = (await res.json().catch(() => null)) as SessionResult | null;
     if (!json) {
@@ -75,8 +57,6 @@ async function postAuth(action: string, body?: unknown): Promise<SessionResult> 
         error: { code: 'INVALID_RESPONSE', message: 'Unexpected response.' },
       };
     }
-    // NO_SESSION is a clean unauthenticated state, not a hard failure.
-    if (json.data?.accessToken) setAccessToken(json.data.accessToken);
     return json;
   } catch {
     return {
@@ -86,15 +66,60 @@ async function postAuth(action: string, body?: unknown): Promise<SessionResult> 
   }
 }
 
+function postJson(path: string, body?: unknown): Promise<SessionResult> {
+  return requestJson(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
 export const authSession = {
-  login(email: string, password: string): Promise<SessionResult> {
-    return postAuth('login', { email, password });
+  /**
+   * Resolve the current session from the httpOnly cookies. The server
+   * verifies the access cookie back-channel via userinfo (self-healing
+   * through the OAuth refresh cookie) or accepts the signed ticket-identity
+   * cookie. 401 NO_SESSION when neither verifies.
+   */
+  getSession(): Promise<SessionResult> {
+    return requestJson('/api/auth/session');
   },
-  refresh(): Promise<SessionResult> {
-    return postAuth('refresh');
+
+  /**
+   * Username/password login. The /auth/login proxy checks the credentials
+   * against the identity service and mints the httpOnly session cookie; we
+   * then resolve the verified user profile.
+   */
+  async login(email: string, password: string): Promise<SessionResult> {
+    const res = await postJson('/auth/login', { email, password });
+    if (!res.success || !res.data || isTwoFactorChallenge(res.data)) return res;
+    return this.getSession();
   },
+
+  /**
+   * Best-effort session rotation: password sessions rotate via the identity
+   * refresh cookie; OAuth sessions self-heal inside /api/auth/session. Either
+   * way the caller ends up with the current session state.
+   */
+  async refresh(): Promise<SessionResult> {
+    await postJson('/auth/refresh').catch(() => null);
+    return this.getSession();
+  },
+
+  /**
+   * Complete a Contract B /sso chooser ticket (?sso_ticket=): the server
+   * verifies it back-channel with QuantMail and mints the signed identity
+   * session cookie. The ticket is scrubbed from the URL by the caller
+   * immediately — before and regardless of this call's outcome.
+   */
+  async completeSsoTicket(ticket: string): Promise<SessionResult> {
+    const res = await postJson('/api/auth/sso/ticket', { ticket });
+    if (!res.success) return res;
+    return this.getSession();
+  },
+
+  /** Sign out: the server revokes and clears every session cookie. */
   async logout(): Promise<void> {
-    await postAuth('logout').catch(() => undefined);
-    clearAccessToken();
+    await postJson('/auth/logout').catch(() => undefined);
   },
 };

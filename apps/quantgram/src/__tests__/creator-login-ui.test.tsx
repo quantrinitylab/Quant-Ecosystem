@@ -76,13 +76,21 @@ describe('QuantGram Creator Login UI/UX Parity (Instagram / TikTok Class)', () =
       expect(markup).toContain('shadow-2xl');
     });
 
-    it('renders hero SSO button with molten amber sheen and Quant Account link', () => {
-      expect(markup).toContain('Continue with Quant Account');
-      expect(markup).toContain('https://quantmail.in/sso');
-      expect(markup).toContain('client_id=quantgram');
+    it('renders hero SSO button with molten amber sheen for real QuantMail OAuth', () => {
+      // Real "Continue with QuantMail" (OAuth2 code + PKCE): a button that
+      // starts the flow in-page — NOT a deep link to /sso?returnTo= (the old
+      // fake SSO surface, which had no OAuth handshake).
+      expect(markup).toContain('Continue with QuantMail');
+      expect(markup).not.toContain('https://quantmail.in/sso');
+      expect(markup).not.toContain('Continue with Quant Account');
+      expect(markup).not.toContain('Continue with Quant SSO');
       expect(markup).toContain('from-[#FF5E62]');
       expect(markup).toContain('via-[#FF8C42]');
       expect(markup).toContain('to-[#D946EF]');
+    });
+
+    it('offers forgot-password with honest QuantMail-inbox copy', () => {
+      expect(markup).toContain('Forgot password?');
     });
 
     it('renders secondary clean email/password form with proper inputs', () => {

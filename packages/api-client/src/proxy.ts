@@ -11,6 +11,38 @@ export interface ProxyOptions {
   body?: unknown;
   searchParams?: URLSearchParams;
   timeout?: number;
+  /**
+   * When set and the inbound request carries no Authorization header, read
+   * this httpOnly cookie from the inbound Cookie header and forward it as
+   * `Authorization: Bearer <value>` to the backend. This is how SSO sessions
+   * (tokens live only in httpOnly cookies, never in JS) keep working against
+   * token-expecting backends. Never logs or echoes the value.
+   *
+   * Defaults to the ecosystem SSO access cookie. The cookie only exists on
+   * origins whose login flow mints it, so the default is a no-op elsewhere.
+   */
+  authCookieName?: string;
+}
+
+/**
+ * Read one cookie value from a Cookie header without pulling in a dependency.
+ * Returns the decoded value or null. Never throws.
+ */
+function readCookieValue(cookieHeader: string | null, name: string): string | null {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx <= 0) continue;
+    if (part.slice(0, idx).trim() === name) {
+      const raw = part.slice(idx + 1).trim();
+      try {
+        return decodeURIComponent(raw);
+      } catch {
+        return raw;
+      }
+    }
+  }
+  return null;
 }
 
 /**
@@ -21,7 +53,15 @@ export async function proxyToBackend(
   request: NextRequest,
   options: ProxyOptions,
 ): Promise<NextResponse> {
-  const { backendUrl, path, method, body, searchParams, timeout = 30000 } = options;
+  const {
+    backendUrl,
+    path,
+    method,
+    body,
+    searchParams,
+    timeout = 30000,
+    authCookieName = 'quant_sso_access',
+  } = options;
 
   const url = searchParams?.toString()
     ? `${backendUrl}${path}?${searchParams}`
@@ -29,7 +69,15 @@ export async function proxyToBackend(
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   const auth = request.headers.get('Authorization');
-  if (auth) headers['Authorization'] = auth;
+  if (auth) {
+    headers['Authorization'] = auth;
+  } else if (authCookieName) {
+    // SSO sessions keep tokens in httpOnly cookies (never in JS), so the
+    // browser sends no Authorization header. Promote the session cookie to a
+    // Bearer header for token-expecting backends — server-side only.
+    const bearer = readCookieValue(request.headers.get('cookie'), authCookieName);
+    if (bearer) headers['Authorization'] = `Bearer ${bearer}`;
+  }
 
   // Forward the inbound Cookie so cookie-based auth works across the seam: the
   // backend's /auth/refresh reads the HttpOnly refresh cookie, and logout reads

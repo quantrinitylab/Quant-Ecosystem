@@ -5,6 +5,7 @@
 export * from './types';
 export * from './constants';
 export * from './UniversalSSOTokenBridge';
+export * from './sso-oauth';
 export * from './UniversalAppSwitcher';
 export * from './FederatedSearchEngine';
 export * from './UniversalCommandPalette';

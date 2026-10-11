@@ -2,6 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = process.env.QUANTUBE_BACKEND_URL || 'http://localhost:3006';
 
+
+/** Read one cookie value from a Cookie header. Never throws. */
+function readCookieValue(cookieHeader: string | null, name: string): string | null {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx <= 0) continue;
+    if (part.slice(0, idx).trim() === name) {
+      const raw = part.slice(idx + 1).trim();
+      try {
+        return decodeURIComponent(raw);
+      } catch {
+        return raw;
+      }
+    }
+  }
+  return null;
+}
+
 export async function proxyToBackend(
   request: NextRequest,
   backendPath: string,
@@ -10,7 +29,16 @@ export async function proxyToBackend(
   const method = options?.method || request.method;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   const authHeader = request.headers.get('Authorization');
-  if (authHeader) headers['Authorization'] = authHeader;
+  if (authHeader) {
+    headers['Authorization'] = authHeader;
+  } else {
+    // SSO sessions keep the access token in the httpOnly `quant_sso_access`
+    // cookie (never in JS), so the browser sends no Authorization header.
+    // Promote it to a Bearer header for token-expecting backends — server-side
+    // only, never logged or echoed.
+    const bearer = readCookieValue(request.headers.get('cookie'), 'quant_sso_access');
+    if (bearer) headers['Authorization'] = `Bearer ${bearer}`;
+  }
   const url = new URL(backendPath, BACKEND_URL);
   if (method === 'GET') {
     request.nextUrl.searchParams.forEach((value, key) => {

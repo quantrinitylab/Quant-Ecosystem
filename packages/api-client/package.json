@@ -7,7 +7,9 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./proxy": "./src/proxy.ts"
+    "./proxy": "./src/proxy.ts",
+    "./sso-server": "./src/sso-server.ts",
+    "./sso-routes": "./src/sso-routes.ts"
   },
   "scripts": {
     "build": "tsc",
