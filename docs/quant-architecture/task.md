@@ -705,7 +705,9 @@ UNVERIFIED: signed-in staff/non-staff flows (needs-auth); whether GET /admin/aud
 Fix agent dispatched (PR-only, never merge): lane1-fix-017-retention-authz (P0 retention staff-gating + P1 prefix-role removal). UI gaps (legal-hold/retention console, org member management, incident visibility, break-glass) are design decisions → BLOCKERS.md if the user needs to decide.
 
 ## QM-SCREEN-018 — Help / privacy / terms / invite / groups / SSO / legacy route disposition
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-018
 Required: reconcile extra routes; each retained route gets real contracts and platform behavior; each removed/legacy route gets explicit disposition and redirect; no dead links or theatrical data.
 Dependencies: QM-PLAT-004.
 
