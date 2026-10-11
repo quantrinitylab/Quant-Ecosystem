@@ -28,13 +28,6 @@ export interface NotesTrayProps {
   };
 }
 
-const SAMPLE_MUSIC_TRACKS: MusicTrackAttachment[] = [
-  { id: 'm1', title: 'Starboy', artist: 'The Weeknd ft. Daft Punk' },
-  { id: 'm2', title: 'Midnight City', artist: 'M83' },
-  { id: 'm3', title: 'Blinding Lights', artist: 'The Weeknd' },
-  { id: 'm4', title: 'Cyberpunk Theme', artist: 'Quant Trinity' },
-];
-
 export const NotesTray: React.FC<NotesTrayProps> = ({
   notes,
   onUpsertSelfNote,
@@ -228,21 +221,9 @@ export const NotesTray: React.FC<NotesTrayProps> = ({
             {showMusicPicker && (
               <div className="space-y-1 bg-black/60 border border-gray-800 rounded-xl p-2 max-h-36 overflow-y-auto">
                 <p className="text-[11px] font-semibold text-gray-400 px-1 mb-1">Select a Track</p>
-                {SAMPLE_MUSIC_TRACKS.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => {
-                      setSelectedMusic(t);
-                      setShowMusicPicker(false);
-                    }}
-                    className="w-full text-left px-2 py-1.5 rounded-lg text-xs hover:bg-gray-800 text-gray-200 flex items-center justify-between"
-                  >
-                    <span className="truncate">
-                      {t.title} - {t.artist}
-                    </span>
-                    <span className="text-[10px] text-pink-400 font-mono">Use</span>
-                  </button>
-                ))}
+                <p className="text-center text-gray-500 text-xs py-4">
+                  Music catalog isn&apos;t wired up yet
+                </p>
               </div>
             )}
 

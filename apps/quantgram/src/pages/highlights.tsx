@@ -45,113 +45,6 @@ interface HighlightsPageState {
   draggedIndex: number | null;
 }
 
-const MOCK_HIGHLIGHTS: Highlight[] = [
-  {
-    id: 'h1',
-    title: 'Travel',
-    coverUrl: '/highlights/travel.jpg',
-    storyCount: 24,
-    stories: [
-      {
-        id: 's1',
-        mediaUrl: '/stories/travel1.jpg',
-        mediaType: 'image',
-        addedAt: '2024-01-14T10:00:00Z',
-      },
-    ],
-    createdAt: '2023-06-01',
-    updatedAt: '2024-01-14',
-  },
-  {
-    id: 'h2',
-    title: 'Food',
-    coverUrl: '/highlights/food.jpg',
-    storyCount: 18,
-    stories: [
-      {
-        id: 's2',
-        mediaUrl: '/stories/food1.jpg',
-        mediaType: 'image',
-        addedAt: '2024-01-13T10:00:00Z',
-      },
-    ],
-    createdAt: '2023-08-15',
-    updatedAt: '2024-01-13',
-  },
-  {
-    id: 'h3',
-    title: 'Friends',
-    coverUrl: '/highlights/friends.jpg',
-    storyCount: 32,
-    stories: [],
-    createdAt: '2023-04-20',
-    updatedAt: '2024-01-12',
-  },
-  {
-    id: 'h4',
-    title: 'Fitness',
-    coverUrl: '/highlights/fitness.jpg',
-    storyCount: 15,
-    stories: [],
-    createdAt: '2023-10-01',
-    updatedAt: '2024-01-10',
-  },
-  {
-    id: 'h5',
-    title: 'Art',
-    coverUrl: '/highlights/art.jpg',
-    storyCount: 9,
-    stories: [],
-    createdAt: '2023-12-01',
-    updatedAt: '2024-01-08',
-  },
-];
-
-const MOCK_AVAILABLE: AvailableStory[] = [
-  {
-    id: 'as1',
-    mediaUrl: '/stories/recent1.jpg',
-    mediaType: 'image',
-    createdAt: '2024-01-15T10:00:00Z',
-    isSelected: false,
-  },
-  {
-    id: 'as2',
-    mediaUrl: '/stories/recent2.jpg',
-    mediaType: 'image',
-    createdAt: '2024-01-15T08:00:00Z',
-    isSelected: false,
-  },
-  {
-    id: 'as3',
-    mediaUrl: '/stories/recent3.mp4',
-    mediaType: 'video',
-    createdAt: '2024-01-14T20:00:00Z',
-    isSelected: false,
-  },
-  {
-    id: 'as4',
-    mediaUrl: '/stories/recent4.jpg',
-    mediaType: 'image',
-    createdAt: '2024-01-14T16:00:00Z',
-    isSelected: false,
-  },
-  {
-    id: 'as5',
-    mediaUrl: '/stories/recent5.jpg',
-    mediaType: 'image',
-    createdAt: '2024-01-14T12:00:00Z',
-    isSelected: false,
-  },
-  {
-    id: 'as6',
-    mediaUrl: '/stories/recent6.mp4',
-    mediaType: 'video',
-    createdAt: '2024-01-13T18:00:00Z',
-    isSelected: false,
-  },
-];
-
 const HighlightsPage: React.FC = () => {
   const [state, setState] = useState<HighlightsPageState>({
     highlights: [],
@@ -170,11 +63,11 @@ const HighlightsPage: React.FC = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        await new Promise((resolve) => setTimeout(resolve, 400));
+        // Highlights backend not wired yet — honestly empty until then.
         setState((prev) => ({
           ...prev,
-          highlights: MOCK_HIGHLIGHTS,
-          availableStories: MOCK_AVAILABLE,
+          highlights: [],
+          availableStories: [],
           loading: false,
         }));
       } catch {
@@ -368,6 +261,12 @@ const HighlightsPage: React.FC = () => {
                   Select stories ({state.selectedStories.size} selected)
                 </p>
                 <div className="grid grid-cols-3 gap-2 flex-1 overflow-y-auto">
+                  {state.availableStories.length === 0 && (
+                    <div className="col-span-3 text-center py-8">
+                      <p className="text-gray-400 text-sm">No stories available yet</p>
+                      <p className="text-gray-500 text-xs mt-1">Stories are not wired up yet</p>
+                    </div>
+                  )}
                   {state.availableStories.map((story) => (
                     <div
                       key={story.id}
