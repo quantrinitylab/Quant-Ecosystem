@@ -27,6 +27,7 @@ import attachmentRoutes from './routes/attachments';
 import e2eeRoutes from './routes/e2ee';
 import federationRoutes, { createFederationService } from './routes/federation';
 import { oauthRoutes } from './routes/oauth';
+import { ssoTicketRoutes } from './routes/sso-tickets';
 import { quantyMcpRoutes } from './routes/quanty-mcp';
 import phoneRoutes from './routes/phone';
 import { authRoutes } from './routes/auth';
@@ -119,6 +120,12 @@ export function getConfig(): AppConfig {
       '/oauth/token',
       '/oauth/revoke',
       '/oauth/register',
+      // SSO ticket resolution is server-to-server: the receiving app's backend
+      // presents the ticket plus its OAuth client credentials, so the caller
+      // holds no user session. Auth is enforced inside the handler (same
+      // posture as /oauth/token). The mint endpoint stays behind the session
+      // auth hook and is deliberately NOT listed here.
+      '/sso/ticket/resolve',
       // Public booking link availability and booking slots (CAL-03)
       '/calendar/booking',
       '/calendar/booking/*',
@@ -376,6 +383,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(passwordResetRoutes);
   await app.register(settingsTokenRoutes);
   await app.register(oauthRoutes);
+  await app.register(ssoTicketRoutes);
   await app.register(quantyMcpRoutes, { prefix: '/api/quanty/mcp' });
   await app.register(phoneRoutes);
   await app.register(emailsRoutes, {

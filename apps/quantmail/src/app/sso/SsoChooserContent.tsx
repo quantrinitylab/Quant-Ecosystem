@@ -13,8 +13,13 @@
 //    Executive Account Chooser with titanium borders, gradient avatars, and live status pills.
 // 2. Superhuman-class keyboard-first navigation: instant number hotkeys (1, 2, 3...),
 //    ArrowUp / ArrowDown highlighting, Enter to confirm, Escape to return.
-// 3. 1-click on active account immediately mints/transfers the session token and
-//    redirects to `returnTo` with `?token=${accessToken}`.
+// 3. 1-click on active account mints a short-lived single-use opaque SSO
+//    ticket server-side (POST /api/sso/ticket/mint, bearer token in the
+//    Authorization header only) and redirects to `returnTo` carrying ONLY
+//    `?__quant_sso_ticket=<ticket>`. The raw bearer token NEVER travels in the
+//    URL — no browser history / server log / Referer leakage. The receiving
+//    app's backend resolves the ticket to an identity server-side
+//    (POST /api/sso/ticket/resolve) and establishes its own session.
 // 4. Zero raw emojis: styled SVG icons throughout.
 // 5. Secure: strictly validates `returnTo` against `safeReturnPath` allowlist.
 
@@ -23,6 +28,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { QuantMailLogo } from '../../components/QuantMailLogo';
 import { TitaniumGridCanvas } from '../../components/TitaniumGridCanvas';
 import { safeReturnPath } from '../../lib/safe-return-path';
+import {
+  buildSsoHandoffUrl,
+  mintSsoTicket,
+} from './sso-ticket-handoff';
 import { useAuth } from '../../providers/auth-provider';
 import { browserAuthSession } from '../../services/browser-auth-session';
 import { toQuantAddress } from '../../config/identity';
@@ -227,9 +236,17 @@ export function SsoChooserContent({
   const [code, setCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Execute seamless token handoff to returnTo destination
+  // Execute seamless ticket handoff to the returnTo destination.
+  //
+  // SECURITY: the raw session access token NEVER travels in the redirect URL.
+  // We mint a short-lived single-use opaque SSO ticket server-side (the bearer
+  // token goes in the Authorization header of that POST only), and the URL
+  // carries ONLY `?__quant_sso_ticket=<ticket>`. The receiving app's backend
+  // resolves the ticket to an identity server-side and establishes its own
+  // session. On mint failure we show an honest error — there is no fallback
+  // that puts the token in the URL.
   const handoffSession = useCallback(
-    (token: string | null) => {
+    async (token: string | null) => {
       setAuthorizing(true);
       if (!token) {
         setError('No active session token available. Please sign in again.');
@@ -239,24 +256,23 @@ export function SsoChooserContent({
 
       if (safeReturn.startsWith('http://') || safeReturn.startsWith('https://')) {
         try {
-          const targetUrl = new URL(safeReturn);
-          // Only the SSO ticket aliases travel in the URL. PII (userId / email /
-          // displayName) is never appended — the receiving app resolves identity
-          // server-side from the ticket. The legacy `refreshToken` param was a
-          // misnomer for the access token and is no longer sent (nothing ever
-          // consumed it).
-          targetUrl.searchParams.set('token', token);
-          targetUrl.searchParams.set('accessToken', token);
-          targetUrl.searchParams.set('__quant_sso_ticket', token);
-          window.location.href = targetUrl.toString();
+          const ticket = await mintSsoTicket(token, {
+            clientId,
+            returnTo: safeReturn,
+          });
+          window.location.href = buildSsoHandoffUrl(safeReturn, ticket);
           return;
         } catch {
-          // fallback
+          setError(
+            'Could not create a secure sign-in ticket. Your session is still active here — please try again.',
+          );
+          setAuthorizing(false);
+          return;
         }
       }
       router.push(safeReturn);
     },
-    [safeReturn, router],
+    [safeReturn, router, clientId],
   );
 
   // Hydrate known accounts from localStorage
