@@ -46,19 +46,19 @@ export function CalendarMobileTabStrip({ activeTab, onSelectTab }: CalendarMobil
               data-testid={`calendar-mobile-tab-${tab.key}`}
               tabIndex={isActive ? 0 : -1}
               onClick={() => onSelectTab(tab.key)}
-              className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3.5 text-xs font-medium transition-all duration-150 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)] ${
+              className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3.5 text-xs font-medium transition-all duration-150 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                 isActive
-                  ? 'bg-[var(--quant-warning)]/15 text-[var(--quant-warning)] border border-[var(--quant-warning)]/40 font-semibold'
+                  ? 'bg-[var(--app-accent)]/15 text-[var(--app-accent)] border border-[var(--app-accent)]/40 font-semibold'
                   : 'border border-white/[0.08] bg-white/[0.03] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-white/[0.06] hover:border-white/[0.14]'
               }`}
             >
               <IconComp
-                className={`size-4 shrink-0 ${isActive ? 'text-[var(--quant-warning)]' : 'text-[#64748B]'}`}
+                className={`size-4 shrink-0 ${isActive ? 'text-[var(--app-accent)]' : 'text-[#64748B]'}`}
               />
               <span>{tab.label}</span>
               {isActive && (
                 <span
-                  className="size-1.5 rounded-full bg-[var(--quant-warning)] shadow-[0_0_6px_var(--quant-warning)]"
+                  className="size-1.5 rounded-full bg-[var(--app-accent)] shadow-[0_0_6px_var(--app-accent)]"
                   aria-hidden="true"
                 />
               )}
