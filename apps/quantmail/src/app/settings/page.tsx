@@ -78,6 +78,7 @@ import { apiClient } from '../../services/api-client';
 import { VacationResponderSettings } from './VacationResponderSettings';
 import { MailFiltersSettings } from './MailFiltersSettings';
 import { PhoneVerificationCard } from '../../components/PhoneVerificationCard';
+import { EmailVerificationCard } from '../../components/EmailVerificationCard';
 import { showToast } from '../../components/InboxToast';
 import { ShortcutKeys } from '../../components/ShortcutKeys';
 import { useDesktopNotifications } from '../../hooks/useDesktopNotifications';
@@ -982,6 +983,8 @@ export default function SettingsPage() {
                   <StatusPill>Configured</StatusPill>
                 </div>
               </SettingsSection>
+
+              <EmailVerificationCard />
 
               <PhoneVerificationCard />
 

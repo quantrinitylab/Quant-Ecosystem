@@ -8,6 +8,18 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
     pattern: /^auth\/(?:password-reset(?:\/confirm)?|change-password)$/,
     methods: ['POST'],
   },
+  // Email verification: the request endpoint is Bearer-authenticated (the
+  // user is signed in), the spend endpoint is a public link click.
+  { pattern: /^auth\/verify-email\/request$/, methods: ['POST'] },
+  { pattern: /^auth\/verify-email$/, methods: ['GET'] },
+  // SSO handoff tickets (replace ?token= URL handoffs). Mint is
+  // Bearer-authenticated (QuantMail's own frontend); verify is back-channel
+  // (the relying app's server) and grants no API access — profile only.
+  { pattern: /^oauth\/sso-ticket\/(?:mint|verify)$/, methods: ['POST'] },
+  // Cross-app forgot password: called server-side by other Quant apps. Public
+  // by design (no browser Origin to trust), non-committal, rate-limited, and
+  // dispatches a real mail — the same guarantees as /auth/password-reset.
+  { pattern: /^oauth\/forgot-password$/, methods: ['POST'] },
   // The only mutable field on an identity. `email` and `username` are not
   // editable anywhere, so there is no PUT here to advertise.
   { pattern: /^auth\/profile$/, methods: ['PATCH'] },

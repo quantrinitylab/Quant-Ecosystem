@@ -13,8 +13,9 @@
 //    Executive Account Chooser with titanium borders, gradient avatars, and live status pills.
 // 2. Superhuman-class keyboard-first navigation: instant number hotkeys (1, 2, 3...),
 //    ArrowUp / ArrowDown highlighting, Enter to confirm, Escape to return.
-// 3. 1-click on active account immediately mints/transfers the session token and
-//    redirects to `returnTo` with `?token=${accessToken}`.
+// 3. 1-click on active account mints a single-use 60s SSO ticket and
+//    redirects to `returnTo` with `?sso_ticket=…`. The live access token is
+//    NEVER placed in the URL (no ?token=).
 // 4. Zero raw emojis: styled SVG icons throughout.
 // 5. Secure: strictly validates `returnTo` against `safeReturnPath` allowlist.
 
@@ -227,9 +228,17 @@ export function SsoChooserContent({
   const [code, setCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Execute seamless token handoff to returnTo destination
+  // Execute the SSO handoff to the returnTo destination.
+  //
+  // SECURITY: the live access token NEVER travels in the URL (no ?token= —
+  // tokens in URLs end up in browser history, logs and Referer headers).
+  // Instead we mint a single-use, 60-second, audience-bound SSO TICKET from
+  // QuantMail and hand THAT over as ?sso_ticket=. The receiving app's server
+  // verifies it back-channel (POST /api/oauth/sso-ticket/verify) and mints
+  // its own session. PII is never appended — identity resolves server-side
+  // from the ticket.
   const handoffSession = useCallback(
-    (token: string | null) => {
+    async (token: string | null) => {
       setAuthorizing(true);
       if (!token) {
         setError('No active session token available. Please sign in again.');
@@ -237,24 +246,51 @@ export function SsoChooserContent({
         return;
       }
 
-      if (safeReturn.startsWith('http://') || safeReturn.startsWith('https://')) {
-        try {
+      // Resolve the ticket audience: absolute returnTo → its origin, relative
+      // returnTo → this origin (the chooser itself).
+      let audience: string;
+      try {
+        audience = safeReturn.startsWith('http://') || safeReturn.startsWith('https://')
+          ? new URL(safeReturn).origin
+          : window.location.origin;
+      } catch {
+        setError('That destination is not valid.');
+        setAuthorizing(false);
+        return;
+      }
+
+      try {
+        const res = await browserAuthSession.authenticatedFetch('/api/oauth/sso-ticket/mint', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audience, clientId: 'sso-chooser' }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          success?: boolean;
+          data?: { ticket?: string };
+          error?: { message?: string };
+        } | null;
+        const ticket = data?.success ? data?.data?.ticket : undefined;
+        if (!ticket) {
+          setError(
+            data?.error?.message || 'Could not start the sign-in handoff. Please try again.',
+          );
+          setAuthorizing(false);
+          return;
+        }
+
+        if (safeReturn.startsWith('http://') || safeReturn.startsWith('https://')) {
           const targetUrl = new URL(safeReturn);
-          // Only the SSO ticket aliases travel in the URL. PII (userId / email /
-          // displayName) is never appended — the receiving app resolves identity
-          // server-side from the ticket. The legacy `refreshToken` param was a
-          // misnomer for the access token and is no longer sent (nothing ever
-          // consumed it).
-          targetUrl.searchParams.set('token', token);
-          targetUrl.searchParams.set('accessToken', token);
-          targetUrl.searchParams.set('__quant_sso_ticket', token);
+          targetUrl.searchParams.set('sso_ticket', ticket);
           window.location.href = targetUrl.toString();
           return;
-        } catch {
-          // fallback
         }
+        const sep = safeReturn.includes('?') ? '&' : '?';
+        router.push(`${safeReturn}${sep}sso_ticket=${encodeURIComponent(ticket)}`);
+      } catch {
+        setError('Could not start the sign-in handoff. Please try again.');
+        setAuthorizing(false);
       }
-      router.push(safeReturn);
     },
     [safeReturn, router],
   );

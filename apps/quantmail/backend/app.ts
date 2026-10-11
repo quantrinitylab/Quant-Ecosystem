@@ -32,6 +32,8 @@ import phoneRoutes from './routes/phone';
 import { authRoutes } from './routes/auth';
 import { twoFactorRoutes } from './routes/two-factor';
 import { passwordResetRoutes } from './routes/password-reset';
+import { ssoTicketRoutes } from './routes/sso-ticket';
+import { emailVerificationRoutes } from './routes/email-verification';
 import settingsTokenRoutes from './routes/settings-tokens';
 import reposRoutes from './routes/repos';
 import workspaceRoutes from './routes/workspaces';
@@ -118,6 +120,16 @@ export function getConfig(): AppConfig {
       '/oauth/token',
       '/oauth/revoke',
       '/oauth/register',
+      // SSO handoff ticket verification is back-channel (the relying app's
+      // server presents a 60-second single-use ticket, not a user session).
+      // Minting stays behind the route's own Bearer <redacted>
+      '/oauth/sso-ticket/verify',
+      // Cross-app forgot password: called server-side by other Quant apps.
+      // Non-committal and rate-limited; no session exists to present.
+      '/oauth/forgot-password',
+      // Email verification link clicks: the single-use token IS the credential.
+      // The resend endpoint (/auth/verify-email/request) stays Bearer-gated.
+      '/auth/verify-email',
       // Public booking link availability and booking slots (CAL-03)
       '/calendar/booking',
       '/calendar/booking/*',
@@ -395,6 +407,8 @@ export async function buildApp(config?: AppConfig) {
   await app.register(authRoutes);
   await app.register(twoFactorRoutes);
   await app.register(passwordResetRoutes);
+  await app.register(ssoTicketRoutes);
+  await app.register(emailVerificationRoutes);
   await app.register(settingsTokenRoutes);
   await app.register(oauthRoutes);
   await app.register(quantyMcpRoutes, { prefix: '/api/quanty/mcp' });

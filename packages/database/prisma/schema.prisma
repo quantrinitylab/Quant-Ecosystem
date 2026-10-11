@@ -285,6 +285,48 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
+/// Single-use SSO handoff tickets. Replaces the old `?token=` URL handoff
+/// (which leaked live access tokens into browser history, logs and referers).
+/// A ticket is a random 256-bit value stored only as a digest, bound to one
+/// target origin (aud), 60 seconds to live, and consumable exactly once via
+/// POST /oauth/sso-ticket/verify. It grants no API access by itself — the
+/// relying party must verify it back-channel and then mint its own session.
+model SsoTicket {
+  id        String    @id @default(cuid())
+  userId    String
+  clientId  String
+  /// The exact origin the ticket was minted for (open-redirect safe).
+  audience  String
+  ticketHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sso_tickets")
+}
+
+/// Email verification tokens. Registration no longer hardcodes
+/// `emailVerified: true`; a real verification mail is dispatched via SES and
+/// the link below flips the flag. Single-use, 24h TTL, digest-only storage.
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("email_verification_tokens")
+}
+
 model PersonalAccessToken {
   id         String    @id @default(cuid())
   tokenId    String    @unique

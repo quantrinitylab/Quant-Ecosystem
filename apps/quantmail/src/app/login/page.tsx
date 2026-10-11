@@ -81,24 +81,33 @@ function LoginForm() {
     return returnTo || '/';
   }, [searchParams]);
 
-  const navigateToDestination = useCallback(() => {
+  // Post-login redirect. SECURITY: the live access token NEVER travels in
+  // the URL (no ?token=). For absolute destinations we mint a single-use,
+  // 60-second, audience-bound SSO ticket and hand THAT over as ?sso_ticket=;
+  // the receiving app's server verifies it back-channel and mints its own
+  // session.
+  const navigateToDestination = useCallback(async () => {
     const dest = destination();
     if (dest.startsWith('http://') || dest.startsWith('https://')) {
-      const token = browserAuthSession.getAccessToken();
       try {
         const targetUrl = new URL(dest);
-        if (token) {
-          // Only the SSO ticket aliases travel in the URL. The legacy
-          // `refreshToken` param was a misnomer for the access token and is no
-          // longer sent (nothing ever consumed it).
-          targetUrl.searchParams.set('token', token);
-          targetUrl.searchParams.set('accessToken', token);
-          targetUrl.searchParams.set('__quant_sso_ticket', token);
+        const res = await browserAuthSession.authenticatedFetch('/api/oauth/sso-ticket/mint', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audience: targetUrl.origin, clientId: 'login-return' }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          success?: boolean;
+          data?: { ticket?: string };
+        } | null;
+        const ticket = data?.success ? data?.data?.ticket : undefined;
+        if (ticket) {
+          targetUrl.searchParams.set('sso_ticket', ticket);
         }
         window.location.href = targetUrl.toString();
         return;
       } catch {
-        // fallback
+        // fall through to plain navigation below
       }
     }
     router.push(dest);

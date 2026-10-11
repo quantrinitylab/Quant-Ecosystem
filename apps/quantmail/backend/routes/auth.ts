@@ -109,9 +109,19 @@ export async function authRoutes(fastify: FastifyInstance) {
           displayName: displayName || username,
           passwordHash,
           status: 'ACTIVE',
-          emailVerified: true,
+          // Real verification flow (POST /auth/verify-email/request,
+          // GET /auth/verify-email). Never hardcode true: a verified flag
+          // that was never verified is a lie the identity provider cannot
+          // afford. The mail is dispatched best-effort below and never
+          // blocks the signup response.
+          emailVerified: false,
         },
       });
+
+      // Dispatch the verification mail on its own — a mail failure must not
+      // fail the signup, and the user can resend from Settings.
+      const { issueVerificationEmail } = await import('./email-verification');
+      void issueVerificationEmail(user.id).catch(() => undefined);
 
       // Provision standard mail folders at signup (M10: eliminates per-request upsert overhead)
       if (prisma.emailFolder?.createMany) {

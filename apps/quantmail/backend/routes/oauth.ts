@@ -318,6 +318,74 @@ export async function oauthRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  // POST /oauth/forgot-password — the cross-app forgot-password endpoint.
+  //
+  // Why a second endpoint next to POST /auth/password-reset: that one demands
+  // a trusted browser Origin (it is a cookie-session flow). The other Quant
+  // apps call this one SERVER-SIDE from their own "Forgot password?" screens —
+  // there is no browser Origin to trust and no session cookie to protect, so
+  // the origin check would only 403 legitimate callers. The guarantees that
+  // matter are kept identical: the answer is non-committal (no enumeration),
+  // it is rate-limited (a mail-bomb endpoint otherwise), and it dispatches a
+  // REAL mail through the same SES pipeline. The reset link opens in
+  // QuantMail (/reset-password), the user sets the new password there, and can
+  // then sign in on the requesting app with it.
+  fastify.post(
+    '/oauth/forgot-password',
+    { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } },
+    async (request, reply) => {
+      const body = (request.body ?? {}) as { email?: unknown };
+      const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+
+      const nonCommittal = {
+        success: true,
+        data: {
+          message:
+            'If an account exists with that address, reset instructions have been sent to its QuantMail inbox.',
+        },
+      };
+
+      if (!email) {
+        return reply.code(400).send({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Enter the address on your account.',
+            statusCode: 400,
+          },
+        });
+      }
+
+      const { generateResetToken, hashResetToken, resetTokenExpiry, sendPasswordResetEmail } =
+        await import('../lib/password-reset');
+
+      const user = await prisma.user.findFirst({
+        where: { email: { equals: email, mode: 'insensitive' } },
+      });
+
+      if (user) {
+        await prisma.passwordResetToken.deleteMany({ where: { userId: user.id, usedAt: null } });
+        const token = generateResetToken();
+        await prisma.passwordResetToken.create({
+          data: {
+            userId: user.id,
+            tokenHash: hashResetToken(token),
+            expiresAt: resetTokenExpiry(),
+            requestedIp: typeof request.ip === 'string' ? request.ip : null,
+          },
+        });
+        const { resetUrl } = await import('../lib/password-reset');
+        void sendPasswordResetEmail({
+          to: user.email,
+          url: resetUrl(token),
+          name: user.displayName ?? user.username ?? null,
+        });
+      }
+
+      return reply.send(nonCommittal);
+    },
+  );
+
   // GET /oauth/authorize - Protected + Consent Screen
   fastify.get('/oauth/authorize', { preHandler: requireAuth }, async (request: any, reply) => {
     const query = request.query as any;
@@ -593,6 +661,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
         role: user.role,
         phoneNumber: user.phoneNumber,
         phoneVerified: Boolean(user.phoneVerified),
+        emailVerified: Boolean(user.emailVerified),
       },
     });
   });
