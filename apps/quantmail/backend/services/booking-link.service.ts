@@ -16,6 +16,10 @@ export interface BookingLink {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+  // Public host identity, resolved from the owning user record.
+  // Null = the backend could not resolve the link owner (honest "unknown host").
+  hostName: string | null;
+  hostEmail: string | null;
 }
 export interface BookingSlot {
   start: Date;
@@ -48,6 +52,9 @@ export interface SlotLock {
 export interface BookingConfirmationResult {
   event: unknown;
   icsContent: string;
+  // Real host identity of the booking-link owner (null when unresolvable).
+  hostName: string | null;
+  hostEmail: string | null;
 }
 export interface PrismaClient {
   bookingLink: {
@@ -99,6 +106,12 @@ export function generateIcsInvite(options: {
   const cleanDescription = (options.description || '').replace(/\r?\n/g, '\\n');
   const orgName = (options.organizer.name || 'Host').replace(/[:;]/g, '');
   const attName = (options.attendee.name || 'Attendee').replace(/[:;]/g, '');
+  // Honest identity: never fabricate an organizer address. When the host
+  // email is unknown, the ORGANIZER line is omitted entirely instead of
+  // inventing one.
+  const organizerLine = options.organizer.email
+    ? `ORGANIZER;CN=${orgName}:mailto:${options.organizer.email}`
+    : null;
 
   return [
     'BEGIN:VCALENDAR',
@@ -113,7 +126,7 @@ export function generateIcsInvite(options: {
     `DTEND:${dtEnd}`,
     `SUMMARY:${cleanSummary}`,
     `DESCRIPTION:${cleanDescription}`,
-    `ORGANIZER;CN=${orgName}:mailto:${options.organizer.email}`,
+    ...(organizerLine ? [organizerLine] : []),
     `ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=${attName}:mailto:${options.attendee.email}`,
     `STATUS:${status}`,
     'END:VEVENT',
@@ -179,6 +192,28 @@ export class BookingLinkService {
     globalSlotLockStore.clear();
   }
 
+  /**
+   * Resolve the booking-link owner's real identity from the user record.
+   * Returns null when the owner cannot be resolved — callers must then use
+   * an honest "unknown host" placeholder and never fabricate a name/email.
+   */
+  private async resolveHost(userId: string): Promise<{ hostName: string; hostEmail: string } | null> {
+    if (!this.prisma.user?.findUnique) return null;
+    try {
+      const user = (await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true, displayName: true },
+      })) as { email?: string; displayName?: string } | null;
+      if (!user?.email) return null;
+      return {
+        hostName: user.displayName || user.email,
+        hostEmail: user.email,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   async createBookingLink(input: CreateBookingLinkInput): Promise<BookingLink> {
     const now = new Date();
     const link = await this.prisma.bookingLink.create({
@@ -202,7 +237,15 @@ export class BookingLinkService {
   async getBookingLink(slug: string): Promise<BookingLink> {
     const link = await this.prisma.bookingLink.findUnique({ where: { slug } });
     if (!link) throw createAppError('Booking link not found', 404, 'BOOKING_LINK_NOT_FOUND');
-    return this.toBookingLink(link);
+    const base = this.toBookingLink(link);
+    // Public endpoint: attach the real host identity from the owning user
+    // record (or nulls → the client renders an honest "unknown host").
+    const host = await this.resolveHost(base.userId);
+    return {
+      ...base,
+      hostName: host?.hostName ?? null,
+      hostEmail: host?.hostEmail ?? null,
+    };
   }
 
   async deleteBookingLink(id: string, userId: string): Promise<void> {
@@ -460,19 +503,12 @@ export class BookingLinkService {
       globalSlotLockStore.removeLock(lockId);
     }
 
-    let hostEmail = `${link.userId}@quantmail.io`;
-    let hostName = link.title;
-    if (this.prisma.user?.findUnique) {
-      try {
-        const user = (await this.prisma.user.findUnique({
-          where: { id: link.userId },
-          select: { email: true, displayName: true },
-        })) as { email?: string; displayName?: string } | null;
-        if (user?.email) hostEmail = user.email;
-        if (user?.displayName) hostName = user.displayName;
-      } catch {
-        // fallback
-      }
+    let hostEmail = '';
+    let hostName = 'Unknown host';
+    const resolvedHost = await this.resolveHost(link.userId);
+    if (resolvedHost) {
+      hostEmail = resolvedHost.hostEmail;
+      hostName = resolvedHost.hostName;
     }
 
     const eventRecord = createdEvent as Record<string, unknown>;
@@ -493,6 +529,8 @@ export class BookingLinkService {
     return {
       event: createdEvent,
       icsContent,
+      hostName: resolvedHost?.hostName ?? null,
+      hostEmail: resolvedHost?.hostEmail ?? null,
     };
   }
 
@@ -551,6 +589,10 @@ export class BookingLinkService {
       isActive: (record['isActive'] as boolean) ?? true,
       createdAt: new Date(record['createdAt'] as string | Date),
       updatedAt: new Date(record['updatedAt'] as string | Date),
+      // Identity is resolved asynchronously per-caller (see getBookingLink /
+      // confirmBooking); raw records carry no host info.
+      hostName: null,
+      hostEmail: null,
     };
   }
 }

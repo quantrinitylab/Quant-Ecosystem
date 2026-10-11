@@ -29,13 +29,16 @@ export function generateGoogleCalendarUrl(event: {
 }
 
 // Generate RFC 5545 compliant .ics content
+// hostName/hostEmail are the REAL host identity from the backend booking-link
+// record. When unknown, pass '' — the ORGANIZER line is omitted rather than
+// fabricating a person.
 export function generateIcsContent(event: {
   title: string;
   description?: string;
   startTime: Date;
   endTime: Date;
-  hostName: string;
-  hostEmail: string;
+  hostName?: string;
+  hostEmail?: string;
   attendeeName: string;
   attendeeEmail: string;
   uid?: string;
@@ -52,6 +55,12 @@ export function generateIcsContent(event: {
   const uid =
     event.uid || `quant-${Date.now()}-${Math.random().toString(36).slice(2, 9)}@quantmail.in`;
 
+  // Honest identity: never attribute the meeting to a made-up person.
+  // ORGANIZER is emitted only when a real host email is known.
+  const organizerLine = event.hostEmail
+    ? `ORGANIZER;CN=${event.hostName || 'Host'}:mailto:${event.hostEmail}`
+    : null;
+
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -66,7 +75,7 @@ export function generateIcsContent(event: {
     `SUMMARY:${event.title.replace(/\n/g, ' ')}`,
     `DESCRIPTION:${(event.description || '').replace(/\n/g, '\\n')}`,
     'STATUS:CONFIRMED',
-    `ORGANIZER;CN=${event.hostName}:mailto:${event.hostEmail}`,
+    ...(organizerLine ? [organizerLine] : []),
     `ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=${event.attendeeName}:mailto:${event.attendeeEmail}`,
     'END:VEVENT',
     'END:VCALENDAR',

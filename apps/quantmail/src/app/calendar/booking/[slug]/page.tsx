@@ -45,9 +45,36 @@ export interface BookingLinkDetails {
   startHour: number;
   endHour: number;
   availableDays: number[];
+  // Real host identity from the backend booking-link record.
+  // Empty string = unknown host (rendered honestly as "unknown host").
   hostName: string;
   hostEmail: string;
   hostAvatar?: string;
+}
+
+/**
+ * Merge a backend booking-link response into local meeting details.
+ * Host identity comes ONLY from the backend record — when the backend
+ * omits it, the result stays an honest "unknown" (''), never a hardcoded
+ * name. Pure function so the merge rule is unit-testable.
+ */
+export function applyBookingLinkResponse(
+  prev: BookingLinkDetails,
+  data: Record<string, any> | null | undefined,
+): BookingLinkDetails {
+  if (!data) return prev;
+  return {
+    ...prev,
+    slug: data.slug || prev.slug,
+    title: data.title || prev.title,
+    description: data.description || prev.description,
+    duration: data.duration || prev.duration,
+    startHour: data.startHour ?? prev.startHour,
+    endHour: data.endHour ?? prev.endHour,
+    availableDays: data.availableDays || prev.availableDays,
+    hostName: data.hostName || '',
+    hostEmail: data.hostEmail || '',
+  };
 }
 
 const MONTH_NAMES = [
@@ -83,7 +110,10 @@ export default function PublicBookingPage(props: PageProps) {
     });
   }, [props?.params]);
 
-  // Host & Meeting Information
+  // Host & Meeting Information.
+  // NOTE: host identity is deliberately NOT seeded here. The real host name
+  // and email come from the backend booking-link record; until that fetch
+  // resolves the UI shows an honest "unknown host" — never a hardcoded name.
   const [meetingDetails, setMeetingDetails] = useState<BookingLinkDetails>({
     slug: resolvedSlug,
     title: '30 Min Strategy Session',
@@ -93,8 +123,8 @@ export default function PublicBookingPage(props: PageProps) {
     startHour: 9,
     endHour: 17,
     availableDays: [1, 2, 3, 4, 5],
-    hostName: 'Kundan Singh',
-    hostEmail: 'kundan@quantmail.in',
+    hostName: '',
+    hostEmail: '',
   });
 
   // Flow State: Step 1 (Date & Slot) -> Step 2 (Visitor Form) -> Step 3 (Confirmation)
@@ -154,16 +184,7 @@ export default function PublicBookingPage(props: PageProps) {
         if (res.ok) {
           const json = await res.json();
           if (json.success && json.data && isMounted) {
-            setMeetingDetails((prev) => ({
-              ...prev,
-              slug: json.data.slug || resolvedSlug,
-              title: json.data.title || prev.title,
-              description: json.data.description || prev.description,
-              duration: json.data.duration || prev.duration,
-              startHour: json.data.startHour ?? prev.startHour,
-              endHour: json.data.endHour ?? prev.endHour,
-              availableDays: json.data.availableDays || prev.availableDays,
-            }));
+            setMeetingDetails((prev) => applyBookingLinkResponse(prev, json.data));
           }
         }
       } catch {
@@ -382,6 +403,10 @@ export default function PublicBookingPage(props: PageProps) {
     };
 
     let icsResult: string | undefined;
+    // Real host identity, when the booking endpoint returns it. Otherwise
+    // derived from the fetched booking-link record (honest unknown if absent).
+    let serverHostName: string | undefined;
+    let serverHostEmail: string | undefined;
 
     try {
       const res = await apiFetchRaw(`/api/calendar/booking/${resolvedSlug}/book`, {
@@ -392,15 +417,28 @@ export default function PublicBookingPage(props: PageProps) {
 
       if (res.ok) {
         const json = await res.json();
-        if (json?.data?.icsData) {
-          icsResult = json.data.icsData;
+        // The backend returns { event, icsContent, hostName, hostEmail } —
+        // icsContent is generated server-side with the REAL organizer and
+        // must be preferred over any client-side fallback.
+        const data = json?.data;
+        if (data?.icsContent) {
+          icsResult = data.icsContent;
+        } else if (data?.icsData) {
+          // Legacy tolerance for older backends.
+          icsResult = data.icsData;
         }
+        if (data?.hostName) serverHostName = data.hostName;
+        if (data?.hostEmail) serverHostEmail = data.hostEmail;
       }
     } catch {
       // Gracefully continue to local confirmation & standard RFC 5545 generator
     }
 
-    // Generate RFC 5545 ICS client-side fallback if not returned by server
+    const hostName = serverHostName || meetingDetails.hostName || '';
+    const hostEmail = serverHostEmail || meetingDetails.hostEmail || '';
+
+    // Generate RFC 5545 ICS client-side fallback if not returned by server.
+    // With an unknown host the ORGANIZER line is omitted rather than faked.
     const finalIcs =
       icsResult ||
       generateIcsContent({
@@ -408,8 +446,8 @@ export default function PublicBookingPage(props: PageProps) {
         description: bookerNotes || meetingDetails.description,
         startTime: selectedSlot.start,
         endTime: selectedSlot.end,
-        hostName: meetingDetails.hostName,
-        hostEmail: meetingDetails.hostEmail,
+        hostName,
+        hostEmail,
         attendeeName: bookerName.trim(),
         attendeeEmail: bookerEmail.trim(),
       });
@@ -418,8 +456,8 @@ export default function PublicBookingPage(props: PageProps) {
       title: meetingDetails.title,
       startTime: selectedSlot.start,
       endTime: selectedSlot.end,
-      hostName: meetingDetails.hostName,
-      hostEmail: meetingDetails.hostEmail,
+      hostName,
+      hostEmail,
       bookerName: bookerName.trim(),
       bookerEmail: bookerEmail.trim(),
       bookerNotes: bookerNotes.trim(),
@@ -509,7 +547,7 @@ export default function PublicBookingPage(props: PageProps) {
               <div className="flex items-center gap-3.5">
                 <div className="size-14 rounded-2xl bg-gradient-to-tr from-[#1E222B] to-[#2B303C] border-2 border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)] p-0.5 flex items-center justify-center shadow-lg shadow-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] relative group">
                   <div className="size-full rounded-[14px] bg-[var(--quant-surface-elevated)] flex items-center justify-center text-lg font-black text-[var(--app-accent)]">
-                    {meetingDetails.hostName.charAt(0)}
+                    {(meetingDetails.hostName || '?').charAt(0)}
                   </div>
                   <span className="absolute -bottom-1 -right-1 size-3.5 rounded-full bg-emerald-500 border-2 border-[var(--quant-surface-subtle)]" />
                 </div>
@@ -518,8 +556,12 @@ export default function PublicBookingPage(props: PageProps) {
                   <h3 className="font-semibold text-xs uppercase tracking-wider text-[var(--quant-muted-foreground)]">
                     Host
                   </h3>
-                  <h2 className="font-bold text-base text-white">{meetingDetails.hostName}</h2>
-                  <p className="text-xs text-[#717684] truncate">{meetingDetails.hostEmail}</p>
+                  <h2 className="font-bold text-base text-white">
+                    {meetingDetails.hostName || 'Unknown host'}
+                  </h2>
+                  {meetingDetails.hostEmail && (
+                    <p className="text-xs text-[#717684] truncate">{meetingDetails.hostEmail}</p>
+                  )}
                 </div>
               </div>
 
@@ -898,7 +940,8 @@ export default function PublicBookingPage(props: PageProps) {
                     <div className="flex items-center gap-2 pt-1">
                       <IconUsers size={14} />
                       <span>
-                        Host: {confirmedBooking.hostName} ({confirmedBooking.hostEmail})
+                        Host: {confirmedBooking.hostName || 'Unknown host'}
+                        {confirmedBooking.hostEmail ? ` (${confirmedBooking.hostEmail})` : ''}
                       </span>
                     </div>
 
