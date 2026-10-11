@@ -14,7 +14,7 @@
 // Pure functions — no DOM/React — so they are unit-testable.
 // ============================================================================
 
-export { scrubSsoParamsFromUrl, SSO_HANDOFF_PARAM_NAMES } from '@quant/shared-ui';
+export { scrubSsoParamsFromUrl, SSO_HANDOFF_PARAM_NAMES } from '@quant/shared-ui/src/interconnection/sso-oauth';
 
 /** The Contract B ticket param QuantMail's /sso chooser appends. */
 export const SSO_TICKET_PARAM = 'sso_ticket';
