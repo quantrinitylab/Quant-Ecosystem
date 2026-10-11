@@ -580,6 +580,24 @@ Live evidence: /tmp/lane1-audit/desktop-calendar.png + mobile-calendar.png (both
 Required: timezone/DST, recurrence, reminders, attendee state, drag/drop where supported, mail relation, Drive artifacts, cross-app event creation, offline edits and conflict resolution, mobile gesture behavior.
 Dependencies: QM-WORK-007.
 
+Lane-1 R2 REGRESSION (2026-10-11 ~18:40 IST, lane-1 deep audit loop): re-audit of calendar home/agenda/day/week/month on origin/main since R1 audit (~02:10 IST). Claim [~]→[x] this run (single surgical commit, owner LANE-1).
+VERIFIED CLOSED (R1 fixes now in main + in live deploy ea8695dd, success 2026-10-11 17:57 IST):
+- P1 agenda infinite-scroll: PR #820 MERGED 2026-10-10T20:36Z; agendaEventWindow wired into the useCalendarEvents query key (page.tsx:306), 364d clamp; 7/7 agenda-window tests pass on main.
+- P2 create-sheet timezone: PR #819 MERGED; openDedicatedSheet uses activeTimezone (page.tsx ~764), createInitialFormState takes timezone param.
+- P2 edit-sheet timezone: PR #819 MERGED; openEditSheet sets ev.timezone || ev.timeZone || prev.timezone (page.tsx:838).
+- P2 type misclassification: PR #819 MERGED; fallback inference block removed from calendar-geometry.ts (no toLowerCase().includes heuristics remain).
+- P3 dead recurrence: PR #819 MERGED; 9 dead exports deleted; fromRRule retained (app/calendar/lib/recurrence.ts:21).
+New on main since R1 (fake-purge wave, verified no regression):
+- #877 (merged 2026-10-11): CalendarRemindersView / CalendarQuantMeetView / CalendarBookingView deleted; BookingLinksModal purged of seeded sample links + hardcoded host identity (takes real userEmail, honest empty state, seeded-fake migration guard).
+- #883: seeded fake reminders purged from CalendarScheduleSubView; honest "No reminders yet" empty state (components/CalendarSubViews.tsx:2048).
+- #891: public booking page shows honest errors instead of fake "Booking Confirmed!".
+- calendar search ReDoS fix (cf883e24, linear stripCalendarMeta).
+Tests on main: calendar-agenda-window 7/7, calendar-week-view 18/18, calendar-subviews 9/9 pass.
+LIVE: /calendar → sign-in on desktop+mobile (clean render, screenshots /tmp/lane1-r2/desktop-calendar-r2.png + mobile-calendar-r2.png); /api/calendar/events → 401 logged out (auth airtight). Signed-in flows still needs-auth. origin/main 15 commits ahead of live deploy (orchestrator deploys next).
+Still open (unchanged since R1): P3 offline edits/conflict resolution (BLOCKERS.md #10), P3 divider density (BLOCKERS.md #9), P3 `as never` casts (page.tsx:1027-1028, event/[id]/page.tsx:176), detached infinite-scroll dead code (BLOCKERS.md #8).
+New findings: 0 (0 P0 / 0 P1) → no fix agents dispatched.
+VERDICT: R2 regression CLEAN. Status: [x] DONE (R2 regression complete 2026-10-11 ~18:50 IST).
+
 ## QM-SCREEN-009 — Calendar event create / edit / detail / RSVP
 Status: [x] DONE (audit complete 2026-10-11 ~03:00 IST; fixes tracked via their PRs)
 Owner: LANE-1
