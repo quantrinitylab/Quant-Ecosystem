@@ -30,7 +30,51 @@ const confirmSchema = z.object({
   editedParams: z.record(z.unknown()).optional(),
 });
 
+const confirmParamsSchema = z.object({
+  // Improvement: validate the plan id up front so a malformed id yields a
+  // clear 400 instead of a cryptic gateway-store error downstream. The
+  // character allow-list keeps held-plan lookups injection-safe.
+  planId: z
+    .string()
+    .min(1)
+    .max(128)
+    .regex(/^[A-Za-z0-9_-]+$/, 'Plan id must be alphanumeric'),
+});
+
+/**
+ * F-119 improvement — boot-time self-check for the agentic routes plugin.
+ * Every POST route registered after this hook is an agent-executing mutation
+ * and must declare an auth preHandler (the `agents:execute` scope gate),
+ * unless it opts out explicitly with `config: { scopeGateExempt: true }`
+ * (e.g. a future read-only POST). An un-gated route throws during
+ * registration, so the scope hole fails loudly at startup instead of
+ * shipping silently. Read-only GET routes are exempt by design.
+ */
+export function enforceAgenticScopeGates(fastify: FastifyInstance): void {
+  fastify.addHook('onRoute', (routeOptions) => {
+    const methods = Array.isArray(routeOptions.method)
+      ? routeOptions.method
+      : [routeOptions.method];
+    if (!methods.includes('POST' as never)) return;
+    const exempt =
+      (routeOptions.config as { scopeGateExempt?: boolean } | undefined)
+        ?.scopeGateExempt === true;
+    const preHandlers = routeOptions.preHandler;
+    const hasGate = Array.isArray(preHandlers) ? preHandlers.length > 0 : preHandlers != null;
+    if (!exempt && !hasGate) {
+      throw new Error(
+        `[agentic] route POST ${routeOptions.path} is missing an auth scope preHandler — ` +
+          `declare fastify.requireAuth({ scopes: ['agents:execute'] }) or opt out with config.scopeGateExempt`,
+      );
+    }
+  });
+}
+
 export default async function agenticRoutes(fastify: FastifyInstance) {
+
+  // F-119: install the scope-gate self-check before any route registers.
+  enforceAgenticScopeGates(fastify);
+
   const workflowEngine = new WorkflowEngine(orchestrator);
 
   // ------------------------------------------------------------------
@@ -48,7 +92,7 @@ export default async function agenticRoutes(fastify: FastifyInstance) {
   };
 
   // Run a specific agent
-  fastify.post('/agents/run', async (request, reply) => {
+  fastify.post('/agents/run', agentExecuteAuth, async (request, reply) => {
     const parseResult = runAgentSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw parseResult.error;
@@ -74,7 +118,7 @@ export default async function agenticRoutes(fastify: FastifyInstance) {
   });
 
   // Create and execute a workflow
-  fastify.post('/workflows', async (request, reply) => {
+  fastify.post('/workflows', agentExecuteAuth, async (request, reply) => {
     const parseResult = workflowSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw parseResult.error;
@@ -266,6 +310,12 @@ export default async function agenticRoutes(fastify: FastifyInstance) {
   fastify.post<{ Params: { planId: string } }>('/confirm/:planId', agentExecuteAuth, async (request, reply) => {
     const userId = requireUserId(request);
     const jwt = getUserJwt(request);
+    // F-119: validate the plan id up front — malformed id yields a clear 400
+    // instead of a cryptic gateway-store error downstream.
+    const parsedParams = confirmParamsSchema.safeParse(request.params);
+    if (!parsedParams.success) {
+      throw createAppError('Invalid plan id', 400, 'VALIDATION_ERROR');
+    }
     const parsed = confirmSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
 
