@@ -15,6 +15,7 @@ const ENV_KEYS = [
   'JWT_SECRET',
   'QUANT_IDENTITY_URL',
   'QUANTMAIL_BACKEND_URL',
+  'QUANT_SSO_RESOLVE_TIMEOUT_MS',
 ] as const;
 
 const savedEnv: Record<string, string | undefined> = {};
@@ -34,6 +35,39 @@ function mockResolve(status: number, body: unknown) {
       headers: { 'content-type': 'application/json' },
     }),
   );
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
+/**
+ * The identity sends response headers promptly but then stalls mid-body —
+ * the body stream never delivers a byte. Honours the abort signal so the
+ * resolve deadline can fire while the body is being read.
+ */
+function mockStalledBody() {
+  const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+    const signal = init?.signal as AbortSignal | undefined;
+    return new Response(
+      new ReadableStream({
+        start() {
+          // Intentionally never enqueue: the stream stays open until abort.
+          if (signal) {
+            return new Promise<void>((_resolve, reject) => {
+              if (signal.aborted) {
+                reject(signal.reason);
+                return;
+              }
+              signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+            });
+          }
+          return new Promise<void>(() => {
+            /* hang forever without a signal */
+          });
+        },
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+  });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 }
@@ -222,6 +256,58 @@ describe('POST /auth/sso/ticket', () => {
     expect((res.json() as { error: { code: string } }).error.code).toBe('SSO_IDENTITY_UNAVAILABLE');
   });
 
+  it('fails 502 with start-again copy when the identity stalls mid-body (deadline covers the body)', async () => {
+    // CODEX-REVIEW: the resolve deadline must cover body parsing, not just
+    // the header round-trip. Headers arrive, the body never does.
+    process.env['QUANT_SSO_RESOLVE_TIMEOUT_MS'] = '150';
+    const fetchMock = mockStalledBody();
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/sso/ticket',
+      payload: { ticket: 'opaque-ticket-abc' },
+    });
+    expect(res.statusCode).toBe(502);
+    const body = res.json() as { error: { code: string; message: string } };
+    expect(body.error.code).toBe('SSO_IDENTITY_UNAVAILABLE');
+    // The ticket may already be consumed server-side, so the user is told
+    // to start again — never to blindly retry the same ticket.
+    expect(body.error.message).toMatch(/start again/);
+    // Exactly one resolve attempt: no blind retry of a possibly-consumed ticket.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails 502 with start-again copy when the resolve call itself times out', async () => {
+    process.env['QUANT_SSO_RESOLVE_TIMEOUT_MS'] = '150';
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      const signal = init?.signal as AbortSignal | undefined;
+      await new Promise<void>((_resolve, reject) => {
+        if (!signal) {
+          setTimeout(() => reject(new Error('no signal')), 10_000);
+          return;
+        }
+        if (signal.aborted) {
+          reject(signal.reason);
+          return;
+        }
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+      });
+      throw new Error('unreachable');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/sso/ticket',
+      payload: { ticket: 'opaque-ticket-abc' },
+    });
+    expect(res.statusCode).toBe(502);
+    const body = res.json() as { error: { code: string; message: string } };
+    expect(body.error.code).toBe('SSO_IDENTITY_UNAVAILABLE');
+    expect(body.error.message).toMatch(/start again/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('refuses to mint a session when the identity has no email (F-023 precedent)', async () => {
     mockResolve(200, { user: { id: 'user-123', email: '' }, clientId: 'quantai' });
     const app = await buildApp();
@@ -261,6 +347,29 @@ describe('POST /auth/sso/ticket', () => {
 describe('sso-session token primitives', () => {
   const secret = 'unit-test-secret';
 
+  /** Hand-sign a token with fully controlled claims (issuer/audience/expiry proof). */
+  function handSign(claims: Record<string, unknown>): string {
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify(claims)).toString('base64url');
+    const sig = createHmac('sha256', secret).update(`${header}.${payload}`).digest('base64url');
+    return `${header}.${payload}.${sig}`;
+  }
+
+  function validClaims(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    const now = Math.floor(Date.now() / 1000);
+    return {
+      tokenType: 'quantai-sso-session',
+      sub: 'u1',
+      email: 'a@b.c',
+      iss: 'quantai',
+      aud: 'quant-ecosystem',
+      iat: now,
+      exp: now + 3600,
+      jti: 'test-jti',
+      ...overrides,
+    };
+  }
+
   it('mint/verify round-trips and carries the SSO identity', () => {
     const token = mintSsoSessionToken(
       { userId: 'u1', email: 'a@b.c', username: 'u', displayName: 'U' },
@@ -285,21 +394,29 @@ describe('sso-session token primitives', () => {
 
   it('rejects tokens not typed as quantai-sso-session (type-confusion guard)', () => {
     // A hand-built JWT with a different tokenType must not verify.
-    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-    const payload = Buffer.from(
-      JSON.stringify({
-        tokenType: 'access',
-        sub: 'u1',
-        email: 'a@b.c',
-        iss: 'quantai',
-        aud: 'quant-ecosystem',
-        iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        jti: 'x',
-      }),
-    ).toString('base64url');
-    const sig = createHmac('sha256', secret).update(`${header}.${payload}`).digest('base64url');
-    expect(verifySsoSessionToken(`${header}.${payload}.${sig}`, secret)).toBeNull();
+    expect(verifySsoSessionToken(handSign(validClaims({ tokenType: 'access' })), secret)).toBeNull();
+  });
+
+  it('rejects tokens with the wrong issuer (issuer pinning proof)', () => {
+    // iss must be exactly 'quantai' — e.g. a QuantMail-issued token with the
+    // same shape must never verify as a QuantAI SSO session.
+    expect(verifySsoSessionToken(handSign(validClaims({ iss: 'quantmail' })), secret)).toBeNull();
+    expect(
+      verifySsoSessionToken(handSign(validClaims({ iss: 'https://quantrinity.in' })), secret),
+    ).toBeNull();
+  });
+
+  it('rejects tokens with the wrong audience', () => {
+    expect(
+      verifySsoSessionToken(handSign(validClaims({ aud: 'some-other-app' })), secret),
+    ).toBeNull();
+  });
+
+  it('rejects expired tokens', () => {
+    const now = Math.floor(Date.now() / 1000);
+    expect(
+      verifySsoSessionToken(handSign(validClaims({ iat: now - 7200, exp: now - 3600 })), secret),
+    ).toBeNull();
   });
 
   it('rejects malformed and empty tokens without throwing', () => {

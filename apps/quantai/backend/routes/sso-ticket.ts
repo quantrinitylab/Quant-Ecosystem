@@ -35,6 +35,16 @@ import { mintSsoSessionToken } from '../services/sso-session';
 const RESOLVE_TIMEOUT_MS = 10_000;
 const MAX_TICKET_LENGTH = 4096;
 
+/**
+ * Resolve deadline (ms) for the identity server-to-server call. Overridable
+ * via env so tests can exercise the timeout path without waiting 10s.
+ */
+function resolveTimeoutMs(): number {
+  const raw = process.env['QUANT_SSO_RESOLVE_TIMEOUT_MS'];
+  const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : RESOLVE_TIMEOUT_MS;
+}
+
 function identityBaseUrl(): string {
   return (
     process.env['QUANT_IDENTITY_URL'] ??
@@ -128,10 +138,18 @@ export default async function ssoTicketRoutes(fastify: FastifyInstance): Promise
     // Server-to-server ticket resolution. Credentials travel in the Basic
     // Authorization header (preferred) and the JSON body (the identity route
     // accepts either); the ticket itself never appears in a URL.
+    //
+    // ONE deadline covers the whole resolve call — headers AND body. The
+    // timer is cleared only after the body is fully parsed: if the identity
+    // sends headers but then stalls mid-body, we still fail closed at the
+    // deadline instead of hanging the route. The ticket may already be
+    // consumed server-side when the deadline trips, so we NEVER retry it —
+    // the user is told to start again from the chooser.
     let resolveRes: Response;
+    let resolveBody: TicketResolveResponse | null;
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), RESOLVE_TIMEOUT_MS);
+      const timer = setTimeout(() => controller.abort(), resolveTimeoutMs());
       try {
         resolveRes = await fetch(`${identityBaseUrl()}/sso/ticket/resolve`, {
           method: 'POST',
@@ -143,21 +161,32 @@ export default async function ssoTicketRoutes(fastify: FastifyInstance): Promise
           body: JSON.stringify({ ticket, client_id: clientId, client_secret: clientSecret }),
           signal: controller.signal,
         });
+        try {
+          resolveBody = (await resolveRes.json()) as TicketResolveResponse | null;
+        } catch (jsonErr) {
+          // A stalled body trips the same deadline: the abort rejects the
+          // body read, so rethrow and let the outer handler fail 502.
+          if (jsonErr instanceof Error && jsonErr.name === 'AbortError') throw jsonErr;
+          // Empty or non-JSON body — not a usable identity response.
+          resolveBody = null;
+        }
       } finally {
         clearTimeout(timer);
       }
     } catch (err) {
-      const reason = err instanceof Error && err.name === 'AbortError' ? 'timed out' : 'unreachable';
-      request.log.warn(`POST /auth/sso/ticket: identity resolve ${reason}`);
+      const isTimeout = err instanceof Error && err.name === 'AbortError';
+      request.log.warn(
+        `POST /auth/sso/ticket: identity resolve ${isTimeout ? 'timed out' : 'unreachable'}`,
+      );
       return fail(
         reply,
         502,
         'SSO_IDENTITY_UNAVAILABLE',
-        'The QuantMail sign-in service is temporarily unreachable. Please try again shortly.',
+        isTimeout
+          ? 'The sign-in service took too long to respond. Your ticket may already have been used — please start again from "Continue with Quant Account".'
+          : 'The QuantMail sign-in service is temporarily unreachable. Please try again shortly.',
       );
     }
-
-    const resolveBody = (await resolveRes.json().catch(() => null)) as TicketResolveResponse | null;
 
     if (!resolveRes.ok || !resolveBody) {
       const status = resolveRes.status;

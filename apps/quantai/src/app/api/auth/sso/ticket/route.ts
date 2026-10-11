@@ -18,6 +18,16 @@ export const runtime = 'nodejs';
 
 const RESOLVE_TIMEOUT_MS = 15_000;
 
+/**
+ * Resolve deadline (ms) for the call to our own backend. Overridable via env
+ * so tests can exercise the timeout path quickly.
+ */
+function resolveTimeoutMs(): number {
+  const raw = process.env['QUANT_SSO_WEB_RESOLVE_TIMEOUT_MS'];
+  const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : RESOLVE_TIMEOUT_MS;
+}
+
 const errorResponse = (statusCode: number, code: string, message: string) =>
   NextResponse.json(
     { success: false, error: { code, message, statusCode } },
@@ -31,10 +41,18 @@ export async function POST(request: NextRequest) {
     return errorResponse(400, 'SSO_TICKET_MISSING', 'A sign-in ticket is required.');
   }
 
+  // ONE deadline covers headers AND body: the timer is cleared only after
+  // the backend's response body is fully parsed, so a stalled body fails
+  // closed at the deadline instead of hanging the route.
   let backendRes: Response;
+  let json: {
+    success?: boolean;
+    data?: { user?: unknown; sessionToken?: unknown };
+    error?: { code?: string; message?: string; statusCode?: number };
+  } | null;
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), RESOLVE_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), resolveTimeoutMs());
     try {
       backendRes = await fetch(`${QUANTAI_BACKEND_URL}/auth/sso/ticket`, {
         method: 'POST',
@@ -43,6 +61,12 @@ export async function POST(request: NextRequest) {
         signal: controller.signal,
         cache: 'no-store',
       });
+      try {
+        json = (await backendRes.json()) as typeof json;
+      } catch (jsonErr) {
+        if (jsonErr instanceof Error && jsonErr.name === 'AbortError') throw jsonErr;
+        json = null;
+      }
     } finally {
       clearTimeout(timer);
     }
@@ -53,12 +77,6 @@ export async function POST(request: NextRequest) {
       'The QuantMail sign-in service is temporarily unreachable. Please try again shortly.',
     );
   }
-
-  const json = (await backendRes.json().catch(() => null)) as {
-    success?: boolean;
-    data?: { user?: unknown; sessionToken?: unknown };
-    error?: { code?: string; message?: string; statusCode?: number };
-  } | null;
 
   if (!backendRes.ok || !json?.success) {
     const err = json?.error;

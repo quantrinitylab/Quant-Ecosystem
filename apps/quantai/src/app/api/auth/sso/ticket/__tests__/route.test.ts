@@ -106,4 +106,42 @@ describe('POST /api/auth/sso/ticket (Next.js)', () => {
     const json = (await res.json()) as { error: { code: string } };
     expect(json.error.code).toBe('SSO_IDENTITY_UNAVAILABLE');
   });
+
+  it('fails 502 when the backend stalls mid-body (deadline covers the body)', async () => {
+    // The resolve deadline covers body parsing: headers arrive, the body
+    // never does, and the route must fail closed instead of hanging.
+    const prev = process.env['QUANT_SSO_WEB_RESOLVE_TIMEOUT_MS'];
+    process.env['QUANT_SSO_WEB_RESOLVE_TIMEOUT_MS'] = '150';
+    try {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (_url: string, init?: RequestInit) => {
+          const signal = init?.signal as AbortSignal | undefined;
+          return new Response(
+            new ReadableStream({
+              start() {
+                return new Promise<void>((_resolve, reject) => {
+                  if (!signal) return;
+                  if (signal.aborted) {
+                    reject(signal.reason);
+                    return;
+                  }
+                  signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+                });
+              },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          );
+        }),
+      );
+      const res = await POST(postTicket({ ticket: 'tick-1' }));
+      expect(res.status).toBe(502);
+      const json = (await res.json()) as { error: { code: string } };
+      expect(json.error.code).toBe('SSO_IDENTITY_UNAVAILABLE');
+      expect(res.headers.get('set-cookie')).toBeNull();
+    } finally {
+      if (prev === undefined) delete process.env['QUANT_SSO_WEB_RESOLVE_TIMEOUT_MS'];
+      else process.env['QUANT_SSO_WEB_RESOLVE_TIMEOUT_MS'] = prev;
+    }
+  });
 });
