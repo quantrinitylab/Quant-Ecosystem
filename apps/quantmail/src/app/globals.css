@@ -3231,6 +3231,33 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Popover variant: the same panel as a fixed-size card a composer anchors above
+   its toolbar (portaled to body, so no positioned ancestor is required).
+   Pure black, Mail-orange accent — matches the composer chrome. */
+.templates-panel--popover {
+  position: static;
+  width: 320px;
+  max-width: min(90vw, 340px);
+  height: 400px;
+  max-height: 62vh;
+  border: 1px solid var(--quant-surface-elevated);
+  border-radius: 1rem;
+  overflow: hidden;
+}
+/* The real backend shortcut (:name) a template can be recalled by. */
+.template-shortcut {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: var(--q-type-xs); /* 10px floor (QM-UIUX-005) — smallest allowed type */
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--quant-primary);
+  background: rgba(255, 140, 66, 0.1);
+  border: 1px solid rgba(255, 140, 66, 0.25);
+  border-radius: 0.35rem;
+  padding: 0.1rem 0.35rem;
+  white-space: nowrap;
+}
 
 /* ========================================================================== */
 /* GitHub-killer: AI Code Review Panel                                        */

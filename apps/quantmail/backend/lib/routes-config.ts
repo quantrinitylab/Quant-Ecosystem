@@ -28,6 +28,16 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^email-signatures$/, methods: ['GET', 'POST'] },
   { pattern: /^email-signatures\/default$/, methods: ['GET'] },
   { pattern: /^email-signatures\/[^/]+$/, methods: ['PUT', 'DELETE'] },
+  // Email templates (fix/qm-templates-unreachable). The backend CRUD lives at
+  // backend/routes/email-templates.ts (registered under /email-templates in
+  // app.ts) and the EmailTemplates picker calls it via this proxy — without
+  // these rows the picker got a 404 from the proxy on every request.
+  // ORDER MATTERS: the static `render` segment comes before the generic :id
+  // row so `email-templates/:id/render` does not fall through to a GET/PUT/
+  // DELETE match and 405 on its POST.
+  { pattern: /^email-templates$/, methods: ['GET', 'POST'] },
+  { pattern: /^email-templates\/[^/]+\/render$/, methods: ['POST'] },
+  { pattern: /^email-templates\/[^/]+$/, methods: ['GET', 'PUT', 'DELETE'] },
   { pattern: /^vacation-responder$/, methods: ['GET', 'PUT'] },
   { pattern: /^vacation-responder\/(?:enable|disable)$/, methods: ['POST'] },
   // Contact groups. `/contacts` and `/contacts/:id` have their own route files;

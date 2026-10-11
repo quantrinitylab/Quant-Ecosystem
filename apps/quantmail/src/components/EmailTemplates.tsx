@@ -13,7 +13,8 @@ export interface EmailTemplate {
   body: string;
   category: 'custom';
   createdAt: string;
-  usageCount: number;
+  // A real shortcut the user can type (e.g. ":intro") to recall this template.
+  shortcut: string | null;
 }
 
 interface StoredTemplate {
@@ -21,6 +22,7 @@ interface StoredTemplate {
   name: string;
   subject: string;
   bodyHtml: string;
+  shortcut: string | null;
   createdAt: string;
 }
 
@@ -28,6 +30,13 @@ interface EmailTemplatesProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectTemplate: (template: EmailTemplate) => void;
+  /**
+   * 'drawer' (default) keeps the original absolute right-side dock. 'popover'
+   * renders the same panel as a fixed-size card so a composer can anchor it
+   * above its toolbar without a positioned ancestor (see
+   * .templates-panel--popover in globals.css).
+   */
+  variant?: 'drawer' | 'popover';
 }
 
 function bodyText(bodyHtml: string): string {
@@ -36,7 +45,7 @@ function bodyText(bodyHtml: string): string {
   return documentValue.body.textContent || '';
 }
 
-export function EmailTemplates({ isOpen, onClose, onSelectTemplate }: EmailTemplatesProps) {
+export function EmailTemplates({ isOpen, onClose, onSelectTemplate, variant = 'drawer' }: EmailTemplatesProps) {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,7 +60,8 @@ export function EmailTemplates({ isOpen, onClose, onSelectTemplate }: EmailTempl
       if (!response.ok || !payload?.success || !payload.data) throw new Error(payload?.error?.message || 'Could not load templates.');
       setTemplates(payload.data.map((template) => ({
         id: template.id, name: template.name, subject: template.subject,
-        body: bodyText(template.bodyHtml), category: 'custom', createdAt: template.createdAt, usageCount: 0,
+        body: bodyText(template.bodyHtml), category: 'custom', createdAt: template.createdAt,
+        shortcut: template.shortcut ?? null,
       })));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Could not load templates.');
@@ -68,14 +78,17 @@ export function EmailTemplates({ isOpen, onClose, onSelectTemplate }: EmailTempl
 
   const handleSelect = useCallback((template: EmailTemplate) => { onSelectTemplate(template); onClose(); }, [onClose, onSelectTemplate]);
 
-  return <AnimatePresence>{isOpen && <motion.div className="templates-panel" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
+  return <AnimatePresence>{isOpen && <motion.div
+    className={variant === 'popover' ? 'templates-panel templates-panel--popover' : 'templates-panel'}
+    initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
+  >
     <header className="templates-header"><h3>Templates</h3><button type="button" onClick={onClose} aria-label="Close templates">×</button></header>
     <div className="templates-search quant-filter-field"><input type="search" placeholder="Search templates…" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} />{searchQuery && <SearchClearButton onClear={() => setSearchQuery('')} />}</div>
     <div className="templates-list">
       {loading && <p className="templates-empty">Loading templates…</p>}
       {error && <div role="alert"><p className="templates-empty">{error}</p><button type="button" className="template-item" onClick={() => void loadTemplates()}>Retry</button></div>}
       {!loading && !error && filteredTemplates.length === 0 && <p className="templates-empty">{templates.length === 0 ? 'No saved templates yet' : 'No templates match your search'}</p>}
-      {!loading && !error && filteredTemplates.map((template) => <button key={template.id} type="button" className="template-item" onClick={() => handleSelect(template)}><div className="template-item-header"><span className="template-icon"><IconSparkle size={14} /></span><span className="template-name">{template.name}</span></div><p className="template-subject">{template.subject}</p><p className="template-preview">{template.body.slice(0, 80)}{template.body.length > 80 ? '…' : ''}</p></button>)}
+      {!loading && !error && filteredTemplates.map((template) => <button key={template.id} type="button" className="template-item" onClick={() => handleSelect(template)}><div className="template-item-header"><span className="template-icon"><IconSparkle size={14} /></span><span className="template-name">{template.name}</span>{template.shortcut && <span className="template-shortcut">{template.shortcut}</span>}</div><p className="template-subject">{template.subject}</p><p className="template-preview">{template.body.slice(0, 80)}{template.body.length > 80 ? '…' : ''}</p></button>)}
     </div>
   </motion.div>}</AnimatePresence>;
 }
