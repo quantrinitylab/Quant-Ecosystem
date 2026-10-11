@@ -1611,7 +1611,7 @@ export function ConversationalThreadView({
           // row. Without this the row would render as a letter — the field would be
           // absent and `messageKindOf` defaults to `mail` — and then visibly flip.
           messageKind: 'chat',
-          from: { name: 'You', email: 'me@quantmail.in' },
+          from: { name: 'me', email: 'me@quantmail.in' },
           to: targetTo,
           cc: [],
           bcc: [],
@@ -2504,7 +2504,7 @@ export function ConversationalThreadView({
             );
 
             const msgFromName = isOutbound
-              ? 'You'
+              ? 'me'
               : message.from?.name ||
                 (message as any).fromName ||
                 message.from?.email?.split('@')[0] ||
