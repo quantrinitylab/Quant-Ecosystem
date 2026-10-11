@@ -18,7 +18,7 @@ import { PILLAR_ACCENTS } from './pillar-accents';
 // QM-UIUX-037: the per-app accent colors are user-locked (Mail #FF6B35 orange,
 // Calendar #4285F4 blue, Drive #34A853 green, Contacts #F59E0B amber,
 // QuantGit #8B5CF6 purple) and live in ONE source of truth — PILLAR_ACCENTS.
-// This desktop config used to hardcode pre-lock values (Mail #FF8C42,
+// This desktop config used to hardcode pre-lock values (old Mail orange,
 // Calendar amber, Drive sky-blue, Contacts emerald, QuantGit #A78BFA),
 // diverging from mobile. accentColor always reads PILLAR_ACCENTS; the
 // Tailwind style strings below repeat the same hex literally because Tailwind

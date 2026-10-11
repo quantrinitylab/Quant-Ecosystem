@@ -7,7 +7,7 @@
 // QuantGit #8B5CF6 purple.
 //
 // Before this fix, the desktop sidebar (PILLAR_SUB_CONFIGS in
-// desktopContextTabs.tsx) hardcoded pre-lock values (Mail #FF8C42 via
+// desktopContextTabs.tsx) hardcoded pre-lock values (old Mail orange via
 // var(--quant-primary), Calendar amber via var(--quant-warning), Drive
 // #38BDF8 sky-blue, Contacts #10B981 emerald, QuantGit #A78BFA), diverging
 // from mobile — and three different QuantGit purples (#A78BFA, #A855F7,
