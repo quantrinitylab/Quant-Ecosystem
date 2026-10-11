@@ -1,7 +1,6 @@
 'use client';
 
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { apiClient, type EmailFolder } from '../services/api-client';
@@ -68,6 +67,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { invalidateMailLists } from '../lib/offline/folders';
 import { AddFolderModal, type FolderDraft } from '../components/AddFolderModal';
 import { PeopleHome } from '../components/PeopleHome';
+import { MailboxViewToggle } from '../components/MailboxViewToggle';
 import type { ContactGroup, Email, EmailCategory } from '../types';
 
 export type { ConversationThread };
@@ -3059,6 +3059,15 @@ function InboxPageContent() {
     >
       <div className="inbox-workspace">
         <section className="inbox-list-pane" aria-label="Inbox messages">
+          {/*
+            Mailbox view switcher (People | Inbox). In-flow, right-aligned —
+            deliberately NOT fixed/overlay: the 2026-10-11 P1 was the toggle
+            pill sitting on top of the hero's "New chat" button and
+            intercepting its clicks/taps. See components/MailboxViewToggle.tsx.
+          */}
+          <div className="mailbox-view-row">
+            <MailboxViewToggle isInbox />
+          </div>
           <header className="inbox-hero">
             <div>
               <p className="inbox-kicker">
@@ -4285,40 +4294,14 @@ function InboxPageContent() {
  * Sent, Drafts, labels, archive, search — untouched).
  *
  * This wrapper only switches which tree renders. `InboxPageContent` above
- * is the exact same inbox component, byte-for-byte unchanged.
+ * is the exact same inbox component, byte-for-byte unchanged. The
+ * People|Inbox toggle pill lives in-flow at the top of each view
+ * (see components/MailboxViewToggle.tsx) — never as a fixed overlay, so it
+ * can never cover a primary action again (2026-10-11 P1).
  */
-function MailboxViewToggle({ isInbox }: { isInbox: boolean }) {
-  const linkClass = (active: boolean) =>
-    // P1-3 (mobile): 44px minimum touch target (was 36px).
-    `min-h-[44px] px-3.5 inline-flex items-center rounded-full text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316] ${
-      active ? 'bg-[#F97316] text-black' : 'text-[#9BA0AA] hover:text-white'
-    }`;
-  return (
-    <nav
-      aria-label="Mailbox view"
-      className="fixed right-3 top-3 z-[60] flex items-center gap-1 rounded-full bg-black/85 p-1 backdrop-blur"
-    >
-      <Link href="/" className={linkClass(!isInbox)} aria-current={!isInbox ? 'page' : undefined}>
-        People
-      </Link>
-      <Link
-        href="/?view=inbox"
-        className={linkClass(isInbox)}
-        aria-current={isInbox ? 'page' : undefined}
-      >
-        Inbox
-      </Link>
-    </nav>
-  );
-}
 
 export default function RootPage() {
   const searchParams = useSearchParams();
   const isInbox = searchParams?.get('view') === 'inbox';
-  return (
-    <>
-      <MailboxViewToggle isInbox={isInbox} />
-      {isInbox ? <InboxPageContent /> : <PeopleHome />}
-    </>
-  );
+  return <>{isInbox ? <InboxPageContent /> : <PeopleHome />}</>;
 }

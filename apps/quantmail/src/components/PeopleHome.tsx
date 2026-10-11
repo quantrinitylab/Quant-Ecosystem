@@ -13,6 +13,7 @@ import {
 } from '../lib/peopleGrouping';
 import { PeopleWorldTabs } from './PeopleWorldTabs';
 import { PeopleList } from './PeopleList';
+import { MailboxViewToggle } from './MailboxViewToggle';
 
 /**
  * The People home: every conversation grouped by person instead of by
@@ -71,13 +72,24 @@ export function PeopleHome() {
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell" aria-label="QuantMail people">
       <div className="flex h-full flex-col bg-black">
+        {/*
+          Mailbox view switcher (People | Inbox), in-flow at the top-right of
+          the header — deliberately NOT a fixed overlay: the 2026-10-11 P1 was
+          the toggle pill sitting on top of the inbox hero's "New chat" button
+          and intercepting its clicks/taps.
+        */}
         <header className="px-4 pb-2 pt-4 sm:px-6">
-          <h1 className="text-xl font-bold text-white">{isSpamLens ? 'Spam' : 'People'}</h1>
-          <p className="mt-0.5 text-xs text-[#9BA0AA]">
-            {isSpamLens
-              ? 'People with messages flagged as spam — review or rescue them.'
-              : 'Every person you talk to, in one place — your whole conversation with each of them.'}
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-white">{isSpamLens ? 'Spam' : 'People'}</h1>
+              <p className="mt-0.5 text-xs text-[#9BA0AA]">
+                {isSpamLens
+                  ? 'People with messages flagged as spam — review or rescue them.'
+                  : 'Every person you talk to, in one place — your whole conversation with each of them.'}
+              </p>
+            </div>
+            <MailboxViewToggle isInbox={false} />
+          </div>
         </header>
 
         <div className="px-4 sm:px-6">
