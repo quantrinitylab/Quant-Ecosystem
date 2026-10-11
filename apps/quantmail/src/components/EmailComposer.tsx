@@ -1025,12 +1025,23 @@ export function EmailComposer({
         // only fires after the awaited send has actually completed (on the
         // modal path `sendNow` runs as queueSend's post-countdown callback),
         // so that copy is true when it appears.
-        const pageOwnsToast = Boolean(onSend) && !draftSnapshot.scheduledAt;
+        //
+        // The 'Email scheduled' label must be true when it appears too: only
+        // claim a scheduled send when scheduledAt is a valid future
+        // timestamp. A past scheduledAt can no longer survive (the modal
+        // blocks past times, the backend 400s them) — this is belt-and-braces
+        // on the label itself.
+        const scheduledAtMs = draftSnapshot.scheduledAt
+          ? new Date(draftSnapshot.scheduledAt).getTime()
+          : NaN;
+        const isGenuinelyScheduled = !Number.isNaN(scheduledAtMs) && scheduledAtMs > Date.now();
 
-        quantyReact(draftSnapshot.scheduledAt ? 'mail:scheduled' : 'mail:sent');
+        const pageOwnsToast = Boolean(onSend) && !isGenuinelyScheduled;
+
+        quantyReact(isGenuinelyScheduled ? 'mail:scheduled' : 'mail:sent');
         if (!pageOwnsToast) {
           showToast({
-            text: draftSnapshot.scheduledAt ? 'Email scheduled' : 'Message sent',
+            text: isGenuinelyScheduled ? 'Email scheduled' : 'Message sent',
             type: 'success',
           });
         }

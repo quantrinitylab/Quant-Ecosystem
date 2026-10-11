@@ -409,10 +409,18 @@ export default async function emailsRoutes(
         throw createAppError('Invalid sendAt timestamp', 400, 'VALIDATION_ERROR');
       }
       const now = Date.now();
-      if (parsedDate.getTime() > now) {
-        delayMs = parsedDate.getTime() - now;
-        scheduledSendAt = parsedDate;
+      // A past sendAt must never fall through to an immediate send while the
+      // UI claims "scheduled" — reject with an honest 400 instead (the modal
+      // blocks past times client-side; this is the backstop).
+      if (parsedDate.getTime() <= now) {
+        throw createAppError(
+          'sendAt is in the past — pick a future time, or send now without one',
+          400,
+          'VALIDATION_ERROR',
+        );
       }
+      delayMs = parsedDate.getTime() - now;
+      scheduledSendAt = parsedDate;
     }
 
     const shouldSend = Boolean(d.send) || Boolean(scheduledSendAt);
@@ -573,10 +581,18 @@ export default async function emailsRoutes(
         throw createAppError('Invalid sendAt timestamp', 400, 'VALIDATION_ERROR');
       }
       const now = Date.now();
-      if (parsedDate.getTime() > now) {
-        delayMs = parsedDate.getTime() - now;
-        scheduledSendAt = parsedDate;
+      // A past sendAt must never fall through to an immediate send while the
+      // UI claims "scheduled" — reject with an honest 400 instead (the modal
+      // blocks past times client-side; this is the backstop).
+      if (parsedDate.getTime() <= now) {
+        throw createAppError(
+          'sendAt is in the past — pick a future time, or send now without one',
+          400,
+          'VALIDATION_ERROR',
+        );
       }
+      delayMs = parsedDate.getTime() - now;
+      scheduledSendAt = parsedDate;
     }
 
     const sent = await sendService.send(userId, email.id, sentFolder.id, {
