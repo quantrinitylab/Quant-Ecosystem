@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import fs from 'node:fs';
+import path from 'node:path';
 
 // Components under test
 import { CalendarBookingView } from '../app/calendar/components/CalendarBookingView';
-import { CalendarQuantMeetView } from '../app/calendar/components/CalendarQuantMeetView';
 import { CalendarRemindersView } from '../app/calendar/components/CalendarRemindersView';
 import { CalendarContextSubTabs } from '../app/calendar/components/CalendarContextSubTabs';
 import type { CalendarEventLike } from '../app/calendar/types';
@@ -142,25 +143,36 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
   });
 
   // ==========================================================================
-  // 2. Sub-View: `quantmeet`
+  // 2. Sub-View: `quantmeet` (component removed — orphaned dead code)
   // ==========================================================================
-  describe('Sub-View: `quantmeet` (CalendarQuantMeetView)', () => {
-    it('renders QuantMeet HD video meeting launcher with action card, calls list, and WebRTC status', () => {
-      const html = renderToStaticMarkup(<CalendarQuantMeetView />);
+  describe('Sub-View: `quantmeet` (component removed)', () => {
+    it('CalendarQuantMeetView component file does not exist (no orphaned fabricated meeting UI)', () => {
+      expect(
+        fs.existsSync(
+          path.join(__dirname, '../app/calendar/components/CalendarQuantMeetView.tsx'),
+        ),
+      ).toBe(false);
+    });
 
-      // Action card: Start Instant Meeting
-      expect(html).toContain('Start Instant Meeting');
-      expect(html).toContain('QuantMeet HD Video');
-      expect(html).toContain('WebRTC 4K P2P');
-
-      // WebRTC status: Mic: Ready · Camera: Ready
-      expect(html).toContain('Mic: Ready · Camera: Ready');
-
-      // Upcoming video calls list with [Join HD Call] pills
-      expect(html).toContain('Upcoming Video Calls');
-      expect(html).toContain('Join HD Call');
-      expect(html).toContain('Weekly Ecosystem Architecture Sync');
-      expect(html).toContain('Sprint 42 Retrospective &amp; Tripartite Handover');
+    it('no fabricated meeting fixtures survive in production source (outside __tests__)', () => {
+      const walk = (dir: string): string[] =>
+        fs
+          .readdirSync(dir, { withFileTypes: true })
+          .flatMap((e) =>
+            e.isDirectory()
+              ? walk(path.join(dir, e.name))
+              : path.join(dir, e.name),
+          );
+      const src = path.join(__dirname, '..');
+      const fabricated = walk(src).filter(
+        (f) =>
+          !f.includes('__tests__') &&
+          /\.(tsx?|jsx?)$/.test(f) &&
+          fs
+            .readFileSync(f, 'utf8')
+            .includes('Weekly Ecosystem Architecture Sync'),
+      );
+      expect(fabricated).toEqual([]);
     });
   });
 
@@ -221,11 +233,6 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
       const html = renderToStaticMarkup(
         <CalendarBookingView userEmail="sundar@quantmail.in" bookingSlug="sundar" />,
       );
-      expect(emojiRegex.test(html)).toBe(false);
-    });
-
-    it('CalendarQuantMeetView contains strictly ZERO raw Unicode emojis', () => {
-      const html = renderToStaticMarkup(<CalendarQuantMeetView />);
       expect(emojiRegex.test(html)).toBe(false);
     });
 
