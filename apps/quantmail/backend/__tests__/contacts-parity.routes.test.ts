@@ -807,4 +807,76 @@ describe('Wave 8 — Phase M & Contacts Parity Suite (Developer 1)', () => {
       expect(json.data.name).toBe('Safe External Forward');
     });
   });
+
+  // ===========================================================================
+  // 5. Proxy Allowlist for Contact-Group Membership & Invite Links (QM-SCREEN-012 P0)
+  // ===========================================================================
+  // The backend exports for these live in routes/contact-groups.ts; the Next
+  // proxy 404'd every two/three-segment group path (and 405'd POST
+  // /contact-groups/join) because the allow-list only carried the
+  // single-segment entries. These pin the honest patterns: every method listed
+  // here has a backend export AND a dedicated Next route file, so the
+  // allow-list, the catch-all, and the static files can never disagree.
+  describe('Proxy Allowlist for Contact-Group Membership & Invite Links', () => {
+    const resolveRoute = (pathStr: string) => {
+      return ALLOWED_BACKEND_ROUTES.find(({ pattern }: { pattern: RegExp }) =>
+        pattern.test(pathStr),
+      );
+    };
+
+    it('invite-link paths resolve GET, POST, DELETE — and nothing else', () => {
+      const route = resolveRoute('contact-groups/grp-123/invite-link');
+      expect(route).toBeDefined();
+      expect(route?.methods).toEqual(['GET', 'POST', 'DELETE']);
+      expect(route?.methods).not.toContain('PUT');
+    });
+
+    it('admin paths resolve exactly the backend verbs: POST on /admins, DELETE on /admins/:email', () => {
+      const promote = resolveRoute('contact-groups/grp-123/admins');
+      expect(promote).toBeDefined();
+      expect(promote?.methods).toEqual(['POST']);
+
+      const demote = resolveRoute('contact-groups/grp-123/admins/ada@example.com');
+      expect(demote).toBeDefined();
+      expect(demote?.methods).toEqual(['DELETE']);
+    });
+
+    it('member removal resolves DELETE on /members/:email only', () => {
+      const route = resolveRoute('contact-groups/grp-123/members/ada@example.com');
+      expect(route).toBeDefined();
+      expect(route?.methods).toEqual(['DELETE']);
+    });
+
+    it('invite preview resolves GET and join resolves POST', () => {
+      const preview = resolveRoute('contact-groups/invite/abc123token');
+      expect(preview).toBeDefined();
+      expect(preview?.methods).toEqual(['GET']);
+
+      const join = resolveRoute('contact-groups/join');
+      expect(join).toBeDefined();
+      expect(join?.methods).toEqual(['POST']);
+      // The old failure: `contact-groups/:id` allowed PUT/DELETE but never POST,
+      // so the catch-all answered POST /contact-groups/join with a 405.
+      expect(join?.methods).not.toContain('GET');
+    });
+
+    it('the join row precedes the generic :id row, so `find()` resolves POST — the P0', () => {
+      // `^contact-groups\/[^/]+$` textually matches 'contact-groups/join' too
+      // (one segment), so this is an ordering guarantee, not a pattern one.
+      const joinIdx = ALLOWED_BACKEND_ROUTES.findIndex(({ pattern }) =>
+        pattern.source === '^contact-groups\\/join$',
+      );
+      const idIdx = ALLOWED_BACKEND_ROUTES.findIndex(({ pattern }) =>
+        pattern.source === '^contact-groups\\/[^/]+$',
+      );
+      expect(joinIdx).toBeGreaterThanOrEqual(0);
+      expect(idIdx).toBeGreaterThanOrEqual(0);
+      expect(joinIdx).toBeLessThan(idIdx);
+      // And the three-segment rows can never be shadowed by the anchored
+      // single-segment row at all.
+      const idRow = ALLOWED_BACKEND_ROUTES[idIdx];
+      expect(idRow.pattern.test('contact-groups/grp-123/invite-link')).toBe(false);
+      expect(idRow.pattern.test('contact-groups/invite/abc')).toBe(false);
+    });
+  });
 });
