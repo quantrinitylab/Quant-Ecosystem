@@ -57,6 +57,28 @@ describe('calendarEventMatchesQuery', () => {
   });
 });
 
+describe('stripCalendarMeta', () => {
+  it('leaves an unterminated header unchanged (no end marker, no strip)', () => {
+    const s = 'notes __QUANT_META__:{"type":"event"} and more';
+    expect(stripCalendarMeta(s)).toBe(s);
+  });
+
+  it('handles pathological unterminated-marker runs in linear time', () => {
+    // Regression: the old lazy regex rescanned to end-of-string from every
+    // start marker on this input (quadratic — ~2.9s at this size locally).
+    // The indexOf/slice strip must return the input unchanged, fast.
+    const evil = '__QUANT_META__:a'.repeat(8000); // 128k chars, no end marker
+    const partial = '__QUANT_META__:' + ':__END_QUANT_META_'.repeat(4000); // near-miss ends
+    const t0 = performance.now();
+    expect(stripCalendarMeta(evil)).toBe(evil);
+    expect(stripCalendarMeta(partial)).toBe(partial);
+    expect(
+      calendarEventMatchesQuery({ ...base, description: `${evil} tail-needle` }, 'tail-needle'),
+    ).toBe(true);
+    expect(performance.now() - t0).toBeLessThan(1000);
+  });
+});
+
 describe('calendarSearchStatus', () => {
   const q = { query: 'sprint' };
 
