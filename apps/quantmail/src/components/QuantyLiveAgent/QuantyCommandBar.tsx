@@ -285,7 +285,7 @@ export function QuantyCommandBar({
           onClick={submit}
           disabled={busy || value.trim().length === 0}
           aria-label="Command bhejein"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-500"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--app-accent)] text-black transition hover:bg-[var(--app-accent-hover)] disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-500"
         >
           {busy ? (
             <motion.svg

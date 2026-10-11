@@ -53,15 +53,15 @@ export function QuantyPopupTabs({ active, onChange, badges, className = '' }: Qu
             aria-label={label}
             title={label}
             onClick={() => onChange?.(id)}
-            className={`relative flex h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-400 ${
-              isActive ? 'text-amber-300' : 'text-zinc-500 hover:text-zinc-300'
+            className={`relative flex h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
+              isActive ? 'text-[var(--app-accent-hover)]' : 'text-zinc-500 hover:text-zinc-300'
             }`}
           >
             {isActive && (
               <motion.span
                 layoutId="quanty-tab-pill"
                 aria-hidden="true"
-                className="absolute inset-0 rounded-xl bg-amber-500/15 ring-1 ring-amber-400/30"
+                className="absolute inset-0 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--app-accent)_30%,transparent)]"
                 transition={{ type: 'spring', stiffness: 500, damping: 35 }}
               />
             )}

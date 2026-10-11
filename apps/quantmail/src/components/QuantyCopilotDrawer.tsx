@@ -847,7 +847,7 @@ export function QuantyCopilotDrawer({
               <div className="w-10 h-1 rounded-full bg-[var(--quant-surface-elevated)]" />
             </div>
 
-            <div className="flex items-center justify-between px-4 sm:px-5 pt-1 pb-3 relative border-b border-[var(--quant-surface-elevated)]">
+            <div className="flex items-center justify-between px-4 sm:px-5 pt-1 pb-4 relative">
               <div className="flex items-center gap-2.5">
                 <Quanty size={28} expression={quantyExpression} bob={false} />
                 <h3 className="text-sm font-semibold text-[var(--quant-foreground)] tracking-tight">
@@ -930,7 +930,7 @@ export function QuantyCopilotDrawer({
                     exit={{ opacity: 0, scale: 0.95, y: -5 }}
                     className="absolute right-4 top-12 z-50 w-64 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] p-3 shadow-2xl space-y-2 text-xs"
                   >
-                    <div className="flex items-center justify-between pb-1.5 border-b border-[var(--quant-surface-elevated)]">
+                    <div className="flex items-center justify-between pb-2">
                       <span className="font-semibold text-[var(--quant-foreground)]">Session Chats</span>
                       {historyList.length > 0 && (
                         <button

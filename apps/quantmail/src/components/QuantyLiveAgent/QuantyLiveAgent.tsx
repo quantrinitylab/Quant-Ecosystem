@@ -209,10 +209,10 @@ export const QuantyLiveAgent = forwardRef<QuantyLiveAgentHandle, QuantyLiveAgent
             >
               {/* Session header */}
               <div className="flex items-center justify-between">
-                <span className="flex items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-amber-300 backdrop-blur-md">
+                <span className="flex items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-[var(--app-accent-hover)] backdrop-blur-md">
                   <span aria-hidden="true" className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-60" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--app-accent-hover)] opacity-60" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--app-accent-hover)]" />
                   </span>
                   Voice Live Agent
                 </span>
