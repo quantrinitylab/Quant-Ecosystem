@@ -90,13 +90,13 @@ export function DriveRecentSubView({
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[#232938] bg-[var(--quant-surface)] shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
         <div className="flex items-center gap-3.5">
-          <div className="size-11 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8] shrink-0">
+          <div className="size-11 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
             <ClockIcon className="size-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-[#F8FAFC]">Recent</h3>
-              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
+              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)]">
                 {shownTotal} {shownTotal === 1 ? 'file' : 'files'}
               </span>
             </div>
@@ -165,11 +165,11 @@ export function DriveRecentSubView({
                 <div
                   key={item.id}
                   onClick={() => onPreviewItem?.(item)}
-                  className="group relative flex flex-col justify-between p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[#38BDF8]/40 hover:bg-[var(--quant-surface-elevated)] transition-all cursor-pointer shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
+                  className="group relative flex flex-col justify-between p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)] transition-all cursor-pointer shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="size-9 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/25 flex items-center justify-center text-[#38BDF8] shrink-0">
+                      <div className="size-9 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
                         <HardDriveIcon className="size-4" />
                       </div>
 
@@ -192,7 +192,7 @@ export function DriveRecentSubView({
                       )}
                     </div>
 
-                    <p className="text-xs font-bold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">
+                    <p className="text-xs font-bold text-[#F8FAFC] truncate group-hover:text-[var(--app-accent)] transition-colors">
                       {item.name}
                     </p>
                     <p className="text-[11px] text-[#94A3B8] mt-0.5">
@@ -241,7 +241,7 @@ export function DriveRecentSubView({
               <button
                 type="button"
                 onClick={onLoadMore}
-                className="px-4 py-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-xs font-semibold text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[#38BDF8]/40 transition-colors"
+                className="px-4 py-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-xs font-semibold text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] transition-colors"
               >
                 Load more
               </button>

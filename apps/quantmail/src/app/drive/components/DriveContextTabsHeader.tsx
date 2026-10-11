@@ -107,15 +107,15 @@ export function DriveContextTabsHeader({
             aria-controls={`drive-panel-${tab.id}`}
             tabIndex={isActive ? 0 : -1}
             onClick={() => onTabChange(tab.id)}
-            className={`group inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-medium transition-all duration-150 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] select-none ${
+            className={`group inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-medium transition-all duration-150 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] select-none ${
               isActive
-                ? 'bg-[var(--quant-surface)] text-[#38BDF8] border border-[#38BDF8]/40 shadow-[0_0_16px_rgba(56,189,248,0.12),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
+                ? 'bg-[var(--quant-surface)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] shadow-[0_0_16px_color-mix(in_srgb,var(--app-accent)_12%,transparent),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
                 : 'bg-transparent text-[#94A3B8] border hover:bg-[var(--quant-surface)]/60 hover:text-[#F8FAFC] hover:border-[#232938]'
             }`}
           >
             <Icon
               className={`size-4 shrink-0 transition-colors ${
-                isActive ? 'text-[#38BDF8]' : 'text-[#64748B] group-hover:text-[#94A3B8]'
+                isActive ? 'text-[var(--app-accent)]' : 'text-[#64748B] group-hover:text-[#94A3B8]'
               }`}
             />
             <span className="hidden md:inline">{tab.label}</span>
@@ -125,7 +125,7 @@ export function DriveContextTabsHeader({
               <span
                 className={`ml-0.5 px-1.5 py-px rounded text-[10px] font-mono tracking-wider uppercase font-semibold ${
                   isActive
-                    ? 'bg-[#38BDF8]/20 text-[#38BDF8] border border-[#38BDF8]/40'
+                    ? 'bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)]'
                     : 'bg-[var(--quant-surface-elevated)] text-[#94A3B8] border border-[#334155]'
                 }`}
               >
@@ -137,7 +137,7 @@ export function DriveContextTabsHeader({
               <span
                 className={`ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${
                   isActive
-                    ? 'bg-[#38BDF8] text-[var(--quant-background)]'
+                    ? 'bg-[var(--app-accent)] text-[var(--quant-background)]'
                     : 'bg-[#334155] text-[#E2E8F0]'
                 }`}
               >

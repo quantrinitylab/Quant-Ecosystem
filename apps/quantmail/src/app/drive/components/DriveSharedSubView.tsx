@@ -76,13 +76,13 @@ export function DriveSharedSubView({
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[#232938] bg-[var(--quant-surface)] shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
         <div className="flex items-center gap-3.5">
-          <div className="size-11 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8] shrink-0">
+          <div className="size-11 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
             <SharedUsersIcon className="size-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-[#F8FAFC]">Shared with Me</h3>
-              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
+              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)]">
                 {activeShares.length} Active
               </span>
             </div>
@@ -96,7 +96,7 @@ export function DriveSharedSubView({
           <button
             type="button"
             onClick={onRefresh}
-            className="self-start sm:self-center px-3 py-1.5 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-xs font-semibold text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[#38BDF8]/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
+            className="self-start sm:self-center px-3 py-1.5 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-xs font-semibold text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
           >
             Refresh Shares
           </button>
@@ -131,16 +131,16 @@ export function DriveSharedSubView({
           return (
             <div
               key={item.id}
-              className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[#38BDF8]/40 hover:bg-[var(--quant-surface-elevated)] transition-all gap-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.25)]"
+              className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)] transition-all gap-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.25)]"
             >
               {/* File Info & Collaborator Avatar */}
               <div className="flex items-center gap-3.5 min-w-0 flex-1">
                 {/* Collaborator Avatar */}
                 <div
                   title={`Shared by ${item.owner.name} (${item.owner.email})`}
-                  className="size-10 rounded-full bg-gradient-to-tr from-[#0284C7] to-[#38BDF8] p-[1.5px] shrink-0"
+                  className="size-10 rounded-full bg-gradient-to-tr from-[var(--app-accent)] to-[var(--app-accent-hover)] p-[1.5px] shrink-0"
                 >
-                  <div className="size-full rounded-full bg-[var(--quant-surface)] flex items-center justify-center text-[11px] font-bold text-[#38BDF8] tracking-wider">
+                  <div className="size-full rounded-full bg-[var(--quant-surface)] flex items-center justify-center text-[11px] font-bold text-[var(--app-accent)] tracking-wider">
                     {initials}
                   </div>
                 </div>
@@ -155,7 +155,7 @@ export function DriveSharedSubView({
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${
                         item.permission === 'Editor'
-                          ? 'bg-[#38BDF8]/15 text-[#38BDF8] border-[#38BDF8]/35'
+                          ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)]'
                           : item.permission === 'Admin'
                           ? 'bg-purple-500/15 text-purple-400 border-purple-500/35'
                           : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/35'
@@ -190,7 +190,7 @@ export function DriveSharedSubView({
                     <button
                       type="button"
                       onClick={() => onAcceptShare?.(item.shareId ?? item.id)}
-                      className="px-3 py-1.5 rounded-lg bg-[#38BDF8] text-[var(--quant-background)] text-xs font-bold hover:bg-[#7DD3FC] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
+                      className="px-3 py-1.5 rounded-lg bg-[var(--app-accent)] text-[var(--quant-background)] text-xs font-bold hover:bg-[#7DD3FC] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                     >
                       Accept
                     </button>
@@ -210,7 +210,7 @@ export function DriveSharedSubView({
                       // share record id, so the preview modal and
                       // recordFileOpen hit the real target.
                       onClick={() => onPreviewItem?.(item.fileId ? { ...item, id: item.fileId } : item)}
-                      className="px-2.5 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#232938] text-xs font-medium text-[#F8FAFC] hover:border-[#38BDF8]/40 hover:bg-[#1E2433] transition-colors focus-visible:outline-none"
+                      className="px-2.5 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#232938] text-xs font-medium text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[#1E2433] transition-colors focus-visible:outline-none"
                     >
                       Preview
                     </button>
@@ -227,7 +227,7 @@ export function DriveSharedSubView({
                             ? 'Open in editor'
                             : 'Download'
                       }
-                      className="px-3 py-1.5 rounded-lg bg-[#38BDF8]/15 border border-[#38BDF8]/35 text-xs font-semibold text-[#38BDF8] hover:bg-[#38BDF8]/25 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)] text-xs font-semibold text-[var(--app-accent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isDocumentDriveId(item.fileId ?? item.id) ? 'Open' : 'Download'}
                     </button>

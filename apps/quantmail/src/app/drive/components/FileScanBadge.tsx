@@ -41,7 +41,7 @@ const STYLES: Record<FileScanStatus, string> = {
   pending:
     'bg-[var(--quant-warning)]/10 text-[var(--quant-warning)] border-[var(--quant-warning)]/30',
   scanning:
-    'bg-[#38BDF8]/10 text-[#38BDF8] border-[#38BDF8]/30 animate-pulse',
+    'bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)] border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] animate-pulse',
   clean:
     'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/30',
   quarantined:
@@ -77,7 +77,7 @@ export function FileScanBadge({ status, reason, className = '' }: FileScanBadgeP
                 ? 'bg-[#64748B]'
                 : normalized === 'pending'
                   ? 'bg-[var(--quant-warning)]'
-                  : 'bg-[#38BDF8]'
+                  : 'bg-[var(--app-accent)]'
         }`}
         aria-hidden="true"
       />

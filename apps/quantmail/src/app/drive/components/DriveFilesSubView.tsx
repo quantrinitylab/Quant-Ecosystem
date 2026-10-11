@@ -178,13 +178,13 @@ export function DriveFilesSubView({
       <div className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-4 sm:p-5 shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-3">
-            <div className="size-10 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8] shrink-0">
+            <div className="size-10 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
               <HardDriveIcon className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-[#F8FAFC]">Storage Quota Meter</h3>
-                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
+                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)]">
                   Enterprise Sovereign Cloud
                 </span>
               </div>
@@ -204,7 +204,7 @@ export function DriveFilesSubView({
                 'Calculating…'
               )}
             </div>
-            <p className="text-[11px] text-[#38BDF8] font-medium">
+            <p className="text-[11px] text-[var(--app-accent)] font-medium">
               {quotaKnown && quota
                 ? `${usedPct}% used · ${formatBytes(quota.total - quota.used)} available`
                 : 'Reading storage usage…'}
@@ -227,7 +227,7 @@ export function DriveFilesSubView({
           className="w-full h-2 rounded-full bg-[var(--quant-surface-elevated)] overflow-hidden"
         >
           <div
-            className="h-full rounded-full bg-gradient-to-r from-[#38BDF8] to-[#0284C7] shadow-[0_0_12px_rgba(56,189,248,0.5)] transition-all duration-500"
+            className="h-full rounded-full bg-gradient-to-r from-[var(--app-accent)] to-[var(--app-accent-hover)] shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_50%,transparent)] transition-all duration-500"
             style={{ width: `${usedPct}%` }}
           />
         </div>
@@ -335,12 +335,12 @@ export function DriveFilesSubView({
       {typeFilter !== 'all' && (
         <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[var(--quant-surface)] border border-[#232938] text-xs">
           <span className="text-[#94A3B8]">
-            Filtering by <strong className="text-[#38BDF8] uppercase">{typeFilter}</strong> ({displayedFiles.length} match{displayedFiles.length === 1 ? '' : 'es'})
+            Filtering by <strong className="text-[var(--app-accent)] uppercase">{typeFilter}</strong> ({displayedFiles.length} match{displayedFiles.length === 1 ? '' : 'es'})
           </span>
           <button
             type="button"
             onClick={() => setTypeFilter('all')}
-            className="text-xs text-[#38BDF8] hover:underline font-medium"
+            className="text-xs text-[var(--app-accent)] hover:underline font-medium"
           >
             Clear Filter
           </button>
@@ -364,15 +364,15 @@ export function DriveFilesSubView({
                   onClick={() => onNavigateToFolder?.(folder.id, folder.name)}
                   className={`group relative flex items-center gap-2.5 p-3 rounded-xl border transition-all cursor-pointer ${
                     isSelected
-                      ? 'bg-[#38BDF8]/15 border-[#38BDF8]/50 shadow-[0_0_12px_rgba(56,189,248,0.15)]'
-                      : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[#38BDF8]/40 hover:bg-[var(--quant-surface-elevated)]'
+                      ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_15%,transparent)]'
+                      : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)]'
                   }`}
                 >
                   <div className="size-8 rounded-lg bg-[var(--quant-warning)]/15 border border-[var(--quant-warning)]/30 flex items-center justify-center text-[var(--quant-warning)] shrink-0">
                     <FolderIcon className="size-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">
+                    <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[var(--app-accent)] transition-colors">
                       {folder.name}
                     </p>
                     <p className="text-[10px] text-[#64748B]">Folder</p>
@@ -415,18 +415,18 @@ export function DriveFilesSubView({
                   onClick={() => onPreviewItem?.(file)}
                   className={`group relative flex flex-col justify-between p-3.5 rounded-xl border transition-all duration-150 cursor-pointer ${
                     isSelected
-                      ? 'bg-[#38BDF8]/15 border-[#38BDF8]/50 shadow-[0_0_14px_rgba(56,189,248,0.18)]'
-                      : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[#38BDF8]/40 hover:bg-[var(--quant-surface-elevated)] shadow-[0_2px_12px_rgba(0,0,0,0.25)]'
+                      ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] shadow-[0_0_14px_color-mix(in_srgb,var(--app-accent)_18%,transparent)]'
+                      : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)] shadow-[0_2px_12px_rgba(0,0,0,0.25)]'
                   }`}
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="size-9 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/25 flex items-center justify-center text-[#38BDF8] shrink-0">
+                      <div className="size-9 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
                         <HardDriveIcon className="size-4" />
                       </div>
                       <div className="flex items-center gap-1">
                         {/* FastCDC Deduplication Badge */}
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[var(--q-type-xs)] font-mono font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[var(--q-type-xs)] font-mono font-semibold bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)]">
                           FastCDC Deduped
                         </span>
                         <button
@@ -444,7 +444,7 @@ export function DriveFilesSubView({
                       </div>
                     </div>
 
-                    <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">
+                    <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[var(--app-accent)] transition-colors">
                       {file.name}
                     </p>
                     <p className="text-[11px] text-[#94A3B8] mt-0.5">
@@ -504,20 +504,20 @@ export function DriveFilesSubView({
                   onClick={() => onPreviewItem?.(file)}
                   className={`group flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
                     isSelected
-                      ? 'bg-[#38BDF8]/15 border-[#38BDF8]/50 shadow-[0_0_12px_rgba(56,189,248,0.15)]'
-                      : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[#38BDF8]/40 hover:bg-[var(--quant-surface-elevated)]'
+                      ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_15%,transparent)]'
+                      : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)]'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="size-8 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/25 flex items-center justify-center text-[#38BDF8] shrink-0">
+                    <div className="size-8 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
                       <HardDriveIcon className="size-4" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">
+                        <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[var(--app-accent)] transition-colors">
                           {file.name}
                         </p>
-                        <span className="inline-flex items-center px-1.5 py-px rounded text-[var(--q-type-xs)] font-mono font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
+                        <span className="inline-flex items-center px-1.5 py-px rounded text-[var(--q-type-xs)] font-mono font-semibold bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)]">
                           FastCDC Deduped
                         </span>
                         {/* QM-M39-009: security scan state — 'unknown' renders as "Not scanned", never as safe */}
