@@ -216,10 +216,13 @@ describe('QuantGit GitHub Sovereign Parity: PR 3-Way Merge & Actions Streaming L
       expect(html).not.toContain('security/secret-scan');
       expect(html).not.toContain('security/dependabot');
       expect(html).toContain('Review decisions:');
-      expect(html).toContain('ai-sdk-factory[bot]');
-      // SVG check icon (QuantGitCheckIcon) + "Approved" label — no "✓" glyph per the SVG-octicon polish.
-      expect(html).toContain('M3 8.5l3.2 3.2L13 5');
-      expect(html).toContain('Approved');
+      // No fabricated reviews: the box starts empty until real data arrives
+      // from GET /:id/pulls/:number/reviews.
+      expect(html).toContain('data-testid="reviews-empty"');
+      expect(html).toContain('No reviews submitted yet.');
+      expect(html).toContain('0 submitted');
+      expect(html).not.toContain('ai-sdk-factory[bot]');
+      expect(html).not.toContain('100% test coverage');
     });
 
     it('renders Merge Box with 3 merge options (merge, squash, rebase) and conflict detection', () => {
