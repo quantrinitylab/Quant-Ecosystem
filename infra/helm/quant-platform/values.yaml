@@ -197,6 +197,10 @@ services:
 
   quantmail:
     enabled: true
+    # Chunked Drive uploads keep session state in-process; without stickiness,
+    # chunks can land on different pods -> SESSION_NOT_FOUND. ClientIP keeps
+    # one client's chunks on the same pod.
+    serviceAffinity: ClientIP
     replicaCount: 2
     image:
       repository: quant/quantmail
