@@ -464,34 +464,36 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
 
 // ============================================================================
 // Main Component
+//
+// NOTE (QM-SCREEN-015): this header is not mounted anywhere in the app today —
+// no route renders it. It survives as a component contract plus its unit test.
+// Every data prop is therefore optional with NO fabricated fallback: sections
+// render only when the caller passes real values, so a bare render can never
+// display invented counts, names, credits, or meetings.
 // ============================================================================
 
 export function QuantMailSuperAppHeader({
   activePillar: propActivePillar,
   onPillarSelect,
-  workspaceName = 'Quant Trinity Lab',
-  userEmail = 'user@quantmail.in',
-  workspaces = [
-    { id: 'ws-trinity', name: 'Quant Trinity Lab', email: 'user@quantmail.in', active: true },
-    { id: 'ws-prod', name: 'Enterprise Production', email: 'dev@quantmail.in', active: false },
-    { id: 'ws-staging', name: 'OSS Staging EKS', email: 'sentinel@quantmail.in', active: false },
-  ],
+  workspaceName,
+  userEmail,
+  workspaces = [],
   onWorkspaceChange,
   searchValue = '',
   onSearchChange,
   onSearchSubmit,
-  searchPlaceholder = 'Search across Mail, Calendar, Drive, Contacts, QuantGit…',
-  unreadNotifications = 3,
-  quantCredits = '1,250 QC',
-  userInitials = 'QT',
-  userName = 'Trinity Admin',
-  priorityMailCount = 3,
-  priorityMailSubject = 'Security Audit PR #298: 20/20 Pods Green',
-  nextMeetingTitle = 'Architecture Review & Staging Sign-Off',
-  nextMeetingTime = 'In 14 mins · Staging Sync',
+  searchPlaceholder = 'Search',
+  unreadNotifications = 0,
+  quantCredits,
+  userInitials,
+  userName,
+  priorityMailCount,
+  priorityMailSubject,
+  nextMeetingTitle,
+  nextMeetingTime,
   onJoinMeeting,
-  storageUsedGB = 14.2,
-  storageTotalGB = 50.0,
+  storageUsedGB,
+  storageTotalGB,
   onQuickAction,
   className = '',
 }: QuantMailSuperAppHeaderProps) {
@@ -503,7 +505,7 @@ export function QuantMailSuperAppHeader({
   const [isWorkspaceDropdownOpen, setIsWorkspaceDropdownOpen] = useState(false);
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(
-    workspaces.find((w) => w.active)?.id || workspaces[0]?.id || 'ws-trinity'
+    workspaces.find((w) => w.active)?.id || workspaces[0]?.id || ''
   );
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -591,11 +593,14 @@ export function QuantMailSuperAppHeader({
 
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId) || {
     id: activeWorkspaceId,
-    name: workspaceName,
-    email: userEmail,
+    name: workspaceName ?? '',
+    email: userEmail ?? '',
   };
 
-  const storagePercentage = Math.min(100, Math.round((storageUsedGB / storageTotalGB) * 100));
+  const hasStorageQuota = storageUsedGB != null && storageTotalGB != null && storageTotalGB > 0;
+  const storagePercentage = hasStorageQuota
+    ? Math.min(100, Math.round((storageUsedGB / storageTotalGB) * 100))
+    : 0;
 
   return (
     <header
@@ -638,7 +643,8 @@ export function QuantMailSuperAppHeader({
           {/* Divider */}
           <div className="h-6 w-px bg-[var(--quant-surface-elevated)] hidden sm:block" aria-hidden="true" />
 
-          {/* Workspace / Account Switcher Dropdown */}
+          {/* Workspace / Account Switcher Dropdown — only when a real workspace is passed */}
+          {workspaceName ? (
           <div className="relative" ref={dropdownRef}>
             <button
               type="button"
@@ -716,6 +722,7 @@ export function QuantMailSuperAppHeader({
               </div>
             )}
           </div>
+          ) : null}
         </div>
 
         {/* Center: Wide Global Command Search Bar (Amazon / Superhuman) */}
@@ -805,7 +812,8 @@ export function QuantMailSuperAppHeader({
             )}
           </button>
 
-          {/* Quant Credits Chip (ZERO raw emojis! Pure SVG lightning bolt) */}
+          {/* Quant Credits Chip — only when a real balance is passed in */}
+          {quantCredits != null && (
           <div
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-xs font-semibold text-amber-400 shadow-sm"
             title="Quant Credits Balance"
@@ -813,8 +821,10 @@ export function QuantMailSuperAppHeader({
             <ZapCreditsSvg className="size-3.5 text-amber-400 shrink-0" />
             <span className="tracking-tight">{quantCredits}</span>
           </div>
+          )}
 
-          {/* Profile Avatar */}
+          {/* Profile Avatar — only when a real identity is passed in */}
+          {(userName || userInitials) && (
           <button
             type="button"
             onClick={() => router.push('/settings/profile')}
@@ -828,6 +838,7 @@ export function QuantMailSuperAppHeader({
               aria-label="Online status"
             />
           </button>
+          )}
         </div>
       </div>
 
@@ -909,7 +920,8 @@ export function QuantMailSuperAppHeader({
       <div className="w-full bg-[var(--quant-background)] border-t border-[var(--quant-surface-elevated)]/60 py-2">
         <div className="max-w-[1720px] mx-auto px-3 sm:px-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-            {/* Tile 1: Priority Mail */}
+            {/* Tile 1: Priority Mail — only when a real count is passed in */}
+            {priorityMailCount != null && (
             <div
               className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] hover:border-[#282E3E] transition-all cursor-pointer group"
               onClick={() => router.push('/?lens=important')}
@@ -928,14 +940,18 @@ export function QuantMailSuperAppHeader({
                       {priorityMailCount} Unread
                     </span>
                   </div>
+                  {priorityMailSubject && (
                   <p className="text-[11px] text-[#64748B] truncate max-w-[190px]">
                     {priorityMailSubject}
                   </p>
+                  )}
                 </div>
               </div>
             </div>
+            )}
 
-            {/* Tile 2: Next Meeting with 1-Tap Join */}
+            {/* Tile 2: Next Meeting — only when a real meeting is passed in */}
+            {nextMeetingTitle ? (
             <div
               className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] hover:border-[#282E3E] transition-all"
               aria-label={`Next Meeting: ${nextMeetingTitle}`}
@@ -948,20 +964,20 @@ export function QuantMailSuperAppHeader({
                   <span className="text-xs font-semibold text-slate-200 block truncate">
                     {nextMeetingTitle}
                   </span>
+                  {nextMeetingTime && (
                   <p className="text-[11px] text-[#64748B] truncate">
                     {nextMeetingTime}
                   </p>
+                  )}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (onJoinMeeting) {
-                    onJoinMeeting();
-                  } else {
-                    router.push('/meet/staging-sync');
-                  }
+                  // No invented fallback: without a real join handler there is
+                  // nothing truthful to join (there is no /meet route).
+                  onJoinMeeting?.();
                 }}
                 className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors shadow-sm ml-2 focus:outline-none focus:ring-1 focus:ring-indigo-400"
                 aria-label="1-Tap Join Meeting"
@@ -970,8 +986,10 @@ export function QuantMailSuperAppHeader({
                 <span>Join Meet</span>
               </button>
             </div>
+            ) : null}
 
-            {/* Tile 3: Storage Quota (QuantDrive) */}
+            {/* Tile 3: Storage Quota (QuantDrive) — only when real quota numbers are passed in */}
+            {hasStorageQuota && (
             <div
               className="flex flex-col justify-center p-2.5 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] hover:border-[#282E3E] transition-all cursor-pointer"
               onClick={() => router.push('/drive')}
@@ -999,6 +1017,7 @@ export function QuantMailSuperAppHeader({
                 <span className="text-sky-400 font-medium">FastCDC E2EE</span>
               </div>
             </div>
+            )}
 
             {/* Tile 4: Executive Quick Actions */}
             <div
