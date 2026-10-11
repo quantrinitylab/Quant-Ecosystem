@@ -106,6 +106,13 @@ export function getConfig(): AppConfig {
       '/auth/register',
       '/auth/refresh',
       '/auth/logout',
+      // Email address ownership proof (6-digit SES code). Reached WITHOUT a
+      // session BY DESIGN: the emailed code IS the credential, not a bearer
+      // token — a freshly-registered user holds no tokens yet and can only
+      // prove address ownership here. Exact + POST-scoped: GET/PUT/DELETE on
+      // these paths stay behind the auth hook, and no sub-path slips through.
+      { path: '/auth/verify-email', methods: ['POST'], exact: true },
+      { path: '/auth/resend-verification', methods: ['POST'], exact: true },
       // Completes a login that stopped at the second factor: the caller holds a
       // signed challenge and no access token yet, so it cannot pass the JWT
       // hook. Listed as the exact path — NEVER as `/auth/2fa`, which would
