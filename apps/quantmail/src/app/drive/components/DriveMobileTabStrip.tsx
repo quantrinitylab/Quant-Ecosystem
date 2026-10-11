@@ -37,8 +37,8 @@ interface MobileTabDef {
  * mobile `MobileSubTabStrip` was deleted — so without this component,
  * 7 of 8 Drive surfaces were unreachable on phones.
  *
- * Visual language mirrors the desktop tab header (blue var(--app-accent) accent on
- * dark) rendered as horizontally scrollable pills, following the pill
+ * Visual language mirrors the desktop tab header (Drive green var(--app-accent) accent
+ * on dark) rendered as horizontally scrollable pills, following the pill
  * patterns already used elsewhere in the Drive page (filter pills).
  * `md:hidden` keeps the desktop layout pixel-identical.
  */
