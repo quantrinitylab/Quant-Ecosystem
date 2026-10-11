@@ -433,6 +433,30 @@ export interface QuantPillarTopBarProps {
   onLensChange?: (lensId: string, pillar: PillarId) => void;
   onQuantyClick?: () => void;
   onOpenCopilot?: () => void;
+  /**
+   * Mobile navigation-drawer opener (mobile-inbox P1, 2026-10-11).
+   *
+   * The bar is mobile-only (AppShell mounts it inside `md:hidden`), and on a
+   * phone it is the top of every screen — the natural home for the hamburger
+   * that opens the navigation drawer (Compose, folders, Labels, Settings…).
+   * Before this, the drawer was reachable only through the physical-keyboard
+   * `[` shortcut (`quant:sidebar:toggle`), so on phones the drawer — and the
+   * Labels page, which has no other mobile link — was unreachable.
+   *
+   * Rendered ONLY when supplied, so standalone uses of the bar never get a
+   * dead button. Sits at the left of the pinned search row (which never hides
+   * on scroll), a 44px tap target with an accessible name.
+   */
+  onMenuClick?: () => void;
+  /**
+   * Attached to the hamburger button when rendered. Lets the drawer return
+   * focus to its trigger on close (Escape / backdrop tap) instead of stranding
+   * it — this ref previously pointed at nothing (AppShell's `menuTriggerRef`
+   * had no DOM node).
+   */
+  menuTriggerRef?: React.RefObject<HTMLButtonElement | null>;
+  /** Whether the drawer is open right now — carried as aria-expanded on the trigger. */
+  menuExpanded?: boolean;
   aiLiveText?: string;
   onVoiceSearch?: (transcript: string) => void;
   unreadCounts?: Partial<Record<PillarId, number>>;
@@ -569,6 +593,9 @@ export function QuantPillarTopBar({
   onLensChange,
   onQuantyClick,
   onOpenCopilot,
+  onMenuClick,
+  menuTriggerRef,
+  menuExpanded,
   aiLiveText,
   onVoiceSearch,
   unreadCounts,
@@ -1328,6 +1355,42 @@ export function QuantPillarTopBar({
       }}
     >
       <div className="flex items-center gap-2 w-full max-w-5xl mx-auto">
+        {/*
+          Mobile navigation-drawer hamburger (mobile-inbox P1, 2026-10-11).
+          Left of the search field — Gmail's convention — inside the pinned
+          row that NEVER hides on scroll, so the drawer (Compose, folders,
+          Labels, Settings…) is always one tap away on phones. Before this,
+          the drawer's only opener was the physical-keyboard `[` shortcut.
+          Rendered only when `onMenuClick` is wired; `menuTriggerRef` gives
+          the drawer's focus-return logic a real DOM node to hand focus back
+          to on close.
+        */}
+        {onMenuClick && (
+          <button
+            type="button"
+            ref={menuTriggerRef}
+            onClick={onMenuClick}
+            aria-label="Open navigation menu"
+            aria-expanded={menuExpanded}
+            title="Open navigation menu"
+            data-testid="pillar-menu-button"
+            className="flex items-center justify-center rounded-xl shrink-0 size-11 min-h-[44px] min-w-[44px] bg-[#16181F] border border-[#232938] text-[#CBD5E1] transition active:scale-95 hover:text-white hover:border-[var(--quant-primary)]/60 outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+          >
+            <svg
+              className="size-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <line x1="4" y1="7" x2="20" y2="7" />
+              <line x1="4" y1="12" x2="20" y2="12" />
+              <line x1="4" y1="17" x2="20" y2="17" />
+            </svg>
+          </button>
+        )}
         <div
           className="relative flex items-center gap-2 px-3 rounded-xl bg-[#16181F] border border-[#232938] focus-within:border-[var(--quant-primary)]/60 focus-within:ring-1 focus-within:ring-[var(--quant-primary)]/30 transition-all shadow-inner flex-1"
           style={{
