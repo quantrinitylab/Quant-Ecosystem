@@ -27,10 +27,13 @@ describe('ConnectionAuth', () => {
   });
 
   describe('extractToken', () => {
-    it('should extract token from query parameter', () => {
+    // QC-F-037 — query-string tokens are NEVER accepted: they leak into
+    // access logs, browser history and Referer headers (the REST side in
+    // server-core rejects them for the same reason).
+    it('should NOT extract token from query parameter', () => {
       const req = createMockRequest('/ws?token=my-jwt-token');
       const token = auth.extractToken(req);
-      expect(token).toBe('my-jwt-token');
+      expect(token).toBeNull();
     });
 
     it('should extract token from Authorization header', () => {
@@ -49,12 +52,12 @@ describe('ConnectionAuth', () => {
       expect(token).toBe('my-jwt-token');
     });
 
-    it('should prefer query parameter over header', () => {
+    it('should prefer Authorization header over query parameter', () => {
       const req = createMockRequest('/ws?token=query-token', {
         authorization: 'Bearer header-token',
       });
       const token = auth.extractToken(req);
-      expect(token).toBe('query-token');
+      expect(token).toBe('header-token');
     });
 
     it('should return null when no token present', () => {
@@ -166,19 +169,37 @@ describe('ConnectionAuth', () => {
   });
 
   describe('authenticateUpgrade', () => {
-    it('should authenticate request with valid token in query', async () => {
+    async function makeValidToken(): Promise<string> {
       const encoder = new TextEncoder();
-      const token = await new SignJWT({ sub: 'user1', app: 'quantchat' })
+      return new SignJWT({ sub: 'user1', app: 'quantchat' })
         .setProtectedHeader({ alg: 'HS256' })
         .setIssuedAt()
         .setIssuer('quant-ecosystem')
         .setAudience('quant-realtime')
         .setExpirationTime('1h')
         .sign(encoder.encode(secret));
+    }
 
-      const req = createMockRequest(`/ws?token=${token}`);
+    it('should authenticate request with valid token in Authorization header', async () => {
+      const token = await makeValidToken();
+      const req = createMockRequest('/ws', { authorization: `Bearer ${token}` });
       const payload = await auth.authenticateUpgrade(req);
       expect(payload.userId).toBe('user1');
+    });
+
+    it('should authenticate request with valid token in Sec-WebSocket-Protocol header', async () => {
+      const token = await makeValidToken();
+      const req = createMockRequest('/ws', { 'sec-websocket-protocol': token });
+      const payload = await auth.authenticateUpgrade(req);
+      expect(payload.userId).toBe('user1');
+    });
+
+    // QC-F-037 — even a perfectly valid JWT must not authenticate when it
+    // arrives only via the URL query string.
+    it('should reject a valid token presented only in the query string', async () => {
+      const token = await makeValidToken();
+      const req = createMockRequest(`/ws?token=${token}`);
+      await expect(auth.authenticateUpgrade(req)).rejects.toThrow('No token provided');
     });
 
     it('should reject request without token', async () => {
@@ -187,7 +208,7 @@ describe('ConnectionAuth', () => {
     });
 
     it('should reject request with invalid token', async () => {
-      const req = createMockRequest('/ws?token=invalid-token');
+      const req = createMockRequest('/ws', { authorization: 'Bearer invalid-token' });
       await expect(auth.authenticateUpgrade(req)).rejects.toThrow(AuthError);
     });
   });
