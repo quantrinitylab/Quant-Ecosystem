@@ -3,11 +3,15 @@
 // Tests for QuantChat Snapchat-grade Ephemeral View-Once Messaging
 // Validates:
 // 1. Unopened Photo Snap (🔴 'New Photo Snap · Tap to view') and Video Snap (🟣 'New Video Snap · Tap to view') with duration badges
-// 2. Fullscreen Snap Viewer Modal with countdown timer and progress bar
+// 2. Fullscreen Snap Viewer Modal with countdown timer and progress bar —
+//    opened ONLY through the backend consume endpoint (QC-F-019)
 // 3. Permanent transition to Opened (⬜ 'Opened · Just now') upon close/expiration and media auto-destruction
-// 4. Single press-and-hold replay enforcement
-// 5. Quick Camera button (📸) with duration selectors (10s, 30s, View Once, 24h)
+// 4. NO replay: view-once means once — an opened snap can never be viewed again,
+//    and a 410 SNAP_CONSUMED response never opens the viewer
+// 5. Quick Camera button (📸) with duration selectors (10s, 30s, View Once, 24h);
+//    the fabricated "instant sample snap" path is gone (QC-F-019)
 // 6. Composer ephemeral duration badge selector
+// 7. Sending a snap carries disappearMode + snap duration metadata to the backend
 //
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -48,6 +52,24 @@ const testMessages = vi.hoisted(() => ({
 
 const sentRequests = vi.hoisted(() => ({
   calls: [] as any[],
+}));
+
+const snapConsume = vi.hoisted(() => ({
+  calls: [] as string[],
+  result: {
+    success: true,
+    data: { mediaUrl: 'data:image/svg+xml;utf8,<svg></svg>', duration: 10 },
+  } as any,
+}));
+
+vi.mock('../services/api-client', () => ({
+  apiClient: {
+    consumeSnap: (messageId: string) => {
+      snapConsume.calls.push(messageId);
+      return Promise.resolve(snapConsume.result);
+    },
+    initiate1v1Call: () => Promise.resolve({ success: false }),
+  },
 }));
 
 vi.mock('../hooks/useChatSocket', () => ({
@@ -161,6 +183,11 @@ describe('Snapchat-style Ephemeral View-Once Messaging', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     sentRequests.calls = [];
+    snapConsume.calls = [];
+    snapConsume.result = {
+      success: true,
+      data: { mediaUrl: 'data:image/svg+xml;utf8,<svg></svg>', duration: 10 },
+    };
   });
 
   afterEach(() => {
@@ -300,5 +327,127 @@ describe('Snapchat-style Ephemeral View-Once Messaging', () => {
     });
 
     expect(duration30sBtn?.className).toContain('bg-amber-500');
+  });
+
+  it('QC-F-019: opening a snap consumes it through the backend exactly once, with no replay', async () => {
+    await act(async () => {
+      root.render(React.createElement(ChatPage, { params: Promise.resolve({ id: 'conv-1' }) }));
+    });
+
+    const photoSnapButton = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('New Photo Snap · Tap to view'),
+    );
+    await act(async () => {
+      photoSnapButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    // The viewer opened with media delivered by the consume endpoint.
+    expect(snapConsume.calls).toEqual(['snap-1']);
+    expect(container.textContent).toContain('Snap will auto-destroy');
+
+    const closeBtn = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.getAttribute('aria-label') === 'Close snap',
+    );
+    await act(async () => {
+      closeBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain('Opened · Just now');
+    expect(container.textContent).not.toContain('Press and hold to replay');
+
+    // Press-and-hold on the opened card must NOT reopen the viewer or
+    // consume again — view-once means once.
+    const openedCard = Array.from(container.querySelectorAll('div')).find((d) =>
+      d.textContent?.includes('Opened · Just now'),
+    );
+    await act(async () => {
+      openedCard?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(container.textContent).not.toContain('Snap will auto-destroy');
+    expect(snapConsume.calls).toEqual(['snap-1']);
+  });
+
+  it('QC-F-019: a 410 SNAP_CONSUMED response never opens the viewer', async () => {
+    snapConsume.result = {
+      success: false,
+      error: { code: 'SNAP_CONSUMED', message: 'already viewed', statusCode: 410 },
+    };
+    await act(async () => {
+      root.render(React.createElement(ChatPage, { params: Promise.resolve({ id: 'conv-1' }) }));
+    });
+
+    const photoSnapButton = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('New Photo Snap · Tap to view'),
+    );
+    await act(async () => {
+      photoSnapButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(snapConsume.calls).toEqual(['snap-1']);
+    expect(container.textContent).not.toContain('Snap will auto-destroy');
+    expect(container.textContent).toContain('already been viewed and destroyed');
+    expect(container.textContent).toContain('Opened · Just now');
+  });
+
+  it('QC-F-019: snap camera offers no fabricated sample snap', async () => {
+    await act(async () => {
+      root.render(React.createElement(ChatPage, { params: Promise.resolve({ id: 'conv-1' }) }));
+    });
+
+    const cameraButton = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.getAttribute('aria-label') === 'Quick Snap Camera',
+    );
+    await act(async () => {
+      cameraButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain('Send a Snap');
+    expect(container.textContent).not.toContain('capture quick instant snap');
+    expect(container.textContent).not.toContain('QuantSnap Instant Capture');
+  });
+
+  it('QC-F-019: sending a snap sends disappearMode + snap duration metadata', async () => {
+    await act(async () => {
+      root.render(React.createElement(ChatPage, { params: Promise.resolve({ id: 'conv-1' }) }));
+    });
+
+    const cameraButton = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.getAttribute('aria-label') === 'Quick Snap Camera',
+    );
+    await act(async () => {
+      cameraButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput).toBeTruthy();
+    const file = new File(['fake-png-bytes'], 'snap.png', { type: 'image/png' });
+    Object.defineProperty(fileInput, 'files', { value: [file], configurable: true });
+    await act(async () => {
+      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    // FileReader is async in jsdom; flush it (fake timers are active, so
+    // advance them instead of awaiting a real timeout).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+
+    const sendButton = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Send Snap'),
+    );
+    expect(sendButton).toBeDefined();
+    await act(async () => {
+      sendButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(sentRequests.calls).toHaveLength(1);
+    expect(sentRequests.calls[0]).toMatchObject({
+      type: 'snap_photo',
+      disappearMode: 'after_view',
+      metadata: { snap: { durationSec: 10 } },
+    });
+    expect(sentRequests.calls[0].mediaUrl).toContain('data:image/png');
   });
 });
