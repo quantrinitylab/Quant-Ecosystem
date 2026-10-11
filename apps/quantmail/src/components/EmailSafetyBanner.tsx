@@ -1,154 +1,222 @@
 'use client';
 
-import { useCallback, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { showToast } from './InboxToast';
+import { useState } from 'react';
+import { usePhishingCheck } from '../hooks/usePhishingCheck';
 import type { Email } from '../types';
 
 interface EmailSafetyBannerProps {
   email: Email;
+  /** The signed-in user's address — used to tell internal mail from external. */
+  currentUserEmail?: string;
+  /** Outbound messages (you wrote them) are never scanned and show no banner. */
+  isOutbound?: boolean;
+  /** 'compact' for chat bubbles, 'full' for expanded letter cards. */
+  variant?: 'compact' | 'full';
+}
+
+function domainOf(address?: string): string {
+  const at = (address ?? '').lastIndexOf('@');
+  return at >= 0 ? address!.slice(at + 1).trim().toLowerCase() : '';
 }
 
 /**
- * Displays contextual safety banners:
- * - Phishing warning for high phishing scores
- * - Medium phishing warning for borderline scores
- * - Unsubscribe button for promotional/newsletter emails
- * - First-time sender indicator
+ * Pull a real unsubscribe URL out of the List-Unsubscribe header. Only an
+ * https URL is ever rendered — a bare "Unsubscribe" button that toasts a lie
+ * is worse than no button.
  */
-export function EmailSafetyBanner({ email }: EmailSafetyBannerProps) {
+function unsubscribeUrlOf(headers: Record<string, string> | undefined): string | null {
+  const raw = headers?.['list-unsubscribe'] ?? headers?.['List-Unsubscribe'];
+  if (!raw) return null;
+  const match = /<(https?:\/\/[^>\s]+)>/.exec(raw) ?? /(https?:\/\/[^\s,]+)/.exec(raw);
+  return match ? match[1] : null;
+}
+
+/**
+ * Sender-safety indicators for one message in a thread view.
+ *
+ * Everything shown here is real:
+ * - "External sender" is computed locally from the sender's domain versus
+ *   the signed-in user's domain — no backend claim involved.
+ * - The phishing warning comes from the real backend AI scan
+ *   (`POST /emails/:id/detect-phishing`) via `usePhishingCheck`, fired lazily
+ *   per inbound message. A failed scan shows "Safety check unavailable" —
+ *   never an all-clear.
+ * - The unsubscribe link only appears when the message carries a real
+ *   List-Unsubscribe https URL, and it is a real link to that URL.
+ *
+ * What this banner deliberately does NOT do: first-time-sender guesses (the
+ * old `!isRead && !inReplyTo` heuristic was fabricated), "Report"/"Trust"
+ * buttons that only showed a toast, and SPF/DKIM badges nobody verified.
+ */
+export function EmailSafetyBanner({
+  email,
+  currentUserEmail,
+  isOutbound = false,
+  variant = 'full',
+}: EmailSafetyBannerProps) {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const isHighPhishing = (email.phishingScore ?? 0) > 70;
-  const isMediumPhishing = (email.phishingScore ?? 0) > 40 && !isHighPhishing;
-  const isPromotion = email.category === 'promotions' || email.category === 'social';
-  const hasUnsubscribeHeader = email.headers?.['list-unsubscribe'] != null;
-  const showUnsubscribe = isPromotion || hasUnsubscribeHeader;
 
-  // Detect first-time sender (no prior messages from this address)
-  const isFirstTimeSender = !email.isRead && email.from?.email && !email.inReplyTo;
+  // Your own sends need no safety scan.
+  const senderEmail = email.from?.email ?? '';
+  const scanEnabled = !isOutbound && Boolean(email.id);
+  const check = usePhishingCheck(email.id, { enabled: scanEnabled });
 
-  const handleReport = useCallback(() => {
-    showToast({ text: 'Reported as phishing. We\'ll review this sender.', type: 'success' });
-    setDismissed((prev) => new Set([...prev, 'phishing']));
-  }, []);
+  if (isOutbound) return null;
 
-  const handleTrustSender = useCallback(() => {
-    showToast({ text: `Trusted ${email.from?.name || email.from?.email}`, type: 'info' });
-    setDismissed((prev) => new Set([...prev, 'phishing', 'medium']));
-  }, [email.from]);
+  const senderDomain = domainOf(senderEmail);
+  const userDomain = domainOf(currentUserEmail);
+  const isExternal = Boolean(senderDomain && userDomain && senderDomain !== userDomain);
 
-  const handleUnsubscribe = useCallback(() => {
-    showToast({ text: `Unsubscribed from ${email.from?.name || email.from?.email}`, type: 'success' });
-    setDismissed((prev) => new Set([...prev, 'unsubscribe']));
-  }, [email.from]);
+  const isWarning = check.status === 'warning';
+  const isUnavailable = check.status === 'unavailable';
+  const isLoading = check.status === 'loading';
+  const unsubscribeUrl = unsubscribeUrlOf(email.headers);
 
-  if (!isHighPhishing && !isMediumPhishing && !showUnsubscribe && !isFirstTimeSender) return null;
+  const showWarning = isWarning && !dismissed.has('warning');
+  const showUnavailable = isUnavailable && !dismissed.has('unavailable');
+  const showExternal = isExternal && !isWarning;
+  const showUnsubscribe = Boolean(unsubscribeUrl) && !dismissed.has('unsubscribe');
+
+  if (!showWarning && !showUnavailable && !showExternal && !showUnsubscribe && !isLoading) {
+    return null;
+  }
+
+  const dismiss = (key: string) => setDismissed((prev) => new Set([...prev, key]));
+  const pad = variant === 'compact' ? 'px-3 py-2' : 'px-4 py-2.5';
 
   return (
-    <div className="email-safety-banners">
-      <AnimatePresence>
-        {isHighPhishing && !dismissed.has('phishing') && (
-          <motion.div
-            className="safety-banner safety-banner-danger"
-            role="alert"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <span className="safety-banner-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-            </span>
-            <div className="safety-banner-content">
-              <strong>This message looks suspicious</strong>
-              <p>
-                QuantMail detected potential phishing patterns. Be cautious with links and
-                attachments. Don&apos;t share personal information.
+    <div className="flex w-full flex-col gap-1.5" aria-label="Sender safety">
+      {isLoading && (
+        <div
+          data-testid="safety-banner-checking"
+          role="status"
+          className={`flex items-center gap-2 rounded-xl bg-white/[0.03] ${pad} text-[11px] text-zinc-500`}
+        >
+          <span
+            className="size-3 shrink-0 animate-spin rounded-full border border-zinc-600 border-t-transparent"
+            aria-hidden="true"
+          />
+          Checking sender safety…
+        </div>
+      )}
+
+      {showWarning && (
+        <div
+          data-testid="safety-banner-warning"
+          role="alert"
+          className={`rounded-xl bg-red-500/[0.08] ${pad} text-xs text-red-200`}
+        >
+          <div className="flex items-start gap-2">
+            <svg
+              className="mt-0.5 size-4 shrink-0 text-red-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-red-300">This message looks suspicious</p>
+              <p className="mt-0.5 text-red-200/80">
+                QuantMail&apos;s safety scan flagged phishing patterns. Be careful with
+                links and attachments — don&apos;t share personal information.
               </p>
-            </div>
-            <div className="safety-banner-actions-group">
-              <button type="button" className="safety-banner-action" onClick={handleReport}>Report</button>
-              <button type="button" className="safety-banner-trust" onClick={handleTrustSender}>Trust sender</button>
-            </div>
-          </motion.div>
-        )}
-        {isMediumPhishing && !dismissed.has('medium') && (
-          <motion.div
-            className="safety-banner safety-banner-warning"
-            role="status"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <span className="safety-banner-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-            </span>
-            <div className="safety-banner-content">
-              <strong>Verify this sender</strong>
-              <p>This email has some characteristics that require caution.</p>
-            </div>
-            <button type="button" className="safety-banner-trust" onClick={handleTrustSender}>Trust</button>
-          </motion.div>
-        )}
-        {showUnsubscribe && !isHighPhishing && !dismissed.has('unsubscribe') && (
-          <motion.div
-            className="safety-banner safety-banner-info"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <span className="safety-banner-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <rect x="2" y="4" width="20" height="16" rx="2" />
-                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-              </svg>
-            </span>
-            <div className="safety-banner-content">
-              <p>This looks like a newsletter or promotional email.</p>
-            </div>
-            <button type="button" className="safety-banner-unsubscribe" onClick={handleUnsubscribe}>
-              Unsubscribe
-            </button>
-          </motion.div>
-        )}
-        {isFirstTimeSender && !isHighPhishing && !isMediumPhishing && !dismissed.has('first-time') && (
-          <motion.div
-            className="safety-banner safety-banner-neutral"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <span className="safety-banner-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-                <line x1="19" y1="8" x2="19" y2="14" />
-                <line x1="22" y1="11" x2="16" y2="11" />
-              </svg>
-            </span>
-            <div className="safety-banner-content">
-              <p><strong>New sender</strong> — First message from {email.from?.name || email.from?.email}</p>
+              {check.indicators.length > 0 && (
+                <ul className="mt-1 list-disc space-y-0.5 pl-4 text-red-200/70">
+                  {check.indicators.slice(0, 3).map((indicator, i) => (
+                    <li key={i}>{indicator}</li>
+                  ))}
+                </ul>
+              )}
             </div>
             <button
               type="button"
-              className="safety-banner-dismiss"
-              onClick={() => setDismissed((prev) => new Set([...prev, 'first-time']))}
-              aria-label="Dismiss"
+              onClick={() => dismiss('warning')}
+              aria-label="Dismiss phishing warning"
+              className="shrink-0 rounded-lg p-1 text-red-300/70 transition-colors hover:bg-red-500/10 hover:text-red-200"
             >
               ×
             </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      )}
+
+      {showUnavailable && (
+        <div
+          data-testid="safety-banner-unavailable"
+          className={`flex items-center gap-2 rounded-xl bg-white/[0.03] ${pad} text-[11px] text-zinc-500`}
+        >
+          <svg
+            className="size-3.5 shrink-0"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <p className="flex-1">
+            Safety check unavailable — this sender couldn&apos;t be verified. Treat
+            links and attachments with care.
+          </p>
+          <button
+            type="button"
+            onClick={() => dismiss('unavailable')}
+            aria-label="Dismiss"
+            className="shrink-0 rounded-lg p-1 text-zinc-500 transition-colors hover:bg-white/[0.06] hover:text-zinc-300"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {showExternal && (
+        <div
+          data-testid="safety-banner-external"
+          className={`flex items-center gap-2 rounded-xl bg-white/[0.03] ${pad} text-[11px] text-zinc-400`}
+        >
+          <span className="size-1.5 shrink-0 rounded-full bg-orange-400" aria-hidden="true" />
+          <p>
+            External sender <span className="text-zinc-500">· {senderDomain}</span>
+          </p>
+        </div>
+      )}
+
+      {showUnsubscribe && unsubscribeUrl && (
+        <div
+          data-testid="safety-banner-unsubscribe"
+          className={`flex items-center gap-2 rounded-xl bg-white/[0.03] ${pad} text-[11px] text-zinc-400`}
+        >
+          <p className="flex-1">This looks like a newsletter or promotional email.</p>
+          <a
+            href={unsubscribeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 font-medium text-orange-400 transition-colors hover:text-orange-300"
+          >
+            Unsubscribe
+          </a>
+          <button
+            type="button"
+            onClick={() => dismiss('unsubscribe')}
+            aria-label="Dismiss"
+            className="shrink-0 rounded-lg p-1 text-zinc-500 transition-colors hover:bg-white/[0.06] hover:text-zinc-300"
+          >
+            ×
+          </button>
+        </div>
+      )}
     </div>
   );
 }

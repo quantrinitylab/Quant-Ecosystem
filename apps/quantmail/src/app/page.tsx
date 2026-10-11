@@ -25,7 +25,6 @@ import {
   type SearchFolderScope,
 } from '../lib/inbox-nav';
 import { AppSidebar } from '../components/AppSidebar';
-import { EmailSafetyBanner } from '../components/EmailSafetyBanner';
 import { EmailSnooze } from '../components/EmailSnooze';
 import { AnchoredMenu } from '../components/AnchoredMenu';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -39,7 +38,6 @@ import { ReadTimeEstimate } from '../components/ReadTimeEstimate';
 import { QuantMailLogo } from '../components/QuantMailLogo';
 import { SelectionHeader } from '../components/SelectionHeader';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
-import { EmailSenderHeader } from '../components/EmailSenderHeader';
 import { GroupEditorModal, type GroupDraft } from '../components/GroupEditorModal';
 import { ThreadKindBadge } from '../components/MessageKindBadge';
 import { UnreadCountPill } from '../components/UnreadCountPill';
