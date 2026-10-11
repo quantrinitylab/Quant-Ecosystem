@@ -93,6 +93,11 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [twoFactorNotice, setTwoFactorNotice] = useState(false);
+  const [ssoBusy, setSsoBusy] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
 
   const destination = useCallback(
     () => safeReturnPath(searchParams?.get('returnTo') ?? null) ?? '/',
@@ -105,6 +110,97 @@ function LoginForm() {
       router.replace(destination());
     }
   }, [isAuthenticated, isLoading, router, destination]);
+
+  // Surface SSO failures the server-side callback redirects back with
+  // (/login?auth_error=<code>). Honest copy only — no internal details.
+  useEffect(() => {
+    const authError = searchParams?.get('auth_error');
+    if (!authError) return;
+    const copy: Record<string, string> = {
+      provider_denied: 'QuantMail sign-in was cancelled. You can try again below.',
+      missing_code: 'QuantMail did not return a sign-in code. Please try again.',
+      invalid_state:
+        'This sign-in attempt expired or was already used. Please start again with "Continue with QuantMail".',
+      invalid_ticket:
+        'The QuantMail sign-in ticket expired. Please start again with "Continue with QuantMail".',
+    };
+    setError(
+      copy[authError] ??
+        'QuantMail sign-in failed. Please try again, or sign in with email and password.',
+    );
+    try {
+      const url = scrubSsoHandoffParams(new URL(window.location.href));
+      url.searchParams.delete('auth_error');
+      window.history.replaceState(
+        {},
+        document.title,
+        url.pathname + (url.search ? url.search : '') + url.hash,
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [searchParams]);
+
+  // Contract-B chooser ticket (?sso_ticket=): scrub it from the URL
+  // IMMEDIATELY (it is single-use and must not linger), then redeem it
+  // server-side via POST /api/auth/sso/ticket, which mints the HttpOnly
+  // session cookies. No token ever touches the URL or client storage.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const ticket = params.get('sso_ticket');
+    if (!ticket) return;
+    try {
+      const url = scrubSsoHandoffParams(new URL(window.location.href));
+      window.history.replaceState(
+        {},
+        document.title,
+        url.pathname + (url.search ? url.search : '') + url.hash,
+      );
+    } catch {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    let cancelled = false;
+    (async () => {
+      setSsoBusy(true);
+      setError(null);
+      try {
+        const res = await fetch('/api/auth/sso/ticket', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticket, returnTo: destination() }),
+          cache: 'no-store',
+        });
+        const data = (await res.json().catch(() => null)) as {
+          success?: boolean;
+          data?: { returnTo?: string };
+          error?: { message?: string };
+        } | null;
+        if (cancelled) return;
+        if (res.ok && data?.success) {
+          router.replace(
+            safeReturnPath(data?.data?.returnTo ?? null) ?? destination(),
+          );
+          return;
+        }
+        setError(
+          data?.error?.message ??
+            'QuantMail sign-in failed. Please try again, or sign in with email and password.',
+        );
+      } catch {
+        if (!cancelled) {
+          setError(
+            'QuantMail sign-in failed. Please try again, or sign in with email and password.',
+          );
+        }
+      } finally {
+        if (!cancelled) setSsoBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router, destination]);
 
   // Auto-capture SSO tokens returned from QuantMail Account Chooser or Cross-App Jump Bridge
   useEffect(() => {
@@ -155,15 +251,80 @@ function LoginForm() {
     })();
   }, [router, destination]);
 
-  // "Continue with Quant Account" always performs a real SSO handshake with QuantMail.
-  // We deliberately do NOT short-circuit on a locally stored token: reusing a stale/expired
-  // local token makes the button appear dead and prevents account switching.
-  const handleQuantSSO = useCallback(() => {
-    const target = destination();
-    const returnParam = target && target !== '/' ? `?returnTo=${encodeURIComponent(target)}` : '';
-    const returnTo = encodeURIComponent(`${window.location.origin}/login${returnParam}`);
-    window.location.href = `https://quantmail.in/sso?returnTo=${returnTo}&client_id=quantai`;
-  }, [destination]);
+  // "Continue with QuantMail" is the PRIMARY one-tap sign-in: it starts the
+  // real OAuth2 authorization-code + PKCE handshake with QuantMail
+  // (POST /api/auth/sso/start → 302 to QuantMail's authorize endpoint). The
+  // server-side /api/auth/sso/callback then exchanges the code back-channel,
+  // verifies the identity via userinfo, and establishes the QuantAI session in
+  // HttpOnly cookies — no token ever appears in the URL.
+  //
+  // We deliberately do NOT short-circuit on a locally stored token: reusing a
+  // stale/expired local token makes the button appear dead and prevents
+  // account switching.
+  const handleQuantSSO = useCallback(async () => {
+    if (ssoBusy) return;
+    setSsoBusy(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/sso/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ returnTo: destination() }),
+        cache: 'no-store',
+      });
+      const data = (await res.json().catch(() => null)) as {
+        success?: boolean;
+        data?: { authorizeUrl?: string };
+      } | null;
+      const authorizeUrl = data?.success ? data?.data?.authorizeUrl : null;
+      if (!res.ok || !authorizeUrl) {
+        throw new Error('start-failed');
+      }
+      window.location.href = authorizeUrl;
+    } catch {
+      setSsoBusy(false);
+      setError('Could not start QuantMail sign-in. Please try again.');
+    }
+  }, [destination, ssoBusy]);
+
+  async function handleForgotPassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setResetNotice(null);
+    const targetEmail = resetEmail.trim();
+    if (!targetEmail || !targetEmail.includes('@')) {
+      setError('Enter the email address of your Quant account.');
+      return;
+    }
+    setResetBusy(true);
+    try {
+      const res = await fetch('/api/auth/password-reset/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: targetEmail }),
+        cache: 'no-store',
+      });
+      const data = (await res.json().catch(() => null)) as {
+        success?: boolean;
+        error?: { message?: string };
+      } | null;
+      if (res.ok && data?.success) {
+        // Honest copy (Contract C): the reset link goes to the QuantMail inbox.
+        setResetNotice(
+          "We'll email a reset link to your QuantMail inbox. Open it there to set a new password.",
+        );
+        return;
+      }
+      setError(
+        data?.error?.message ??
+          'Could not request a password reset. Please try again shortly.',
+      );
+    } catch {
+      setError('Could not request a password reset. Please try again shortly.');
+    } finally {
+      setResetBusy(false);
+    }
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -251,7 +412,8 @@ function LoginForm() {
             <button
               type="button"
               onClick={handleQuantSSO}
-              className="relative flex w-full items-center justify-center gap-2.5 rounded-[15px] bg-gradient-to-b from-[#181924] to-[#0d0e15] px-5 py-3.5 text-sm font-semibold text-white shadow-xl shadow-black/50 transition-all duration-200 group-hover:from-[#212332] group-hover:to-[#12131d] active:scale-[0.99]"
+              disabled={ssoBusy}
+              className="relative flex w-full items-center justify-center gap-2.5 rounded-[15px] bg-gradient-to-b from-[#181924] to-[#0d0e15] px-5 py-3.5 text-sm font-semibold text-white shadow-xl shadow-black/50 transition-all duration-200 group-hover:from-[#212332] group-hover:to-[#12131d] active:scale-[0.99] disabled:cursor-wait disabled:opacity-70"
             >
               {/* Luxury sheen sweep overlay */}
               <div className="pointer-events-none absolute inset-0 rounded-[15px] bg-gradient-to-tr from-white/[0.03] via-transparent to-white/[0.08]" />
@@ -269,7 +431,29 @@ function LoginForm() {
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="currentColor" fillOpacity="0.25" />
               </svg>
 
-              <span>Continue with Quant Account</span>
+              {ssoBusy ? (
+                <svg
+                  className="h-4 w-4 animate-spin text-violet-300"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                  />
+                </svg>
+              ) : null}
+              <span>{ssoBusy ? 'Connecting to QuantMail…' : 'Continue with QuantMail'}</span>
             </button>
           </div>
         </div>
@@ -322,12 +506,25 @@ function LoginForm() {
           </div>
 
           <div>
-            <label
-              htmlFor="login-password"
-              className="mb-1.5 block text-[13px] font-medium text-zinc-300"
-            >
-              Password
-            </label>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label
+                htmlFor="login-password"
+                className="block text-[13px] font-medium text-zinc-300"
+              >
+                Password
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForgotPassword((v) => !v);
+                  setResetNotice(null);
+                  setError(null);
+                }}
+                className="text-xs font-medium text-violet-400 transition hover:text-violet-300"
+              >
+                Forgot password?
+              </button>
+            </div>
             <div className="relative flex overflow-hidden rounded-xl border border-white/10 bg-black/40 transition duration-200 focus-within:border-violet-500/60 focus-within:bg-black/60 focus-within:ring-2 focus-within:ring-violet-500/20">
               <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-zinc-500">
                 <svg
@@ -434,6 +631,49 @@ function LoginForm() {
             )}
           </button>
         </form>
+
+        {/* Forgot password: reset link goes to the user's QuantMail inbox (Contract C). */}
+        {showForgotPassword ? (
+          <form
+            onSubmit={handleForgotPassword}
+            noValidate
+            className="mt-5 space-y-3 rounded-2xl border border-white/10 bg-black/30 p-4"
+          >
+            <p className="text-xs leading-relaxed text-zinc-400">
+              Enter your Quant account email. We&apos;ll email a reset link to your
+              QuantMail inbox.
+            </p>
+            {resetNotice ? (
+              <div
+                role="status"
+                className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs leading-relaxed text-emerald-200"
+              >
+                {resetNotice}
+              </div>
+            ) : null}
+            <div className="flex gap-2">
+              <input
+                type="email"
+                required
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+                placeholder="you@quantmail.in"
+                aria-label="Quant account email"
+                value={resetEmail}
+                onChange={(event) => setResetEmail(event.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition duration-200 focus:border-violet-500/60 focus:ring-2 focus:ring-violet-500/20"
+              />
+              <button
+                type="submit"
+                disabled={resetBusy}
+                className="shrink-0 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {resetBusy ? 'Sending…' : 'Send link'}
+              </button>
+            </div>
+          </form>
+        ) : null}
 
         {/* Footer Link & Ecosystem Notice */}
         <div className="mt-6 text-center">

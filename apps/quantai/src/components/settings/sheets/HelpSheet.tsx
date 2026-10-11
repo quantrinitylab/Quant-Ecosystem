@@ -16,7 +16,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: 'How do I sign in?',
-    a: 'Use "Continue with Quant Account" on the login screen. One QuantID works across the whole ecosystem — QuantMail, QuantChat, and QuantAI.',
+    a: 'Use "Continue with QuantMail" on the login screen. One QuantID works across the whole ecosystem — QuantMail, QuantChat, and QuantAI.',
   },
   {
     q: 'Which AI models can I use?',

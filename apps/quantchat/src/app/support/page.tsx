@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 const FAQS: Array<{ q: string; a: string }> = [
   {
     q: 'I cannot sign in. What should I do?',
-    a: 'QuantChat uses your Quant Account (QuantMail SSO). Make sure you can sign in at quantmail.in first, then choose “Continue with Quant Account” here. If you use a user ID and password, check for typos — passwords are case-sensitive.',
+    a: 'QuantChat uses your Quant Account (QuantMail SSO). Make sure you can sign in at quantmail.in first, then choose “Continue with QuantMail” here. If you use a user ID and password, check for typos — passwords are case-sensitive.',
   },
   {
     q: 'Messages are not arriving in realtime.',

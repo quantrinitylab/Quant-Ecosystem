@@ -42,9 +42,14 @@ const verifySchema = z.object({
   deviceId: z.string().max(128).optional(),
 });
 
-const ssoExchangeSchema = z.object({
-  ssoToken: z.string().min(10).max(8192),
-});
+const ssoExchangeSchema = z
+  .object({
+    ssoToken: z.string().min(10).max(8192).optional(),
+    // Contract-B single-use chooser ticket (?sso_ticket=), verified via
+    // QuantMail's POST /oauth/sso-ticket/verify instead of /oauth/userinfo.
+    ssoTicket: z.string().min(8).max(4096).optional(),
+  })
+  .refine((v) => v.ssoToken || v.ssoTicket, { message: 'ssoToken or ssoTicket is required' });
 
 const updateProfileSchema = z
   .object({
@@ -261,21 +266,62 @@ export default async function authRoutes(fastify: FastifyInstance) {
         success: false,
         error: {
           code: 'BAD_REQUEST',
-          message: 'ssoToken is required',
+          message: 'ssoToken or ssoTicket is required',
           statusCode: 400,
         },
       });
     }
-    const { ssoToken } = parsed.data;
+    const { ssoToken, ssoTicket } = parsed.data;
 
-    // 1. Verify the SSO token back-channel against QuantMail (server-side; the
-    //    token is never trusted on its claims alone).
+    // 1. Verify the SSO credential back-channel against QuantMail (server-side;
+    //    the credential is never trusted on its claims alone).
+    //    - ssoToken: a QuantMail-issued token → GET /oauth/userinfo.
+    //    - ssoTicket: a Contract-B single-use chooser ticket (?sso_ticket=,
+    //      NOT a token) → POST /oauth/sso-ticket/verify { ticket }.
     const quantmailBase = (
       process.env['QUANTMAIL_BACKEND_URL'] || 'https://quantmail.in'
     ).replace(/\/$/, '');
     let identity: { email: string; username?: string; displayName?: string };
     try {
-      {
+      if (ssoTicket) {
+        // Contract B: the ticket is opaque — only QuantMail can redeem it, and
+        // only once (60s TTL). We take the verified identity it returns.
+        let res: Response | null = null;
+        for (const verifyPath of ['/oauth/sso-ticket/verify', '/api/oauth/sso-ticket/verify']) {
+          const attempt = await fetchWithTimeout(
+            `${quantmailBase}${verifyPath}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ticket: ssoTicket }),
+            },
+            'sso',
+          );
+          if (attempt.status === 404) continue; // path not served here — try next
+          res = attempt;
+          break;
+        }
+        const body = (await res?.json().catch(() => null)) as {
+          success?: boolean;
+          data?: { id?: unknown; email?: unknown; username?: unknown; displayName?: unknown };
+        } | null;
+        const data = body?.success === true ? body?.data : null;
+        if (!res || !res.ok || !data || typeof data.email !== 'string' || !data.email.includes('@')) {
+          return reply.status(401).send({
+            success: false,
+            error: {
+              code: 'INVALID_SSO_TICKET',
+              message: 'SSO ticket not accepted by QuantMail',
+              statusCode: 401,
+            },
+          });
+        }
+        identity = {
+          email: data.email.toLowerCase(),
+          username: typeof data.username === 'string' ? data.username : undefined,
+          displayName: typeof data.displayName === 'string' ? data.displayName : undefined,
+        };
+      } else {
         // K13: upstream OIDC/userinfo verification runs under the central
         // remote-call timeout policy ('sso' — default 8000ms, overridable via
         // QUANT_TIMEOUT_SSO). A hung QuantMail fails fast with a typed

@@ -99,6 +99,9 @@ export function getConfig(): AppConfig {
     jwtSecret: process.env['JWT_SECRET'] ?? 'dev-secret-change-in-production',
     jwtIssuer: process.env['JWT_ISSUER'] ?? 'quantai',
     jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
+    // Pre-authentication SSO endpoint: verifies a QuantMail SSO credential
+    // back-channel and mints QuantAI-native session tokens.
+    publicPaths: ['/auth/sso/exchange'],
     env,
   };
 }
