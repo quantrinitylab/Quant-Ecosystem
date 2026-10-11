@@ -52,6 +52,13 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=4096
         run: npx turbo build --concurrency=2 --filter=@quant/database
 
+      - name: Build quanty-contracts for typechecks
+        # packages/quant-tools imports @quant/quanty-contracts, whose
+        # package.json points types at dist/index.d.ts. Without this build
+        # the backend typecheck fails with TS2307 (same pattern as
+        # quantmail-browser-auth-validate.yml).
+        run: pnpm --filter @quant/quanty-contracts build
+
       - name: Run Workers AI contract tests
         run: >-
           pnpm --filter @quant/quantai exec vitest run

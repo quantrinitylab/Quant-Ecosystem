@@ -17,7 +17,9 @@ import type { FastifyInstance } from 'fastify';
  */
 export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/me', async (request, reply) => {
-    const auth = (request as { auth?: Record<string, unknown> }).auth ?? {};
+    // NOTE: cast via `unknown` — FastifyRequest's generics don't sufficiently
+    // overlap with the structural auth shape for a direct assertion (TS2352).
+    const auth = (request as unknown as { auth?: Record<string, unknown> }).auth ?? {};
     return reply.send({
       success: true,
       data: {
