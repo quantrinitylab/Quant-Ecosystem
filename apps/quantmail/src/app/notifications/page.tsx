@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation';
 import { Button, Skeleton, ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import {
   useNotifications,
   useMarkNotificationRead,
@@ -62,6 +63,10 @@ export default function NotificationsPage() {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>('all');
   const [actionError, setActionError] = useState<string | null>(null);
+  // QM-SCREEN-015: "Mark all read" is destructive-adjacent (it clears every
+  // unread badge at once), so it asks first. The dialog copy states only the
+  // real count — no invented claims.
+  const [confirmMarkAllOpen, setConfirmMarkAllOpen] = useState(false);
 
   const { data, isLoading, error, refetch } = useNotifications(50);
   const markRead = useMarkNotificationRead();
@@ -121,7 +126,7 @@ export default function NotificationsPage() {
             {unreadCount > 0 && (
               <Button
                 variant="secondary"
-                onClick={() => void run(() => markAllRead.mutateAsync())}
+                onClick={() => setConfirmMarkAllOpen(true)}
                 disabled={markAllRead.isPending}
               >
                 <Icon name="check" className="mr-1.5 h-4 w-4" />
@@ -129,6 +134,18 @@ export default function NotificationsPage() {
               </Button>
             )}
           </div>
+          <ConfirmDialog
+            isOpen={confirmMarkAllOpen}
+            title="Mark all read?"
+            message={`This will mark all ${unreadCount} unread notification${unreadCount === 1 ? '' : 's'} as read.`}
+            confirmLabel="Mark all read"
+            cancelLabel="Cancel"
+            onConfirm={() => {
+              setConfirmMarkAllOpen(false);
+              void run(() => markAllRead.mutateAsync());
+            }}
+            onCancel={() => setConfirmMarkAllOpen(false)}
+          />
 
           {/* Filters */}
           <div className="mt-4 flex gap-2" role="tablist" aria-label="Notification filters">
