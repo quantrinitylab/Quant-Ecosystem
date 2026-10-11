@@ -41,6 +41,7 @@ import {
   threadParticipants,
 } from '../lib/threading';
 import { looksLikeMarkdown, useSafeMarkdownHtml } from '../lib/markdown';
+import { formatDetailDate } from '../lib/honest-date';
 import { invalidateMailLists } from '../lib/offline/folders';
 import { plainTextToHtml } from '../lib/email-body';
 import { ThreadSummaryCard, messagesToSummaryPayload, type ThreadSummaryResult } from './ThreadSummaryCard';
@@ -210,6 +211,9 @@ function findActiveGroup(
 function formatMessageDate(value?: string | Date): string {
   if (!value) return '';
   const date = new Date(value);
+  // QM-FIX: an unparseable timestamp must not surface as "Invalid Date" in the
+  // message header — same guard `dayKey`/`formatDayDivider` already use.
+  if (Number.isNaN(date.getTime())) return '';
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMin = Math.floor(diffMs / 60_000);
@@ -231,7 +235,10 @@ function formatMessageDate(value?: string | Date): string {
  */
 function formatFullDate(value?: string | Date): string {
   if (!value) return '';
-  return new Date(value).toLocaleString();
+  const date = new Date(value);
+  // QM-FIX: never leak "Invalid Date" into the hover tooltip either.
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString();
 }
 
 /**
@@ -2902,9 +2909,12 @@ export function ConversationalThreadView({
                             <div className="flex">
                               <span className="w-20 text-[var(--quant-muted-foreground)]">Date:</span>
                               <span className="text-[var(--quant-muted-foreground)]">
-                                {message.receivedAt
-                                  ? new Date(message.receivedAt).toLocaleString()
-                                  : 'N/A'}
+                                {/*
+                                 * QM-FIX (thread "Date:" showed non-date text): resolve the
+                                 * best real date (receivedAt → createdAt → updatedAt) and
+                                 * never render "Invalid Date" or raw field text here.
+                                 */}
+                                {formatDetailDate(message, 'N/A')}
                               </span>
                             </div>
                           </div>
