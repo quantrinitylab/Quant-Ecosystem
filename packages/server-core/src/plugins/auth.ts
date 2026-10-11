@@ -51,6 +51,26 @@ export interface RequireStepUpOptions extends RequireAuthOptions {
 
 export const DEFAULT_STEP_UP_METHODS = ['password', 'totp', 'recovery-code'] as const;
 
+/**
+ * Token-kind gate (QC-F-030): a token that carries a `kind` claim is only
+ * usable as an access token when the kind IS 'access'. QuantChat's
+ * SessionTokenIssuer signs its access (1h) and refresh (30d) tokens with the
+ * same secret/issuer/audience — the `kind` claim is the ONLY thing that
+ * separates them — so without this check a refresh token works as a 30-day
+ * access token on every REST route and bypasses the refresh endpoint's own
+ * checks (e.g. its deletedAt gate).
+ *
+ * Phase-1 policy is deny-non-access, NOT strict-require-'access': much of
+ * the ecosystem's live access-token population carries no `kind` claim at
+ * all (@quant/auth TokenService, SDK tokens, test-minted tokens), so a
+ * strict gate would lock those users out. A missing `kind` is therefore
+ * accepted here; a present-but-not-'access' kind is always rejected.
+ */
+function hasNonAccessKind(payload: jose.JWTPayload): boolean {
+  const kind = payload['kind'];
+  return kind !== undefined && kind !== 'access';
+}
+
 /** Mirror the access token's `lastStrongAuthAt` claim into the auth context. */
 function readLastStrongAuthAt(payload: jose.JWTPayload): number | undefined {
   const value = payload['lastStrongAuthAt'];
@@ -153,6 +173,20 @@ async function authPlugin(
           audience,
         });
 
+        // QC-F-030: a refresh (or any non-access-kind) token must never
+        // authenticate as an access token. Same 401 shape as an invalid
+        // token — no new error code, no kind oracle for the caller.
+        if (hasNonAccessKind(payload)) {
+          return reply.status(401).send({
+            success: false,
+            error: {
+              code: 'UNAUTHORIZED',
+              message: 'Invalid or expired token',
+              statusCode: 401,
+            },
+          });
+        }
+
         const authContext: AuthContext = {
           userId: payload.sub ?? '',
           email: (payload['email'] as string) ?? '',
@@ -244,6 +278,11 @@ async function authPlugin(
           issuer,
           audience,
         });
+
+        // QC-F-030: optional auth must not populate an identity from a
+        // refresh / non-access-kind token either — silently treat it like
+        // any other unusable token (optional auth never errors).
+        if (hasNonAccessKind(payload)) return;
 
         const authContext: AuthContext = {
           userId: payload.sub ?? '',
