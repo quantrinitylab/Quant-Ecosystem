@@ -638,7 +638,9 @@ FOLLOW-UP FINDINGS (honest-errors, left out of fix-agent scope):
 - [ ] FINDING P1: handleMergePR marks PR merged on failed responses | expected: failure shows failure | actual: page.tsx handleMergePR marks PRs merged even when merge response failed | evidence: src/app/quantgit/page.tsx (noted by lane1-fix-013-ci-clone-ui fix agent, out of scope)
 
 ## QM-SCREEN-014 — Quanty workspace / inline / voice / cross-app task graph
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-014
 Required: persistent capsule, chat/voice, clarification, confirmation, task graph, background work, UI-control boundaries, evidence/provenance, cancellation, unknown outcome, cross-app handoff.
 Dependencies: Quanty docs 24–34.
 
