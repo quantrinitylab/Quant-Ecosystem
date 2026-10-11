@@ -185,7 +185,7 @@ export default async function callsRoutes(fastify: FastifyInstance) {
     const callService = getCallService();
 
     try {
-      await callService.endCall(roomId);
+      await callService.endCall(roomId, userId);
       await persistEnded(roomId);
       return reply.send({ success: true, data: { message: 'Call ended' } });
     } catch (err) {
