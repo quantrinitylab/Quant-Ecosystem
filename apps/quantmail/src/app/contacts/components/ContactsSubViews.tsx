@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import type { Contact } from '../../../types';
+import type { Contact, SearchEmailRequest } from '../../../types';
 import { sanitizeSnippetText } from '../../../lib/threading';
 import { apiClient } from '../../../services/api-client';
 import { Avatar } from '@quant/shared-ui';
@@ -940,6 +940,26 @@ export interface ContactDetailSheetProps {
   onScheduleMeeting?: (email: string) => void;
 }
 
+/**
+ * QM-SCREEN-012 R2: the two /emails/search parameter objects behind the
+ * contact detail sheet's "Mail Conversations" section.
+ *
+ * They use the structured `from`/`to` query params (ANDed server-side by
+ * EmailService.search) with the bare email as the free-text `q` the route
+ * schema requires. The previous version stuffed `from:`/`to:` operators into
+ * `q` instead — EmailService.search never parses operators, so Postgres did a
+ * literal contains for the string "from:alice@x.com", which can never match a
+ * real address, and the sheet always showed "No email threads found".
+ */
+export function contactThreadSearchParams(
+  contactEmailLower: string,
+): [Partial<SearchEmailRequest>, Partial<SearchEmailRequest>] {
+  return [
+    { query: contactEmailLower, from: contactEmailLower, pageSize: 20 },
+    { query: contactEmailLower, to: contactEmailLower, pageSize: 20 },
+  ];
+}
+
 export function ContactDetailSheet({
   contact,
   onClose,
@@ -993,9 +1013,10 @@ export function ContactDetailSheet({
     let cancelled = false;
     void (async () => {
       try {
+        const [inboundParams, outboundParams] = contactThreadSearchParams(contactEmailLower);
         const [inbound, outbound] = await Promise.all([
-          apiClient.searchEmails({ query: `from:${contactEmailLower}`, pageSize: 20 }),
-          apiClient.searchEmails({ query: `to:${contactEmailLower}`, pageSize: 20 }),
+          apiClient.searchEmails(inboundParams),
+          apiClient.searchEmails(outboundParams),
         ]);
         const seen = new Set<string>();
         const merged: any[] = [];
