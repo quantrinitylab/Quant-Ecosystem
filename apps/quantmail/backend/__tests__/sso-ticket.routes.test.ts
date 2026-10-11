@@ -73,7 +73,7 @@ describe('POST /oauth/sso-ticket/mint', () => {
     app = await buildApp();
   });
 
-  it('401 without a Bearer <redacted>', async () => {
+  it('401 without a Bearer valid-token', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/oauth/sso-ticket/mint',
@@ -86,7 +86,7 @@ describe('POST /oauth/sso-ticket/mint', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/oauth/sso-ticket/mint',
-      headers: { authorization: 'Bearer <redacted>' },
+      headers: { authorization: 'Bearer valid-token' },
       payload: { audience: 'https://evil.example' },
     });
     expect(res.statusCode).toBe(400);
@@ -101,7 +101,7 @@ describe('POST /oauth/sso-ticket/mint', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/oauth/sso-ticket/mint',
-      headers: { authorization: 'Bearer <redacted>' },
+      headers: { authorization: 'Bearer valid-token' },
       payload: { audience: 'https://quantai.quantrinity.in', clientId: 'quantai' },
     });
     expect(res.statusCode).toBe(200);

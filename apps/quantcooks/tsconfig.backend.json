@@ -5,6 +5,10 @@
     "moduleResolution": "bundler",
     "strict": true,
     "noEmit": true,
+    // src/**/*.ts pulls in @quant/shared-ui (TS source incl. .tsx) via
+    // src/lib/sso-handoff.ts; without a jsx flag tsc emits TS6142 for every
+    // .tsx in the package graph. Match the app tsconfig's react-jsx.
+    "jsx": "react-jsx",
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "isolatedModules": true,

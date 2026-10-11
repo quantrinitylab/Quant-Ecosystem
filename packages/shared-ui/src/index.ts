@@ -141,7 +141,7 @@ export type {
 } from './components/QuantSidekick/QuantSidekick';
 
 // Hooks
-export { useAuth } from './hooks/useAuth';
+export { useAuth, configureQuantAuth } from './hooks/useAuth';
 export type { UseAuthReturn, AuthUser } from './hooks/useAuth';
 export type { QuantAuthEndpoints } from './hooks/useAuth';
 
