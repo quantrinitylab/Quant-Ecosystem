@@ -15,6 +15,7 @@ import { QUANT_MAIL_DOMAIN, toQuantAddress } from '../../config/identity';
 import { safeReturnPath } from '../../lib/safe-return-path';
 import { useAuth } from '../../providers/auth-provider';
 import { browserAuthSession } from '../../services/browser-auth-session';
+import { handoffToExternalDestination } from './sso-handoff';
 
 interface LoginFieldErrors {
   identifier?: string;
@@ -81,25 +82,23 @@ function LoginForm() {
     return returnTo || '/';
   }, [searchParams]);
 
-  const navigateToDestination = useCallback(() => {
+  // External-destination handoff after sign-in.
+  //
+  // SECURITY: the raw session access token NEVER travels in the redirect URL
+  // (browser history, server access logs, Referer headers). We mint a
+  // short-lived single-use opaque SSO ticket server-side (the bearer token
+  // goes in the Authorization header of that POST only), and the URL carries
+  // ONLY `?__quant_sso_ticket=<ticket>`. The receiving app's backend resolves
+  // the ticket server-side and establishes its own session. On mint failure
+  // we show an honest error — there is no fallback that puts the token back
+  // in the URL.
+  const navigateToDestination = useCallback(async () => {
     const dest = destination();
     if (dest.startsWith('http://') || dest.startsWith('https://')) {
-      const token = browserAuthSession.getAccessToken();
-      try {
-        const targetUrl = new URL(dest);
-        if (token) {
-          // Only the SSO ticket aliases travel in the URL. The legacy
-          // `refreshToken` param was a misnomer for the access token and is no
-          // longer sent (nothing ever consumed it).
-          targetUrl.searchParams.set('token', token);
-          targetUrl.searchParams.set('accessToken', token);
-          targetUrl.searchParams.set('__quant_sso_ticket', token);
-        }
-        window.location.href = targetUrl.toString();
-        return;
-      } catch {
-        // fallback
-      }
+      await handoffToExternalDestination(dest, browserAuthSession.getAccessToken(), (url) => {
+        window.location.href = url;
+      }, setError);
+      return;
     }
     router.push(dest);
   }, [destination, router]);
