@@ -307,6 +307,19 @@ export class QuantChatApiClient {
     return this.post(`/messages/${messageId}/pin`, {});
   }
 
+  /**
+   * QC-F-019: consume a view-once snap through the backend endpoint
+   * (POST /messages/:id/view-once). This is the ONLY path that delivers
+   * snap media: the server records the view, returns the one-time media
+   * payload (presigned URL or inline data), and destroys its stored copy.
+   * A second call fails with 410 SNAP_CONSUMED.
+   */
+  async consumeSnap(
+    messageId: string,
+  ): Promise<ApiResponse<{ mediaUrl: string; duration: number }>> {
+    return this.post(`/messages/${messageId}/view-once`, {});
+  }
+
   async setTyping(conversationId: string, isTyping: boolean): Promise<ApiResponse<void>> {
     return this.post(`/conversations/${conversationId}/typing`, { isTyping });
   }
