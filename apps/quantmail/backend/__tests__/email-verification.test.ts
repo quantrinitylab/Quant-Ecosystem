@@ -8,8 +8,16 @@
  * The properties worth breaking a build over: the code actually leaves the
  * building (mocked SES, but the call must happen), only the digest is stored
  * (never the plaintext code), a wrong code is rejected without burning the
- * row, an expired code is rejected, and `emailVerified` flips true ONLY on a
- * successful code match.
+ * row, an expired code is rejected, `emailVerified` flips true ONLY on a
+ * successful code match, and — the race this suite was built for — N
+ * concurrent redemptions of the same code produce EXACTLY ONE winner.
+ *
+ * The in-memory prisma below is deliberately stateful and emulates real
+ * Postgres semantics for the burn: `updateMany({ id, usedAt: null })` checks
+ * the WHERE and writes in one synchronous step with no await between them,
+ * exactly like a single `UPDATE ... WHERE` statement under a row lock. Two
+ * interleaved requests therefore cannot both see count 1. A mock that let
+ * both win would be testing nothing.
  *
  * HARD RULE: email only. No phone/SMS anywhere in this file or the code it
  * tests — phone OTP was removed by user order.
@@ -18,26 +26,98 @@
 import { createHash } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({
-  prisma: {
-    user: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
-    emailVerificationCode: {
-      create: vi.fn(),
-      findFirst: vi.fn(),
-      update: vi.fn(),
-      updateMany: vi.fn(),
+const mocks = vi.hoisted(() => {
+  const db = {
+    users: {} as Record<string, any>,
+    codes: [] as any[],
+  };
+
+  const matchCodes = (where: any) =>
+    db.codes.filter(
+      (r) =>
+        (where.userId === undefined || r.userId === where.userId) &&
+        (where.id === undefined || r.id === where.id) &&
+        (where.usedAt === undefined || (where.usedAt === null ? r.usedAt === null : r.usedAt !== null)),
+    );
+
+  const emailVerificationCode = {
+    create: vi.fn(async (args: any) => {
+      const row = {
+        id: `evc-${db.codes.length + 1}`,
+        usedAt: null,
+        attempts: 0,
+        createdAt: new Date(),
+        ...args.data,
+      };
+      db.codes.push(row);
+      return row;
+    }),
+    findFirst: vi.fn(async (args: any) => {
+      const matches = matchCodes(args?.where ?? {});
+      matches.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      return matches[0] ?? null;
+    }),
+    update: vi.fn(async (args: any) => {
+      const row = db.codes.find((r) => r.id === args.where.id);
+      if (!row) throw new Error('record not found');
+      if (args.data?.attempts?.increment) {
+        row.attempts += args.data.attempts.increment;
+      } else {
+        Object.assign(row, args.data);
+      }
+      return row;
+    }),
+    // ATOMIC compare-and-set: the WHERE check and the write complete in one
+    // synchronous step (no await between them), mirroring a single Postgres
+    // UPDATE ... WHERE under the row lock. Exactly one concurrent racer can
+    // observe count 1 for the same { id, usedAt: null } predicate.
+    updateMany: vi.fn(async (args: any) => {
+      const rows = matchCodes(args?.where ?? {});
+      for (const row of rows) {
+        if (args.data?.usedAt !== undefined) row.usedAt = args.data.usedAt;
+      }
+      return { count: rows.length };
+    }),
+  };
+
+  const user = {
+    findFirst: vi.fn(async () => null),
+    findUnique: vi.fn(async (args: any) => db.users[args?.where?.email ?? ''] ?? null),
+    create: vi.fn(async (args: any) => {
+      const u = { id: 'user-1', ...args.data };
+      db.users[args.data.email] = u;
+      return u;
+    }),
+    update: vi.fn(async (args: any) => {
+      const u = Object.values(db.users).find((x: any) => x.id === args.where.id) as any;
+      Object.assign(u, args.data);
+      return u;
+    }),
+  };
+
+  // The interactive-transaction proxy shares the same atomic
+  // implementations, so the route's tx.* calls behave like the real DB.
+  const tx = { emailVerificationCode, user };
+
+  return {
+    db,
+    prisma: {
+      user,
+      emailVerificationCode,
+      emailFolder: { createMany: vi.fn() },
+      $transaction: vi.fn(async (arg: any) =>
+        typeof arg === 'function' ? arg(tx) : Promise.all(arg),
+      ),
     },
-    emailFolder: { createMany: vi.fn() },
-    $transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
-  },
-  sendViaSes: vi.fn(),
-  isSesConfigured: vi.fn(() => true),
-  argon2Hash: vi.fn(async (password: string) => `hashed_${password}`),
-  issueBrowserSession: vi.fn(async (_t: unknown, _r: unknown, user: any) => ({
-    success: true as const,
-    data: { userId: user.id, user: { id: user.id, email: user.email } },
-  })),
-}));
+    sendViaSes: vi.fn(),
+    isSesConfigured: vi.fn(() => true),
+    argon2Hash: vi.fn(async (password: string) => `hashed_${password}`),
+    issueBrowserSession: vi.fn(async (_t: unknown, _r: unknown, user: any) => ({
+      success: true as const,
+      data: { userId: user.id, user: { id: user.id, email: user.email } },
+    })),
+  };
+});
 
 vi.mock('@quant/auth/lib/prisma', () => ({ default: mocks.prisma, prisma: mocks.prisma }));
 
@@ -126,22 +206,36 @@ const USER = {
 
 const REAL_CODE = '482916';
 
+const seedUser = (overrides: Record<string, unknown> = {}) => {
+  mocks.db.users[USER.email] = { ...USER, ...overrides };
+};
+
+const seedLiveCode = () => {
+  mocks.db.codes.push({
+    id: 'evc-1',
+    userId: USER.id,
+    codeHash: hashVerificationCode(REAL_CODE),
+    expiresAt: new Date(Date.now() + 5 * 60_000),
+    usedAt: null,
+    attempts: 0,
+    createdAt: new Date(),
+  });
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.db.users = {};
+  mocks.db.codes = [];
+  seedUser();
   mocks.sendViaSes.mockResolvedValue('ses-message-id');
   mocks.isSesConfigured.mockReturnValue(true);
-  mocks.prisma.user.findFirst.mockResolvedValue(null);
-  mocks.prisma.user.findUnique.mockResolvedValue(USER);
-  mocks.prisma.user.create.mockImplementation(async (args: any) => ({ id: 'user-1', ...args.data }));
-  mocks.prisma.emailVerificationCode.create.mockResolvedValue({ id: 'evc-1' });
-  mocks.prisma.emailVerificationCode.updateMany.mockResolvedValue({ count: 0 });
-  mocks.prisma.emailVerificationCode.update.mockImplementation(async (args: any) => ({ ...args.data }));
 });
 
 describe('POST /auth/register — address is not proven at signup', () => {
   const request = (body: unknown) => call('/auth/register', { headers: {}, body, ip: '203.0.113.9' });
 
   it('creates the user with emailVerified: false, never true', async () => {
+    mocks.db.users = {};
     const reply = await request({ email: USER.email, username: USER.username, password: 's3cure-p4ss' });
     expect(reply.statusCode).toBe(200);
     expect(mocks.prisma.user.create).toHaveBeenCalled();
@@ -150,6 +244,7 @@ describe('POST /auth/register — address is not proven at signup', () => {
   });
 
   it('dispatches a real verification email through SES and stores only the hash', async () => {
+    mocks.db.users = {};
     const reply = await request({ email: USER.email, username: USER.username, password: 's3cure-p4ss' });
     expect(reply.statusCode).toBe(200);
     // The code must leave the building via the mailer…
@@ -171,17 +266,9 @@ describe('POST /auth/register — address is not proven at signup', () => {
 
 describe('POST /auth/verify-email — proving the address', () => {
   const request = (body: unknown) => call('/auth/verify-email', { headers: {}, body, ip: '203.0.113.9' });
-  const liveRow = () => ({
-    id: 'evc-1',
-    userId: USER.id,
-    codeHash: hashVerificationCode(REAL_CODE),
-    expiresAt: new Date(Date.now() + 5 * 60_000),
-    usedAt: null,
-    attempts: 0,
-  });
 
   it('rejects a wrong code and burns an attempt, not the row', async () => {
-    mocks.prisma.emailVerificationCode.findFirst.mockResolvedValue(liveRow());
+    seedLiveCode();
     const reply = await request({ email: USER.email, code: '000000' });
     expect(reply.statusCode).toBe(400);
     expect(reply.body.error.code).toBe('INVALID_CODE');
@@ -189,14 +276,14 @@ describe('POST /auth/verify-email — proving the address', () => {
       where: { id: 'evc-1' },
       data: { attempts: { increment: 1 } },
     });
+    expect(mocks.db.codes[0].attempts).toBe(1);
+    expect(mocks.db.codes[0].usedAt).toBeNull();
     expect(mocks.prisma.user.update).not.toHaveBeenCalled();
   });
 
   it('rejects an expired code', async () => {
-    mocks.prisma.emailVerificationCode.findFirst.mockResolvedValue({
-      ...liveRow(),
-      expiresAt: new Date(Date.now() - 60_000),
-    });
+    seedLiveCode();
+    mocks.db.codes[0].expiresAt = new Date(Date.now() - 60_000);
     const reply = await request({ email: USER.email, code: REAL_CODE });
     expect(reply.statusCode).toBe(400);
     expect(mocks.prisma.user.update).not.toHaveBeenCalled();
@@ -209,29 +296,60 @@ describe('POST /auth/verify-email — proving the address', () => {
   });
 
   it('answers a nonexistent account exactly like a wrong code', async () => {
-    mocks.prisma.user.findUnique.mockResolvedValue(null);
     const reply = await request({ email: 'ghost@quantmail.in', code: REAL_CODE });
     expect(reply.statusCode).toBe(400);
     expect(reply.body.error.code).toBe('INVALID_OR_EXPIRED_CODE');
   });
 
   it('flips emailVerified true only on the correct code, single-use', async () => {
-    mocks.prisma.emailVerificationCode.findFirst.mockResolvedValue(liveRow());
+    seedLiveCode();
     const reply = await request({ email: USER.email, code: REAL_CODE });
     expect(reply.statusCode).toBe(200);
     expect(reply.body.data.emailVerified).toBe(true);
+    // The burn goes through an interactive transaction…
     expect(mocks.prisma.$transaction).toHaveBeenCalledTimes(1);
-    const ops = mocks.prisma.$transaction.mock.calls[0][0];
-    expect(ops).toHaveLength(3);
-    // The user row flips only inside that transaction — never on failure paths.
+    expect(typeof mocks.prisma.$transaction.mock.calls[0][0]).toBe('function');
+    // …the code row is burned exactly once…
+    const burns = mocks.prisma.emailVerificationCode.updateMany.mock.calls.filter(
+      (c: any) => c[0]?.where?.id === 'evc-1' && c[0]?.where?.usedAt === null,
+    );
+    expect(burns).toHaveLength(1);
+    expect(mocks.db.codes[0].usedAt).not.toBeNull();
+    // …and the user row flips only inside that transaction.
+    expect(mocks.db.users[USER.email].emailVerified).toBe(true);
   });
 
   it('short-circuits when the address is already verified', async () => {
-    mocks.prisma.user.findUnique.mockResolvedValue({ ...USER, emailVerified: true });
+    mocks.db.users[USER.email].emailVerified = true;
     const reply = await request({ email: USER.email, code: REAL_CODE });
     expect(reply.statusCode).toBe(200);
     expect(reply.body.data.alreadyVerified).toBe(true);
     expect(mocks.prisma.emailVerificationCode.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('concurrent redemptions: exactly one winner, the rest lose honestly', async () => {
+    seedLiveCode();
+    const RACERS = 10;
+    const results = await Promise.all(
+      Array.from({ length: RACERS }, () =>
+        call('/auth/verify-email', { headers: {}, body: { email: USER.email, code: REAL_CODE }, ip: '203.0.113.9' }),
+      ),
+    );
+    const winners = results.filter((r) => r.statusCode === 200);
+    const losers = results.filter(
+      (r) => r.statusCode === 400 && r.body?.error?.code === 'CODE_ALREADY_USED',
+    );
+    expect(winners).toHaveLength(1);
+    expect(losers).toHaveLength(RACERS - 1);
+    expect(winners[0].body.data.emailVerified).toBe(true);
+    // The code row was burned exactly once — one compare-and-set won.
+    expect(mocks.db.codes[0].usedAt).not.toBeNull();
+    const burns = mocks.prisma.emailVerificationCode.updateMany.mock.calls.filter(
+      (c: any) => c[0]?.where?.id === 'evc-1' && c[0]?.where?.usedAt === null,
+    );
+    expect(burns).toHaveLength(RACERS);
+    // The address is proven exactly once, by the single winner.
+    expect(mocks.db.users[USER.email].emailVerified).toBe(true);
   });
 });
 
@@ -241,12 +359,14 @@ describe('POST /auth/resend-verification — the first mail may not arrive', () 
   it('invalidates old codes, stores a fresh hash, and reports delivery honestly', async () => {
     const { sendVerificationEmail } = await import('../lib/email-verification');
     (sendVerificationEmail as any).mockResolvedValue(true);
+    seedLiveCode();
     const reply = await request({ email: USER.email });
     expect(reply.statusCode).toBe(200);
     expect(mocks.prisma.emailVerificationCode.updateMany).toHaveBeenCalledWith({
       where: { userId: USER.id, usedAt: null },
       data: { usedAt: expect.any(Date) },
     });
+    expect(mocks.db.codes[0].usedAt).not.toBeNull();
     expect(sendVerificationEmail).toHaveBeenCalledTimes(1);
     expect(reply.body.data.emailSent).toBe(true);
   });
