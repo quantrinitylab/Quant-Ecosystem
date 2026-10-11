@@ -111,9 +111,14 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
       throw queryResult.error;
     }
 
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new MessageService(prisma as never);
-    const result = await service.getMessages(request.params.id, queryResult.data);
+    const result = await service.getMessages(request.params.id, userId, queryResult.data);
 
     return reply.send({ success: true, data: result });
   });
