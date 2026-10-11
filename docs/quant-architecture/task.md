@@ -523,9 +523,10 @@ REQUIREMENT GAPS vs Required: voice Quanty flow MISSING (R1 carryover); authorit
 Live evidence: /tmp/lane1-006r2/desktop-compose.png + mobile-compose.png (both sign-in gate, no compose leak).
 
 ## QM-SCREEN-007 — Search / command palette / universal search
-Status: [x] DONE (audit complete 2026-10-11 ~01:00 IST; fixes tracked via their PRs)
+Status: [~] IN PROGRESS (R2 regression audit, 2026-10-11)
 Owner: LANE-1
-Branch: lane-1/audit-qm-screen-007-search
+Branch: lane-1/audit-qm-screen-007-search-r2
+Audit started (R2): 2026-10-11 ~17:35 IST (lane-1 deep audit loop)
 Audit started: 2026-10-11 ~00:45 IST (lane-1 deep audit loop)
 Required: Mail + Calendar + Drive + Contacts + QuantGit authorization-aware federation, lexical/semantic boundaries, E2EE/local search where applicable, source hydration, stale ACL invalidation, keyboard/mobile UX.
 Dependencies: QM-WORK-006; QM-WORK-009.
