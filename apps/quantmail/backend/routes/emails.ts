@@ -1490,30 +1490,42 @@ export default async function emailsRoutes(
           ],
         }
       : null;
+    // Cursor mode fetches one row past the page as the "has next" probe;
+    // offset mode fetches exactly the page.
+    //
+    // The folder relation is included (type only) so `formatEmailRecord`
+    // can bridge `isArchived` truthfully on every row. Without it the
+    // ARCHIVE list filtered server-side on the folder but never sent it,
+    // so archived rows arrived with `isArchived: false`; the client's
+    // offline seed (`belongsInFolder(row, 'ARCHIVE')`) then dropped all of
+    // them and the archive view showed "Nothing archived yet." while the
+    // inbox shelf showed the real count — two Archive truths, one lying.
+    //
+    // The same class of bug hit SNOOZED: the where filters on the thread
+    // relation (`thread.is.snoozedUntil > now`) but rows arrived without it,
+    // so the offline seed (`belongsInFolder(row, 'SNOOZED')`, which reads
+    // `email.snoozedUntil`) dropped every row and a cold load of the
+    // snoozed view seeded to []. The thread relation is therefore included
+    // (snoozedUntil only, SNOOZED view only) so `formatEmailRecord` can
+    // bridge it onto the wire row the same way the folder bridge does.
+    const listInclude: Prisma.EmailInclude = {
+      folder: { select: { type: true } },
+      ...(folderType === 'SNOOZED' ? { thread: { select: { snoozedUntil: true } } } : {}),
+    };
     const [rows, total, unreadCount] = await Promise.all([
-      // Cursor mode fetches one row past the page as the "has next" probe;
-      // offset mode fetches exactly the page.
-      //
-      // The folder relation is included (type only) so `formatEmailRecord`
-      // can bridge `isArchived` truthfully on every row. Without it the
-      // ARCHIVE list filtered server-side on the folder but never sent it,
-      // so archived rows arrived with `isArchived: false`; the client's
-      // offline seed (`belongsInFolder(row, 'ARCHIVE')`) then dropped all of
-      // them and the archive view showed "Nothing archived yet." while the
-      // inbox shelf showed the real count — two Archive truths, one lying.
       listWhere
         ? prisma.email.findMany({
             where: listWhere,
             take: pageSize + 1,
             orderBy: timelineOrder,
-            include: { folder: { select: { type: true } } },
+            include: listInclude,
           })
         : prisma.email.findMany({
             where,
             skip,
             take: pageSize,
             orderBy: timelineOrder,
-            include: { folder: { select: { type: true } } },
+            include: listInclude,
           }),
       prisma.email.count({ where }),
       prisma.email.count({ where: { ...where, isRead: false } }),
