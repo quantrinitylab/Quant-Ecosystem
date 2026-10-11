@@ -494,9 +494,10 @@ ROUND-2 REGRESSION (2026-10-11 ~15:40–16:05 IST, LANE-1, branch lane1-audit-00
 - [ ] FINDING P3: Divider hairlines in ConversationalThreadView (:2103/:2266 message separators, mobile sticky header :1780 + composer :3058 borders) vs no-divider rule — pre-existing, design observation; fold into next mail fix wave.
 
 ## QM-SCREEN-006 — Compose / drafts / schedule / send verification
-Status: [x] DONE
-Owner: Track A screen-audit subagent
-Branch: architecture/quant-company-system-v1
+Status: [~] IN PROGRESS (ROUND 2 regression audit)
+Owner: LANE-1
+Branch: lane1-audit-006-r2
+Audit started: 2026-10-11 ~16:40 IST (lane-1 deep audit loop)
 Required: recipient resolution, autosave, attachment upload, Drive insertion, signatures, scheduled send, idempotency, send status, retry/unknown outcome, authoritative verification, voice Quanty flow.
 Dependencies: QM-WORK-005; QM-QUANTY-003.
 Track A audit (2026-10-10, web code: EmailComposer.tsx + backend/routes/emails.ts; live compose NEEDS-AUTH):
