@@ -27,6 +27,14 @@ import type { ConversationMessage } from '../types';
 import type { ContextManager } from './context-manager';
 import type { MemoryBackend } from './memory-facade';
 import { compareRecalls, type DivergenceSeverity } from './memory-facade';
+import {
+  MemoryInjectionGuard,
+  UNTRUSTED_DATA_NOTICE,
+  beginUntrustedBlock,
+  endUntrustedBlock,
+  type MemoryQuarantineSink,
+  type MemoryGuardStats,
+} from './memory-injection-guard';
 
 /**
  * The memory seam AIEngine consumes. A pairing model: read the enriched prompt,
@@ -67,11 +75,27 @@ export class LegacyEngineMemory implements EngineMemory {
  * (default is legacy). Its retrieval/assembly quality is validated in M11d on
  * the live path — this class does not tune retrieval or ranking.
  */
+export interface MemoryServiceEngineMemoryOpts {
+  defaultSession?: string;
+  recallLimit?: number;
+  /**
+   * F-110: injection guard for recalled content. Defaults to a new guard;
+   * inject a shared one (with an audit sink) to centralize quarantine events.
+   */
+  guard?: MemoryInjectionGuard;
+  /** F-110: audit sink for quarantined injection suspects (used when guard is defaulted). */
+  onQuarantine?: MemoryQuarantineSink;
+}
+
 export class MemoryServiceEngineMemory implements EngineMemory {
+  private readonly guard: MemoryInjectionGuard;
+
   constructor(
     private readonly backend: MemoryBackend,
-    private readonly opts: { defaultSession?: string; recallLimit?: number } = {},
-  ) {}
+    private readonly opts: MemoryServiceEngineMemoryOpts = {},
+  ) {
+    this.guard = opts.guard ?? new MemoryInjectionGuard(opts.onQuarantine);
+  }
 
   async enrich(userId: string, prompt: string, context: ConversationMessage[]): Promise<string> {
     const recalled = await this.backend.recall({
@@ -81,21 +105,51 @@ export class MemoryServiceEngineMemory implements EngineMemory {
     });
 
     const parts: string[] = [];
-    if (recalled.length > 0) {
+    // F-110: recalled memories are UNTRUSTED DATA — screen each at recall
+    // time, quarantine + drop flagged items, wrap survivors in explicit
+    // delimiters with an instruction-hierarchy preamble.
+    const clean = recalled.filter((m) => {
+      const content = typeof m.content === 'string' ? m.content : String(m.content ?? '');
+      const screen = this.guard.screen(content);
+      if (screen.flagged) {
+        this.guard.quarantine({
+          stage: 'recall',
+          actor: userId,
+          content,
+          categories: screen.categories,
+        });
+        return false;
+      }
+      return true;
+    });
+    if (clean.length > 0) {
       parts.push('Relevant context from previous interactions:');
-      for (const m of recalled) {
-        parts.push(`- ${m.content}`);
+      parts.push(UNTRUSTED_DATA_NOTICE);
+      for (const m of clean) {
+        const content = typeof m.content === 'string' ? m.content : String(m.content ?? '');
+        parts.push(this.guard.wrap(content, 'recalled memory'));
       }
       parts.push('');
     }
     if (context.length > 0) {
+      parts.push('Conversation context:');
+      parts.push(UNTRUSTED_DATA_NOTICE);
+      parts.push(beginUntrustedBlock('conversation context'));
       for (const msg of context) {
-        parts.push(`${msg.role}: ${msg.content}`);
+        const role = typeof msg.role === 'string' ? msg.role : 'unknown';
+        const content = typeof msg.content === 'string' ? msg.content : String(msg.content ?? '');
+        parts.push(`${role}: ${content}`);
       }
+      parts.push(endUntrustedBlock('conversation context'));
       parts.push('');
     }
     parts.push(`user: ${prompt}`);
     return parts.join('\n');
+  }
+
+  /** F-110: lifetime audit counters for the injection guard. */
+  getInjectionGuardStats(): MemoryGuardStats {
+    return this.guard.getStats();
   }
 
   async record(userId: string, userMessage: string, assistantResponse: string): Promise<void> {

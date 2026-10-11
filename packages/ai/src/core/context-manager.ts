@@ -3,6 +3,14 @@
 // ============================================================================
 
 import type { ConversationMessage, ContextMemoryEntry } from '../types';
+import {
+  MemoryInjectionGuard,
+  UNTRUSTED_DATA_NOTICE,
+  beginUntrustedBlock,
+  endUntrustedBlock,
+  type MemoryQuarantineSink,
+  type MemoryGuardStats,
+} from './memory-injection-guard';
 
 /** Context window configuration */
 interface ContextConfig {
@@ -10,6 +18,21 @@ interface ContextConfig {
   maxContextTokens: number;
   memoryDecayRate: number;
   importanceThreshold: number;
+  /**
+   * F-110: best-effort audit sink for memory candidates quarantined as
+   * suspected prompt-injection payloads (write-time and recall-time).
+   */
+  onMemoryQuarantine?: MemoryQuarantineSink;
+}
+
+/** A memory candidate quarantined by the injection guard (never recalled). */
+export interface QuarantinedMemoryEntry {
+  key: string;
+  value: string;
+  importance: number;
+  timestamp: number;
+  quarantinedAt: number;
+  categories: string[];
 }
 
 const DEFAULT_CONTEXT_CONFIG: ContextConfig = {
@@ -37,9 +60,16 @@ export class ContextManager {
   private conversationHistory: Map<string, ConversationMessage[]> = new Map();
   private longTermMemory: Map<string, ContextMemoryEntry[]> = new Map();
   private summaries: Map<string, string> = new Map();
+  /**
+   * F-110: quarantined injection suspects. Kept OUT of longTermMemory so they
+   * can never be recalled into a prompt; retained for review/audit.
+   */
+  private quarantined: Map<string, QuarantinedMemoryEntry[]> = new Map();
+  private readonly injectionGuard: MemoryInjectionGuard;
 
   constructor(config: Partial<ContextConfig> = {}) {
     this.config = { ...DEFAULT_CONTEXT_CONFIG, ...config };
+    this.injectionGuard = new MemoryInjectionGuard(this.config.onMemoryQuarantine);
   }
 
   /**
@@ -52,30 +82,67 @@ export class ContextManager {
   ): Promise<string> {
     const parts: string[] = [];
 
-    // Add relevant long-term memories
+    // Add relevant long-term memories.
+    // F-110: recalled memories are UNTRUSTED DATA — screen each at recall
+    // time, quarantine + drop flagged items, and wrap survivors in explicit
+    // delimiters with an instruction-hierarchy preamble (data, not
+    // instructions).
     const memories = this.getRelevantMemories(userId, prompt);
-    if (memories.length > 0) {
+    const cleanMemories: ContextMemoryEntry[] = [];
+    for (const memory of memories) {
+      const screen = this.injectionGuard.screen(memory.value);
+      if (screen.flagged) {
+        this.quarantineMemory(userId, memory, screen.categories, 'recall');
+        continue;
+      }
+      cleanMemories.push(memory);
+    }
+    if (cleanMemories.length > 0) {
       parts.push('Relevant context from previous interactions:');
-      for (const memory of memories) {
-        parts.push(`- ${memory.value}`);
+      parts.push(UNTRUSTED_DATA_NOTICE);
+      for (const memory of cleanMemories) {
+        parts.push(this.injectionGuard.wrap(memory.value, 'recalled memory'));
       }
       parts.push('');
     }
 
-    // Add conversation summary if available
+    // Add conversation summary if available.
+    // F-110: summaries are attacker-influenceable (built from past turns) —
+    // screen at recall time; quarantine + drop when flagged.
     const summary = this.summaries.get(userId);
     if (summary) {
-      parts.push(`Conversation summary: ${summary}`);
-      parts.push('');
+      const screen = this.injectionGuard.screen(summary);
+      if (screen.flagged) {
+        this.quarantineMemory(
+          userId,
+          { key: 'conversation_summary', value: summary, importance: 0, timestamp: Date.now() },
+          screen.categories,
+          'recall',
+        );
+      } else {
+        parts.push('Conversation summary:');
+        parts.push(UNTRUSTED_DATA_NOTICE);
+        parts.push(this.injectionGuard.wrap(summary, 'conversation summary'));
+        parts.push('');
+      }
     }
 
-    // Add recent conversation history
+    // Add recent conversation history.
+    // F-110: history contains past user turns (recorded raw) — mark the whole
+    // section as untrusted data. History is wrapped, not dropped, so the
+    // conversation stays coherent; the preamble keeps it out of the
+    // instruction hierarchy.
     const history = this.getRecentHistory(userId);
     if (history.length > 0) {
       parts.push('Recent conversation:');
+      parts.push(UNTRUSTED_DATA_NOTICE);
+      parts.push(beginUntrustedBlock('conversation history'));
       for (const msg of history) {
-        parts.push(`${msg.role}: ${msg.content}`);
+        const role = typeof msg.role === 'string' ? msg.role : 'unknown';
+        const content = typeof msg.content === 'string' ? msg.content : String(msg.content ?? '');
+        parts.push(`${role}: ${content}`);
       }
+      parts.push(endUntrustedBlock('conversation history'));
       parts.push('');
     }
 
@@ -130,6 +197,19 @@ export class ContextManager {
     value: string,
     importance: number = 0.5,
   ): Promise<void> {
+    // F-110: scan on write. A flagged candidate never enters long-term
+    // memory — it is quarantined (non-recallable) and audited instead.
+    const screen = this.injectionGuard.screen(value);
+    if (screen.flagged) {
+      this.quarantineMemory(
+        userId,
+        { key, value, importance, timestamp: Date.now() },
+        screen.categories,
+        'write',
+      );
+      return;
+    }
+
     const memories = this.longTermMemory.get(userId) || [];
 
     // Check for duplicate keys and update
@@ -197,6 +277,61 @@ export class ContextManager {
   }
 
   /**
+   * F-110: quarantine a suspected prompt-injection memory candidate.
+   *
+   * - 'write' stage: the candidate was screened on the way in and never
+   *   entered long-term memory.
+   * - 'recall' stage: the item was already stored (pre-fix data or a missed
+   *   write-time screen). It is REMOVED from long-term memory so no future
+   *   recall can serve it, and moved to the quarantine list for review.
+   *
+   * Either way an audit event is emitted to the quarantine sink and the
+   * guard counters are bumped.
+   */
+  private quarantineMemory(
+    userId: string,
+    entry: ContextMemoryEntry,
+    categories: string[],
+    stage: 'write' | 'recall',
+  ): void {
+    if (stage === 'recall') {
+      const memories = this.longTermMemory.get(userId);
+      if (memories) {
+        const idx = memories.findIndex(
+          (m) => m.key === entry.key && m.value === entry.value && m.timestamp === entry.timestamp,
+        );
+        if (idx >= 0) memories.splice(idx, 1);
+      }
+    }
+    const list = this.quarantined.get(userId) || [];
+    list.push({
+      key: entry.key,
+      value: entry.value,
+      importance: entry.importance,
+      timestamp: entry.timestamp,
+      quarantinedAt: Date.now(),
+      categories,
+    });
+    this.quarantined.set(userId, list);
+    this.injectionGuard.quarantine({
+      stage,
+      actor: userId,
+      content: entry.value,
+      categories,
+    });
+  }
+
+  /** F-110: quarantined injection suspects for a user (never recalled). */
+  getQuarantinedMemories(userId: string): QuarantinedMemoryEntry[] {
+    return [...(this.quarantined.get(userId) || [])];
+  }
+
+  /** F-110: lifetime audit counters for the injection guard. */
+  getMemoryGuardStats(): MemoryGuardStats {
+    return this.injectionGuard.getStats();
+  }
+
+  /**
    * Clear conversation history for a user
    */
   clearHistory(userId: string): void {
@@ -211,6 +346,7 @@ export class ContextManager {
     this.conversationHistory.delete(userId);
     this.longTermMemory.delete(userId);
     this.summaries.delete(userId);
+    this.quarantined.delete(userId);
   }
 
   /**

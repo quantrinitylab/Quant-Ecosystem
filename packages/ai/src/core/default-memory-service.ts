@@ -48,6 +48,11 @@ import {
   type AcceptanceExisting,
   DefaultMemoryAcceptancePolicy,
 } from './memory-acceptance-policy';
+import {
+  MemoryInjectionGuard,
+  type MemoryQuarantineSink,
+  type MemoryGuardStats,
+} from './memory-injection-guard';
 
 // ─── Pluggable recall strategies (defaults provided, all injectable) ─────────
 
@@ -169,6 +174,11 @@ export interface DefaultMemoryServiceDeps {
   archiver?: MemoryArchiver;
   /** Acceptance policy (ADR-009). Defaults to DefaultMemoryAcceptancePolicy. */
   acceptancePolicy?: MemoryAcceptancePolicy;
+  /**
+   * F-110: best-effort audit sink for memory candidates quarantined as
+   * suspected prompt-injection payloads.
+   */
+  onQuarantine?: MemoryQuarantineSink;
   /** How many existing memories to consider when resolving conflicts (default 20). */
   conflictScanLimit?: number;
   /** Strategy overrides (defaults used if omitted). */
@@ -197,6 +207,7 @@ export class DefaultMemoryService implements MemoryService {
   private readonly conflictResolver: MemoryConflictResolver | undefined;
   private readonly archiver: MemoryArchiver | undefined;
   private readonly acceptancePolicy: MemoryAcceptancePolicy;
+  private readonly injectionGuard: MemoryInjectionGuard;
   private readonly conflictScanLimit: number;
   private readonly merger: MergeStrategy;
   private readonly deduplicator: Deduplicator;
@@ -214,6 +225,7 @@ export class DefaultMemoryService implements MemoryService {
     this.conflictResolver = deps.conflictResolver;
     this.archiver = deps.archiver;
     this.acceptancePolicy = deps.acceptancePolicy ?? new DefaultMemoryAcceptancePolicy();
+    this.injectionGuard = new MemoryInjectionGuard(deps.onQuarantine);
     this.conflictScanLimit = deps.conflictScanLimit ?? 20;
     this.merger = deps.merge ?? new DefaultMergeStrategy();
     this.deduplicator = deps.deduplicator ?? new DefaultDeduplicator();
@@ -268,6 +280,34 @@ export class DefaultMemoryService implements MemoryService {
    * duplicate → skip; supersedes/contradicts → retire the old, then store new.
    */
   private async persist(record: Omit<MemoryRecord, 'id' | 'createdAt' | 'version'>): Promise<void> {
+    // F-110: scan on write (observe path). A flagged candidate is quarantined
+    // instead of entering long-term memory: stored with the non-recallable
+    // 'pending' state (prisma-memory-retriever hides pending/rejected) plus an
+    // explicit quarantine marker, and an audit event is emitted for review.
+    const screen = this.injectionGuard.screen(record.content);
+    if (screen.flagged) {
+      this.injectionGuard.quarantine({
+        stage: 'write',
+        actor: record.owner ?? 'unknown',
+        content: record.content,
+        categories: screen.categories,
+      });
+      await this.storeWithState(
+        {
+          ...record,
+          metadata: {
+            ...record.metadata,
+            injectionQuarantined: true,
+            quarantineCategories: screen.categories,
+          },
+        },
+        'pending',
+        'injection_suspect_quarantined',
+        'guard-v1',
+      );
+      return;
+    }
+
     // Retraction intent (ADR-008): end the target slot, store nothing.
     if (record.metadata?.['operation'] === 'retract') {
       await this.applyRetraction(record);
@@ -440,6 +480,11 @@ export class DefaultMemoryService implements MemoryService {
 
   async compress(actor: string, session: string): Promise<string | null> {
     return this.compressor.compress(actor, session);
+  }
+
+  /** F-110: lifetime audit counters for the injection guard. */
+  getInjectionGuardStats(): MemoryGuardStats {
+    return this.injectionGuard.getStats();
   }
 }
 
