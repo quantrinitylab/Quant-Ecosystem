@@ -109,7 +109,7 @@ export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
                   </div>
 
                   {/* SHA-256 Copy Chip */}
-                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#232938]">
+                  <div className="flex items-center justify-between gap-2 pt-1">
                     <button
                       type="button"
                       aria-label={`Copy SHA-256 checksum for ${item.name}`}

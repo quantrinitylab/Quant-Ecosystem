@@ -122,7 +122,7 @@ export function DocumentVersionHistoryModal({
             value={newSnapshotTitle}
             onChange={(e) => setNewSnapshotTitle(e.target.value)}
             placeholder="Name a new checkpoint (e.g. Major draft complete)"
-            className="flex-1 rounded-lg border border-[#30363D] bg-[#0D1117] px-3 py-1.5 text-xs text-[#F0F6FC] placeholder-[#8B949E] focus:outline-none focus:border-[var(--app-accent)]"
+            className="flex-1 rounded-lg border border-[#30363D] bg-[var(--quant-background)] px-3 py-1.5 text-xs text-[#F0F6FC] placeholder-[#8B949E] focus:outline-none focus:border-[var(--app-accent)]"
           />
           <Button
             variant="primary"
@@ -221,7 +221,7 @@ export function DocumentVersionHistoryModal({
 
                   {/* Inline Preview */}
                   {isSelectedForPreview && (
-                    <div className="mt-3 rounded-lg border border-[#30363D] bg-[#0D1117] p-3 text-xs text-[#C9D1D9] max-h-48 overflow-y-auto font-mono whitespace-pre-wrap">
+                    <div className="mt-3 rounded-lg border border-[#30363D] bg-[var(--quant-background)] p-3 text-xs text-[#C9D1D9] max-h-48 overflow-y-auto font-mono whitespace-pre-wrap">
                       {ver.content || '(Empty document)'}
                     </div>
                   )}

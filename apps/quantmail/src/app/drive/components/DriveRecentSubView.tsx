@@ -205,7 +205,7 @@ export function DriveRecentSubView({
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-[#232938] flex items-center justify-between text-[11px]">
+                  <div className="pt-1 flex items-center justify-between text-[11px]">
                     <span className="text-[#64748B] font-mono text-[10px]">Recent</span>
                     <div className="flex items-center gap-1.5">
                       <button
