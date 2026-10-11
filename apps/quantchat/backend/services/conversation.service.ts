@@ -115,6 +115,55 @@ const activeMembersWithUser = {
 export class ConversationService {
   constructor(private readonly prisma: PrismaClient) {}
 
+  /**
+   * QC-F-017: authorization gate for every conversation-scoped operation.
+   *
+   * Previously getConversation / updateConversation / addMember /
+   * removeMember never received the requester's identity, so ANY logged-in
+   * user could read, rename, or take over ANY conversation (including
+   * promoting themselves to ADMIN via DELETE + POST member). The check lives
+   * in the service layer — the same place sendMessage / pinMessage enforce
+   * membership in MessageService — so no future route can forget it.
+   *
+   * Convention (codebase-dominant, cf. MessageService.sendMessage):
+   * non-member → 403 NOT_A_MEMBER; role-gated action by a non-admin member
+   * → 403 NOT_CONVERSATION_ADMIN.
+   */
+  private async requireMembership(
+    conversationId: string,
+    requesterId: string,
+  ): Promise<ConversationMember> {
+    const membership = await this.prisma.conversationMember.findFirst({
+      where: { conversationId, userId: requesterId, leftAt: null },
+    });
+
+    if (!membership) {
+      throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
+    }
+
+    return membership;
+  }
+
+  private async requireAdmin(
+    conversationId: string,
+    requesterId: string,
+  ): Promise<ConversationMember> {
+    const membership = await this.requireMembership(conversationId, requesterId);
+
+    if (
+      membership.role !== ConversationRole.OWNER &&
+      membership.role !== ConversationRole.ADMIN
+    ) {
+      throw createAppError(
+        'Only conversation admins can perform this action',
+        403,
+        'NOT_CONVERSATION_ADMIN',
+      );
+    }
+
+    return membership;
+  }
+
   async createConversation(input: CreateConversationInput): Promise<Conversation> {
     const { creatorId, participantIds, type, name, description } = input;
 
@@ -160,12 +209,21 @@ export class ConversationService {
     return conversation;
   }
 
-  async getConversation(id: string): Promise<ConversationWithParticipants | null> {
+  async getConversation(
+    id: string,
+    requesterId: string,
+  ): Promise<ConversationWithParticipants | null> {
     const conv = await this.prisma.conversation.findUnique({
       where: { id },
       include: { members: activeMembersWithUser },
     });
     if (!conv) return null;
+    // QC-F-017: only active members may read the conversation (incl. its
+    // participant list). The loaded active-members relation is the
+    // membership proof — a requester absent from it is not a member.
+    if (!conv.members.some((m) => m.userId === requesterId)) {
+      throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
+    }
     const { members, ...rest } = conv;
     return {
       ...rest,
@@ -220,6 +278,7 @@ export class ConversationService {
 
   async addMember(
     conversationId: string,
+    requesterId: string,
     userId: string,
     role: string = 'MEMBER',
   ): Promise<ConversationMember> {
@@ -236,6 +295,25 @@ export class ConversationService {
         'Cannot add members to direct conversations',
         400,
         'DIRECT_CONVERSATION',
+      );
+    }
+
+    // QC-F-017: the requester must already be a member — an outsider can no
+    // longer add themselves (or anyone) into a conversation they cannot see.
+    const requesterMembership = await this.requireMembership(conversationId, requesterId);
+
+    // QC-F-017: assigning a privileged role requires an admin/owner
+    // requester. A plain member may invite others as MEMBER only; this
+    // closes the self-promotion path (add self with role=ADMIN).
+    if (
+      toConversationRole(role) !== ConversationRole.MEMBER &&
+      requesterMembership.role !== ConversationRole.OWNER &&
+      requesterMembership.role !== ConversationRole.ADMIN
+    ) {
+      throw createAppError(
+        'Only conversation admins can perform this action',
+        403,
+        'NOT_CONVERSATION_ADMIN',
       );
     }
 
@@ -261,7 +339,11 @@ export class ConversationService {
     });
   }
 
-  async removeMember(conversationId: string, userId: string): Promise<void> {
+  async removeMember(
+    conversationId: string,
+    requesterId: string,
+    userId: string,
+  ): Promise<void> {
     const member = await this.prisma.conversationMember.findFirst({
       where: { conversationId, userId, leftAt: null },
     });
@@ -270,19 +352,42 @@ export class ConversationService {
       throw createAppError('User is not a member of this conversation', 404, 'NOT_A_MEMBER');
     }
 
+    // QC-F-017: removing SOMEONE ELSE requires an admin/owner requester.
+    // Removing yourself (leaving) only requires being the member, which the
+    // lookup above already proved. Previously any logged-in user could kick
+    // any member out of any conversation — and, combined with addMember,
+    // replace the whole roster and take the group over.
+    if (requesterId !== userId) {
+      await this.requireAdmin(conversationId, requesterId);
+    }
+
     await this.prisma.conversationMember.update({
       where: { id: member.id },
       data: { leftAt: new Date() },
     });
   }
 
-  async updateConversation(id: string, data: UpdateConversationInput): Promise<Conversation> {
+  async updateConversation(
+    id: string,
+    requesterId: string,
+    data: UpdateConversationInput,
+  ): Promise<Conversation> {
     const conversation = await this.prisma.conversation.findUnique({
       where: { id },
     });
 
     if (!conversation) {
       throw createAppError('Conversation not found', 404, 'CONVERSATION_NOT_FOUND');
+    }
+
+    // QC-F-017: only members may update a conversation at all, and changing
+    // the group's identity (name/description) is an admin action — a plain
+    // member or outsider renaming the group was the takeover's first step.
+    // Archive-only updates stay available to any member.
+    if (data.name !== undefined || data.description !== undefined) {
+      await this.requireAdmin(id, requesterId);
+    } else {
+      await this.requireMembership(id, requesterId);
     }
 
     return this.prisma.conversation.update({
