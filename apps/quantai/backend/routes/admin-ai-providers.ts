@@ -27,15 +27,17 @@ interface AuthShape {
 }
 
 /**
- * The JWT `role` claim carries the Prisma `UserRole` enum value verbatim
- * (packages/auth token-service copies `user.role` straight into the payload),
- * and that enum is `USER | ADMIN | MODERATOR | CREATOR | ADVERTISER` — all
- * uppercase with no `@map`. The auth plugin passes the claim through
- * unmodified, so the gate MUST compare case-insensitively; a strict
- * `role !== 'admin'` check 403s every real admin (F-024).
+ * The JWT `role` claim carries the ecosystem-wide role enum value VERBATIM
+ * (packages/server-core auth plugin copies `payload['role']` straight into
+ * the context with NO normalization), and the 2026-10-11 war-room freeze is
+ * explicit: the claim is `user.role` verbatim — UPPERCASE enum
+ * `USER | ADMIN | MODERATOR | CREATOR | ADVERTISER`. No lane lowercases,
+ * guesses, or normalizes the role. So this gate compares with a strict
+ * `role === 'ADMIN'`; case variants like 'admin'/'Admin' are NOT real
+ * admins and must be rejected (F-056).
  */
 export function isAdminRole(role: unknown): boolean {
-  return typeof role === 'string' && role.toLowerCase() === 'admin';
+  return typeof role === 'string' && role === 'ADMIN';
 }
 
 /**
@@ -54,7 +56,7 @@ function requireAdmin(fastify: FastifyInstance) {
         'admin gate denied request: caller lacks the admin role',
       );
       throw createAppError('Admin access required', 403, 'FORBIDDEN', {
-        required: 'admin',
+        required: 'ADMIN',
       });
     }
   };

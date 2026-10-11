@@ -118,14 +118,14 @@ describe('/admin/ai/providers', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  // F-024 regression: the JWT carries the Prisma UserRole enum verbatim
-  // (uppercase), so the gate must accept 'ADMIN' and any case variant.
-  it.each(['Admin', 'aDmIn'])(
-    "GET allows mixed-case admin role '%s' (case-insensitive gate)",
+  // F-056 regression: the war-room freeze requires the VERBATIM uppercase
+  // role enum, so the gate must reject any case variant of 'ADMIN'.
+  it.each(['admin', 'Admin', 'aDmIn'])(
+    "GET rejects case-variant admin role '%s' with 403 (verbatim freeze)",
     async (role) => {
       testAuth = { userId: 'admin-1', role };
       const res = await app.inject({ method: 'GET', url: '/admin/ai/providers' });
-      expect(res.statusCode).toBe(200);
+      expect(res.statusCode).toBe(403);
     },
   );
 
@@ -134,9 +134,9 @@ describe('/admin/ai/providers', () => {
     const res = await app.inject({ method: 'GET', url: '/admin/ai/providers' });
     expect(res.statusCode).toBe(403);
     const body = JSON.parse(res.body);
-    // Improvement: 403 names the missing capability without leaking internals.
+    // Improvement: 403 names the verbatim required role without leaking internals.
     expect(body.error.code).toBe('FORBIDDEN');
-    expect(body.error.details).toEqual({ required: 'admin' });
+    expect(body.error.details).toEqual({ required: 'ADMIN' });
     expect(JSON.stringify(body.error)).not.toMatch(/MODERATOR|Prisma|UserRole|JWT|role/i);
     expect(Object.keys(body.error.details ?? {})).toEqual(['required']);
   });
@@ -211,13 +211,13 @@ describe('/admin/ai/providers', () => {
   });
 
   describe('isAdminRole (unit)', () => {
-    it('accepts ADMIN in any case', () => {
+    it("accepts only the verbatim 'ADMIN' role (war-room freeze)", () => {
       expect(isAdminRole('ADMIN')).toBe(true);
-      expect(isAdminRole('admin')).toBe(true);
-      expect(isAdminRole('Admin')).toBe(true);
-      expect(isAdminRole('aDmIn')).toBe(true);
     });
-    it('rejects other enum roles, empty, and non-strings', () => {
+    it('rejects case variants, other enum roles, empty, and non-strings', () => {
+      expect(isAdminRole('admin')).toBe(false);
+      expect(isAdminRole('Admin')).toBe(false);
+      expect(isAdminRole('aDmIn')).toBe(false);
       expect(isAdminRole('USER')).toBe(false);
       expect(isAdminRole('MODERATOR')).toBe(false);
       expect(isAdminRole('')).toBe(false);
