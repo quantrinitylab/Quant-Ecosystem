@@ -46,6 +46,10 @@ const ssoExchangeSchema = z.object({
   ssoToken: z.string().min(10).max(8192),
 });
 
+const refreshSchema = z.object({
+  refreshToken: z.string().min(10).max(8192),
+});
+
 const updateProfileSchema = z
   .object({
     displayName: z.string().trim().min(1).max(80).optional(),
@@ -377,6 +381,86 @@ export default async function authRoutes(fastify: FastifyInstance) {
           displayName: user.displayName,
           role: String(user.role).toLowerCase(),
         },
+      },
+    });
+  });
+
+  // POST /auth/refresh — redeem a refresh token for a fresh token pair.
+  //
+  // WHY THIS EXISTS: the web client's apiClient has always called
+  // `/auth/refresh` on a 401 (with the stored refresh token), but NO route
+  // existed at either the Next proxy layer or here — every refresh attempt
+  // 404'd, so sessions died at access-token expiry (1h) and users were
+  // bounced to /login despite holding a valid 30-day refresh token.
+  //
+  // This route is PUBLIC (allow-listed in app.ts publicPaths) because it
+  // authenticates by the refresh token itself: the issuer verifies the
+  // signature/issuer/audience/expiry AND the `kind: 'refresh'` claim (an
+  // access token is NOT redeemable here), then the user must still exist
+  // and not be deleted. Rotation: a brand-new pair (new session id) is
+  // issued on every successful refresh.
+  fastify.post('/refresh', async (request, reply) => {
+    const parsed = refreshSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: 'BAD_REQUEST',
+          message: 'refreshToken is required',
+          statusCode: 400,
+        },
+      });
+    }
+
+    const payload = sessionTokens.verifyRefreshToken(parsed.data.refreshToken);
+    if (!payload) {
+      return reply.status(401).send({
+        success: false,
+        error: {
+          code: 'INVALID_REFRESH_TOKEN',
+          message: 'Refresh token is invalid or expired',
+          statusCode: 401,
+        },
+      });
+    }
+
+    const userId = payload['sub'] as string;
+    let user: { id: string; username: string; deletedAt: Date | null } | null;
+    try {
+      user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, username: true, deletedAt: true },
+      });
+    } catch (err) {
+      request.log.error({ err }, 'refresh: user lookup failed');
+      return reply.status(503).send({
+        success: false,
+        error: {
+          code: 'UPSTREAM_UNAVAILABLE',
+          message: 'Auth service unavailable',
+          statusCode: 503,
+        },
+      });
+    }
+    if (!user || user.deletedAt) {
+      return reply.status(401).send({
+        success: false,
+        error: {
+          code: 'INVALID_REFRESH_TOKEN',
+          message: 'Refresh token is invalid or expired',
+          statusCode: 401,
+        },
+      });
+    }
+
+    const tokens = await sessionTokens.issue({ userId: user.id, username: user.username });
+    return reply.send({
+      success: true,
+      data: {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: tokens.expiresIn,
+        tokenType: tokens.tokenType,
       },
     });
   });
