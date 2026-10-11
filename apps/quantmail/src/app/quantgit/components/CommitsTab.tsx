@@ -49,13 +49,20 @@ export function CommitsTab({
     );
   }, [allCommits, searchQuery]);
 
-  // Group commits by date (e.g. "Commits on Sep 26, 2026")
+  // Group commits by date (e.g. "Commits on Sep 26, 2026").
+  // Date honesty: a commit the backend gave no date for must never be
+  // presented under an invented specific date — it groups under
+  // "Undated commits" instead of a "Commits on " header.
   const groupedCommits = useMemo(() => {
     const groups: Record<string, CommitItem[]> = {};
     for (const commit of filteredCommits) {
-      const groupKey = commit.date.startsWith('Commits on')
-        ? commit.date
-        : `Commits on ${commit.date}`;
+      const dateLabel = (commit.date || '').trim();
+      const groupKey =
+        dateLabel === ''
+          ? 'Undated commits'
+          : dateLabel.startsWith('Commits on')
+            ? dateLabel
+            : `Commits on ${dateLabel}`;
       if (!groups[groupKey]) {
         groups[groupKey] = [];
       }
@@ -410,7 +417,8 @@ export function CommitsTab({
                           </div>
 
                           <span>committed</span>
-                          <span title={commit.date}>{commit.relativeTime}</span>
+                          {/* Honest date: no invented tooltip when the backend gave no date */}
+                          <span title={commit.date || undefined}>{commit.relativeTime}</span>
 
                           {/* Stats Preview */}
                           {commit.stats && (

@@ -54,6 +54,7 @@ import { emitQuantGitMascotEvent } from '../../components/marks/quantgit-mascot-
 import { AppSidebar } from '../../components/AppSidebar';
 import { CodeTab } from './components/CodeTab';
 import { CommitsTab } from './components/CommitsTab';
+import { mapBackendCommitToItem } from './components/mapBackendCommit';
 import { BranchesTab } from './components/BranchesTab';
 import { IssuesTab } from './components/IssuesTab';
 import { PullRequestsTab } from './components/PullRequestsTab';
@@ -842,26 +843,9 @@ function QuantGitContent() {  const router = useRouter();
         if (res.ok) {
           const json = await res.json();
           if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-            const mappedCommits: CommitItem[] = json.data.map((c: any) => ({
-              sha: c.sha || c.commitSha || '',
-              shortSha: (c.sha || c.commitSha || '').slice(0, 7),
-              message: c.message || 'Commit update',
-              body: c.body || '',
-              author: {
-                name: c.author?.name || c.author || currentUsername,
-                username: c.author?.username || c.author || currentUsername,
-                email: c.author?.email || `${currentUsername}@quantmail.in`,
-                avatarUrl: c.author?.avatarUrl || '',
-              },
-              date: c.date || 'Sep 26, 2026',
-              relativeTime: c.relativeTime || c.timeAgo || 'recently',
-              // Never claim GPG verification the backend did not assert.
-              verified: c.verified ?? false,
-              verificationReason: c.verificationReason,
-              // Never invent diff stats — only real backend stats, otherwise undefined.
-              stats: c.stats,
-              files: c.files,
-            }));
+            const mappedCommits: CommitItem[] = json.data.map((c: any) =>
+              mapBackendCommitToItem(c, currentUsername),
+            );
             setCommits(mappedCommits);
           }
         }
