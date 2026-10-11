@@ -56,6 +56,22 @@ export function parseEmailString(raw: string): RecipientOption[] {
   return result;
 }
 
+/**
+ * QM-SCREEN-012 R2: the send payload must carry each address once. The
+ * recipient rows can hold two entries for one address (a named chip plus a
+ * bare chip from an autocomplete race), so dedupe by lowercased email,
+ * keeping the first occurrence. Exported for tests.
+ */
+export function dedupeRecipientPayload<T extends { email: string }>(list: T[]): T[] {
+  const seen = new Set<string>();
+  return list.filter((r) => {
+    const key = r.email.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function RecipientChipInput({
   id,
   name,

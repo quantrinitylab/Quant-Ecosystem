@@ -306,6 +306,50 @@ describe('GET /contacts/:id and the static routes it shares a prefix with', () =
   });
 });
 
+describe('QM-SCREEN-012 R2: strict schemas 400 unknown keys instead of ignoring them', () => {
+  it('400s an unknown query key on /search', async () => {
+    const app = await buildApp();
+    const res = await app.inject({ method: 'GET', url: '/contacts/search?q=ada&bogus=1' });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('VALIDATION_ERROR');
+    expect(prisma.contact.findMany).not.toHaveBeenCalled();
+  });
+
+  it('400s an unknown query key on /frequent', async () => {
+    const app = await buildApp();
+    const res = await app.inject({ method: 'GET', url: '/contacts/frequent?limit=5&bogus=1' });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('VALIDATION_ERROR');
+    expect(prisma.contact.findMany).not.toHaveBeenCalled();
+  });
+
+  it('400s an unknown body key on /duplicates/dismiss', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/contacts/duplicates/dismiss',
+      payload: { primaryId: 'c1', duplicateId: 'c2', bogus: true },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('400s an unknown body key on /merge', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/contacts/merge',
+      payload: { primaryId: 'c1', duplicateIds: ['c2'], bogus: true },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('VALIDATION_ERROR');
+  });
+});
+
 describe('DELETE /contacts/:id', () => {
   it('deletes a contact the caller owns', async () => {
     const app = await buildApp();

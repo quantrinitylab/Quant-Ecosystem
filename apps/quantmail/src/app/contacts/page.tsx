@@ -494,6 +494,10 @@ export default function ContactsPage() {
   }, [displayedContacts]);
 
   const { data: recentMail } = useInbox();
+  // QM-SCREEN-012 R2: these counts fold the first inbox page only (useInbox
+  // with no options). The badge labels that scope honestly — it is recent-mail
+  // activity, never a lifetime total. No backend exact-count endpoint exists
+  // for per-contact threads, so the UI must not present them as exact.
   const threadCounts = useMemo(() => {
     const threadsByAddress = new Map<string, Set<string>>();
     for (const mail of recentMail ?? []) {
@@ -788,15 +792,9 @@ export default function ContactsPage() {
           /* Empty Groups state -> Circles view */
           <div className="flex-1 overflow-y-auto p-4 sm:p-8">
             <SubviewTabNav activeTab={activeTab} onTabChange={handleTabChange} />
-            <CirclesSubView
-              contacts={displayedContacts}
-              onBroadcast={(emails) => {
-                router.push(`/compose?to=${encodeURIComponent(emails.join(','))}`);
-              }}
-              onViewCircle={(circle) => {
-                showToast({ text: `Viewing circle: ${circle.name}`, type: 'info' });
-              }}
-            />
+            {/* QM-SCREEN-012 R2: honest empty state only — the dead circles
+                grid and its toast-only onViewCircle are deleted. */}
+            <CirclesSubView />
           </div>
         ) : (
           /* ================================================================ */
@@ -1105,7 +1103,11 @@ export default function ContactsPage() {
                                   </div>
 
                                   {threads > 0 && (
-                                    <span className="shrink-0 text-[10px] font-mono px-1.5 py-px rounded bg-[#181E2B] text-[var(--quant-muted-foreground)] border border-[#283144]">
+                                    <span
+                                      className="shrink-0 text-[10px] font-mono px-1.5 py-px rounded bg-[#181E2B] text-[var(--quant-muted-foreground)] border border-[#283144]"
+                                      title={`${threads} thread${threads === 1 ? '' : 's'} in recent mail`}
+                                      aria-label={`${threads} threads in recent mail`}
+                                    >
                                       {threads}
                                     </span>
                                   )}

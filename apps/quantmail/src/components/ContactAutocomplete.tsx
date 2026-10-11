@@ -35,6 +35,44 @@ function cleanEmail(raw: string): string {
   return trimmed;
 }
 
+/**
+ * QM-SCREEN-012 R2: a chip is either a bare address or `Name <address>` (the
+ * composer renders named recipients that way). Identity comparisons must run
+ * on the bare address, or a named recipient never matches its own suggestion,
+ * its own contact, or its own duplicate chip.
+ */
+export function chipParts(chip: string): { name?: string; email: string } {
+  const match = chip.match(/^(.*?)\s*<\s*([^<>\s,;]+)\s*>\s*$/);
+  if (match) {
+    return { name: match[1].trim() || undefined, email: match[2].trim() };
+  }
+  return { email: chip.trim() };
+}
+
+/** Bare, lowercased address of a chip — the identity key for dedupe. */
+function chipEmailKey(chip: string): string {
+  return chipParts(chip).email.toLowerCase();
+}
+
+/**
+ * Normalize candidate chips against the existing chips' bare addresses.
+ * A `Name <email>` chip and a bare `email` chip are the same recipient, so
+ * adding one when the other exists is a no-op. Exported for tests: the dedupe
+ * contract is that named and bare forms of one address never coexist.
+ */
+export function dedupeChips(existing: string[], candidates: string[]): string[] {
+  const seen = new Set(existing.map(chipEmailKey));
+  const out: string[] = [];
+  for (const candidate of candidates) {
+    const cleaned = cleanEmail(chipParts(candidate).email);
+    const key = cleaned.toLowerCase();
+    if (!cleaned || seen.has(key)) continue;
+    seen.add(key);
+    out.push(cleaned);
+  }
+  return out;
+}
+
 export function ContactAutocomplete({
   value,
   onChange,
@@ -63,16 +101,38 @@ export function ContactAutocomplete({
       .filter(Boolean);
   }, [value]);
 
+  // Identity set of the chips as bare addresses — a `Name <email>` chip must
+  // match the same address as a bare chip, or dedupe and suggestion
+  // filtering silently miss it.
+  const chipEmails = useMemo(() => new Set(chips.map(chipEmailKey)), [chips]);
+
   const commitInput = useCallback(
     (textToCommit?: string) => {
       const raw = (textToCommit !== undefined ? textToCommit : inputValue).trim();
       if (!raw) return;
 
-      const rawItems = raw
+      // Pull `Name <email>` sequences out before the separator split, so the
+      // space inside the name doesn't fragment the address — typing
+      // `John Doe <john@x.com>` used to mint a bogus `John Doe@quantmail.in`
+      // chip next to the real one.
+      const namedTokens: string[] = [];
+      const scrubbed = raw.replace(
+        /([^,;\n\t]+?)\s*<\s*([^<>\s,;]+@[^<>\s,;]+)\s*>/g,
+        (_match, name: string, email: string) => {
+          namedTokens.push(`${name.trim()} <${email.trim()}>`);
+          return `\uE000${namedTokens.length - 1}\uE000`;
+        },
+      );
+
+      const rawItems = scrubbed
         .split(/[,\s;]+/)
         .map((s) => s.trim())
-        .filter(Boolean);
-      const newItems = rawItems.map(cleanEmail).filter(Boolean);
+        .filter(Boolean)
+        .map((s) => {
+          const token = s.match(/^\uE000(\d+)\uE000$/);
+          return token ? namedTokens[Number(token[1])] : s;
+        });
+      const newItems = dedupeChips(chips, rawItems);
 
       if (newItems.length > 0) {
         const merged = Array.from(new Set([...chips, ...newItems]));
@@ -86,9 +146,18 @@ export function ContactAutocomplete({
 
   const addChip = useCallback(
     (email: string) => {
-      const cleaned = cleanEmail(email);
-      if (!cleaned) return;
-      const merged = Array.from(new Set([...chips, cleaned]));
+      // Normalize `Name <email>` to the bare address first: without this, a
+      // named chip and a bare chip for the same address are different strings
+      // and selecting a suggestion for an already-added named recipient
+      // appends a duplicate chip.
+      const newItems = dedupeChips(chips, [email]);
+      if (newItems.length === 0) {
+        setInputValue('');
+        setActiveIndex(-1);
+        inputRef.current?.focus();
+        return;
+      }
+      const merged = Array.from(new Set([...chips, ...newItems]));
       onChange(merged.join(', '));
       setInputValue('');
       setActiveIndex(-1);
@@ -105,19 +174,20 @@ export function ContactAutocomplete({
     [chips, onChange],
   );
 
-  // Filter contacts based on input
+  // Filter contacts based on input. Already-added addresses are compared on
+  // the bare address so a `Name <email>` chip hides its own suggestion.
   const suggestions = useMemo(() => {
     if (!inputValue.trim()) return [];
     const q = inputValue.toLowerCase().trim();
     return contactList
       .filter(
         (c) =>
-          !chips.includes(c.email) &&
+          !chipEmails.has(c.email.toLowerCase()) &&
           (c.email.toLowerCase().includes(q) || c.name?.toLowerCase().includes(q)),
       )
       .sort((a, b) => (b.frequency ?? 0) - (a.frequency ?? 0))
       .slice(0, 5);
-  }, [inputValue, contactList, chips]);
+  }, [inputValue, contactList, chipEmails]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -180,7 +250,8 @@ export function ContactAutocomplete({
   const showDropdown =
     isFocused &&
     (suggestions.length > 0 ||
-      (inputValue.trim().length > 1 && !chips.includes(cleanEmail(inputValue))));
+      (inputValue.trim().length > 1 &&
+        !chipEmails.has(cleanEmail(chipParts(inputValue).email).toLowerCase())));
 
   return (
     <div className="relative w-full">
@@ -197,14 +268,20 @@ export function ContactAutocomplete({
         onClick={() => inputRef.current?.focus()}
       >
         {chips.map((email) => {
-          const contact = contactList.find((c) => c.email.toLowerCase() === email.toLowerCase());
+          // Resolve on the bare address: a `Name <email>` chip must find its
+          // contact instead of rendering the raw bracketed text.
+          const { name: chipName, email: bareEmail } = chipParts(email);
+          const contact = contactList.find(
+            (c) => c.email.toLowerCase() === bareEmail.toLowerCase(),
+          );
+          const displayName = contact?.name || chipName;
           return (
             <span
               key={email}
               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--quant-primary)]/15 border border-[var(--quant-primary)]/30 text-[var(--brand-accent)] text-xs font-mono animate-in fade-in zoom-in-95 duration-100 shadow-sm"
             >
               <span className="font-medium text-white truncate max-w-[200px]">
-                {contact?.name ? `${contact.name} (${email})` : email}
+                {displayName ? `${displayName} (${bareEmail})` : bareEmail}
               </span>
               <button
                 type="button"
@@ -213,7 +290,7 @@ export function ContactAutocomplete({
                   e.stopPropagation();
                   removeChip(email);
                 }}
-                aria-label={`Remove ${email}`}
+                aria-label={`Remove ${displayName ? `${displayName} (${bareEmail})` : bareEmail}`}
               >
                 <IconX size={11} />
               </button>

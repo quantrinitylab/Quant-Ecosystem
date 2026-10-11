@@ -85,183 +85,6 @@ export function formatContactMailDate(value?: string | Date | null): string {
 }
 
 // ============================================================================
-// 1. VIP CONTACTS SUB-VIEW
-// ============================================================================
-
-export interface VipContactsSubViewProps {
-  contacts: (Contact | SovereignContact)[];
-  onInspect: (contact: any) => void;
-  onCall: (contact: { name: string; phone?: string }) => void;
-  onEmail: (email: string) => void;
-  onToggleStar?: (contact: any) => void;
-}
-
-export function VipContactsSubView({
-  contacts,
-  onInspect,
-  onCall,
-  onEmail,
-  onToggleStar,
-}: VipContactsSubViewProps) {
-  // Filter for VIP contacts: flagged via isVip, isStarred, or the VIP tag.
-  const vipList = React.useMemo(() => {
-    const list = contacts.filter((c) => {
-      const isStarred = 'isStarred' in c ? c.isStarred : (c as any).isFavorite;
-      const isVip = 'isVip' in c ? c.isVip : false;
-      const tag = 'tag' in c ? c.tag : ((c as any).tags?.[0] || '');
-      return isVip || isStarred || tag.toLowerCase() === 'vip';
-    });
-
-    // Dedupe real contacts by email (or id for phone-only records).
-    const map = new Map<string, any>();
-    list.forEach((c) => {
-      // Contacts without an email (phone-only records) still render — key by id.
-      const key = (c.email || '').toLowerCase() || `id:${c.id}`;
-      map.set(key, c);
-    });
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [contacts]);
-
-  return (
-    <div className="space-y-6">
-      {/* VIP Header Hero */}
-      <div className="rounded-2xl border border-[var(--quant-warning)]/50 bg-gradient-to-r from-[#18140E] to-[#12100C] p-5 shadow-lg">
-        <div className="flex items-center gap-4">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--quant-warning)] to-[#D97706] text-black shadow-md shadow-[var(--quant-warning)]/20">
-            <svg className="size-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-            </svg>
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-white tracking-wide">Executive VIP Directory</h2>
-              <span className="rounded-md border border-[var(--quant-warning)]/80 bg-[#78350F]/50 px-2 py-0.5 text-[10px] font-extrabold text-[#FBBF24] tracking-wider uppercase">
-                {vipList.length} EXECUTIVES
-              </span>
-            </div>
-            <p className="text-xs text-[#D1D5DB] mt-0.5">
-              Priority boardroom contacts with instant sovereign dial &amp; dispatch
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Grid of Prominent Gold Star Cards */}
-      {vipList.length === 0 ? (
-        <div className="text-center py-12 px-4 space-y-2 rounded-2xl border border-[#232938] bg-[var(--quant-surface-elevated)]">
-          <p className="text-xs font-bold text-white">No VIP contacts yet</p>
-          <p className="text-[11px] text-[var(--quant-muted-foreground)]">
-            Star a contact or tag them VIP to feature them here.
-          </p>
-        </div>
-      ) : (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {vipList.map((contact) => {
-          const initials = getInitials(contactDisplayName(contact));
-          const gradient = getAvatarBgColor(contactDisplayName(contact));
-          const roleSubtitle = [contact.role || contact.title, contact.company]
-            .filter(Boolean)
-            .join(' · ');
-
-          return (
-            <div
-              key={contact.id || contact.email}
-              onClick={() => onInspect(contact)}
-              className="group flex flex-col justify-between rounded-2xl border border-[var(--quant-warning)]/40 bg-[#16140E] p-4.5 hover:border-[var(--quant-warning)] hover:shadow-[0_0_20px_color-mix(in_srgb,var(--app-accent)_15%,transparent)] transition-all cursor-pointer"
-            >
-              <div>
-                <div className="flex items-start gap-3.5">
-                  {/* Gold Ring Avatar with Verified Star Badge */}
-                  <div className="relative shrink-0">
-                    <div
-                      className={`flex size-12 items-center justify-center rounded-full bg-gradient-to-br ${gradient} text-sm font-bold text-white ring-2 ring-[var(--quant-warning)] shadow-sm`}
-                    >
-                      {initials}
-                    </div>
-                    <div className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full bg-[var(--quant-warning)] text-black ring-2 ring-[#16140E]">
-                      <svg className="size-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                      </svg>
-                    </div>
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <h3 className="text-sm font-bold text-white truncate group-hover:text-[#FBBF24] transition-colors">
-                        {contact.name}
-                      </h3>
-                      <span className="rounded border border-[var(--quant-warning)]/60 bg-[#78350F]/40 px-1.5 py-px text-[var(--q-type-xs)] font-bold text-[#FBBF24]">
-                        VIP Executive
-                      </span>
-                    </div>
-
-                    <p className="text-xs font-medium text-[#F3F4F6] truncate mt-0.5">
-                      {roleSubtitle || 'Boardroom Executive'}
-                    </p>
-                    <p className="text-[11px] text-[#9CA3AF] truncate">{contact.email}</p>
-                    {contact.phone && (
-                      <p className="text-[11px] text-[var(--quant-muted-foreground)] font-mono mt-0.5">{contact.phone}</p>
-                    )}
-                  </div>
-
-                  {/* Star Button */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleStar?.(contact);
-                    }}
-                    className="p-1 text-[var(--quant-warning)] hover:text-[#FBBF24] transition-colors"
-                    title="VIP Star"
-                  >
-                    <svg className="size-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-
-              {/* Direct One-Tap Action Pills */}
-              <div className="mt-4 pt-3 border-t border-[#332B1A] flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCall(contact);
-                  }}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)] bg-[#431E0E] py-2 text-xs font-bold text-[var(--app-accent)] hover:bg-[#5A2813] hover:border-[var(--app-accent)] transition-colors"
-                >
-                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-                  </svg>
-                  <span>Call</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEmail(contact.email);
-                  }}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)] bg-[#431E0E] py-2 text-xs font-bold text-[var(--app-accent)] hover:bg-[#5A2813] hover:border-[var(--app-accent)] transition-colors"
-                >
-                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <rect width="20" height="16" x="2" y="4" rx="2" />
-                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                  </svg>
-                  <span>Email</span>
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
 // 2. COMPANIES & TEAMS SUB-VIEW
 // ============================================================================
 
@@ -712,199 +535,36 @@ export function DedupWizardSubView({
 // 4. ENTERPRISE CIRCLES SUB-VIEW
 // ============================================================================
 
-export interface EnterpriseCircleItem {
-  id: string;
-  name: string;
-  memberCount: number;
-  description: string;
-  themeColor: string;
-  badgeStyle: string;
-  memberNames: string[];
-}
-
 export interface CirclesSubViewProps {
-  contacts: (Contact | SovereignContact)[];
-  /**
-   * Real circles (e.g. mapped from the user's contact groups). When empty or
-   * undefined the honest empty state renders — this component never invents
-   * circles or member names.
-   */
-  circles?: EnterpriseCircleItem[];
-  onBroadcast: (emails: string[]) => void;
-  onViewCircle: (circle: EnterpriseCircleItem) => void;
+  // QM-SCREEN-012 R2: intentionally prop-less. The circles-list branch was
+  // dead (no caller ever passed circles) and `onViewCircle` was toast-only,
+  // so both are deleted. If circles are ever wired for real, they get a new
+  // data-driven branch here — never invented copy.
+  readonly _empty?: never;
 }
 
-export function CirclesSubView({
-  contacts,
-  circles: circlesProp,
-  onBroadcast,
-  onViewCircle,
-}: CirclesSubViewProps) {
-  // Only real, caller-supplied circles render. Previously this component
-  // hardcoded demo circles with fabricated member names (including real
-  // public figures) — those are deleted.
-  const circles: EnterpriseCircleItem[] = circlesProp ?? [];
-
-  const handleBroadcastCircle = (circle: EnterpriseCircleItem) => {
-    // Resolve emails from the user's real contacts only. Never invent
-    // a fallback address — an empty list composes a blank message.
-    const emails: string[] = [];
-    circle.memberNames.forEach((name) => {
-      const match = contacts.find((c) => c.name.toLowerCase().includes(name.toLowerCase()));
-      if (match) emails.push(match.email);
-    });
-    onBroadcast(emails);
-  };
-
-  if (circles.length === 0) {
-    return (
-      <div className="space-y-6">
-        <div className="rounded-2xl border border-[#262C3A] bg-[var(--quant-surface-elevated)] p-8 text-center shadow-md space-y-3">
-          <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#1E2433] border border-[#333D52] text-[var(--app-accent)]">
-            <svg className="size-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="3" />
-              <circle cx="12" cy="12" r="8" strokeDasharray="3 3" />
-              <circle cx="19" cy="8" r="1.5" fill="currentColor" />
-              <circle cx="5" cy="16" r="1.5" fill="currentColor" />
-            </svg>
-          </div>
-          <h3 className="text-base font-bold text-white">No circles yet</h3>
-          <p className="text-xs text-[#94A3B8] max-w-md mx-auto leading-relaxed">
-            Create a contact group to start a circle for one-tap broadcasts.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
+/**
+ * The honest empty state for the no-groups view. Renders no circles because
+ * the user has none — the "Enterprise Circles" grid and its
+ * "Access-controlled trust groups and broadcast distribution syndicates"
+ * copy were unreachable invented UI and are deleted.
+ */
+export function CirclesSubView(_props: CirclesSubViewProps = {}) {
   return (
     <div className="space-y-6">
-      {/* Circles Header Hero */}
-      <div className="rounded-2xl border border-[#282244] bg-gradient-to-r from-[#141422] to-[#0E0E1B] p-5 shadow-lg">
-        <div className="flex items-center gap-4">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--app-accent)] to-[color-mix(in_srgb,var(--app-accent),black_30%)] text-white shadow-md shadow-[color-mix(in_srgb,var(--app-accent)_20%,transparent)]">
-            <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="3" />
-              <circle cx="12" cy="12" r="8" strokeDasharray="3 3" />
-              <circle cx="19" cy="8" r="1.5" fill="currentColor" />
-              <circle cx="5" cy="16" r="1.5" fill="currentColor" />
-            </svg>
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-white tracking-wide">Enterprise Circles</h2>
-              <span className="rounded-md border border-[color-mix(in_srgb,var(--app-accent)_80%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_30%,black)]/50 px-2 py-0.5 text-[10px] font-bold text-[var(--app-accent)] tracking-wider uppercase">
-                {circles.length} CIRCLES
-              </span>
-            </div>
-            <p className="text-xs text-[#9CA3AF] mt-0.5">
-              Access-controlled trust groups and broadcast distribution syndicates
-            </p>
-          </div>
+      <div className="rounded-2xl border border-[#262C3A] bg-[var(--quant-surface-elevated)] p-8 text-center shadow-md space-y-3">
+        <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#1E2433] border border-[#333D52] text-[var(--app-accent)]">
+          <svg className="size-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <circle cx="12" cy="12" r="8" strokeDasharray="3 3" />
+            <circle cx="19" cy="8" r="1.5" fill="currentColor" />
+            <circle cx="5" cy="16" r="1.5" fill="currentColor" />
+          </svg>
         </div>
-      </div>
-
-      {/* Circles List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {circles.map((circle) => (
-          <div
-            key={circle.id}
-            className="rounded-2xl border border-[#262C3A] bg-[var(--quant-surface-elevated)] p-5 shadow-md flex flex-col justify-between hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] transition-all"
-          >
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-[#262C3A]">
-                <div className="flex items-center gap-2.5">
-                  <div
-                    className="flex size-9 items-center justify-center rounded-xl border text-white"
-                    style={{
-                      backgroundColor: `${circle.themeColor}15`,
-                      borderColor: `${circle.themeColor}40`,
-                      color: circle.themeColor,
-                    }}
-                  >
-                    <svg className="size-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <circle cx="12" cy="12" r="3" />
-                      <circle cx="12" cy="12" r="8" strokeDasharray="3 3" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white">{circle.name}</h3>
-                    <p className="text-[11px] font-semibold" style={{ color: circle.themeColor }}>
-                      {circle.memberCount} Member{circle.memberCount === 1 ? '' : 's'}
-                    </p>
-                  </div>
-                </div>
-
-                <span className={`rounded-lg border px-2 py-0.5 text-xs font-bold ${circle.badgeStyle}`}>
-                  {circle.memberCount}
-                </span>
-              </div>
-
-              <p className="text-xs text-[#94A3B8] mt-3 leading-relaxed">
-                {circle.description}
-              </p>
-
-              {/* Member Avatar Stack */}
-              <div className="mt-4 flex items-center gap-2">
-                <div className="flex items-center -space-x-2">
-                  {circle.memberNames.slice(0, 4).map((name) => {
-                    const initials = getInitials(name);
-                    const gradient = getAvatarBgColor(name);
-                    return (
-                      <div
-                        key={name}
-                        className={`flex size-8 items-center justify-center rounded-full bg-gradient-to-br ${gradient} text-[10px] font-bold text-white ring-2 ring-[var(--quant-surface-elevated)]`}
-                        title={name}
-                      >
-                        {initials}
-                      </div>
-                    );
-                  })}
-                  {circle.memberCount > 4 && (
-                    <div className="flex size-8 items-center justify-center rounded-full bg-[#262C3A] text-[10px] font-bold text-white ring-2 ring-[var(--quant-surface-elevated)]">
-                      +{circle.memberCount - 4}
-                    </div>
-                  )}
-                </div>
-                <span className="text-[11px] text-[#6B7280] truncate max-w-[140px]">
-                  {circle.memberNames.slice(0, 2).join(', ')}...
-                </span>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="mt-5 pt-3 border-t border-[#262C3A] flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleBroadcastCircle(circle)}
-                className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-bold transition-colors"
-                style={{
-                  backgroundColor: `${circle.themeColor}15`,
-                  borderColor: `${circle.themeColor}40`,
-                  color: circle.themeColor,
-                }}
-              >
-                <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <rect width="20" height="16" x="2" y="4" rx="2" />
-                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                </svg>
-                <span>Broadcast</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onViewCircle(circle)}
-                className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-[#333D52] bg-[#1E2433] py-2 text-xs font-semibold text-[#E2E8F0] hover:bg-[#283144] transition-colors"
-              >
-                <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                </svg>
-                <span>View Circle</span>
-              </button>
-            </div>
-          </div>
-        ))}
+        <h3 className="text-base font-bold text-white">No circles yet</h3>
+        <p className="text-xs text-[#94A3B8] max-w-md mx-auto leading-relaxed">
+          Create a contact group to start a circle for one-tap broadcasts.
+        </p>
       </div>
     </div>
   );
