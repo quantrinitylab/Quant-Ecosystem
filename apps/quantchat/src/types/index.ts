@@ -111,6 +111,7 @@ export type MessageType =
   | 'image'
   | 'video'
   | 'voice'
+  | 'audio'
   | 'sticker'
   | 'gif'
   | 'location'
@@ -883,6 +884,8 @@ export interface SendMessageRequest {
   replyTo?: string;
   disappearMode?: DisappearMode;
   mentions?: string[];
+  /** Persisted on the message record by the backend (e.g. voiceDurationMs). */
+  metadata?: Record<string, unknown>;
 }
 
 export interface CreateStoryRequest {

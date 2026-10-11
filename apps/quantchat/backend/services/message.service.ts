@@ -448,6 +448,52 @@ export class MessageService {
     });
   }
 
+  /**
+   * QC-F-020: explicit (non-toggle) reaction removal backing
+   * DELETE /messages/:id/reactions. Idempotent — removing a reaction the
+   * user never added returns the message unchanged. Same gates as
+   * reactToMessage: message must exist (404) and the caller must be an
+   * active member of its conversation (403 NOT_A_MEMBER).
+   */
+  async removeReaction(messageId: string, userId: string, reaction: string): Promise<Message> {
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+    });
+
+    if (!message) {
+      throw createAppError('Message not found', 404, 'MESSAGE_NOT_FOUND');
+    }
+
+    // Verify user is a member of the conversation
+    const membership = await this.prisma.conversationMember.findFirst({
+      where: { conversationId: message.conversationId, userId, leftAt: null },
+    });
+
+    if (!membership) {
+      throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
+    }
+
+    const currentMetadata = (message.metadata as Record<string, unknown>) ?? {};
+    const reactions = { ...((currentMetadata['reactions'] as Record<string, string[]>) ?? {}) };
+    const usersForReaction = reactions[reaction] ?? [];
+
+    if (!usersForReaction.includes(userId)) {
+      return message;
+    }
+
+    const remaining = usersForReaction.filter((id) => id !== userId);
+    if (remaining.length === 0) {
+      delete reactions[reaction];
+    } else {
+      reactions[reaction] = remaining;
+    }
+
+    return this.prisma.message.update({
+      where: { id: messageId },
+      data: { metadata: { ...currentMetadata, reactions } },
+    });
+  }
+
   async searchMessages(
     userId: string,
     query: string,

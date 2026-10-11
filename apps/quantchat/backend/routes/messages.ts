@@ -4,14 +4,28 @@ import { createAppError, enableIdempotency } from '@quant/server-core';
 import { MessageService } from '../services/message.service';
 import { publishConversationEvent } from '../services/realtime-publisher';
 
-const sendMessageSchema = z.object({
-  content: z.string().min(1).max(10000),
-  type: z
-    .enum(['text', 'image', 'video', 'audio', 'file', 'location', 'snap_photo', 'snap_video'])
-    .optional(),
-  mediaUrl: z.string().optional(),
-  replyToId: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
+const sendMessageSchema = z
+  .object({
+    // QC-F-020: content may be empty for media-carrying messages (a real
+    // voice note is an AUDIO message whose payload is mediaUrl, not text).
+    // A message with neither text nor media is still rejected below.
+    content: z.string().max(10000).optional(),
+    type: z
+      .enum(['text', 'image', 'video', 'audio', 'file', 'location', 'snap_photo', 'snap_video'])
+      .optional(),
+    mediaUrl: z.string().optional(),
+    replyToId: z.string().optional(),
+    metadata: z.record(z.unknown()).optional(),
+  })
+  .refine((d) => (d.content !== undefined && d.content.trim().length > 0) || !!d.mediaUrl, {
+    message: 'Message must carry text content or a mediaUrl',
+    path: ['content'],
+  });
+
+const reactionSchema = z.object({
+  // A single emoji (possibly a multi-codepoint grapheme cluster), never a
+  // sentence: 32 code units is generous headroom for ZWJ sequences.
+  emoji: z.string().min(1).max(32),
 });
 
 const editMessageSchema = z.object({
@@ -44,7 +58,7 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
     const message = await service.sendMessage({
       conversationId: request.params.id,
       senderId: userId,
-      content: parseResult.data.content,
+      content: parseResult.data.content ?? '',
       type: parseResult.data.type,
       mediaUrl: parseResult.data.mediaUrl,
       replyToId: parseResult.data.replyToId,
@@ -202,5 +216,83 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
     const result = await service.consumeSnap(request.params.id, userId);
 
     return reply.send({ success: true, data: result });
+  });
+
+  // QC-F-020 — message reactions. MessageService.reactToMessage /
+  // removeReaction (membership-gated, persisted in message metadata) existed
+  // and were unit-tested, but NO route ever exposed them: the web client's
+  // addReaction() POSTed into a 404 and the thread page kept reactions in
+  // local useState only, so every reaction vanished on reload and was never
+  // visible to anyone else. These routes are the missing wiring.
+  // NOTE on paths: this plugin is mounted with prefix '/conversations'
+  // (backend/app.ts), the same quirk that serves PUT /messages/:id at
+  // /conversations/messages/:id — kept consistent with the sibling routes.
+
+  // POST /messages/:id/reactions - Toggle the caller's reaction (persisted)
+  fastify.post<{ Params: { id: string } }>('/messages/:id/reactions', async (request, reply) => {
+    const parseResult = reactionSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new MessageService(prisma as never);
+    const message = await service.reactToMessage(request.params.id, userId, parseResult.data.emoji);
+
+    // Realtime fan-out, same envelope as edits, so other members' open
+    // threads re-render the persisted reaction instead of missing it.
+    const updated = message as unknown as {
+      id: string;
+      conversationId?: string;
+      version?: number;
+    };
+    if (typeof updated.conversationId === 'string' && updated.conversationId) {
+      void publishConversationEvent(fastify, updated.conversationId, {
+        eventType: 'chat.message.updated.v1',
+        resourceRef: updated.id,
+        aggregateVersion: typeof updated.version === 'number' ? updated.version : 1,
+        data: message,
+      });
+    }
+
+    return reply.send({ success: true, data: message });
+  });
+
+  // DELETE /messages/:id/reactions - Remove the caller's reaction explicitly
+  fastify.delete<{ Params: { id: string } }>('/messages/:id/reactions', async (request, reply) => {
+    const parseResult = reactionSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new MessageService(prisma as never);
+    const message = await service.removeReaction(request.params.id, userId, parseResult.data.emoji);
+
+    const updated = message as unknown as {
+      id: string;
+      conversationId?: string;
+      version?: number;
+    };
+    if (typeof updated.conversationId === 'string' && updated.conversationId) {
+      void publishConversationEvent(fastify, updated.conversationId, {
+        eventType: 'chat.message.updated.v1',
+        resourceRef: updated.id,
+        aggregateVersion: typeof updated.version === 'number' ? updated.version : 1,
+        data: message,
+      });
+    }
+
+    return reply.send({ success: true, data: message });
   });
 }

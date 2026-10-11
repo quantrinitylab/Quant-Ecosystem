@@ -31,6 +31,12 @@ import {
   resolveMessageSender,
   type DeliveryStatus,
 } from '../../../lib/message-format';
+import {
+  reactionsFromMetadata,
+  expandReactions,
+  toggleUserReaction,
+  type ReactionMap,
+} from '../../../lib/message-reactions';
 
 interface EnhancedMessage {
   id: string;
@@ -137,7 +143,13 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   }, [conversations, id, me?.id, me?.username, isStartingCall, router]);
   const { typingUsers, incomingMessages, isConnected, sendRealtimeMessage, setTyping, markRead } =
     useRealtimeChat(id);
-  const [reactions, setReactions] = useState<Record<string, string[]>>({});
+  // QC-F-020: reactions are persisted on the backend (message metadata).
+  // This map only holds per-message overrides adopted from reaction API
+  // responses (and optimistic toggles that roll back on failure); messages
+  // without an override render straight from their persisted metadata.
+  const [reactionOverrides, setReactionOverrides] = useState<Record<string, ReactionMap>>({});
+  // Honest inline notice for reaction / voice-note failures (never silent).
+  const [threadNotice, setThreadNotice] = useState<string | null>(null);
 
   // Real per-message delivery/read state (Requirement 12.5). Indicators are
   // driven exclusively by live `message:delivered` / `message:read` events from
@@ -301,10 +313,14 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         }) => {
           const content = msg.message ?? msg.content ?? '';
           const linkPreview = detectLink(content);
-          const rawType = msg.type || 'text';
+          // QC-F-020: backend stores the Prisma enum (e.g. 'AUDIO');
+          // normalize case and map the wire type 'audio' to the UI's
+          // 'voice' bubble.
+          const rawType = String(msg.type || 'text').toLowerCase();
+          const normalizedType = rawType === 'audio' ? 'voice' : rawType;
           const type = (
-            ['text', 'image', 'voice', 'snap_photo', 'snap_video'].includes(rawType)
-              ? rawType
+            ['text', 'image', 'voice', 'snap_photo', 'snap_video'].includes(normalizedType)
+              ? normalizedType
               : 'text'
           ) as 'text' | 'image' | 'voice' | 'snap_photo' | 'snap_video';
           const snapMeta = (msg.metadata?.snap as { durationSec?: number }) || {};
@@ -320,23 +336,33 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             sender: resolveSender(msg),
             timestamp: formatMessageTime(msg.createdAt ?? msg.timestamp),
             status: (statusByMessageId[msg.id] ?? toDeliveryStatus(msg.status)) as DeliveryStatus,
-            reactions: reactions[msg.id] || [],
+            // QC-F-020: persisted reactions from the message record itself
+            // (metadata.reactions), with any fresher override adopted from
+            // a reaction API response on top.
+            reactions: expandReactions(
+              reactionOverrides[msg.id] ?? reactionsFromMetadata(msg.metadata),
+            ),
             replyTo: null,
             imageUrl: msg.imageUrl,
             mediaUrl: msg.mediaUrl || msg.imageUrl,
             linkPreview,
             type,
-            voiceDurationMs: msg.voiceDurationMs,
+            voiceDurationMs:
+              msg.voiceDurationMs ??
+              (typeof msg.metadata?.['voiceDurationMs'] === 'number'
+                ? (msg.metadata['voiceDurationMs'] as number)
+                : undefined),
             snapDurationSec,
           };
         },
       ),
       ...incomingMessages.map((msg: any) => {
         const linkPreview = detectLink(msg.content);
-        const rawType = msg.type || 'text';
+        const rawType = String(msg.type || 'text').toLowerCase();
+        const normalizedType = rawType === 'audio' ? 'voice' : rawType;
         const type = (
-          ['text', 'image', 'voice', 'snap_photo', 'snap_video'].includes(rawType)
-            ? rawType
+          ['text', 'image', 'voice', 'snap_photo', 'snap_video'].includes(normalizedType)
+            ? normalizedType
             : 'text'
         ) as 'text' | 'image' | 'voice' | 'snap_photo' | 'snap_video';
         return {
@@ -345,12 +371,19 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           sender: resolveSender(msg),
           timestamp: formatMessageTime(msg.createdAt ?? msg.timestamp),
           status: (statusByMessageId[msg.id] ?? toDeliveryStatus(msg.status)) as DeliveryStatus,
-          reactions: reactions[msg.id] || [],
+          reactions: expandReactions(
+            reactionOverrides[msg.id] ?? reactionsFromMetadata(msg.metadata),
+          ),
           replyTo: null,
           imageUrl: msg.imageUrl,
           mediaUrl: msg.mediaUrl || msg.imageUrl,
           linkPreview,
           type,
+          voiceDurationMs:
+            msg.voiceDurationMs ??
+            (typeof msg.metadata?.voiceDurationMs === 'number'
+              ? msg.metadata.voiceDurationMs
+              : undefined),
           snapDurationSec:
             msg.snapDurationSec ??
             (type === 'snap_photo' || type === 'snap_video' ? 10 : undefined),
@@ -360,14 +393,43 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
 
     // Expired disappearing messages are removed from the local view.
     return allMsgs.filter((m) => !expiredMessageIds[m.id]);
-  }, [data, incomingMessages, reactions, statusByMessageId, expiredMessageIds, resolveSender]);
+  }, [data, incomingMessages, reactionOverrides, statusByMessageId, expiredMessageIds, resolveSender]);
 
-  const handleReaction = useCallback((msgId: string, emoji: string) => {
-    setReactions((prev) => ({
-      ...prev,
-      [msgId]: [...(prev[msgId] || []), emoji],
-    }));
-  }, []);
+  // QC-F-020: reactions are REAL now — persisted via POST
+  // /messages/:id/reactions (toggle semantics in MessageService). The UI
+  // toggles optimistically, then adopts the server's returned metadata as
+  // truth; on failure it rolls back and says so instead of keeping a
+  // reaction that only ever existed locally.
+  const handleReaction = useCallback(
+    (msgId: string, emoji: string) => {
+      setReactionPickerMsgId(null);
+      const myId = me?.id;
+      if (!myId) {
+        setThreadNotice('Sign in to react to messages.');
+        return;
+      }
+      const raw = Array.isArray(data)
+        ? (data as Array<{ id: string; metadata?: unknown }>).find((m) => m.id === msgId)
+        : undefined;
+      const base = reactionOverrides[msgId] ?? reactionsFromMetadata(raw?.metadata);
+      const optimistic = toggleUserReaction(base, myId, emoji);
+      setReactionOverrides((prev) => ({ ...prev, [msgId]: optimistic }));
+      void (async () => {
+        const res = await apiClient.addReaction(msgId, emoji);
+        if (res.success && res.data) {
+          const serverMap = reactionsFromMetadata(
+            (res.data as unknown as { metadata?: unknown }).metadata,
+          );
+          setReactionOverrides((prev) => ({ ...prev, [msgId]: serverMap }));
+          setThreadNotice(null);
+        } else {
+          setReactionOverrides((prev) => ({ ...prev, [msgId]: base }));
+          setThreadNotice('Your reaction could not be saved — please try again.');
+        }
+      })();
+    },
+    [data, me?.id, reactionOverrides],
+  );
 
   // Countdown timer for active fullscreen snap viewer
   useEffect(() => {
@@ -599,12 +661,47 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     [sendWithFailureTracking, sendRealtimeMessage, setTyping],
   );
 
-  const handleVoiceRecording = useCallback(
-    (durationMs: number) => {
-      sendWithFailureTracking({
-        content: `Voice note (${Math.ceil(durationMs / 1000)}s)`,
-        type: 'text' as const,
-      });
+  // QC-F-020: the legacy duration-only callback used to "send" a voice
+  // note as a TEXT message whose content was the fabricated string
+  // `Voice note (Xs)` — no audio ever left the device, yet the thread
+  // showed a sent message. The recorder captures a real audio blob and
+  // fires onAudioRecorded right after this callback; that handler below
+  // is the only voice-send path now. This callback intentionally sends
+  // nothing on its own.
+  const handleVoiceRecording = useCallback((_durationMs: number) => {
+    /* duration alone is not a voice note — see handleVoiceAudio */
+  }, []);
+
+  // Real voice-note send: the recorded audio blob travels as the message's
+  // mediaUrl (the same transport snaps already use) with type 'audio', and
+  // the duration persists in message metadata. If the recording cannot be
+  // packaged or is too large for the message API, the user is told —
+  // nothing is pretend-sent.
+  const handleVoiceAudio = useCallback(
+    (audioBlob: Blob, durationMs: number) => {
+      const MAX_VOICE_NOTE_BYTES = 700_000;
+      if (audioBlob.size > MAX_VOICE_NOTE_BYTES) {
+        setThreadNotice('That voice note is too large to send — please record a shorter one.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onerror = () => {
+        setThreadNotice('Your voice note could not be prepared — please try again.');
+      };
+      reader.onload = () => {
+        const mediaUrl = typeof reader.result === 'string' ? reader.result : null;
+        if (!mediaUrl) {
+          setThreadNotice('Your voice note could not be prepared — please try again.');
+          return;
+        }
+        sendWithFailureTracking({
+          content: '',
+          type: 'audio' as const,
+          mediaUrl,
+          metadata: { voiceDurationMs: durationMs },
+        });
+      };
+      reader.readAsDataURL(audioBlob);
     },
     [sendWithFailureTracking],
   );
@@ -842,6 +939,17 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                       <span className="text-xs text-[var(--quant-muted-foreground)]">
                         {msg.voiceDurationMs ? `${Math.ceil(msg.voiceDurationMs / 1000)}s` : ''}
                       </span>
+                      {/* QC-F-020: real playback of the recorded audio —
+                          before this, the bubble was a decorative waveform
+                          with nothing to play. */}
+                      {msg.mediaUrl && (
+                        <audio
+                          controls
+                          src={msg.mediaUrl}
+                          className="h-8 max-w-[180px]"
+                          aria-label="Play voice note"
+                        />
+                      )}
                     </div>
                   </div>
                 )}
@@ -1161,8 +1269,30 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             placeholder={replyTo ? 'Type your reply...' : 'Type a message...'}
           />
         </div>
-        <VoiceNoteRecorder onRecordingComplete={handleVoiceRecording} />
+        <VoiceNoteRecorder
+          onRecordingComplete={handleVoiceRecording}
+          onAudioRecorded={handleVoiceAudio}
+          onError={(message) => setThreadNotice(message)}
+        />
       </div>
+
+      {/* QC-F-020: honest notice for reaction / voice-note failures */}
+      {threadNotice && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-2 px-4 py-2 border-t border-red-500/30 bg-red-500/10"
+        >
+          <span className="text-xs font-medium text-red-500">{threadNotice}</span>
+          <button
+            type="button"
+            onClick={() => setThreadNotice(null)}
+            className="text-xs text-red-400 underline underline-offset-2"
+            aria-label="Dismiss notice"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Quick Snap Camera Dialog Modal */}
       <AnimatePresence>
