@@ -97,3 +97,40 @@ export class UserModelPreferenceService {
     });
   }
 }
+
+/** Env var carrying a comma-separated model allow-list (operator config). */
+export const ALLOWED_MODELS_ENV_VAR = 'QUANTAI_ALLOWED_MODELS';
+
+/**
+ * Parse the operator-configured model allow-list from the environment.
+ * Returns undefined when unset/empty, which keeps allow-list enforcement off
+ * (any non-blank model is honored — same as before).
+ */
+export function getConfiguredAllowedModels(
+  env: Record<string, string | undefined> = process.env,
+): string[] | undefined {
+  const raw = env[ALLOWED_MODELS_ENV_VAR];
+  if (!raw) return undefined;
+  const list = raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return list.length > 0 ? list : undefined;
+}
+
+/**
+ * Build a UserModelPreferenceService wired with the platform model policy
+ * (operator allow-list + platform default). Chat/ask routes must use this
+ * factory instead of `new` so request-model validation stays consistent:
+ * a free-form `model` can never bypass the model policy on one route while
+ * being enforced on another.
+ */
+export function createUserModelPreferenceService(
+  prisma: UserModelPreferencePrisma,
+): UserModelPreferenceService {
+  const allowed = getConfiguredAllowedModels();
+  return new UserModelPreferenceService(
+    prisma,
+    allowed ? { allowed, defaultModel: DEFAULT_USER_MODEL } : {},
+  );
+}

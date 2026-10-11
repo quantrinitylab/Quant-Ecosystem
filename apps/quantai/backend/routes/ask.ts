@@ -3,8 +3,9 @@ import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { UnifiedAIService } from '@quant/ai';
 import {
-  UserModelPreferenceService,
+  createUserModelPreferenceService,
   DEFAULT_USER_MODEL,
+  type UserModelPreferenceService,
 } from '../services/user-model-preference.service';
 
 const askBodySchema = z.object({
@@ -23,7 +24,7 @@ export default async function askRoutes(fastify: FastifyInstance) {
   function prefService(): UserModelPreferenceService | null {
     const prisma = (fastify as unknown as { prisma?: unknown }).prisma;
     if (!prisma) return null;
-    return new UserModelPreferenceService(prisma as never);
+    return createUserModelPreferenceService(prisma as never);
   }
 
   function requireUserId(request: unknown): string {

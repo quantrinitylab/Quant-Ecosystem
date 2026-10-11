@@ -1,4 +1,5 @@
 import { AIEngine as CoreAIEngine } from '@quant/ai';
+import { createAppError } from '@quant/server-core';
 import type {
   AIEngineInterface,
   AIInferenceRequest,
@@ -15,6 +16,21 @@ export interface AIEngineOptions {
   env?: CloudflareAIEnv;
   fetchImpl?: CloudflareFetch;
   timeoutMs?: number;
+}
+
+/**
+ * Chat entry points are only reachable from authenticated routes: every
+ * inference must carry the caller's userId so per-user budget and rate-limit
+ * gates apply to that caller. There is deliberately NO 'anonymous' fallback —
+ * silently pooling all callers into one shared bucket would let any user
+ * spend against everyone else's budget (F-107).
+ */
+function requireChatUserId(options: { userId?: unknown }): string {
+  const userId = typeof options.userId === 'string' ? options.userId : '';
+  if (!userId) {
+    throw createAppError('userId is required for chat inference', 400, 'USER_ID_REQUIRED');
+  }
+  return userId;
 }
 
 export class AIEngine implements AIEngineInterface {
@@ -144,7 +160,7 @@ export class AIEngine implements AIEngineInterface {
       systemPrompt: systemMessage?.content || options.systemPrompt,
       context: messages.filter((message) => message !== userMessage && message !== systemMessage),
       model: options.model,
-      userId: options.userId || 'anonymous',
+      userId: requireChatUserId(options),
       app: 'quantai',
       feature: 'chat',
     });
@@ -159,7 +175,7 @@ export class AIEngine implements AIEngineInterface {
       systemPrompt: systemMessage?.content || options.systemPrompt,
       context: messages.filter((message) => message !== userMessage && message !== systemMessage),
       model: options.model,
-      userId: options.userId || 'anonymous',
+      userId: requireChatUserId(options),
       app: 'quantai',
       feature: 'chat',
       stream: true,
