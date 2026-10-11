@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Components under test
-import { CalendarBookingView } from '../app/calendar/components/CalendarBookingView';
 import { CalendarQuantMeetView } from '../app/calendar/components/CalendarQuantMeetView';
 import { CalendarRemindersView } from '../app/calendar/components/CalendarRemindersView';
 import { CalendarContextSubTabs } from '../app/calendar/components/CalendarContextSubTabs';
@@ -111,37 +113,6 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
 
 
   // ==========================================================================
-  // 1. Sub-View: `booking`
-  // ==========================================================================
-  describe('Sub-View: `booking` (CalendarBookingView)', () => {
-    it('renders Calendly-class public booking engine with link, copy pill, time slots, duration chips, and concurrency badge', () => {
-      const html = renderToStaticMarkup(
-        <CalendarBookingView userEmail="sundar@quantmail.in" bookingSlug="sundar" />,
-      );
-
-      // Public Booking Link display
-      expect(html).toContain('https://quantmail.in/calendar/booking/sundar');
-      expect(html).toContain('Copy Link');
-
-      // Available time slots: 10:00 AM, 11:30 AM, 02:00 PM, 04:30 PM
-      expect(html).toContain('10:00 AM');
-      expect(html).toContain('11:30 AM');
-      expect(html).toContain('02:00 PM');
-      expect(html).toContain('04:30 PM');
-
-      // Meeting duration selector chips: 15m, 30m, 45m, 60m
-      expect(html).toContain('15m');
-      expect(html).toContain('30m');
-      expect(html).toContain('45m');
-      expect(html).toContain('60m');
-
-      // Slot concurrency status
-      expect(html).toContain('4 slots available today · Instant E2EE Confirmation');
-      expect(html).toContain('Reserve Slot');
-    });
-  });
-
-  // ==========================================================================
   // 2. Sub-View: `quantmeet`
   // ==========================================================================
   describe('Sub-View: `quantmeet` (CalendarQuantMeetView)', () => {
@@ -217,13 +188,6 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
   describe('Zero Raw Unicode Emojis Invariant', () => {
     const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
 
-    it('CalendarBookingView contains strictly ZERO raw Unicode emojis', () => {
-      const html = renderToStaticMarkup(
-        <CalendarBookingView userEmail="sundar@quantmail.in" bookingSlug="sundar" />,
-      );
-      expect(emojiRegex.test(html)).toBe(false);
-    });
-
     it('CalendarQuantMeetView contains strictly ZERO raw Unicode emojis', () => {
       const html = renderToStaticMarkup(<CalendarQuantMeetView />);
       expect(emojiRegex.test(html)).toBe(false);
@@ -241,5 +205,42 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
       expect(emojiRegex.test(html)).toBe(false);
     });
 
+  });
+
+  // ==========================================================================
+  // 6. Orphan-removal guard: CalendarBookingView stays deleted
+  //    (fake hardcoded booking flow was removed; regression = it creeping back)
+  // ==========================================================================
+  describe('Orphan-removal guard: CalendarBookingView', () => {
+    const thisDir = dirname(fileURLToPath(import.meta.url));
+    const componentsDir = join(thisDir, '..', 'app', 'calendar', 'components');
+    const srcDir = join(thisDir, '..');
+
+    function walkSourceFiles(dir: string, acc: string[] = []): string[] {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        const stat = statSync(full);
+        if (stat.isDirectory()) {
+          // Skip test directories — they legitimately discuss removed views.
+          if (entry === '__tests__') continue;
+          walkSourceFiles(full, acc);
+        } else if (/\.(ts|tsx|js|jsx)$/.test(entry)) {
+          acc.push(full);
+        }
+      }
+      return acc;
+    }
+
+    it('CalendarBookingView.tsx file does not exist', () => {
+      expect(existsSync(join(componentsDir, 'CalendarBookingView.tsx'))).toBe(false);
+    });
+
+    it('no source file (outside __tests__) imports or references CalendarBookingView', () => {
+      const offenders = walkSourceFiles(srcDir).filter((file) => {
+        const content = readFileSync(file, 'utf8');
+        return /CalendarBookingView/.test(content);
+      });
+      expect(offenders).toEqual([]);
+    });
   });
 });
