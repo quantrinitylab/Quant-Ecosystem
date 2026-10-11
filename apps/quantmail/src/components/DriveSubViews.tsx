@@ -846,7 +846,7 @@ export function DriveHomeSubView({
         count: categoryStats.images.count,
         formattedSize: categoryStats.images.formattedSize,
         icon: ImageIcon,
-        accentColor: '#38BDF8',
+        accentColor: 'var(--app-accent)',
         containerStyle:
           'hover:border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] hover:shadow-[0_0_20px_color-mix(in_srgb,var(--app-accent)_12%,transparent)]',
         badgeBg: 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)]',
@@ -1901,7 +1901,7 @@ export function DriveAiMemorySubView({
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#232938]">
         <div className="flex items-center gap-3">
-          <div className="size-10 rounded-xl bg-[#38BDF8]/15 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8] shrink-0">
+          <div className="size-10 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
             <BrainIcon className="size-5" />
           </div>
           <div>
@@ -1909,7 +1909,7 @@ export function DriveAiMemorySubView({
               <h2 className="text-base font-extrabold text-[#F8FAFC] tracking-tight">
                 AI Memory Vault
               </h2>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)]">
                 L3 Cross-App Relational
               </span>
             </div>
@@ -1934,7 +1934,7 @@ export function DriveAiMemorySubView({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search memories, facts, conversation context..."
-          className="w-full h-11 pl-10 pr-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-xs text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:border-[#38BDF8] focus:ring-1 focus:ring-[#38BDF8] transition-all shadow-[0_2px_12px_rgba(0,0,0,0.25)]"
+          className="w-full h-11 pl-10 pr-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-xs text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:border-[var(--app-accent)] focus:ring-1 focus:ring-[var(--app-accent)] transition-all shadow-[0_2px_12px_rgba(0,0,0,0.25)]"
         />
         {searchQuery && (
           <button
@@ -1954,7 +1954,7 @@ export function DriveAiMemorySubView({
           onClick={() => setSelectedApp('all')}
           className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all shrink-0 ${
             selectedApp === 'all'
-              ? 'bg-[#38BDF8] text-black shadow-[0_0_14px_rgba(56,189,248,0.25)]'
+              ? 'bg-[var(--app-accent)] text-black shadow-[0_0_14px_color-mix(in_srgb,var(--app-accent)_25%,transparent)]'
               : 'bg-[var(--quant-surface)] text-[#94A3B8] border border-[#232938] hover:text-white'
           }`}
         >
@@ -2006,7 +2006,7 @@ export function DriveAiMemorySubView({
             return (
               <div
                 key={mem.id}
-                className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-4 sm:p-5 hover:border-[#38BDF8]/40 transition-all space-y-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.3)]"
+                className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-4 sm:p-5 hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] transition-all space-y-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.3)]"
               >
                 {/* Card Top: Source App Badge & Timestamp */}
                 <div className="flex items-center justify-between gap-3">
@@ -2020,7 +2020,7 @@ export function DriveAiMemorySubView({
                     <span className="text-xs text-[#64748B] font-mono">{mem.timestamp}</span>
                   </div>
 
-                  <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-[#38BDF8]/10 text-[#38BDF8] border border-[#38BDF8]/20">
+                  <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_20%,transparent)]">
                     {mem.confidenceScore == null
                       ? 'Confidence not scored'
                       : `${mem.confidenceScore}% Confidence`}
@@ -2044,7 +2044,7 @@ export function DriveAiMemorySubView({
                     <ul className="space-y-1 text-xs text-[#E2E8F0]">
                       {mem.extractedFacts.map((fact, idx) => (
                         <li key={idx} className="flex items-start gap-2">
-                          <span className="text-[#38BDF8] mt-1 text-[var(--q-type-xs)]">&bull;</span>
+                          <span className="text-[var(--app-accent)] mt-1 text-[var(--q-type-xs)]">&bull;</span>
                           <span className="flex-1">{fact}</span>
                         </li>
                       ))}
@@ -2090,7 +2090,7 @@ export function DriveAiMemorySubView({
                     type="button"
                     onClick={() => onRecallInChat?.(mem)}
                     disabled={!onRecallInChat}
-                    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-[#38BDF8]/15 border border-[#38BDF8]/35 text-xs font-semibold text-[#38BDF8] hover:bg-[#38BDF8]/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)] text-xs font-semibold text-[var(--app-accent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <span>Recall Context</span>
                     <svg
