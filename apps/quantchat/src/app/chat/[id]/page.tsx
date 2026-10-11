@@ -229,10 +229,13 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     setExpiredMessageIds((prev) => ({ ...prev, [messageId]: true }));
   }, []);
 
-  // Snap Ephemeral state tracking
+  // Snap Ephemeral state tracking. `isOpened` is set only after the server
+  // has consumed the snap (QC-F-019) or confirmed it is already consumed —
+  // never by local viewing alone.
   const [snapStates, setSnapStates] = useState<
-    Record<string, { isOpened: boolean; openedAt?: string; replayCount: number }>
+    Record<string, { isOpened: boolean; openedAt?: string }>
   >({});
+  const [snapError, setSnapError] = useState<string | null>(null);
   const [activeSnap, setActiveSnap] = useState<{
     id: string;
     type: 'snap_photo' | 'snap_video';
@@ -242,7 +245,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   } | null>(null);
   const [snapSecondsRemaining, setSnapSecondsRemaining] = useState(10);
   const [snapProgress, setSnapProgress] = useState(100);
-  const pressHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Quick Camera & Composer duration state
   const [showSnapCamera, setShowSnapCamera] = useState(false);
@@ -399,29 +401,47 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   }, [activeSnap]);
 
   const handleCloseSnap = useCallback((snapId: string) => {
-    // Permanently transition snap to opened state and destroy media URL
-    setSnapStates((prev) => {
-      const existing = prev[snapId] || { replayCount: 0 };
-      return {
-        ...prev,
-        [snapId]: {
-          isOpened: true,
-          openedAt: new Date().toISOString(),
-          replayCount: existing.replayCount + 1,
-        },
-      };
-    });
+    // The snap was already consumed server-side when it was opened
+    // (handleOpenSnap); closing only dismisses the viewer. There is no
+    // replay: view-once means once.
+    setSnapStates((prev) => ({
+      ...prev,
+      [snapId]: { isOpened: true, openedAt: prev[snapId]?.openedAt ?? new Date().toISOString() },
+    }));
     setActiveSnap(null);
   }, []);
 
-  const handleOpenSnap = useCallback((msg: EnhancedMessage) => {
-    setActiveSnap({
-      id: msg.id,
-      type: msg.type as 'snap_photo' | 'snap_video',
-      mediaUrl: msg.mediaUrl || msg.imageUrl,
-      durationSec: msg.snapDurationSec ?? 10,
-      sender: msg.sender,
-    });
+  // QC-F-019: opening a snap goes through the backend consume endpoint —
+  // the only path that delivers snap media (the message list no longer
+  // carries it). The server records this recipient's one view and destroys
+  // its stored copy; a second open is refused (410 SNAP_CONSUMED) and the
+  // card stays "Opened" with no way to view the media again.
+  const handleOpenSnap = useCallback(async (msg: EnhancedMessage) => {
+    setSnapError(null);
+    try {
+      const res = await apiClient.consumeSnap(msg.id);
+      if (res.success && res.data?.mediaUrl) {
+        setActiveSnap({
+          id: msg.id,
+          type: msg.type as 'snap_photo' | 'snap_video',
+          mediaUrl: res.data.mediaUrl,
+          durationSec: res.data.duration ?? msg.snapDurationSec ?? 10,
+          sender: msg.sender,
+        });
+        return;
+      }
+      if (res.error?.code === 'SNAP_CONSUMED') {
+        setSnapStates((prev) => ({
+          ...prev,
+          [msg.id]: { isOpened: true, openedAt: new Date().toISOString() },
+        }));
+        setSnapError('This snap has already been viewed and destroyed.');
+        return;
+      }
+      setSnapError('Could not open this snap. Please try again.');
+    } catch {
+      setSnapError('Could not open this snap. Please try again.');
+    }
   }, []);
 
   const isSnapOpened = useCallback(
@@ -430,40 +450,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     },
     [snapStates],
   );
-
-  const canReplay = useCallback(
-    (msgId: string) => {
-      const state = snapStates[msgId];
-      return !!state?.isOpened && state.replayCount === 1;
-    },
-    [snapStates],
-  );
-
-  const startPressHoldReplay = useCallback(
-    (msg: EnhancedMessage) => {
-      const state = snapStates[msg.id];
-      // Allow exactly 1 replay
-      if (!state || state.replayCount > 1) return;
-
-      pressHoldTimerRef.current = setTimeout(() => {
-        setActiveSnap({
-          id: msg.id,
-          type: msg.type as 'snap_photo' | 'snap_video',
-          mediaUrl: msg.mediaUrl || msg.imageUrl,
-          durationSec: msg.snapDurationSec ?? 10,
-          sender: msg.sender,
-        });
-      }, 450);
-    },
-    [snapStates],
-  );
-
-  const cancelPressHoldReplay = useCallback(() => {
-    if (pressHoldTimerRef.current) {
-      clearTimeout(pressHoldTimerRef.current);
-      pressHoldTimerRef.current = null;
-    }
-  }, []);
 
   const handleSnapFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -475,37 +461,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     reader.readAsDataURL(file);
   };
 
-  const handleUseSampleSnap = useCallback(() => {
-    if (snapType === 'snap_photo') {
-      const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800">
-        <defs>
-          <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style="stop-color:#ff416c;stop-opacity:1" />
-            <stop offset="100%" style="stop-color:#ff4b2b;stop-opacity:1" />
-          </linearGradient>
-        </defs>
-        <rect width="600" height="800" fill="url(#grad)" />
-        <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="72">📸</text>
-        <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="white" font-family="sans-serif" font-size="28" font-weight="bold">QuantSnap Instant Capture</text>
-        <text x="50%" y="60%" dominant-baseline="middle" text-anchor="middle" fill="white" font-family="sans-serif" font-size="18" opacity="0.8">View-Once Ephemeral Media</text>
-      </svg>`;
-      setSnapMediaPreview(`data:image/svg+xml;utf8,${encodeURIComponent(sampleSvg)}`);
-    } else {
-      const sampleVideoSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800">
-        <defs>
-          <linearGradient id="vgrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style="stop-color:#8e2de2;stop-opacity:1" />
-            <stop offset="100%" style="stop-color:#4a00e0;stop-opacity:1" />
-          </linearGradient>
-        </defs>
-        <rect width="600" height="800" fill="url(#vgrad)" />
-        <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="72">🟣</text>
-        <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="white" font-family="sans-serif" font-size="28" font-weight="bold">QuantSnap Video Snap</text>
-        <text x="50%" y="60%" dominant-baseline="middle" text-anchor="middle" fill="white" font-family="sans-serif" font-size="18" opacity="0.8">Ephemeral Video</text>
-      </svg>`;
-      setSnapMediaPreview(`data:image/svg+xml;utf8,${encodeURIComponent(sampleVideoSvg)}`);
-    }
-  }, [snapType]);
 
   // QM-UIUX-056: wraps sendMessage.mutate with failure tracking. On REST
   // failure the user's text is preserved in `failedSends` (rendered below
@@ -565,6 +520,9 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       type: snapType,
       mediaUrl: snapMediaPreview,
       disappearMode: 'after_view',
+      // QC-F-019: the chosen view duration must reach the backend — it is
+      // persisted as the snap's metadata and returned by consumeSnap.
+      metadata: { snap: { durationSec: snapDuration } },
     });
 
     sendRealtimeMessage(content);
@@ -572,7 +530,14 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     setShowSnapCamera(false);
     setSnapMediaPreview(null);
     setSnapCaption('');
-  }, [snapMediaPreview, snapCaption, snapType, sendWithFailureTracking, sendRealtimeMessage]);
+  }, [
+    snapMediaPreview,
+    snapCaption,
+    snapType,
+    snapDuration,
+    sendWithFailureTracking,
+    sendRealtimeMessage,
+  ]);
 
   // Wire read receipts: mark latest message from others as read on mount and on new messages
   useEffect(() => {
@@ -767,6 +732,21 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             </button>
           </div>
         )}
+        {snapError && (
+          <div
+            role="alert"
+            className="mx-1 rounded-xl bg-red-500/10 border border-red-500/30 px-3 py-2 text-sm text-red-600"
+          >
+            {snapError}{' '}
+            <button
+              type="button"
+              onClick={() => setSnapError(null)}
+              className="underline font-medium"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         {messages.length === 0 ? (
           <EmptyState
             title="No messages yet"
@@ -852,15 +832,11 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                     className={`flex ${msg.sender === 'self' ? 'justify-end' : 'justify-start'} mb-1`}
                   >
                     {isSnapOpened(msg.id) ? (
-                      // Opened snap card
+                      // Opened snap card — terminal state. The media was
+                      // consumed server-side; there is no replay (QC-F-019).
                       <div
-                        onMouseDown={() => startPressHoldReplay(msg)}
-                        onMouseUp={cancelPressHoldReplay}
-                        onMouseLeave={cancelPressHoldReplay}
-                        onTouchStart={() => startPressHoldReplay(msg)}
-                        onTouchEnd={cancelPressHoldReplay}
-                        className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl bg-[var(--quant-surface)] border border-[var(--quant-border)] text-xs text-[var(--quant-muted-foreground)] select-none transition-colors hover:bg-[var(--quant-muted)]/50"
-                        title={canReplay(msg.id) ? 'Press and hold to replay' : 'Opened'}
+                        className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl bg-[var(--quant-surface)] border border-[var(--quant-border)] text-xs text-[var(--quant-muted-foreground)] select-none"
+                        title="Opened"
                       >
                         {/* ⬜ gray outline square icon */}
                         <div className="w-5 h-5 rounded border-2 border-[var(--quant-muted-foreground)]/60 flex items-center justify-center">
@@ -872,11 +848,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                           <span className="font-medium text-[var(--quant-foreground)]">
                             Opened · Just now
                           </span>
-                          {canReplay(msg.id) && (
-                            <span className="text-[10px] text-amber-500 font-medium">
-                              Press and hold to replay
-                            </span>
-                          )}
                         </div>
                       </div>
                     ) : (
@@ -1297,13 +1268,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                       <span>
                         Choose {snapType === 'snap_photo' ? 'photo' : 'video'} from device
                       </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleUseSampleSnap}
-                      className="text-xs text-amber-500 hover:text-amber-400 font-medium text-center py-1"
-                    >
-                      Or capture quick instant snap ⚡
                     </button>
                   </div>
                 )}
