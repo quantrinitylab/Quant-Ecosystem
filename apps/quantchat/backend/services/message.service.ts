@@ -292,8 +292,20 @@ export class MessageService {
 
   async getMessages(
     conversationId: string,
+    userId: string,
     options: PaginationOptions = {},
   ): Promise<PaginatedResult<Message>> {
+    // QC-F-024: verify the caller is an active member before reading any
+    // message content or even the total count (both leaked to any logged-in
+    // user before this check existed). Same pattern as sendMessage.
+    const membership = await this.prisma.conversationMember.findFirst({
+      where: { conversationId, userId, leftAt: null },
+    });
+
+    if (!membership) {
+      throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
+    }
+
     const page = options.page ?? 1;
     const pageSize = options.pageSize ?? 50;
     const skip = (page - 1) * pageSize;
