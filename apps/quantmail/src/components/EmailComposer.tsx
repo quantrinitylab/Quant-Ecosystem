@@ -19,7 +19,7 @@ import { useSafeEmailHtml } from '../lib/safe-html';
 import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
-import { parseEmailString, type RecipientOption } from './RecipientChipInput';
+import { parseEmailString, dedupeRecipientPayload, type RecipientOption } from './RecipientChipInput';
 import { ContactAutocomplete, type ContactSuggestion } from './ContactAutocomplete';
 import { useContactSuggestions } from '../hooks/useContactSuggestions';
 import {
@@ -910,32 +910,40 @@ export function EmailComposer({
       replyToId: inReplyTo || initialReplyToId,
     };
 
-    const toList =
+    // QM-SCREEN-012 R2: dedupe by address — the recipient rows can hold a
+    // named chip and a bare chip for the same address, and the payload must
+    // carry each address exactly once.
+    const toList = dedupeRecipientPayload(
       toRecipients.length > 0
         ? toRecipients.map((r) => ({ email: r.email }))
         : draftSnapshot.to
             .split(/[,;\s]+/)
             .filter(Boolean)
-            .map((email) => ({ email }));
+            .map((email) => ({ email })),
+    );
 
     const ccList =
       ccRecipients.length > 0
-        ? ccRecipients.map((r) => ({ email: r.email }))
+        ? dedupeRecipientPayload(ccRecipients.map((r) => ({ email: r.email })))
         : draftSnapshot.cc
-          ? draftSnapshot.cc
-              .split(/[,;\s]+/)
-              .filter(Boolean)
-              .map((email) => ({ email }))
+          ? dedupeRecipientPayload(
+              draftSnapshot.cc
+                .split(/[,;\s]+/)
+                .filter(Boolean)
+                .map((email) => ({ email })),
+            )
           : undefined;
 
     const bccList =
       bccRecipients.length > 0
-        ? bccRecipients.map((r) => ({ email: r.email }))
+        ? dedupeRecipientPayload(bccRecipients.map((r) => ({ email: r.email })))
         : draftSnapshot.bcc
-          ? draftSnapshot.bcc
-              .split(/[,;\s]+/)
-              .filter(Boolean)
-              .map((email) => ({ email }))
+          ? dedupeRecipientPayload(
+              draftSnapshot.bcc
+                .split(/[,;\s]+/)
+                .filter(Boolean)
+                .map((email) => ({ email })),
+            )
           : undefined;
 
     // 2. Close composer modal/popover smoothly

@@ -86,13 +86,20 @@ const listQuerySchema = z
   })
   .strict();
 
-const searchSchema = z.object({
-  q: z.string().min(1),
-});
+// QM-SCREEN-012 R2: strict — an unknown query key is a 400, not a silently
+// ignored filter (the same no-op/ignored-input class as the list route's
+// pagination-only schema bug documented above).
+const searchSchema = z
+  .object({
+    q: z.string().min(1),
+  })
+  .strict();
 
-const frequentQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-});
+const frequentQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+  })
+  .strict();
 
 export default async function contactsRoutes(fastify: FastifyInstance) {
   // POST /contacts
@@ -284,10 +291,14 @@ export default async function contactsRoutes(fastify: FastifyInstance) {
     if (!userId) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
-    const dismissSchema = z.object({
-      primaryId: z.string().min(1),
-      duplicateId: z.string().min(1),
-    });
+    // QM-SCREEN-012 R2: strict — unknown keys 400 instead of parsing to a
+    // shape the service silently ignores.
+    const dismissSchema = z
+      .object({
+        primaryId: z.string().min(1),
+        duplicateId: z.string().min(1),
+      })
+      .strict();
     const parseResult = dismissSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw parseResult.error;
@@ -308,10 +319,14 @@ export default async function contactsRoutes(fastify: FastifyInstance) {
     if (!userId) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
-    const mergeSchema = z.object({
-      primaryId: z.string().min(1),
-      duplicateIds: z.array(z.string().min(1)).min(1),
-    });
+    // QM-SCREEN-012 R2: strict — unknown keys 400 instead of parsing to a
+    // shape the service silently ignores.
+    const mergeSchema = z
+      .object({
+        primaryId: z.string().min(1),
+        duplicateIds: z.array(z.string().min(1)).min(1),
+      })
+      .strict();
     const parseResult = mergeSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw parseResult.error;

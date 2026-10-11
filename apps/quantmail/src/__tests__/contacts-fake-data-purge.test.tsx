@@ -3,12 +3,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import React from 'react';
 import { readFileSync } from 'node:fs';
 import {
-  VipContactsSubView,
   DedupWizardSubView,
   CirclesSubView,
   ContactDetailSheet,
   type DedupCollisionPair,
-  type EnterpriseCircleItem,
 } from '../app/contacts/components/ContactsSubViews';
 
 /**
@@ -69,33 +67,10 @@ describe('QM-UIUX-026: shipped component source contains no fabricated contacts'
   });
 });
 
-describe('QM-UIUX-026: VipContactsSubView badge reflects the real count', () => {
-  const noop = () => {};
-
-  it('empty contacts -> honest empty state, 0 EXECUTIVES', () => {
-    const html = renderToStaticMarkup(
-      <VipContactsSubView contacts={[]} onInspect={noop} onCall={noop} onEmail={noop} />,
-    );
-    expect(html).toContain('No VIP contacts yet');
-    expect(html).toContain('0 EXECUTIVES');
-    for (const marker of FABRICATED_MARKERS) {
-      expect(html, `fabricated marker rendered: ${marker}`).not.toContain(marker);
-    }
-  });
-
-  it('real VIP contacts -> badge counts only real VIPs', () => {
-    const contacts = [
-      { id: 'c1', name: 'Real Person', email: 'real@example.com', isVip: true, isStarred: false, tag: '' },
-      { id: 'c2', name: 'Ordinary Person', email: 'ordinary@example.com', isVip: false, isStarred: false, tag: '' },
-    ];
-    const html = renderToStaticMarkup(
-      <VipContactsSubView contacts={contacts as any} onInspect={noop} onCall={noop} onEmail={noop} />,
-    );
-    expect(html).toContain('1 EXECUTIVES');
-    expect(html).toContain('Real Person');
-    expect(html).not.toContain('Ordinary Person');
-  });
-});
+// QM-SCREEN-012 R2: VipContactsSubView was dead code (never mounted) carrying
+// invented marketing copy ("Executive VIP Directory", "{n} EXECUTIVES",
+// "Priority boardroom contacts with instant sovereign dial & dispatch") —
+// deleted along with the tests that pinned it.
 
 describe('QM-UIUX-026: DedupWizardSubView never invents collisions', () => {
   const noop = () => {};
@@ -184,58 +159,20 @@ describe('QM-UIUX-026: DedupWizardSubView never invents collisions', () => {
   });
 });
 
-describe('QM-UIUX-026: CirclesSubView renders only real circles', () => {
-  const noop = () => {};
-
-  it('no circles -> honest empty state, no fabricated circles', () => {
-    const html = renderToStaticMarkup(
-      <CirclesSubView contacts={[]} onBroadcast={noop} onViewCircle={noop} />,
-    );
+// QM-SCREEN-012 R2: the circles-list branch was dead in production (no caller
+// ever passed circles) and carried invented copy ("Enterprise Circles" /
+// "Access-controlled trust groups and broadcast distribution syndicates"), so
+// it is deleted. The component is now only the honest empty state; the tests
+// that exercised the dead branch go with it.
+describe('QM-UIUX-026: CirclesSubView renders only the honest empty state', () => {
+  it('renders the empty state, no fabricated circles', () => {
+    const html = renderToStaticMarkup(<CirclesSubView />);
     expect(html).toContain('No circles yet');
+    expect(html).not.toContain('Enterprise Circles');
+    expect(html).not.toContain('Access-controlled trust groups');
     for (const marker of FABRICATED_MARKERS) {
       expect(html, `fabricated marker rendered: ${marker}`).not.toContain(marker);
     }
-  });
-
-  it('real circles -> real names and real count badge', () => {
-    const circles: EnterpriseCircleItem[] = [
-      {
-        id: 'g1',
-        name: 'Family',
-        memberCount: 2,
-        description: 'My family group',
-        themeColor: 'var(--quant-warning)',
-        badgeStyle: 'border-[var(--quant-warning)]/50',
-        memberNames: ['real@example.com', 'other@example.com'],
-      },
-    ];
-    const html = renderToStaticMarkup(
-      <CirclesSubView contacts={[]} circles={circles} onBroadcast={noop} onViewCircle={noop} />,
-    );
-    expect(html).toContain('Family');
-    expect(html).toContain('1 CIRCLES');
-    expect(html).toContain('2 Members');
-    expect(html).not.toContain('Verified Members');
-  });
-
-  it('broadcast resolves only real contact emails, never invents an address', () => {
-    const onBroadcast = vi.fn();
-    const circles: EnterpriseCircleItem[] = [
-      {
-        id: 'g1',
-        name: 'Family',
-        memberCount: 1,
-        description: '',
-        themeColor: 'var(--quant-warning)',
-        badgeStyle: '',
-        memberNames: ['Nobody Real'],
-      },
-    ];
-    renderToStaticMarkup(
-      <CirclesSubView contacts={[]} circles={circles} onBroadcast={onBroadcast} onViewCircle={noop} />,
-    );
-    // Static render cannot click; contract check only.
-    expect(typeof onBroadcast).toBe('function');
   });
 });
 

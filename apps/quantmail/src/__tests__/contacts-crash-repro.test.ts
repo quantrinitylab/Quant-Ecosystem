@@ -4,7 +4,6 @@ import React from 'react';
 import {
   ContactDetailSheet,
   CompaniesSubView,
-  VipContactsSubView,
   getInitials,
   getAvatarBgColor,
   contactDisplayName,
@@ -22,7 +21,10 @@ import {
  * - getInitials(undefined) -> undefined.trim()
  * - getAvatarBgColor(undefined) -> undefined.length
  * - groupedContacts sort: (a.name || a.email).localeCompare(...)
- * - CompaniesSubView / VipContactsSubView: c.email.toLowerCase()
+ * - CompaniesSubView: c.email.toLowerCase()
+ *
+ * (VipContactsSubView was dead code — never mounted — and is deleted by
+ * QM-SCREEN-012 R2; its crash test went with it.)
  *
  * Fix: hardened utils (accept undefined, safe defaults) + contactDisplayName
  * fallback (name -> email -> phone -> 'Unnamed contact') + guarded call sites.
@@ -80,18 +82,6 @@ describe('contacts nameless/emailless records do not crash', () => {
   it('CompaniesSubView renders with an emailless contact', () => {
     const html = renderToStaticMarkup(
       React.createElement(CompaniesSubView, {
-        contacts: [ghost, normal],
-        onInspect: noop,
-        onCall: noop,
-        onEmail: noop,
-      }),
-    );
-    expect(html.length).toBeGreaterThan(0);
-  });
-
-  it('VipContactsSubView renders with an emailless contact', () => {
-    const html = renderToStaticMarkup(
-      React.createElement(VipContactsSubView, {
         contacts: [ghost, normal],
         onInspect: noop,
         onCall: noop,
