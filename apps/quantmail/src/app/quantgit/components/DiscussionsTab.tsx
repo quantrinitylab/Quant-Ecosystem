@@ -16,7 +16,6 @@ export function DiscussionsTab({
   discussionCategory,
   setDiscussionCategory,
   handleUpvoteDiscussion,
-  showToast,
 }: DiscussionsTabProps) {
   return (
     <div className="space-y-4 text-xs">
@@ -37,10 +36,14 @@ export function DiscussionsTab({
             </button>
           ))}
         </div>
+        {/* QM-SCREEN-013 P2: the button used to toast "New discussion dialog"
+            but opened nothing — no discussions backend exists. Honestly
+            disabled until one does. */}
         <button
           type="button"
-          onClick={() => showToast('New discussion dialog')}
-          className="px-3.5 py-1.5 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold transition-colors"
+          disabled
+          title="Starting new discussions is not available yet"
+          className="px-3.5 py-1.5 rounded-md bg-[#238636] text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed"
         >
           New discussion
         </button>

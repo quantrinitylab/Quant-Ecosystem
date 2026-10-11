@@ -51,8 +51,6 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
 }) => {
   const [starred, setStarred] = useState(isStarred);
   const [currentStars, setCurrentStars] = useState(starsCount);
-  const [watchOption, setWatchOption] = useState('Participating and @mentions');
-  const [isWatchMenuOpen, setIsWatchMenuOpen] = useState(false);
 
   const handleStarClick = () => {
     setStarred(!starred);
@@ -110,7 +108,11 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
         </div>
       </div>
 
-      {/* Primary Action Buttons: Star & Watch */}
+      {/* Primary Action Buttons: Star */}
+      {/* Watch removed (QM-SCREEN-013 P1): the dropdown only set local state,
+          implying a persisted notification setting with no subscription
+          endpoint behind it. Watch returns when a real subscription endpoint
+          exists. */}
       <div className="flex items-center gap-2 pt-2 border-t border-[#21262D]">
         <button
           onClick={handleStarClick}
@@ -125,36 +127,6 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
             {currentStars >= 1000 ? `${(currentStars / 1000).toFixed(1)}k` : currentStars}
           </span>
         </button>
-
-        <div className="relative">
-          <button
-            onClick={() => setIsWatchMenuOpen(!isWatchMenuOpen)}
-            className="flex items-center gap-1.5 py-1.5 px-3 rounded-md font-semibold text-xs bg-[#21262D] hover:bg-[#30363D] border border-[#30363D] text-[#E6EDF3] transition-colors"
-          >
-            <span>👁️ Watch</span>
-            <span className="text-[10px] text-[#8D96A0]">▼</span>
-          </button>
-
-          {isWatchMenuOpen && (
-            <div className="absolute right-0 top-full mt-1.5 w-64 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-2xl p-2 z-30 space-y-1 text-xs">
-              {['Participating and @mentions', 'All Activity', 'Ignore'].map((opt) => (
-                <button
-                  key={opt}
-                  onClick={() => {
-                    setWatchOption(opt);
-                    setIsWatchMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left hover:bg-[#21262D] transition-colors ${
-                    watchOption === opt ? 'bg-[#1F242C] text-[#58A6FF]' : 'text-[#E6EDF3]'
-                  }`}
-                >
-                  <span>{opt}</span>
-                  {watchOption === opt && <span>✓</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Releases Widget — only when real release data exists */}

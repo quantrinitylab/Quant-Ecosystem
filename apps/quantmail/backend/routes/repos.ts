@@ -466,21 +466,6 @@ const memorySecretAlertsStore = new Map<string, BackendSecretAlert[]>();
 const memoryCodeqlAlertsStore = new Map<string, BackendCodeqlAlert[]>();
 const memoryBranchRulesStore = new Map<string, any>();
 const memorySecurityPolicyStore = new Map<string, string>();
-
-const DEFAULT_SECURITY_POLICY_MD = `# Security Policy
-
-## Supported Versions
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.0.x   | :white_check_mark: |
-| 0.9.x   | :x:                |
-
-## Reporting a Vulnerability
-
-Please report vulnerabilities to security@quantrinity.in. We respond within 24 hours.
-`;
-
 export function resetRepoStores(): void {
   memoryCollaboratorsStore.clear();
   memoryTagsStore.clear();
@@ -3495,24 +3480,17 @@ export default async function reposRoutes(fastify: FastifyInstance) {
   fastify.get<{ Params: { id: string } }>('/:id/security/alerts', async (request, reply) => {
     const repo = await loadReadableRepo(request, request.params.id);
 
-    // HONESTY: alert lists start empty and stay empty until a real scanner
-    // produces findings. Never seed fabricated "findings" here.
-    if (!memoryBranchRulesStore.has(repo.id)) {
-      memoryBranchRulesStore.set(repo.id, {
-        requirePullRequestReviews: true,
-        requireStatusChecks: true,
-        requireCleanSecretScanning: true,
-      });
-    }
-    if (!memorySecurityPolicyStore.has(repo.id)) {
-      memorySecurityPolicyStore.set(repo.id, DEFAULT_SECURITY_POLICY_MD);
-    }
-
+    // HONESTY (QM-SCREEN-013 P2): alert lists start empty and stay empty until
+    // a real scanner produces findings. Branch rules and the security policy
+    // are reported as not set until they are actually saved — the DB-backed
+    // GET /:id/branch-protection is the source of truth for rules, and
+    // POST /:id/security/policy is the source of truth for the policy.
+    // Never seed fabricated defaults here.
     const dependabot = memorySecurityAlertsStore.get(repo.id) ?? [];
     const secrets = memorySecretAlertsStore.get(repo.id) ?? [];
     const codeql = memoryCodeqlAlertsStore.get(repo.id) ?? [];
-    const branchRules = memoryBranchRulesStore.get(repo.id);
-    const securityPolicy = memorySecurityPolicyStore.get(repo.id);
+    const branchRules = memoryBranchRulesStore.get(repo.id) ?? null;
+    const securityPolicy = memorySecurityPolicyStore.get(repo.id) ?? null;
 
     const openDependabot = dependabot.filter((a) => a.state === 'open');
     const openSecrets = secrets.filter((s) => s.status === 'active');
@@ -3548,6 +3526,48 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         branchRules,
         securityPolicy,
       },
+    });
+  });
+
+  fastify.post<{
+    Params: { id: string };
+    Body: { policy?: string };
+  }>('/:id/security/policy', async (request, reply) => {
+    // QM-SCREEN-013 P1: real persistence for the SECURITY.md editor.
+    // userId-gated + owner/admin-only, mirroring POST /:id/branch-protection.
+    const repo = await loadWritableRepo(request, request.params.id);
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+
+    const perm = await getRepoPermission(prisma, repo, userId);
+    if (repo.ownerId !== userId && perm !== 'ADMIN') {
+      throw createAppError(
+        'Only repository owner or admin can update the security policy',
+        403,
+        'FORBIDDEN',
+      );
+    }
+
+    const raw = request.body?.policy;
+    if (typeof raw !== 'string' || !raw.trim()) {
+      throw createAppError(
+        'policy is required and must be a non-empty string',
+        400,
+        'POLICY_REQUIRED',
+      );
+    }
+    if (raw.length > 100000) {
+      throw createAppError(
+        'policy exceeds the 100000 character limit',
+        400,
+        'POLICY_TOO_LONG',
+      );
+    }
+
+    memorySecurityPolicyStore.set(repo.id, raw);
+    return reply.status(200).send({
+      success: true,
+      data: { repositoryId: repo.id, updatedAt: new Date().toISOString() },
     });
   });
 

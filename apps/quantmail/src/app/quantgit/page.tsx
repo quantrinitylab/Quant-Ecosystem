@@ -204,6 +204,19 @@ function QuantGitContent() {  const router = useRouter();
   const [isPersonalizeOpen, setIsPersonalizeOpen] = useState(false);
   const [quantyName, setQuantyName] = useState('Quanty');
   const [quantyInstructions, setQuantyInstructions] = useState('');
+  // QM-SCREEN-013 P2: restore personalization saved to browser-local storage
+  // by the Personalize modal. Read in an effect (not the state initializer)
+  // so the server-rendered HTML matches on hydration.
+  useEffect(() => {
+    try {
+      const savedName = localStorage.getItem('quantgit.quantyName');
+      if (savedName) setQuantyName(savedName);
+      const savedInstructions = localStorage.getItem('quantgit.quantyInstructions');
+      if (savedInstructions != null) setQuantyInstructions(savedInstructions);
+    } catch {
+      // Storage unavailable (private mode, etc.) — defaults stand.
+    }
+  }, []);
   const [selectedAccessory, setSelectedAccessory] = useState<AccessoryType>('none');
   const [enableWorkersBeta, setEnableWorkersBeta] = useState(true);
   const [sourcesState, setSourcesState] = useState<Record<string, boolean>>({
@@ -2144,6 +2157,7 @@ function QuantGitContent() {  const router = useRouter();
                   openBlobEditor={openBlobEditor}
                   onNavigatePath={setCurrentPath}
                   onSelectBranch={setCurrentBranch}
+                  onOpenCommitHistory={() => setActiveGitHubTab('commits')}
                   showToast={showToast}
                   onCommitBlob={handleCommitBlob}
                   onDeleteBlob={handleDeleteBlob}
