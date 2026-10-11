@@ -107,6 +107,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [clearSession]);
 
+  // React to sign-outs initiated in sibling tabs/apps: the bridge broadcasts
+  // GLOBAL_LOGOUT on the `quant_sso_bus` BroadcastChannel. Without this, a
+  // user who signs out in another Quant tab stays "signed in" here until the
+  // next refresh fails — a confusing half-logged-out state.
+  useEffect(() => {
+    const bridge = UniversalSSOTokenBridge.getInstance();
+    const unsubscribe = bridge.on('GLOBAL_LOGOUT', () => {
+      clearSession();
+    });
+    return unsubscribe;
+  }, [clearSession]);
+
   // Rotate the access token before its ~15-minute lifetime ends. The rotated
   // refresh token stays inside the HttpOnly cookie and never reaches this provider.
   const authedRef = useRef(isAuthenticated);
@@ -156,6 +168,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await authSession.logout();
+    // Tell sibling tabs/apps so they drop their sessions too. Server-side
+    // revocation of this app's refresh family happens in authSession.logout()
+    // via POST /auth/logout; the broadcast covers the client side everywhere
+    // else. (Full cross-app server revocation is a QuantMail-lane proposal.)
+    try {
+      UniversalSSOTokenBridge.getInstance().broadcastSSOEvent('GLOBAL_LOGOUT', 'quantai');
+    } catch {
+      // Sandboxed environment
+    }
     setIsAuthenticated(false);
     setError(null);
   }, []);

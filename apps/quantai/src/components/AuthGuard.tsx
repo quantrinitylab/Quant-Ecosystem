@@ -23,13 +23,30 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isLoading || isPublic || isAuthenticated) return;
     if (typeof window !== 'undefined') {
-      const search = window.location.search;
-      if (search.includes('__quant_sso_ticket') || search.includes('token=')) {
+      // Robust handoff detection: check actual param names instead of a
+      // substring match (a param like `?sometoken=x` must not suppress the
+      // login redirect, and a real ticket must never flash /login).
+      let hasHandoffParams = false;
+      try {
+        const params = new URLSearchParams(window.location.search);
+        hasHandoffParams = ['__quant_sso_ticket', 'token', 'accessToken', 'access_token'].some(
+          (name) => params.has(name),
+        );
+      } catch {
+        hasHandoffParams = false;
+      }
+      if (hasHandoffParams) {
         // If SSO ticket/token is present in URL, let AuthProvider mount effect ingest it without flashing /login
         return;
       }
     }
-    const returnTo = encodeURIComponent(pathname ?? '/');
+    // Preserve the full intended destination (path + query) so deep links
+    // like /voice?draft=1 survive the sign-in round trip.
+    const fullPath =
+      typeof window !== 'undefined'
+        ? window.location.pathname + window.location.search
+        : (pathname ?? '/');
+    const returnTo = encodeURIComponent(fullPath || '/');
     router.replace(`/login?returnTo=${returnTo}`);
   }, [isLoading, isPublic, isAuthenticated, pathname, router]);
 

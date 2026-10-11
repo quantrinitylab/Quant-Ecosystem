@@ -6,7 +6,7 @@
 // frosted glass console, obsidian-titanium luxury sheen SSO button,
 // and hardened token bridge handoff.
 // ============================================================================
-import React, { Suspense, useCallback, useEffect, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UniversalSSOTokenBridge } from '@quant/shared-ui';
 import { useAuth } from '../../providers/auth-provider';
@@ -100,6 +100,15 @@ function LoginForm() {
     [searchParams],
   );
 
+  // "Create a QuantID" leaves the QuantAI origin for QuantMail's register
+  // page. Carry a returnTo so the register flow can send the user back here
+  // once it honors the parameter (proposal logged for the QuantMail lane);
+  // harmless if ignored.
+  const registerHref = useMemo(() => {
+    if (typeof window === 'undefined') return 'https://quantmail.in/register';
+    return `https://quantmail.in/register?returnTo=${encodeURIComponent(`${window.location.origin}/login`)}`;
+  }, []);
+
   // Auto-redirect if already authenticated or session restored via SSO / refresh
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
@@ -112,11 +121,14 @@ function LoginForm() {
     if (typeof window === 'undefined') return;
     (async () => {
       try {
+        const params = new URLSearchParams(window.location.search);
+        const hadTicket = ['__quant_sso_ticket', 'token', 'accessToken', 'access_token'].some(
+          (name) => params.has(name),
+        );
         const bridge = UniversalSSOTokenBridge.getInstance();
         // Fail-closed: consumeHandoffTicket re-verifies the ticket's token
         // server-side and returns null for forged/tampered/expired tickets.
         const consumed = await bridge.consumeHandoffTicket();
-        const params = new URLSearchParams(window.location.search);
         const rawReturn =
           consumed?.returnPath || params.get('returnTo') || params.get('__quant_return');
 
@@ -141,6 +153,13 @@ function LoginForm() {
             }
           }
           router.replace(targetDestination);
+        } else if (hadTicket) {
+          // A handoff ticket arrived but server-side verification rejected it
+          // (expired, tampered, or backend unreachable). Say so honestly
+          // instead of leaving the visitor staring at the sign-in card.
+          setError(
+            'That sign-in link expired or could not be verified. Please try "Continue with Quant Account" again.',
+          );
         }
       } catch {
         // Sandboxed environment
@@ -446,7 +465,7 @@ function LoginForm() {
           <p className="text-xs text-zinc-400">
             New to the ecosystem?{' '}
             <a
-              href="https://quantmail.in/register"
+              href={registerHref}
               className="font-medium text-violet-400 underline-offset-4 transition hover:text-violet-300 hover:underline"
             >
               Create a QuantID
