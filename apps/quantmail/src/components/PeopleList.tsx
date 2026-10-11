@@ -132,9 +132,9 @@ export function PeopleList({
                   type="button"
                   onClick={() => onSelect(c)}
                   aria-label={unread ? `${c.name}, ${c.unreadCount} unread` : c.name}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.04] active:bg-white/[0.07]"
+                  className="people-row flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.04] active:bg-white/[0.07]"
                 >
-                  <IdentityAvatar name={c.email} size="md" />
+                  <IdentityAvatar name={c.email} size="md" className="people-row-avatar" />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2">
                       <span
@@ -169,8 +169,8 @@ export function PeopleList({
                         {formatRelativeTime(c.lastActivityAt)}
                       </span>
                     </span>
-                    <span className="mt-0.5 flex items-center justify-between gap-2">
-                      <span dir="auto" className="truncate text-sm text-zinc-400">
+                    <span className="people-row-snippet mt-0.5 flex items-center justify-between gap-2">
+                      <span dir="auto" className="people-row-snippet-text truncate text-sm text-zinc-400">
                         {personSnippet(c)}
                       </span>
                       {unread && (
