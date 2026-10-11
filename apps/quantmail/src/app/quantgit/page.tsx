@@ -58,6 +58,7 @@ import { mapBackendCommitToItem } from './components/mapBackendCommit';
 import { BranchesTab } from './components/BranchesTab';
 import { IssuesTab } from './components/IssuesTab';
 import { PullRequestsTab } from './components/PullRequestsTab';
+import { interpretMergeResult, mergeFailureToast } from './mergeOutcome';
 import { AgentsTab } from './components/AgentsTab';
 import { DiscussionsTab } from './components/DiscussionsTab';
 import { ActionsTab } from './components/ActionsTab';
@@ -1492,8 +1493,8 @@ function QuantGitContent() {  const router = useRouter();
   const handleMergePR = async (
     prNumber: number,
     mergeMethod: 'merge' | 'squash' | 'rebase' = 'merge',
-  ) => {
-    if (!selectedRepo) return;
+  ): Promise<boolean> => {
+    if (!selectedRepo) return false;
     const repoTarget = selectedRepo.id || selectedRepo.name;
     try {
       const res = await apiFetch(
@@ -1512,23 +1513,17 @@ function QuantGitContent() {  const router = useRouter();
         showToast(
           `Pull request #${prNumber} merged into ${selectedRepo.defaultBranch} via ${mergeMethod}!`,
         );
-      } else {
-        setPulls((prev) => prev.map((p) => (p.id === prNumber ? { ...p, state: 'merged' } : p)));
-        if (selectedPr && selectedPr.id === prNumber) {
-          setSelectedPr((prev) => (prev ? { ...prev, state: 'merged' } : null));
-        }
-        showToast(
-          `Pull request #${prNumber} merged into ${selectedRepo.defaultBranch} via ${mergeMethod}!`,
-        );
+        return true;
       }
+      // Non-ok response: the merge did NOT happen. Keep the PR open, report the
+      // backend's real error, and resolve false so callers never claim success.
+      const outcome = await interpretMergeResult(res, prNumber);
+      showToast(outcome.merged ? mergeFailureToast(prNumber) : outcome.toast);
+      return false;
     } catch {
-      setPulls((prev) => prev.map((p) => (p.id === prNumber ? { ...p, state: 'merged' } : p)));
-      if (selectedPr && selectedPr.id === prNumber) {
-        setSelectedPr((prev) => (prev ? { ...prev, state: 'merged' } : null));
-      }
-      showToast(
-        `Pull request #${prNumber} merged into ${selectedRepo.defaultBranch} via ${mergeMethod}!`,
-      );
+      // Network/exception: the merge did NOT happen. Keep the PR open and say so.
+      showToast(`Could not merge pull request #${prNumber}. Please try again.`);
+      return false;
     }
   };
 

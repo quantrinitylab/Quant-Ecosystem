@@ -206,7 +206,15 @@ describe('QuantGit GitHub Sovereign Parity: PR 3-Way Merge & Actions Streaming L
 
       expect(html).toContain('data-testid="review-changes-btn"');
       expect(html).toContain('Review changes');
-      expect(html).toContain('All checks have passed (55/56 checks verified green)');
+      // Honest checks state: no fabricated gate — the box must say "unknown"
+      // and never invent a 55/56 pass count or green check list.
+      expect(html).toContain('Checks status unknown');
+      expect(html).toContain('data-testid="security-ci-checks-unknown"');
+      expect(html).not.toContain('55/56');
+      expect(html).not.toContain('All checks have passed (');
+      expect(html).not.toContain('ci/quantgit-actions');
+      expect(html).not.toContain('security/secret-scan');
+      expect(html).not.toContain('security/dependabot');
       expect(html).toContain('Review decisions:');
       expect(html).toContain('ai-sdk-factory[bot]');
       // SVG check icon (QuantGitCheckIcon) + "Approved" label — no "✓" glyph per the SVG-octicon polish.
