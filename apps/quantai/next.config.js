@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@quant/shared-ui', '@quant/common', '@quant/quant-tools'],
+  // F-131: '@quant/common' removed — it was an unused dependency and no longer
+  // installed, so it must not be listed here (transpilePackages entries must
+  // resolve at build time).
+  transpilePackages: ['@quant/shared-ui', '@quant/quant-tools'],
   eslint: {
     ignoreDuringBuilds: true,
   },

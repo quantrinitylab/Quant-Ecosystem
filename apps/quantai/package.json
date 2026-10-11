@@ -15,7 +15,6 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@prisma/client": "^6.19.3",
     "@quant/agent-runtime": "workspace:*",
     "@quant/agent-swarm": "workspace:*",
     "@quant/ai-memory": "workspace:*",
@@ -24,13 +23,10 @@
     "@quant/quant-tools": "workspace:*",
     "@quant/queue": "workspace:*",
     "@quant/user-owned-ai": "workspace:*",
-    "@quant/auth": "workspace:*",
     "@quant/ai": "workspace:*",
     "@quant/api-client": "workspace:*",
     "@quant/brand": "workspace:*",
-    "@quant/common": "workspace:*",
     "@quant/database": "workspace:*",
-    "@quant/realtime": "workspace:*",
     "@quant/server-core": "workspace:*",
     "@quant/shared-ui": "workspace:*",
     "@quant/ab-testing": "workspace:*",
