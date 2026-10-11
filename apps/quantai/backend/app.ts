@@ -1,5 +1,6 @@
 import { createApp } from '@quant/server-core';
 import type { AppConfig } from '@quant/server-core';
+import multipart from '@fastify/multipart';
 import chatRoutes from './routes/chat';
 import authRoutes from './routes/auth';
 import agentsRoutes from './routes/agents';
@@ -23,7 +24,7 @@ import trainingRoutes from './routes/training';
 import federationRoutes from './routes/federation';
 import agentHealthRoutes from './routes/agent-health';
 import agentLogsRoutes from './routes/agent-logs';
-import voiceRoutes from './routes/voice';
+import voiceRoutes, { VOICE_UPLOAD_LIMITS } from './routes/voice';
 import quantyPlanRoutes from './routes/quanty-plan';
 import voiceFlowsRoutes from './routes/voice-flows';
 import swarmRoutes from './routes/swarm';
@@ -149,6 +150,14 @@ export async function buildApp(config?: AppConfig) {
   app.decorate('mcpConnectorsService', new McpConnectorsService());
   app.decorate('documentExtractorService', documentExtractorService);
   app.decorate('fluxStylesService', fluxStylesService);
+
+  // Multipart parsing for audio uploads (F-055): POST /voice/stt calls
+  // request.file(), which only exists when @fastify/multipart is registered.
+  // Without this, every real mic→STT upload 500s with `request.file is not a
+  // function`. Limits are defined next to the route (VOICE_UPLOAD_LIMITS) so
+  // the parser and the handler can never drift apart; over-limit files are
+  // rejected cleanly with 413 by the route.
+  await app.register(multipart, { limits: VOICE_UPLOAD_LIMITS });
 
   await app.register(chatRoutes, { prefix: '/chat' });
   // Identity: GET /auth/me backs the frontend SSO ticket verification

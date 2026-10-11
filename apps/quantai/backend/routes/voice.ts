@@ -28,6 +28,41 @@ export interface AgentOwnershipPort {
   assertAgentOwnership(agentId: string, userId: string): Promise<void>;
 }
 
+// --- Voice upload policy (F-055) -------------------------------------------------
+// POST /voice/stt accepts real multipart audio uploads. These limits are shared
+// with the @fastify/multipart registration in backend/app.ts so the route and
+// the parser can never drift apart.
+/** Max accepted audio upload: mic-dictation recordings are small; 10 MB is generous. */
+export const VOICE_MAX_AUDIO_BYTES = 10 * 1024 * 1024;
+
+export const VOICE_UPLOAD_LIMITS = {
+  fileSize: VOICE_MAX_AUDIO_BYTES,
+  files: 1,
+  fields: 20,
+  parts: 40,
+} as const;
+
+/**
+ * Audio MIME types accepted by POST /voice/stt. Compared case-insensitively
+ * with any ";codecs=..." parameters stripped. The web clients send
+ * audio/wav (see useVoiceCapture), but MediaRecorder on other browsers emits
+ * audio/webm or audio/mp4, so the common container types are all allowed.
+ */
+export const SUPPORTED_AUDIO_MIMETYPES: ReadonlySet<string> = new Set([
+  'audio/wav',
+  'audio/x-wav',
+  'audio/wave',
+  'audio/vnd.wave',
+  'audio/webm',
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/ogg',
+  'audio/mp4',
+  'audio/aac',
+  'audio/flac',
+  'audio/x-m4a',
+]);
+
 function getAgentOwnershipPort(fastify: FastifyInstance): AgentOwnershipPort {
   if (!fastify.hasDecorator('agentOwnership')) {
     fastify.decorate('agentOwnership', {
@@ -124,12 +159,63 @@ export default async function voiceRoutes(fastify: FastifyInstance) {
     return reply.send(audio);
   });
 
+  // Paid STT endpoint stays behind the F-043 auth guard — the hardened F-055
+  // handler below replaces the route body but must not drop the guard.
   fastify.post('/stt', paidGuard, async (request, reply) => {
-    const data = await (request as any).file();
-    if (!data) {
-      return reply.status(400).send({ error: 'No audio file uploaded (multipart field "file")' });
+    // @fastify/multipart MUST be registered on the app (see backend/app.ts) —
+    // without it request.file is undefined and every audio upload 500s (F-055).
+    let data: Awaited<ReturnType<typeof request.file>>;
+    try {
+      data = await request.file();
+    } catch {
+      // Not a multipart request at all, or the multipart framing is malformed
+      // (bad boundary, truncated body). Never a 500: the client sent the wrong
+      // shape, so say so honestly.
+      return reply.status(400).send({
+        error: 'Expected a multipart audio upload (field "file")',
+        code: 'VOICE_NO_AUDIO_FILE',
+      });
     }
-    const buffer: Buffer = await data.toBuffer();
+    if (!data) {
+      // Valid multipart body, but it carried no file part.
+      return reply.status(400).send({
+        error: 'No audio file uploaded (multipart field "file")',
+        code: 'VOICE_NO_AUDIO_FILE',
+      });
+    }
+
+    // Validate the audio MIME type BEFORE buffering anything, so a wrong file
+    // gets an honest 415 instead of a confusing STT/provider failure downstream.
+    const mime = (data.mimetype ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
+    if (!SUPPORTED_AUDIO_MIMETYPES.has(mime)) {
+      // Discard the unread stream so the connection stays reusable.
+      data.file.resume();
+      return reply.status(415).send({
+        error: `Unsupported audio type "${mime || 'unknown'}". Send one of: ${[...SUPPORTED_AUDIO_MIMETYPES].sort().join(', ')}`,
+        code: 'VOICE_UNSUPPORTED_AUDIO_TYPE',
+      });
+    }
+
+    let buffer: Buffer;
+    try {
+      buffer = await data.toBuffer();
+    } catch (err) {
+      // @fastify/multipart truncates over-limit files and throws
+      // FST_REQ_FILE_TOO_LARGE when the buffer is consumed.
+      if ((err as { code?: string } | null)?.code === 'FST_REQ_FILE_TOO_LARGE') {
+        return reply.status(413).send({
+          error: `Audio file too large (max ${VOICE_MAX_AUDIO_BYTES / (1024 * 1024)} MB)`,
+          code: 'VOICE_AUDIO_TOO_LARGE',
+        });
+      }
+      throw err;
+    }
+    if (buffer.length === 0) {
+      return reply.status(400).send({
+        error: 'Uploaded audio file is empty',
+        code: 'VOICE_EMPTY_AUDIO',
+      });
+    }
 
     // Prefer Meta STT when configured (real transcription, no placeholder).
     if (isMetaSTTConfigured()) {
