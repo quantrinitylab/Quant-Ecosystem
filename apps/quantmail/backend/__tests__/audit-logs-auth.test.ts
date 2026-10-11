@@ -136,6 +136,23 @@ describe('Task W33-02: Tenant Authorization Hardening for Enterprise Audit Logs'
       const body = res.json();
       expect(body.success).toBe(true);
     });
+
+    it('QM-SCREEN-017 P1: never derives ADMIN from a userId starting with "admin"', async () => {
+      const app = await buildTestApp({
+        userId: 'admin-sneaky-user',
+        orgId: 'tenant-alpha',
+      });
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/audit-logs',
+      });
+
+      expect(res.statusCode).toBe(403);
+      const body = res.json();
+      expect(body.success).toBe(false);
+      expect(body.error.code).toBe('FORBIDDEN_ORGANIZATION_ACCESS');
+    });
   });
 
   describe('Multi-Tenant Data Isolation & Cursor-Based Pagination', () => {

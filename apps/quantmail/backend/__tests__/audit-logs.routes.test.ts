@@ -6,12 +6,15 @@ import auditLogsRoutes, {
   appendServerAuditRecord,
 } from '../routes/audit-logs';
 
-async function buildTestApp(userId?: string) {
+async function buildTestApp(userId?: string, role?: string) {
   const app = fastify();
   await app.register(errorHandlerPlugin);
   app.addHook('preHandler', async (req) => {
     if (userId) {
-      (req as unknown as { auth?: { userId?: string } }).auth = { userId };
+      (req as unknown as { auth?: { userId?: string; role?: string } }).auth = {
+        userId,
+        role,
+      };
     }
   });
   await app.register(auditLogsRoutes, { prefix: '/audit-logs' });
@@ -66,7 +69,7 @@ describe('Sovereign Immutable Audit Logs Routes (Task X06, K9-hardened)', () => 
         resourceId: `ws-${i}`,
       });
     }
-    const app = await buildTestApp('admin-user-1');
+    const app = await buildTestApp('admin-user-1', 'ADMIN');
 
     const res = await app.inject({
       method: 'GET',
@@ -84,7 +87,7 @@ describe('Sovereign Immutable Audit Logs Routes (Task X06, K9-hardened)', () => 
   it('GET /audit-logs filters records by action and resource', async () => {
     seedServerRecord({ action: 'EXPORT_MBOX', resource: 'EMAIL' });
     seedServerRecord({ action: 'DELETE_FILE', resource: 'DRIVE' });
-    const app = await buildTestApp('admin-user-1');
+    const app = await buildTestApp('admin-user-1', 'ADMIN');
 
     const emailLogs = await app.inject({
       method: 'GET',

@@ -99,15 +99,13 @@ export default async function auditLogsRoutes(fastify: FastifyInstance) {
       (request.headers['x-organization-id'] as string | undefined);
 
     const auditService = new AuditService(prisma);
-    const effectiveAuth = auth
-      ? {
-          ...auth,
-          role: auth.role || (auth.userId?.startsWith('admin') ? 'ADMIN' : undefined),
-        }
-      : undefined;
-
+    // QM-SCREEN-017 (LANE-1 FIX): role comes ONLY from the issued session
+    // (auth.role / auth.orgRole). Never derive a privileged role from a userId
+    // string prefix — a future identity-minting path that creates ids starting
+    // with "admin" would silently escalate in this authorization check, and
+    // AuditService.authorizeTenantAccess allows ADMIN cross-tenant read.
     const { orgId: targetOrgId } = auditService.authorizeTenantAccess(
-      effectiveAuth,
+      auth,
       requestedOrgId,
     );
 
