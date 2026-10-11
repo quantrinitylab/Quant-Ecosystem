@@ -137,6 +137,18 @@ vi.mock('../components/chat/AIAgentPanel', () => ({ AIAgentPanel: () => null }))
 vi.mock('../components/chat/ReplySuggestions', () => ({ ReplySuggestions: () => null }));
 vi.mock('../components/games/GameLauncher', () => ({ GameLauncher: () => null }));
 
+// The page calls useRouter() (call buttons navigate to /calls/[callId]);
+// without an app router mounted this invariant-throws in jsdom.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+    prefetch: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
+
 import ChatPage from '../app/chat/[id]/page';
 
 describe('Snapchat-style Ephemeral View-Once Messaging', () => {

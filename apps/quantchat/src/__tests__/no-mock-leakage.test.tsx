@@ -149,6 +149,13 @@ vi.mock('@quant/shared-ui', () => ({
     React.createElement('div', { 'data-testid': 'top-bar' }, title),
   BottomNav: () => React.createElement('div', { 'data-testid': 'bottom-nav' }),
   ChatList: () => React.createElement('div', { 'data-testid': 'chat-list' }),
+  // ChatListPage resolves 1:1 names against the current user id; the page
+  // already imports useAuth from @quant/shared-ui, so the mock must provide it.
+  useAuth: () => ({
+    user: { id: 'qa-user', username: 'qa', displayName: 'QA Tester' },
+    isLoading: false,
+    error: null,
+  }),
   LoadingState: ({ text }: { text?: string }) =>
     React.createElement('div', { 'data-testid': 'loading' }, text),
   ErrorState: ({ message }: { message?: string }) =>

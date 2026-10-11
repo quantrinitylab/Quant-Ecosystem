@@ -208,6 +208,9 @@ function SwipeableChatItem({ item, onSelect, onArchive, onPin }: SwipeableChatIt
 
 export default function ChatListPage() {
   const router = useRouter();
+  // Current user id — used by displayNameFor below to resolve 1:1 chats to the
+  // OTHER participant's real name (declared here, not in UserIndicator).
+  const { user } = useAuth();
   const { conversations, isLoading, error, refetch } = useConversations();
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
