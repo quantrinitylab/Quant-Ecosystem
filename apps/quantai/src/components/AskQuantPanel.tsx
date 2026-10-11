@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ToolCallCard } from './ToolCallCard';
 import { WorkflowProgressCard } from './WorkflowProgressCard';
 import { VoiceToggle } from './VoiceToggle';
+import { useVoiceCapture } from '../hooks/useVoiceCapture';
+import { transcribeVoiceAudio } from '../lib/voice-transcribe';
 import type { ToolCall } from '../types/tool-calls';
 import type { WorkflowStep } from './WorkflowProgressCard';
 import { apiFetchRaw } from '@quant/api-client';
@@ -40,11 +42,18 @@ export function AskQuantPanel({ className = '' }: AskQuantPanelProps) {
     completed: false,
     rollbackInProgress: false,
   });
-  const [voiceActive, setVoiceActive] = useState(false);
-  const [voiceProcessing, setVoiceProcessing] = useState(false);
+  // Real voice pipeline: useVoiceCapture records mic audio as 16 kHz mono WAV
+  // (what the STT endpoint wants) and transcribeVoiceAudio uploads it to the
+  // real /api/voice/stt pipeline. The transcript lands in the input box for
+  // review, then flows through the normal dry-run -> plan preview -> Execute
+  // path — the mic never records audio that gets silently dropped again.
+  const voice = useVoiceCapture();
+  const [transcribing, setTranscribing] = useState(false);
+  // Mic-level problems (permission denied, capture failure) are honest
+  // user-facing errors, not silent states.
+  const voiceError =
+    (voice.state === 'denied' || voice.state === 'error') && voice.error ? voice.error : null;
   const abortRef = useRef<AbortController | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   // Last non-dry-run request body, so the confirmation dialog can re-send
   // it with explicit confirmation (Accept) or abort it (Reject).
   const lastRequestRef = useRef<Record<string, unknown> | null>(null);
@@ -280,50 +289,36 @@ export function AskQuantPanel({ className = '' }: AskQuantPanelProps) {
   };
 
   const handleVoiceToggle = useCallback(async () => {
-    if (voiceActive) {
-      // Stop recording
-      setVoiceActive(false);
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      }
-    } else {
-      // Start recording
+    if (transcribing) return;
+    // Clear any previous error before a new voice attempt.
+    setStreamState((prev) => ({ ...prev, error: undefined }));
+
+    if (voice.state === 'capturing') {
+      // Second tap: stop capture, transcribe through the REAL STT pipeline,
+      // and land the transcript in the input box for review — it then flows
+      // through the same dry-run -> plan preview -> Execute path as typed
+      // input. Every failure (empty capture, STT outage, unheard speech)
+      // surfaces an honest error; nothing is silently dropped.
+      setTranscribing(true);
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mediaRecorder = new MediaRecorder(stream);
-        mediaRecorderRef.current = mediaRecorder;
-        audioChunksRef.current = [];
-
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
-          }
-        };
-
-        mediaRecorder.onstop = async () => {
-          setVoiceProcessing(true);
-          stream.getTracks().forEach((track) => track.stop());
-
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          const arrayBuffer = await audioBlob.arrayBuffer();
-          const base64 = btoa(
-            String.fromCharCode(...new Uint8Array(arrayBuffer)),
-          );
-
-          await sendRequest({ voice: true, audio: base64 });
-          setVoiceProcessing(false);
-        };
-
-        mediaRecorder.start();
-        setVoiceActive(true);
-      } catch {
+        const wav = await voice.stopCapture();
+        const transcript = await transcribeVoiceAudio(wav);
+        setInput(transcript);
+      } catch (err) {
         setStreamState((prev) => ({
           ...prev,
-          error: 'Could not access microphone',
+          error: err instanceof Error ? err.message : 'Voice input failed',
         }));
+      } finally {
+        setTranscribing(false);
       }
+    } else {
+      // idle | requesting | denied | error -> (re)start capture. The hook
+      // reports permission problems honestly via voice.error; tapping again
+      // retries, so there is always a way forward, never a dead button.
+      await voice.startCapture();
     }
-  }, [voiceActive, sendRequest]);
+  }, [voice, transcribing]);
 
   const handleConfirmation = useCallback(
     (accepted: boolean) => {
@@ -370,9 +365,10 @@ export function AskQuantPanel({ className = '' }: AskQuantPanelProps) {
           disabled={streamState.isStreaming}
         />
         <VoiceToggle
-          isActive={voiceActive}
+          isActive={voice.state === 'capturing'}
           onToggle={handleVoiceToggle}
-          isProcessing={voiceProcessing}
+          isProcessing={transcribing}
+          processingLabel="Transcribing…"
         />
         {streamState.isStreaming ? (
           <button
@@ -519,13 +515,18 @@ export function AskQuantPanel({ className = '' }: AskQuantPanelProps) {
         )}
       </AnimatePresence>
 
-      {streamState.error && (
+      {/* Honest voice errors (mic permission, capture problems) share the
+          same error surface as pipeline errors — always visible, never
+          silent. */}
+      {(streamState.error || voiceError) && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="p-3 rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20"
         >
-          <p className="text-sm text-red-600 dark:text-red-400">{streamState.error}</p>
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {streamState.error ?? voiceError}
+          </p>
         </motion.div>
       )}
 

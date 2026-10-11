@@ -7,6 +7,11 @@ interface VoiceToggleProps {
   isActive: boolean;
   onToggle: () => void;
   isProcessing?: boolean;
+  /**
+   * Honest label shown next to the spinner while processing (e.g.
+   * "Transcribing…"). Defaults to "Processing...".
+   */
+  processingLabel?: string;
   className?: string;
 }
 
@@ -14,6 +19,7 @@ export function VoiceToggle({
   isActive,
   onToggle,
   isProcessing = false,
+  processingLabel = 'Processing...',
   className = '',
 }: VoiceToggleProps) {
   return (
@@ -82,7 +88,7 @@ export function VoiceToggle({
             exit={{ opacity: 0, x: -4 }}
             className="text-xs font-medium text-[var(--quant-text-secondary)]"
           >
-            Processing...
+            {processingLabel}
           </motion.span>
         )}
       </AnimatePresence>
