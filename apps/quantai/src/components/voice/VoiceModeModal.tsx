@@ -19,6 +19,14 @@ import { useVoiceCapture } from '../../hooks/useVoiceCapture';
 import { useBargeInWatch, stopAssistantPlayback } from './barge-in';
 import { apiFetchRaw } from '@quant/api-client';
 
+/** Format whole seconds as mm:ss for the recording-elapsed display. */
+export function formatCaptureElapsed(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(s / 60);
+  const seconds = s % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
 export interface VoiceModeModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -89,7 +97,26 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showPersonaMenu, setShowPersonaMenu] = useState<boolean>(false);
-  const [interimSpeech, setInterimSpeech] = useState<string>('');
+
+  // Elapsed wall-clock time since the current capture started (real data —
+  // driven by captureState from useVoiceCapture; resets to 0 when capture
+  // stops). Shown next to the listening indicator.
+  const captureStartRef = useRef<number | null>(null);
+  const [captureElapsed, setCaptureElapsed] = useState<number>(0);
+  useEffect(() => {
+    if (captureState !== 'capturing') {
+      captureStartRef.current = null;
+      setCaptureElapsed(0);
+      return;
+    }
+    captureStartRef.current = Date.now();
+    setCaptureElapsed(0);
+    const id = window.setInterval(() => {
+      const started = captureStartRef.current;
+      setCaptureElapsed(started ? Math.max(0, Math.floor((Date.now() - started) / 1000)) : 0);
+    }, 500);
+    return () => window.clearInterval(id);
+  }, [captureState]);
 
   // Transcript History
   const [transcripts, setTranscripts] = useState<TranscriptItem[]>(() => {
@@ -119,7 +146,7 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
     if (transcriptScrollRef.current) {
       transcriptScrollRef.current.scrollTop = transcriptScrollRef.current.scrollHeight;
     }
-  }, [transcripts, interimSpeech]);
+  }, [transcripts]);
 
 
 
@@ -264,7 +291,6 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
   // Real voice turn: mic capture -> Meta STT -> chat pipeline -> TTS.
   const handleVoiceTurn = useCallback(async () => {
     if (config.isMuted) return;
-    setInterimSpeech('');
     try {
       await startCapture();
     } catch {
@@ -307,7 +333,7 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
       if (!transcript) {
         throw new Error('stt-empty-result');
       }
-      setInterimSpeech('');
+      // F-047: interimSpeech state removed (dead) — no reset needed here.
       const userMsg: TranscriptItem = {
         id: `user-${Date.now()}`,
         speaker: 'user',
@@ -805,10 +831,27 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
                   </div>
                 ),
               )}
-              {interimSpeech && (
-                <div className="flex items-start gap-2 text-zinc-400 italic">
-                  <span className="font-semibold shrink-0">Listening:</span>
-                  <span className="leading-relaxed animate-pulse">{interimSpeech}...</span>
+              {/* Honest listening indicator (F-047): the tap-to-record POST flow
+                  cannot produce interim transcripts, so the dead interimSpeech
+                  ticker was removed. This row reflects the REAL capture state
+                  plus the real elapsed recording time. */}
+              {captureState === 'capturing' && (
+                <div
+                  data-testid="listening-indicator"
+                  role="status"
+                  aria-live="polite"
+                  aria-label={`Listening, recording ${formatCaptureElapsed(captureElapsed)}`}
+                  className="flex items-center gap-2 text-emerald-300"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"
+                  />
+                  <span className="font-semibold shrink-0">Listening</span>
+                  <span className="tabular-nums text-zinc-400">
+                    {formatCaptureElapsed(captureElapsed)}
+                  </span>
+                  <span className="text-zinc-500">— tap mic again to transcribe</span>
                 </div>
               )}
             </div>
