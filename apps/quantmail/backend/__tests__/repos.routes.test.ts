@@ -3074,3 +3074,69 @@ describe('QuantGit Security Endpoints Honesty (no security-scan theater)', () =>
     expect(res.statusCode).toBe(404);
   });
 });
+
+describe('POST /repos/:id/security/policy (QM-SCREEN-013 P1 real persistence)', () => {
+  beforeEach(() => {
+    resetRepoStores();
+  });
+
+  it('saves the policy for the owner and reports it back via GET alerts', async () => {
+    const app = await buildApp();
+
+    const save = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/security/policy',
+      payload: { policy: '# Custom Policy\n\nReport to sec@example.test.' },
+    });
+    expect(save.statusCode).toBe(200);
+    expect(save.json().success).toBe(true);
+
+    const alerts = await app.inject({ method: 'GET', url: '/repos/repo-1/security/alerts' });
+    expect(alerts.statusCode).toBe(200);
+    expect(alerts.json().data.securityPolicy).toBe('# Custom Policy\n\nReport to sec@example.test.');
+  });
+
+  it('reports branchRules and securityPolicy as null when nothing was saved (no seeded defaults)', async () => {
+    const app = await buildApp();
+
+    const res = await app.inject({ method: 'GET', url: '/repos/repo-1/security/alerts' });
+    expect(res.statusCode).toBe(200);
+    const data = res.json().data;
+    expect(data.branchRules).toBeNull();
+    expect(data.securityPolicy).toBeNull();
+  });
+
+  it('rejects a non-owner with 403', async () => {
+    const app = await buildApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/security/policy',
+      headers: { 'x-user-id': 'user-2' },
+      payload: { policy: '# Evil Policy' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('rejects an empty policy with 400', async () => {
+    const app = await buildApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/security/policy',
+      payload: { policy: '   ' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('requires authentication with 401', async () => {
+    const app = await buildApp(null);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/security/policy',
+      payload: { policy: '# Policy' },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+});

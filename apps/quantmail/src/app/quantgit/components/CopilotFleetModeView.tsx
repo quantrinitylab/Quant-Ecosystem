@@ -14,69 +14,22 @@ export interface CopilotModel {
   description?: string;
 }
 
-const COPILOT_MODELS: CopilotModel[] = [
-  // Fast & cost-efficient
-  {
-    id: 'kimi-k2',
-    name: 'Kimi K2.7 Code',
-    tier: 'fast',
-    description: 'Blazing fast code generation',
-  },
-  {
-    id: 'gpt-6-luna',
-    name: 'GPT-6 Luna',
-    tier: 'fast',
-    badge: 'New',
-    description: 'Ultra-low latency reasoning',
-  },
-  {
-    id: 'gpt-5-4-flash',
-    name: 'GPT-5.4 Flash',
-    tier: 'fast',
-    description: 'Quick code snippets & syntax checks',
-  },
-  // Versatile & highly intelligent
-  {
-    id: 'claude-sonnet-4-5',
-    name: 'Claude Sonnet 4.5',
-    tier: 'versatile',
-    description: 'Industry gold standard coding',
-  },
-  {
-    id: 'gpt-5-5-codex',
-    name: 'GPT-5.5 Codex',
-    tier: 'versatile',
-    description: 'Deep logic & unit tests',
-  },
-  {
-    id: 'gemini-3-flash',
-    name: 'Gemini 3 Flash',
-    tier: 'versatile',
-    description: 'High context window search',
-  },
-  // Most powerful for complex tasks
-  {
-    id: 'claude-opus-5-5',
-    name: 'Claude Opus 5.5 Pro',
-    tier: 'powerful',
-    badge: 'Pro',
-    description: 'Exhaustive systems architecture',
-  },
-  {
-    id: 'gpt-6-astra',
-    name: 'GPT-6 Astra Pro',
-    tier: 'powerful',
-    badge: 'Pro',
-    description: 'Autonomous agent coordinator',
-  },
-  {
-    id: 'claude-opus-5',
-    name: 'Claude Opus 5',
-    tier: 'powerful',
-    badge: 'Pro',
-    description: 'Complex multi-repo refactoring',
-  },
-];
+// HONESTY (QM-SCREEN-013 P1): no model backend is connected to this view.
+// The previous revision shipped an invented model catalogue ("GPT-6 Luna",
+// "GPT-5.4 Flash", "GPT-6 Astra Pro", "Kimi K2.7 Code", "Claude Opus 5.5 Pro",
+// "Gemini 3 Flash", …) with invented marketing claims ("Blazing fast code
+// generation", "Industry gold standard coding", …). No real model list exists
+// in the codebase to wire, so the catalogue is removed: the selector below
+// honestly reports that no model is connected until a real model endpoint
+// is wired up.
+const COPILOT_MODELS: CopilotModel[] = [];
+
+const NO_MODEL_CONNECTED: CopilotModel = {
+  id: 'none',
+  name: 'No model connected',
+  tier: 'fast',
+  description: 'Model connections are not wired up yet.',
+};
 
 export interface CopilotAgentTask {
   id: string;
@@ -99,8 +52,11 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
   repoName = 'Quant-Ecosystem',
   onDispatchTask,
 }) => {
-  const [selectedModel, setSelectedModel] = useState<CopilotModel>(COPILOT_MODELS[3]); // Claude Sonnet 4.5
-  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+  // The catalogue is empty until a real model endpoint is wired: the
+  // selector falls back to the honest "No model connected" placeholder.
+  const [selectedModel] = useState<CopilotModel>(
+    COPILOT_MODELS[0] ?? NO_MODEL_CONNECTED,
+  );
   const [activeMode, setActiveMode] = useState<'ask' | 'agent' | 'debug'>('agent');
   const [promptText, setPromptText] = useState('');
   const [isContextModalOpen, setIsContextModalOpen] = useState(false);
@@ -312,60 +268,22 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
               ))}
             </div>
 
-            {/* Model Selector Dropdown (Screens 12–13) */}
+            {/* Model Selector (Screens 12–13) — QM-SCREEN-013 P1: no model
+                backend is connected, so this is a disabled, honestly-labelled
+                control. It becomes a real picker when COPILOT_MODELS is wired
+                to a real model endpoint. */}
             <div className="flex items-center gap-2">
               <div className="relative">
                 <button
                   type="button"
-                  onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#21262D] hover:bg-[#30363D] text-[11px] font-medium text-[#E6EDF3] border border-[#30363D] transition-colors"
+                  disabled
+                  title="Model connections are not wired up yet"
+                  aria-label="No model connected"
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#21262D] text-[11px] font-medium text-[#8D96A0] border border-[#30363D] disabled:cursor-not-allowed"
                 >
                   <span>{selectedModel.name}</span>
-                  {selectedModel.badge && (
-                    <span className="px-1 py-0.1 rounded text-[var(--q-type-xs)] bg-purple-500/30 text-purple-300">
-                      {selectedModel.badge}
-                    </span>
-                  )}
                   <span className="text-[var(--q-type-xs)] text-[#8D96A0]">▼</span>
                 </button>
-
-                {isModelMenuOpen && (
-                  <div className="absolute right-0 bottom-full mb-1.5 w-64 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-2xl p-2 z-50 space-y-2 max-h-72 overflow-y-auto">
-                    <div className="text-[10px] font-semibold text-[#8D96A0] px-2 uppercase">
-                      Select Model
-                    </div>
-                    {COPILOT_MODELS.map((m) => (
-                      <button
-                        type="button"
-                        key={m.id}
-                        onClick={() => {
-                          setSelectedModel(m);
-                          setIsModelMenuOpen(false);
-                        }}
-                        className={`w-full flex items-center justify-between p-2 rounded-lg text-left hover:bg-[#21262D] transition-colors ${
-                          selectedModel.id === m.id
-                            ? 'bg-[#1F242C] text-[#58A6FF]'
-                            : 'text-[#E6EDF3]'
-                        }`}
-                      >
-                        <div>
-                          <div className="font-medium text-xs flex items-center gap-1.5">
-                            <span>{m.name}</span>
-                            {m.badge && (
-                              <span className="px-1 py-0.1 rounded text-[var(--q-type-xs)] bg-purple-500/30 text-purple-300">
-                                {m.badge}
-                              </span>
-                            )}
-                          </div>
-                          {m.description && (
-                            <p className="text-[10px] text-[#8D96A0]">{m.description}</p>
-                          )}
-                        </div>
-                        {selectedModel.id === m.id && <span>✓</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* Submit Button */}

@@ -84,7 +84,6 @@ export function QuantyCopilotView({
   skillsSearch,
   setSkillsSearch,
   activeSkills,
-  setActiveSkills,
   isSettingsOpen,
   setIsSettingsOpen,
   activeSettingsSubmenu,
@@ -92,7 +91,6 @@ export function QuantyCopilotView({
   sourcesState,
   setSourcesState,
   mcpServers,
-  setMcpServers,
   notionMode,
   setNotionMode,
   activeModel,
@@ -440,22 +438,27 @@ export function QuantyCopilotView({
                       </button>
                       <button
                         type="button"
-                        onClick={() => showToast('Saved to private pages')}
-                        className="hover:text-white transition-colors flex items-center gap-1"
+                        disabled
+                        title="Saving to Docs is not available yet"
+                        className="flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         + Save to Docs
                       </button>
                       <button
                         type="button"
-                        onClick={() => showToast('Feedback recorded: Helpful')}
-                        className="hover:text-white transition-colors"
+                        disabled
+                        title="Feedback is not collected yet"
+                        className="disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Mark helpful (not available)"
                       >
                         👍
                       </button>
                       <button
                         type="button"
-                        onClick={() => showToast('Feedback recorded: Needs improvement')}
-                        className="hover:text-white transition-colors"
+                        disabled
+                        title="Feedback is not collected yet"
+                        className="disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Mark needs improvement (not available)"
                       >
                         👎
                       </button>
@@ -744,15 +747,17 @@ export function QuantyCopilotView({
                   <div className="flex items-center justify-between text-[11px] pt-1">
                     <button
                       type="button"
-                      onClick={() => showToast('Opened Skills Library')}
-                      className="text-[#58A6FF] hover:underline font-semibold"
+                      disabled
+                      title="The skills library is not available yet"
+                      className="text-[#58A6FF] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       See all skills in Library
                     </button>
                     <button
                       type="button"
-                      onClick={() => showToast('Add custom skill modal')}
-                      className="text-[#3FB950] hover:underline font-semibold"
+                      disabled
+                      title="Adding custom skills is not available yet"
+                      className="text-[#3FB950] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       + Add skill
                     </button>
@@ -817,20 +822,18 @@ export function QuantyCopilotView({
                                 {sk.desc}
                               </div>
                             </div>
+                            {/* QM-SCREEN-013 P2: toggles are not wired to any backend —
+                                kept as a disabled, honestly-labelled control
+                                until skill persistence exists. No fake
+                                success toast. */}
                             <button
                               type="button"
-                              onClick={() => {
-                                const next = !isEnabled;
-                                setActiveSkills((prev) => ({
-                                  ...prev,
-                                  [sk.name]: next,
-                                }));
-                                showToast(`${sk.name} ${next ? 'Enabled' : 'Disabled'}`);
-                              }}
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 transition-colors ${
+                              disabled
+                              title="Skill toggles are not wired up yet"
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
                                 isEnabled
-                                  ? 'bg-[#238636] text-white hover:bg-[#2ea043]'
-                                  : 'bg-[#21262D] text-[#7D8590] hover:text-white'
+                                  ? 'bg-[#238636] text-white'
+                                  : 'bg-[#21262D] text-[#7D8590]'
                               }`}
                             >
                               {isEnabled ? 'ON' : 'OFF'}
@@ -887,7 +890,7 @@ export function QuantyCopilotView({
                     <div className="flex items-center gap-2">
                       <span>🔌</span>
                       <span className="font-semibold text-white">MCP servers</span>
-                      <span className="px-1.5 py-px rounded-full bg-[#21262D] text-[10px] text-[#3FB950] font-bold">
+                      <span className="px-1.5 py-px rounded-full bg-[#21262D] text-[10px] text-[#8D96A0] font-bold">
                         {mcpServers.length}
                       </span>
                     </div>
@@ -1065,8 +1068,9 @@ export function QuantyCopilotView({
                   <div className="pt-2 border-t border-[#21262D] flex items-center justify-between">
                     <button
                       type="button"
-                      onClick={() => showToast('Source connector dialog')}
-                      className="text-[#58A6FF] hover:underline text-[11px] font-semibold"
+                      disabled
+                      title="Source connectors are not available yet"
+                      className="text-[#58A6FF] text-[11px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       + Add sources
                     </button>
@@ -1096,23 +1100,31 @@ export function QuantyCopilotView({
                         className="p-2 rounded bg-[#0D1117] border border-[#30363D] flex items-center justify-between"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-[#3FB950]" />
+                          {/* QM-SCREEN-013 P1: neutral dot — no verified MCP
+                              connection exists, so nothing is shown as
+                              "Connected". */}
+                          <span className="w-2 h-2 rounded-full bg-[#8D96A0]" />
                           <span className="font-semibold text-white">{server}</span>
                         </div>
-                        <span className="text-[10px] text-[#7D8590]">Connected</span>
+                        <span className="text-[10px] text-[#8D96A0]">Not connected</span>
                       </div>
                     ))}
                   </div>
+                  {/* QM-SCREEN-013 P1: the "+ Add MCP server" control appended
+                      fabricated Server-N entries with a fake "Connected" dot
+                      and a success toast, with no API behind it. Removed;
+                      adding servers returns when a real MCP endpoint exists. */}
                   <button
                     type="button"
-                    onClick={() => {
-                      setMcpServers([...mcpServers, `Server-${mcpServers.length + 1}`]);
-                      showToast('Added MCP Server connection');
-                    }}
-                    className="w-full py-1.5 rounded bg-[#21262D] hover:bg-[#30363D] text-[#58A6FF] font-semibold text-xs border border-[#30363D] transition-colors"
+                    disabled
+                    title="MCP server connections are not available yet"
+                    className="w-full py-1.5 rounded bg-[#21262D] text-[#8D96A0] font-semibold text-xs border border-[#30363D] disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     + Add MCP server
                   </button>
+                  <p className="text-[10px] text-[#8D96A0]">
+                    MCP server connections are not wired up yet.
+                  </p>
                 </div>
               ) : (
                 /* Mode Submenu */

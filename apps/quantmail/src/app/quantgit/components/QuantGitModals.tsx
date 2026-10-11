@@ -1232,8 +1232,18 @@ export function QuantGitModals({
               <button
                 type="button"
                 onClick={() => {
-                  setIsPersonalizeOpen(false);
-                  showToast('Personalization preferences saved!');
+                  // QM-SCREEN-013 P2: real persistence — browser-local
+                  // storage, restored on mount (see page.tsx). The toast
+                  // reports an actual save now, not theater.
+                  try {
+                    localStorage.setItem('quantgit.quantyName', quantyName);
+                    localStorage.setItem('quantgit.quantyInstructions', quantyInstructions);
+                    setIsPersonalizeOpen(false);
+                    showToast('Personalization preferences saved.');
+                  } catch {
+                    setIsPersonalizeOpen(false);
+                    showToast('Could not save preferences in this browser.');
+                  }
                 }}
                 className="px-4 py-2 rounded-lg bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-black font-bold shadow-md transition-colors"
               >

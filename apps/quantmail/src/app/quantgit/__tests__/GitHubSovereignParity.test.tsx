@@ -144,14 +144,19 @@ describe('QuantGit 159-Screen GitHub Sovereign Parity Components', () => {
   });
 
   describe('CopilotFleetModeView (Screens 1–14, 135–142)', () => {
-    it('renders Copilot fleet planner, models, and honest local-only state', () => {
+    it('renders Copilot fleet planner, honest model state, and honest local-only state', () => {
       const html = renderToStaticMarkup(
         <CopilotFleetModeView repoOwner="quantrinitylab" repoName="Quant-Ecosystem" />,
       );
 
       expect(html).toContain('GitHub Copilot Fleet Mode');
       expect(html).toContain('Cloud Agents');
-      expect(html).toContain('Claude Sonnet 4.5');
+      // QM-SCREEN-013 P1 — the invented model catalogue (Claude Sonnet 4.5,
+      // GPT-6 Luna, …) was removed: no model backend is connected, so the
+      // selector honestly reports "No model connected".
+      expect(html).toContain('No model connected');
+      expect(html).not.toContain('Claude Sonnet 4.5');
+      expect(html).not.toContain('GPT-6 Luna');
       // QM-PLAT-008 — no fabricated usage meter or seeded agent activity:
       // the view is a local planner until a real agent backend is connected.
       expect(html).not.toContain('1 / 200 Credits');

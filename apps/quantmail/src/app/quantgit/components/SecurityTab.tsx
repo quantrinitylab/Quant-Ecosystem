@@ -94,6 +94,7 @@ export function SecurityTab({
   const [branchRulesConfigured, setBranchRulesConfigured] = useState(false);
   const [branchRulesLoading, setBranchRulesLoading] = useState(false);
   const [isSavingBranchRules, setIsSavingBranchRules] = useState<boolean>(false);
+  const [isSavingPolicy, setIsSavingPolicy] = useState<boolean>(false);
   const protectionBranch = selectedRepo?.defaultBranch || 'main';
 
   // Read the real branch-protection rows. Only a rule whose branchPattern
@@ -336,9 +337,65 @@ export function SecurityTab({
   // --------------------------------------------------------------------------
   // Policy & Branch Rules Actions
   // --------------------------------------------------------------------------
-  const handleSavePolicy = () => {
-    setIsEditingPolicy(false);
-    showToast('SECURITY.md vulnerability policy saved successfully!');
+
+  // Load the saved SECURITY.md policy (QM-SCREEN-013 P1). The real source of
+  // truth is GET /:id/security/alerts → data.securityPolicy; when nothing
+  // was saved yet the endpoint reports null and the template default stays.
+  useEffect(() => {
+    const target = repoId || selectedRepo?.id;
+    if (!target) return;
+    let cancelled = false;
+    apiFetchRaw(`/api/repos/${encodeURIComponent(target)}/security/alerts`)
+      .then(async (res) => {
+        if (cancelled || !res.ok) return;
+        const json = (await res.json().catch(() => null)) as {
+          success?: boolean;
+          data?: { securityPolicy?: string | null };
+        } | null;
+        const saved = json?.data?.securityPolicy;
+        if (!cancelled && typeof saved === 'string') setSecurityPolicy(saved);
+      })
+      .catch(() => {
+        // Keep the template default — the preview never claims a saved policy.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [repoId, selectedRepo?.id]);
+
+  // Real save (QM-SCREEN-013 P1): persists to POST /:id/security/policy
+  // (userId-gated, owner/admin only). Success is toasted only after the
+  // backend confirms the write.
+  const handleSavePolicy = async () => {
+    const target = repoId || selectedRepo?.id;
+    if (!target) {
+      showToast('Select a repository before saving the security policy.');
+      return;
+    }
+    setIsSavingPolicy(true);
+    try {
+      const res = await apiFetchRaw(
+        `/api/repos/${encodeURIComponent(target)}/security/policy`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ policy: securityPolicy }),
+        },
+      );
+      if (!res.ok) {
+        const errJson = (await res.json().catch(() => null)) as {
+          error?: { message?: string };
+        } | null;
+        showToast(errJson?.error?.message || 'Failed to save the security policy.');
+        return;
+      }
+      setIsEditingPolicy(false);
+      showToast('Security policy saved.');
+    } catch {
+      showToast('Failed to save the security policy.');
+    } finally {
+      setIsSavingPolicy(false);
+    }
   };
 
   // Real save (QM-SCREEN-013 P2): persists to POST /:id/branch-protection.
@@ -1127,9 +1184,10 @@ export function SecurityTab({
                     type="button"
                     data-testid="save-policy-btn"
                     onClick={handleSavePolicy}
-                    className="px-3 py-1.5 rounded bg-[#238636] hover:bg-[#2EA043] text-white font-semibold text-xs"
+                    disabled={isSavingPolicy}
+                    className="px-3 py-1.5 rounded bg-[#238636] hover:bg-[#2EA043] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs"
                   >
-                    Save policy
+                    {isSavingPolicy ? 'Saving…' : 'Save policy'}
                   </button>
                 )}
               </div>

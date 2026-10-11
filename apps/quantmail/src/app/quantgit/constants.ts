@@ -100,8 +100,7 @@ export const INITIAL_REPOS: Repo[] = [
     id: 'quant-mobile-android',
     name: 'quant-mobile-android',
     fullName: 'quant-mobile-android',
-    description:
-      'Native Jetpack Compose Android client with hardware-accelerated WebView and offline resilience.',
+    description: 'Android client (Kotlin).',
     visibility: 'public',
     language: 'Kotlin',
     stars: 0,
@@ -767,24 +766,21 @@ Complete reference for QuantMail, QuantGit, and QuantChat REST/WebSocket protoco
     size: '4.82 KB',
     lastCommit: 'docs: update ecosystem quickstart & architecture overview',
     lastCommitDate: 'last week',
-    content: `# Quant Ecosystem — The Next NVIDIA of Software
+    content: `# Quant Ecosystem
 
-A unified sovereign operating ecosystem built for high-performance computing, intelligent mail triage, autonomous agentic development, and real git collaboration.
+Monorepo for the Quant apps and the shared packages they are built from.
 
 \`\`\`bash
-# Clone the unified monorepo
+# Clone the monorepo
 git clone <repository-clone-url>
 
 # Install dependencies and start development
 pnpm install && pnpm dev
 \`\`\`
 
-## 📦 Monorepo Architecture
-- **Flagship QuantMail**: Lightning-fast triage, local ONNX semantic search, offline drafts.
-- **QuantGit (CodeHub)**: 1:1 GitHub parity with Git Smart HTTP and real PR reviews.
-- **QuantChat & Meet**: WebRTC LiveKit meetings, voice AI assistants, proactive alarms.
-- **QuantDrive & Docs**: Multi-layer cloud storage, Yjs CRDT real-time document collaboration.
-- **Native Android Sovereign Shell**: Jetpack Compose + hardware-accelerated WebView client in \`android-project/\`.
+## Repository layout
+- **apps/quantmail**: the QuantMail web app. It hosts mail, calendar, drive, contacts, and the QuantGit code surface.
+- **packages/**: shared libraries used by the apps (UI components, API clients, auth, storage).
 
 ## ⚡ Quickstart
 \`\`\`typescript
@@ -796,15 +792,15 @@ await app.register(quantAuthPlugin);
 console.log('Quant Sovereign OS online');
 \`\`\`
 
-| Package | Status | Version |
-| :--- | :--- | :--- |
-| \`@quant/quantmail\` | Production | \`v2.0.4\` |
-| \`@quant/auth\` | Active | \`v1.2.0\` |
-| \`@quant/storage\` | Active | \`v1.1.0\` |
-| \`@quant/shared-ui\` | Active | \`v1.0.8\` |
+| Package | Description |
+| :--- | :--- |
+| \`@quant/quantmail\` | QuantMail web app |
+| \`@quant/auth\` | Authentication helpers |
+| \`@quant/storage\` | Storage helpers |
+| \`@quant/shared-ui\` | Shared UI components |
 
 > [!NOTE]
-> All services run with zero third-party tracking, sovereign user-held encryption keys, and isolated database schema tenants.`,
+> Replace this template with your repository's own description, setup steps, and license before publishing.`,
   },
 ];
 
@@ -924,7 +920,7 @@ export const INITIAL_PRS: PRItem[] = [
     checksStatus: 'passing',
     commentsCount: 6,
     createdAt: 'just now',
-    body: 'Implemented complete 1:1 GitHub parity: all 10 tabs (Code, Issues, PRs, Agents, Discussions, Actions, Projects, Security, Insights, Settings), Two-column repository layout, line-numbered Blob Viewer, File Finder, Branch Switcher, Releases APK download drawer, and docked bottom deck.',
+    body: 'Adds the repository tabs (Code, Issues, PRs, Agents, Discussions, Actions, Projects, Security, Insights, Settings), two-column repository layout, blob viewer with line numbers, file finder, branch switcher, releases drawer, and docked bottom deck.',
     additions: 2528,
     deletions: 646,
     changedFiles: 48,
@@ -1292,11 +1288,9 @@ export const DEFAULT_SECURITY_POLICY = `# Security Policy
 
 ## Reporting a Vulnerability
 
-The Quant team takes security seriously. If you discover a security vulnerability within Quant Ecosystem, please report it privately:
+If you discover a security vulnerability, please report it privately instead of opening a public issue:
 
 1. **Email**: security@quantrinity.in
-2. **PGP Key**: Fingerprint \`E48B 3291 94F8 1A09 B762\`
-3. **Response SLA**: Initial triage within 24 hours. Critical CVE remediations patched within 72 hours.
 
 Please do not disclose security issues publicly until a fix has been released.
 `;

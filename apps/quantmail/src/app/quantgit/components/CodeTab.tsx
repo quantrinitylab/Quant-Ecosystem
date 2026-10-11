@@ -556,6 +556,8 @@ export interface CodeTabProps {
   openBlobEditor: (file: FileNode) => Promise<void>;
   onNavigatePath?: (path: string) => void;
   onSelectBranch?: (branch: string) => void;
+  // QM-SCREEN-013 P2: navigates to the real commit-history ('commits') tab.
+  onOpenCommitHistory?: () => void;
   showToast: (msg: string) => void;
   onCommitBlob?: (input: CommitBlobInput) => Promise<void>;
   onDeleteBlob?: (path: string, message: string, branch: string) => Promise<void>;
@@ -646,6 +648,7 @@ export function CodeTab({
   openBlobEditor,
   onNavigatePath,
   onSelectBranch,
+  onOpenCommitHistory,
   showToast,
   onCommitBlob,
   onDeleteBlob,
@@ -893,11 +896,14 @@ export function CodeTab({
     );
   }, [files]);
 
+  // QM-SCREEN-013 P2: fallback preview when the repository has no README.md
+  // file. Every word is instruction or provable truth — no invented product
+  // claims, statuses, or privacy promises.
   const defaultReadmeContent = useMemo(() => {
     if (readmeFile?.content) return readmeFile.content;
     return `# ${selectedRepo.name}
 
-${selectedRepo.description || 'Sovereign workspace, autonomous AI swarm, Git hub & Android client.'}
+${selectedRepo.description || 'No description provided.'}
 
 \`\`\`bash
 ${
@@ -906,24 +912,12 @@ ${
 git clone ${selectedRepo.cloneUrl}
 
 `
-    : ''
-}# Install dependencies and start development
+    : ''}# Install dependencies and start development
 pnpm install && pnpm dev
 \`\`\`
 
-## 📦 Features
-- **Real Git File Tree**: Full hierarchical folder drilling & breadcrumb navigation.
-- **Syntax-Highlighted Markdown**: Live GFM parsing with multi-language code fences.
-- **Sovereign Collaboration**: 1:1 GitHub parity with Git Smart HTTP and real PR reviews.
-
-| Component | Status | Language |
-| :--- | :--- | :--- |
-| \`CodeTab\` | Verified | TypeScript |
-| \`MarkdownPreview\` | Active | TypeScript |
-| \`BranchSelector\` | Active | TypeScript |
-
 > [!NOTE]
-> All repository operations run with zero external tracking and local cryptographic signatures.`;
+> This repository has no README.md file yet — this is a fallback preview. Add a README.md to replace it.`;
   }, [readmeFile, selectedRepo]);
 
   // Compute children count per directory
@@ -2360,7 +2354,15 @@ pnpm install && pnpm dev
             <span>· {selectedRepo.latestCommitTime || '—'}</span>
             <button
               type="button"
-              onClick={() => showToast('Opening commit history...')}
+              onClick={() => {
+                // QM-SCREEN-013 P2: navigates to the real commit-history
+                // ('commits') tab instead of toasting theater.
+                if (onOpenCommitHistory) {
+                  onOpenCommitHistory();
+                } else {
+                  showToast('Commit history is not available in this view.');
+                }
+              }}
               className="text-white hover:text-[#58A6FF] font-semibold flex items-center gap-1"
             >
               <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
