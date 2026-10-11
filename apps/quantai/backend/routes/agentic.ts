@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { orchestrator, WorkflowEngine } from '@quant/agentic';
 import { getAgentGateway } from '../services/agent-gateway.service';
+import { roleToPermissionTier } from '../services/gateway-tier';
+import type { PermissionTier } from '@quant/quant-tools';
 import { APP_ENDPOINTS, checkAppHealth } from '../services/app-endpoints';
 
 const workflowSchema = z.object({
@@ -117,6 +119,21 @@ export default async function agenticRoutes(fastify: FastifyInstance) {
   }
 
   /**
+   * Caller's permission tier from the verified JWT role claim (F-111).
+   *
+   * The global requireAuth hook (packages/server-core) signature-verifies the
+   * bearer token BEFORE this handler runs and copies the role claim VERBATIM
+   * into request.auth.role — no lowercasing, no normalization, per the
+   * 2026-10-11 war-room freeze (USER | ADMIN | MODERATOR | CREATOR |
+   * ADVERTISER). roleToPermissionTier maps it exact-match only and fails
+   * closed to tier 1 for anything missing/unrecognized.
+   */
+  function getUserTier(request: unknown): PermissionTier {
+    const role = (request as unknown as { auth?: { role?: unknown } }).auth?.role;
+    return roleToPermissionTier(role);
+  }
+
+  /**
    * POST /agentic/chat — natural language -> planned tool calls -> executed
    * against the target app backends. Streams SSE events:
    *   {type:'plan', steps} | {type:'tool_start', toolId} |
@@ -140,19 +157,20 @@ export default async function agenticRoutes(fastify: FastifyInstance) {
 
     const gateway = getAgentGateway();
     const plan = gateway.plan(message);
+    const userTier = getUserTier(request);
 
     const sse = (obj: unknown) => `data: ${JSON.stringify(obj)}\n\n`;
 
     if (!stream) {
       // Non-streaming JSON mode (simpler clients)
-      const gate = gateway.checkPermissions(plan);
+      const gate = gateway.checkPermissions(plan, userTier);
       if (gate.held) {
         gateway.bindHeldPlan(gate.planId, userId);
         return reply
           .status(202)
-          .send({ success: true, status: 'confirmation_required', planId: gate.planId, reason: gate.reason, steps: gate.steps });
+          .send({ success: true, status: 'confirmation_required', planId: gate.planId, reason: gate.reason, steps: gate.steps, userTier });
       }
-      const results = await gateway.execute(plan, { userId, jwt, requestId, sessionId, dryRun });
+      const results = await gateway.execute(plan, { userId, jwt, requestId, sessionId, dryRun, permissionTier: userTier });
       return reply.send({ success: true, data: { planId: plan.id, results } });
     }
 
@@ -175,7 +193,7 @@ export default async function agenticRoutes(fastify: FastifyInstance) {
         steps: plan.steps.map((s) => ({ stepId: s.stepId, toolId: s.toolId, params: s.params })),
       });
 
-      const gate = gateway.checkPermissions(plan);
+      const gate = gateway.checkPermissions(plan, userTier);
       if (gate.held) {
         gateway.bindHeldPlan(gate.planId, userId);
         send({
@@ -183,6 +201,7 @@ export default async function agenticRoutes(fastify: FastifyInstance) {
           planId: gate.planId,
           reason: gate.reason,
           steps: gate.steps,
+          userTier,
         });
         send({ type: 'done' });
         reply.raw.end();
@@ -198,7 +217,7 @@ export default async function agenticRoutes(fastify: FastifyInstance) {
           {
             userId,
             sessionId: sessionId ?? `sess-${Date.now()}`,
-            permissions: 1,
+            permissions: userTier,
             dryRun: dryRun ?? false,
             metadata: { jwt, requestId },
           },
@@ -244,6 +263,7 @@ export default async function agenticRoutes(fastify: FastifyInstance) {
       jwt,
       requestId,
       approved: parsed.data.approved,
+      permissionTier: getUserTier(request),
     });
     return reply.send({ success: true, data: { results, approved: parsed.data.approved } });
   });

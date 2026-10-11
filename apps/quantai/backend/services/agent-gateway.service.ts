@@ -38,6 +38,12 @@ export interface GatewayExecuteOptions {
   requestId?: string;
   sessionId?: string;
   dryRun?: boolean;
+  /**
+   * Caller permission tier derived from the verified JWT role claim
+   * (roleToPermissionTier). Defaults to 1 — fail closed when the caller
+   * could not present a verifiable identity/role.
+   */
+  permissionTier?: PermissionTier;
 }
 
 interface HeldPlan {
@@ -46,6 +52,8 @@ interface HeldPlan {
   userId: string;
   createdAt: number;
   reason: string;
+  /** Tier the plan was gated at; re-gated against the confirming tier. */
+  userTier: PermissionTier;
 }
 
 const HELD_PLAN_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -108,34 +116,66 @@ class AgentGateway {
   /**
    * Permission gate for a plan. Returns a held planId when any step needs
    * Sentinel confirmation (tier >= 2) or the user tier is insufficient.
+   *
+   * Pass the caller's REAL tier (from the verified JWT role claim via
+   * roleToPermissionTier). The default of 1 is a fail-closed fallback for
+   * callers that could not establish a verifiable identity — it must never
+   * be used to silently downgrade an authenticated user.
    */
   checkPermissions(
     plan: ToolPlan,
     userTier: PermissionTier = 1,
-  ): { held: false } | { held: true; planId: string; reason: string; steps: unknown[] } {
+  ): { held: false } | { held: true; planId: string; reason: string; steps: unknown[]; userTier: PermissionTier } {
+    const verdict = this.gatePlan(plan, userTier);
+    if (verdict.blocked) {
+      throw createAppError(verdict.blocked, 403, 'TOOL_FORBIDDEN');
+    }
+    if (!verdict.confirmationRequired) {
+      return { held: false };
+    }
+    const planId = `plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    this.heldPlans.set(planId, {
+      planId,
+      plan,
+      userId: '',
+      createdAt: Date.now(),
+      reason: verdict.reason,
+      userTier,
+    });
+    return {
+      held: true,
+      planId,
+      reason: verdict.reason,
+      steps: plan.steps.map((s) => ({ stepId: s.stepId, toolId: s.toolId, params: s.params })),
+      userTier,
+    };
+  }
+
+  /**
+   * Evaluate every step of a plan against a user tier WITHOUT storing a
+   * held plan. Used by checkPermissions (which stores on confirmation) and
+   * by confirm (which re-gates a held plan against the confirming caller's
+   * tier so a stale/changed role fails closed).
+   */
+  private gatePlan(
+    plan: ToolPlan,
+    userTier: PermissionTier,
+  ): { blocked?: string; confirmationRequired: boolean; reason: string } {
+    let confirmationRequired = false;
+    let reason = '';
     for (const step of plan.steps) {
-      const verdict = this.permissions.evaluate(step.toolId, userTier);
-      if (!verdict.allowed) {
-        throw createAppError(`Tool '${step.toolId}' not allowed: ${verdict.reason}`, 403, 'TOOL_FORBIDDEN');
+      const stepVerdict = this.permissions.evaluate(step.toolId, userTier);
+      if (!stepVerdict.allowed) {
+        // The engine reason already names required vs held tier, e.g.
+        // "Insufficient permissions: requires tier 3, user has tier 1".
+        return { blocked: `Tool '${step.toolId}' not allowed: ${stepVerdict.reason}`, confirmationRequired: false, reason: stepVerdict.reason };
       }
-      if (verdict.confirmationRequired) {
-        const planId = `plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        this.heldPlans.set(planId, {
-          planId,
-          plan,
-          userId: '',
-          createdAt: Date.now(),
-          reason: verdict.reason,
-        });
-        return {
-          held: true,
-          planId,
-          reason: verdict.reason,
-          steps: plan.steps.map((s) => ({ stepId: s.stepId, toolId: s.toolId, params: s.params })),
-        };
+      if (stepVerdict.confirmationRequired) {
+        confirmationRequired = true;
+        reason = stepVerdict.reason;
       }
     }
-    return { held: false };
+    return { confirmationRequired, reason };
   }
 
   /** Execute a plan with the caller's JWT in the execution context. */
@@ -143,7 +183,7 @@ class AgentGateway {
     const context: ToolExecutionContext = {
       userId: opts.userId,
       sessionId: opts.sessionId ?? `sess-${Date.now()}`,
-      permissions: 1,
+      permissions: opts.permissionTier ?? 1,
       dryRun: opts.dryRun ?? false,
       metadata: {
         jwt: opts.jwt,
@@ -156,6 +196,9 @@ class AgentGateway {
   /**
    * Resume a held plan after Sentinel approval.
    * Throws 404 when the planId is unknown/expired, 403 on user mismatch.
+   * Re-gates the plan against the confirming caller's tier (opts.permissionTier)
+   * so a role that changed or was never verifiable fails closed, even if the
+   * original hold admitted the plan.
    */
   async confirm(
     planId: string,
@@ -168,6 +211,12 @@ class AgentGateway {
     }
     if (held.userId && held.userId !== opts.userId) {
       throw createAppError('Plan belongs to a different user', 403, 'PLAN_USER_MISMATCH');
+    }
+    const confirmingTier = opts.permissionTier ?? 1;
+    const reGate = this.gatePlan(held.plan, confirmingTier);
+    if (reGate.blocked) {
+      this.heldPlans.delete(planId);
+      throw createAppError(reGate.blocked, 403, 'TOOL_FORBIDDEN');
     }
     this.heldPlans.delete(planId);
     if (!opts.approved) {
