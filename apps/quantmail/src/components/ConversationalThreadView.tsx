@@ -25,6 +25,12 @@ import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
 import { MessageKindBadge, ThreadKindBadge } from './MessageKindBadge';
 import { AttachmentPreview } from './AttachmentPreview';
+import {
+  QuantyThreadEvidence,
+  SubjectChangeSeparator,
+  ThreadRelatedSection,
+  subjectChangedNewSubject,
+} from './ThreadRelatedPanel';
 import { EmailReadReceipt } from './EmailReadReceipt';
 import { Quanty } from './Quanty';
 import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
@@ -2535,6 +2541,13 @@ export function ConversationalThreadView({
             const showDivider = thisDay !== null && thisDay !== prevDay;
             const dividerLabel = showDivider ? formatDayDivider(message.receivedAt) : '';
 
+            /*
+             * QM-SCREEN-005 R2 P2-1: subject-change separator parity with the
+             * people-view thread — "Naya vishay: <subject>" when the topic
+             * genuinely changes mid-conversation (Re:/Fwd: prefixes ignored).
+             */
+            const subjectChange = subjectChangedNewSubject(messages, index);
+
             return (
               <Fragment key={message.id || index}>
                 {showDivider && dividerLabel && (
@@ -2548,6 +2561,7 @@ export function ConversationalThreadView({
                     </span>
                   </div>
                 )}
+                {subjectChange !== null && <SubjectChangeSeparator subject={subjectChange} />}
               <ThreadBubbleShell
                 message={message}
                 senderName={msgFromName}
@@ -3057,6 +3071,26 @@ export function ConversationalThreadView({
             </AnimatePresence>
           );
         })()}
+
+        {/*
+         * QM-SCREEN-005 R2 P2 bundle, end of the stream:
+         * - QuantyThreadEvidence: honest hidden state — no per-thread Quanty
+         *   draft/evidence store exists on the backend yet (`POST /ai/reply` is
+         *   on-demand, the copilot drawer's drafts are ephemeral chat-envelope
+         *   drafts), so drafts={[]} renders nothing instead of inventing UI.
+         *   The typed prop is the wiring point when the backend lands.
+         * - ThreadRelatedSection: real cross-app relations only — attachments
+         *   the thread's messages actually carry (Drive files) plus calendar
+         *   events matched by attendee overlap with the thread's participants.
+         *   QuantGit has no thread linkage on the backend, so nothing renders
+         *   for it — no fabricated references.
+         */}
+        {!isLoading && messages.length > 0 && (
+          <>
+            <QuantyThreadEvidence drafts={[]} />
+            <ThreadRelatedSection messages={messages} currentEmail={currentEmail} />
+          </>
+        )}
 
         <div ref={messagesEndRef} />
       </div>
