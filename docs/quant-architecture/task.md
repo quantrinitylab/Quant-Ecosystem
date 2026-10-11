@@ -437,7 +437,9 @@ NEEDS-AUTH (not attempted): register->login->2FA end-to-end, recovery-code login
 Validation: code review of login/register/forgot-password/reset-password/forgot-email pages + security 2FA + phone backend/routes + password-reset backend, plus live desktop+mobile screenshots of /login and desktop /register.
 
 ## QM-SCREEN-003 — Workspace shell / navigation / account switcher / command palette
-Status: [x] DONE
+Status: [x] DONE — round-2 regression audit complete 2026-10-11 ~13:55 IST (audit evidence below; fix covered by other agent's PR #861, not re-spawned)
+Owner: LANE-1 (round-2 regression)
+Branch: lane1-audit-003-r2
 Owner: Track A screen-audit subagent
 Branch: architecture/quant-company-system-v1
 Required: one scroll owner, keyboard navigation, mobile drawer/bottom navigation, desktop density, route prefetch, deep links, account switching, notifications, Quanty persistent surface, accessibility.
@@ -446,6 +448,8 @@ Track A audit (2026-10-10, web code + logged-out live; signed-in shell NEEDS-AUT
 VERIFIED IN CODE (post-#767/#768, matches user-locked design): ONE desktop left sidebar — DesktopContextSidebar rendered at AppShell.tsx:711 with logo+name, search, per-app compose + contextual tabs, Quanty, storage, profile; QuantPillarTopBar is md:hidden (mobile only) — desktop top header removed; right DesktopAppRail kept intentionally (user: "right rail untouched"). QuantFab is md:hidden (QuantFab.tsx:179) — mobile-only; desktop compose lives in the sidebar => one primary action per viewport. AccountBadge with real multi-account menu (menuitemradio) in DesktopContextSidebar.tsx:339. Command palette wired: KeyboardSurfaces mounted in app/layout.tsx, idle-preloads CommandPalette + KeyboardShortcutsHelp, shortcut-triggered. Quanty persistent surface: openQuanty -> DesktopContextSidebar + QuantyDrawerHost in AppShell. Skip link + <main tabindex=-1>; no role="application" (documented ARIA fix in AppShell comments). Per-app accent wash cross-fades on app switch (AppShell.tsx ~0.6s ease — user's color-change preference).
 LIVE (fresh profile): / shows "Authenticating..." spinner; no authenticated flash. Logged-out only.
 OPEN: one-scroll-owner, desktop density, route prefetch, deep links, notifications — unverified live (needs-auth).
+Round-2 regression (2026-10-11 ~13:35–13:55 IST, LANE-1): re-read AppShell.tsx (966 lines) + DesktopContextSidebar.tsx + AccountBadge.tsx + visibility classes; live logged-out check desktop + mobile on quantmail.in (HTTP 200; settled sign-in renders clean; earlier blank-field capture was mid-hydration, re-shot settled = clean). Verified: one nav per viewport intact (desktop left sidebar + right rail; mobile top pillar bar + bottom nav), badge counts real (unread conversation threads, per-lens), account switcher real multi-account (localStorage known-accounts, no token stored by writer), storage readout real (useStorageQuota), command palette + keyboard help wired via KeyboardSurfaces, /search route exists, quant:drive:upload + quant:contacts:create have listeners. Signed-in shell + command palette functional live still NEEDS-AUTH.
+- [x] FINDING P0 (COVERED — NOT re-spawned, owned by deep SSO fix agent): SsoChooserContent.tsx handoffSession() still sets the raw access token into the URL via three query params (`token`, `accessToken`, `__quant_sso_ticket`) while the inline comment claims "only the SSO ticket aliases travel in the URL" and the legacy token param "is no longer sent" | expected: no Bearer <redacted> in URLs (kills the ?token= leak) | actual: full access token in URL on external https returnTo handoffs | evidence: apps/quantmail/src/app/sso/SsoChooserContent.tsx ~L240-251; COVERED by open PR #861 (branch fix/quantmail-sso-smooth — verified its handoffSession exchanges short-lived `sso_ticket` only, L284-285).
 
 ## QM-SCREEN-004 — Inbox / triage / priority / bulk actions
 Status: [x] DONE
