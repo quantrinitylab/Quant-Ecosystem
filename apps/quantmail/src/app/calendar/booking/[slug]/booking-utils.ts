@@ -125,3 +125,52 @@ export function applyBookingLinkResponse(
     hostEmail: data.hostEmail || '',
   };
 }
+
+/**
+ * Honest user-facing copy for a failed booking POST (fix/qm-booking-fake-confirm).
+ * A non-2xx booking response — or a network failure (status 0) — must NEVER
+ * advance to the confirmation screen, and the booker must see the REAL reason
+ * (slot taken, link inactive/invalid, retry) instead of a fake "Booking
+ * Confirmed!". Pure function so the mapping is unit-testable.
+ *
+ * Backend status codes (booking-link.service.ts):
+ *   400 INVALID_BOOKING_SLOT | 404 BOOKING_LINK_NOT_FOUND |
+ *   410 BOOKING_LINK_INACTIVE | 409 SLOT_UNAVAILABLE
+ */
+export function resolveBookingFailureMessage(
+  status: number,
+  serverMessage?: string,
+): string {
+  // Network failure (no response at all) — the booking may never have
+  // reached the server, so never imply success or any specific reason.
+  if (status === 0) {
+    return 'Could not reach the booking server. Check your connection and try again.';
+  }
+  switch (status) {
+    case 400:
+      return serverMessage || 'The booking details look invalid. Please check the form and try again.';
+    case 404:
+      return serverMessage || 'This booking link no longer exists or was removed.';
+    case 409:
+      return (
+        serverMessage ||
+        'This slot was just taken by someone else. Please go back and choose another time.'
+      );
+    case 410:
+      return (
+        serverMessage ||
+        'This booking link is no longer active. Please ask the host for a new link.'
+      );
+    case 429:
+      return 'Too many booking attempts. Please wait a moment and try again.';
+    case 500:
+    case 502:
+    case 503:
+    case 504:
+      // Never surface raw backend/edge messages on 5xx (may be technical) —
+      // honest retry guidance instead.
+      return 'The booking server ran into a problem. Please try again.';
+    default:
+      return serverMessage || 'Booking could not be completed. Please try again.';
+  }
+}
