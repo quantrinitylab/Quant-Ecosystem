@@ -251,6 +251,7 @@ export {
   OpenAIAdapter,
   AnthropicAdapter,
   GoogleAdapter,
+  MetaAdapter,
   ProviderAdapterRegistry,
   estimateTokens,
 } from './core/provider-adapter';
