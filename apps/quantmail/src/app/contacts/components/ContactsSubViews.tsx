@@ -58,6 +58,32 @@ export function contactDisplayName(c: { name?: string | null; email?: string | n
   return c.name || c.email || c.phone || 'Unnamed contact';
 }
 
+/**
+ * SIA-P2-10: mail-row date rendered the same way as the inbox thread view
+ * (ConversationalThreadView's formatDayDivider) — "Today"/"Yesterday"/
+ * weekday/"Oct 8" — instead of the bare toLocaleDateString() "10/9/2026"
+ * style that clashed with the inbox.
+ */
+export function formatContactMailDate(value?: string | Date | null): string {
+  if (!value) return 'Recent';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Recent';
+  const now = new Date();
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const thatDay = new Date(date);
+  thatDay.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((today.getTime() - thatDay.getTime()) / 86_400_000);
+  if (diffDays <= 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return date.toLocaleDateString(undefined, { weekday: 'long' });
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+  });
+}
+
 // ============================================================================
 // 1. VIP CONTACTS SUB-VIEW
 // ============================================================================
@@ -1409,7 +1435,7 @@ export function ContactDetailSheet({
                 </div>
 
                 <span className="text-[10px] font-mono text-[#6B7280] shrink-0">
-                  {mail.receivedAt ? new Date(mail.receivedAt).toLocaleDateString() : 'Recent'}
+                  {formatContactMailDate(mail.receivedAt)}
                 </span>
               </div>
             ))}

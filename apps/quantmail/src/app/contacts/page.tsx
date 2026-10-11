@@ -55,8 +55,12 @@ const SUBVIEW_TABS = [
 type ContactsTabId = 'all' | 'favorites' | 'groups' | 'companies' | 'dedup';
 
 function SubviewTabNav({ activeTab, onTabChange }: { activeTab: ContactsTabId; onTabChange: (tab: ContactsTabId) => void }) {
+  // SIA-P2-10: on desktop (md+) the pinned DesktopContextSidebar context rail
+  // already offers Home/Favorites/Groups/Companies/AI Dedup for this pillar —
+  // rendering this strip there too duplicated Companies/Groups/Dedup twice on
+  // the same screen. Hide it at md+, keep it as the mobile nav.
   return (
-    <nav aria-label="Contacts sections" className="flex items-center gap-1.5 mb-5">
+    <nav aria-label="Contacts sections" className="flex items-center gap-1.5 mb-5 md:hidden">
       {SUBVIEW_TABS.map((tab) => (
         <button
           key={tab.id}
@@ -843,7 +847,7 @@ export default function ContactsPage() {
                   )}
                 </div>
 
-                {/* Filter Tabs: All, Favorites, Add Group */}
+                {/* Filter Tabs: All, Favorites, New Group */}
                 <div className="flex items-center justify-between gap-1.5">
                   <div className="flex items-center rounded-xl border border-[#232938] bg-[var(--quant-surface-elevated)] p-0.5 flex-1">
                     <button
@@ -874,7 +878,9 @@ export default function ContactsPage() {
                     </button>
                   </div>
 
-                  {/* Add Group Action */}
+                  {/* SIA-P2-10: create action — labelled "+ New Group" so it is never
+                      confused with the Groups navigation tab. */}
+                  {/* New Group Action */}
                   <button
                     type="button"
                     onClick={() => {
@@ -882,16 +888,20 @@ export default function ContactsPage() {
                       setShowGroupModal(true);
                     }}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-dashed border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-xs font-semibold text-[var(--quant-muted-foreground)] hover:text-[var(--app-accent)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] transition-colors shrink-0"
-                    title="Add Folder / Group"
+                    title="Create a new group"
+                    aria-label="Create a new contact group"
                   >
-                    <span>+ Group</span>
+                    <span>+ New Group</span>
                   </button>
                 </div>
 
                 {/* AUD-P0-N2: Secondary tabs — real entry points to the
                     Companies/Dedup/Groups sub-views (previously reachable only
-                    by hand-typed ?tab= URLs). */}
-                <div className="flex items-center gap-1.5">
+                    by hand-typed ?tab= URLs).
+                    SIA-P2-10: md:hidden — on desktop the pinned sidebar rail
+                    already lists Companies/Groups/AI Dedup; showing them here
+                    too duplicated the same destinations on one screen. */}
+                <div className="flex items-center gap-1.5 md:hidden">
                   {(['companies', 'dedup', 'groups'] as const).map((tab) => (
                     <button
                       key={tab}
@@ -983,8 +993,9 @@ export default function ContactsPage() {
                       onClick={() => setShowDedupeModal(true)}
                       className="px-2 py-1 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-[11px] text-[var(--quant-muted-foreground)] hover:text-[var(--app-accent)] transition-colors"
                       title="Merge duplicates"
+                      aria-label="Merge duplicate contacts"
                     >
-                      Dedupe
+                      Dedup
                     </button>
                   </div>
 
