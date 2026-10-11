@@ -25,7 +25,7 @@ class CallScreen extends StatefulWidget {
 
 class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateMixin {
   late QuantCallType _activeCallType;
-  QuantCallState _callState = QuantCallState.connecting;
+  QuantCallState _callState = QuantCallState.failed;
   bool _isAudioMuted = false;
   bool _isVideoEnabled = true;
   bool _isFrontCamera = true;
@@ -39,10 +39,10 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
   late List<CallParticipant> _participants;
   String? _spotlightParticipantId;
 
-  // Real-time WebRTC telemetry metrics
-  final int _latencyMs = 18;
-  final double _packetLoss = 0.0;
-  final double _jitterMs = 1.1;
+  // NOTE: no telemetry fields live here anymore. Latency, packet loss, and
+  // jitter were previously hardcoded constants (18ms / 0.0% / 1.1ms)
+  // rendered as if measured from a live call. Real values may only appear
+  // once a real RTC stack reports them.
 
   @override
   void initState() {
@@ -61,14 +61,13 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    // Simulate WebRTC peer connection handshake
-    Timer(const Duration(milliseconds: 900), () {
-      if (!mounted) return;
-      setState(() {
-        _callState = QuantCallState.connected;
-      });
-      _startTimer();
-    });
+    // HONEST CALL STATE: there is no WebRTC stack wired into this build, so
+    // a call can never connect. The screen previously simulated a handshake
+    // (900ms timer -> "connected", then a ticking duration). It now reports
+    // the truthful failed state from the first frame; a real RTC
+    // implementation is what may move this state to ringing/connecting/
+    // connected.
+    _callState = QuantCallState.failed;
   }
 
   @override
@@ -76,15 +75,6 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
     _callTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
-  }
-
-  void _startTimer() {
-    _callTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) return;
-      setState(() {
-        _durationSeconds++;
-      });
-    });
   }
 
   String _formatDuration(int totalSecs) {
@@ -121,7 +111,8 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
         backgroundColor: QuantColors.darkSlateCard,
         duration: const Duration(seconds: 1),
         content: Text(
-          _isFrontCamera ? 'Front Camera Active (1080p60)' : 'Rear Camera Active (4K30 HDR)',
+          // No camera is captured in this build; do not claim one is active.
+          'Camera is not available in this build',
           style: const TextStyle(color: QuantColors.textPrimary),
         ),
       ),
@@ -154,7 +145,7 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
             const SizedBox(width: 8),
             Text(
               _isScreenSharing
-                  ? 'Screen Share Started: 1080p 60fps Impeller WebRTC Stream'
+                  ? 'Screen sharing is not available in this build'
                   : 'Screen Share Stopped',
               style: const TextStyle(color: QuantColors.textPrimary),
             ),
@@ -267,7 +258,7 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
               Text(
                 _callState == QuantCallState.connected
                     ? _formatDuration(_durationSeconds)
-                    : 'Connecting WebRTC...',
+                    : 'Call unavailable in this build',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 13,
@@ -316,7 +307,7 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
                     const Icon(Icons.bolt_rounded, size: 12, color: QuantColors.statusSuccess),
                     const SizedBox(width: 4),
                     Text(
-                      '<$_latencyMs ms E2EE',
+                      'NOT CONNECTED',
                       style: const TextStyle(
                         color: QuantColors.statusSuccess,
                         fontSize: 11,
@@ -335,7 +326,7 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
                   border: Border.all(color: QuantColors.hairlineBorder),
                 ),
                 child: Text(
-                  'Loss: $_packetLoss% | ${_activeCallType == QuantCallType.video ? "VP9/1080p" : "Opus"}',
+                  _activeCallType == QuantCallType.video ? 'Video call' : 'Voice call',
                   style: const TextStyle(
                     color: QuantColors.textSecondary,
                     fontSize: 10,
@@ -447,15 +438,19 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
                         size: 10,
                         color: participant.isAudioMuted ? QuantColors.statusError : QuantColors.textMuted,
                       ),
-                      const SizedBox(width: 3),
-                      Text(
-                        '${participant.latencyMs}ms',
-                        style: const TextStyle(
-                          fontSize: 9,
-                          color: QuantColors.textMuted,
-                          fontFamily: 'monospace',
+                      // Latency renders only when a real measurement
+                      // exists (latencyMs is null until then).
+                      if (participant.latencyMs != null) ...[
+                        const SizedBox(width: 3),
+                        Text(
+                          '${participant.latencyMs}ms',
+                          style: const TextStyle(
+                            fontSize: 9,
+                            color: QuantColors.textMuted,
+                            fontFamily: 'monospace',
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ],
@@ -713,7 +708,7 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
               Text(
                 _callState == QuantCallState.connected
                     ? 'Encrypted WebRTC Audio Channel (Opus 48kHz)'
-                    : 'Establishing Peer Connection...',
+                    : 'Calling is not available in this build yet',
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -833,15 +828,16 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
                     ],
                   ],
                 ),
-                Text(
-                  '${participant.latencyMs}ms',
-                  style: const TextStyle(
-                    color: QuantColors.statusSuccess,
-                    fontSize: 10,
-                    fontFamily: 'monospace',
-                    fontWeight: FontWeight.w700,
+                if (participant.latencyMs != null)
+                  Text(
+                    '${participant.latencyMs}ms',
+                    style: const TextStyle(
+                      color: QuantColors.statusSuccess,
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
