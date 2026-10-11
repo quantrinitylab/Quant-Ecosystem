@@ -99,6 +99,7 @@ export interface SendMessageInput {
   mediaUrl?: string;
   replyToId?: string;
   metadata?: Record<string, unknown>;
+  disappearMode?: 'off' | 'after_view' | '24h' | '7d' | '30d';
   encryption?: 'e2e';
   recipientPublicKeys?: RecipientPublicKey[];
 }
@@ -219,6 +220,7 @@ export class MessageService {
       mediaUrl,
       replyToId,
       metadata,
+      disappearMode,
       encryption,
       recipientPublicKeys,
     } = input;
@@ -230,6 +232,33 @@ export class MessageService {
 
     if (!membership) {
       throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
+    }
+
+    // QC-F-019: persist the view-once intent the client actually sent.
+    // Previously `disappearMode` never reached this service (the route
+    // schema stripped it) and snap types collapse to IMAGE/VIDEO in the
+    // Prisma enum, so a stored snap carried no marker consumeSnap could
+    // recognise — it lived forever as ordinary media. A message is a
+    // view-once snap when the client asks for 'after_view' OR uses a snap
+    // type; record that in metadata in the exact shape consumeSnap reads
+    // (viewOnce/isSnap + duration + snap.durationSec).
+    const storedMetadata: Record<string, unknown> = { ...(metadata ?? {}) };
+    if (disappearMode) {
+      storedMetadata.disappearMode = disappearMode;
+    }
+    const isSnapType = type === 'snap_photo' || type === 'snap_video';
+    if (disappearMode === 'after_view' || isSnapType) {
+      const snapMeta = (storedMetadata.snap as Record<string, unknown> | undefined) ?? {};
+      const durationSec =
+        typeof snapMeta.durationSec === 'number'
+          ? snapMeta.durationSec
+          : typeof storedMetadata.duration === 'number'
+            ? storedMetadata.duration
+            : 10;
+      storedMetadata.viewOnce = true;
+      if (isSnapType) storedMetadata.isSnap = true;
+      storedMetadata.duration = durationSec;
+      storedMetadata.snap = { ...snapMeta, durationSec };
     }
 
     let storedContent = content;
@@ -273,7 +302,7 @@ export class MessageService {
           type: toMessageType(type),
           mediaUrl: mediaUrl ?? null,
           replyToId: replyToId ?? null,
-          metadata: (metadata ?? {}) as Prisma.InputJsonValue,
+          metadata: storedMetadata as Prisma.InputJsonValue,
         },
       });
 
@@ -326,7 +355,18 @@ export class MessageService {
 
     const totalPages = Math.ceil(total / pageSize);
     return {
-      data,
+      // QC-F-019: a view-once snap's media must be deliverable ONLY through
+      // consumeSnap (which records the view and destroys the stored copy).
+      // The list payload previously handed the raw mediaUrl to every fetch,
+      // so the media could be copied/replayed forever without ever being
+      // consumed. Strip it here; the snap card needs only type + duration.
+      data: data.map((msg) => {
+        const meta = (msg.metadata as Record<string, unknown> | null) ?? {};
+        if (meta.viewOnce || meta.isSnap) {
+          return { ...msg, mediaUrl: null };
+        }
+        return msg;
+      }),
       total,
       page,
       pageSize,
@@ -539,11 +579,27 @@ export class MessageService {
       throw createAppError('Message is not an ephemeral snap', 400, 'NOT_A_SNAP');
     }
 
-    const duration = typeof metadata.duration === 'number' ? metadata.duration : 10;
+    const snapMeta = (metadata.snap as Record<string, unknown> | undefined) ?? {};
+    const duration =
+      typeof metadata.duration === 'number'
+        ? metadata.duration
+        : typeof snapMeta.durationSec === 'number'
+          ? snapMeta.durationSec
+          : 10;
 
     // Helper to mint authentic SigV4 presigned view URL (60-second TTL) fail-closed (SEC-4)
     const mintPresignedSnapUrl = async (rawMediaUrl: string): Promise<string> => {
       if (!rawMediaUrl) return '';
+
+      // QC-F-019: the shipped client sends snap media as an inline data URL
+      // (there is no working object-storage upload for snaps yet — the
+      // upload-url endpoint is simulated). A data URL has no storage key;
+      // trying to presign it threw STORAGE_KEY_MISSING / 503 and the snap
+      // could never be consumed at all. The inline payload IS the media:
+      // deliver it through this one-time path — consumption is recorded
+      // first and the stored copy is nulled below, so it is delivered
+      // exactly once, never repeatedly from the message list.
+      if (rawMediaUrl.startsWith('data:')) return rawMediaUrl;
 
       // Prefer explicit persisted storageKey if available in metadata, else extract from mediaUrl
       const storageKey =
@@ -608,6 +664,15 @@ export class MessageService {
       );
     }
 
+    // QC-F-019: resolve the deliverable URL BEFORE recording consumption.
+    // The old order created the snapView row first, so a presigning/storage
+    // failure (e.g. storage not configured) burned the recipient's only
+    // view without ever showing them the media.
+    // SEC-4: Mint an authentic SigV4 short-lived presigned view URL (60-second TTL) fail-closed
+    // so raw media cannot be retained or fetched indefinitely from storage after consumption.
+    const rawMediaUrl = message.mediaUrl ?? '';
+    const ephemeralMediaUrl = await mintPresignedSnapUrl(rawMediaUrl);
+
     try {
       await snapViewDelegate.create({
         data: {
@@ -629,13 +694,10 @@ export class MessageService {
       throw err;
     }
 
-    // SEC-4: Mint an authentic SigV4 short-lived presigned view URL (60-second TTL) fail-closed
-    // so raw media cannot be retained or fetched indefinitely from storage after consumption.
-    const rawMediaUrl = message.mediaUrl ?? '';
-    const ephemeralMediaUrl = await mintPresignedSnapUrl(rawMediaUrl);
-
-    // Hard delete media payload from S3/storage and mark consumed
-    const storageKey = extractStorageKey(rawMediaUrl);
+    // Hard delete media payload from S3/storage and mark consumed.
+    // Inline data-URL media has no storage object — nulling the DB copy
+    // below is its destruction.
+    const storageKey = rawMediaUrl.startsWith('data:') ? '' : extractStorageKey(rawMediaUrl);
     if (storageKey) {
       const storageClient = this.requireStorage();
       try {
