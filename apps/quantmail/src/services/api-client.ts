@@ -89,6 +89,47 @@ interface RequestOptions {
 }
 
 /**
+ * One OAuth authorization the signed-in user granted to a third-party app.
+ * Served by GET /oauth/grants — the only source the security page's
+ * "Connected Applications" tab is allowed to quote.
+ */
+export interface OAuthGrant {
+  clientId: string;
+  clientName: string;
+  clientDescription: string | null;
+  isFirstParty: boolean;
+  scopes: string[];
+  grantedAt: string;
+  updatedAt: string;
+}
+
+/**
+ * A personal access token row. The token VALUE is never returned here — the
+ * backend only hands it out once, inside the POST /settings/tokens response.
+ */
+export interface PersonalAccessToken {
+  id: string;
+  tokenId: string;
+  name: string;
+  scopes: string[];
+  expiresAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+/** Returned once, at mint time: the only moment the raw token value exists. */
+export interface MintedPersonalAccessToken {
+  id: string;
+  token: string;
+  tokenId: string;
+  name: string;
+  scopes: string[];
+  expiresAt: string;
+  createdAt: string;
+}
+
+/**
  * Result of the bulk contact import endpoints
  * (`POST /contacts/import/vcard`, `POST /contacts/import/csv`).
  */
@@ -526,6 +567,54 @@ export class QuantMailApiClient {
     password: string,
   ): Promise<ApiResponse<{ backupCodes: string[]; count: number }>> {
     return this.post('/auth/2fa/backup-codes', { password });
+  }
+
+  // --------------------------------------------------------------------------
+  // OAuth grants (Connected Applications)
+  //
+  // The security page used to hardcode "No third-party apps connected" and
+  // assert that no app held email/profile permission — without ever asking the
+  // server. These calls back GET /oauth/grants, the only source that tab may
+  // quote. An empty array is the only honest empty state.
+  // --------------------------------------------------------------------------
+
+  async getOAuthGrants(): Promise<ApiResponse<OAuthGrant[]>> {
+    return this.get('/oauth/grants');
+  }
+
+  /**
+   * Revoke one app's grant. The backend scopes the delete to (userId, clientId)
+   * from the authenticated session, so a grant that is not yours 404s instead
+   * of being touched.
+   */
+  async revokeOAuthGrant(clientId: string): Promise<ApiResponse<{ revoked: boolean }>> {
+    return this.delete(`/oauth/grants/${encodeURIComponent(clientId)}`);
+  }
+
+  // --------------------------------------------------------------------------
+  // Personal access tokens
+  //
+  // Backend routes (GET/POST/DELETE /settings/tokens) already exist; nothing
+  // consumed them. Minting is step-up guarded server-side: when the session's
+  // last strong authentication is stale the POST fails with 401
+  // STEP_UP_REQUIRED and the UI must say so honestly (re-authenticate), not
+  // invent a success. The raw token value appears only in the POST response.
+  // --------------------------------------------------------------------------
+
+  async getPersonalAccessTokens(): Promise<ApiResponse<PersonalAccessToken[]>> {
+    return this.get('/settings/tokens');
+  }
+
+  async createPersonalAccessToken(input: {
+    name: string;
+    scopes: string[];
+    expiresAt: string;
+  }): Promise<ApiResponse<MintedPersonalAccessToken>> {
+    return this.post('/settings/tokens', input);
+  }
+
+  async revokePersonalAccessToken(id: string): Promise<ApiResponse<{ revoked: boolean }>> {
+    return this.delete(`/settings/tokens/${encodeURIComponent(id)}`);
   }
 
   // --------------------------------------------------------------------------

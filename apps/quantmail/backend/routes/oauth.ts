@@ -375,6 +375,93 @@ export async function oauthRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  // GET /oauth/grants — list the signed-in user's OAuth authorizations.
+  //
+  // Each row is a real grant: the (userId, clientId) consent row written by
+  // POST /oauth/consent, joined to the client's registered metadata. Nothing
+  // is asserted that was not read: the security page's "Connected
+  // Applications" tab renders this list verbatim, including its empty state.
+  fastify.get('/oauth/grants', { preHandler: requireAuth }, async (request: any, reply) => {
+    const userId = request.user?.sub || request.user?.id;
+    if (!userId) {
+      return reply.code(401).send({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Not authenticated', statusCode: 401 },
+      });
+    }
+
+    const consents = await prisma.oAuthConsent.findMany({
+      where: { userId },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    const clientIds = [...new Set(consents.map((c: { clientId: string }) => c.clientId))];
+    const clients =
+      clientIds.length > 0
+        ? await prisma.oAuthClient.findMany({ where: { clientId: { in: clientIds } } })
+        : [];
+    const clientById = new Map(clients.map((c: { clientId: string }) => [c.clientId, c]));
+
+    return reply.send({
+      success: true,
+      data: consents.map((consent: any) => {
+        const client = clientById.get(consent.clientId) as any;
+        return {
+          clientId: consent.clientId,
+          // Fall back to the raw client_id when the client registration is
+          // gone: the grant row is still real and still revocable.
+          clientName: client?.name ?? consent.clientId,
+          clientDescription: client?.description ?? null,
+          isFirstParty: client?.isFirstParty ?? false,
+          scopes: Array.isArray(consent.scopes) ? consent.scopes : [],
+          grantedAt: consent.createdAt,
+          updatedAt: consent.updatedAt,
+        };
+      }),
+    });
+  });
+
+  // DELETE /oauth/grants/:clientId — revoke one app's grant.
+  //
+  // Ownership-checked: the consent row is looked up by (userId, clientId) from
+  // the authenticated session, never by a client-supplied user id. Revoking
+  // deletes the consent so the next authorize flow shows the consent screen
+  // again instead of auto-approving. Access tokens the app already holds keep
+  // working until they expire (900s TTL); refresh tokens are the user's own
+  // session credentials, not per-app, and are intentionally left alone.
+  fastify.delete('/oauth/grants/:clientId', { preHandler: requireAuth }, async (request: any, reply) => {
+    const userId = request.user?.sub || request.user?.id;
+    if (!userId) {
+      return reply.code(401).send({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Not authenticated', statusCode: 401 },
+      });
+    }
+
+    const { clientId } = request.params as { clientId: string };
+    if (!clientId) {
+      return reply.code(400).send({
+        success: false,
+        error: { code: 'INVALID_REQUEST', message: 'clientId is required', statusCode: 400 },
+      });
+    }
+
+    const consent = await prisma.oAuthConsent.findFirst({ where: { userId, clientId } });
+    if (!consent) {
+      return reply.code(404).send({
+        success: false,
+        error: {
+          code: 'GRANT_NOT_FOUND',
+          message: 'This app has no authorization on your account',
+          statusCode: 404,
+        },
+      });
+    }
+
+    await prisma.oAuthConsent.delete({ where: { id: consent.id } });
+    return reply.send({ success: true, data: { revoked: true, clientId } });
+  });
+
   // GET /oauth/authorize - Protected + Consent Screen
   fastify.get('/oauth/authorize', { preHandler: requireAuth }, async (request: any, reply) => {
     const query = request.query as any;

@@ -60,6 +60,10 @@ async function loadPostHandlers() {
     get() {
       // These compatibility tests invoke only POST /oauth/token.
     },
+    delete() {
+      // oauth.ts also registers DELETE /oauth/grants/:clientId (revoke grant);
+      // these tests never invoke it, so the mock just absorbs the registration.
+    },
   };
   await oauthRoutes(app as never);
   return handlers;
