@@ -126,7 +126,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
           </div>
         ) : clusters.length === 0 ? (
           <div className="py-12 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)]">
               <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
