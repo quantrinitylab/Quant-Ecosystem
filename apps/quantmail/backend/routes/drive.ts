@@ -1167,6 +1167,27 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     });
     return reply.status(201).send(folderDto(folder, owner));
   });
+  // GET /drive/folders — flat list of ALL non-deleted drive folders for the
+  // user (every depth, not just the current level). Quanty's organize flow
+  // resolves a suggested category name to a folder id, so the lookup must
+  // see nested folders too; `GET /drive/files?filter=folders` only returns
+  // one level. The Next proxy `/api/drive/folders` (GET) forwards here.
+  fastify.get('/drive/folders', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const folders = await prisma.folder.findMany({
+      where: { userId, isDeleted: false },
+      orderBy: { name: 'asc' },
+    });
+    return reply.send({
+      folders: folders.map((folder: any) => ({
+        id: folder.id,
+        name: folder.name,
+        parentId: folder.parentId ?? null,
+        path: folder.path,
+      })),
+    });
+  });
   fastify.put<{ Params: { id: string }; Body: { name?: string } }>(
     '/drive/files/:id',
     async (request, reply) => {
