@@ -169,12 +169,34 @@ export class DisappearingService {
   async markViewedAndScheduleDeletion(
     messageId: string,
     timerSeconds: number,
+    requesterUserId: string,
   ): Promise<{ messageId: string; viewedAt: Date; expiresAt: Date }> {
     const message = await this.prisma.message.findUnique({
       where: { id: messageId },
     });
     if (!message) {
       throw createAppError('Message not found', 404, 'MESSAGE_NOT_FOUND');
+    }
+
+    // QC-F-038: marking a message viewed starts its destruction timer — only
+    // an active member of the message's conversation may do that. Without
+    // this gate any logged-in user who learned a messageId could expire (and
+    // thereby delete) anyone's message. Same 403 NOT_A_MEMBER convention as
+    // setConversationTimer above and MessageService.
+    const membership = await this.prisma.conversationMember.findFirst({
+      where: { conversationId: message.conversationId, userId: requesterUserId, leftAt: null },
+    });
+    if (!membership) {
+      throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
+    }
+
+    // QC-F-038: the view timer is the same Requirement-18.1 disappear timer
+    // setConversationTimer preset-bounds; enforce the same presets here.
+    // Validated after the membership gate (no validation oracle for
+    // non-members) and before the idempotency logic (an invalid timer is a
+    // 400 even on an already-viewed message).
+    if (!DisappearingService.VALID_TIMER_SECONDS.includes(timerSeconds)) {
+      throw createAppError('Unsupported disappear timer duration', 400, 'INVALID_TIMER');
     }
 
     const metadata = (message.metadata as Record<string, unknown>) ?? {};
@@ -222,6 +244,17 @@ export class DisappearingService {
     });
     if (!message) {
       throw createAppError('Message not found', 404, 'MESSAGE_NOT_FOUND');
+    }
+
+    // QC-F-038: a screenshot notification posts a SYSTEM message into the
+    // conversation — only an active member may trigger that. Without this
+    // gate any logged-in user could flood any conversation with fabricated
+    // screenshot system messages.
+    const membership = await this.prisma.conversationMember.findFirst({
+      where: { conversationId: message.conversationId, userId: viewerId, leftAt: null },
+    });
+    if (!membership) {
+      throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
     }
 
     const systemMessage = await this.prisma.message.create({

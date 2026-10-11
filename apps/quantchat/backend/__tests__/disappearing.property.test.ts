@@ -37,6 +37,7 @@ describe('Disappearing timer applies to new messages (Property 38)', () => {
   let service: DisappearingService;
   let prisma: {
     message: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+    conversationMember: { findFirst: ReturnType<typeof vi.fn> };
   };
 
   beforeEach(() => {
@@ -45,6 +46,11 @@ describe('Disappearing timer applies to new messages (Property 38)', () => {
       message: {
         findUnique: vi.fn(),
         update: vi.fn().mockResolvedValue({}),
+      },
+      // QC-F-038: markViewed is membership-gated; the property driver acts as
+      // an active member of the message's conversation.
+      conversationMember: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'member-1' }),
       },
     };
     service = new DisappearingService(prisma as never);
@@ -68,7 +74,7 @@ describe('Disappearing timer applies to new messages (Property 38)', () => {
       // Fresh, never-viewed message so the first view records viewedAt = now.
       prisma.message.findUnique.mockResolvedValue({ id: `m${i}`, metadata: {} });
 
-      const result = await service.markViewedAndScheduleDeletion(`m${i}`, seconds);
+      const result = await service.markViewedAndScheduleDeletion(`m${i}`, seconds, 'user-viewer');
 
       expect(
         result.expiresAt.getTime() - result.viewedAt.getTime(),

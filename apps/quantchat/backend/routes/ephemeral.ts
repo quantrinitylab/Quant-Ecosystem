@@ -22,9 +22,12 @@ const viewSchema = z.object({
   timerSeconds: z.number().int().min(1),
 });
 
-const screenshotSchema = z.object({
-  viewerName: z.string().min(1).max(100).optional(),
-});
+// QC-F-038: the screenshot system message names the viewer — that name must
+// come from the verified auth identity, never from the request body (a
+// body-supplied name let any caller forge "<anyone> took a screenshot").
+// Unknown body keys are stripped by zod, so old clients that still send
+// `viewerName` are silently ignored rather than rejected.
+const screenshotSchema = z.object({});
 
 export default async function ephemeralRoutes(fastify: FastifyInstance) {
   // POST /conversations/:id/disappear-timer
@@ -69,6 +72,7 @@ export default async function ephemeralRoutes(fastify: FastifyInstance) {
       const result = await service.markViewedAndScheduleDeletion(
         request.params.messageId,
         parseResult.data.timerSeconds,
+        userId,
       );
 
       return reply.send({ success: true, data: result });
@@ -90,7 +94,10 @@ export default async function ephemeralRoutes(fastify: FastifyInstance) {
         throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
       }
 
-      const viewerName = parseResult.data.viewerName ?? auth?.username ?? 'Someone';
+      // QC-F-038: name comes only from the verified auth identity. The
+      // truthiness check also covers an empty-string username claim (the old
+      // `??` chain let "" through, producing " took a screenshot").
+      const viewerName = auth?.username ? auth.username : 'Someone';
 
       const prisma = (fastify as unknown as { prisma: unknown }).prisma;
       const service = new DisappearingService(prisma as never);
