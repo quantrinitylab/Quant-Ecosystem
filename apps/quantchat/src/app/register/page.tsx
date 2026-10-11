@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 
 // QuantChat does not host its own registration: Quant accounts are created on
-// QuantMail, the identity host that also powers "Continue with Quant Account"
+// QuantMail, the identity host that also powers "Continue with QuantMail"
 // (SSO). This route exists so /register never dead-ends into the login page —
 // it hands the visitor to the real registration flow
 // (quantmail.in/register → POST /api/auth/register). After registering there,

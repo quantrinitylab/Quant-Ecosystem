@@ -6,6 +6,11 @@
  *
  * - `token` / `accessToken` / `access_token` / `__quant_sso_ticket`: the SSO
  *   access token (aliases kept for cross-app backward compatibility).
+ * - `sso_ticket`: the Contract-B single-use chooser ticket (NOT a token).
+ *   Verified server-side via POST /api/auth/sso/ticket, then scrubbed.
+ * - `code` / `state`: the OAuth2 authorization response (Contract A). The
+ *   server-side /api/auth/sso/callback consumes them; scrubbed defensively if
+ *   they ever land on the login page.
  * - `refreshToken`: legacy misnomer — it carried the access token, not a
  *   refresh token. No app ever read it from the URL; scrubbed defensively in
  *   case it arrives on older handoff links.
@@ -15,6 +20,9 @@
  */
 export const SSO_HANDOFF_URL_PARAMS = [
   '__quant_sso_ticket',
+  'sso_ticket',
+  'code',
+  'state',
   'token',
   'accessToken',
   'access_token',

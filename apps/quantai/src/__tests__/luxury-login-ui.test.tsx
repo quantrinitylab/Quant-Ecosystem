@@ -78,9 +78,15 @@ describe('QuantAI Luxury Neural Login UI/UX Suite', () => {
 
     it('renders hero SSO button with obsidian-titanium style and pure SVG vector mark', () => {
       const html = renderToStaticMarkup(React.createElement(LoginPage));
-      expect(html).toContain('Continue with Quant Account');
+      expect(html).toContain('Continue with QuantMail');
       // Verify SVG polygon for the lightning bolt
       expect(html).toContain('<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"');
+    });
+
+    it('offers Forgot password next to the password field (no enumeration hints)', () => {
+      const html = renderToStaticMarkup(React.createElement(LoginPage));
+      expect(html).toContain('Forgot password?');
+      expect(html).not.toContain('if an account exists');
     });
 
     it('renders geometric AI core lattice vector mark with gradient defs', () => {

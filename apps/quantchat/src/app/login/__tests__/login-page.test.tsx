@@ -28,12 +28,12 @@ describe('QuantChat SSO-primary Login UI — LoginPage & Page', () => {
     expect(html).toContain('Sign in to QuantChat');
   });
 
-  it('promotes Continue with Quant Account as the primary login method', () => {
+  it('promotes Continue with QuantMail as the primary login method', () => {
     const html = renderToString(<Page />);
 
     // Primary SSO hero button
     expect(html).toContain('data-testid="quant-sso-primary-btn"');
-    expect(html).toContain('Continue with Quant Account');
+    expect(html).toContain('Continue with QuantMail');
     expect(html).not.toContain('QuantMail SSO');
 
     // Secondary email/password form still available
@@ -127,14 +127,14 @@ describe('QuantChat SSO-primary Login UI — LoginPage & Page', () => {
 
     // One primary path only
     expect(html).toContain('data-testid="quant-sso-primary-btn"');
-    expect(html).toContain('Continue with Quant Account');
+    expect(html).toContain('Continue with QuantMail');
 
     // Password login remains as a subtle inline fallback (still in DOM, toggled)
     expect(html).toContain('data-testid="identifier-input"');
     expect(html).toContain('data-testid="password-input"');
     expect(html).toContain('data-testid="submit-password-btn"');
     expect(html).toContain('or sign in with email &amp; password');
-    expect(html).toContain('Back to Quant Account');
+    expect(html).toContain('Back to QuantMail sign-in');
   });
 
   it('does not render the removed security-metrics banner', () => {
@@ -152,5 +152,16 @@ describe('QuantChat SSO-primary Login UI — LoginPage & Page', () => {
     expect(html).not.toContain('⚡');
     // Common emoji unicodes
     expect(html).not.toMatch(/[\u{1F300}-\u{1F9FF}]/u);
+  });
+
+  it('offers Forgot password next to the password field (no enumeration hints)', () => {
+    const html = renderToString(<LoginPage />);
+
+    // The toggle is always rendered next to the password label; the reset form
+    // itself appears on click. The page must never hint whether an account
+    // exists ("if an account exists" language is banned).
+    expect(html).toContain('Forgot password?');
+    expect(html).not.toContain('if an account exists');
+    expect(html).not.toContain('no account found');
   });
 });

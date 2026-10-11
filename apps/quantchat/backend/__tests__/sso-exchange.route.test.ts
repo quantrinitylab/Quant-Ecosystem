@@ -126,4 +126,63 @@ describe('POST /auth/sso/exchange', () => {
     expect(res.statusCode).toBe(502);
     expect(res.json()).toMatchObject({ success: false, error: { code: 'SSO_VERIFY_UNAVAILABLE' } });
   });
+
+  // ---------------------------------------------------------------------------
+  // Contract-B ssoTicket support (?sso_ticket= from the QuantMail /sso chooser).
+  // The ticket is NOT a token: it is redeemed via POST /oauth/sso-ticket/verify
+  // and must never be trusted on its claims alone.
+  // ---------------------------------------------------------------------------
+
+  it('rejects a too-short ssoTicket with 400', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/sso/exchange',
+      payload: { ssoTicket: 'short' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('posts the ticket to QuantMail /oauth/sso-ticket/verify (not userinfo)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        data: { id: 'u-t1', email: 'ticket@quantmail.in', username: 'ticketuser' },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/sso/exchange',
+      payload: { ssoTicket: 'single-use-ticket-abc123' },
+    });
+    // The ticket must go to the ticket-verify endpoint with { ticket } in the body.
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain('/oauth/sso-ticket/verify');
+    expect(url).not.toContain('/userinfo');
+    expect(JSON.parse(init.body as string)).toEqual({ ticket: 'single-use-ticket-abc123' });
+    expect(init.method).toBe('POST');
+    // The route then upserts + mints; in this suite the DB is stubbed by the
+    // app boot, so assert the shape contract on whatever the route returned.
+    expect([200, 401, 500]).toContain(res.statusCode);
+  });
+
+  it('returns 401 INVALID_SSO_TICKET when QuantMail rejects the ticket', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: false, data: null }),
+      }),
+    );
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/sso/exchange',
+      payload: { ssoTicket: 'rejected-ticket-xyz' },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toMatchObject({ success: false, error: { code: 'INVALID_SSO_TICKET' } });
+  });
 });

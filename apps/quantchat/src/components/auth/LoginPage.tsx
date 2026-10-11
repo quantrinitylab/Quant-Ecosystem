@@ -7,9 +7,30 @@ import { apiClient } from '../../services/api-client';
 import { persistSession } from '../../lib/auth-session';
 import { CryptographicMeshCanvas } from './CryptographicMeshCanvas';
 import { apiFetchRaw } from '@quant/api-client';
+import { scrubSsoHandoffParams } from '../../lib/sso-url-params';
 
 // QuantMail SSO base URL (overridable per environment)
 const SSO_BASE_URL = process.env.NEXT_PUBLIC_QUANTMAIL_SSO_URL || 'https://quantmail.in';
+
+/** Only allow same-origin, absolute-path returns so ?returnTo cannot open-redirect. */
+function safeReturnPath(value: string | null): string | null {
+  if (!value) return null;
+  if (!value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return null;
+  return value;
+}
+
+/** Honest, non-technical copy for SSO failures the callback redirects back with. */
+function authErrorCopy(code: string): string {
+  const copy: Record<string, string> = {
+    provider_denied: 'QuantMail sign-in was cancelled. You can try again below.',
+    missing_code: 'QuantMail did not return a sign-in code. Please try again.',
+    invalid_state:
+      'This sign-in attempt expired or was already used. Please start again with "Continue with QuantMail".',
+    invalid_ticket:
+      'The QuantMail sign-in ticket expired. Please start again with "Continue with QuantMail".',
+  };
+  return copy[code] ?? 'QuantMail sign-in failed. Please try again.';
+}
 
 export interface LoginPageProps {
   params?: Promise<Record<string, string | string[] | undefined>>;
@@ -145,14 +166,18 @@ export default function LoginPage(props: LoginPageProps) {
   void props;
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
-  // Single sign-in path: Quant Account (QuantMail SSO) is primary;
-  // password login is a subtle inline fallback, no tab switching.
+  // Two real sign-in paths: "Continue with QuantMail" (OAuth2 SSO, primary)
+  // and username/password (subtle inline fallback, no tab switching).
   const [showPassword, setShowPassword] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
 
   // Auto-redirect if already authenticated or session restored
   useEffect(() => {
@@ -160,6 +185,126 @@ export default function LoginPage(props: LoginPageProps) {
       router.replace('/');
     }
   }, [isAuthenticated, isLoading, router]);
+
+  // Surface SSO failures the server-side callback redirects back with
+  // (/login?auth_error=<code>). Honest copy only — no internal details.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const authError = params.get('auth_error');
+    if (!authError) return;
+    setError(authErrorCopy(authError));
+    try {
+      const url = scrubSsoHandoffParams(new URL(window.location.href));
+      url.searchParams.delete('auth_error');
+      window.history.replaceState(
+        {},
+        document.title,
+        url.pathname + (url.search ? url.search : '') + url.hash,
+      );
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // Contract-B chooser ticket (?sso_ticket=): scrub it from the URL
+  // IMMEDIATELY (single-use, must not linger), then redeem it server-side via
+  // POST /api/auth/sso/ticket. No token ever touches the URL.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const ticket = params.get('sso_ticket');
+    if (!ticket) return;
+    const rawReturn = params.get('returnTo');
+    try {
+      const url = scrubSsoHandoffParams(new URL(window.location.href));
+      window.history.replaceState(
+        {},
+        document.title,
+        url.pathname + (url.search ? url.search : '') + url.hash,
+      );
+    } catch {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    let cancelled = false;
+    (async () => {
+      setBusy(true);
+      setError(null);
+      try {
+        const res = await apiFetchRaw('/api/auth/sso/ticket', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticket }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          success?: boolean;
+          data?: { accessToken?: string; refreshToken?: string };
+          error?: { message?: string };
+        } | null;
+        if (cancelled) return;
+        if (!res.ok || !data?.success || !data?.data?.accessToken) {
+          setError(data?.error?.message ?? 'QuantMail sign-in failed. Please try again.');
+          return;
+        }
+        persistSession(data.data.accessToken, data.data.refreshToken || data.data.accessToken);
+        router.replace(safeReturnPath(rawReturn) ?? '/');
+      } catch {
+        if (!cancelled) setError('QuantMail sign-in failed. Please try again.');
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  // Contract-A completion (?sso=ready): the server-side callback already minted
+  // the HttpOnly session cookies. Bootstrap the browser's Bearer <redacted> for
+  // the apiClient + realtime socket from the verified session (no URL tokens).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('sso') !== 'ready') return;
+    const rawReturn = params.get('returnTo');
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('sso');
+      window.history.replaceState(
+        {},
+        document.title,
+        url.pathname + (url.search ? url.search : '') + url.hash,
+      );
+    } catch {
+      /* ignore */
+    }
+    let cancelled = false;
+    (async () => {
+      setBusy(true);
+      setError(null);
+      try {
+        const res = await apiFetchRaw('/api/auth/sso/bootstrap', { cache: 'no-store' });
+        const data = (await res.json().catch(() => null)) as {
+          success?: boolean;
+          data?: { accessToken?: string; refreshToken?: string };
+        } | null;
+        if (cancelled) return;
+        if (!res.ok || !data?.success || !data?.data?.accessToken) {
+          setError('QuantMail sign-in failed. Please try again.');
+          return;
+        }
+        persistSession(data.data.accessToken, data.data.refreshToken || data.data.accessToken);
+        router.replace(safeReturnPath(rawReturn) ?? '/');
+      } catch {
+        if (!cancelled) setError('QuantMail sign-in failed. Please try again.');
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   // Auto-capture SSO tokens returned from QuantMail Account Chooser or Cross-App Jump Bridge.
   // The token in the URL is a QuantMail-issued JWT, which is NOT valid for
@@ -199,13 +344,9 @@ export default function LoginPage(props: LoginPageProps) {
         const data = await res.json().catch(() => null);
         if (cancelled) return;
         if (!res.ok || !data?.success || !data?.data?.accessToken) {
-          setError('Quant Account sign-in failed. Please try again.');
+          setError('QuantMail sign-in failed. Please try again.');
           try {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('__quant_sso_ticket');
-            url.searchParams.delete('token');
-            url.searchParams.delete('accessToken');
-            url.searchParams.delete('access_token');
+            const url = scrubSsoHandoffParams(new URL(window.location.href));
             window.history.replaceState({}, document.title, url.pathname + (url.search ? url.search : ''));
           } catch {
             window.history.replaceState({}, document.title, window.location.pathname);
@@ -216,12 +357,7 @@ export default function LoginPage(props: LoginPageProps) {
         // Store only the valid, backend-exchanged QuantChat tokens.
         persistSession(data.data.accessToken, data.data.refreshToken || data.data.accessToken);
         try {
-          const url = new URL(window.location.href);
-          url.searchParams.delete('__quant_sso_ticket');
-          url.searchParams.delete('token');
-          url.searchParams.delete('accessToken');
-          url.searchParams.delete('access_token');
-          url.searchParams.delete('__quant_return');
+          const url = scrubSsoHandoffParams(new URL(window.location.href));
           const cleanUrl = url.pathname + (url.search ? url.search : '') + url.hash;
           window.history.replaceState({}, document.title, cleanUrl);
         } catch {
@@ -239,7 +375,7 @@ export default function LoginPage(props: LoginPageProps) {
         router.replace(targetDestination);
       } catch {
         if (!cancelled) {
-          setError('Quant Account sign-in failed. Please try again.');
+          setError('QuantMail sign-in failed. Please try again.');
           try {
             window.history.replaceState({}, document.title, window.location.pathname);
           } catch {
@@ -255,22 +391,46 @@ export default function LoginPage(props: LoginPageProps) {
     };
   }, [router]);
 
-  // "Continue with Quant Account" always performs a real SSO handshake with
-  // QuantMail. We deliberately do NOT short-circuit on a locally stored token:
-  // reusing a stale/expired local token made the button appear dead (it just
-  // navigated to '/' with the old session) and made account switching
-  // impossible. QuantMail's chooser shows the signed-in account for 1-click
-  // continue, which is the correct fast path.
-  const handleQuantSSO = useCallback(() => {
-    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-    const currentReturn = params?.get('returnTo');
-    const returnParam =
-      currentReturn && currentReturn !== '/login'
-        ? `?returnTo=${encodeURIComponent(currentReturn)}`
-        : '';
-    const returnTo = encodeURIComponent(`${window.location.origin}/login${returnParam}`);
-    window.location.href = `${SSO_BASE_URL}/sso?returnTo=${returnTo}&client_id=quantchat`;
-  }, []);
+  // "Continue with QuantMail" is the PRIMARY one-tap sign-in: it starts the
+  // real OAuth2 authorization-code + PKCE handshake with QuantMail
+  // (POST /api/auth/sso/start → 302 to QuantMail's authorize endpoint). The
+  // server-side /api/auth/sso/callback then exchanges the code back-channel,
+  // verifies the identity via userinfo, mints QuantChat-native tokens via the
+  // backend /auth/sso/exchange, and establishes the session in HttpOnly
+  // cookies — no token ever appears in the URL.
+  //
+  // We deliberately do NOT short-circuit on a locally stored token: reusing a
+  // stale/expired local token made the button appear dead (it just navigated
+  // to '/' with the old session) and made account switching impossible.
+  const handleQuantSSO = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      const currentReturn = params?.get('returnTo');
+      const res = await apiFetchRaw('/api/auth/sso/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          returnTo: currentReturn && currentReturn !== '/login' ? currentReturn : '/',
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        success?: boolean;
+        data?: { authorizeUrl?: string };
+      } | null;
+      const authorizeUrl = data?.success ? data?.data?.authorizeUrl : null;
+      if (!res.ok || !authorizeUrl) {
+        throw new Error('start-failed');
+      }
+      window.location.href = authorizeUrl;
+    } catch {
+      setBusy(false);
+      setError('Could not start QuantMail sign-in. Please try again.');
+    }
+  }, [busy]);
 
   const handlePasswordLogin = useCallback(
     async (e: React.FormEvent) => {
@@ -304,6 +464,47 @@ export default function LoginPage(props: LoginPageProps) {
       }
     },
     [identifier, password, router],
+  );
+
+  // Contract C: the reset link is emailed to the user's QuantMail inbox; they
+  // set the new password on QuantMail. Always-200 upstream means no account
+  // enumeration; we only ever show the honest "check your inbox" copy.
+  const handleForgotPassword = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError(null);
+      setInfo(null);
+      setResetNotice(null);
+      const targetEmail = resetEmail.trim();
+      if (!targetEmail || !targetEmail.includes('@')) {
+        setError('Enter the email address of your Quant account.');
+        return;
+      }
+      setResetBusy(true);
+      try {
+        const res = await apiFetchRaw('/api/auth/password-reset/request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: targetEmail }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          success?: boolean;
+          error?: { message?: string };
+        } | null;
+        if (res.ok && data?.success) {
+          setResetNotice(
+            "We'll email a reset link to your QuantMail inbox. Open it there to set a new password.",
+          );
+          return;
+        }
+        setError(data?.error?.message ?? 'Could not request a password reset. Please try again shortly.');
+      } catch {
+        setError('Could not request a password reset. Please try again shortly.');
+      } finally {
+        setResetBusy(false);
+      }
+    },
+    [resetEmail],
   );
 
   return (
@@ -354,7 +555,7 @@ export default function LoginPage(props: LoginPageProps) {
           </div>
         )}
 
-        {/* PRIMARY: Continue with Quant Account (QuantMail SSO) with Molten Glow */}
+        {/* PRIMARY: Continue with QuantMail (OAuth2 SSO) with Molten Glow */}
         <div className="relative group mb-5">
           <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-xl blur opacity-60 group-hover:opacity-100 transition duration-300 group-hover:duration-200 animate-pulse pointer-events-none" />
           <button
@@ -366,7 +567,9 @@ export default function LoginPage(props: LoginPageProps) {
           >
             <span className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-[-25deg] -translate-x-full group-hover:translate-x-[300%] transition-transform duration-1000 ease-out" />
             <LightningIcon className="w-4 h-4 text-emerald-200" />
-            <span className="tracking-wide">Continue with Quant Account</span>
+            <span className="tracking-wide">
+              {busy ? 'Connecting to QuantMail…' : 'Continue with QuantMail'}
+            </span>
             <ArrowRightIcon className="w-4 h-4 text-emerald-200 ml-1 transition-transform group-hover:translate-x-0.5" />
           </button>
         </div>
@@ -424,9 +627,22 @@ export default function LoginPage(props: LoginPageProps) {
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="password" className="block text-xs font-medium text-slate-400">
-                Password
-              </label>
+              <div className="flex items-center justify-between">
+                <label htmlFor="password" className="block text-xs font-medium text-slate-400">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForgotPassword((v) => !v);
+                    setResetNotice(null);
+                    setError(null);
+                  }}
+                  className="text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer"
+                >
+                  Forgot password?
+                </button>
+              </div>
               <input
                 id="password"
                 type="password"
@@ -448,6 +664,47 @@ export default function LoginPage(props: LoginPageProps) {
             </button>
           </form>
 
+          {/* Forgot password: reset link goes to the user's QuantMail inbox (Contract C). */}
+          {showForgotPassword ? (
+            <form onSubmit={handleForgotPassword} className="mt-4 space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+              <p className="text-xs leading-relaxed text-slate-400">
+                Enter your Quant account email. We&apos;ll email a reset link to your
+                QuantMail inbox.
+              </p>
+              {resetNotice ? (
+                <div
+                  role="status"
+                  className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs leading-relaxed text-emerald-300"
+                >
+                  {resetNotice}
+                </div>
+              ) : null}
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  required
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  placeholder="you@quantmail.in"
+                  aria-label="Quant account email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-emerald-500/50"
+                  data-testid="reset-email-input"
+                />
+                <button
+                  type="submit"
+                  disabled={resetBusy}
+                  className="shrink-0 rounded-xl border border-emerald-500/30 bg-emerald-500/20 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-emerald-500/30 disabled:opacity-50 cursor-pointer"
+                  data-testid="reset-submit-btn"
+                >
+                  {resetBusy ? 'Sending…' : 'Send link'}
+                </button>
+              </div>
+            </form>
+          ) : null}
+
           <div className="mt-4 text-center">
             <button
               type="button"
@@ -455,7 +712,7 @@ export default function LoginPage(props: LoginPageProps) {
               className="text-xs text-slate-400 hover:text-emerald-400 transition-colors inline-flex items-center gap-1 cursor-pointer"
             >
               <LightningIcon className="w-3 h-3 text-emerald-400" />
-              <span>Back to Quant Account</span>
+              <span>Back to QuantMail sign-in</span>
             </button>
           </div>
         </div>
