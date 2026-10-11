@@ -277,6 +277,31 @@ export default async function contactsRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: duplicates });
   });
 
+  // POST /contacts/duplicates/dismiss (QM-SCREEN-012): persist a "keep
+  // separate" decision so the pair no longer reappears on rescan.
+  fastify.post('/duplicates/dismiss', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+    const dismissSchema = z.object({
+      primaryId: z.string().min(1),
+      duplicateId: z.string().min(1),
+    });
+    const parseResult = dismissSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new ContactService(prisma as never);
+    await service.dismissDuplicatePair(
+      userId,
+      parseResult.data.primaryId,
+      parseResult.data.duplicateId,
+    );
+    return reply.send({ success: true, data: { dismissed: true } });
+  });
+
   // POST /contacts/merge (Task QC-02)
   fastify.post('/merge', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;

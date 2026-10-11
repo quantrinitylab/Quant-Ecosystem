@@ -34,7 +34,7 @@ describe('ContactDetailSheet hooks order', () => {
 
   it('renders the detail view when a contact is selected', () => {
     const html = renderToStaticMarkup(
-      React.createElement(ContactDetailSheet, { contact: contact as any, recentMail: [] }),
+      React.createElement(ContactDetailSheet, { contact: contact as any }),
     );
     expect(html).toContain('Aarav Sharma');
     expect(html).toContain('aarav@example.com');
@@ -46,7 +46,7 @@ describe('ContactDetailSheet hooks order', () => {
     // so no render can change the hook count.
     const htmlNull1 = renderToStaticMarkup(React.createElement(ContactDetailSheet, { contact: null }));
     const htmlContact = renderToStaticMarkup(
-      React.createElement(ContactDetailSheet, { contact: contact as any, recentMail: [] }),
+      React.createElement(ContactDetailSheet, { contact: contact as any }),
     );
     const htmlNull2 = renderToStaticMarkup(React.createElement(ContactDetailSheet, { contact: null }));
     expect(htmlNull1).toContain('Select a Contact');

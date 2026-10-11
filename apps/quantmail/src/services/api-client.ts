@@ -1134,9 +1134,11 @@ export class QuantMailApiClient {
    * by default and capped at 100, so a join against page one silently calls
    * contact 21 a stranger.
    *
-   * Through the Next proxy this is `/api/contacts/directory`, which lands in the
-   * `[id]` route and forwards `/contacts/directory` verbatim — the same way
-   * `/contacts/search` and `/contacts/frequent` would.
+   * Through the Next proxy this is `/api/contacts/directory` — a dedicated
+   * route file (app/api/contacts/directory/route.ts) forwards
+   * `/contacts/directory` to the backend verbatim. App Router gives static
+   * segments precedence over the `[id]` dynamic route, so it never lands in
+   * `[id]`; the same is true of `/contacts/search` and `/contacts/frequent`.
    */
   async getContactDirectory(): Promise<ApiResponse<{ emails: string[] }>> {
     return this.get('/contacts/directory');
@@ -1148,9 +1150,11 @@ export class QuantMailApiClient {
    * single 20-row page the way `getContacts({ page: 1 })` is. Backs the
    * composer's contact autocomplete.
    *
-   * Through the Next proxy this is `/api/contacts/frequent`, which lands in the
-   * `[id]` route and forwards `/contacts/frequent` verbatim — the same path
-   * `getContactDirectory` relies on. `limit` is clamped to 1..100 by the backend.
+   * Through the Next proxy this is `/api/contacts/frequent` — a dedicated
+   * route file (app/api/contacts/frequent/route.ts) forwards
+   * `/contacts/frequent` to the backend verbatim. App Router static segments
+   * take precedence over the `[id]` dynamic route, so it never lands in `[id]`.
+   * `limit` is clamped to 1..100 by the backend.
    */
   async getFrequentContacts(limit?: number): Promise<ApiResponse<Contact[]>> {
     return this.get('/contacts/frequent', { params: { limit } });
@@ -1191,6 +1195,18 @@ export class QuantMailApiClient {
 
   async mergeContacts(primaryId: string, duplicateIds: string[]): Promise<ApiResponse<Contact>> {
     return this.post('/contacts/merge', { primaryId, duplicateIds });
+  }
+
+  /**
+   * Persist a "keep separate" decision for one duplicate pair so it stops
+   * reappearing on rescan. The backend normalizes the pair order and stores
+   * one row per (user, pair); `getContactDuplicates` filters those out.
+   */
+  async dismissDuplicatePair(
+    primaryId: string,
+    duplicateId: string,
+  ): Promise<ApiResponse<{ dismissed: boolean }>> {
+    return this.post('/contacts/duplicates/dismiss', { primaryId, duplicateId });
   }
 
   async deduplicateContacts(): Promise<ApiResponse<{ mergedCount: number }>> {

@@ -485,22 +485,22 @@ export interface ContactSuggestion {
   frequency?: number;
 }
 
+/**
+ * A contact as the backend API actually returns it (Prisma `Contact` row —
+ * id, userId, name, email, avatar, phone, company, tags, isFavorite,
+ * frequency, lastContactedAt, createdAt, updatedAt). Fields the backend never
+ * sends (firstName/lastName/title/addresses/notes/birthday/socialLinks) were
+ * removed: they never rendered and invented API shape the server does not
+ * have. `avatar` is the backend's URL-string column — the only avatar field.
+ */
 export interface Contact extends BaseEntity {
   userId: string;
   email: string;
   name: string;
-  firstName?: string;
-  lastName?: string;
   phone?: string;
   company?: string;
-  title?: string;
-  avatarUrl?: string;
   avatar?: string;
-  addresses: ContactAddress[];
   tags: string[];
-  notes?: string;
-  birthday?: string;
-  socialLinks: Record<string, string>;
   lastContactedAt?: Date;
   isFavorite: boolean;
   frequency?: number;

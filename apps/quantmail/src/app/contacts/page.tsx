@@ -106,6 +106,7 @@ export default function ContactsPage() {
     phone: '',
     company: '',
     tags: '',
+    avatar: '',
   });
 
   // Sync tab from URL query params
@@ -248,14 +249,26 @@ export default function ContactsPage() {
     }
   }, [dedupPairs, refetch]);
 
-  const handleDedupKeepSeparate = useCallback((collisionId?: string) => {
-    setDedupPairs((prev) => {
-      if (!prev) return prev;
-      const dropId = collisionId ?? prev[0]?.id;
-      return prev.filter((p) => p.id !== dropId);
-    });
+  // P1 QM-SCREEN-012 fix 4: "keep separate" used to filter client state only, so
+  // the pair reappeared on the next rescan. It now persists via
+  // POST /contacts/duplicates/dismiss; the local filter only runs after the
+  // backend confirms the dismissal was recorded.
+  const handleDedupKeepSeparate = useCallback(async (collisionId?: string) => {
+    const target = dedupPairs?.find((p) => p.id === collisionId) ?? dedupPairs?.[0];
+    if (!target) return;
+    try {
+      const res = await apiClient.dismissDuplicatePair(target.recordA.id, target.recordB.id);
+      if (!res.success) {
+        showToast({ text: 'Could not save this choice — the pair may reappear on rescan', type: 'error' });
+        return;
+      }
+    } catch {
+      showToast({ text: 'Could not save this choice — the pair may reappear on rescan', type: 'error' });
+      return;
+    }
+    setDedupPairs((prev) => (prev ? prev.filter((p) => p.id !== target.id) : prev));
     showToast({ text: 'Records preserved separately', type: 'info' });
-  }, []);
+  }, [dedupPairs]);
 
   const createContact = useCreateContact();
   const updateContact = useUpdateContact();
@@ -348,7 +361,7 @@ export default function ContactsPage() {
   };
 
   const handleOpenCreate = useCallback(() => {
-    setFormData({ name: '', email: '', phone: '', company: '', tags: '' });
+    setFormData({ name: '', email: '', phone: '', company: '', tags: '', avatar: '' });
     setEditingContact(null);
     setShowCreateModal(true);
   }, []);
@@ -367,6 +380,7 @@ export default function ContactsPage() {
       phone: contact.phone || '',
       company: contact.company || '',
       tags: contact.tags?.join(', ') || '',
+      avatar: contact.avatar || '',
     });
     setEditingContact(contact);
     setShowCreateModal(true);
@@ -382,6 +396,9 @@ export default function ContactsPage() {
       email: formData.email.trim(),
       phone: formData.phone.trim() || undefined,
       company: formData.company.trim() || undefined,
+      // The backend zod schema requires a valid URL for `avatar`; an empty
+      // string would 400, so it is omitted when blank.
+      avatar: formData.avatar.trim() || undefined,
       tags: formData.tags
         ? formData.tags
             .split(',')
@@ -1058,7 +1075,7 @@ export default function ContactsPage() {
                                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                     <Avatar
                                       name={contactDisplayName(contact)}
-                                      src={contact.avatarUrl}
+                                      src={contact.avatar ?? undefined}
                                       size="sm"
                                     />
                                     <div className="min-w-0 flex-1">
@@ -1151,7 +1168,6 @@ export default function ContactsPage() {
             <div className="hidden md:flex flex-1 h-full overflow-y-auto bg-[var(--quant-background)] p-6 lg:p-10 flex-col">
               <ContactDetailSheet
                 contact={selectedContact}
-                recentMail={recentMail}
                 onEdit={(c) => handleOpenEdit(c)}
                 onDelete={(id, name) => handleDelete(id, name)}
                 onToggleFavorite={(c) => handleToggleFavorite(c)}
@@ -1178,7 +1194,6 @@ export default function ContactsPage() {
             <ContactDetailSheet
               contact={selectedContact}
               onClose={() => setShowMobileSheet(false)}
-              recentMail={recentMail}
               onEdit={(c) => {
                 setShowMobileSheet(false);
                 handleOpenEdit(c);
@@ -1306,6 +1321,24 @@ export default function ContactsPage() {
                 value={formData.tags}
                 onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
                 placeholder="VIP, Executive, Engineering"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)]"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="contact-avatar"
+                className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
+              >
+                Avatar image URL (optional)
+              </label>
+              <input
+                id="contact-avatar"
+                name="avatar"
+                type="url"
+                value={formData.avatar}
+                onChange={(e) => setFormData({ ...formData, avatar: e.target.value })}
+                placeholder="https://example.com/photo.jpg"
                 className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)]"
               />
             </div>

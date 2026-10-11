@@ -122,7 +122,7 @@ export function RecipientChipInput({
         addRecipient({
           name: suggestions[highlightedIndex]?.name,
           email: suggestions[highlightedIndex]?.email,
-          avatarUrl: suggestions[highlightedIndex]?.avatarUrl,
+          avatarUrl: suggestions[highlightedIndex]?.avatar,
         });
         return;
       }
@@ -297,7 +297,7 @@ export function RecipientChipInput({
                 addRecipient({
                   name: contact.name,
                   email: contact.email,
-                  avatarUrl: contact.avatarUrl,
+                  avatarUrl: contact.avatar,
                 });
               }}
               onMouseEnter={() => setHighlightedIndex(idx)}

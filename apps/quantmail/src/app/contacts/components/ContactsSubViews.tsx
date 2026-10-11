@@ -3,6 +3,8 @@
 import React from 'react';
 import type { Contact } from '../../../types';
 import { sanitizeSnippetText } from '../../../lib/threading';
+import { apiClient } from '../../../services/api-client';
+import { Avatar } from '@quant/shared-ui';
 
 export interface SovereignContact {
   id: string;
@@ -894,7 +896,6 @@ export interface ContactDetailSheetProps {
   onEdit?: (contact: any) => void;
   onDelete?: (id: string, name?: string) => void;
   onToggleFavorite?: (contact: any) => void;
-  recentMail?: Array<any>;
   /**
    * Real shared meetings with this contact. When empty or undefined the honest
    * empty state renders — meetings are never invented.
@@ -913,7 +914,6 @@ export function ContactDetailSheet({
   onEdit,
   onDelete,
   onToggleFavorite,
-  recentMail = [],
   meetings,
   onCall,
   onEmail,
@@ -937,23 +937,64 @@ export function ContactDetailSheet({
   // and React throws "Rendered more hooks than during the previous render",
   // crashing the whole contacts page into the global error boundary.
   const contactEmailLower = (contact?.email || '').toLowerCase();
-  const contactThreads = React.useMemo(() => {
-    if (!contactEmailLower) return [];
-    const seen = new Set<string>();
-    const list: any[] = [];
-    for (const mail of recentMail) {
-      const participants = [mail.from, ...(mail.to || []), ...(mail.cc || [])];
-      const match = participants.some((p: any) => p?.email?.toLowerCase() === contactEmailLower);
-      if (match) {
-        const id = mail.threadId || mail.id;
-        if (!seen.has(id)) {
-          seen.add(id);
-          list.push(mail);
-        }
-      }
+  // The backend `avatar` column holds a URL string when set; SovereignContact
+  // rows never have one, so this is the honest fallback to initials.
+  const contactAvatarUrl = (contact as Contact | null)?.avatar || null;
+
+  // P1 QM-SCREEN-012 fix 2: "Mail Conversations" used to filter `recentMail`
+  // (the first INBOX page only) — page-one-only and outbound-blind. It now
+  // searches real mail twice: once for mail FROM the contact, once for mail TO
+  // them (which covers sent), then dedupes by thread, sorts newest-first and
+  // caps at 20. The empty state only renders after both searches complete, so
+  // "no threads" is never claimed before the search actually ran.
+  const [threadSearch, setThreadSearch] = React.useState<{ searched: boolean; mails: any[] }>({
+    searched: false,
+    mails: [],
+  });
+
+  React.useEffect(() => {
+    setThreadSearch({ searched: false, mails: [] });
+    if (!contactEmailLower) {
+      setThreadSearch({ searched: true, mails: [] });
+      return;
     }
-    return list.slice(0, 5);
-  }, [recentMail, contactEmailLower]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [inbound, outbound] = await Promise.all([
+          apiClient.searchEmails({ query: `from:${contactEmailLower}`, pageSize: 20 }),
+          apiClient.searchEmails({ query: `to:${contactEmailLower}`, pageSize: 20 }),
+        ]);
+        const seen = new Set<string>();
+        const merged: any[] = [];
+        for (const res of [inbound, outbound]) {
+          const items = res.success && Array.isArray(res.data) ? res.data : [];
+          for (const mail of items) {
+            const id = String(mail.threadId || mail.id || '');
+            if (!id || seen.has(id)) continue;
+            seen.add(id);
+            merged.push(mail);
+          }
+        }
+        merged.sort(
+          (a, b) =>
+            new Date(b.receivedAt || b.date || 0).getTime() -
+            new Date(a.receivedAt || a.date || 0).getTime(),
+        );
+        if (!cancelled) setThreadSearch({ searched: true, mails: merged.slice(0, 20) });
+      } catch {
+        // A failed search is an honest "searched, found nothing we could
+        // load" — never a fabricated list, never a silent hang.
+        if (!cancelled) setThreadSearch({ searched: true, mails: [] });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [contactEmailLower]);
+
+  const contactThreads = threadSearch.mails;
+  const threadsSearched = threadSearch.searched;
 
   // Shared meetings for this contact — only real, caller-supplied meetings.
   // The previously hardcoded "Product Sync / Architecture Review" entries
@@ -997,15 +1038,32 @@ export function ContactDetailSheet({
       {/* Top Header Row with Actions */}
       <div className="flex items-start justify-between gap-4 pb-5 border-b border-[#232938]">
         <div className="flex items-start gap-4 min-w-0 flex-1">
-          {/* Large Avatar */}
+          {/* Large Avatar: real photo when the contact has one, honest
+              initials+gradient fallback when not — never a fake face. */}
           <div className="relative shrink-0">
-            <div
-              className={`flex size-18 sm:size-20 items-center justify-center rounded-2xl bg-gradient-to-br ${avatarGradient} text-xl sm:text-2xl font-black text-white shadow-xl ring-2 ${
-                isFavorite ? 'ring-[#FFB020]' : 'ring-white/10'
-              }`}
-            >
-              {initials}
-            </div>
+            {contactAvatarUrl ? (
+              <div
+                className={`size-18 sm:size-20 overflow-hidden rounded-2xl shadow-xl ring-2 ${
+                  isFavorite ? 'ring-[#FFB020]' : 'ring-white/10'
+                }`}
+              >
+                <Avatar
+                  src={contactAvatarUrl}
+                  name={contactDisplayName(contact)}
+                  size="xl"
+                  shape="rounded"
+                  className="!size-full !rounded-2xl"
+                />
+              </div>
+            ) : (
+              <div
+                className={`flex size-18 sm:size-20 items-center justify-center rounded-2xl bg-gradient-to-br ${avatarGradient} text-xl sm:text-2xl font-black text-white shadow-xl ring-2 ${
+                  isFavorite ? 'ring-[#FFB020]' : 'ring-white/10'
+                }`}
+              >
+                {initials}
+              </div>
+            )}
             {isFavorite && (
               <div className="absolute -bottom-1.5 -right-1.5 flex size-6 items-center justify-center rounded-full bg-[#FFB020] text-black shadow-md ring-2 ring-[var(--quant-background)]">
                 <svg className="size-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -1313,7 +1371,11 @@ export function ContactDetailSheet({
           </button>
         </div>
 
-        {contactThreads.length > 0 ? (
+        {!threadsSearched ? (
+          <div className="text-center py-5 border border-dashed border-[#1E2536] rounded-xl text-xs text-[#6B7280]">
+            Searching mail for this contact&hellip;
+          </div>
+        ) : contactThreads.length > 0 ? (
           <div className="space-y-2">
             {contactThreads.map((mail: any) => (
               <div
