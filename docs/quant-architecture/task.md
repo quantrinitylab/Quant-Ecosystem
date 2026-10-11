@@ -624,11 +624,29 @@ PRESENT: auth airtight (requireUserId on all event routes; GET/PUT/DELETE owner-
 NOT VERIFIED (needs live/auth): create/edit/detail/RSVP E2E on real data, occurrence edit/delete, timezone rendering live, reminder firing, RSVP 403 path UX, driveLink round-trip (after fix), mobile detail layout.
 Live evidence: /tmp/lane1-audit/desktop-calendar-009.png + desktop-event-detail-009.png + mobile-event-detail-009.png (all sign-in redirect).
 
-Lane-1 R2 REGRESSION — CLAIM
-Status: [~] (R2 regression audit in progress)
-Owner: LANE-1
-Branch: lane-1/audit-qm-screen-009-events-r2
-Audit started (R2): 2026-10-11 ~19:35 IST (lane-1 deep audit loop)
+Lane-1 R2 REGRESSION (2026-10-11 ~19:35 IST, lane-1 deep audit loop): re-audit of calendar event create/edit/detail/RSVP on origin/main @ 1d02f59b since R1 audit (~03:00 IST). Code: backend/routes/calendar.ts (event routes, toEventDto, __QUANT_META__ helpers), src/app/calendar/event/[id]/page.tsx (detail), components/CalendarEventForm.tsx, page.tsx save wiring. LIVE: logged-out only — /calendar + /calendar/event/<id> redirect to sign-in on desktop+mobile (clean render, shots /tmp/lane1-009r2/desktop-calendar.png + desktop-event-detail.png + mobile-calendar.png); /api/calendar/events + /api/calendar/events/:id → 401 logged out (auth airtight). Signed-in flows still needs-auth.
+VERIFIED CLOSED (R1 fixes now MERGED + in main):
+- P1 driveLink dropped end-to-end: PR #824 MERGED 2026-10-10T22:16Z; setMetaDriveLink() on all create/update paths (calendar.ts:325, 1547, 1853-1858, 1921, 2018, 2125-2132), toEventDto returns driveLink (calendar.ts:433) parsed from __QUANT_META__ (:388), detail page renders Files section (link button for URLs, plain text otherwise, honest empty state — event/[id]/page.tsx:417-434), openEditSheet restores it.
+- P1 delete-dialog copy-truth: PR #824 MERGED; copy now "\"{title}\" will be permanently deleted from your calendar." (page.tsx:543) — provable, no attendee-visibility implication.
+- P2 RSVP widget for owner: PR #823 MERGED 2026-10-10T22:26Z; viewerIsAttendee in GET DTO (calendar.ts:1432), widget gated on it (page.tsx:480); 403 fallback kept.
+- P2 detail-edit timezone: PR #823 MERGED; TIMEZONES selector in detail edit form (page.tsx:311-316), seeded from event.timeZone, sent in PUT payload.
+- P2 GET 404 on occurrence ids: PR #823 MERGED; GET resolves <parentId>_<iso> like PUT/DELETE (calendar.ts:1424-1426) — parent lookup + owner check + occurrence synthesis.
+Changed since R1 (verified no regression): PR #838 (merged 2026-10-11 08:16 IST) replaced polynomial QUANT_META regex with linear indexOf parse (CodeQL ReDoS) — diff reviewed line-by-line: matchQuantMeta/stripQuantMeta semantics exactly mirror the old lazy-regex behavior at every call site (setMetaDriveLink, preserveMetaHeader, toEventDto, occurrence-create path); driveLink/type/priority round-trip intact. #877/#883/#891 fake-purge wave touched CalendarBookingView/reminders only, not the event detail path.
+Tests on main: backend/__tests__/calendar.routes.test.ts + calendar-recurring.test.ts + calendar-recurrence-parity.test.ts = 100/100 pass (run this audit).
+R2 CONFIRMED STILL OPEN (re-verified in current code, unchanged):
+- [ ] FINDING P1: no attendee invitations dispatched on create/edit — POST /events (calendar.ts:1543) stores attendees, zero mail dispatch; attendees never see the event (owner-scoped GET). -> BLOCKER: user design decision (invite semantics, SES sandbox)
+- [ ] FINDING P1: RSVP changes + cancellations silent — rsvp handler (calendar.ts:2093+) + DELETE (:2012) do no notification; no notify/mail/push anywhere in calendar flows. -> BLOCKER: user design decision (notification semantics)
+- [ ] FINDING P2: detail page orphaned from calendar home — taps still openEditSheet (page.tsx:1279-1331); only UniversalSearchResults links to the detail page. -> BLOCKER: user design decision (nav pattern)
+- [ ] FINDING P2: DTO defaults missing timezone to 'UTC' — toEventDto (calendar.ts:260, 423) `timeZone || timezone || 'UTC'`; tz-less events render in UTC, shifting wall-clock for IST users.
+- [ ] FINDING P2: attendee input no validation/autocomplete — handleAddAttendee accepts any string ("foo" persists, CalendarEventForm.tsx:97-110); backend attendeeInput = z.string().max(320), no email format check (calendar.ts:25-26).
+- [ ] FINDING P2: no QuantMeet/conferencing link generation in create/edit — CalendarQuantMeetView standalone, zero quantmeet refs in CalendarEventForm. -> BLOCKER: user design decision (conferencing backend)
+- [ ] FINDING P3: `as never` casts on save payloads — page.tsx:1027-1028, event/[id]/page.tsx:176; schema drift stays silent runtime.
+- [ ] FINDING P3: no cancellation semantics — status enum accepts 'cancelled' (calendar.ts:67) but no route sets it; DELETE hard-deletes (list filters cancelled, :882).
+- [ ] FINDING P3: detail page shows no related mail — Files section now present via driveLink fix (partial mitigation); mail-relation still absent; ?attendee= deep link is mail→calendar-create only.
+R2 NEW FINDINGS: 0 (0 P0 / 0 P1) → no fix agents dispatched.
+NOT VERIFIED (needs live/auth, unchanged from R1): create/edit/detail/RSVP E2E on real data, occurrence edit/delete, timezone rendering live, reminder firing, RSVP 403 path UX, driveLink round-trip post-#824/#838, mobile detail layout.
+Live evidence: /tmp/lane1-009r2/desktop-calendar.png + desktop-event-detail.png + mobile-calendar.png (all sign-in redirect).
+Status: [x] DONE (R2 regression complete 2026-10-11 ~20:00 IST; all merged R1 fixes verified in main; fixes tracked via their PRs)
 
 ## QM-SCREEN-010 — Drive home / folders / files / recent / shared
 Status: [x] DONE — LANE-1, branch lane1-audit-010. AUDIT COMPLETE (2026-10-11 ~04:15 IST): 11 P0, 5 P1, 11 P2 + requirement gaps logged in task body. Live: /drive → sign-in desktop+mobile; drive APIs 401 logged out (airtight); signed-in flows needs-auth. FIX AGENTS (PR-only, tracked separately): lane1-fix-010-proxy-gaps (P0 proxy gaps + move mismatch + share-id bug), lane1-fix-010-fake-purge (fake-data purge + P1s + P2 cleanup). Rotation → QM-SCREEN-011.
