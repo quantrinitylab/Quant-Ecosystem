@@ -1,6 +1,30 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { createAppError } from '@quant/server-core';
 import { ReceiptService } from '../services/receipt.service';
 import { publishConversationEvent } from '../services/realtime-publisher';
+
+// QC-F-018 — identity forgery fix.
+// Recipient/sender identity comes ONLY from the authenticated request context
+// (`request.auth`, populated by the server-core auth plugin from the verified
+// JWT). Body/query fields `recipientId` / `senderId` are NEVER trusted:
+// previously they won over `(request as any).user?.id` — a field no auth code
+// ever sets — so any caller could forge delivered/read receipts (and the
+// realtime ticks broadcast from them) in any other user's name, and calls
+// without auth were attributed to the fabricated identity 'unknown'.
+// Missing auth now fails closed with 401, matching games/memories routes.
+interface AuthedRequest {
+  auth?: { userId?: string };
+  user?: { id?: string };
+}
+
+function requireUserId(request: unknown): string {
+  const r = request as AuthedRequest;
+  const userId = r.auth?.userId ?? r.user?.id;
+  if (!userId) {
+    throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+  }
+  return userId;
+}
 
 /**
  * Resolve the conversation id for a message (needed to address the realtime
@@ -31,8 +55,7 @@ const receiptsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post('/:messageId/delivered', async (request, reply) => {
     const { messageId } = request.params as { messageId: string };
-    const body = request.body as { recipientId?: string };
-    const recipientId = body.recipientId || (request as any).user?.id || 'unknown';
+    const recipientId = requireUserId(request);
     const result = await receiptService.markMessageDelivered(messageId, recipientId);
 
     // K25 — realtime tick for REST-recorded delivery receipts (contract §28
@@ -51,8 +74,7 @@ const receiptsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post('/:messageId/read', async (request, reply) => {
     const { messageId } = request.params as { messageId: string };
-    const body = request.body as { recipientId?: string };
-    const recipientId = body.recipientId || (request as any).user?.id || 'unknown';
+    const recipientId = requireUserId(request);
     const result = await receiptService.markMessageRead(messageId, recipientId);
 
     // K25 — realtime tick for REST-recorded read receipts.
@@ -70,8 +92,7 @@ const receiptsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get('/:messageId/status', async (request, reply) => {
     const { messageId } = request.params as { messageId: string };
-    const query = request.query as { senderId?: string };
-    const senderId = query.senderId || (request as any).user?.id || 'unknown';
+    const senderId = requireUserId(request);
     const result = await receiptService.getMessageReceiptStatus(messageId, senderId);
     return reply.send({ success: true, data: result });
   });
