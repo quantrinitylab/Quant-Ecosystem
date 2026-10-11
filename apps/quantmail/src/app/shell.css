@@ -263,6 +263,18 @@
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
+   Row "…" menu — the touch door to the hover bar's actions. It is gated on
+   hover CAPABILITY, not on viewport width: a touch laptop or a landscape
+   tablet gets neither the hover bar (hidden by the rule above) nor a
+   width-gated menu, so without this the row would offer zero actions. A
+   fine-pointer desktop keeps the hover bar only — the menu would sit directly
+   under it.
+   ────────────────────────────────────────────────────────────────────────── */
+@media (hover: hover) and (pointer: fine) {
+  .row-touch-menu { display: none; }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
    Sidebar layout: compose button is sticky so the label list scrolls
    underneath it without the button scrolling away.
    ────────────────────────────────────────────────────────────────────────── */

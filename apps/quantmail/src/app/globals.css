@@ -2495,7 +2495,17 @@ body {
   position: absolute;
   right: 0.5rem;
   top: 50%;
-  transform: translateY(-50%);
+  /*
+   * Vertical centering lives in the standalone `translate` property, NOT in
+   * `transform`. The bar is a framer-motion `motion.div` that writes an inline
+   * `transform: translateX(...)` for its slide-in animation — an inline
+   * `transform` replaces the stylesheet's `transform: translateY(-50%)`
+   * wholesale, which parked the bar's TOP edge at the row's vertical midpoint
+   * and let its bottom half spill onto the row below (P1 2026-10-11). The
+   * `translate` property composes with `transform` instead of being replaced
+   * by it, so the slide-in keeps working and the bar stays centered.
+   */
+  translate: 0 -50%;
   display: flex;
   align-items: center;
   gap: 0.15rem;

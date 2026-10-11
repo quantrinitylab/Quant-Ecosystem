@@ -387,6 +387,13 @@ function EmailRow({
   onSnooze,
 }: EmailRowProps) {
   const [isHovered, setIsHovered] = useState(false);
+  /*
+   * Keyboard users get the same quick actions a pointer gets on hover: the
+   * row reveals `HoverActions` while it (or one of its action buttons) holds
+   * focus. Without this the bar is mouse-only, which is the same unreachable
+   * class of bug as hover-only on touch.
+   */
+  const [isRowFocused, setIsRowFocused] = useState(false);
   const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
   const [showRowMenu, setShowRowMenu] = useState(false);
   /** Row-level delete always asks first — no silent deletes from the row. */
@@ -551,6 +558,14 @@ function EmailRow({
         }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        onFocus={() => setIsRowFocused(true)}
+        onBlur={(event) => {
+          // Focus moving between the row and its own action buttons keeps the
+          // bar open; only focus leaving the row entirely closes it.
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setIsRowFocused(false);
+          }
+        }}
         onTouchStart={(event) => {
           handleTouchStart();
           swipe.handlers.onTouchStart(event);
@@ -670,9 +685,11 @@ function EmailRow({
             {sanitizeSnippetText(email.snippet || email.bodyText)}
           </p>
         </div>
-        {/* Hover actions bar — quick actions on hover (Desktop) */}
+        {/* Hover actions bar — quick actions on hover (pointer) or focus (keyboard).
+            Touch devices get the same actions through the row's "…" menu below,
+            because a finger has no hover. */}
         <AnimatePresence>
-          {(isHovered || showSnoozeMenu) && (
+          {(isHovered || showSnoozeMenu || isRowFocused) && (
             <HoverActions
               emailId={thread.id}
               isRead={thread.isRead}
@@ -730,7 +747,7 @@ function EmailRow({
           </button>
         )}
         {/* In Spam mode: quick delete button */}
-        {isSpamMode && !isHovered && !showSnoozeMenu && (
+        {isSpamMode && !isHovered && !showSnoozeMenu && !isRowFocused && (
           <button
             type="button"
             className="flex items-center justify-center shrink-0 p-1.5 rounded-xl min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 text-[var(--quant-muted-foreground)] hover:text-rose-400 hover:bg-rose-500/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
@@ -755,14 +772,19 @@ function EmailRow({
           </button>
         )}
         {/*
-          Archive and Pin, the two row-level actions, as buttons rather than as
-          the two ends of a drag. `sm:hidden` on Archive because a pointer already
-          has it in `HoverActions` and a permanent button there would sit under the
-          hover bar; a finger has no hover, so on a phone this is the only way to
-          archive without opening the thread.
+          The row's "…" menu: the touch (and extra keyboard) door to the same
+          quick actions the hover bar offers a pointer — Pin, Star, Mark
+          read/unread, Snooze, Archive, Move to Trash (behind a confirmation).
+          Visibility is NOT width-gated: `.row-touch-menu` (shell.css) hides
+          only on `(hover: hover) and (pointer: fine)`, where the hover bar
+          already covers everything. A coarse pointer at ANY width — phone,
+          landscape tablet, touch laptop — gets the menu, because the hover
+          bar is CSS-hidden there and the row would otherwise offer zero
+          actions. Swipe (Archive/Snooze) and long-press (select → bulk
+          actions) remain as accelerators, not the only door.
         */}
         {!isSpamMode && (
-          <div className="sm:hidden shrink-0" onClick={(e) => e.stopPropagation()}>
+          <div className="row-touch-menu shrink-0" onClick={(e) => e.stopPropagation()}>
             <AnchoredMenu
               icon={
                 <svg className="size-4" viewBox="0 0 24 24" fill="currentColor">
@@ -931,11 +953,12 @@ function EmailRow({
             </AnchoredMenu>
           </div>
         )}
-        {/* Pin button: shown on resting row only when pinned, or on hover via HoverActions */}
+        {/* Pin button: shown on resting row only when pinned, or on hover/focus via HoverActions */}
         {!isSpamMode &&
           (email as { isPinned?: boolean }).isPinned &&
           !isHovered &&
-          !showSnoozeMenu && (
+          !showSnoozeMenu &&
+          !isRowFocused && (
             <button
               type="button"
               className="flex items-center justify-center shrink-0 p-1.5 rounded-xl transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] text-[var(--quant-primary)] fill-[var(--quant-primary)] bg-[var(--quant-primary)]/15"
@@ -957,7 +980,7 @@ function EmailRow({
             </button>
           )}
         {/* Star badge: shown on resting row when starred (independent from pin) */}
-        {!isSpamMode && email.isStarred && !isHovered && !showSnoozeMenu && (
+        {!isSpamMode && email.isStarred && !isHovered && !showSnoozeMenu && !isRowFocused && (
           <button
             type="button"
             className="flex items-center justify-center shrink-0 p-1.5 rounded-xl transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC531] text-[#FFC531] fill-[#FFC531] bg-[#FFC531]/15"
