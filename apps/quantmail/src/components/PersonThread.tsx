@@ -48,6 +48,10 @@ function plainBodyText(message: Email): string {
 
 function formatMessageTime(receivedAt: Date): string {
   const date = receivedAt instanceof Date ? receivedAt : new Date(receivedAt);
+  // Guard the same family as dayKey/formatDayDivider: an unparseable
+  // receivedAt must degrade to an empty fallback — never the literal
+  // "Invalid Date" under a message bubble.
+  if (Number.isNaN(date.getTime())) return '';
   const now = new Date();
   const sameDay = date.toDateString() === now.toDateString();
   const time = date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
