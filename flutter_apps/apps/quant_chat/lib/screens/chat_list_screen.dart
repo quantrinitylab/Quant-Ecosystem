@@ -297,7 +297,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Widget _buildFilterChipsBar() {
     final filters = [
       {'key': 'all', 'label': 'All Chats', 'icon': Icons.all_inclusive_rounded},
-      {'key': 'unread', 'label': 'Unread (4)', 'icon': Icons.mark_chat_unread_rounded},
+      {'key': 'unread', 'label': 'Unread', 'icon': Icons.mark_chat_unread_rounded},
       {'key': 'pinned', 'label': 'Pinned', 'icon': Icons.push_pin_rounded},
     ];
 

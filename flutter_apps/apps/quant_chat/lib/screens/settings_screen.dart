@@ -13,9 +13,12 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _enableHardwareKeystore = true;
+  // Protection toggles default OFF: neither keystore sealing nor biometric
+  // unlock is wired to any platform API in this build, so an ON default
+  // would claim an active protection that does not exist.
+  bool _enableHardwareKeystore = false;
   bool _enable120HzImpeller = true;
-  bool _enableBiometricUnlock = true;
+  bool _enableBiometricUnlock = false;
   bool _enableCallRelay = false;
   String _disappearingMessagesTimer = 'Off';
 
@@ -36,7 +39,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildSettingCard([
               _buildSwitchTile(
                 title: 'Hardware Keystore Storage',
-                subtitle: 'Keys sealed in Android KeyStore / iOS Secure Enclave',
+                subtitle: 'Key storage is not wired up in this build',
                 icon: Icons.vpn_key_rounded,
                 iconColor: QuantColors.moltenOrange,
                 value: _enableHardwareKeystore,
@@ -45,7 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const Divider(color: QuantColors.hairlineBorder, height: 1),
               _buildSwitchTile(
                 title: 'Biometric App Lock',
-                subtitle: 'Require Fingerprint or Face ID on app launch',
+                subtitle: 'Biometric unlock is not wired up in this build',
                 icon: Icons.fingerprint_rounded,
                 iconColor: QuantColors.statusSuccess,
                 value: _enableBiometricUnlock,
@@ -66,15 +69,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildSectionHeader('WEBRTC AUDIO/VIDEO MESH', Icons.cell_tower_rounded),
             _buildSettingCard([
               _buildNavigationTile(
-                title: 'STUN / TURN Sovereign Nodes',
-                subtitle: 'Fastify Gateway: stun:mesh.quant.network:3478',
+                title: 'STUN / TURN Nodes',
+                subtitle: 'Not configured in this build',
                 icon: Icons.dns_rounded,
                 iconColor: QuantColors.sunsetGold,
                 onTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       backgroundColor: QuantColors.darkSlateCard,
-                      content: Text('P2P Mesh STUN/TURN latency: 14ms ping'),
+                      content: Text('No STUN/TURN nodes are configured in this build.'),
                     ),
                   );
                 },
@@ -82,7 +85,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const Divider(color: QuantColors.hairlineBorder, height: 1),
               _buildSwitchTile(
                 title: 'Always Relay Calls',
-                subtitle: 'Relay calls through sovereign node to hide peer IP',
+                subtitle: 'Call relay is not available in this build',
                 icon: Icons.shield_rounded,
                 iconColor: QuantColors.emeraldMatrix,
                 value: _enableCallRelay,
@@ -104,8 +107,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const Divider(color: QuantColors.hairlineBorder, height: 1),
               _buildNavigationTile(
-                title: 'Instant Search FTS5 Index',
-                subtitle: '3.4 MB indexed locally (<5ms query speed)',
+                title: 'On-Device Search Index',
+                subtitle: 'Local search index is not built in this build',
                 icon: Icons.storage_rounded,
                 iconColor: QuantColors.obsidianPurple,
                 onTap: () {},
@@ -164,20 +167,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const Row(
                   children: [
                     Text(
-                      'Quant Sovereign Peer',
+                      // No account or identity key exists in this build; the
+                      // card previously showed an invented peer id with a
+                      // verified badge.
+                      'Not signed in',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
                       ),
                     ),
-                    SizedBox(width: 6),
-                    Icon(Icons.verified_rounded, size: 16, color: QuantColors.statusSuccess),
                   ],
                 ),
                 const SizedBox(height: 3),
                 const Text(
-                  'peer:0x8f4c...3e1a (Ed25519)',
+                  'No account is connected in this build',
                   style: TextStyle(
                     fontSize: 12,
                     fontFamily: 'monospace',
@@ -188,16 +192,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: QuantColors.statusSuccess.withOpacity(0.14),
+                    color: QuantColors.textMuted.withOpacity(0.14),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Text(
-                    'SIGNAL DOUBLE RATCHET ACTIVE',
+                    'ENCRYPTION NOT ACTIVE',
                     style: TextStyle(
                       fontSize: 9,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.4,
-                      color: QuantColors.statusSuccess,
+                      color: QuantColors.textMuted,
                     ),
                   ),
                 ),

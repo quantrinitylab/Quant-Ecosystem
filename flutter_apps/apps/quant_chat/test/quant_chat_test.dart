@@ -29,33 +29,37 @@ void main() {
   // 1. DOMAIN MODEL & 4-STAGE TICK PROGRESSION UNIT TESTS
   // ===========================================================================
   group('QuantChat Domain Models & 4-Stage Tick Pipeline', () {
-    test('MessageDeliveryStatus: 4-stage tick progression, stage names, vector icons and colors', () {
-      expect(MessageDeliveryStatus.values.length, 4);
+    test('MessageDeliveryStatus: tick progression plus honest notSent terminal state, stage names, vector icons and colors', () {
+      expect(MessageDeliveryStatus.values.length, 5);
       expect(MessageDeliveryStatus.pending.index, 0);
       expect(MessageDeliveryStatus.sent.index, 1);
       expect(MessageDeliveryStatus.delivered.index, 2);
       expect(MessageDeliveryStatus.read.index, 3);
+      expect(MessageDeliveryStatus.notSent.index, 4);
 
       // Verify backward-compatible alias
       expect(MessageDeliveryStatus.sending, equals(MessageDeliveryStatus.pending));
 
-      // Verify 4-stage names
+      // Verify stage names
       expect(MessageDeliveryStatus.pending.stageName, 'Clock');
       expect(MessageDeliveryStatus.sent.stageName, 'SingleGrey');
       expect(MessageDeliveryStatus.delivered.stageName, 'DoubleGrey');
       expect(MessageDeliveryStatus.read.stageName, 'DoubleCyan');
+      expect(MessageDeliveryStatus.notSent.stageName, 'NotSent');
 
       // Verify vector icons
       expect(MessageDeliveryStatus.pending.icon, Icons.access_time_rounded);
       expect(MessageDeliveryStatus.sent.icon, Icons.check_rounded);
       expect(MessageDeliveryStatus.delivered.icon, Icons.done_all_rounded);
       expect(MessageDeliveryStatus.read.icon, Icons.done_all_rounded);
+      expect(MessageDeliveryStatus.notSent.icon, Icons.error_outline_rounded);
 
       // Verify color palette
       expect(MessageDeliveryStatus.pending.color, const Color(0xFF94A3B8));
       expect(MessageDeliveryStatus.sent.color, const Color(0xFF94A3B8));
       expect(MessageDeliveryStatus.delivered.color, const Color(0xFF94A3B8));
       expect(MessageDeliveryStatus.read.color, QuantColors.sovereignCyan);
+      expect(MessageDeliveryStatus.notSent.color, QuantColors.statusError);
     });
 
     testWidgets('DeliveryTickWidget renders appropriate vector icons and cyan tint on read', (tester) async {
@@ -68,6 +72,7 @@ void main() {
                 DeliveryTickWidget(status: MessageDeliveryStatus.sent),
                 DeliveryTickWidget(status: MessageDeliveryStatus.delivered),
                 DeliveryTickWidget(status: MessageDeliveryStatus.read),
+                DeliveryTickWidget(status: MessageDeliveryStatus.notSent),
               ],
             ),
           ),
@@ -77,6 +82,7 @@ void main() {
       expect(find.byIcon(Icons.access_time_rounded), findsOneWidget);
       expect(find.byIcon(Icons.check_rounded), findsOneWidget);
       expect(find.byIcon(Icons.done_all_rounded), findsNWidgets(2));
+      expect(find.byIcon(Icons.error_outline_rounded), findsOneWidget);
     });
 
     test('ChatMessage properties, copyWith, and ephemeral HTTP 410 fields', () {
@@ -99,6 +105,19 @@ void main() {
 
       expect(msg.id, 'msg-test-1');
       expect(msg.deliveryStatus, MessageDeliveryStatus.pending);
+
+      // A message with no explicit status starts as pending — never as the
+      // fabricated default "sent" it used to carry.
+      const defaultedMsg = ChatMessage(
+        id: 'msg-test-default',
+        conversationId: 'conv-test-1',
+        senderId: 'usr-1',
+        senderName: 'CEO Astra',
+        text: 'No status supplied',
+        timestamp: '12:00',
+        isOutgoing: true,
+      );
+      expect(defaultedMsg.deliveryStatus, MessageDeliveryStatus.pending);
       expect(msg.isOutgoing, isTrue);
       expect(msg.isDisappearing, isTrue);
       expect(msg.disappearingDurationSeconds, 30);
@@ -144,6 +163,16 @@ void main() {
       expect(participant.isSpeaking, isTrue);
       expect(participant.isScreenSharing, isFalse);
       expect(participant.latencyMs, 14);
+
+      // Honest default: latency is null until a real measurement exists —
+      // there is no invented 18ms default anymore.
+      const unmeasured = CallParticipant(
+        id: 'part-test-2',
+        name: 'Unmeasured',
+        avatarInitials: 'UN',
+        avatarColor: QuantColors.sovereignCyan,
+      );
+      expect(unmeasured.latencyMs, isNull);
 
       final updated = participant.copyWith(
         isScreenSharing: true,
@@ -221,6 +250,20 @@ void main() {
       expect(call.contactName, 'Test Contact');
       expect(call.callType, QuantCallType.video);
       expect(call.latencyMs, lessThan(24));
+
+      // Honest default: an unmeasured call carries no latency number.
+      const unmeasuredCall = CallHistoryItem(
+        id: 'call-test-2',
+        contactName: 'Unmeasured',
+        contactInitials: 'UN',
+        contactAvatarColor: QuantColors.sovereignCyan,
+        callType: QuantCallType.audio,
+        isIncoming: true,
+        isMissed: false,
+        timestamp: '12:00',
+        duration: '00:00',
+      );
+      expect(unmeasuredCall.latencyMs, isNull);
     });
   });
 
@@ -231,10 +274,16 @@ void main() {
     testWidgets('QuantChatApp builds with obsidian luxury theme and top capsule', (tester) async {
       await tester.pumpWidget(const QuantChatApp());
 
-      expect(find.text('Quant'), findsOneWidget);
-      expect(find.text('Chat'), findsOneWidget);
+      // Brand is a single RichText built from two spans ('Quant' + 'Chat'),
+      // so it must be matched as rich text by its full plain text
+      // (find.text('Quant') could never match a span — pre-existing finder
+      // bug in this test).
+      expect(find.text('QuantChat', findRichText: true), findsOneWidget);
       expect(find.text('Quant AI Copilot'), findsOneWidget);
-      expect(find.text('<24ms E2EE'), findsOneWidget);
+      // Honest capsule: the copilot is not connected, and no invented
+      // latency/encryption claim is shown.
+      expect(find.text('Not connected'), findsOneWidget);
+      expect(find.text('<24ms E2EE'), findsNothing);
 
       expect(find.text('Chats'), findsOneWidget);
       expect(find.text('Calls'), findsOneWidget);
@@ -281,6 +330,10 @@ void main() {
       expect(find.byIcon(Icons.call_outlined), findsOneWidget);
       expect(find.byIcon(Icons.videocam_outlined), findsOneWidget);
 
+      // Honest connection banner instead of a fabricated E2EE claim
+      expect(find.text('Not connected — messages cannot be sent from this build yet'), findsOneWidget);
+      expect(find.text('Hardware Keystore E2EE | Zero-Cloud Plaintext Storage'), findsNothing);
+
       // No fabricated message history renders
       expect(find.textContaining('410 Server Destruction:'), findsNothing);
 
@@ -288,6 +341,43 @@ void main() {
       expect(find.byType(TextField), findsOneWidget);
       expect(find.byIcon(Icons.send_rounded), findsOneWidget);
       expect(find.byIcon(Icons.mic_rounded), findsWidgets);
+    });
+
+    testWidgets('ConversationScreen: sending a message is honest — it stays Not sent and never gains fake ticks', (tester) async {
+      const conv = const ChatConversation(
+        id: 'conv-test-widget',
+        contactId: 'contact-test-widget',
+        name: 'Test Contact',
+        avatarInitials: 'TC',
+        avatarColor: QuantColors.sovereignCyan,
+        lastMessage: '',
+        lastMessageTime: 'Now',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const ConversationScreen(conversation: conv),
+        ),
+      );
+      await tester.pump();
+
+      // Compose and send a message
+      await tester.enterText(find.byType(TextField), 'Hello, is this thing on?');
+      await tester.tap(find.byIcon(Icons.send_rounded));
+      await tester.pump();
+
+      // The composed text is kept locally, clearly marked as not sent
+      expect(find.text('Hello, is this thing on?'), findsOneWidget);
+      expect(find.text('Not sent — no connection'), findsOneWidget);
+      expect(find.byIcon(Icons.error_outline_rounded), findsWidgets);
+
+      // Advance well past the old fabricated tick schedule (350/900/1800ms):
+      // the message must NOT be promoted to sent/delivered/read by timers.
+      await tester.pump(const Duration(seconds: 5));
+      expect(find.text('Not sent — no connection'), findsOneWidget);
+      expect(find.byIcon(Icons.done_all_rounded), findsNothing);
+      expect(find.byIcon(Icons.check_rounded), findsNothing);
     });
 
     testWidgets('ConversationScreen: Voice Memo Recording state, waveform visualizer, discard and send', (tester) async {
@@ -335,9 +425,16 @@ void main() {
 
       // Verify normal composer restored and audio message created
       expect(find.byType(TextField), findsOneWidget);
+
+      // The voice memo is honest too: marked Not sent, and no timer promotes
+      // it to delivered/read.
+      expect(find.text('Not sent — no connection'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+      expect(find.text('Not sent — no connection'), findsOneWidget);
+      expect(find.byIcon(Icons.done_all_rounded), findsNothing);
     });
 
-    testWidgets('WebRTCCallSheet: E2EE badge, contact info, mute, speaker, video toggle and end call', (tester) async {
+    testWidgets('WebRTCCallSheet: honest connection-state badge, contact info, mute, speaker, video toggle and end call', (tester) async {
       const conv = const ChatConversation(
         id: 'conv-test-widget',
         contactId: 'contact-test-widget',
@@ -361,10 +458,21 @@ void main() {
       );
       await tester.pump();
 
-      // Verify E2EE hardware keystore badge
-      expect(find.text('Hardware Keystore E2EE | Zero-Cloud Plaintext'), findsOneWidget);
+      // Verify the honest connection-state badge: no call is in progress,
+      // and no fabricated encryption/codec/telemetry claims are shown
+      expect(find.text('Not connected — no call is in progress'), findsOneWidget);
+      expect(find.text('Calls are not available in this build yet'), findsOneWidget);
       expect(find.text('Test Contact'), findsOneWidget);
-      expect(find.textContaining('VP9 1080p60'), findsOneWidget);
+      expect(find.text('Video call'), findsOneWidget);
+      expect(find.text('Hardware Keystore E2EE | Zero-Cloud Plaintext'), findsNothing);
+      expect(find.textContaining('VP9 1080p60'), findsNothing);
+      expect(find.textContaining('<18ms mesh'), findsNothing);
+
+      // Advancing time must not "connect" the call: the old build flipped
+      // to a fake Connected state with a ticking duration after 600ms.
+      await tester.pump(const Duration(seconds: 3));
+      expect(find.text('Calls are not available in this build yet'), findsOneWidget);
+      expect(find.textContaining('Connected ·'), findsNothing);
 
       // Verify interactive controls exist
       expect(find.byIcon(Icons.mic_rounded), findsOneWidget);
@@ -416,6 +524,13 @@ void main() {
       expect(find.text('No participants yet.'), findsOneWidget);
       expect(find.text('CEO Astra'), findsNothing);
       expect(find.text('Node B (OS Lead)'), findsNothing);
+
+      // Honest call state: the call never connects (previously a 900ms
+      // timer flipped it to a fake "connected" state with fake telemetry)
+      expect(find.text('Call unavailable in this build'), findsOneWidget);
+      expect(find.text('NOT CONNECTED'), findsOneWidget);
+      expect(find.textContaining('ms E2EE'), findsNothing);
+      expect(find.textContaining('Loss:'), findsNothing);
     });
 
     testWidgets('AudioSpaceScreen: honest empty state without fabricated room', (tester) async {
@@ -444,6 +559,22 @@ void main() {
       expect(find.text('Hardware Keystore Storage'), findsOneWidget);
       expect(find.text('120Hz Impeller GPU Acceleration'), findsOneWidget);
       expect(find.text('WEBRTC AUDIO/VIDEO MESH'), findsOneWidget);
+
+      // Honest identity card: no invented peer id, no verified badge, no
+      // "encryption active" claim
+      expect(find.text('Not signed in'), findsOneWidget);
+      expect(find.text('ENCRYPTION NOT ACTIVE'), findsOneWidget);
+      expect(find.textContaining('peer:0x8f4c'), findsNothing);
+      expect(find.text('SIGNAL DOUBLE RATCHET ACTIVE'), findsNothing);
+      expect(find.text('Key storage is not wired up in this build'), findsOneWidget);
+
+      // Scroll down: the STUN/TURN and search-index tiles must not invent
+      // endpoints, measurements, or index statistics
+      await tester.scrollUntilVisible(find.text('On-Device Search Index'), 200);
+      expect(find.text('Not configured in this build'), findsOneWidget);
+      expect(find.text('Local search index is not built in this build'), findsOneWidget);
+      expect(find.textContaining('stun:mesh.quant.network'), findsNothing);
+      expect(find.textContaining('3.4 MB indexed locally'), findsNothing);
     });
 
     testWidgets('CreateGroupSheet: renders avatar picker, subject input, contact chips, admin toggles, and disappearing dropdown', (tester) async {
@@ -621,7 +752,7 @@ void main() {
       expect(selectedData!['fileName'], 'Quant_Mesh_Specification_v3.pdf');
     });
 
-    testWidgets('SafetyNumberScreen: 60 digits displayed in 12 blocks of 5, copy chip, QR matrix, scanner toggle, verification toggle', (tester) async {
+    testWidgets('SafetyNumberScreen: honest unavailable state — no fabricated number, QR, or self-verification', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: SafetyNumberScreen(
@@ -636,46 +767,40 @@ void main() {
       // Verify Title and Peer
       expect(find.text('Verify Safety Number'), findsOneWidget);
       expect(find.text('CEO Astra'), findsOneWidget);
-      expect(find.text('UNVERIFIED'), findsOneWidget);
 
-      // Verify Advisory banner
-      expect(find.textContaining('If the safety number changed, it might mean someone is trying to intercept'), findsOneWidget);
+      // No fabricated verification state: without a real safety number the
+      // peer is NOT AVAILABLE, never VERIFIED/UNVERIFIED against fake digits
+      expect(find.text('NOT AVAILABLE'), findsOneWidget);
+      expect(find.text('Encryption not active'), findsOneWidget);
 
-      // Verify 60-digit safety number section and Copy chip
-      expect(find.text('60-DIGIT SAFETY NUMBER'), findsOneWidget);
-      expect(find.text('Copy'), findsOneWidget);
+      // Verify the honest Advisory banner
+      expect(find.textContaining('Encryption is not active in this build, so there is no safety number for this contact yet'), findsOneWidget);
 
-      // Verify QR Code CustomPainter is present
-      expect(find.byType(CustomPaint), findsWidgets);
+      // The honest empty state replaces the invented 60-digit number, the
+      // decorative QR matrix, and the scanner
+      expect(find.text('No safety number yet'), findsOneWidget);
+      expect(find.text('60-DIGIT SAFETY NUMBER'), findsNothing);
+      expect(find.textContaining('38491'), findsNothing);
+      expect(find.text('Scan Peer Code'), findsNothing);
 
-      // Toggle to Scan Mode
-      expect(find.text('Scan Peer Code'), findsOneWidget);
-      await tester.tap(find.text('Scan Peer Code'));
-      await tester.pump();
-
-      // Verify Viewfinder active
-      expect(find.text('Point camera at peer QR code'), findsOneWidget);
-      expect(find.text('Show QR Code'), findsOneWidget);
-
-      // Toggle back to Show QR Code
-      await tester.tap(find.text('Show QR Code'));
-      await tester.pump();
-      expect(find.text('Scan Peer Code'), findsOneWidget);
-
-      // Verify Telemetry rows
+      // Telemetry rows admit nothing is running (scroll them into view)
+      await tester.scrollUntilVisible(find.text('Cryptographic Protocol'), 200);
       expect(find.text('Cryptographic Protocol'), findsOneWidget);
-      expect(find.text('Signal Double Ratchet + X3DH'), findsOneWidget);
       expect(find.text('Post-Quantum Defense'), findsOneWidget);
-      expect(find.text('Kyber-1024 Lattice KEM'), findsOneWidget);
+      expect(find.text('Not active in this build'), findsNWidgets(3));
+      expect(find.text('Signal Double Ratchet + X3DH'), findsNothing);
+      expect(find.text('Kyber-1024 Lattice KEM'), findsNothing);
 
-      // Mark as Verified CTA
-      expect(find.text('Mark as Verified'), findsOneWidget);
-      await tester.tap(find.text('Mark as Verified'));
-      await tester.pump();
-
-      // Verify status flipped to Verified
-      expect(find.text('VERIFIED'), findsOneWidget);
-      expect(find.text('Mark as Unverified'), findsOneWidget);
+      // Verification is disabled, not faked: the CTA exists but cannot be
+      // pressed, and no VERIFIED state can be reached
+      await tester.scrollUntilVisible(find.text('Verification unavailable'), 200);
+      expect(find.text('Verification unavailable'), findsOneWidget);
+      expect(find.text('Mark as Verified'), findsNothing);
+      final verifyButton = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Verification unavailable'),
+      );
+      expect(verifyButton.onPressed, isNull);
+      expect(find.text('VERIFIED'), findsNothing);
     });
   });
 

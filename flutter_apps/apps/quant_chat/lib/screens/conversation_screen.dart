@@ -80,7 +80,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
             _messages[i] = m.copyWith(
               secondsRemaining: 0,
               isServerDestroyed: true,
-              text: 'HTTP 410 GONE · Server Destroyed & Purged from Sovereign Mesh',
+              text: 'This message expired and was removed from this device.',
             );
           } else {
             _messages[i] = m.copyWith(secondsRemaining: nextRemaining);
@@ -114,6 +114,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
     final now = TimeOfDay.now();
     final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
+    // HONEST SEND: this build has no messaging transport wired up — there is
+    // no API client, socket, or auth session in this tree, so a composed
+    // message goes nowhere. It is therefore recorded immediately in the
+    // terminal `notSent` state with a visible "Not sent" caption. Delivery
+    // states (sent/delivered/read) may only ever be set from real server or
+    // socket acknowledgements once a transport exists — never from timers.
     final outgoingMessage = ChatMessage(
       id: newId,
       conversationId: widget.conversation.id,
@@ -122,7 +128,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       text: text,
       timestamp: timeStr,
       isOutgoing: true,
-      deliveryStatus: MessageDeliveryStatus.pending,
+      deliveryStatus: MessageDeliveryStatus.notSent,
       type: MessageType.text,
       isDisappearing: _isDisappearingMode,
       disappearingDurationSeconds: _isDisappearingMode ? _disappearingTtlSeconds : 0,
@@ -136,26 +142,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
       _composerController.clear();
     });
     _scrollToBottom();
-
-    // 4-stage tick progression:
-    // 1. pending (clock icon) -> immediate on send
-    // 2. sent (single check) -> 350ms
-    // 3. delivered (double check grey) -> 900ms
-    // 4. read (double check molten amber #FF8C42) -> 1800ms
-    Timer(const Duration(milliseconds: 350), () {
-      if (!mounted) return;
-      _updateMessageStatus(newId, MessageDeliveryStatus.sent);
-    });
-
-    Timer(const Duration(milliseconds: 900), () {
-      if (!mounted) return;
-      _updateMessageStatus(newId, MessageDeliveryStatus.delivered);
-    });
-
-    Timer(const Duration(milliseconds: 1800), () {
-      if (!mounted) return;
-      _updateMessageStatus(newId, MessageDeliveryStatus.read);
-    });
   }
 
   void _startVoiceMemoRecording() {
@@ -225,15 +211,18 @@ class _ConversationScreenState extends State<ConversationScreen> {
     final now = TimeOfDay.now();
     final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
+    // HONEST SEND: same rule as text messages — no transport exists in this
+    // build, so the voice memo is recorded locally as `notSent`. No timer
+    // may promote it to sent/delivered/read.
     final outgoingAudio = ChatMessage(
       id: newId,
       conversationId: widget.conversation.id,
       senderId: 'usr-me',
       senderName: 'You',
-      text: 'Encrypted Sovereign Voice Memo (${duration}s)',
+      text: 'Voice memo (${duration}s)',
       timestamp: timeStr,
       isOutgoing: true,
-      deliveryStatus: MessageDeliveryStatus.pending,
+      deliveryStatus: MessageDeliveryStatus.notSent,
       type: MessageType.audio,
       audioDurationSeconds: duration,
       audioWaveform: waveform,
@@ -251,26 +240,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
       _messages.add(outgoingAudio);
     });
     _scrollToBottom();
-
-    // 4-stage tick progression: Clock -> SingleGrey -> DoubleGrey -> DoubleCyan
-    Timer(const Duration(milliseconds: 400), () {
-      if (!mounted) return;
-      _updateMessageStatus(newId, MessageDeliveryStatus.sent);
-    });
-    Timer(const Duration(milliseconds: 1000), () {
-      if (!mounted) return;
-      _updateMessageStatus(newId, MessageDeliveryStatus.delivered);
-    });
-    Timer(const Duration(milliseconds: 2000), () {
-      if (!mounted) return;
-      _updateMessageStatus(newId, MessageDeliveryStatus.read);
-    });
   }
 
-  void _sendVoiceNote() {
-    _sendRecordedVoiceMemo();
-  }
-
+  /// Single entry point for delivery-status changes. A future messaging
+  /// transport must call this ONLY in response to real server/socket
+  /// acknowledgements (message accepted, delivered, read). Nothing in this
+  /// build calls it today, because no transport is connected — outgoing
+  /// messages stay in their honest `notSent` state.
   void _updateMessageStatus(String msgId, MessageDeliveryStatus status) {
     setState(() {
       final idx = _messages.indexWhere((m) => m.id == msgId);
@@ -363,8 +339,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
             const SizedBox(width: 8),
             Text(
               _isDisappearingMode
-                  ? 'Disappearing Mode ON: ${_disappearingTtlSeconds}s HTTP 410 server destruction'
-                  : 'Disappearing Mode OFF: Standard persistent E2EE',
+                  ? 'Disappearing Mode ON: messages are removed from this device after ${_disappearingTtlSeconds}s'
+                  : 'Disappearing Mode OFF',
               style: const TextStyle(color: QuantColors.textPrimary, fontSize: 13),
             ),
           ],
@@ -424,36 +400,37 @@ class _ConversationScreenState extends State<ConversationScreen> {
         final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
         final newId = 'msg-${DateTime.now().millisecondsSinceEpoch}';
 
+        // HONEST SEND: media shares go through the same rule as text — no
+        // transport exists in this build, nothing is uploaded or delivered,
+        // and no fabricated file metadata, codec claims, or GPS coordinates
+        // are attached. The item is recorded locally as `notSent` with a
+        // plain label.
         String textMsg = '';
         MessageType msgType = MessageType.text;
-        String? fileName;
-        int? fileSizeBytes;
 
         switch (type) {
           case ChatMediaType.document:
-            textMsg = 'Sent encrypted FastCDC document: ${data['fileName'] ?? 'Document.pdf'}';
+            textMsg = 'Document';
             msgType = MessageType.document;
-            fileName = data['fileName'] as String?;
-            fileSizeBytes = data['fileSizeBytes'] as int?;
             break;
           case ChatMediaType.camera:
-            textMsg = 'Encrypted Photo (1080p60 captured locally)';
+            textMsg = 'Photo';
             msgType = MessageType.image;
             break;
           case ChatMediaType.gallery:
-            textMsg = 'Encrypted Media (4K HDR zero-loss)';
+            textMsg = 'Media';
             msgType = MessageType.image;
             break;
           case ChatMediaType.audio:
-            textMsg = 'Voice Note (Opus 48kHz encrypted)';
+            textMsg = 'Voice note';
             msgType = MessageType.audio;
             break;
           case ChatMediaType.location:
-            textMsg = 'Live Sovereign GPS: ${data['locationName'] ?? '37.7749 deg N, 122.4194 deg W'}';
+            textMsg = 'Location';
             msgType = MessageType.text;
             break;
           case ChatMediaType.contact:
-            textMsg = 'Sovereign Contact Card: ${data['contactName']} (${data['handle']})';
+            textMsg = 'Contact card';
             msgType = MessageType.text;
             break;
         }
@@ -466,10 +443,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
           text: textMsg,
           timestamp: timeStr,
           isOutgoing: true,
-          deliveryStatus: MessageDeliveryStatus.pending,
+          deliveryStatus: MessageDeliveryStatus.notSent,
           type: msgType,
-          fileName: fileName,
-          fileSizeBytes: fileSizeBytes,
           isDisappearing: _isDisappearingMode,
           disappearingDurationSeconds: _isDisappearingMode ? _disappearingTtlSeconds : 0,
           secondsRemaining: _isDisappearingMode ? _disappearingTtlSeconds : 0,
@@ -479,15 +454,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
           _messages.add(outgoing);
         });
         _scrollToBottom();
-
-        Timer(const Duration(milliseconds: 350), () {
-          if (!mounted) return;
-          _updateMessageStatus(newId, MessageDeliveryStatus.sent);
-        });
-        Timer(const Duration(milliseconds: 900), () {
-          if (!mounted) return;
-          _updateMessageStatus(newId, MessageDeliveryStatus.delivered);
-        });
       },
     );
   }
@@ -533,7 +499,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       backgroundColor: QuantColors.voidObsidian,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      leadingWidth: 74,
+      leadingWidth: 92,
       leading: Row(
         children: [
           const SizedBox(width: 4),
@@ -613,8 +579,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 const SizedBox(width: 5),
                 Text(
                   conv.isGroup
-                      ? '${conv.memberCount} members · E2EE Active'
-                      : (conv.isOnline ? 'Online | E2EE Active' : conv.lastSeenText),
+                      ? '${conv.memberCount} members'
+                      : (conv.isOnline ? 'Online' : conv.lastSeenText),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
@@ -633,17 +599,17 @@ class _ConversationScreenState extends State<ConversationScreen> {
             color: _isDisappearingMode ? QuantColors.moltenOrange : QuantColors.textSecondary,
             size: 22,
           ),
-          tooltip: 'Toggle Disappearing Messages (HTTP 410)',
+          tooltip: 'Toggle Disappearing Messages',
           onPressed: _toggleDisappearingMode,
         ),
         IconButton(
           icon: const Icon(Icons.call_outlined, color: Colors.white, size: 22),
-          tooltip: 'E2EE Audio Call',
+          tooltip: 'Audio Call',
           onPressed: () => _launchCall(QuantCallType.audio),
         ),
         IconButton(
           icon: const Icon(Icons.videocam_outlined, color: Colors.white, size: 24),
-          tooltip: 'E2EE Video Call',
+          tooltip: 'Video Call',
           onPressed: () => _launchCall(QuantCallType.video),
         ),
         IconButton(
@@ -661,6 +627,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 
+  /// Connection-state banner. This build has no messaging transport or
+  /// encryption layer wired up, so the banner says exactly that instead of
+  /// claiming end-to-end encryption that does not exist here.
   Widget _buildEncryptionBadge() {
     return Container(
       width: double.infinity,
@@ -669,15 +638,15 @@ class _ConversationScreenState extends State<ConversationScreen> {
       child: const Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.lock_rounded, size: 12, color: QuantColors.sovereignCyan),
+          Icon(Icons.cloud_off_rounded, size: 12, color: QuantColors.statusWarning),
           SizedBox(width: 6),
           Text(
-            'Hardware Keystore E2EE | Zero-Cloud Plaintext Storage',
+            'Not connected — messages cannot be sent from this build yet',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.2,
-              color: QuantColors.sovereignCyan,
+              color: QuantColors.statusWarning,
             ),
           ),
         ],
@@ -701,7 +670,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
           const Icon(Icons.auto_delete_rounded, size: 14, color: QuantColors.moltenOrange),
           const SizedBox(width: 6),
           Text(
-            'Disappearing Messages Active (${_disappearingTtlSeconds}s) · 410 Server Destruction',
+            'Disappearing Messages Active (${_disappearingTtlSeconds}s) · Removed from this device only',
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -855,6 +824,26 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     _buildDeliveryTick(msg.deliveryStatus, isOutgoing: true),
                   ],
                 ),
+                // Honest failure caption: a notSent message was never handed
+                // to any transport, and the bubble must say so in words.
+                if (msg.deliveryStatus == MessageDeliveryStatus.notSent) ...[
+                  const SizedBox(height: 4),
+                  const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.error_outline_rounded, size: 11, color: QuantColors.statusError),
+                      SizedBox(width: 4),
+                      Text(
+                        'Not sent — no connection',
+                        style: TextStyle(
+                          color: QuantColors.statusError,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -863,18 +852,23 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 
-  /// 4-stage delivery tick progression:
+  /// Delivery tick rendering:
   /// - Clock: Sending (Icons.access_time_rounded, grey)
   /// - SingleGrey: Sent to server (Icons.check_rounded, grey)
   /// - DoubleGrey: Delivered to recipient device (Icons.done_all_rounded, grey)
   /// - DoubleCyan: Read by recipient (Icons.done_all_rounded, cyan #00E5FF)
+  /// - NotSent: Never handed to a transport (Icons.error_outline_rounded, red)
+  /// Sent/delivered/read may only be produced by real transport
+  /// acknowledgements; nothing advances them locally.
   Widget _buildDeliveryTick(MessageDeliveryStatus status, {bool isOutgoing = false}) {
     return DeliveryTickWidget(
       status: status,
       size: 14,
-      overrideColor: status == MessageDeliveryStatus.read
-          ? QuantColors.sovereignCyan
-          : (isOutgoing ? const Color(0xFFCBD5E1) : const Color(0xFF94A3B8)),
+      overrideColor: status == MessageDeliveryStatus.notSent
+          ? QuantColors.statusError
+          : (status == MessageDeliveryStatus.read
+              ? QuantColors.sovereignCyan
+              : (isOutgoing ? const Color(0xFFCBD5E1) : const Color(0xFF94A3B8))),
     );
   }
 
@@ -893,7 +887,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
             Icon(Icons.delete_forever_rounded, size: 11, color: QuantColors.statusError),
             SizedBox(width: 4),
             Text(
-              'HTTP 410 GONE · DESTROYED',
+              'EXPIRED · REMOVED FROM THIS DEVICE',
               style: TextStyle(
                 color: QuantColors.statusError,
                 fontSize: 9,
@@ -923,7 +917,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
           const Icon(Icons.timer_outlined, size: 11, color: QuantColors.moltenOrange),
           const SizedBox(width: 4),
           Text(
-            '410 Server Destruction: ${msg.secondsRemaining}s',
+            'Expires in ${msg.secondsRemaining}s',
             style: const TextStyle(
               color: QuantColors.moltenOrange,
               fontSize: 9,
@@ -1130,7 +1124,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
           // Attachment Button
           IconButton(
             icon: const Icon(Icons.add_circle_outline_rounded, color: QuantColors.textSecondary, size: 24),
-            tooltip: 'Share Media & Encrypted Data',
+            tooltip: 'Share Media & Data',
             onPressed: _openMediaSheet,
           ),
 
@@ -1156,7 +1150,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 decoration: InputDecoration(
                   hintText: _isDisappearingMode
                       ? 'Type disappearing message (${_disappearingTtlSeconds}s)...'
-                      : 'Type an encrypted message...',
+                      : 'Type a message...',
                   hintStyle: const TextStyle(color: QuantColors.textMuted, fontSize: 13),
                   border: InputBorder.none,
                   isDense: true,

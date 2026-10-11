@@ -567,7 +567,7 @@ class _CreateGroupSheetState extends State<CreateGroupSheet> {
                   ),
                 ),
                 Text(
-                  'HTTP 410 server destruction timer',
+                  'Messages are removed from this device after the timer',
                   style: TextStyle(
                     color: QuantColors.textSecondary,
                     fontSize: 11,
