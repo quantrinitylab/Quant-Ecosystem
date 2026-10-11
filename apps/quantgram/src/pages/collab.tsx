@@ -46,85 +46,6 @@ interface CollabPageState {
   searching: boolean;
 }
 
-const MOCK_COLLABS: CollabPost[] = [
-  {
-    id: 'col1',
-    creators: [
-      { id: 'me', username: 'my_account', avatar: '/avatars/me.jpg', isVerified: false },
-      { id: 'u1', username: 'alex_photo', avatar: '/avatars/alex.jpg', isVerified: true },
-    ],
-    imageUrl: '/posts/collab1.jpg',
-    caption: 'Amazing collab shoot at sunset! #photography #collab',
-    likeCount: 4523,
-    commentCount: 89,
-    status: 'published',
-    createdAt: '2024-01-14T10:00:00Z',
-  },
-  {
-    id: 'col2',
-    creators: [
-      { id: 'me', username: 'my_account', avatar: '/avatars/me.jpg', isVerified: false },
-      { id: 'u2', username: 'travel_emma', avatar: '/avatars/emma.jpg', isVerified: true },
-    ],
-    imageUrl: '/posts/collab2.jpg',
-    caption: 'Travel buddies forever! #wanderlust',
-    likeCount: 8901,
-    commentCount: 234,
-    status: 'published',
-    createdAt: '2024-01-10T12:00:00Z',
-  },
-];
-
-const MOCK_PENDING: CollabPost[] = [
-  {
-    id: 'col3',
-    creators: [
-      { id: 'u3', username: 'foodie_mark', avatar: '/avatars/mark.jpg', isVerified: false },
-      { id: 'me', username: 'my_account', avatar: '/avatars/me.jpg', isVerified: false },
-    ],
-    imageUrl: '/posts/collab3.jpg',
-    caption: 'Recipe collab coming soon!',
-    likeCount: 0,
-    commentCount: 0,
-    status: 'pending',
-    createdAt: '2024-01-15T08:00:00Z',
-  },
-];
-
-const MOCK_SEARCH: SearchResult[] = [
-  {
-    id: 'u10',
-    username: 'style_queen',
-    avatar: '/avatars/sq.jpg',
-    fullName: 'Style Queen',
-    followers: 125000,
-    isVerified: true,
-  },
-  {
-    id: 'u11',
-    username: 'art_collective',
-    avatar: '/avatars/ac.jpg',
-    fullName: 'Art Collective',
-    followers: 89000,
-    isVerified: false,
-  },
-  {
-    id: 'u12',
-    username: 'fitness_pro',
-    avatar: '/avatars/fp.jpg',
-    fullName: 'Fitness Pro',
-    followers: 234000,
-    isVerified: true,
-  },
-  {
-    id: 'u13',
-    username: 'music_vibes',
-    avatar: '/avatars/mv.jpg',
-    fullName: 'Music Vibes',
-    followers: 67000,
-    isVerified: false,
-  },
-];
 
 const CollabPage: React.FC = () => {
   const [state, setState] = useState<CollabPageState>({
@@ -142,33 +63,22 @@ const CollabPage: React.FC = () => {
 
   useEffect(() => {
     const load = async () => {
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 400));
-        setState((prev) => ({
-          ...prev,
-          collabs: MOCK_COLLABS,
-          pendingInvites: MOCK_PENDING,
-          loading: false,
-        }));
-      } catch (err) {
-        setState((prev) => ({ ...prev, error: 'Failed to load collabs', loading: false }));
-      }
+      // Collab feed is not wired to the backend yet: show the honest empty
+      // state instead of fabricated collab posts and invites.
+      setState((prev) => ({
+        ...prev,
+        collabs: [],
+        pendingInvites: [],
+        loading: false,
+      }));
     };
     load();
   }, []);
 
   const searchUsers = useCallback(async (query: string) => {
     setState((prev) => ({ ...prev, searchQuery: query, searching: true }));
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const results =
-      query.length > 0
-        ? MOCK_SEARCH.filter(
-            (u) =>
-              u.username.includes(query.toLowerCase()) ||
-              u.fullName.toLowerCase().includes(query.toLowerCase()),
-          )
-        : [];
-    setState((prev) => ({ ...prev, searchResults: results, searching: false }));
+    // Collaborator search is not wired to the backend yet: no fabricated users.
+    setState((prev) => ({ ...prev, searchQuery: query, searchResults: [], searching: false }));
   }, []);
 
   const selectCollaborator = useCallback((user: SearchResult) => {

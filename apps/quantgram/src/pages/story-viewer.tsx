@@ -56,7 +56,7 @@ const StoryViewerPage: React.FC = () => {
           duration: SEGMENT_DURATION,
         },
       ],
-      viewerCount: (s.viewerCount as number) || Math.floor(Math.random() * 500) + 50,
+      viewerCount: typeof s.viewerCount === 'number' ? s.viewerCount : 0,
       seenBy: (s.seenBy as StoryUser['seenBy']) || [],
     };
   });
