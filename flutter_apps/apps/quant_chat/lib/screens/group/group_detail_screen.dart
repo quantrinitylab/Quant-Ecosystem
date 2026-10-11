@@ -79,7 +79,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
           style: TextStyle(color: QuantColors.textPrimary, fontWeight: FontWeight.w700),
         ),
         content: const Text(
-          'You will no longer receive encrypted messages or participate in WebRTC mesh stages in this group.',
+          'You will no longer be part of this group on this device.',
           style: TextStyle(color: QuantColors.textSecondary, fontSize: 13),
         ),
         actions: [
@@ -123,7 +123,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
           style: TextStyle(color: QuantColors.statusError, fontWeight: FontWeight.w700),
         ),
         content: const Text(
-          'All cryptographic session keys will be revoked and group message history purged from the sovereign mesh with HTTP 410 destruction.',
+          'This removes the group from this device. Groups in this build exist only on this device, so there is no server copy to purge.',
           style: TextStyle(color: QuantColors.textSecondary, fontSize: 13),
         ),
         actions: [
@@ -138,7 +138,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   backgroundColor: QuantColors.statusError,
-                  content: Text('Group mesh destroyed and purged.'),
+                  content: Text('Group removed from this device.'),
                 ),
               );
             },
@@ -345,7 +345,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 backgroundColor: QuantColors.darkSlateCard,
-                content: Text('Starting group WebRTC video mesh...'),
+                content: Text('Calling is not available in this build yet.'),
               ),
             );
           },
@@ -760,7 +760,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
             subtitle: Text(
               _disappearingOption == DisappearingTimerOption.off
                   ? 'Off'
-                  : '${_disappearingOption.label} (HTTP 410 Server Destruction)',
+                  : '${_disappearingOption.label} (removed from this device)',
               style: const TextStyle(color: QuantColors.textSecondary, fontSize: 11),
             ),
             trailing: const Icon(Icons.chevron_right_rounded, color: QuantColors.textSecondary),

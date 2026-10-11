@@ -30,15 +30,18 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
   bool _isScanningMode = false;
   late final List<String> _digitBlocks;
 
-  static const String _default60Digits =
-      '38491 02948 18492 01847 '
-      '59281 74920 18492 84920 '
-      '67104 92847 10948 20491';
+  /// True only when a real safety number was supplied by an actual
+  /// cryptographic session. This build has no encryption layer, so callers
+  /// never supply one — and the screen must say so instead of presenting an
+  /// invented number. (A hardcoded 60-digit constant previously stood in
+  /// for every peer's safety number, with a decorative QR matrix and a
+  /// self-service "Mark as Verified" toggle.)
+  bool get _hasSafetyNumber => widget.custom60Digits != null;
 
   @override
   void initState() {
     super.initState();
-    final rawDigits = (widget.custom60Digits ?? _default60Digits).replaceAll(' ', '');
+    final rawDigits = (widget.custom60Digits ?? '').replaceAll(' ', '');
     // Split into 12 blocks of 5 digits
     _digitBlocks = [];
     for (int i = 0; i < rawDigits.length && _digitBlocks.length < 12; i += 5) {
@@ -52,6 +55,19 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
   }
 
   void _copySafetyNumber() {
+    if (!_hasSafetyNumber) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: QuantColors.darkSlateCard,
+          duration: Duration(seconds: 2),
+          content: Text(
+            'No safety number to share yet.',
+            style: TextStyle(color: Colors.white, fontSize: 13),
+          ),
+        ),
+      );
+      return;
+    }
     final fullNumber = _digitBlocks.join(' ');
     Clipboard.setData(ClipboardData(text: fullNumber));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -143,20 +159,28 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
 
           const SizedBox(height: 18),
 
-          // QR Code or Camera Scanner Viewfinder
-          if (!_isScanningMode) _buildQrCodeCard() else _buildScannerViewfinder(),
+          // QR Code or Camera Scanner Viewfinder — only when a real safety
+          // number exists. Otherwise an honest unavailable panel replaces
+          // the number, the QR, and the scanner.
+          if (_hasSafetyNumber) ...[
+            if (!_isScanningMode) _buildQrCodeCard() else _buildScannerViewfinder(),
 
-          const SizedBox(height: 14),
+            const SizedBox(height: 14),
 
-          // Scan or Show QR Code Toggle Button
-          _buildScanModeToggle(),
+            // Scan or Show QR Code Toggle Button
+            _buildScanModeToggle(),
 
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          // 60 Digits Display (12 blocks of 5)
-          _build60DigitsSection(),
+            // 60 Digits Display (12 blocks of 5)
+            _build60DigitsSection(),
 
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
+          ] else ...[
+            _buildNoSafetyNumberCard(),
+
+            const SizedBox(height: 20),
+          ],
 
           // Protocol & Keystore Telemetry Card
           _buildTelemetryCard(),
@@ -243,7 +267,9 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            _isVerified ? 'VERIFIED' : 'UNVERIFIED',
+                            _hasSafetyNumber
+                                ? (_isVerified ? 'VERIFIED' : 'UNVERIFIED')
+                                : 'NOT AVAILABLE',
                             style: TextStyle(
                               color: _isVerified ? QuantColors.statusSuccess : QuantColors.sunsetGold,
                               fontSize: 10,
@@ -255,9 +281,9 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Text(
-                      'Kyber-1024 / E2EE',
-                      style: TextStyle(color: QuantColors.textMuted, fontSize: 11),
+                    Text(
+                      _hasSafetyNumber ? 'Safety number' : 'Encryption not active',
+                      style: const TextStyle(color: QuantColors.textMuted, fontSize: 11),
                     ),
                   ],
                 ),
@@ -277,19 +303,59 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: QuantColors.sovereignCyan.withOpacity(0.3)),
       ),
-      child: const Row(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.security_rounded, color: QuantColors.sovereignCyan, size: 20),
-          SizedBox(width: 12),
+          const Icon(Icons.security_rounded, color: QuantColors.sovereignCyan, size: 20),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'To verify that your end-to-end encryption is secure with this peer, compare the numbers below with their device, or scan their QR code. If the safety number changed, it might mean someone is trying to intercept your communication or the contact reinstalled QuantChat.',
-              style: TextStyle(
+              _hasSafetyNumber
+                  ? 'To verify that your end-to-end encryption is secure with this peer, compare the numbers below with their device, or scan their QR code. If the safety number changed, it might mean someone is trying to intercept your communication or the contact reinstalled QuantChat.'
+                  : 'Safety numbers appear here once end-to-end encryption is active for a conversation. Encryption is not active in this build, so there is no safety number for this contact yet — and nothing here can be verified.',
+              style: const TextStyle(
                 color: QuantColors.textSecondary,
                 fontSize: 12,
                 height: 1.45,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Honest empty state shown in place of a safety number, QR code, and
+  /// scanner when no cryptographic session exists.
+  Widget _buildNoSafetyNumberCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 28),
+      decoration: BoxDecoration(
+        color: QuantColors.darkSlateCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: QuantColors.hairlineBorder),
+      ),
+      child: const Column(
+        children: [
+          Icon(Icons.lock_open_rounded, size: 36, color: QuantColors.textMuted),
+          SizedBox(height: 12),
+          Text(
+            'No safety number yet',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'End-to-end encryption is not active in this build, so there is nothing to verify for this contact.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: QuantColors.textSecondary,
+              fontSize: 12,
+              height: 1.45,
             ),
           ),
         ],
@@ -346,7 +412,7 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  'Hardware Keystore Scanning Active',
+                  'Camera preview is not wired up in this build',
                   style: TextStyle(color: QuantColors.textMuted, fontSize: 11),
                 ),
               ],
@@ -533,6 +599,10 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
   }
 
   Widget _buildTelemetryCard() {
+    // These rows describe the cryptography protecting this conversation.
+    // None of it is active in this build, and the card now says so instead
+    // of naming protocols that are not running.
+    final inactive = !_hasSafetyNumber;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -541,25 +611,25 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
         border: Border.all(color: QuantColors.hairlineBorder),
       ),
       child: Column(
-        children: const [
+        children: [
           _TelemetryRow(
             label: 'Cryptographic Protocol',
-            value: 'Signal Double Ratchet + X3DH',
+            value: inactive ? 'Not active in this build' : 'Signal Double Ratchet + X3DH',
           ),
-          Divider(color: QuantColors.hairlineBorder, height: 16),
+          const Divider(color: QuantColors.hairlineBorder, height: 16),
           _TelemetryRow(
             label: 'Post-Quantum Defense',
-            value: 'Kyber-1024 Lattice KEM',
+            value: inactive ? 'Not active in this build' : 'Kyber-1024 Lattice KEM',
           ),
-          Divider(color: QuantColors.hairlineBorder, height: 16),
+          const Divider(color: QuantColors.hairlineBorder, height: 16),
           _TelemetryRow(
             label: 'Local Hardware Keystore',
-            value: 'Android Keystore / Secure Enclave',
+            value: inactive ? 'Not active in this build' : 'Android Keystore / Secure Enclave',
           ),
-          Divider(color: QuantColors.hairlineBorder, height: 16),
+          const Divider(color: QuantColors.hairlineBorder, height: 16),
           _TelemetryRow(
             label: 'Verification Method',
-            value: 'Visual Monospace & 2D Matrix Match',
+            value: inactive ? 'Unavailable' : 'Visual Monospace & 2D Matrix Match',
           ),
         ],
       ),
@@ -567,6 +637,27 @@ class _SafetyNumberScreenState extends State<SafetyNumberScreen> {
   }
 
   Widget _buildVerifyButton() {
+    if (!_hasSafetyNumber) {
+      // Verification is disabled, not faked: there is no safety number, so
+      // there is nothing a user could honestly mark as verified.
+      return ElevatedButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.verified_user_rounded, size: 20),
+        label: const Text(
+          'Verification unavailable',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: QuantColors.elevatedCard,
+          foregroundColor: QuantColors.textMuted,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+      );
+    }
     return ElevatedButton.icon(
       onPressed: _toggleVerification,
       icon: Icon(

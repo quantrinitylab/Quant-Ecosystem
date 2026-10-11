@@ -448,6 +448,21 @@ export default function LoginPage(props: LoginPageProps) {
             </button>
           </form>
 
+          {/* Password recovery lives on QuantMail (the identity host, same
+              base as the Create account link above): its /forgot-password
+              flow is real and working. QuantChat previously had NO recovery
+              path at all — /forgot-password just bounced back here (P1,
+              live audit 2026-10-11). */}
+          <div className="mt-4 text-center">
+            <a
+              href={`${SSO_BASE_URL}/forgot-password`}
+              data-testid="forgot-password-link"
+              className="text-xs text-slate-400 underline-offset-2 transition-colors hover:text-emerald-400 hover:underline"
+            >
+              Forgot password?
+            </a>
+          </div>
+
           <div className="mt-4 text-center">
             <button
               type="button"

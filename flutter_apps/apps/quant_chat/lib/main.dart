@@ -139,17 +139,21 @@ class _QuantChatHomeScreenState extends State<QuantChatHomeScreen> {
             ],
           ),
 
-          // Dynamic Island AI Live Capsule
+          // Dynamic Island AI Capsule. The copilot is not connected to any
+          // service in this build, so the capsule states that honestly
+          // instead of advertising an invented latency / encryption claim,
+          // and the beacon does not pulse as if something were live.
           QuantAiCapsule(
             title: 'Quant AI Copilot',
-            statusText: '<24ms E2EE',
-            beaconColor: QuantColors.neonGreen,
+            statusText: 'Not connected',
+            beaconColor: QuantColors.textMuted,
+            isPulsing: false,
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   backgroundColor: QuantColors.darkSlateCard,
                   content: Text(
-                    'Quant AI Copilot active: Real-time translation & summarization mesh engaged.',
+                    'Quant AI Copilot is not connected in this build yet.',
                     style: TextStyle(color: QuantColors.textPrimary),
                   ),
                 ),
@@ -176,9 +180,13 @@ class _QuantChatHomeScreenState extends State<QuantChatHomeScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(0, Icons.chat_bubble_rounded, Icons.chat_bubble_outline_rounded, 'Chats', badgeCount: 4),
-              _buildNavItem(1, Icons.phone_in_talk_rounded, Icons.phone_outlined, 'Calls', badgeCount: 1),
-              _buildNavItem(2, Icons.radio_button_checked_rounded, Icons.radio_button_off_rounded, 'Spaces', isLiveSpace: true),
+              // No badge counts and no "live" dot: both must come from real
+              // data (unread counts, a live space). Hardcoded values here
+              // previously claimed 4 unread chats, 1 call, and a live space
+              // that did not exist.
+              _buildNavItem(0, Icons.chat_bubble_rounded, Icons.chat_bubble_outline_rounded, 'Chats'),
+              _buildNavItem(1, Icons.phone_in_talk_rounded, Icons.phone_outlined, 'Calls'),
+              _buildNavItem(2, Icons.radio_button_checked_rounded, Icons.radio_button_off_rounded, 'Spaces'),
               _buildNavItem(3, Icons.settings_rounded, Icons.settings_outlined, 'Settings'),
             ],
           ),

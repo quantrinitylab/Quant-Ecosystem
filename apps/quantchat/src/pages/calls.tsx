@@ -7,8 +7,10 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { apiClient } from '../services/api-client';
+import { sanitizeErrorMessage } from '../lib/sanitize-error';
 
 interface CallHistoryEntry {
   id: string;
@@ -32,11 +34,13 @@ export const CallsPage: React.FC = () => {
   const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [unauthorized, setUnauthorized] = useState(false);
   const [myUserId, setMyUserId] = useState<string | null>(null);
 
   const loadCallHistory = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setUnauthorized(false);
     try {
       // apiClient.getCallHistory() -> GET /api/calls/history -> backend
       // CallRecordService. The backend wraps records in
@@ -48,11 +52,19 @@ export const CallsPage: React.FC = () => {
           ? (raw as CallHistoryEntry[])
           : (raw as { calls?: CallHistoryEntry[] } | null)?.calls ?? [];
         setCalls(list);
+      } else if (response.error?.statusCode === 401) {
+        // Never surface the raw backend auth error ("Missing or invalid
+        // authorization header") to the user (P1, live audit 2026-10-11).
+        // The PagesAuthGate should already have bounced a logged-out
+        // visitor to /login; this is defense in depth for an expired
+        // session: a friendly sign-in prompt instead of a leaked error.
+        setUnauthorized(true);
+        setCalls([]);
       } else {
-        setError(response.error?.message || 'Could not load call history');
+        setError(sanitizeErrorMessage(response.error?.message) || 'Could not load call history');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load call history');
+      setError(sanitizeErrorMessage(err) || 'Could not load call history');
     } finally {
       setLoading(false);
     }
@@ -131,6 +143,9 @@ export const CallsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[var(--quant-background)] text-[var(--quant-foreground)]">
+      <Head>
+        <title>Calls — QuantChat</title>
+      </Head>
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-3">
         <button
           type="button"
@@ -174,6 +189,23 @@ export const CallsPage: React.FC = () => {
         <div className="flex items-center justify-center py-16" role="status">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-[var(--quant-border)] border-t-emerald-500" />
           <span className="sr-only">Loading call history…</span>
+        </div>
+      ) : unauthorized ? (
+        <div className="flex flex-col items-center gap-2 px-8 py-16 text-center">
+          <span className="text-4xl" aria-hidden="true">
+            🔒
+          </span>
+          <p className="font-semibold">Sign in to see your calls</p>
+          <p className="text-sm text-[var(--quant-muted-foreground)]">
+            Your call history is tied to your Quant Account. Sign in to view it.
+          </p>
+          <button
+            type="button"
+            onClick={() => void router.push('/login')}
+            className="mt-2 min-h-[44px] rounded-full bg-emerald-500 px-5 text-sm font-semibold text-white hover:bg-emerald-600"
+          >
+            Sign in
+          </button>
         </div>
       ) : error ? (
         <div className="mx-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-center">

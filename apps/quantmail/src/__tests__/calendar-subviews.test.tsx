@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-// Components under test (CalendarRemindersView deleted 2026-10-11: orphaned dead
-// code with hardcoded fake reminders — see calendar-reminders-orphan-guard.test.ts)
-import { CalendarBookingView } from '../app/calendar/components/CalendarBookingView';
-import { CalendarQuantMeetView } from '../app/calendar/components/CalendarQuantMeetView';
+// Components under test (CalendarRemindersView deleted on this branch as orphaned
+// dead code — see calendar-reminders-orphan-guard.test.ts; CalendarBookingView and
+// CalendarQuantMeetView were deleted on origin/main)
 import { CalendarContextSubTabs } from '../app/calendar/components/CalendarContextSubTabs';
 import type { CalendarEventLike } from '../app/calendar/types';
 
@@ -110,59 +112,10 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
 
 
 
-  // ==========================================================================
-  // 1. Sub-View: `booking`
-  // ==========================================================================
-  describe('Sub-View: `booking` (CalendarBookingView)', () => {
-    it('renders Calendly-class public booking engine with link, copy pill, time slots, duration chips, and concurrency badge', () => {
-      const html = renderToStaticMarkup(
-        <CalendarBookingView userEmail="sundar@quantmail.in" bookingSlug="sundar" />,
-      );
-
-      // Public Booking Link display
-      expect(html).toContain('https://quantmail.in/calendar/booking/sundar');
-      expect(html).toContain('Copy Link');
-
-      // Available time slots: 10:00 AM, 11:30 AM, 02:00 PM, 04:30 PM
-      expect(html).toContain('10:00 AM');
-      expect(html).toContain('11:30 AM');
-      expect(html).toContain('02:00 PM');
-      expect(html).toContain('04:30 PM');
-
-      // Meeting duration selector chips: 15m, 30m, 45m, 60m
-      expect(html).toContain('15m');
-      expect(html).toContain('30m');
-      expect(html).toContain('45m');
-      expect(html).toContain('60m');
-
-      // Slot concurrency status
-      expect(html).toContain('4 slots available today · Instant E2EE Confirmation');
-      expect(html).toContain('Reserve Slot');
-    });
-  });
-
-  // ==========================================================================
-  // 2. Sub-View: `quantmeet`
-  // ==========================================================================
-  describe('Sub-View: `quantmeet` (CalendarQuantMeetView)', () => {
-    it('renders QuantMeet HD video meeting launcher with action card, calls list, and WebRTC status', () => {
-      const html = renderToStaticMarkup(<CalendarQuantMeetView />);
-
-      // Action card: Start Instant Meeting
-      expect(html).toContain('Start Instant Meeting');
-      expect(html).toContain('QuantMeet HD Video');
-      expect(html).toContain('WebRTC 4K P2P');
-
-      // WebRTC status: Mic: Ready · Camera: Ready
-      expect(html).toContain('Mic: Ready · Camera: Ready');
-
-      // Upcoming video calls list with [Join HD Call] pills
-      expect(html).toContain('Upcoming Video Calls');
-      expect(html).toContain('Join HD Call');
-      expect(html).toContain('Weekly Ecosystem Architecture Sync');
-      expect(html).toContain('Sprint 42 Retrospective &amp; Tripartite Handover');
-    });
-  });
+  // NOTE 2026-10-11: the old section 2 here covered `CalendarQuantMeetView`,
+  // which was deleted on origin/main as orphaned dead code with fabricated
+  // meeting fixtures (sibling branch fix/qm-calendar-quantmeet-orphan, PR #871,
+  // carries the orphan-removal guard). Render tests removed; no duplicate guard.
 
   // NOTE 2026-10-11: the old section 3 here covered `CalendarRemindersView`,
   // which was orphaned dead code seeded with hardcoded fake reminders and
@@ -195,18 +148,6 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
   describe('Zero Raw Unicode Emojis Invariant', () => {
     const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
 
-    it('CalendarBookingView contains strictly ZERO raw Unicode emojis', () => {
-      const html = renderToStaticMarkup(
-        <CalendarBookingView userEmail="sundar@quantmail.in" bookingSlug="sundar" />,
-      );
-      expect(emojiRegex.test(html)).toBe(false);
-    });
-
-    it('CalendarQuantMeetView contains strictly ZERO raw Unicode emojis', () => {
-      const html = renderToStaticMarkup(<CalendarQuantMeetView />);
-      expect(emojiRegex.test(html)).toBe(false);
-    });
-
     // NOTE 2026-10-11: CalendarRemindersView was deleted as orphaned dead code;
     // the zero-emoji invariant for remaining sub-views stays pinned below.
 
@@ -217,5 +158,42 @@ describe('QuantMail Web Calendar Context Sub-Views (Wave 42 Sovereign Architectu
       expect(emojiRegex.test(html)).toBe(false);
     });
 
+  });
+
+  // ==========================================================================
+  // 6. Orphan-removal guard: CalendarBookingView stays deleted
+  //    (fake hardcoded booking flow was removed; regression = it creeping back)
+  // ==========================================================================
+  describe('Orphan-removal guard: CalendarBookingView', () => {
+    const thisDir = dirname(fileURLToPath(import.meta.url));
+    const componentsDir = join(thisDir, '..', 'app', 'calendar', 'components');
+    const srcDir = join(thisDir, '..');
+
+    function walkSourceFiles(dir: string, acc: string[] = []): string[] {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        const stat = statSync(full);
+        if (stat.isDirectory()) {
+          // Skip test directories — they legitimately discuss removed views.
+          if (entry === '__tests__') continue;
+          walkSourceFiles(full, acc);
+        } else if (/\.(ts|tsx|js|jsx)$/.test(entry)) {
+          acc.push(full);
+        }
+      }
+      return acc;
+    }
+
+    it('CalendarBookingView.tsx file does not exist', () => {
+      expect(existsSync(join(componentsDir, 'CalendarBookingView.tsx'))).toBe(false);
+    });
+
+    it('no source file (outside __tests__) imports or references CalendarBookingView', () => {
+      const offenders = walkSourceFiles(srcDir).filter((file) => {
+        const content = readFileSync(file, 'utf8');
+        return /CalendarBookingView/.test(content);
+      });
+      expect(offenders).toEqual([]);
+    });
   });
 });

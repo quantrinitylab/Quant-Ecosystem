@@ -327,6 +327,66 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
         expect(html).toContain('UTC+1');
         expect(html).toContain('Hourly Time Blocking Schedule');
       });
+
+      // ------------------------------------------------------------------
+      // fake-reminders purge (fix/qm-schedule-fake-reminders): the Reminders
+      // sub-tab must never seed fabricated reminders as if they were the
+      // user's own data — no reminders backend exists, so it starts empty
+      // with an honest "not wired up yet" disclosure.
+      // ------------------------------------------------------------------
+      const FABRICATED_TITLES = [
+        'Review Wave 39 Sovereign Parity Subagents PR',
+        'Verify RFC 5545 CalDAV sync on Android staging APK',
+        'Deploy QuantMeet 4K Video Stage to production cluster',
+        'Update QuantCalendar Booking Links availability slots',
+      ];
+
+      it('Reminders tab badge starts at zero pending reminders (no seeded fakes)', () => {
+        const html = renderToStaticMarkup(
+          <CalendarScheduleSubView
+            events={mockEvents}
+            selectedDate={new Date()}
+            openDedicatedSheet={vi.fn()}
+            onSelectEvent={vi.fn()}
+          />,
+        );
+
+        expect(html).toContain('Reminders (0)');
+      });
+
+      it('Reminders tab contains none of the previously-fabricated reminder titles', () => {
+        const html = renderToStaticMarkup(
+          <CalendarScheduleSubView
+            events={mockEvents}
+            selectedDate={new Date()}
+            openDedicatedSheet={vi.fn()}
+            onSelectEvent={vi.fn()}
+            initialSubTab="reminders"
+          />,
+        );
+
+        for (const title of FABRICATED_TITLES) {
+          expect(html).not.toContain(title);
+        }
+      });
+
+      it('Reminders tab shows an honest empty state with a not-wired-yet disclosure', () => {
+        const html = renderToStaticMarkup(
+          <CalendarScheduleSubView
+            events={mockEvents}
+            selectedDate={new Date()}
+            openDedicatedSheet={vi.fn()}
+            onSelectEvent={vi.fn()}
+            initialSubTab="reminders"
+          />,
+        );
+
+        expect(html).toContain('No reminders yet');
+        expect(html).toContain('not wired up yet');
+        // The honest user-created path (add form) must still be present
+        expect(html).toContain('Add New Scheduled Reminder');
+        expect(html).toContain('What needs to get done?');
+      });
     });
   });
 
