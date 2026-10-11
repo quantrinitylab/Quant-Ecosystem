@@ -19,6 +19,10 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
     methods: ['POST'],
   },
   { pattern: /^auth\/2fa\/status$/, methods: ['GET'] },
+  // Active Sessions tab (QM-SCREEN-016): real session list + revoke-others.
+  // `revoke-others` is the destructive one; the backend step-up-guards it.
+  { pattern: /^auth\/sessions$/, methods: ['GET'] },
+  { pattern: /^auth\/sessions\/revoke-others$/, methods: ['POST'] },
   { pattern: /^auth\/phone$/, methods: ['GET', 'DELETE'] },
   { pattern: /^auth\/phone\/(?:send-otp|verify)$/, methods: ['POST'] },
   { pattern: /^email-signatures$/, methods: ['GET', 'POST'] },

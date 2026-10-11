@@ -10,7 +10,7 @@
  */
 
 import type { FastifyRequest } from 'fastify';
-import { TokenService } from '@quant/auth/services/token-service';
+import { TokenService, type SessionMetadata } from '@quant/auth/services/token-service';
 import { getJwtSecret, getJwtRefreshSecret } from '@quant/auth/lib/secrets';
 
 export const REFRESH_COOKIE_NAME = 'quantmail_refresh';
@@ -65,6 +65,24 @@ export const requireTrustedOrigin = (request: any, reply: any): boolean => {
 export const authenticatedUserId = (request: FastifyRequest | unknown): string | undefined =>
   (request as { auth?: { userId?: string } }).auth?.userId;
 
+/**
+ * Display metadata for the Active Sessions tab (QM-SCREEN-016), captured from
+ * the request that is opening the browser session. Best-effort and never a
+ * security signal: the user-agent is client-controlled and the IP is whatever
+ * the edge saw (often a proxy). The /auth/refresh endpoint passes this on
+ * every rotation, which is what tags legacy sessions as browser sessions on
+ * their first rotation after metadata capture ships.
+ */
+export const sessionMetadataFromRequest = (request: {
+  headers?: Record<string, unknown>;
+  ip?: string;
+}): SessionMetadata => {
+  const header = request.headers?.['user-agent'];
+  const userAgent = typeof header === 'string' && header.trim() ? header.trim() : undefined;
+  const ipAddress = typeof request.ip === 'string' && request.ip ? request.ip : undefined;
+  return { source: 'browser', userAgent, ipAddress };
+};
+
 export const createTokenService = (): TokenService =>
   new TokenService({
     jwtSecret: getJwtSecret(),
@@ -96,12 +114,16 @@ export async function issueBrowserSession(
   tokenService: TokenService,
   reply: any,
   user: SessionUser,
+  metadata?: SessionMetadata,
 ): Promise<{ success: true; data: Record<string, unknown> }> {
   const tokens = await tokenService.generateTokenPair(
     user.id,
     { email: user.email, username: user.username, role: user.role },
     ['openid', 'profile', 'email'],
     'quantmail' as any,
+    undefined,
+    undefined,
+    metadata,
   );
 
   setRefreshCookie(reply, tokens.refreshToken);
