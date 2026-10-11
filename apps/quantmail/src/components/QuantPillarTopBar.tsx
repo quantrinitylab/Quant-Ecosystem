@@ -397,7 +397,7 @@ export const PILLAR_LENSES: Record<PillarId, PillarLens[]> = {
     { id: 'all-contacts', label: 'All', queryParam: { key: 'filter', value: 'all' } },
     { id: 'vips', label: 'VIPs', queryParam: { key: 'filter', value: 'vips' } },
     { id: 'teams', label: 'Teams', queryParam: { key: 'filter', value: 'teams' } },
-    { id: 'dedup', label: 'AI Dedup', queryParam: { key: 'filter', value: 'dedup' } },
+    { id: 'dedup', label: 'Dedup', queryParam: { key: 'filter', value: 'dedup' } },
   ],
   quantgit: [
     { id: 'all-repos', label: 'All Repos', queryParam: { key: 'filter', value: 'repos' } },

@@ -487,7 +487,7 @@ export function CompaniesSubView({
 }
 
 // ============================================================================
-// 3. AI DEDUP SUB-VIEW (AI Duplicate Contact Cleaner Wizard View)
+// 3. DEDUP SUB-VIEW (Duplicate Contact Cleaner Wizard View)
 // ============================================================================
 
 export interface DedupCollisionRecord {
@@ -557,7 +557,7 @@ export function DedupWizardSubView({
   );
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      {/* AI Duplicate Cleaner Summary Hero Card */}
+      {/* Duplicate Cleaner Summary Hero Card */}
       <div className="rounded-2xl border border-[#0EA5E9]/50 bg-gradient-to-r from-[#101826] to-[#0A121D] p-5 shadow-lg">
         <div className="flex items-start gap-4">
           <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#0EA5E9] to-[#10B981] text-white shadow-md shadow-[#0EA5E9]/20">
@@ -569,7 +569,7 @@ export function DedupWizardSubView({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-base font-bold text-white tracking-wide">AI Duplicate Contact Cleaner</h2>
+              <h2 className="text-base font-bold text-white tracking-wide">Duplicate Contact Cleaner</h2>
               <span
                 className={`rounded-md border px-2.5 py-0.5 text-xs font-bold tracking-wider ${
                   remaining === 0
