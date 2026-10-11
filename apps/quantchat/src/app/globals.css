@@ -328,3 +328,104 @@ a[role='button']:active,
 .ai-assistant-panel .ai-error button { padding: 4px 12px; border-radius: 999px; border: 1px solid rgba(255, 80, 80, 0.6); background: transparent; color: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 .ai-assistant-panel .ai-error button:disabled { opacity: 0.5; cursor: not-allowed; }
 .ai-assistant-panel .ai-error-text { color: #ff8080; }
+
+/* ============================================================================
+ * StoryCreator styles (apps/quantchat/src/components/StoryCreator.tsx)
+ * QC-F-044: these classes shipped with NO stylesheet at all — the creator
+ * rendered as raw stacked blocks (camera preview unsized, capture controls
+ * and tool bars unstyled). The creator is a camera surface, so it is dark
+ * in both themes (same design language as the games/disappearing family);
+ * the accent is the QuantChat brand token.
+ * ========================================================================== */
+.story-creator { display: flex; flex-direction: column; background: #000; color: #fff; border-radius: 16px; overflow: hidden; min-height: 480px; max-height: 90vh; }
+.story-creator .creator-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
+.story-creator .close-btn { width: 44px; height: 44px; flex: none; border: none; border-radius: 999px; background: rgba(255, 255, 255, 0.12); color: #fff; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.story-creator .close-btn:hover { background: rgba(255, 255, 255, 0.22); }
+.story-creator .mode-tabs { display: flex; gap: 4px; background: rgba(255, 255, 255, 0.12); padding: 4px; border-radius: 999px; }
+.story-creator .mode-tabs button { padding: 8px 16px; min-height: 40px; border: none; border-radius: 999px; background: transparent; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+.story-creator .mode-tabs button.active { background: #fff; color: #000; }
+.story-creator .creator-canvas { position: relative; flex: 1 1 auto; min-height: 300px; background: #111; overflow: hidden; display: flex; align-items: center; justify-content: center; touch-action: none; }
+.story-creator .camera-preview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.story-creator .captured-preview { position: absolute; inset: 0; }
+.story-creator .preview-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.story-creator .preview-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.story-creator .text-canvas { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 32px; }
+.story-creator .text-content { max-width: 100%; overflow-wrap: break-word; white-space: pre-wrap; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35); }
+.story-creator .drawing-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.story-creator .sticker-overlay { position: absolute; width: 96px; height: 96px; pointer-events: none; }
+.story-creator .sticker-overlay img { width: 100%; height: 100%; object-fit: contain; }
+.story-creator .capture-controls { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px; }
+.story-creator .capture-btn { width: 76px; height: 76px; padding: 0; border-radius: 999px; border: 4px solid #fff; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.story-creator .capture-circle { display: block; width: 58px; height: 58px; border-radius: 999px; background: #fff; }
+.story-creator .recording-indicator { color: #ff453a; font-size: 15px; font-weight: 700; }
+.story-creator .record-btn { padding: 10px 20px; min-height: 44px; border: none; border-radius: 999px; background: rgba(255, 255, 255, 0.14); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+.story-creator .record-btn:hover { background: rgba(255, 255, 255, 0.24); }
+.story-creator .gallery-picker { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 32px 16px; color: rgba(255, 255, 255, 0.75); font-size: 14px; text-align: center; }
+.story-creator .gallery-picker input { max-width: 100%; color: #fff; }
+.story-creator .editing-tools { display: flex; flex-direction: column; gap: 12px; padding: 12px 16px 16px; background: #0a0a0a; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.story-creator .tool-bar { display: flex; gap: 8px; justify-content: center; }
+.story-creator .tool-bar button { width: 44px; height: 44px; border: none; border-radius: 999px; background: rgba(255, 255, 255, 0.12); color: #fff; font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.story-creator .tool-bar button.active { background: var(--quant-primary, #10b981); color: #fff; }
+.story-creator .draw-options { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; }
+.story-creator .draw-options > button { padding: 8px 14px; min-height: 40px; border: none; border-radius: 999px; background: rgba(255, 255, 255, 0.12); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+.story-creator .draw-options input[type='range'] { accent-color: var(--quant-primary, #10b981); }
+.story-creator .draw-colors { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.story-creator .draw-colors button { width: 28px; height: 28px; padding: 0; border-radius: 999px; border: 2px solid rgba(255, 255, 255, 0.35); cursor: pointer; }
+.story-creator .draw-colors button.active { border-color: #fff; box-shadow: 0 0 0 2px var(--quant-primary, #10b981); }
+.story-creator .text-options { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; }
+.story-creator .text-options textarea { flex: 1 1 160px; min-height: 40px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08); color: #fff; padding: 8px 10px; font-size: 14px; resize: vertical; }
+.story-creator .text-options select { min-height: 40px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.2); background: #1c1c22; color: #fff; padding: 6px 8px; font-size: 14px; }
+.story-creator .text-options input[type='color'] { width: 40px; height: 40px; border: none; background: none; padding: 0; cursor: pointer; }
+.story-creator .text-options input[type='range'] { accent-color: var(--quant-primary, #10b981); }
+.story-creator .filter-options { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.story-creator .filter-options button { padding: 8px 14px; min-height: 40px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.2); background: transparent; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+.story-creator .filter-options button.active { background: var(--quant-primary, #10b981); border-color: transparent; color: #fff; }
+.story-creator .post-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.story-creator .post-controls select { min-height: 44px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.2); background: #1c1c22; color: #fff; padding: 6px 12px; font-size: 14px; }
+.story-creator .post-btn { padding: 10px 22px; min-height: 44px; border: none; border-radius: 999px; background: var(--quant-primary, #10b981); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; }
+.story-creator .post-btn:hover:not(:disabled) { background: #059669; }
+.story-creator .post-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ============================================================================
+ * GameLauncher styles (apps/quantchat/src/components/games/GameLauncher.tsx)
+ * QC-F-044: the launcher's root/header/title/close classes had no stylesheet
+ * (its item/overlay layout is inline by design; these rules supply the panel
+ * itself). Dark panel matches the component's own inline design language.
+ * ========================================================================== */
+.game-launcher { display: flex; flex-direction: column; gap: 12px; background: #101014; color: #fff; border-radius: 16px; padding: 16px; }
+.game-launcher__header { align-items: center; gap: 12px; }
+.game-launcher__title { margin: 0; font-size: 17px; font-weight: 700; color: #fff; }
+.game-launcher__close { width: 40px; height: 40px; flex: none; border: none; border-radius: 999px; background: rgba(255, 255, 255, 0.12); color: #fff; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.game-launcher__close:hover { background: rgba(255, 255, 255, 0.22); }
+.game-launcher__list { width: 100%; }
+.game-launcher__item { font: inherit; }
+.game-launcher__overlay { font-family: inherit; }
+.game-launcher__overlay-bar { background: rgba(0, 0, 0, 0.85); border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
+.game-launcher__overlay-bar button { padding: 8px 16px; min-height: 40px; border: none; border-radius: 999px; background: rgba(255, 255, 255, 0.12); font-weight: 600; cursor: pointer; }
+.game-launcher__status { padding: 24px; font-size: 15px; text-align: center; }
+
+/* ============================================================================
+ * DisappearingTimerPicker styles
+ * (apps/quantchat/src/components/chat/DisappearingTimerPicker.tsx)
+ * QC-F-044: root/header/title/subtitle classes had no stylesheet — the
+ * picker rendered as unstyled text above its (inline-styled) option pills.
+ * Dark panel + #fffc00 selected accent match the sibling DisappearingTimer
+ * section above and the component's own inline selected state.
+ * ========================================================================== */
+.disappearing-timer-picker { display: flex; flex-direction: column; gap: 4px; background: #101014; color: #fff; border-radius: 16px; padding: 16px; }
+.disappearing-timer-picker__header { display: flex; flex-direction: column; gap: 4px; }
+.disappearing-timer-picker__title { margin: 0; font-size: 16px; font-weight: 700; color: #fff; }
+.disappearing-timer-picker__subtitle { margin: 0; font-size: 13px; color: rgba(255, 255, 255, 0.65); }
+.disappearing-timer-picker__options { width: 100%; }
+.disappearing-timer-picker__option { font: inherit; min-height: 40px; }
+.disappearing-timer-picker__option.is-selected { box-shadow: 0 0 0 1px #fffc00; }
+
+/* ============================================================================
+ * DisappearingMessage styles
+ * (apps/quantchat/src/components/chat/DisappearingMessage.tsx)
+ * QC-F-044: wrapper/countdown classes had no stylesheet. Positioning is
+ * inline by design; these rules bound the wrapper and pin the countdown
+ * badge above the bubble corner.
+ * ========================================================================== */
+.disappearing-message { max-width: 100%; }
+.disappearing-message__countdown { width: 24px; height: 24px; z-index: 2; pointer-events: none; }
