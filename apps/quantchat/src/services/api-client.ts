@@ -433,6 +433,24 @@ export class QuantChatApiClient {
     return this.post('/calls', request);
   }
 
+  /**
+   * Initiate a real 1:1 voice/video call via the LiveKit-backed backend.
+   * POST /calls/initiate { calleeId } — fails closed with 503 CALLS_UNAVAILABLE
+   * when LiveKit is not configured (never a fake call).
+   */
+  async initiate1v1Call(calleeId: string): Promise<ApiResponse<Call>> {
+    return this.post('/calls/initiate', { calleeId });
+  }
+
+  /**
+   * Join a call and receive the LiveKit token (+ server URL) for media.
+   */
+  async joinCall(
+    callId: string,
+  ): Promise<ApiResponse<{ token: string; serverUrl: string }>> {
+    return this.post(`/calls/${callId}/join`, {});
+  }
+
   async answerCall(callId: string): Promise<ApiResponse<Call>> {
     return this.post(`/calls/${callId}/answer`, {});
   }
