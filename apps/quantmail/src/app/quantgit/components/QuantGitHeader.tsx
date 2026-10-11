@@ -132,7 +132,7 @@ export function QuantGitHeader({
         <div className="shrink-0 z-20 bg-[var(--quant-background)] border-b border-[#21262D] px-4 sm:px-6 py-2 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2.5 min-w-0">
             {/* Git Branch / Sovereign Repository Icon */}
-            <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+            <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-[#8B5CF6]">
               <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <line x1="6" y1="3" x2="6" y2="15" />
                 <circle cx="18" cy="6" r="3" />
@@ -145,7 +145,7 @@ export function QuantGitHeader({
             {activeDeckTab === 'lab' ? (
               <div className="flex items-center gap-2 text-xs sm:text-sm">
                 <span className="text-white font-bold flex items-center gap-1.5">
-                  <svg className="size-4 text-[#A78BFA]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg className="size-4 text-[#8B5CF6]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M10 2v7.31L4.65 18.23A2 2 0 0 0 6.36 21h11.28a2 2 0 0 0 1.71-2.77L14 9.31V2" />
                     <path d="M8.5 2h7" />
                     <path d="M7 16h10" />
@@ -180,7 +180,7 @@ export function QuantGitHeader({
                     setViewingFile(null);
                     setActiveGitHubTab('code');
                   }}
-                  className="text-white font-bold hover:text-[#A78BFA] transition-colors truncate max-w-[120px] sm:max-w-none"
+                  className="text-white font-bold hover:text-[#8B5CF6] transition-colors truncate max-w-[120px] sm:max-w-none"
                   title={selectedRepo.name}
                 >
                   {selectedRepo.name}
@@ -189,7 +189,7 @@ export function QuantGitHeader({
                   <>
                     <span className="text-[#7D8590]">/</span>
                     <span
-                      className="text-[#A78BFA] font-mono text-xs truncate max-w-[100px] sm:max-w-[180px]"
+                      className="text-[#8B5CF6] font-mono text-xs truncate max-w-[100px] sm:max-w-[180px]"
                       title={viewingFile.path}
                     >
                       {viewingFile.path}
@@ -210,7 +210,7 @@ export function QuantGitHeader({
                 </span>
                 <span className="text-[#7D8590] text-xs shrink-0">· Repositories</span>
                 <span
-                  className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30 min-w-0 truncate"
+                  className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#8B5CF6]/15 text-[#8B5CF6] border border-[#8B5CF6]/30 min-w-0 truncate"
                   title="Sovereign Git"
                 >
                   SOVEREIGN GIT
@@ -229,7 +229,7 @@ export function QuantGitHeader({
                 className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors text-xs font-semibold"
                 title="Create New..."
               >
-                <span className="text-[#A78BFA] font-bold">+</span>
+                <span className="text-[#8B5CF6] font-bold">+</span>
                 <span className="hidden sm:inline text-xs ml-0.5">New</span>
                 <span className="text-[#7D8590] text-[10px] ml-0.5">▼</span>
               </button>

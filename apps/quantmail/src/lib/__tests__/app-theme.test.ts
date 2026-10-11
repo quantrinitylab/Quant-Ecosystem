@@ -47,7 +47,8 @@ describe('app-theme', () => {
     expect(APP_THEMES.calendar.accent).toMatch(/^var\(--quant-info\)|^#4285F4/i);
     // Green family for drive
     expect(APP_THEMES.drive.accent).toMatch(/^var\(--quant-success\)|^#22|^#34/i);
-    // Purple family for quantgit
-    expect(APP_THEMES.quantgit.accent).toMatch(/^#A/i);
+    // Purple family for quantgit — user-locked value in PILLAR_ACCENTS
+    // (2026-10-09 revision); the pre-lock light-purple family no longer applies
+    expect(APP_THEMES.quantgit.accent).toMatch(/^#8B5CF6$/i);
   });
 });

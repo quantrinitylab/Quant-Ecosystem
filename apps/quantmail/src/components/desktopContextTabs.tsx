@@ -14,6 +14,15 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { PILLAR_ACCENTS } from './pillar-accents';
+// QM-UIUX-037: the per-app accent colors are user-locked (Mail #FF6B35 orange,
+// Calendar #4285F4 blue, Drive #34A853 green, Contacts #F59E0B amber,
+// QuantGit #8B5CF6 purple) and live in ONE source of truth — PILLAR_ACCENTS.
+// This desktop config used to hardcode pre-lock values (old Mail orange,
+// Calendar amber, Drive sky-blue, Contacts emerald, QuantGit #A78BFA),
+// diverging from mobile. accentColor always reads PILLAR_ACCENTS; the
+// Tailwind style strings below repeat the same hex literally because Tailwind
+// can only generate classes it sees statically — keep them in sync.
 
 export type ProductivityPillar = 'mail' | 'calendar' | 'drive' | 'contacts' | 'quantgit';
 
@@ -718,10 +727,10 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
   mail: {
     pillar: 'mail',
     name: 'Mail',
-    accentColor: 'var(--quant-primary)',
-    activeContainerStyle: 'bg-[var(--quant-primary)]/15 border-[var(--quant-primary)]/40',
-    activeTextStyle: 'text-[var(--quant-primary)]',
-    badgeStyle: 'bg-[var(--quant-primary)] text-black',
+    accentColor: PILLAR_ACCENTS.mail,
+    activeContainerStyle: 'bg-[#FF6B35]/15 border-[#FF6B35]/40',
+    activeTextStyle: 'text-[#FF6B35]',
+    badgeStyle: 'bg-[#FF6B35] text-black',
     tabs: [
       {
         id: 'inbox',
@@ -777,10 +786,10 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
   calendar: {
     pillar: 'calendar',
     name: 'Calendar',
-    accentColor: 'var(--quant-warning)',
-    activeContainerStyle: 'bg-[var(--quant-warning)]/15 border-[var(--quant-warning)]/40',
-    activeTextStyle: 'text-[var(--quant-warning)]',
-    badgeStyle: 'bg-[var(--quant-warning)] text-black',
+    accentColor: PILLAR_ACCENTS.calendar,
+    activeContainerStyle: 'bg-[#4285F4]/15 border-[#4285F4]/40',
+    activeTextStyle: 'text-[#4285F4]',
+    badgeStyle: 'bg-[#4285F4] text-black',
     tabs: [
       {
         id: 'feed',
@@ -827,10 +836,10 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
   drive: {
     pillar: 'drive',
     name: 'Drive',
-    accentColor: '#38BDF8',
-    activeContainerStyle: 'bg-[#38BDF8]/15 border-[#38BDF8]/40',
-    activeTextStyle: 'text-[#38BDF8]',
-    badgeStyle: 'bg-[#38BDF8] text-black',
+    accentColor: PILLAR_ACCENTS.drive,
+    activeContainerStyle: 'bg-[#34A853]/15 border-[#34A853]/40',
+    activeTextStyle: 'text-[#34A853]',
+    badgeStyle: 'bg-[#34A853] text-black',
     tabs: [
       {
         id: 'home',
@@ -869,10 +878,10 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
   contacts: {
     pillar: 'contacts',
     name: 'Contacts',
-    accentColor: '#10B981',
-    activeContainerStyle: 'bg-[#10B981]/15 border-[#10B981]/40',
-    activeTextStyle: 'text-[#10B981]',
-    badgeStyle: 'bg-[#10B981] text-black',
+    accentColor: PILLAR_ACCENTS.contacts,
+    activeContainerStyle: 'bg-[#F59E0B]/15 border-[#F59E0B]/40',
+    activeTextStyle: 'text-[#F59E0B]',
+    badgeStyle: 'bg-[#F59E0B] text-black',
     tabs: [
       {
         id: 'home',
@@ -917,10 +926,10 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
   quantgit: {
     pillar: 'quantgit',
     name: 'QuantGit',
-    accentColor: '#A78BFA',
-    activeContainerStyle: 'bg-[#A78BFA]/15 border-[#A78BFA]/40',
-    activeTextStyle: 'text-[#A78BFA]',
-    badgeStyle: 'bg-[#A78BFA] text-black',
+    accentColor: PILLAR_ACCENTS.quantgit,
+    activeContainerStyle: 'bg-[#8B5CF6]/15 border-[#8B5CF6]/40',
+    activeTextStyle: 'text-[#8B5CF6]',
+    badgeStyle: 'bg-[#8B5CF6] text-black',
     tabs: [
       {
         id: 'quanty',

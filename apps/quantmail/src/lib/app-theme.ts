@@ -4,7 +4,13 @@
 // color. Switching apps animates the whole UI's color theme with a smooth
 // transition. Colors are user-locked (2026-10-09 revision): Mail=orange,
 // Calendar=blue, Drive=green, Contacts=amber, QuantGit=purple.
+//
+// The hex values live in ONE place — PILLAR_ACCENTS (components/pillar-accents).
+// This module derives the glow/wash/ring variants from it so the two maps can
+// never diverge again.
 // ============================================================================
+
+import { PILLAR_ACCENTS } from '../components/pillar-accents';
 
 export type AppThemeId = 'mail' | 'calendar' | 'drive' | 'contacts' | 'quantgit';
 
@@ -20,42 +26,33 @@ export interface AppTheme {
   ring: string;
 }
 
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  return [
+    parseInt(h.slice(0, 2), 16),
+    parseInt(h.slice(2, 4), 16),
+    parseInt(h.slice(4, 6), 16),
+  ];
+}
+
+function themeFor(id: AppThemeId): AppTheme {
+  const accent = PILLAR_ACCENTS[id];
+  const [r, g, b] = hexToRgb(accent);
+  return {
+    id,
+    accent,
+    glow: `rgba(${r}, ${g}, ${b}, 0.25)`,
+    bgWash: `linear-gradient(180deg, rgba(${r}, ${g}, ${b}, 0.06) 0%, transparent 32%)`,
+    ring: accent,
+  };
+}
+
 export const APP_THEMES: Record<AppThemeId, AppTheme> = {
-  mail: {
-    id: 'mail',
-    accent: '#FF6B35',
-    glow: 'rgba(255, 107, 53, 0.25)',
-    bgWash: 'linear-gradient(180deg, rgba(255, 107, 53, 0.06) 0%, transparent 32%)',
-    ring: '#FF6B35',
-  },
-  calendar: {
-    id: 'calendar',
-    accent: '#4285F4',
-    glow: 'rgba(66, 133, 244, 0.25)',
-    bgWash: 'linear-gradient(180deg, rgba(66, 133, 244, 0.06) 0%, transparent 32%)',
-    ring: '#4285F4',
-  },
-  drive: {
-    id: 'drive',
-    accent: '#34A853',
-    glow: 'rgba(52, 168, 83, 0.25)',
-    bgWash: 'linear-gradient(180deg, rgba(52, 168, 83, 0.06) 0%, transparent 32%)',
-    ring: '#34A853',
-  },
-  contacts: {
-    id: 'contacts',
-    accent: '#F59E0B',
-    glow: 'rgba(245, 158, 11, 0.25)',
-    bgWash: 'linear-gradient(180deg, rgba(245, 158, 11, 0.06) 0%, transparent 32%)',
-    ring: '#F59E0B',
-  },
-  quantgit: {
-    id: 'quantgit',
-    accent: '#A855F7',
-    glow: 'rgba(168, 85, 247, 0.25)',
-    bgWash: 'linear-gradient(180deg, rgba(168, 85, 247, 0.06) 0%, transparent 32%)',
-    ring: '#A855F7',
-  },
+  mail: themeFor('mail'),
+  calendar: themeFor('calendar'),
+  drive: themeFor('drive'),
+  contacts: themeFor('contacts'),
+  quantgit: themeFor('quantgit'),
 };
 
 /**

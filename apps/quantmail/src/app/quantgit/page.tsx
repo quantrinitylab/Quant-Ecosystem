@@ -2570,7 +2570,7 @@ export default function QuantGitPage() {
   return (
     <Suspense
       fallback={
-        <div className="h-dvh max-h-dvh w-full flex items-center justify-center bg-[var(--quant-background)] text-[#A78BFA] font-mono text-xs">
+        <div className="h-dvh max-h-dvh w-full flex items-center justify-center bg-[var(--quant-background)] text-[#8B5CF6] font-mono text-xs">
           Loading QuantGit Workspace...
         </div>
       }

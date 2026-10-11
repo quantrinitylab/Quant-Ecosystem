@@ -8,7 +8,7 @@ import { useState } from 'react';
  * Design principles (per user feedback: professional, not gamey):
  * - Clean, minimal modal inspired by GitHub's username claim flow
  * - Real-time availability checking with visual feedback
- * - Professional purple accent (#A855F7) matching QuantGit theme
+ * - Professional purple accent (#8B5CF6) matching QuantGit theme
  * - Clear value proposition: your ID across the Quant ecosystem
  */
 
@@ -97,7 +97,7 @@ export function QuantGitUserIdModal({ isOpen, onClose, onCreate, currentUserId }
         {currentUserId ? (
           <div className="rounded-xl p-4 mb-4" style={{ background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.3)' }}>
             <p className="text-sm text-[#94A3B8]">Your current QuantGit ID</p>
-            <p className="text-lg font-mono font-semibold text-[#A855F7] mt-1">@{currentUserId}</p>
+            <p className="text-lg font-mono font-semibold text-[#8B5CF6] mt-1">@{currentUserId}</p>
           </div>
         ) : null}
 
@@ -114,7 +114,7 @@ export function QuantGitUserIdModal({ isOpen, onClose, onCreate, currentUserId }
               value={userId}
               onChange={(e) => handleInputChange(e.target.value)}
               placeholder="your-username"
-              className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-[#0D0D12] border border-[#232938] text-white placeholder-[#475569] font-mono text-sm focus:outline-none focus:border-[#A855F7]/60 focus:ring-1 focus:ring-[#A855F7]/30 transition-all"
+              className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-[#0D0D12] border border-[#232938] text-white placeholder-[#475569] font-mono text-sm focus:outline-none focus:border-[#8B5CF6]/60 focus:ring-1 focus:ring-[#8B5CF6]/30 transition-all"
               autoFocus
             />
           </div>
@@ -131,7 +131,7 @@ export function QuantGitUserIdModal({ isOpen, onClose, onCreate, currentUserId }
 
         {/* Coming-soon notice: honest about the missing backend */}
         <div className="rounded-xl p-3 mb-4" style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.25)' }}>
-          <p className="text-xs font-semibold text-[#A855F7] mb-1">Coming soon</p>
+          <p className="text-xs font-semibold text-[#8B5CF6] mb-1">Coming soon</p>
           <p className="text-xs text-[#94A3B8] leading-relaxed">
             User ID claiming opens once the QuantGit identity service is live.
             Availability can't be checked yet — nothing here is reserved or stored.
@@ -148,7 +148,7 @@ export function QuantGitUserIdModal({ isOpen, onClose, onCreate, currentUserId }
               'Cross-app identity (Mail, Drive, Calendar)',
             ].map((benefit) => (
               <li key={benefit} className="flex items-center gap-2 text-xs text-[#CBD5E1]">
-                <svg className="size-3 text-[#A855F7] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <svg className="size-3 text-[#8B5CF6] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
                 {benefit}
@@ -172,7 +172,7 @@ export function QuantGitUserIdModal({ isOpen, onClose, onCreate, currentUserId }
             title="User ID claiming is coming soon — backend integration pending"
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all opacity-40 cursor-not-allowed"
             style={{
-              background: 'linear-gradient(135deg, #A855F7, #7C3AED)',
+              background: 'linear-gradient(135deg, #8B5CF6, #7C3AED)',
               boxShadow: 'none'
             }}
           >

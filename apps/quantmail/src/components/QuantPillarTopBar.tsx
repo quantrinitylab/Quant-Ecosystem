@@ -1513,7 +1513,7 @@ export function QuantPillarTopBar({
         onClick={() => setQuantGitIdModalOpen(true)}
         className="fixed right-4 z-[90] flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-white transition-all hover:scale-105 active:scale-95 max-w-[calc(100vw-2rem)] bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)]"
         style={{
-          background: 'linear-gradient(135deg, #A855F7, #7C3AED)',
+          background: 'linear-gradient(135deg, #8B5CF6, #7C3AED)',
           boxShadow: '0 8px 24px rgba(168,85,247,0.4)',
           border: '1px solid rgba(255,255,255,0.15)',
         }}

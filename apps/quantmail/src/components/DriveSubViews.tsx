@@ -1897,9 +1897,9 @@ export function DriveAiMemorySubView({
       },
       QuantGit: {
         name: 'QuantGit',
-        color: '#A78BFA',
+        color: '#8B5CF6',
         icon: FolderIcon,
-        borderStyle: 'border-[#A78BFA]/40 bg-[#A78BFA]/10 text-[#A78BFA]',
+        borderStyle: 'border-[#8B5CF6]/40 bg-[#8B5CF6]/10 text-[#8B5CF6]',
       },
       Shared: {
         name: 'Shared context',
