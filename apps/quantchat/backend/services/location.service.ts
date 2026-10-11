@@ -12,7 +12,9 @@
 // has added as a CLOSE FRIEND (`CloseFriend` where userId = caller), and only
 // those friends who currently have a `FriendLocation` row (actively sharing).
 // Users who are not the caller's close friends are never exposed, and a close
-// friend who has stopped sharing (no row) is silently omitted.
+// friend who has stopped sharing (no row) is silently omitted. QC-F-042 adds
+// the owner-side half: an owner whose `whoCanSeeLocation` pref is 'nobody'
+// or 'ghost' is omitted even for their close friends.
 //
 // The service is decoupled from the generated Prisma client types via the
 // `LocationPrismaClient` structural interface — mirroring the casting pattern
@@ -20,6 +22,7 @@
 // regardless of whether `prisma generate` has been run for these delegates.
 // ============================================================================
 import { createAppError } from '@quant/server-core';
+import { extractPrivacyPrefs } from './privacy.service';
 
 /** Latitude/longitude bounds for WGS84 coordinates. */
 export const LATITUDE_MIN = -90;
@@ -50,6 +53,12 @@ export interface MapUserRecord {
   username: string;
   displayName: string;
   avatarUrl: string | null;
+  /**
+   * QC-F-042: the owner's raw preferences, carried only so the owner's own
+   * `whoCanSeeLocation` pref can be enforced in getFriendsOnMap. It is
+   * never copied into the returned FriendOnMap shape.
+   */
+  preferences?: unknown;
 }
 
 /** Coordinates supplied by the caller when publishing a location. */
@@ -177,7 +186,13 @@ export class LocationService {
     const sharingIds = locations.map((loc) => loc.userId);
     const users = await this.prisma.user.findMany({
       where: { id: { in: sharingIds } },
-      select: { id: true, username: true, displayName: true, avatarUrl: true },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        avatarUrl: true,
+        preferences: true,
+      },
     });
     const userById = new Map(users.map((u) => [u.id, u]));
 
@@ -187,6 +202,17 @@ export class LocationService {
       // A location whose user record is missing (e.g. mid-deletion) is skipped
       // rather than exposed with placeholder identity.
       if (!profile) continue;
+      // QC-F-042: the OWNER's own whoCanSeeLocation pref is the second gate.
+      // The viewer-side close-friend rule above decides whose locations the
+      // caller may ask for; this decides whether the owner agreed to be
+      // seen at all. 'nobody' and 'ghost' both hide the owner (the row
+      // stays — publishing and being seen are different acts); 'friends'
+      // (the default) keeps the existing close-friend behaviour. Malformed
+      // prefs resolve most-restrictive ('nobody') via extractPrivacyPrefs,
+      // so a broken row hides the owner instead of crashing or leaking.
+      if (extractPrivacyPrefs(profile.preferences).prefs.whoCanSeeLocation !== 'friends') {
+        continue;
+      }
       onMap.push({
         userId: loc.userId,
         username: profile.username,

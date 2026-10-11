@@ -1,11 +1,17 @@
 import type { PrismaClient } from '@prisma/client';
 import { DeliveryReceiptService } from './delivery-receipt.service';
+import { getPrivacyService, type PrivacyService } from './privacy.service';
 
 export class ReceiptService {
   private readonly deliveryReceiptService: DeliveryReceiptService;
+  private readonly privacy: PrivacyService;
 
-  constructor(private readonly prisma: PrismaClient) {
+  constructor(
+    private readonly prisma: PrismaClient,
+    privacy?: PrivacyService,
+  ) {
     this.deliveryReceiptService = new DeliveryReceiptService(prisma as never);
+    this.privacy = privacy ?? getPrivacyService(prisma);
   }
 
   async markMessageDelivered(
@@ -22,7 +28,19 @@ export class ReceiptService {
   async markMessageRead(
     messageId: string,
     recipientId: string,
-  ): Promise<{ status: 'read'; readAt: string }> {
+  ): Promise<{ status: 'read'; readAt: string; suppressed?: boolean }> {
+    // QC-F-042 reader-side gate: when the READER's showReadReceipts is off,
+    // no read receipt is persisted (and the route must not fan a tick out —
+    // it checks `suppressed`). The response still says 'read' because the
+    // reader DID read the message locally; `suppressed: true` is the honest
+    // signal that nothing was shared with the sender. Delivered receipts
+    // are never gated — delivery is a transport fact, not a privacy act.
+    // A prefs read failure resolves most-restrictive (showReadReceipts
+    // false), so an error suppresses rather than leaks.
+    const { prefs } = await this.privacy.resolve(recipientId);
+    if (!prefs.showReadReceipts) {
+      return { status: 'read', readAt: new Date().toISOString(), suppressed: true };
+    }
     const receipt = await this.deliveryReceiptService.recordRead(messageId, recipientId);
     return {
       status: 'read',
@@ -50,18 +68,30 @@ export class ReceiptService {
       return { status: 'sent', receipts: [] };
     }
 
+    // QC-F-042 sender-side gate (reciprocity, the WhatsApp model): a
+    // sender who turned their own read receipts off does not get to see
+    // other people's read ticks either. Read rows are presented capped at
+    // 'delivered' — the read timestamp is never exposed to this sender and
+    // the overall status can never become 'read' for them. The rows
+    // themselves are not altered; this is a per-viewer presentation gate.
+    const { prefs: senderPrefs } = await this.privacy.resolve(senderId);
+    const hideRead = !senderPrefs.showReadReceipts;
+
     let hasRead = false;
     let hasDelivered = false;
 
     const receipts = rows.map((r: any) => {
-      const isRead = !!r.readAt;
+      const isRead = !!r.readAt && !hideRead;
       if (isRead) hasRead = true;
-      else if (r.deliveredAt) hasDelivered = true;
+      else if (r.deliveredAt || r.readAt) hasDelivered = true;
 
       return {
         userId: r.userId,
         status: (isRead ? 'read' : 'delivered') as 'delivered' | 'read',
-        timestamp: (r.readAt || r.deliveredAt || new Date()).toISOString(),
+        timestamp: (isRead
+          ? r.readAt
+          : r.deliveredAt || r.readAt || new Date()
+        ).toISOString(),
       };
     });
 
