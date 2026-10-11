@@ -693,12 +693,27 @@ REQUIREMENT GAPS vs Required: resumable transfer MISSING (UI uploads are one-sho
 NOT VERIFIED (needs live/auth): signed-in E2E of all flows, trash/restore E2E, accept/decline E2E, move E2E, desktop tab reachability after fix, accent color visual after fix.
 FIX AGENTS: lane1-fix-010-proxy-gaps (P0 proxy gaps + move mismatch + shared-with-me id) → PR-only. lane1-fix-010-fake-purge (fake data purge + P1s + P2 cleanup) → PR-only.
 
-Lane-1 R2 REGRESSION — CLAIM
-Status: [~] (R2 regression audit in progress)
+Lane-1 R2 REGRESSION — DONE (2026-10-11 ~20:40-21:15 IST, lane-1 deep audit loop)
+Status: [x] (R2 regression audit complete)
 Owner: LANE-1
 Branch: lane-1/audit-qm-screen-010-drive-r2
-Audit started (R2): 2026-10-11 ~20:40 IST (lane-1 deep audit loop)
-Context: PR #825 (proxy gaps) MERGED; PR #826 (fake-data purge + P1s + P2 cleanup) still OPEN, now CONFLICTING — R1 fake-data P0s likely unfixed on main. Re-audit origin/main + live.
+Audit scope: origin/main @ f3d0531ee7ee — drive/page.tsx + src/components/DriveSubViews.tsx + src/app/drive/components/* (reorganized since R1) + src/hooks/useDrive.ts + all src/app/api/drive/* routes. LIVE: /drive → clean sign-in redirect desktop+mobile (shots /tmp/lane1-010r2-desktop-drive.png + /tmp/lane1-010r2-mobile-drive.png); /api/drive/trash + /shares/received + /quota → 401 logged out (auth airtight). Signed-in E2E still needs-auth.
+R2-VERIFIED FIXED (regression clean): PR #825 proxy work fully present on main — dedicated routes GET /api/drive/trash, /api/drive/move, files/[fileId]/restore, files/[fileId]/purge, shares/received, shares/sent, shares/[shareId]/accept|decline ALL exist; shared-with-me file id fix present (DriveSharedSubView.tsx:19 `fileId: s.file?.id`); drive accent now locked green #34A853 via PILLAR_ACCENTS→AppShell (R1 P1 accent resolved); error toasts added for trash/shares loads; feed maps real files with real modifiedAt (R1 "fabricates modifiedAt as now" no longer in this path, empty fallback honest []).
+STILL BROKEN on main (R1 findings never landed — PR #826 OPEN + CONFLICTING, cannot merge):
+- [ ] R2-P0-1: Fake trash files — 'Deprecated_Keyring_v1.pem', 'Old_Architecture_Draft_2025.pdf' fabricated when trash empty | expected: honest empty state | actual: invented files with Restore/Purge | evidence: DriveSubViews.tsx:894,903
+- [ ] R2-P0-2: Feed invents media specs — `item.duration || '4K'` / `'FLAC'` / `item.dimensions || 'RAW'` badges on real files | expected: real metadata or no badge | actual: fake quality labels | evidence: DriveSubViews.tsx:1690-1693
+- [ ] R2-P0-3: Fake lightbox — "Fast Lightbox Full-Resolution View" renders icon + gradient placeholder, never real media | expected: real media or honest "no preview" | actual: fake full-resolution claim | evidence: DriveSubViews.tsx:1733,1802
+- [ ] R2-P1-1: Unverified marketing claims — "FastCDC 64KB CAS · Zero-Egress Storage · Hardware Enclave Active", "real-time FastCDC indexing", "Zero-Knowledge Sovereign Storage" | expected: provable copy only | evidence: DriveSubViews.tsx:583,977,1809
+- [ ] R2-P1-2: Dead "Upgrade Plan" — 'Sovereign Enterprise Plan: Upgrade options requested.' toast-only button, no flow | expected: real flow or honest "not available" | evidence: page.tsx:1934
+- [ ] R2-P1-3: Fabricated 15 GB default quota — useState({used:0,total:15*1024**3}) | expected: unknown-until-loaded | evidence: useDrive.ts:479
+- [ ] R2-P2-1: Upload progress tracked but never surfaced — `uploads` state + cancelUpload computed, zero consumers in drive page | evidence: useDrive.ts:90-95,606-614
+- [ ] R2-P2-2: Star offered on document items — grid cards render Toggle star on documents; backend 404s (QM-UIUX-079: documents have no star) | evidence: DriveSubViews.tsx:1128
+- [ ] R2-P2-3: "Recent Items ({files.length})" heading — ordering still unverified vs R1 "unordered folder slice" claim | evidence: DriveSubViews.tsx:1100
+- [ ] R2-P2-4: Divider/palette violations remain in DriveSubViews.tsx — hardcoded border-[#232938], #64748B etc. (today's commit 2aca0447 drive-dividers did NOT cover this file) | evidence: DriveSubViews.tsx:1124
+NEW R2 finding:
+- [ ] R2-P1-4: Drive home files grid uses BLUE (#38BDF8 ×48) tints instead of locked drive-green accent — document cards hover:border-[#38BDF8]/50, bg-[#38BDF8]/10 etc. | expected: green via var(--app-accent)/PILLAR_ACCENTS | evidence: DriveSubViews.tsx (48 hits, e.g. :1124)
+NOT VERIFIED (needs live/auth): signed-in E2E of trash/restore/purge/accept/decline/move, desktop tab reachability, Recent Items ordering, accent visual after fix.
+FIX AGENTS (PR-only, tracked separately): lane1-fix-010r2-fake-purge (revive/port #826 onto current main, all STILL-BROKEN items above), lane1-fix-010r2-drive-accent (R2-P1-4 blue→green). Rotation → QM-SCREEN-011 R2.
 
 ## QM-SCREEN-011 — Drive upload / file preview / editor handoff
 Status: [x] DONE — LANE-1, branch lane1-audit-011. AUDIT COMPLETE (2026-10-11 ~05:10 IST): 2 P0, 1 P1, 3 P2 logged in task body (code audited against origin/main). Live: /drive → sign-in desktop+mobile (clean, shots /tmp/lane1-011-desktop-drive.png + /tmp/lane1-011-mobile-drive.png); /api/drive/upload + /api/drive/files/<id>/download → 401 logged out (airtight). Signed-in flows needs-auth — not verified live. FIX AGENTS (PR-only, tracked separately): lane1-fix-011-preview-auth (P0 preview 401s), lane1-fix-011-upload-scan (P0 resumable upload + P1 scan badges). Rotation → QM-SCREEN-012.
