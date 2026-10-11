@@ -14,7 +14,7 @@
  *   - Organize: real /api/drive/ai/organize suggest (apply=false) then a
  *     real move (apply=true) or a real copy into the suggested folder.
  *   - Summarize: real /api/drive/ai/summarize output.
- *   - Clean duplicates: opens the existing AI duplicate cleaner modal.
+ *   - Clean duplicates: opens the existing duplicate cleaner modal.
  *
  * Every visible word is an instruction or a provable truth: no fake counts,
  * no fake scores, no invented summaries.
@@ -630,7 +630,7 @@ export interface QuantyFileWorkspaceProps {
   onClose: () => void;
   /** The file the workspace acts on (from the Drive page selection). */
   file: WorkspaceFile | null;
-  /** Opens the existing AI duplicate cleaner modal. */
+  /** Opens the existing duplicate cleaner modal. */
   onOpenDuplicateCleaner: () => void;
   /** Refresh the Drive listing after a real move/copy. */
   onFilesChanged?: () => void;

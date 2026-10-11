@@ -11,7 +11,7 @@ import {
   type DuplicateCleanerState,
 } from '../components/drive/AIDuplicateCleanerModal';
 
-describe('QuantDrive AI Duplicate Cleaner Test Suite', () => {
+describe('QuantDrive Duplicate Cleaner Test Suite', () => {
   const sampleGroup1Files: Array<
     Omit<DuplicateFileItem, 'isOriginal' | 'selectedForDeletion'> & Partial<DuplicateFileItem>
   > = [
@@ -383,16 +383,16 @@ describe('QuantDrive AI Duplicate Cleaner Test Suite', () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 500,
-        json: async () => ({ error: 'AI Duplicate Scan Indexer unavailable' }),
+        json: async () => ({ error: 'Duplicate Scan Indexer unavailable' }),
       });
 
       const manager = new DuplicateCleanerManager({ apiFetch: mockFetch as any });
 
       await expect(manager.scanDuplicates()).rejects.toThrow(
-        'AI Duplicate Scan Indexer unavailable',
+        'Duplicate Scan Indexer unavailable',
       );
       expect(manager.getState().isScanning).toBe(false);
-      expect(manager.getState().error).toBe('AI Duplicate Scan Indexer unavailable');
+      expect(manager.getState().error).toBe('Duplicate Scan Indexer unavailable');
     });
 
     it('toggles file selection properly and forbids toggling original files', () => {
@@ -584,13 +584,44 @@ describe('QuantDrive AI Duplicate Cleaner Test Suite', () => {
 
       expect(html).toContain('role="dialog"');
       expect(html).toContain('aria-modal="true"');
-      expect(html).toContain('aria-label="AI Duplicate Cleaner"');
+      expect(html).toContain('aria-label="Duplicate Cleaner"');
       expect(html).toContain('id="ai-duplicate-cleaner-title"');
-      expect(html).toContain('AI Duplicate Cleaner');
+      expect(html).toContain('Duplicate Cleaner');
       expect(html).toContain(
-        'Quant AI scanned storage and identified identical duplicate files by hash.',
+        'Scanned by content hash and identified identical duplicate files.',
       );
       expect(html).toContain('aria-label="Close dialog"');
+    });
+
+    it('qm-drive-ai-dupe-claim: renders honest non-AI labels (content-hash detection, no invented AI claim)', () => {
+      const manager = new DuplicateCleanerManager({ initialGroups: sampleGroups });
+      const html = renderToStaticMarkup(
+        <AIDuplicateCleanerModal isOpen={true} onClose={vi.fn()} manager={manager} />,
+      );
+
+      // Honest labels pin the non-AI surface
+      expect(html).toContain('aria-label="Duplicate Cleaner"');
+      expect(html).toContain('>Duplicate Cleaner<');
+      expect(html).toContain(
+        'Scanned by content hash and identified identical duplicate files.',
+      );
+
+      // The detection path is pure content-hash grouping (backend
+      // AIDuplicateService.findDuplicates — zero AI/LLM refs) so no AI
+      // capability claim may be rendered here
+      const AI_CLAIM_PATTERNS = [
+        'AI Duplicate',
+        'AI duplicate',
+        'Quant AI',
+        'AI-powered',
+        'AI powered',
+        'powered by AI',
+        'Powered by AI',
+        'Artificial Intelligence',
+      ];
+      for (const claim of AI_CLAIM_PATTERNS) {
+        expect(html, `AI capability claim rendered: ${claim}`).not.toContain(claim);
+      }
     });
 
     it('renders potential savings summary banner with Select All and Deselect All buttons', () => {
