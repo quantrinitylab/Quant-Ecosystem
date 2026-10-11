@@ -66,7 +66,11 @@ export function PeopleHome() {
   );
 
   const handleSelect = (conversation: PersonConversation) => {
-    router.push(`/people/${encodeURIComponent(conversation.personKey)}`);
+    const path = `/people/${encodeURIComponent(conversation.personKey)}`;
+    // Carry the lens through the route: a spam-lens person only exists in
+    // the SPAM folder query, so the detail page must know to use it — a
+    // bare /people/<id> would render "Conversation not found" for them.
+    router.push(isSpamLens ? `${path}?lens=spam` : path);
   };
 
   return (

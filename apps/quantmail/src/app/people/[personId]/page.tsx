@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '../../../components/AppShell';
 import { AppSidebar } from '../../../components/AppSidebar';
 import { useInbox } from '../../../hooks/useInbox';
@@ -39,7 +39,19 @@ export default function PersonPage() {
     }
   }, [rawPersonId]);
 
-  const { data: emails, isLoading, isError, refetch } = useInbox();
+  // Honor the lens carried through from the people list (?lens=spam): it
+  // decides which folder dataset the detail page queries, and where "back"
+  // returns to — dropping it strands the user on the wrong view.
+  const searchParams = useSearchParams();
+  const isSpamLens = searchParams?.get('lens') === 'spam';
+  const backHref = isSpamLens ? '/?lens=spam' : '/people';
+
+  const { data: emails, isLoading, isError, refetch } = useInbox(
+    // The spam lens lists people built from the SPAM folder query; a
+    // spam-only person is absent from the default INBOX dataset, so honor
+    // ?lens=spam here or their detail page lands on "Conversation not found".
+    isSpamLens ? { folderType: 'SPAM' } : undefined,
+  );
 
   /**
    * P1-C: optimistic sends. Each entry becomes a "Sending…" bubble appended
@@ -139,8 +151,8 @@ export default function PersonPage() {
     onArchive: useCallback(() => {
       if (messageIds.length === 0) return;
       void mutations.archive(messageIds);
-      router.push('/people');
-    }, [messageIds, mutations, router]),
+      router.push(backHref);
+    }, [messageIds, mutations, router, backHref]),
     onMarkUnread: useCallback(() => {
       if (messageIds.length === 0) return;
       void mutations.markUnread(messageIds);
@@ -167,8 +179,8 @@ export default function PersonPage() {
       router.push(`/?selected=${encodeURIComponent(selectId)}`);
     }, [conversation, router]),
     onClose: useCallback(() => {
-      router.push('/people');
-    }, [router]),
+      router.push(backHref);
+    }, [router, backHref]),
   });
 
   return (
@@ -176,7 +188,7 @@ export default function PersonPage() {
       <div className="flex h-full flex-col bg-black">
         <header className="flex items-center gap-3 px-4 pt-4 sm:px-6">
           <Link
-            href="/people"
+            href={backHref}
             aria-label="Back to people"
             className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl text-[#9BA0AA] transition-colors hover:bg-[var(--quant-surface-elevated)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316]"
           >
@@ -225,10 +237,12 @@ export default function PersonPage() {
             <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
               <p className="text-sm font-semibold text-white">Conversation not found</p>
               <p className="text-xs text-[#9BA0AA]">
-                This person isn&apos;t in your conversations — they may have been archived or deleted.
+                {isSpamLens
+                  ? "This person isn't in your spam conversations — their messages may have been deleted or moved out of spam."
+                  : "This person isn't in your conversations — they may have been archived or deleted."}
               </p>
               <Link
-                href="/people"
+                href={backHref}
                 className="mt-1 inline-flex min-h-[44px] items-center rounded-xl bg-[#F97316] px-5 text-sm font-bold text-black transition-colors hover:bg-[#FB8A3D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316]"
               >
                 Back to people
