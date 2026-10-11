@@ -3248,7 +3248,7 @@ body {
 .template-shortcut {
   margin-left: auto;
   flex-shrink: 0;
-  font-size: 0.6rem;
+  font-size: 0.65rem; /* 10.4px — CSS floor is 10px */
   font-weight: 600;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--quant-primary);
