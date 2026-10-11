@@ -2,7 +2,6 @@
 // Strictly ZERO raw Unicode emojis throughout this file.
 // Strictly ZERO Skia clipPath calls (120Hz Impeller & Skia acceleration).
 
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:quant_core/quant_core.dart';
 import 'package:quant_theme/quant_theme.dart';
@@ -11,12 +10,11 @@ import '../screens/call_screen.dart';
 
 /// Interactive HD WebRTC Audio & Video Call Bottom Sheet
 /// Featuring:
-/// - Hardware Keystore E2EE badge
+/// - Connection-state badge (honest: calls cannot connect in this build)
 /// - Mute mic toggle
 /// - Speakerphone toggle
 /// - Video camera toggle
 /// - Camera flip toggle
-/// - Real-time duration timer & WebRTC telemetry (<18ms mesh)
 /// - Fullscreen expansion to CallScreen
 class WebRTCCallSheet extends StatefulWidget {
   final ChatConversation conversation;
@@ -54,10 +52,6 @@ class _WebRTCCallSheetState extends State<WebRTCCallSheet> with SingleTickerProv
   bool _isSpeakerOn = true;
   late bool _isVideoEnabled;
   bool _isFrontCamera = true;
-  bool _isConnected = false;
-  int _durationSeconds = 0;
-  Timer? _callTimer;
-  Timer? _connectTimer;
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -76,40 +70,18 @@ class _WebRTCCallSheetState extends State<WebRTCCallSheet> with SingleTickerProv
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    // Simulate WebRTC peer connection handshake
-    _connectTimer = Timer(const Duration(milliseconds: 600), () {
-      if (!mounted) return;
-      setState(() {
-        _isConnected = true;
-      });
-      _startCallTimer();
-    });
+    // HONEST CALL STATE: no WebRTC stack is wired into this build, so no
+    // connection is ever established here. This sheet previously simulated
+    // a handshake (600ms timer -> "Connected" + a ticking duration and an
+    // invented sub-18ms mesh latency claim). It now shows the truthful
+    // unavailable state; the controls remain as chrome for the future real
+    // implementation.
   }
 
   @override
   void dispose() {
-    _callTimer?.cancel();
-    _connectTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
-  }
-
-  void _startCallTimer() {
-    _callTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      setState(() {
-        _durationSeconds++;
-      });
-    });
-  }
-
-  String _formatDuration(int totalSecs) {
-    final mins = (totalSecs ~/ 60).toString().padLeft(2, '0');
-    final secs = (totalSecs % 60).toString().padLeft(2, '0');
-    return '$mins:$secs';
   }
 
   void _toggleMute() {
@@ -149,7 +121,6 @@ class _WebRTCCallSheetState extends State<WebRTCCallSheet> with SingleTickerProv
   }
 
   void _endCall() {
-    _callTimer?.cancel();
     Navigator.of(context).pop();
   }
 
@@ -188,7 +159,7 @@ class _WebRTCCallSheetState extends State<WebRTCCallSheet> with SingleTickerProv
             ),
             const SizedBox(height: 14),
 
-            // Top E2EE Sovereign Encryption Security Badge
+            // Top connection-state badge
             _buildEncryptionBadge(),
             const SizedBox(height: 18),
 
@@ -207,21 +178,19 @@ class _WebRTCCallSheetState extends State<WebRTCCallSheet> with SingleTickerProv
             ),
             const SizedBox(height: 4),
 
-            // Call Status & Telemetry
-            Text(
-              _isConnected
-                  ? 'Connected · ${_formatDuration(_durationSeconds)} | <18ms mesh'
-                  : 'Connecting WebRTC Sovereign Mesh...',
+            // Call Status: no connection exists, and no telemetry is
+            // measured, so the sheet says exactly that.
+            const Text(
+              'Calls are not available in this build yet',
               style: TextStyle(
-                color: _isConnected ? QuantColors.statusSuccess : QuantColors.textMuted,
+                color: QuantColors.textMuted,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                fontFamily: _isConnected ? 'monospace' : null,
               ),
             ),
             const SizedBox(height: 10),
 
-            // Codec / Quality Chip
+            // Call Type Chip
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
               decoration: BoxDecoration(
@@ -230,7 +199,7 @@ class _WebRTCCallSheetState extends State<WebRTCCallSheet> with SingleTickerProv
                 border: Border.all(color: QuantColors.hairlineBorder),
               ),
               child: Text(
-                isVideo ? 'VP9 1080p60 · Zero-Cloud P2P' : 'Opus 48kHz HD Audio · Hardware Keystore',
+                isVideo ? 'Video call' : 'Voice call',
                 style: const TextStyle(
                   color: QuantColors.textSecondary,
                   fontSize: 10,
@@ -262,7 +231,7 @@ class _WebRTCCallSheetState extends State<WebRTCCallSheet> with SingleTickerProv
           Icon(Icons.lock_rounded, size: 12, color: QuantColors.sovereignCyan),
           SizedBox(width: 5),
           Text(
-            'Hardware Keystore E2EE | Zero-Cloud Plaintext',
+            'Not connected — no call is in progress',
             style: TextStyle(
               color: QuantColors.sovereignCyan,
               fontSize: 10,
