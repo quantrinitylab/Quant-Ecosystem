@@ -409,13 +409,17 @@ Scope: flutter_apps/workspaces/phase1/apps/quantmail/flutter/packages/quant_core
 Dependencies: QM-AUTH-008; QM-PLAT-006; QM-PLAT-010.
 
 ## QM-SCREEN-002 — Login / registration / verification / recovery / 2FA
-Status: [x] DONE
-Owner: Track A screen-audit subagent
-Branch: architecture/quant-company-system-v1
+Status: [~] ROUND-2 REGRESSION (2026-10-11)
+Owner: LANE-1 (round-2 regression)
+Branch: lane1-audit-002-r2
 Scope: M00 auth family.
 Required: Web + Tauri + Capacitor/Flutter parity, responsive states, truthful security copy, safe navigation, recovery/verification contracts, 2FA lifecycle, anti-enumeration, secure handoff.
 Dependencies: QM-AUTH-002 through QM-AUTH-010.
-Track A audit (2026-10-10, web only; Tauri/Capacitor/Flutter parity NOT covered in this pass):
+Regression pass started 2026-10-11 ~12:35 IST (round 1 Track A audit 2026-10-10 preserved below).
+ROUND-2 REGRESSION FINDINGS (2026-10-11):
+- (findings appended as the regression proceeds)
+
+ROUND-1 TRACK A AUDIT (2026-10-10, web only; Tauri/Capacitor/Flutter parity NOT covered):
 LIVE VERIFIED (Chrome 154 desktop 1440x900 + mobile 390x844, fresh profile): /login renders clean and responsive; honest copy ("Enter your email address and password"); Forgot email? / Forgot password? links, Show-password toggle, "Create an address" -> /register, Help/Privacy/Terms footer. / shows "Authenticating..." spinner with no authenticated-content flash. /register renders live.
 FAKE (live on quantmail.in/register, screenshot /tmp/qm-register-desktop.png): "Phone number (SMS recovery & QuantChat)" field with help text "Used for secure 2-step verification and 1-click QuantChat login." — but handleSubmit only sends {email,password,username,displayName,acceptTerms} (apps/quantmail/src/app/register/page.tsx:69-87; services/browser-auth-session.ts:196-198). The phone value never leaves the browser. Directly contradicts the 2026-10-05 user decision (phone login/OTP removed from ALL apps; PRs #400/#401).
 MISSING: no email-verification step exists in the web flow — POST /auth/register hardcodes emailVerified: true (apps/quantmail/backend/routes/auth.ts:112). "Verification contracts" requirement unimplemented.
