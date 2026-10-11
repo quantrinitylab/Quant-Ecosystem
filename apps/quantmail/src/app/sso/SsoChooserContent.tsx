@@ -757,7 +757,7 @@ export function SsoChooserContent({
         )}
 
         {/* Telemetry Bar & Ecosystem Sovereign Notice */}
-        <div className="mt-8 pt-6 border-t border-white/[0.06] text-center w-full">
+        <div className="mt-8 pt-6 text-center w-full">
           <div className="flex items-center justify-center gap-1.5 text-[11px] font-mono tracking-wide text-zinc-400">
             <svg className="w-3.5 h-3.5 text-[var(--quant-primary)] flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="currentColor" fillOpacity="0.25" />

@@ -44,7 +44,7 @@ export default function PrivacyPolicyPage() {
             </div>
 
             {/* Quick Stat Badges */}
-            <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-[var(--quant-border-subtle)]">
+            <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
               <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-3">
                 <div className="text-[11px] font-medium text-[var(--quant-muted-foreground)]">
                   Third-Party Ads
@@ -67,10 +67,10 @@ export default function PrivacyPolicyPage() {
               </div>
               <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-3">
                 <div className="text-[11px] font-medium text-[var(--quant-muted-foreground)]">
-                  Account Deletion
+                  Data Export
                 </div>
                 <div className="text-sm font-bold text-[var(--quant-foreground)] mt-0.5">
-                  Self-Service Purge
+                  Self-Service Export
                 </div>
               </div>
             </div>
@@ -368,7 +368,7 @@ export default function PrivacyPolicyPage() {
                 href="/settings/account"
                 className="hover:text-[var(--quant-foreground)] underline"
               >
-                Account Deletion
+                Data Export
               </Link>
               <Link href="/" className="hover:text-[var(--quant-foreground)] underline">
                 Return to Mail
