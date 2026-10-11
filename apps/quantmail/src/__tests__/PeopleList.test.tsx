@@ -285,4 +285,50 @@ describe('formatRelativeTime', () => {
     yesterday.setHours(12, 0, 0, 0);
     expect(formatRelativeTime(yesterday)).toBe('Yesterday');
   });
+
+  it('degrades invalid/unparseable timestamps to an empty fallback, never "Invalid Date"', () => {
+    // Same defect family as formatMessageTime (PersonThread): an unparseable
+    // lastActivityAt must not render the literal "Invalid Date" in the
+    // People-list row time slot.
+    expect(formatRelativeTime(new Date(NaN))).toBe('');
+    expect(formatRelativeTime('not-a-date' as unknown as Date)).toBe('');
+    expect(formatRelativeTime(undefined as unknown as Date)).toBe('');
+  });
+
+  it('formats valid older timestamps unchanged', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(2026, 9, 11, 12, 0, 0)); // 11 Oct 2026 midday
+      const old = new Date(2026, 8, 21, 9, 30, 0); // 21 Sep 2026
+      const expected = old.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      expect(formatRelativeTime(old)).toBe(expected);
+      expect(formatRelativeTime(old)).not.toBe('Invalid Date');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('PeopleList invalid-timestamp rows', () => {
+  it('renders an empty time slot — never "Invalid Date" — for an unparseable lastActivityAt', () => {
+    const conversations = fixtureConversations();
+    const broken: PersonConversation = {
+      ...conversations[0],
+      lastActivityAt: new Date(NaN),
+    };
+    const el = render(
+      <PeopleList
+        conversations={[broken]}
+        onSelect={() => {}}
+        searchQuery=""
+        onSearchQuery={() => {}}
+      />,
+    );
+
+    expect(el.textContent).not.toContain('Invalid Date');
+    // The row's time slot (text-xs span) renders empty; name and snippet stay.
+    const timeSlot = rowButtons(el)[0].querySelector('span.text-xs');
+    expect(timeSlot?.textContent).toBe('');
+    expect(el.textContent).toContain(conversations[0].name);
+  });
 });
