@@ -16,6 +16,40 @@ export interface LoginPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
+/**
+ * Build the QuantMail SSO entry URL. `currentReturn` is the `returnTo`
+ * already present on the QuantChat /login URL (deep-link target inside
+ * QuantChat), preserved across the round-trip unless it points back at
+ * /login itself.
+ */
+export function buildSsoUrl(origin: string, currentReturn: string | null): string {
+  const returnParam =
+    currentReturn && currentReturn !== '/login'
+      ? `?returnTo=${encodeURIComponent(currentReturn)}`
+      : '';
+  const returnTo = encodeURIComponent(`${origin}/login${returnParam}`);
+  return `${SSO_BASE_URL}/sso?returnTo=${returnTo}&client_id=quantchat`;
+}
+
+/**
+ * Honest client-side validation for the email-or-username identifier.
+ * Returns an error message, or null when the value is well-formed. A value
+ * containing '@' is an email and must look like one — it used to be sent
+ * to the backend unchecked, so a typo'd email failed later with a generic
+ * "invalid credentials" that blamed the password. Usernames follow the
+ * account rules (3–30 chars: letters, numbers, dot, dash, underscore).
+ */
+export function validateIdentifier(raw: string): string | null {
+  const id = raw.trim();
+  if (!id) return 'Enter your email or username';
+  if (id.includes('@')) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(id) ? null : 'Enter a valid email address';
+  }
+  return /^[A-Za-z0-9._-]{3,30}$/.test(id)
+    ? null
+    : 'Usernames are 3–30 characters: letters, numbers, dots, dashes or underscores';
+}
+
 /* ============================================================================
    ZERO-EMOJI LUXURY VECTOR ASSETS (QuantChat login brand mark)
    ============================================================================ */
@@ -148,8 +182,12 @@ export default function LoginPage(props: LoginPageProps) {
   // Single sign-in path: Quant Account (QuantMail SSO) is primary;
   // password login is a subtle inline fallback, no tab switching.
   const [showPassword, setShowPassword] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  // SSO entry href. Starts as the bare QuantMail SSO URL (valid even before
+  // hydration) and is refined on mount with this origin + any returnTo.
+  const [ssoHref, setSsoHref] = useState(`${SSO_BASE_URL}/sso?client_id=quantchat`);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -261,15 +299,16 @@ export default function LoginPage(props: LoginPageProps) {
   // navigated to '/' with the old session) and made account switching
   // impossible. QuantMail's chooser shows the signed-in account for 1-click
   // continue, which is the correct fast path.
-  const handleQuantSSO = useCallback(() => {
-    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-    const currentReturn = params?.get('returnTo');
-    const returnParam =
-      currentReturn && currentReturn !== '/login'
-        ? `?returnTo=${encodeURIComponent(currentReturn)}`
-        : '';
-    const returnTo = encodeURIComponent(`${window.location.origin}/login${returnParam}`);
-    window.location.href = `${SSO_BASE_URL}/sso?returnTo=${returnTo}&client_id=quantchat`;
+  //
+  // The control is a plain anchor, not a JS click handler: a <button onClick>
+  // is inert until React hydration finishes (this page ships a heavy WebGL
+  // canvas), so a real user's first click could land before hydration and
+  // silently do nothing — the "first click does nothing, second click works"
+  // defect from the live audit. An <a href> navigates natively, first click,
+  // every time, and can never be wedged by component state.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setSsoHref(buildSsoUrl(window.location.origin, params.get('returnTo')));
   }, []);
 
   const handlePasswordLogin = useCallback(
@@ -277,8 +316,9 @@ export default function LoginPage(props: LoginPageProps) {
       e.preventDefault();
       setError(null);
       setInfo(null);
-      if (!identifier.trim()) {
-        setError('Enter your email or username');
+      const identifierError = validateIdentifier(identifier);
+      if (identifierError) {
+        setError(identifierError);
         return;
       }
       if (!password) {
@@ -357,18 +397,16 @@ export default function LoginPage(props: LoginPageProps) {
         {/* PRIMARY: Continue with Quant Account (QuantMail SSO) with Molten Glow */}
         <div className="relative group mb-5">
           <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-xl blur opacity-60 group-hover:opacity-100 transition duration-300 group-hover:duration-200 animate-pulse pointer-events-none" />
-          <button
-            type="button"
+          <a
+            href={ssoHref}
             data-testid="quant-sso-primary-btn"
-            onClick={handleQuantSSO}
-            disabled={busy}
-            className="relative w-full flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 py-3.5 px-4 font-semibold text-white transition-all duration-200 hover:brightness-110 active:scale-[0.99] disabled:opacity-50 shadow-lg shadow-emerald-500/25 cursor-pointer overflow-hidden"
+            className="relative w-full flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 py-3.5 px-4 font-semibold text-white transition-all duration-200 hover:brightness-110 active:scale-[0.99] shadow-lg shadow-emerald-500/25 cursor-pointer overflow-hidden"
           >
             <span className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-[-25deg] -translate-x-full group-hover:translate-x-[300%] transition-transform duration-1000 ease-out" />
             <LightningIcon className="w-4 h-4 text-emerald-200" />
             <span className="tracking-wide">Continue with Quant Account</span>
             <ArrowRightIcon className="w-4 h-4 text-emerald-200 ml-1 transition-transform group-hover:translate-x-0.5" />
-          </button>
+          </a>
         </div>
 
         {/* New-account path: Quant accounts are created on QuantMail — the
@@ -385,6 +423,10 @@ export default function LoginPage(props: LoginPageProps) {
           >
             Create account
           </a>
+          <span className="mt-1 block text-xs text-slate-500">
+            Accounts are created on QuantMail — one Quant ID for QuantChat, QuantMail and every
+            Quant app.
+          </span>
         </p>
 
         {/* Subtle secondary fallback: password login, expanded inline */}
@@ -427,16 +469,28 @@ export default function LoginPage(props: LoginPageProps) {
               <label htmlFor="password" className="block text-xs font-medium text-slate-400">
                 Password
               </label>
-              <input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.05] transition-all"
-                data-testid="password-input"
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  type={passwordVisible ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 pr-16 text-white placeholder-white/30 focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.05] transition-all"
+                  data-testid="password-input"
+                />
+                <button
+                  type="button"
+                  onClick={() => setPasswordVisible((v) => !v)}
+                  aria-label={passwordVisible ? 'Hide password' : 'Show password'}
+                  aria-pressed={passwordVisible}
+                  data-testid="toggle-password-visibility"
+                  className="absolute inset-y-0 right-0 px-4 text-xs font-medium text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
+                >
+                  {passwordVisible ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </div>
             <button
               type="submit"

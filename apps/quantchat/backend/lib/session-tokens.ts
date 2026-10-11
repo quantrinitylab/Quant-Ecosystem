@@ -67,6 +67,43 @@ export class SessionTokenIssuer {
     });
   }
 
+  /**
+   * Verify a presented REFRESH token (signature, issuer, audience, expiry —
+   * and the `kind: 'refresh'` claim). Returns the decoded payload on success,
+   * null on any failure. An ACCESS token must never be redeemable here: the
+   * two kinds are not interchangeable, so the kind check is part of the
+   * verification, not a courtesy.
+   */
+  verifyRefreshToken(token: string): Record<string, unknown> | null {
+    const result = verifyHs256(token, {
+      jwtSecret: this.config.jwtSecret,
+      jwtIssuer: this.config.jwtIssuer,
+      jwtAudience: this.config.jwtAudience,
+    });
+    if (!result.valid || !result.payload) return null;
+    if (result.payload['kind'] !== 'refresh') return null;
+    if (result.payload['app'] !== 'quantchat') return null;
+    if (typeof result.payload['sub'] !== 'string' || !result.payload['sub']) return null;
+    return result.payload;
+  }
+
+  /**
+   * Rotate: verify the refresh token and mint a brand-new token pair (new
+   * session id) for the same subject. Returns null when the refresh token is
+   * invalid/expired/wrong-kind. Stateless JWTs cannot be revoked server-side,
+   * so the previous refresh token technically stays valid until its own
+   * expiry — rotation still bounds the useful life of any single leaked pair
+   * and gives the client a fresh pair on every use.
+   */
+  async rotate(refreshToken: string): Promise<IssuedTokens | null> {
+    const payload = this.verifyRefreshToken(refreshToken);
+    if (!payload) return null;
+    return this.issue({
+      userId: payload['sub'] as string,
+      username: typeof payload['username'] === 'string' ? payload['username'] : '',
+    });
+  }
+
   private sign(
     subject: SessionSubject,
     sessionId: string,
