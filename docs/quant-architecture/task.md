@@ -653,7 +653,9 @@ VERDICT-LIVE: /quanty publicly reachable but auth-gated (sign-in page); no Quant
 PASSING (code): voice genuinely wired to Web Speech API with honest per-failure errors; task-graph UI renders only backend-emitted steps (no simulated streaming); confirmation real on voice path (waiting-confirm "Haan, karo / Rehne do") and drawer mail-send (explicit Send + undo queue + invalid-recipient blocking); unknown outcomes honest ("nothing was run", backend error, undo-409 "Nothing reversible"); cancellation works via interrupt POST + "Roko" button; backend quanty-agent implements tasks/stream/interrupt/confirm/undo/popup; UI-control boundaries respected (QuantyActionHighlight spotlights target); no mock/fake data in Quanty surfaces.
 
 ## QM-SCREEN-015 — Notifications / activity / reminders
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-015
 Required: durable notification center, grouping/dedupe, read/unread, lock-screen privacy, action reauthorization, cross-app events, quiet hours/focus.
 Dependencies: notification architecture 20; QM-WORK-008.
 
