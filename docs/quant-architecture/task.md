@@ -624,6 +624,12 @@ PRESENT: auth airtight (requireUserId on all event routes; GET/PUT/DELETE owner-
 NOT VERIFIED (needs live/auth): create/edit/detail/RSVP E2E on real data, occurrence edit/delete, timezone rendering live, reminder firing, RSVP 403 path UX, driveLink round-trip (after fix), mobile detail layout.
 Live evidence: /tmp/lane1-audit/desktop-calendar-009.png + desktop-event-detail-009.png + mobile-event-detail-009.png (all sign-in redirect).
 
+Lane-1 R2 REGRESSION — CLAIM
+Status: [~] (R2 regression audit in progress)
+Owner: LANE-1
+Branch: lane-1/audit-qm-screen-009-events-r2
+Audit started (R2): 2026-10-11 ~19:35 IST (lane-1 deep audit loop)
+
 ## QM-SCREEN-010 — Drive home / folders / files / recent / shared
 Status: [x] DONE — LANE-1, branch lane1-audit-010. AUDIT COMPLETE (2026-10-11 ~04:15 IST): 11 P0, 5 P1, 11 P2 + requirement gaps logged in task body. Live: /drive → sign-in desktop+mobile; drive APIs 401 logged out (airtight); signed-in flows needs-auth. FIX AGENTS (PR-only, tracked separately): lane1-fix-010-proxy-gaps (P0 proxy gaps + move mismatch + share-id bug), lane1-fix-010-fake-purge (fake-data purge + P1s + P2 cleanup). Rotation → QM-SCREEN-011.
 Required: object metadata, ACLs, uploads/downloads, resumable transfer, previews, favorites, sharing, trash/restore, offline cache, storage pressure, deletion lifecycle.
