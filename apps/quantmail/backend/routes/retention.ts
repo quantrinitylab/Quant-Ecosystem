@@ -9,12 +9,25 @@ import {
 
 const retentionService = new RetentionService();
 
-function requireUserId(request: FastifyRequest): string {
-  const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
-  if (!userId) {
+/**
+ * QM-SCREEN-017 (LANE-1 FIX): retention policies and legal holds are compliance
+ * controls — staff-only, not any-signed-in-user. Mirrors `requireStaff()` in
+ * `admin.ts` (STAFF_ROLES = ADMIN + MODERATOR, 403 otherwise). The userId check
+ * keeps `requireUserId` semantics for 401s: the module still fails closed when
+ * mounted in isolation without an upstream identity.
+ */
+const STAFF_ROLES = new Set(['ADMIN', 'MODERATOR']);
+
+function requireStaff(request: FastifyRequest): { userId: string; role: string } {
+  const auth = (request as unknown as { auth?: { userId?: string; role?: string } }).auth;
+  if (!auth?.userId) {
     throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
   }
-  return userId;
+  const role = (auth.role ?? '').toUpperCase();
+  if (!STAFF_ROLES.has(role)) {
+    throw createAppError('Admin (staff) access required', 403, 'FORBIDDEN');
+  }
+  return { userId: auth.userId, role };
 }
 
 const createPolicySchema = z.object({
@@ -46,7 +59,7 @@ function getService(fastify: FastifyInstance): RetentionService {
 export default async function retentionRoutes(fastify: FastifyInstance) {
   // GET /retention/policies - List all retention policies
   fastify.get('/policies', async (request, reply) => {
-    requireUserId(request);
+    requireStaff(request);
     const service = getService(fastify);
     const policies = await service.getPolicies();
     return reply.send({
@@ -57,7 +70,7 @@ export default async function retentionRoutes(fastify: FastifyInstance) {
 
   // POST /retention/policies - Create a mailbox retention policy
   fastify.post('/policies', async (request, reply) => {
-    requireUserId(request);
+    requireStaff(request);
     const parsed = createPolicySchema.safeParse(request.body);
     if (!parsed.success) {
       throw createAppError(
@@ -77,7 +90,7 @@ export default async function retentionRoutes(fastify: FastifyInstance) {
 
   // GET /retention/legal-holds - List legal holds
   fastify.get('/legal-holds', async (request, reply) => {
-    requireUserId(request);
+    requireStaff(request);
     const query = request.query as { activeOnly?: string };
     const activeOnly = query?.activeOnly === 'true';
     const service = getService(fastify);
@@ -90,7 +103,7 @@ export default async function retentionRoutes(fastify: FastifyInstance) {
 
   // GET /retention/legal-holds/check - Check if custodian is under active legal hold
   fastify.get<{ Querystring: { email?: string } }>('/legal-holds/check', async (request, reply) => {
-    requireUserId(request);
+    requireStaff(request);
     const email = request.query?.email;
     if (!email) {
       throw createAppError('Missing email query parameter', 400, 'MISSING_EMAIL');
@@ -105,7 +118,7 @@ export default async function retentionRoutes(fastify: FastifyInstance) {
 
   // POST /retention/legal-holds - Place a legal hold on a custodian
   fastify.post('/legal-holds', async (request, reply) => {
-    const callerId = requireUserId(request);
+    const { userId: callerId } = requireStaff(request);
     const parsed = placeLegalHoldSchema.safeParse(request.body);
     if (!parsed.success) {
       throw createAppError(
@@ -143,7 +156,7 @@ export default async function retentionRoutes(fastify: FastifyInstance) {
 
   // DELETE /retention/legal-holds/:id - Release a legal hold
   fastify.delete<{ Params: { id: string } }>('/legal-holds/:id', async (request, reply) => {
-    const callerId = requireUserId(request);
+    const { userId: callerId } = requireStaff(request);
     const parsed = releaseLegalHoldSchema.safeParse(request.body ?? {});
     const releaseReason = parsed.success
       ? parsed.data.releaseReason

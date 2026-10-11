@@ -5,12 +5,15 @@ import retentionRoutes, { retentionService } from '../routes/retention';
 import { resetRetentionStores } from '../services/retention.service';
 import emailsRoutes from '../routes/emails';
 
-async function buildRetentionTestApp(userId?: string) {
+async function buildRetentionTestApp(userId?: string, role?: string) {
   const app = fastify();
   await app.register(errorHandlerPlugin);
   app.addHook('preHandler', async (req) => {
     if (userId) {
-      (req as unknown as { auth?: { userId?: string } }).auth = { userId };
+      (req as unknown as { auth?: { userId?: string; role?: string } }).auth = {
+        userId,
+        role,
+      };
     }
   });
   await app.register(retentionRoutes, { prefix: '/retention' });
@@ -24,7 +27,7 @@ describe('Sovereign Retention Policies & Legal Hold Engine (Task X07)', () => {
   });
 
   it('POST /retention/policies creates a retention policy', async () => {
-    const app = await buildRetentionTestApp('compliance-officer-1');
+    const app = await buildRetentionTestApp('compliance-officer-1', 'ADMIN');
     const res = await app.inject({
       method: 'POST',
       url: '/retention/policies',
@@ -46,7 +49,7 @@ describe('Sovereign Retention Policies & Legal Hold Engine (Task X07)', () => {
   });
 
   it('GET /retention/policies lists all active retention policies', async () => {
-    const app = await buildRetentionTestApp('compliance-officer-1');
+    const app = await buildRetentionTestApp('compliance-officer-1', 'ADMIN');
     await app.inject({
       method: 'POST',
       url: '/retention/policies',
@@ -70,7 +73,7 @@ describe('Sovereign Retention Policies & Legal Hold Engine (Task X07)', () => {
   });
 
   it('POST /retention/legal-holds places a legal hold on a custodian email', async () => {
-    const app = await buildRetentionTestApp('legal-counsel-1');
+    const app = await buildRetentionTestApp('legal-counsel-1', 'ADMIN');
     const res = await app.inject({
       method: 'POST',
       url: '/retention/legal-holds',
@@ -90,7 +93,7 @@ describe('Sovereign Retention Policies & Legal Hold Engine (Task X07)', () => {
   });
 
   it('GET /retention/legal-holds/check verifies legal hold status', async () => {
-    const app = await buildRetentionTestApp('legal-counsel-1');
+    const app = await buildRetentionTestApp('legal-counsel-1', 'ADMIN');
     await app.inject({
       method: 'POST',
       url: '/retention/legal-holds',
@@ -117,7 +120,7 @@ describe('Sovereign Retention Policies & Legal Hold Engine (Task X07)', () => {
   });
 
   it('DELETE /retention/legal-holds/:id releases a legal hold', async () => {
-    const app = await buildRetentionTestApp('legal-counsel-1');
+    const app = await buildRetentionTestApp('legal-counsel-1', 'ADMIN');
     const placeRes = await app.inject({
       method: 'POST',
       url: '/retention/legal-holds',
@@ -193,5 +196,88 @@ describe('Sovereign Retention Policies & Legal Hold Engine (Task X07)', () => {
     expect(prismaMock.email.update).not.toHaveBeenCalled();
 
     await app.close();
+  });
+
+  describe('authorization — retention & legal holds are staff-only (QM-SCREEN-017 P0)', () => {
+    const policyPayload = {
+      name: 'Deleter Policy',
+      durationDays: 30,
+      action: 'PERMANENT_DELETE',
+    };
+    const holdPayload = {
+      custodianEmail: 'target@quantmail.in',
+      matterName: 'Matter',
+      reason: 'Because',
+    };
+
+    const MUTATION_CASES: Array<['POST' | 'DELETE', string, Record<string, unknown>]> = [
+      ['POST', '/retention/policies', policyPayload],
+      ['POST', '/retention/legal-holds', holdPayload],
+      ['DELETE', '/retention/legal-holds/hold-1', { releaseReason: 'Done' }],
+    ];
+    const READ_CASES: Array<['GET', string]> = [
+      ['GET', '/retention/policies'],
+      ['GET', '/retention/legal-holds'],
+      ['GET', '/retention/legal-holds/check?email=a@quantmail.in'],
+    ];
+
+    it.each(MUTATION_CASES)(
+      'returns 401 for an unauthenticated request (%s %s)',
+      async (method, url, payload) => {
+        const app = await buildRetentionTestApp();
+        const res = await app.inject({ method, url, payload });
+        expect(res.statusCode).toBe(401);
+        expect(res.json().error.code).toBe('UNAUTHORIZED');
+      },
+    );
+
+    it.each(MUTATION_CASES)(
+      'returns 403 for a signed-in non-staff (USER) request (%s %s)',
+      async (method, url, payload) => {
+        const app = await buildRetentionTestApp('regular-user-1', 'USER');
+        const res = await app.inject({ method, url, payload });
+        expect(res.statusCode).toBe(403);
+        expect(res.json().error.code).toBe('FORBIDDEN');
+      },
+    );
+
+    it.each(READ_CASES)(
+      'returns 403 for a signed-in non-staff (USER) request (%s %s)',
+      async (method, url) => {
+        const app = await buildRetentionTestApp('regular-user-1', 'USER');
+        const res = await app.inject({ method, url });
+        expect(res.statusCode).toBe(403);
+        expect(res.json().error.code).toBe('FORBIDDEN');
+      },
+    );
+
+    it('admits MODERATOR as staff (case-insensitive role)', async () => {
+      const app = await buildRetentionTestApp('mod-1', 'moderator');
+      const res = await app.inject({
+        method: 'POST',
+        url: '/retention/policies',
+        payload: { name: 'Mod Policy', durationDays: 90 },
+      });
+      expect(res.statusCode).toBe(201);
+    });
+
+    it('staff ADMIN can place and release a legal hold end-to-end', async () => {
+      const app = await buildRetentionTestApp('admin-1', 'ADMIN');
+      const placeRes = await app.inject({
+        method: 'POST',
+        url: '/retention/legal-holds',
+        payload: holdPayload,
+      });
+      expect(placeRes.statusCode).toBe(201);
+      const holdId = placeRes.json().data.id;
+
+      const releaseRes = await app.inject({
+        method: 'DELETE',
+        url: `/retention/legal-holds/${holdId}`,
+        payload: { releaseReason: 'Staff release' },
+      });
+      expect(releaseRes.statusCode).toBe(200);
+      expect(releaseRes.json().data.active).toBe(false);
+    });
   });
 });
