@@ -9,6 +9,14 @@
 // ============================================================================
 
 import { createAppError } from '@quant/server-core';
+import {
+  openSecrets,
+  resolveCredentialKeys,
+  sealSecrets,
+  splitSecretConfig,
+  type CredentialKeyMaterial,
+  type SealedSecretBundle,
+} from './mcp-credential-vault';
 
 export type McpConnectorCategory =
   | 'Productivity'
@@ -62,7 +70,25 @@ export interface McpConnector extends McpConnectorCatalogItem {
 export interface McpUserInstallation {
   userId: string;
   connectorId: string;
-  config: Record<string, unknown>;
+  /**
+   * Non-secret config values only (endpoint URLs, regions, ...). This record
+   * NEVER holds credential material — see F-003.
+   */
+  publicConfig: Record<string, unknown>;
+  /**
+   * AES-256-GCM sealed bundle of the secret config values (Stripe sk_live_
+   * keys, OAuth secrets, PATs, session cookies, ...). Ciphertext only; the
+   * Map therefore never contains plaintext credentials. Null when the
+   * installation has no secret fields.
+   */
+  sealedSecrets: SealedSecretBundle | null;
+  /**
+   * Masked secret hints for API responses, computed once at install time so
+   * responses never need the plaintext secrets.
+   */
+  maskedSecrets: Record<string, string>;
+  /** Which KEK sealed `sealedSecrets` (used to pick the decryption key). */
+  credentialKeyId: string;
   installedAt: string;
   updatedAt: string;
   authStatus: McpAuthStatus;
@@ -741,16 +767,35 @@ export function maskConfig(
 
 export interface McpConnectorsServiceOptions {
   customProber?: CustomProberFn;
+  /**
+   * Key-encryption key material for sealing connector credentials at rest.
+   * Falls back to `MCP_CREDENTIAL_KEY` / `MCP_CREDENTIAL_KEYS` env vars.
+   * First entry is the active sealer; the rest are decrypt-only retired keys.
+   */
+  credentialKey?: string;
+  credentialKeys?: string[];
+  credentialKeyId?: string;
 }
 
 export class McpConnectorsService {
   private readonly catalog = new Map<string, McpConnectorCatalogItem>();
-  // Store installations keyed by `${userId}:${connectorId}`
+  // Store installations keyed by `${userId}:${connectorId}`.
+  //
+  // F-003: this Map holds ONLY ciphertext for credential material. Secret
+  // config values are AES-256-GCM sealed at install time (see
+  // mcp-credential-vault.ts); plaintext is recovered transiently per call via
+  // resolveCredentials() and never persisted here.
   private readonly installations = new Map<string, McpUserInstallation>();
   private readonly customProber?: CustomProberFn;
+  private credentialKeys: CredentialKeyMaterial[];
 
   constructor(options: McpConnectorsServiceOptions = {}) {
     this.customProber = options.customProber;
+    this.credentialKeys = resolveCredentialKeys({
+      credentialKey: options.credentialKey,
+      credentialKeys: options.credentialKeys,
+      credentialKeyId: options.credentialKeyId,
+    });
     for (const item of MCP_CONNECTOR_CATALOG) {
       this.catalog.set(item.id, item);
     }
@@ -772,7 +817,7 @@ export class McpConnectorsService {
           installedAt: install.installedAt,
           updatedAt: install.updatedAt,
           authStatus: install.authStatus,
-          maskedConfig: maskConfig(install.config, item.configFields),
+          maskedConfig: this.buildMaskedConfig(item, install),
           lastTestedAt: install.lastTestedAt,
           lastTestStatus: install.lastTestStatus,
         };
@@ -808,7 +853,7 @@ export class McpConnectorsService {
         installedAt: install.installedAt,
         updatedAt: install.updatedAt,
         authStatus: install.authStatus,
-        maskedConfig: maskConfig(install.config, item.configFields),
+        maskedConfig: this.buildMaskedConfig(item, install),
         lastTestedAt: install.lastTestedAt,
         lastTestStatus: install.lastTestStatus,
       };
@@ -826,10 +871,94 @@ export class McpConnectorsService {
   }
 
   /**
-   * Return raw installation record (for internal execution and testing).
+   * Return the stored installation record. The record contains NO plaintext
+   * credentials: secret config values are AES-256-GCM sealed (see F-003).
+   * Use `resolveCredentials()` when transient plaintext is needed for
+   * internal execution (e.g. a connection healthcheck).
    */
   getInstallation(userId: string, connectorId: string): McpUserInstallation | undefined {
     return this.installations.get(`${userId}:${connectorId}`);
+  }
+
+  /**
+   * Transiently recover the full connector config (public values + decrypted
+   * secrets) for internal execution. The returned object is short-lived:
+   * callers must not persist, log, or return it. Returns undefined when the
+   * connector is not installed.
+   */
+  resolveCredentials(
+    userId: string,
+    connectorId: string,
+  ): Record<string, unknown> | undefined {
+    const install = this.installations.get(`${userId}:${connectorId}`);
+    if (!install) return undefined;
+    const resolved: Record<string, unknown> = { ...install.publicConfig };
+    if (install.sealedSecrets) {
+      const secrets = openSecrets(install.sealedSecrets, this.credentialKeys);
+      for (const [key, value] of Object.entries(secrets)) {
+        resolved[key] = value;
+      }
+    }
+    return resolved;
+  }
+
+  /**
+   * Re-seal every stored credential bundle with a new key-encryption key.
+   * Old bundles remain openable afterwards because the previous key is kept
+   * as a decrypt-only retired key in this process (pass
+   * `MCP_CREDENTIAL_KEY_PREVIOUS` in other processes / after restart).
+   */
+  rotateCredentialKey(
+    newKey: string,
+    newKeyId = 'mcp-credential-key',
+  ): { rotated: number } {
+    const resolved = resolveCredentialKeys({ credentialKey: newKey, credentialKeyId: newKeyId });
+    const active = resolved[0];
+    if (!active || active.ephemeral) {
+      throw createAppError(
+        'Cannot rotate to an ephemeral or missing credential key',
+        500,
+        'CREDENTIAL_KEY_MISCONFIGURED',
+      );
+    }
+    let rotated = 0;
+    for (const install of this.installations.values()) {
+      if (!install.sealedSecrets) continue;
+      const secrets = openSecrets(install.sealedSecrets, this.credentialKeys);
+      install.sealedSecrets = sealSecrets(secrets, active);
+      install.credentialKeyId = active.keyId;
+      rotated += 1;
+    }
+    // The old active key becomes decrypt-only so bundles sealed before this
+    // process restarted (or not yet re-sealed elsewhere) still open.
+    this.credentialKeys.unshift(active);
+    const seen = new Set<string>();
+    this.credentialKeys = this.credentialKeys.filter((k) =>
+      seen.has(k.keyId) ? false : (seen.add(k.keyId), true),
+    );
+    return { rotated };
+  }
+
+  /**
+   * Assemble the masked config for API responses WITHOUT touching plaintext
+   * secrets: non-secret values are stringified from publicConfig, secret
+   * values come from the masked hints captured at install time.
+   */
+  private buildMaskedConfig(
+    item: McpConnectorCatalogItem,
+    install: McpUserInstallation,
+  ): Record<string, string> {
+    const result: Record<string, string> = {};
+    for (const field of item.configFields) {
+      if (field.key in install.maskedSecrets) {
+        result[field.key] = install.maskedSecrets[field.key];
+        continue;
+      }
+      const rawVal = install.publicConfig[field.key];
+      if (rawVal === undefined || rawVal === null) continue;
+      result[field.key] = String(rawVal);
+    }
+    return result;
   }
 
   /**
@@ -862,6 +991,20 @@ export class McpConnectorsService {
     // Validate required fields
     this.validateConfig(item, config);
 
+    // F-003: secret config values are AES-256-GCM sealed before storage.
+    // The installations Map must never hold plaintext credentials.
+    const { publicConfig, secrets } = splitSecretConfig(config, item.configFields);
+    const secretKeys = Object.keys(secrets);
+    const activeKey = this.credentialKeys[0];
+    if (!activeKey) {
+      throw createAppError('No credential key configured', 500, 'CREDENTIAL_KEY_MISCONFIGURED');
+    }
+    const sealedSecrets = secretKeys.length > 0 ? sealSecrets(secrets, activeKey) : null;
+    const maskedSecrets: Record<string, string> = {};
+    for (const key of secretKeys) {
+      maskedSecrets[key] = maskCredential(secrets[key]);
+    }
+
     const now = new Date().toISOString();
     const key = `${userId}:${connectorId}`;
     const existing = this.installations.get(key);
@@ -869,7 +1012,10 @@ export class McpConnectorsService {
     const installation: McpUserInstallation = {
       userId,
       connectorId,
-      config: { ...config },
+      publicConfig,
+      sealedSecrets,
+      maskedSecrets,
+      credentialKeyId: activeKey.keyId,
       installedAt: existing ? existing.installedAt : now,
       updatedAt: now,
       authStatus: 'CONFIGURED',
@@ -885,7 +1031,7 @@ export class McpConnectorsService {
       installedAt: installation.installedAt,
       updatedAt: installation.updatedAt,
       authStatus: installation.authStatus,
-      maskedConfig: maskConfig(installation.config, item.configFields),
+      maskedConfig: this.buildMaskedConfig(item, installation),
       lastTestedAt: installation.lastTestedAt,
       lastTestStatus: installation.lastTestStatus,
     };

@@ -157,11 +157,13 @@ export default async function mcpConnectorsRoutes(fastify: FastifyInstance) {
           ? (rawBody.config as Record<string, unknown>)
           : rawBody;
 
-    // If config is empty, fallback to installed credentials for this user
+    // If config is empty, fallback to installed credentials for this user.
+    // F-003: stored credentials are sealed at rest; recover them transiently
+    // and never persist the plaintext.
     if (!config || Object.keys(config).length === 0) {
-      const installed = getService().getInstallation(userId, connectorId);
-      if (installed) {
-        config = installed.config;
+      const resolved = getService().resolveCredentials(userId, connectorId);
+      if (resolved) {
+        config = resolved;
       }
     }
 
