@@ -35,9 +35,14 @@ export default async function mediaRoutes(fastify: FastifyInstance) {
     return reply.status(201).send({ success: true, data: result });
   });
 
-  // GET /media/:id - Get media metadata
+  // GET /media/:id - Get media metadata (owner-only, QC-F-031)
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
-    const meta = await service.getMediaMetadata(request.params.id);
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const meta = await service.getMediaMetadata(request.params.id, userId);
     return reply.send({ success: true, data: meta });
   });
 }
