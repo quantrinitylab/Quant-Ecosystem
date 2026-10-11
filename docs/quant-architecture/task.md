@@ -693,6 +693,13 @@ REQUIREMENT GAPS vs Required: resumable transfer MISSING (UI uploads are one-sho
 NOT VERIFIED (needs live/auth): signed-in E2E of all flows, trash/restore E2E, accept/decline E2E, move E2E, desktop tab reachability after fix, accent color visual after fix.
 FIX AGENTS: lane1-fix-010-proxy-gaps (P0 proxy gaps + move mismatch + shared-with-me id) → PR-only. lane1-fix-010-fake-purge (fake data purge + P1s + P2 cleanup) → PR-only.
 
+Lane-1 R2 REGRESSION — CLAIM
+Status: [~] (R2 regression audit in progress)
+Owner: LANE-1
+Branch: lane-1/audit-qm-screen-010-drive-r2
+Audit started (R2): 2026-10-11 ~20:40 IST (lane-1 deep audit loop)
+Context: PR #825 (proxy gaps) MERGED; PR #826 (fake-data purge + P1s + P2 cleanup) still OPEN, now CONFLICTING — R1 fake-data P0s likely unfixed on main. Re-audit origin/main + live.
+
 ## QM-SCREEN-011 — Drive upload / file preview / editor handoff
 Status: [x] DONE — LANE-1, branch lane1-audit-011. AUDIT COMPLETE (2026-10-11 ~05:10 IST): 2 P0, 1 P1, 3 P2 logged in task body (code audited against origin/main). Live: /drive → sign-in desktop+mobile (clean, shots /tmp/lane1-011-desktop-drive.png + /tmp/lane1-011-mobile-drive.png); /api/drive/upload + /api/drive/files/<id>/download → 401 logged out (airtight). Signed-in flows needs-auth — not verified live. FIX AGENTS (PR-only, tracked separately): lane1-fix-011-preview-auth (P0 preview 401s), lane1-fix-011-upload-scan (P0 resumable upload + P1 scan badges). Rotation → QM-SCREEN-012.
 Required: resumable uploads, malware/security scan state, signed delivery, preview capability matrix, versioning, share links, editor/Docs handoff, Quanty save/summarize actions.
