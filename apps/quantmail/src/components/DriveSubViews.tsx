@@ -533,6 +533,80 @@ export type DriveCategory =
   | 'trash';
 
 // ============================================================================
+// DRIVE TRASH ITEMS LIST
+// ============================================================================
+//
+// Exported so honesty tests can render it directly. Honesty contract: renders
+// ONLY real trash items passed by the parent. An empty trash renders an honest
+// empty state — never invented files. The deletion date comes from the real
+// item's deletedAt when the backend provides one; it is never fabricated.
+
+export interface DriveTrashItemsListProps {
+  items?: DriveItem[];
+  onRestoreTrashItem?: (id: string, name: string, e?: React.MouseEvent) => void;
+  onPurgeTrashItem?: (id: string, name: string, e?: React.MouseEvent) => void;
+}
+
+export function DriveTrashItemsList({
+  items = [],
+  onRestoreTrashItem,
+  onPurgeTrashItem,
+}: DriveTrashItemsListProps) {
+  if (items.length === 0) {
+    return (
+      <div className="text-center py-16 rounded-2xl border border-dashed border-[#232938] bg-[var(--quant-surface-subtle)]">
+        <TrashIcon className="size-10 text-[#64748B] mx-auto mb-2" />
+        <p className="text-sm font-semibold text-[#F8FAFC]">Trash is empty</p>
+        <p className="text-xs text-[#64748B] mt-0.5">
+          Files you move to trash will appear here
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <div
+          key={item.id}
+          className="flex items-center justify-between p-3.5 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-rose-500/40 transition-colors"
+        >
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="size-8 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+              <TrashIcon className="size-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-[#F8FAFC] truncate">{item.name}</p>
+              <p className="text-[11px] text-[#64748B] font-mono">
+                {formatBytes(item.size)}
+                {item.deletedAt
+                  ? ` · Deleted ${new Date(item.deletedAt).toLocaleDateString()}`
+                  : null}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={(e) => onRestoreTrashItem?.(item.id, item.name, e)}
+              className="px-2.5 py-1 rounded-lg bg-[#38BDF8]/15 border border-[#38BDF8]/30 text-xs font-semibold text-[#38BDF8] hover:bg-[#38BDF8]/25 transition-colors"
+            >
+              Restore
+            </button>
+            <button
+              type="button"
+              onClick={(e) => onPurgeTrashItem?.(item.id, item.name, e)}
+              className="px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-xs font-semibold text-rose-400 hover:bg-rose-500/25 transition-colors"
+            >
+              Purge
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================================
 // 1. SINGLE ENTERPRISE STORAGE GAUGE
 // ============================================================================
 
@@ -887,27 +961,9 @@ export function DriveHomeSubView({
     if (!selectedCategory) return [];
 
     if (selectedCategory === 'trash') {
-      if (trashItems.length > 0) return trashItems;
-      return [
-        {
-          id: 'trash-1',
-          name: 'Deprecated_Keyring_v1.pem',
-          type: 'file' as const,
-          mimeType: 'text/plain',
-          size: 4096,
-          modifiedAt: '2026-09-24T12:00:00Z',
-          deletedAt: '2026-10-02T10:00:00Z',
-        },
-        {
-          id: 'trash-2',
-          name: 'Old_Architecture_Draft_2025.pdf',
-          type: 'file' as const,
-          mimeType: 'application/pdf',
-          size: 18400000,
-          modifiedAt: '2025-11-15T08:00:00Z',
-          deletedAt: '2026-10-01T15:30:00Z',
-        },
-      ];
+      // Honesty: trash shows ONLY real trash items. Never invent files here —
+      // an empty trash is an honest empty state, not two placeholder rows.
+      return trashItems;
     }
 
     // Filter live files matching category
@@ -1288,43 +1344,12 @@ export function DriveHomeSubView({
 
           {/* Items display */}
           {selectedCategory === 'trash' ? (
-            /* Trash Items List */
-            <div className="space-y-2">
-              {categoryItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between p-3.5 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-rose-500/40 transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="size-8 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
-                      <TrashIcon className="size-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-[#F8FAFC] truncate">{item.name}</p>
-                      <p className="text-[11px] text-[#64748B] font-mono">
-                        {formatBytes(item.size)} · Deleted recently
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={(e) => onRestoreTrashItem?.(item.id, item.name, e)}
-                      className="px-2.5 py-1 rounded-lg bg-[#38BDF8]/15 border border-[#38BDF8]/30 text-xs font-semibold text-[#38BDF8] hover:bg-[#38BDF8]/25 transition-colors"
-                    >
-                      Restore
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => onPurgeTrashItem?.(item.id, item.name, e)}
-                      className="px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-xs font-semibold text-rose-400 hover:bg-rose-500/25 transition-colors"
-                    >
-                      Purge
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            /* Trash Items List — honest: real items only, empty state when none */
+            <DriveTrashItemsList
+              items={categoryItems}
+              onRestoreTrashItem={onRestoreTrashItem}
+              onPurgeTrashItem={onPurgeTrashItem}
+            />
           ) : categoryItems.length === 0 ? (
             /* Empty category state */
             <div className="text-center py-16 rounded-2xl border border-dashed border-[#232938] bg-[var(--quant-surface-subtle)]">
