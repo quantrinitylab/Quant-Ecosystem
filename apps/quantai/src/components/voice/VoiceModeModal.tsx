@@ -11,6 +11,7 @@ import {
   SOVEREIGN_PERSONAS,
   PERSONA_LIST,
   DEFAULT_VOICE_CONFIG,
+  describeSttFailure,
 } from './voice-personas';
 import { VoiceOrb } from './VoiceOrb';
 import { VoiceFloatingChip } from './VoiceFloatingChip';
@@ -263,11 +264,28 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
       const form = new FormData();
       form.append('file', wav, 'audio.wav');
       const res = await apiFetchRaw('/api/voice/stt', { method: 'POST', body: form });
-      const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
-      if (!res.ok || !data.text) {
-        throw new Error(data.error || 'Transcription failed');
+      if (!res.ok) {
+        // Read a server-provided error for CLASSIFICATION ONLY — it is never
+        // rendered verbatim (describeSttFailure maps it to safe user copy).
+        let serverError = '';
+        try {
+          const errBody = (await res.json()) as { error?: string };
+          if (typeof errBody?.error === 'string') serverError = errBody.error;
+        } catch {
+          serverError = '';
+        }
+        throw new Error(serverError || `stt-http-${res.status}`);
       }
-      const transcript = data.text.trim();
+      let data: { text?: string } | null = null;
+      try {
+        data = (await res.json()) as { text?: string };
+      } catch {
+        throw new Error('stt-malformed-result');
+      }
+      const transcript = typeof data?.text === 'string' ? data.text.trim() : '';
+      if (!transcript) {
+        throw new Error('stt-empty-result');
+      }
       setInterimSpeech('');
       const userMsg: TranscriptItem = {
         id: `user-${Date.now()}`,
@@ -283,17 +301,22 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
         setVoiceState((s) => (s === 'thinking' ? 'listening' : s));
       }, 45000);
     } catch (err) {
-      const errMsg: TranscriptItem = {
+      // F-009: never fabricate an assistant apology and never leak raw error
+      // internals into the transcript — failures are system/status rows.
+      const failure = describeSttFailure(err);
+      if (typeof console !== 'undefined') {
+        console.warn('[VoiceModeModal] STT failed:', failure.kind, err);
+      }
+      const statusMsg: TranscriptItem = {
         id: `err-${Date.now()}`,
-        speaker: 'assistant',
-        personaId: config.persona,
-        text: `Sorry, I couldn't transcribe that: ${err instanceof Error ? err.message : 'unknown error'}`,
+        speaker: 'system',
+        text: failure.userMessage,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
-      setTranscripts((prev) => [...prev, errMsg]);
+      setTranscripts((prev) => [...prev, statusMsg]);
       setVoiceState('listening');
     }
-  }, [stopCapture, onSendMessage, config.persona]);
+  }, [stopCapture, onSendMessage]);
 
   // Mic button: tap to start, tap again to stop & transcribe.
   const handleMicButton = useCallback(() => {
@@ -693,20 +716,45 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
               data-testid="transcript-ticker"
               className="max-h-32 overflow-y-auto rounded-2xl bg-zinc-900/60 border border-zinc-800/80 p-3.5 space-y-2 backdrop-blur-md shadow-inner text-xs"
             >
-              {transcripts.slice(-4).map((t) => (
-                <div
-                  key={t.id}
-                  className={`flex items-start gap-2 ${
-                    t.speaker === 'user' ? 'text-zinc-200' : 'text-violet-300'
-                  }`}
-                >
-                  <span className="font-semibold shrink-0">
-                    {t.speaker === 'user' ? 'You:' : `${selectedPersona.name}:`}
-                  </span>
-                  <span className="leading-relaxed flex-1">{t.text}</span>
-                  <span className="text-[10px] text-zinc-500 shrink-0">{t.timestamp}</span>
-                </div>
-              ))}
+              {transcripts.slice(-4).map((t) =>
+                t.speaker === 'system' ? (
+                  // Status row: honest system notice (never spoken assistant speech).
+                  <div
+                    key={t.id}
+                    role="status"
+                    data-testid="transcript-status-row"
+                    className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-amber-200"
+                  >
+                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-amber-400/80">
+                      Status
+                    </span>
+                    <span className="flex-1 text-center leading-relaxed">{t.text}</span>
+                    <button
+                      type="button"
+                      onClick={() => void handleVoiceTurn()}
+                      data-testid="stt-retry-button"
+                      aria-label="Retry voice transcription"
+                      className="shrink-0 cursor-pointer rounded-lg bg-amber-500/20 px-2.5 py-1 text-[11px] font-semibold text-amber-100 transition-colors hover:bg-amber-500/30"
+                    >
+                      ↻ Retry
+                    </button>
+                    <span className="shrink-0 text-[10px] text-zinc-500">{t.timestamp}</span>
+                  </div>
+                ) : (
+                  <div
+                    key={t.id}
+                    className={`flex items-start gap-2 ${
+                      t.speaker === 'user' ? 'text-zinc-200' : 'text-violet-300'
+                    }`}
+                  >
+                    <span className="font-semibold shrink-0">
+                      {t.speaker === 'user' ? 'You:' : `${selectedPersona.name}:`}
+                    </span>
+                    <span className="leading-relaxed flex-1">{t.text}</span>
+                    <span className="text-[10px] text-zinc-500 shrink-0">{t.timestamp}</span>
+                  </div>
+                ),
+              )}
               {interimSpeech && (
                 <div className="flex items-start gap-2 text-zinc-400 italic">
                   <span className="font-semibold shrink-0">Listening:</span>

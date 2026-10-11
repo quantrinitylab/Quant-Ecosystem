@@ -159,9 +159,86 @@ export const DEFAULT_VOICE_CONFIG: VoiceSessionConfig = {
 
 export interface TranscriptItem {
   id: string;
-  speaker: 'user' | 'assistant';
+  // 'system' renders as a neutral status row — never as spoken assistant speech.
+  // Failures (e.g. STT errors) MUST use 'system'; fabricating an assistant
+  // apology the AI never voiced is fake transcript data (see F-009).
+  speaker: 'user' | 'assistant' | 'system';
   personaId?: VoicePersonaId;
   text: string;
   timestamp: string;
   isInterrupted?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// STT failure → honest system/status rendering (F-009).
+//
+// On speech-to-text failure the voice modal must NEVER fabricate an assistant
+// message ("Sorry, I couldn't transcribe that…" was an apology the AI never
+// voiced) and must NEVER leak raw error strings (HTTP bodies, socket errors,
+// SDK internals) into the transcript. Failures render as a `speaker: 'system'`
+// status row with a user-friendly message; the raw error goes to the console
+// for debugging only.
+// ---------------------------------------------------------------------------
+
+export type SttFailureKind =
+  | 'auth'
+  | 'timeout'
+  | 'network'
+  | 'empty'
+  | 'malformed'
+  | 'unknown';
+
+export interface SttFailureInfo {
+  kind: SttFailureKind;
+  /** User-facing message. Guaranteed to never contain raw error internals. */
+  userMessage: string;
+}
+
+const STT_FAILURE_MESSAGES: Record<SttFailureKind, string> = {
+  auth: "Voice transcription isn't authorized right now — please sign back in and try again.",
+  timeout: 'Transcription timed out before finishing — tap retry to try again.',
+  network: "Couldn't reach the transcription service — check your connection, then tap retry.",
+  empty: "I didn't catch any speech in that recording — tap retry and speak up.",
+  malformed: 'The transcription response was unreadable — tap retry to try again.',
+  unknown: "Couldn't transcribe that recording — tap retry to try again.",
+};
+
+/**
+ * Classify an STT error into a user-safe failure kind. The raw message is only
+ * ever pattern-matched — it is never returned or rendered.
+ */
+export function classifySttFailure(err: unknown): SttFailureKind {
+  const raw = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
+  const msg = raw.toLowerCase();
+
+  // Internal sentinels thrown by the voice modal (never user-typed text).
+  const sentinel = msg.match(/stt-(http-\d+|empty-result|malformed-result)/);
+  if (sentinel) {
+    const s = sentinel[1];
+    if (s === 'empty-result') return 'empty';
+    if (s === 'malformed-result') return 'malformed';
+    if (s === 'http-401' || s === 'http-403') return 'auth';
+    return 'unknown';
+  }
+
+  if (
+    /\b401\b|\b403\b|unauthorized|forbidden|invalid api key|expired token|sign in|signin|not authenticated/.test(
+      msg,
+    )
+  ) {
+    return 'auth';
+  }
+  if (/timeout|timed out|abort/.test(msg)) return 'timeout';
+  if (/network|failed to fetch|econn|socket hang|dns|offline|connection refused/.test(msg)) {
+    return 'network';
+  }
+  if (/\bno speech\b|empty transcript/.test(msg)) return 'empty';
+  if (/unexpected token|invalid json|json parse|cannot parse/.test(msg)) return 'malformed';
+  return 'unknown';
+}
+
+/** Map any STT error to a safe, user-friendly failure description. */
+export function describeSttFailure(err: unknown): SttFailureInfo {
+  const kind = classifySttFailure(err);
+  return { kind, userMessage: STT_FAILURE_MESSAGES[kind] };
 }
