@@ -103,18 +103,16 @@ describe('QuanTube Public Feed & DTTube Resolution Badges', () => {
       expect(html).toContain('border-amber-500/30');
     });
 
-    it('PUBLIC_FEATURED_VIDEOS contains curated DTTube resolution metadata across resolutions', () => {
+    it('PUBLIC_FEATURED_VIDEOS carries honest resolution metadata (real 360p, no fake 1080p/720p/480p claims)', () => {
       const resolutions = PUBLIC_FEATURED_VIDEOS.map((v) => v.resolution);
-      expect(resolutions).toContain('1080p Full HD');
-      expect(resolutions).toContain('720p HD');
-      expect(resolutions).toContain('480p SD');
+      // Sample clips are self-hosted 360p — resolution metadata must be honest.
+      expect(resolutions.length).toBeGreaterThan(0);
+      expect(new Set(resolutions)).toEqual(new Set(['360p']));
 
       // Verify getGuestFeaturedVideos helper preserves resolution attributes
       const featured = getGuestFeaturedVideos('all');
       expect(featured.length).toBeGreaterThan(0);
-      expect(featured.some((v) => v.resolution === '1080p Full HD')).toBe(true);
-      expect(featured.some((v) => v.resolution === '720p HD')).toBe(true);
-      expect(featured.some((v) => v.resolution === '480p SD')).toBe(true);
+      expect(featured.every((v) => v.resolution === '360p')).toBe(true);
     });
   });
 

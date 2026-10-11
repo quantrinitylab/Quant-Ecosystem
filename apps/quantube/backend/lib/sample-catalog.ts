@@ -1,14 +1,18 @@
 // ============================================================================
 // QuantTube - Shared Sample Video Catalog (single source of truth)
 // ----------------------------------------------------------------------------
-// These are REAL, playable sample videos generated in-house (animated title
-// cards) and self-hosted under the app's public/samples/ directory, so they
-// play everywhere with zero external dependencies. They exist so guests see a
-// working product while the real catalog is empty — they are ALWAYS flagged
-// `isSample: true` and must never be presented as real user content.
+// These are REAL, playable sample videos generated in-house (8-second
+// animated title cards) and self-hosted under the app's public/samples/
+// directory, so they play everywhere with zero external dependencies.
+// Thumbnails are real frames extracted from the videos themselves
+// (public/samples/posters/), and the channel avatar is a local SVG.
+// They exist so guests see a working product while the real catalog is
+// empty — they are ALWAYS flagged `isSample: true` and must never be
+// presented as real user content.
 // Engagement metadata is intentionally neutral: views are 0, upload ages are
-// blank, and channels are a single neutral "Sample Channel" — no fake counts,
-// dates, or channels may be shown for samples.
+// blank, durations are the REAL measured clip lengths, and channels are a
+// single neutral "Sample Channel" — no fake counts, dates, durations, live
+// badges, or channels may be shown for samples.
 // Consumers:
 //   - backend/routes/videos.ts   (GET /videos/:id fallback + seed script)
 //   - src/data/public-videos.ts  (frontend re-export, same ids/shapes)
@@ -20,6 +24,7 @@ export interface SampleVideo {
   description: string;
   /** Real, playable mp4 URL. Never a dead placeholder. */
   videoUrl: string;
+  /** Real frame extracted from the video. Self-hosted, never external. */
   thumbnailUrl: string;
   channelId: string;
   channelName: string;
@@ -29,230 +34,209 @@ export interface SampleVideo {
   uploadedAt: string;
   /** ISO date for the backend API shape. */
   publishedAt: string;
-  /** Seconds. 0 = live stream. */
+  /** Seconds. The REAL measured length of the clip. Never a live stream. */
   duration: number;
-  isLive?: boolean;
   category: string;
   resolution?: string;
 }
+
+const SAMPLE_DESC =
+  'Built-in sample placeholder — an 8-second animated title card. Real creator uploads will appear here once the catalog has content.';
+
+const SAMPLE_AVATAR = '/samples/sample-avatar.svg';
 
 export const SAMPLE_CATALOG: SampleVideo[] = [
   {
     id: 'guest-vid-1',
     title: 'Building the Future of Sovereign Computing: Quant OS Keynote 2026',
-    description:
-      'An exclusive walkthrough of the distributed sovereign cloud, AI-orchestrated runtime, and zero-knowledge memory architecture powering the Quant Ecosystem.',
+    description: SAMPLE_DESC,
     videoUrl: '/samples/vid-01.mp4',
-    thumbnailUrl:
-      'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&auto=format&fit=crop&q=80',
-    channelId: 'chan-quant-labs',
+    thumbnailUrl: '/samples/posters/vid-01.jpg',
+    channelId: 'chan-sample',
     channelName: 'Sample Channel',
-    channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=SampleChannel',
+    channelAvatar: SAMPLE_AVATAR,
     views: 0,
     uploadedAt: '',
     publishedAt: '2026-10-04T12:00:00.000Z',
-    duration: 1845,
+    duration: 8,
     category: 'tech',
-    resolution: '1080p Full HD',
+    resolution: '360p',
   },
   {
     id: 'guest-vid-2',
-    title: 'Quant Beats — Lo-Fi Chill Beats to Code / Relax to [24/7 Live Stream]',
-    description:
-      'Continuous generative lo-fi streams, ambient soundscapes, and chill beats for deep focus work, coding sessions, and study.',
+    title: 'Quant Beats — Lo-Fi Chill Beats (Sample)',
+    description: SAMPLE_DESC,
     videoUrl: '/samples/vid-02.mp4',
-    thumbnailUrl:
-      'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80',
-    channelId: 'chan-lofi-records',
+    thumbnailUrl: '/samples/posters/vid-02.jpg',
+    channelId: 'chan-sample',
     channelName: 'Sample Channel',
-    channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=SampleChannel',
+    channelAvatar: SAMPLE_AVATAR,
     views: 0,
     uploadedAt: '',
     publishedAt: '2026-10-06T12:00:00.000Z',
-    duration: 0,
-    isLive: true,
+    duration: 8,
     category: 'music',
-    resolution: '720p HD',
+    resolution: '360p',
   },
   {
     id: 'guest-vid-3',
-    title: 'Deep Dive into Distributed CRDTs and Multi-Master Databases',
-    description:
-      'Learn how conflict-free replicated data types synchronize document state in real time across tens of thousands of active peers without central locks.',
+    title: 'Deep Dive into Distributed CRDTs and Multi-Master Databases (Sample)',
+    description: SAMPLE_DESC,
     videoUrl: '/samples/vid-03.mp4',
-    thumbnailUrl:
-      'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=800&auto=format&fit=crop&q=80',
-    channelId: 'chan-systems-eng',
+    thumbnailUrl: '/samples/posters/vid-03.jpg',
+    channelId: 'chan-sample',
     channelName: 'Sample Channel',
-    channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=SampleChannel',
+    channelAvatar: SAMPLE_AVATAR,
     views: 0,
     uploadedAt: '',
     publishedAt: '2026-10-01T12:00:00.000Z',
-    duration: 2460,
+    duration: 8,
     category: 'education',
-    resolution: '480p SD',
+    resolution: '360p',
   },
   {
     id: 'guest-vid-4',
-    title: 'Championship Grand Finals — Global Esports Highlights 2026',
-    description:
-      'Relive the most intense clutch moments, tactical teamfights, and game-winning aces from the World Championship arena.',
+    title: 'Championship Grand Finals — Global Esports Highlights 2026 (Sample)',
+    description: SAMPLE_DESC,
     videoUrl: '/samples/vid-04.mp4',
-    thumbnailUrl:
-      'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=80',
-    channelId: 'chan-esports-global',
+    thumbnailUrl: '/samples/posters/vid-04.jpg',
+    channelId: 'chan-sample',
     channelName: 'Sample Channel',
-    channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=SampleChannel',
+    channelAvatar: SAMPLE_AVATAR,
     views: 0,
     uploadedAt: '',
     publishedAt: '2026-09-29T12:00:00.000Z',
-    duration: 1120,
+    duration: 8,
     category: 'gaming',
-    resolution: '1080p Full HD',
+    resolution: '360p',
   },
   {
     id: 'guest-vid-5',
-    title: 'Global Tech & Market Round-up: The Rise of Sovereign AI',
-    description:
-      'Breaking down major developments in localized inference, sovereign cloud infrastructure, and private intelligence networks worldwide.',
+    title: 'Global Tech & Market Round-up: The Rise of Sovereign AI (Sample)',
+    description: SAMPLE_DESC,
     videoUrl: '/samples/vid-05.mp4',
-    thumbnailUrl:
-      'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=800&auto=format&fit=crop&q=80',
-    channelId: 'chan-techpulse',
+    thumbnailUrl: '/samples/posters/vid-05.jpg',
+    channelId: 'chan-sample',
     channelName: 'Sample Channel',
-    channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=SampleChannel',
+    channelAvatar: SAMPLE_AVATAR,
     views: 0,
     uploadedAt: '',
     publishedAt: '2026-10-03T12:00:00.000Z',
-    duration: 890,
+    duration: 8,
     category: 'news',
-    resolution: '720p HD',
+    resolution: '360p',
   },
   {
     id: 'guest-vid-6',
-    title: 'Next-Gen Quantum GPU Architecture Explained: Parallel Qubits in Silicon',
-    description:
-      'How topological insulators and silicon photonics are redefining high-performance tensor computing for real-time autonomous swarms.',
+    title: 'Next-Gen Quantum GPU Architecture Explained (Sample)',
+    description: SAMPLE_DESC,
     videoUrl: '/samples/vid-06.mp4',
-    thumbnailUrl:
-      'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&auto=format&fit=crop&q=80',
-    channelId: 'chan-quantum-insight',
+    thumbnailUrl: '/samples/posters/vid-06.jpg',
+    channelId: 'chan-sample',
     channelName: 'Sample Channel',
-    channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=SampleChannel',
+    channelAvatar: SAMPLE_AVATAR,
     views: 0,
     uploadedAt: '',
     publishedAt: '2026-10-02T12:00:00.000Z',
-    duration: 1540,
+    duration: 8,
     category: 'tech',
-    resolution: '1080p Full HD',
+    resolution: '360p',
   },
   {
     id: 'guest-vid-7',
-    title: 'Electronic Music Festival Live Set — Soundwave 2026',
-    description:
-      'High-energy progressive house and synthwave set recorded live in 4K spatial audio at Soundwave Arena.',
+    title: 'Electronic Music Festival Live Set — Soundwave 2026 (Sample)',
+    description: SAMPLE_DESC,
     videoUrl: '/samples/vid-07.mp4',
-    thumbnailUrl:
-      'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80',
-    channelId: 'chan-soundwave',
+    thumbnailUrl: '/samples/posters/vid-07.jpg',
+    channelId: 'chan-sample',
     channelName: 'Sample Channel',
-    channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=SampleChannel',
+    channelAvatar: SAMPLE_AVATAR,
     views: 0,
     uploadedAt: '',
     publishedAt: '2026-09-30T12:00:00.000Z',
-    duration: 3600,
+    duration: 8,
     category: 'music',
-    resolution: '1080p Full HD',
+    resolution: '360p',
   },
   {
     id: 'guest-vid-8',
-    title: 'Formula 1 2026 Season Opener — Cinematic Race Highlights & Overtakes',
-    description:
-      'Experience wheel-to-wheel racing at 350 km/h with 4K cockpit telemetry and high-drama overtakes.',
+    title: 'Formula 1 2026 Season Opener — Race Highlights (Sample)',
+    description: SAMPLE_DESC,
     videoUrl: '/samples/vid-08.mp4',
-    thumbnailUrl:
-      'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=800&auto=format&fit=crop&q=80',
-    channelId: 'chan-speed-channel',
+    thumbnailUrl: '/samples/posters/vid-08.jpg',
+    channelId: 'chan-sample',
     channelName: 'Sample Channel',
-    channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=SampleChannel',
+    channelAvatar: SAMPLE_AVATAR,
     views: 0,
     uploadedAt: '',
     publishedAt: '2026-10-04T12:00:00.000Z',
-    duration: 1240,
+    duration: 8,
     category: 'sports',
-    resolution: '720p HD',
+    resolution: '360p',
   },
   {
     id: 'guest-vid-9',
-    title: 'Autonomous Drone Racing Championship — 4K FPV Obstacle Course',
-    description:
-      'High-speed autonomous AI drones competing through neon-lit obstacles in record-breaking times.',
+    title: 'Autonomous Drone Racing Championship (Sample)',
+    description: SAMPLE_DESC,
     videoUrl: '/samples/vid-09.mp4',
-    thumbnailUrl:
-      'https://images.unsplash.com/photo-1508614589041-895b88991e3e?w=800&auto=format&fit=crop&q=80',
-    channelId: 'chan-fpv-pulse',
+    thumbnailUrl: '/samples/posters/vid-09.jpg',
+    channelId: 'chan-sample',
     channelName: 'Sample Channel',
-    channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=SampleChannel',
+    channelAvatar: SAMPLE_AVATAR,
     views: 0,
     uploadedAt: '',
     publishedAt: '2026-10-02T12:00:00.000Z',
-    duration: 780,
+    duration: 8,
     category: 'sports',
-    resolution: '480p SD',
+    resolution: '360p',
   },
   {
     id: 'guest-vid-10',
-    title: 'Indie Game Developer Showcase 2026 — Top 10 Upcoming Masterpieces',
-    description:
-      'A curated showcase of the most creative indie games currently in development, featuring gameplay footage and developer insights.',
+    title: 'Indie Game Developer Showcase 2026 (Sample)',
+    description: SAMPLE_DESC,
     videoUrl: '/samples/vid-10.mp4',
-    thumbnailUrl:
-      'https://images.unsplash.com/photo-1552824744-f9037cfa9074?w=800&auto=format&fit=crop&q=80',
-    channelId: 'chan-indie-spotlight',
+    thumbnailUrl: '/samples/posters/vid-10.jpg',
+    channelId: 'chan-sample',
     channelName: 'Sample Channel',
-    channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=SampleChannel',
+    channelAvatar: SAMPLE_AVATAR,
     views: 0,
     uploadedAt: '',
     publishedAt: '2026-09-29T12:00:00.000Z',
-    duration: 1450,
+    duration: 8,
     category: 'gaming',
-    resolution: '1080p Full HD',
+    resolution: '360p',
   },
   {
     id: 'guest-vid-11',
-    title: 'AI Agent Swarms in Production: Lessons from 100M Daily Events',
-    description:
-      'Architecture breakdown of how multi-agent swarms coordinate autonomous tasks, prevent race conditions, and self-heal in distributed production clusters.',
+    title: 'AI Agent Swarms in Production (Sample)',
+    description: SAMPLE_DESC,
     videoUrl: '/samples/vid-11.mp4',
-    thumbnailUrl:
-      'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=800&auto=format&fit=crop&q=80',
-    channelId: 'chan-quant-labs',
+    thumbnailUrl: '/samples/posters/vid-11.jpg',
+    channelId: 'chan-sample',
     channelName: 'Sample Channel',
-    channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=SampleChannel',
+    channelAvatar: SAMPLE_AVATAR,
     views: 0,
     uploadedAt: '',
     publishedAt: '2026-10-03T12:00:00.000Z',
-    duration: 1980,
+    duration: 8,
     category: 'education',
-    resolution: '1080p Full HD',
+    resolution: '360p',
   },
   {
     id: 'guest-vid-12',
-    title: 'Cosmic Horizons: Ultra High Definition James Webb Deep Space Odyssey',
-    description:
-      'Travel through distant nebulae, gravitational lenses, and early galaxy formations captured by the James Webb Space Telescope in stunning detail.',
+    title: 'Cosmic Horizons: Deep Space Odyssey (Sample)',
+    description: SAMPLE_DESC,
     videoUrl: '/samples/vid-12.mp4',
-    thumbnailUrl:
-      'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&auto=format&fit=crop&q=80',
-    channelId: 'chan-cosmos-odyssey',
+    thumbnailUrl: '/samples/posters/vid-12.jpg',
+    channelId: 'chan-sample',
     channelName: 'Sample Channel',
-    channelAvatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=SampleChannel',
+    channelAvatar: SAMPLE_AVATAR,
     views: 0,
     uploadedAt: '',
     publishedAt: '2026-10-01T12:00:00.000Z',
-    duration: 2100,
+    duration: 8,
     category: 'entertainment',
-    resolution: '1080p Full HD',
+    resolution: '360p',
   },
 ];
 
@@ -289,7 +273,7 @@ export function toSampleApiRecord(v: SampleVideo): Record<string, unknown> {
     channelAvatar: v.channelAvatar,
     category: v.category,
     resolution: v.resolution,
-    isLive: v.isLive ?? false,
+    isLive: false,
     publishedAt: v.publishedAt,
     createdAt: v.publishedAt,
     updatedAt: v.publishedAt,

@@ -32,9 +32,38 @@ describe('sample video catalog (P0-1/P0-2)', () => {
     }
   });
 
-  it('every thumbnailUrl is an absolute https URL', () => {
+  it('every thumbnailUrl is a self-hosted poster frame (zero external deps)', () => {
     for (const v of SAMPLE_CATALOG) {
-      expect(v.thumbnailUrl, `${v.id} thumbnailUrl`).toMatch(/^https:\/\//);
+      expect(v.thumbnailUrl, `${v.id} thumbnailUrl`).toMatch(
+        /^\/samples\/posters\/vid-\d{2}\.jpg$/,
+      );
+      expect(v.thumbnailUrl, `${v.id} must not use Unsplash`).not.toContain('unsplash');
+    }
+  });
+
+  it('no sample is presented as a live stream', () => {
+    for (const v of SAMPLE_CATALOG) {
+      expect('isLive' in v, `${v.id} must not carry an isLive flag`).toBe(false);
+    }
+    const rec = toSampleApiRecord(SAMPLE_CATALOG[1]) as Record<string, unknown>;
+    expect(rec.isLive).toBe(false);
+  });
+
+  it('durations are the real measured clip lengths (8s title cards)', () => {
+    for (const v of SAMPLE_CATALOG) {
+      expect(v.duration, `${v.id} duration`).toBe(8);
+    }
+  });
+
+  it('channel avatars are self-hosted (no DiceBear external dependency)', () => {
+    for (const v of SAMPLE_CATALOG) {
+      expect(v.channelAvatar, `${v.id} channelAvatar`).toBe('/samples/sample-avatar.svg');
+    }
+  });
+
+  it('resolutions are the real 360p of the generated clips', () => {
+    for (const v of SAMPLE_CATALOG) {
+      expect(v.resolution, `${v.id} resolution`).toBe('360p');
     }
   });
 
@@ -84,9 +113,9 @@ describe('sample video catalog (P0-1/P0-2)', () => {
     expect(recs.every((r) => r.id !== 'guest-vid-1')).toBe(true);
     expect(recs.every((r) => r.isSample)).toBe(true);
     for (const r of recs) {
-      // Real playable media + real thumbnails: no dead links, no fake views.
+      // Real playable media + real self-hosted thumbnails: no dead links, no fake views.
       expect(r.videoUrl).toMatch(/^\/samples\/vid-\d{2}\.mp4$/);
-      expect(r.thumbnailUrl).toMatch(/^https:\/\//);
+      expect(r.thumbnailUrl).toMatch(/^\/samples\/posters\/vid-\d{2}\.jpg$/);
       expect(r.views).toBe(0);
     }
     const ids = recs.map((r) => r.id);

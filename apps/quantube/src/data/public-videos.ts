@@ -50,7 +50,7 @@ function toPublicFeaturedVideo(v: SampleVideo): PublicFeaturedVideo {
     views: v.views,
     uploadedAt: v.uploadedAt,
     duration: v.duration,
-    isLive: v.isLive,
+    isLive: false, // samples are never live
     category: v.category,
     resolution: v.resolution,
     isSample: true,
@@ -113,7 +113,7 @@ export function resolveWatchVideo(id: string): WatchSampleVideo | undefined {
     publishedAt: v.uploadedAt,
     uploadedAt: v.uploadedAt,
     duration: v.duration,
-    isLive: v.isLive ?? false,
+    isLive: false, // samples are never live
     category: v.category,
     resolution: v.resolution,
     isSample: true,
