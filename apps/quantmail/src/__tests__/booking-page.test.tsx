@@ -12,6 +12,7 @@ vi.mock('@quant/api-client', () => ({
 import { apiFetchRaw } from '@quant/api-client';
 import PublicBookingPage from '../app/calendar/booking/[slug]/page';
 import {
+  applyBookingLinkResponse,
   generateIcsContent,
   generateGoogleCalendarUrl,
 } from '../app/calendar/booking/[slug]/booking-utils';
@@ -46,8 +47,11 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
 
       // Verify Left Column: Host Details & Meeting Metadata
       expect(html).toContain('Host');
-      expect(html).toContain('Kundan Singh');
-      expect(html).toContain('kundan@quantmail.in');
+      // No fabricated host identity: the seed is an honest unknown until the
+      // backend booking-link record supplies the real host name/email.
+      expect(html).toContain('Unknown host');
+      expect(html).not.toContain('Kundan Singh');
+      expect(html).not.toContain('kundan@quantmail.in');
       expect(html).toContain('30 Min Strategy Session');
       expect(html).toContain('30 min duration');
       expect(html).toContain('QuantMeet Video Call');
@@ -84,6 +88,85 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
       expect(html).toContain('UTC');
       expect(html).toContain('America/New_York');
       expect(html).toContain('Europe/London');
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 1b. Host identity merge rules: real host from backend, never fabricated
+  // --------------------------------------------------------------------------
+  describe('applyBookingLinkResponse host identity rules', () => {
+    const seed = {
+      slug: 'strategy-session',
+      title: '30 Min Strategy Session',
+      description: 'One-on-one session.',
+      duration: 30,
+      startHour: 9,
+      endHour: 17,
+      availableDays: [1, 2, 3, 4, 5],
+      hostName: '',
+      hostEmail: '',
+    };
+
+    it('merges the real host name/email from the backend booking-link record', () => {
+      const merged = applyBookingLinkResponse(seed, {
+        slug: 'strategy-session',
+        title: 'Strategy Session',
+        hostName: 'Priya Nair',
+        hostEmail: 'priya.nair@quantmail.in',
+      });
+
+      expect(merged.hostName).toBe('Priya Nair');
+      expect(merged.hostEmail).toBe('priya.nair@quantmail.in');
+      expect(merged.title).toBe('Strategy Session');
+    });
+
+    it('leaves host identity honestly unknown when the backend omits it (never invents one)', () => {
+      const merged = applyBookingLinkResponse(seed, {
+        slug: 'strategy-session',
+        title: 'Strategy Session',
+        duration: 45,
+      });
+
+      expect(merged.hostName).toBe('');
+      expect(merged.hostEmail).toBe('');
+      expect(merged.hostName).not.toContain('Kundan');
+      expect(merged.hostEmail).not.toContain('kundan');
+    });
+
+    it('returns the previous details untouched when the response is missing', () => {
+      expect(applyBookingLinkResponse(seed, null)).toBe(seed);
+      expect(applyBookingLinkResponse(seed, undefined)).toBe(seed);
+    });
+  });
+
+  describe('generateIcsContent host honesty', () => {
+    const baseEvent = {
+      title: '30 Min Strategy Session',
+      startTime: new Date('2026-09-30T10:00:00.000Z'),
+      endTime: new Date('2026-09-30T10:30:00.000Z'),
+      attendeeName: 'Sarah Connor',
+      attendeeEmail: 'sarah@example.com',
+    };
+
+    it('omits the ORGANIZER line when the host identity is unknown (never fabricates)', () => {
+      const ics = generateIcsContent({ ...baseEvent, hostName: '', hostEmail: '' });
+
+      expect(ics).not.toContain('ORGANIZER');
+      expect(ics).not.toContain('Kundan Singh');
+      expect(ics).toContain('BEGIN:VEVENT');
+      expect(ics).toContain(
+        'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=Sarah Connor:mailto:sarah@example.com',
+      );
+    });
+
+    it('emits the real organizer when the backend supplied a host identity', () => {
+      const ics = generateIcsContent({
+        ...baseEvent,
+        hostName: 'Priya Nair',
+        hostEmail: 'priya.nair@quantmail.in',
+      });
+
+      expect(ics).toContain('ORGANIZER;CN=Priya Nair:mailto:priya.nair@quantmail.in');
     });
   });
 
