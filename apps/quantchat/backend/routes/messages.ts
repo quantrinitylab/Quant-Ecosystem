@@ -12,6 +12,11 @@ const sendMessageSchema = z.object({
   mediaUrl: z.string().optional(),
   replyToId: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
+  // QC-F-019: view-once intent must survive the HTTP layer. Without this
+  // field the client's `disappearMode: 'after_view'` was silently stripped
+  // by zod, so snaps were stored as ordinary permanent media and the
+  // consumeSnap endpoint could never recognise them as snaps.
+  disappearMode: z.enum(['off', 'after_view', '24h', '7d', '30d']).optional(),
 });
 
 const editMessageSchema = z.object({
@@ -49,6 +54,7 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
       mediaUrl: parseResult.data.mediaUrl,
       replyToId: parseResult.data.replyToId,
       metadata: parseResult.data.metadata,
+      disappearMode: parseResult.data.disappearMode,
     });
 
     // K25 — realtime fan-out (contract §18/§19). The REST send path is the
