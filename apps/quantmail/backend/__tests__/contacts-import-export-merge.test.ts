@@ -15,6 +15,13 @@ describe('ContactService - Import/Export & Deduplication (Tasks QC-01, QC-02)', 
         update: vi.fn(),
         delete: vi.fn(),
       },
+      // QM-SCREEN-012: ContactService.findDuplicates now also reads persisted
+      // "keep separate" decisions via the dismissedDuplicatePair delegate
+      // (migration 0088). This mock has no dismissed pairs.
+      dismissedDuplicatePair: {
+        findMany: vi.fn().mockResolvedValue([]),
+        upsert: vi.fn().mockResolvedValue({}),
+      },
     };
     service = new ContactService(mockPrisma as any);
   });
