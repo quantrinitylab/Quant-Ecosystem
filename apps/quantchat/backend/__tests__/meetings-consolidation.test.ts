@@ -554,13 +554,20 @@ describe('MeetingChatService', () => {
 describe('RecordingService', () => {
   it('starts, stops, lists, and resolves a completed recording URL', async () => {
     const { prisma } = createMockPrisma();
+    // QC-F-040: recordings are host-gated against a real room — create one
+    // (settings fixture has enableRecording: true) owned by 'host' first.
+    const room = await new RoomService(prisma).createRoom({
+      name: 'Recorded standup',
+      hostId: 'host',
+      settings,
+    });
     const service = new RecordingService(prisma, {});
-    const started = await service.startRecording('room', 'host');
+    const started = await service.startRecording(room.id, 'host');
     expect(started.status).toBe('recording');
-    const stopped = await service.stopRecording(started.id);
+    const stopped = await service.stopRecording(started.id, 'host');
     expect(stopped.status).toBe('completed');
-    expect(await service.listRecordings('room')).toHaveLength(1);
-    expect(await service.getRecordingUrl(started.id)).toBe(started.storageKey);
+    expect(await service.listRecordings(room.id, 'host')).toHaveLength(1);
+    expect(await service.getRecordingUrl(started.id, 'host')).toBe(started.storageKey);
   });
 });
 
