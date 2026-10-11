@@ -159,6 +159,8 @@ export interface TranscriptItem {
   text: string;
   timestamp: string;
   isInterrupted?: boolean;
+  /** Honest per-turn STT latency (audio-sent -> transcript-received), in ms. */
+  latencyMs?: number;
 }
 
 // ---------------------------------------------------------------------------
