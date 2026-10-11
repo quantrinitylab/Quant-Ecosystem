@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useInbox } from '../hooks/useMail';
 import { useStorageQuota } from '../hooks/useStorageQuota';
+import { ApiRequestError } from '../lib/query-retry';
 import { formatBytes } from '../lib/format-bytes';
 import { QuantMailLogo } from './QuantMailLogo';
 import { BrandWordmark } from './BrandWordmark';
@@ -394,7 +395,15 @@ export function SidebarNavGroups() {
 */
 /** Real cloud-storage readout (GET /drive/quota via useStorageQuota). */
 export function SidebarStorage() {
-  const { quota, known: quotaKnown, usedPct } = useStorageQuota();
+  const { quota, known: quotaKnown, usedPct, error } = useStorageQuota();
+  // Signed-out viewers have no storage to show: hide the section instead of a
+  // forever "Calculating…" spinner (QM-SCREEN-013 P2).
+  if (
+    error instanceof ApiRequestError &&
+    (error.statusCode === 401 || error.statusCode === 403)
+  ) {
+    return null;
+  }
   return (
     <section
       className="mt-4 px-2.5 py-3 border-t border-[var(--quant-border-subtle)]"

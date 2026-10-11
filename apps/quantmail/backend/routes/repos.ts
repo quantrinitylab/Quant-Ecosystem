@@ -614,6 +614,47 @@ function getPrisma(fastify: FastifyInstance): any {
 }
 
 /**
+ * Honest CI display helpers (QM-SCREEN-013 P1). Durations and relative times
+ * are computed from real DB timestamps only. When a timestamp is missing the
+ * value is the '—' placeholder — values are never invented.
+ */
+function formatCiDuration(
+  startedAt: Date | string | null | undefined,
+  completedAt: Date | string | null | undefined,
+): string {
+  if (!startedAt || !completedAt) return '—';
+  const start = new Date(startedAt).getTime();
+  const end = new Date(completedAt).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return '—';
+  const totalSeconds = Math.floor((end - start) / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
+/** Real relative time from a DB timestamp — never a hardcoded 'recently'. */
+function formatCiTimeAgo(date: Date | string | null | undefined): string {
+  if (!date) return '—';
+  const ts = new Date(date).getTime();
+  if (!Number.isFinite(ts)) return '—';
+  const diffMs = Date.now() - ts;
+  if (diffMs < 0) return 'just now';
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
+}
+
+/**
  * The subset of the Prisma transaction client the star endpoints use. Typed
  * structurally because `getPrisma` is untyped here; this keeps the transaction
  * callback free of an implicit `any` without dragging the generated client into
@@ -2745,24 +2786,33 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       take: 30,
     });
 
+    // Honest listing (QM-SCREEN-013 P1): every display value derives from real
+    // DB timestamps/rows. Unknown names render 'Unknown', unknown durations
+    // render '—' — nothing is invented.
     return reply.send({
       success: true,
       data: runs.map((r: any, idx: number) => ({
         id: r.id,
         number: idx + 1,
-        name: r.triggeredBy ? `Build triggered by ${r.triggeredBy}` : `Workflow run #${idx + 1}`,
-        workflow: r.jobs?.[0]?.name ? 'CI / Staging Pipeline' : 'All workflows',
+        name: r.triggeredBy ? `Build triggered by ${r.triggeredBy}` : 'Unknown',
+        actor: r.triggeredBy ?? null,
+        workflow:
+          (r.jobs || [])
+            .map((j: any) => j?.name)
+            .filter(Boolean)
+            .join(', ') || '—',
         status: String(r.status).toLowerCase(),
         branch: r.branch,
         event: 'push',
         commitSha: r.commitSha,
-        duration: '4m 55s',
-        timeAgo: 'recently',
+        duration: formatCiDuration(r.startedAt, r.completedAt),
+        timeAgo: formatCiTimeAgo(r.createdAt),
+        createdAt: r.createdAt,
         jobs: (r.jobs || []).map((j: any) => ({
           id: j.id,
           name: j.name,
           status: String(j.status).toLowerCase(),
-          duration: '2m 10s',
+          duration: formatCiDuration(j.startedAt, j.completedAt),
         })),
       })),
     });
