@@ -1,11 +1,33 @@
-import { NextRequest } from 'next/server';
-import { proxyToBackend } from '@quant/api-client/proxy';
+import { NextRequest, NextResponse } from 'next/server';
+import { buildClearSessionCookies } from '@quant/api-client/sso-server';
 
-// POST /api/auth/logout -> QuantMail /oauth/revoke. Best-effort token revocation;
-// the client clears its local session regardless of the result.
+// QuantAds — POST /api/auth/logout.
+//
+// Best-effort revocation at QuantMail's /oauth/revoke, then clear every SSO
+// session cookie. The client is signed out regardless of the revocation
+// result.
 const QUANTMAIL_URL = process.env.QUANTMAIL_BACKEND_URL || 'http://localhost:3010';
 
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function POST(request: NextRequest) {
-  const body = await request.json().catch(() => ({}));
-  return proxyToBackend(request, { backendUrl: QUANTMAIL_URL, path: '/oauth/revoke', body });
+  const cookie = request.headers.get('cookie') ?? '';
+  try {
+    await fetch(`${QUANTMAIL_URL}/oauth/revoke`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, 'cache-control': 'no-store' },
+      body: await request.text().catch(() => undefined),
+      cache: 'no-store',
+    });
+  } catch {
+    // Best effort — clear locally regardless of revocation result.
+  }
+
+  const res = NextResponse.json(
+    { success: true },
+    { headers: { 'cache-control': 'no-store' } },
+  );
+  for (const c of buildClearSessionCookies()) res.headers.append('set-cookie', c);
+  return res;
 }

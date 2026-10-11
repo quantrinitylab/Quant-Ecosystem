@@ -6,9 +6,15 @@ import {
   CommandPaletteUI,
   QuantSidekickProvider,
   QuantSidekick,
+  configureQuantAuth,
 } from '@quant/shared-ui';
 import type { CommandPaletteItem } from '@quant/shared-ui';
 import { AuthGuard } from '../components/AuthGuard';
+
+// QuantAds uses cookie sessions: tokens live only in httpOnly cookies minted
+// server-side (QuantMail OAuth / password login); the shared useAuth hook
+// never touches a token and resolves identity from the cookie session.
+configureQuantAuth({ sessionMode: 'cookie' });
 
 const commands: CommandPaletteItem[] = [
   {

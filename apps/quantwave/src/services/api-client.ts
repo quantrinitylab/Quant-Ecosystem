@@ -146,11 +146,9 @@ class QuantSyncAPI {
   }
 
   // --- Auth ---
-  async loginWithSSO(quantMailToken: string) {
-    return this.request<{ accessToken: string; user: any }>('POST', '/auth/sso/login', {
-      quantMailToken,
-    });
-  }
+  // NOTE: the old loginWithSSO(quantMailToken) (raw QuantMail token posted to
+  // the backend, token carried in ?token= URLs) was removed with the real
+  // OAuth2 + ticket SSO. Use authSession.completeSsoTicket() instead.
   async toggleAnonymous(enabled: boolean) {
     return this.request<{ isAnonymous: boolean; anonymousAlias?: string }>(
       'POST',

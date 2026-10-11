@@ -1,71 +1,90 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { authSession, clearAccessToken, isTwoFactorChallenge } from '../services/auth-session';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  ReactNode,
+} from 'react';
+import {
+  authSession,
+  isTwoFactorChallenge,
+  SessionUser,
+  LoginOutcome,
+} from '../services/auth-session';
 
-export type LoginOutcome =
-  | { status: 'signed-in' }
-  | { status: 'two-factor-required'; challenge: string; expiresIn: number };
+export type { LoginOutcome };
 
 interface AuthContextValue {
-  /** True once a session (access token) has been established this tab. */
+  /** The verified user profile, or null when signed out. */
+  user: SessionUser | null;
+  /** True once GET /api/auth/session has verified a session this tab. */
   isAuthenticated: boolean;
   /** True during the initial session-restore, so guards can wait instead of flashing. */
   isLoading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<LoginOutcome>;
   logout: () => Promise<void>;
+  /** Re-resolve the session (used after an SSO ticket completes). */
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const clearSession = useCallback(() => {
-    clearAccessToken();
-    setIsAuthenticated(false);
+  const applySession = useCallback((user: SessionUser | null) => {
+    setUser(user);
   }, []);
 
-  // Restore a session on load from the HttpOnly refresh cookie. Fail closed and
-  // never hang: a 5s cap means a wedged identity service drops us to logged-out,
-  // not to a spinner forever.
+  // Restore the session on load from the httpOnly cookies via the server.
+  // Fail-closed and never hanging: a 10s cap means a wedged identity service
+  // drops us to logged-out, not to a spinner forever. No tokens are read from
+  // the URL or storage — the server verifies the cookies back-channel.
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
     (async () => {
       try {
-        const timeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('auth-timeout')), 5000),
-        );
-        const session = await Promise.race([authSession.refresh(), timeout]);
+        const session = await authSession.getSession();
         if (!active) return;
-        setIsAuthenticated(Boolean(session.success && session.data?.accessToken));
+        applySession(session.success ? (session.data?.user ?? null) : null);
       } catch {
-        if (active) clearSession();
+        if (active) applySession(null);
       } finally {
+        clearTimeout(timeout);
         if (active) setIsLoading(false);
       }
     })();
     return () => {
       active = false;
+      clearTimeout(timeout);
+      controller.abort();
     };
-  }, [clearSession]);
+  }, [applySession]);
 
-  // Rotate the access token before its ~15-minute lifetime ends. The rotated
-  // refresh token stays inside the HttpOnly cookie and never reaches this provider.
-  const authedRef = useRef(isAuthenticated);
-  authedRef.current = isAuthenticated;
+  // Re-verify the session before its ~15-minute lifetime ends. The server
+  // self-heals OAuth sessions through the refresh cookie; a dead session
+  // fails closed to signed-out.
+  const authedRef = useRef(false);
+  authedRef.current = user !== null;
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!authedRef.current) return;
     const timer = window.setInterval(
       async () => {
-        const session = await authSession.refresh();
-        if (!session.success || !session.data?.accessToken) clearSession();
+        const session = await authSession.getSession().catch(() => null);
+        if (!session?.success) applySession(null);
+        else applySession(session.data?.user ?? null);
       },
       12 * 60 * 1000,
     );
     return () => window.clearInterval(timer);
-  }, [isAuthenticated, clearSession]);
+  }, [user, applySession]);
 
   const login = useCallback(
     async (email: string, password: string): Promise<LoginOutcome> => {
@@ -83,11 +102,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             expiresIn: session.data.expiresIn ?? 300,
           };
         }
-        if (!session.data.accessToken) throw new Error('Sign-in failed.');
-        setIsAuthenticated(true);
+        const nextUser = session.data.user ?? null;
+        if (!nextUser) throw new Error('Sign-in failed.');
+        applySession(nextUser);
         return { status: 'signed-in' };
       } catch (caught) {
-        clearSession();
+        applySession(null);
         const message = caught instanceof Error ? caught.message : 'Sign-in failed.';
         setError(message);
         throw caught;
@@ -95,17 +115,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
       }
     },
-    [clearSession],
+    [applySession],
   );
 
   const logout = useCallback(async () => {
     await authSession.logout();
-    setIsAuthenticated(false);
+    applySession(null);
     setError(null);
-  }, []);
+  }, [applySession]);
+
+  const refreshSession = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const session = await authSession.getSession();
+      applySession(session.success ? (session.data?.user ?? null) : null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [applySession]);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, error, login, logout }}>
+    <AuthContext.Provider
+      value={{ user, isAuthenticated: user !== null, isLoading, error, login, logout, refreshSession }}
+    >
       {children}
     </AuthContext.Provider>
   );

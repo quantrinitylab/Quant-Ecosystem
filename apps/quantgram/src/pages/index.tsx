@@ -61,7 +61,7 @@ function GuestHeroBanner() {
           href="/login?returnTo=/"
           className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full font-bold text-xs sm:text-sm bg-gradient-to-r from-pink-500 via-red-500 to-amber-500 text-white shadow-lg shadow-pink-500/25 hover:opacity-95 active:scale-95 transition-all"
         >
-          <span>⚡ Continue with Quant Account</span>
+          <span>⚡ Continue with QuantMail</span>
         </Link>
         <Link
           href="/explore"
@@ -90,7 +90,7 @@ function GuestEmptyLanding() {
           href="/login?returnTo=/"
           className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-pink-500 via-red-500 to-amber-500 text-white shadow-lg shadow-pink-500/25 hover:opacity-95 active:scale-95 transition-all"
         >
-          <span>⚡ Continue with Quant Account</span>
+          <span>⚡ Continue with QuantMail</span>
         </Link>
         <div className="grid grid-cols-2 gap-2 text-xs font-medium">
           <Link

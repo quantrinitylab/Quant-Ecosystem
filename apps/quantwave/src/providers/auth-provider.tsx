@@ -1,35 +1,36 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { authSession, clearAccessToken, hasRefreshCookie, isTwoFactorChallenge } from '../services/auth-session';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { authSession, isTwoFactorChallenge, SessionUser, LoginOutcome } from '../services/auth-session';
 import { quantSyncAPI } from '../services/api-client';
 
-export type LoginOutcome =
-  | { status: 'signed-in' }
-  | { status: 'two-factor-required'; challenge: string; expiresIn: number };
+export type { LoginOutcome };
 
 interface AuthContextValue {
-  /** True once a session (access token) has been established this tab. */
+  /** The verified user profile, or null when signed out. */
+  user: SessionUser | null;
+  /** True once GET /api/auth/session has verified a session this tab. */
   isAuthenticated: boolean;
   /** True during the initial session-restore, so guards can wait instead of flashing. */
   isLoading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<LoginOutcome>;
-  /** Establish a session from a QuantMail SSO handoff token (the ?token= param). */
-  loginWithSSO: (quantMailToken: string) => Promise<void>;
+  /** Establish a session from a QuantMail /sso chooser ticket (?sso_ticket=). */
+  completeSsoTicket: (ticket: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Re-resolve the session (used after an SSO round-trip completes). */
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const clearSession = useCallback(() => {
-    clearAccessToken();
-    setIsAuthenticated(false);
+    setUser(null);
   }, []);
 
   // A 401 from any API call means the session is dead (expired/revoked token).
@@ -41,49 +42,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, [clearSession]);
 
-  // Restore a session on load from the HttpOnly refresh cookie. Fail closed and
-  // never hang: a 5s cap means a wedged identity service drops us to logged-out,
-  // not to a spinner forever.
+  // Restore the session on load from the httpOnly cookies via the server.
+  // Fail closed and never hang: a 10s cap means a wedged identity service
+  // drops us to logged-out, not to a spinner forever. No tokens are read from
+  // the URL or storage — the server verifies the cookies back-channel.
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
     (async () => {
       try {
-        const timeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('auth-timeout')), 5000),
-        );
-        const session = await Promise.race([authSession.refresh(), timeout]);
+        const session = await authSession.getSession();
         if (!active) return;
-        setIsAuthenticated(Boolean(session.success && session.data?.accessToken));
+        setUser(session.success ? (session.data?.user ?? null) : null);
       } catch {
         if (active) clearSession();
       } finally {
+        clearTimeout(timeout);
         if (active) setIsLoading(false);
       }
     })();
     return () => {
       active = false;
+      clearTimeout(timeout);
+      controller.abort();
     };
   }, [clearSession]);
 
-  // Rotate the access token before its ~15-minute lifetime ends. The rotated
-  // refresh token stays inside the HttpOnly cookie and never reaches this provider.
-  // SSO-established sessions have no refresh cookie: skip rotation for them, or
-  // the cookie-less /auth/refresh (NO_SESSION) would nuke a good session. The
-  // token lives its natural life; API 401s still clear via onUnauthorized.
-  const authedRef = useRef(isAuthenticated);
-  authedRef.current = isAuthenticated;
+  // Re-verify the session before its ~15-minute lifetime ends. The server
+  // self-heals OAuth sessions through the refresh cookie; a dead session
+  // fails closed to signed-out.
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (user === null) return;
     const timer = window.setInterval(
       async () => {
-        if (!hasRefreshCookie()) return;
-        const session = await authSession.refresh();
-        if (!session.success || !session.data?.accessToken) clearSession();
+        const session = await authSession.getSession().catch(() => null);
+        setUser(session?.success ? (session.data?.user ?? null) : null);
       },
       12 * 60 * 1000,
     );
     return () => window.clearInterval(timer);
-  }, [isAuthenticated, clearSession]);
+  }, [user]);
 
   const login = useCallback(
     async (email: string, password: string): Promise<LoginOutcome> => {
@@ -101,8 +100,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             expiresIn: session.data.expiresIn ?? 300,
           };
         }
-        if (!session.data.accessToken) throw new Error('Sign-in failed.');
-        setIsAuthenticated(true);
+        const nextUser = session.data.user ?? null;
+        if (!nextUser) throw new Error('Sign-in failed.');
+        setUser(nextUser);
         return { status: 'signed-in' };
       } catch (caught) {
         clearSession();
@@ -118,22 +118,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await authSession.logout();
-    setIsAuthenticated(false);
+    clearSession();
     setError(null);
-  }, []);
+  }, [clearSession]);
 
-  // SSO return leg: exchange the QuantMail handoff token for a session and flip
-  // the provider to authenticated. Called by the login page's return handler.
-  const loginWithSSO = useCallback(
-    async (quantMailToken: string): Promise<void> => {
+  // SSO return leg (Contract B): verify the /sso chooser ticket server-side
+  // and flip the provider to authenticated. Called by the login page's return
+  // handler AFTER it scrubs the ticket from the URL.
+  const completeSsoTicket = useCallback(
+    async (ticket: string): Promise<void> => {
       setError(null);
       setIsLoading(true);
       try {
-        const session = await authSession.loginWithSSO(quantMailToken);
-        if (!session.success || !session.data?.accessToken) {
+        const session = await authSession.completeSsoTicket(ticket);
+        if (!session.success || !session.data?.user) {
           throw new Error(session.error?.message ?? 'Quant SSO sign-in failed.');
         }
-        setIsAuthenticated(true);
+        setUser(session.data.user);
       } catch (caught) {
         clearSession();
         const message = caught instanceof Error ? caught.message : 'Quant SSO sign-in failed.';
@@ -146,8 +147,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [clearSession],
   );
 
+  const refreshSession = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const session = await authSession.getSession();
+      setUser(session.success ? (session.data?.user ?? null) : null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, error, login, loginWithSSO, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated: user !== null,
+        isLoading,
+        error,
+        login,
+        completeSsoTicket,
+        logout,
+        refreshSession,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

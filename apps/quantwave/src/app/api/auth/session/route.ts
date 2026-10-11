@@ -1,8 +1,10 @@
-import { NextRequest } from 'next/server';
-import { proxyToBackend } from '@quant/api-client/proxy';
+import { createSessionHandler } from '@quant/api-client/sso-routes';
 
-const BACKEND_URL = process.env.QUANTSYNC_BACKEND_URL || 'http://localhost:3003';
+// GET /api/auth/session — session status derived ONLY from httpOnly cookies:
+// the OAuth access cookie (verified live via userinfo, self-healing through
+// the refresh cookie) or the signed ticket-identity cookie. 401 when neither
+// verifies. Never returns tokens.
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-export async function GET(request: NextRequest) {
-  return proxyToBackend(request, { backendUrl: BACKEND_URL, path: '/auth/session' });
-}
+export const GET = createSessionHandler({ clientId: 'quantwave' });

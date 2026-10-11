@@ -89,14 +89,14 @@ export function SignInRequired({ appName = 'QuantMax', autoRedirect = true }: Si
         )}
         <p className="mx-auto mt-5 max-w-sm text-sm text-[var(--quant-muted-foreground)]">
           {autoRedirect
-            ? 'Your session has expired or you are signed out. Please sign in with your Quant account to continue — taking you there now.'
-            : 'Sign in with your Quant account to like, comment, and follow creators.'}
+            ? 'Your session has expired or you are signed out. Please sign in with your QuantMail account to continue — taking you there now.'
+            : 'Sign in with your QuantMail account to like, comment, and follow creators.'}
         </p>
         <a
           className="mt-6 inline-flex min-h-[44px] w-full items-center justify-center rounded-xl bg-[var(--brand-primary)] px-6 py-3 text-sm font-bold text-white transition-transform hover:scale-[1.02] active:scale-[0.98] sm:w-auto"
           href={href}
         >
-          <span>&#9889; Continue with Quant Account</span>
+          <span>&#9889; Continue with QuantMail</span>
         </a>
       </div>
     </div>

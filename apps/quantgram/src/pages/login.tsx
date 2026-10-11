@@ -7,7 +7,14 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../providers/auth-provider';
-import { UniversalSSOTokenBridge } from '@quant/shared-ui';
+import { authSession } from '../services/auth-session';
+import {
+  startQuantMailOAuth,
+  consumeSsoTicketFromUrl,
+  requestPasswordReset,
+  PASSWORD_RESET_SENT_COPY,
+  SSO_ERROR_COPY,
+} from '@quant/shared-ui';
 import { AuroraMeshCanvas } from '../components/auth/AuroraMeshCanvas';
 
 /** Only allow same-origin, absolute-path returns so ?returnTo cannot open-redirect. */
@@ -164,12 +171,18 @@ function GeometricAperturePrism({ className = 'w-16 h-16' }: { className?: strin
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isLoading, isAuthenticated } = useAuth();
+  const { login, isLoading, isAuthenticated, refreshSession } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [twoFactorNotice, setTwoFactorNotice] = useState(false);
+  const [ssoBusy, setSsoBusy] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotBusy, setForgotBusy] = useState(false);
+  const [forgotDone, setForgotDone] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
 
   const destination = useCallback(
     () => safeReturnPath(router.query.returnTo) ?? '/',
@@ -179,31 +192,85 @@ export default function LoginPage() {
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
       void router.replace(destination());
-      return;
     }
-    // Check if we have an active session or a token in URL/Storage.
-    // Fail-closed: consumeHandoffTicket re-verifies the ticket's token
-    // server-side and returns null for forged/tampered/expired tickets.
-    // (Uses the shared bridge import — the old (window as any) global was
-    // never set and always evaluated to undefined.)
-    (async () => {
-      const ssoResult =
-        typeof window !== 'undefined'
-          ? await UniversalSSOTokenBridge.getInstance().consumeHandoffTicket()
-          : null;
-
-      if (ssoResult?.ticket) {
-        void router.replace(destination());
-      }
-    })();
   }, [isAuthenticated, isLoading, destination, router]);
 
-  const handleQuantSSO = useCallback(() => {
-    const target = destination();
-    const returnParam = target && target !== '/' ? `?returnTo=${encodeURIComponent(target)}` : '';
-    const returnTo = encodeURIComponent(`${window.location.origin}/login${returnParam}`);
-    window.location.href = `https://quantmail.in/sso?returnTo=${returnTo}&client_id=quantgram`;
+  // SSO RETURN HANDLERS
+  // Contract A failures: the callback redirects back with ?error=<code> —
+  // surface the honest copy and scrub the param.
+  // Contract B: QuantMail's /sso chooser hands back ?sso_ticket=. The ticket
+  // is scrubbed from the URL FIRST (before any network), then verified
+  // server-side via /api/auth/sso/ticket.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const errorCode = params.get('error');
+    if (errorCode && SSO_ERROR_COPY[errorCode]) {
+      setError(SSO_ERROR_COPY[errorCode]);
+      params.delete('error');
+      const clean = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}${window.location.hash}`;
+      window.history.replaceState({}, document.title, clean);
+    }
+    const ticket = consumeSsoTicketFromUrl();
+    if (!ticket) return;
+    let cancelled = false;
+    (async () => {
+      setSsoBusy(true);
+      setError(null);
+      try {
+        const session = await authSession.completeSsoTicket(ticket);
+        if (!session.success || !session.data?.user) {
+          throw new Error(session.error?.message ?? 'QuantMail sign-in failed.');
+        }
+        await refreshSession();
+        if (!cancelled) void router.replace(destination());
+      } catch (caught) {
+        if (!cancelled) {
+          setError(
+            caught instanceof Error ? caught.message : 'QuantMail sign-in failed. Please try again.',
+          );
+        }
+      } finally {
+        if (!cancelled) setSsoBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Real "Continue with QuantMail": PKCE + state -> QuantMail authorize.
+  // The old buttons just deep-linked to https://quantmail.in/sso?returnTo=...
+  // with no OAuth handshake — replaced.
+  const handleContinueWithQuantMail = useCallback(async () => {
+    setError(null);
+    setSsoBusy(true);
+    try {
+      await startQuantMailOAuth({ appId: 'quantgram', returnTo: destination() });
+    } catch {
+      setSsoBusy(false);
+      setError('Could not start the QuantMail sign-in. Please try again.');
+    }
   }, [destination]);
+
+  async function handleForgotPassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setForgotError(null);
+    if (!forgotEmail.trim()) {
+      setForgotError('Enter your email address.');
+      return;
+    }
+    setForgotBusy(true);
+    try {
+      await requestPasswordReset(forgotEmail.trim());
+      setForgotDone(true);
+    } catch (caught) {
+      setForgotError(caught instanceof Error ? caught.message : 'Please try again later.');
+    } finally {
+      setForgotBusy(false);
+    }
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -227,10 +294,6 @@ export default function LoginPage() {
       setError(caught instanceof Error ? caught.message : 'Sign-in failed. Try again.');
     }
   }
-
-  const ssoDirectUrl = `https://quantmail.in/sso?returnTo=${encodeURIComponent(
-    typeof window !== 'undefined' ? `${window.location.origin}${destination()}` : 'https://quantgram.quantrinity.in/',
-  )}&client_id=quantgram`;
 
   return (
     <>
@@ -335,9 +398,11 @@ export default function LoginPage() {
 
               {/* Hero SSO Button with Vibrant Gradient Border and Molten Amber Sheen */}
               <div className="mb-6">
-                <a
-                  href={ssoDirectUrl}
-                  className="group relative flex w-full items-center justify-center overflow-hidden rounded-2xl p-[1px] font-semibold transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-[#FF8C42]/20 hover:shadow-[#FF8C42]/40"
+                <button
+                  type="button"
+                  onClick={handleContinueWithQuantMail}
+                  disabled={ssoBusy || isLoading}
+                  className="group relative flex w-full items-center justify-center overflow-hidden rounded-2xl p-[1px] font-semibold transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-[#FF8C42]/20 hover:shadow-[#FF8C42]/40 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {/* Vibrant Iridescent Gradient Border */}
                   <span className="absolute inset-0 bg-gradient-to-r from-[#FF5E62] via-[#FF8C42] to-[#D946EF] transition-all duration-500 opacity-90 group-hover:opacity-100" />
@@ -349,10 +414,10 @@ export default function LoginPage() {
                     
                     <LightningIcon className="h-5 w-5 text-[#FF8C42] drop-shadow-[0_0_8px_rgba(255,140,66,0.8)]" />
                     <span className="text-sm font-semibold tracking-wide text-white">
-                      Continue with Quant Account
+                      {ssoBusy ? 'Connecting to QuantMail…' : 'Continue with QuantMail'}
                     </span>
                   </span>
-                </a>
+                </button>
               </div>
 
               {/* Clean Divider */}
@@ -454,21 +519,63 @@ export default function LoginPage() {
                   {isLoading ? 'Signing in…' : 'Sign in'}
                 </button>
 
-                <div className="relative my-4 flex items-center justify-center">
-                  <div className="w-full border-t border-white/10" />
-                  <span className="absolute bg-[#11131A] px-2 text-xs uppercase tracking-wider text-zinc-500">
-                    or
-                  </span>
+                <div className="text-right">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotOpen((v) => !v);
+                      setForgotDone(false);
+                      setForgotError(null);
+                    }}
+                    className="text-xs font-medium text-zinc-400 underline-offset-4 hover:text-white hover:underline"
+                  >
+                    Forgot password?
+                  </button>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleQuantSSO}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-zinc-200 transition-all hover:bg-white/10 hover:text-white active:scale-[0.99]"
-                >
-                  <LightningIcon className="w-4 h-4 text-[#FF8C42]" />
-                  <span>Continue with Quant SSO</span>
-                </button>
+                {forgotOpen ? (
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    {forgotDone ? (
+                      <p role="status" className="text-sm text-zinc-200">
+                        {PASSWORD_RESET_SENT_COPY}
+                      </p>
+                    ) : (
+                      <form onSubmit={handleForgotPassword} className="space-y-3">
+                        <label
+                          htmlFor="forgot-email"
+                          className="block text-[13px] font-medium text-zinc-300"
+                        >
+                          Email for the reset link
+                        </label>
+                        <input
+                          id="forgot-email"
+                          type="email"
+                          required
+                          autoComplete="email"
+                          placeholder="creator@quantmail.in"
+                          value={forgotEmail}
+                          onChange={(event) => setForgotEmail(event.target.value)}
+                          className="w-full rounded-2xl border border-white/10 bg-[#161823]/80 px-4 py-2.5 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-[#FF8C42]"
+                        />
+                        {forgotError ? (
+                          <p role="alert" className="text-xs text-red-300">
+                            {forgotError}
+                          </p>
+                        ) : null}
+                        <button
+                          type="submit"
+                          disabled={forgotBusy}
+                          className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-zinc-200 transition-all hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {forgotBusy ? 'Sending…' : 'Email me a reset link'}
+                        </button>
+                        <p className="text-xs text-zinc-500">
+                          {PASSWORD_RESET_SENT_COPY} You&apos;ll set the new password on QuantMail.
+                        </p>
+                      </form>
+                    )}
+                  </div>
+                ) : null}
               </form>
 
               {/* Registration Link */}

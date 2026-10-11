@@ -1,72 +1,66 @@
 // ============================================================================
-// QuantCooks — SSO handoff helper tests (P0-1).
+// QuantCooks — SSO handoff helper tests (Contract B).
 //
-// The QuantMail SSO chooser returns the user with a handoff JWT in the URL
-// (?token=...). These helpers are the consumer half: read the token out of the
-// query string, and scrub the token (and handoff PII) from the address bar so
-// it never lingers in history/logs.
+// QuantMail's /sso chooser hands back a single-use ticket as ?sso_ticket=
+// (NOT a token). The helpers read the ticket and scrub every handoff param
+// from the address bar so nothing sensitive lingers in history/logs.
+// Legacy token params are scrubbed defensively but never trusted.
 // ============================================================================
 import { describe, it, expect } from 'vitest';
-import { readSsoTokenFromSearch, scrubSsoParamsFromUrl } from '../sso-handoff';
+import { readSsoTicketFromSearch, scrubSsoParamsFromUrl, SSO_TICKET_PARAM } from '../sso-handoff';
 
-describe('readSsoTokenFromSearch', () => {
-  it('reads the primary ?token= param', () => {
-    expect(readSsoTokenFromSearch('?returnTo=%2F&token=eyJhbGciOiJIUzI1NiJ9')).toBe(
-      'eyJhbGciOiJIUzI1NiJ9',
+describe('readSsoTicketFromSearch', () => {
+  it('reads the ?sso_ticket= param', () => {
+    expect(readSsoTicketFromSearch('?returnTo=%2F&sso_ticket=ticket-abc-123')).toBe(
+      'ticket-abc-123',
     );
   });
 
   it('accepts a bare query string without a leading ?', () => {
-    expect(readSsoTokenFromSearch('token=abc.def.ghi')).toBe('abc.def.ghi');
+    expect(readSsoTicketFromSearch('sso_ticket=ticket-abc-123')).toBe('ticket-abc-123');
   });
 
-  it('falls back to accessToken / access_token / __quant_sso_ticket', () => {
-    expect(readSsoTokenFromSearch('?accessToken=tok1234567')).toBe('tok1234567');
-    expect(readSsoTokenFromSearch('?access_token=tok1234567')).toBe('tok1234567');
-    expect(readSsoTokenFromSearch('?__quant_sso_ticket=tok1234567')).toBe('tok1234567');
+  it('returns null when no ticket is present', () => {
+    expect(readSsoTicketFromSearch('')).toBeNull();
+    expect(readSsoTicketFromSearch('?returnTo=%2Feditor')).toBeNull();
+    expect(readSsoTicketFromSearch('?sso_ticket=')).toBeNull();
+    expect(readSsoTicketFromSearch('?sso_ticket=%20%20')).toBeNull();
   });
 
-  it('prefers the first non-empty token param', () => {
-    expect(readSsoTokenFromSearch('?token=&accessToken=tok1234567')).toBe('tok1234567');
+  it('does NOT treat legacy token params as tickets', () => {
+    expect(readSsoTicketFromSearch('?token=tok1234567')).toBeNull();
+    expect(readSsoTicketFromSearch('?accessToken=tok1234567')).toBeNull();
+    expect(readSsoTicketFromSearch('?__quant_sso_ticket=tok1234567')).toBeNull();
   });
 
-  it('returns null when no handoff token is present', () => {
-    expect(readSsoTokenFromSearch('')).toBeNull();
-    expect(readSsoTokenFromSearch('?returnTo=%2Feditor')).toBeNull();
-    expect(readSsoTokenFromSearch('?token=')).toBeNull();
-    expect(readSsoTokenFromSearch('?token=%20%20')).toBeNull();
-  });
-
-  it('never matches lookalike params (e.g. refreshToken, __quant_return)', () => {
-    expect(readSsoTokenFromSearch('?refreshToken=tok1234567')).toBeNull();
-    expect(readSsoTokenFromSearch('?__quant_return=%2F')).toBeNull();
+  it('exposes the ticket param name', () => {
+    expect(SSO_TICKET_PARAM).toBe('sso_ticket');
   });
 });
 
 describe('scrubSsoParamsFromUrl', () => {
-  it('removes token params but preserves returnTo and other params', () => {
+  it('removes the ticket but preserves returnTo and other params', () => {
     const scrubbed = scrubSsoParamsFromUrl(
-      'https://quantcooks.quantrinity.in/login?returnTo=%2Feditor&token=eyJ.secret&accessToken=eyJ.secret',
+      'https://quantcooks.quantrinity.in/login?returnTo=%2Feditor&sso_ticket=ticket-abc-123',
     );
-    expect(scrubbed).not.toContain('token=');
-    expect(scrubbed).not.toContain('eyJ.secret');
+    expect(scrubbed).not.toContain('sso_ticket=');
+    expect(scrubbed).not.toContain('ticket-abc-123');
     expect(scrubbed).toBe('/login?returnTo=%2Feditor');
   });
 
-  it('removes __quant_sso_ticket, __quant_return and the chooser PII hints', () => {
+  it('removes legacy token params defensively (never trusted, never linger)', () => {
     const scrubbed = scrubSsoParamsFromUrl(
-      'https://quantcooks.quantrinity.in/login?__quant_sso_ticket=tok1234567&__quant_return=%2F&userId=u1&email=a%40b.c&displayName=Al',
+      'https://quantcooks.quantrinity.in/login?token=tok123&accessToken=tok456&__quant_sso_ticket=tok789',
     );
-    expect(scrubbed).not.toContain('tok1234567');
-    expect(scrubbed).not.toContain('userId=');
-    expect(scrubbed).not.toContain('email=');
-    expect(scrubbed).not.toContain('displayName=');
+    expect(scrubbed).not.toContain('tok123');
+    expect(scrubbed).not.toContain('tok456');
+    expect(scrubbed).not.toContain('tok789');
     expect(scrubbed).toBe('/login');
   });
 
   it('preserves the hash fragment', () => {
     const scrubbed = scrubSsoParamsFromUrl(
-      'https://quantcooks.quantrinity.in/login?token=tok1234567#section',
+      'https://quantcooks.quantrinity.in/login?sso_ticket=ticket-abc-123#section',
     );
     expect(scrubbed).toBe('/login#section');
   });

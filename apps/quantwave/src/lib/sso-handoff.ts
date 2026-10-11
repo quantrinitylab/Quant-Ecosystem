@@ -1,53 +1,30 @@
 // ============================================================================
-// QuantWave — SSO handoff consumer helpers.
-// QuantMail's SSO chooser (apps/quantmail/src/app/sso/SsoChooserContent.tsx)
-// redirects back to this app's /login with the session token attached under
-// several query params for backward compatibility: `token`, `accessToken`,
-// `__quant_sso_ticket` (plus `access_token` accepted defensively). These
-// helpers read the token in that priority order and scrub every token param
-// from the address bar — on success AND failure — so the session token is
-// never left sitting in the URL.
+// QuantWave — SSO handoff consumer helpers (Contract B).
+//
+// QuantMail's /sso account chooser hands back a single-use ticket as
+// `?sso_ticket=`. The ticket is NOT a token — the login page scrubs it from
+// the URL immediately (history.replaceState) and POSTs it to the same-origin
+// /api/auth/sso/ticket route, which verifies it back-channel with QuantMail
+// before minting an app session.
+//
+// Legacy token params (?token= / ?accessToken= / ?access_token= /
+// ?__quant_sso_ticket=) are still scrubbed defensively — tokens must never
+// linger in the address bar — but they are never trusted or exchanged.
 // ============================================================================
 
-export const SSO_TOKEN_PARAMS = [
-  'token',
-  'accessToken',
-  'access_token',
-  '__quant_sso_ticket',
-] as const;
+export { scrubSsoParamsFromUrl, SSO_HANDOFF_PARAM_NAMES } from '@quant/shared-ui';
+
+/** The Contract B ticket param QuantMail's /sso chooser appends. */
+export const SSO_TICKET_PARAM = 'sso_ticket';
 
 /**
- * Read the SSO handoff token from the current query string.
- * Priority: token -> accessToken -> access_token -> __quant_sso_ticket.
- * Returns the trimmed token, or null when no handoff is present.
+ * Read the Contract B ticket from the current query string. Returns the
+ * trimmed ticket, or null when no handoff is present.
  */
-export function readSsoTokenFromSearch(
+export function readSsoTicketFromSearch(
   searchParams: URLSearchParams | null | undefined,
 ): string | null {
   if (!searchParams) return null;
-  for (const name of SSO_TOKEN_PARAMS) {
-    const value = searchParams.get(name);
-    if (value && value.trim()) return value.trim();
-  }
-  return null;
-}
-
-/**
- * Remove every SSO token param from the current URL, preserving everything
- * else (including returnTo). Uses history.replaceState so no extra history
- * entry is created.
- */
-export function scrubSsoParamsFromUrl(): void {
-  if (typeof window === 'undefined') return;
-  const url = new URL(window.location.href);
-  let changed = false;
-  for (const name of SSO_TOKEN_PARAMS) {
-    if (url.searchParams.has(name)) {
-      url.searchParams.delete(name);
-      changed = true;
-    }
-  }
-  if (changed) {
-    window.history.replaceState(null, '', url.toString());
-  }
+  const value = searchParams.get(SSO_TICKET_PARAM);
+  return value && value.trim() ? value.trim() : null;
 }
