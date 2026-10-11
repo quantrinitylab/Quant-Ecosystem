@@ -1705,6 +1705,24 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     if (file.userId !== userId) {
       throw createAppError('Only the file owner can create public share links', 403, 'FORBIDDEN');
     }
+    // QM-M39-009: a quarantined file must never get a public share link — the
+    // link would hand its bytes to anyone holding the URL and bypass the
+    // quarantine block the authenticated routes enforce. Refuse honestly;
+    // never silently succeed.
+    if (isQuarantined(file.scanStatus)) {
+      throw createAppError(
+        'You cannot create a public link while this file is quarantined. ' +
+          'It was flagged by a security scan as potentially harmful. ' +
+          'Request a security review before sharing it.',
+        403,
+        'FILE_QUARANTINED',
+        {
+          fileId: file.id,
+          scanStatus: 'quarantined',
+          scanReason: file.scanReason ?? null,
+        },
+      );
+    }
 
     const token = randomBytes(24).toString('hex');
     // QM-M39-006: absolute date-picker expiry wins over the legacy day count.
@@ -1839,6 +1857,17 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
         where: { id: share.fileId, isDeleted: false },
       });
       if (!file) throw createAppError('File not found or has been deleted', 404, 'FILE_NOT_FOUND');
+
+      // QM-M39-009: a quarantined file's bytes must not leave quarantine
+      // through a public link. Same verbatim 403 FILE_QUARANTINED contract as
+      // the authenticated download route — checked before any byte is read.
+      if (isQuarantined(file.scanStatus)) {
+        throw createAppError(quarantineBlockedMessage('download'), 403, 'FILE_QUARANTINED', {
+          fileId: file.id,
+          scanStatus: 'quarantined',
+          scanReason: file.scanReason ?? null,
+        });
+      }
 
       requireStorage();
       const bytes = await checkedPlaintext(file);
