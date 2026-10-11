@@ -1,10 +1,11 @@
 // ============================================================================
 // QuantTube - Shared Sample Video Catalog (single source of truth)
 // ----------------------------------------------------------------------------
-// These are REAL, playable, openly-licensed sample videos (Blender Foundation
-// open movies served from Google's public sample bucket). They exist so guests
-// see a working product while the real catalog is empty — they are ALWAYS
-// flagged `isSample: true` and must never be presented as real user content.
+// These are REAL, playable sample videos generated in-house (animated title
+// cards) and self-hosted under the app's public/samples/ directory, so they
+// play everywhere with zero external dependencies. They exist so guests see a
+// working product while the real catalog is empty — they are ALWAYS flagged
+// `isSample: true` and must never be presented as real user content.
 // Engagement metadata is intentionally neutral: views are 0, upload ages are
 // blank, and channels are a single neutral "Sample Channel" — no fake counts,
 // dates, or channels may be shown for samples.
@@ -35,15 +36,13 @@ export interface SampleVideo {
   resolution?: string;
 }
 
-const BUCKET = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample';
-
 export const SAMPLE_CATALOG: SampleVideo[] = [
   {
     id: 'guest-vid-1',
     title: 'Building the Future of Sovereign Computing: Quant OS Keynote 2026',
     description:
       'An exclusive walkthrough of the distributed sovereign cloud, AI-orchestrated runtime, and zero-knowledge memory architecture powering the Quant Ecosystem.',
-    videoUrl: `${BUCKET}/BigBuckBunny.mp4`,
+    videoUrl: '/samples/vid-01.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&auto=format&fit=crop&q=80',
     channelId: 'chan-quant-labs',
@@ -61,7 +60,7 @@ export const SAMPLE_CATALOG: SampleVideo[] = [
     title: 'Quant Beats — Lo-Fi Chill Beats to Code / Relax to [24/7 Live Stream]',
     description:
       'Continuous generative lo-fi streams, ambient soundscapes, and chill beats for deep focus work, coding sessions, and study.',
-    videoUrl: `${BUCKET}/ElephantsDream.mp4`,
+    videoUrl: '/samples/vid-02.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80',
     channelId: 'chan-lofi-records',
@@ -80,7 +79,7 @@ export const SAMPLE_CATALOG: SampleVideo[] = [
     title: 'Deep Dive into Distributed CRDTs and Multi-Master Databases',
     description:
       'Learn how conflict-free replicated data types synchronize document state in real time across tens of thousands of active peers without central locks.',
-    videoUrl: `${BUCKET}/ForBiggerBlazes.mp4`,
+    videoUrl: '/samples/vid-03.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=800&auto=format&fit=crop&q=80',
     channelId: 'chan-systems-eng',
@@ -98,7 +97,7 @@ export const SAMPLE_CATALOG: SampleVideo[] = [
     title: 'Championship Grand Finals — Global Esports Highlights 2026',
     description:
       'Relive the most intense clutch moments, tactical teamfights, and game-winning aces from the World Championship arena.',
-    videoUrl: `${BUCKET}/ForBiggerEscapes.mp4`,
+    videoUrl: '/samples/vid-04.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=80',
     channelId: 'chan-esports-global',
@@ -116,7 +115,7 @@ export const SAMPLE_CATALOG: SampleVideo[] = [
     title: 'Global Tech & Market Round-up: The Rise of Sovereign AI',
     description:
       'Breaking down major developments in localized inference, sovereign cloud infrastructure, and private intelligence networks worldwide.',
-    videoUrl: `${BUCKET}/ForBiggerFun.mp4`,
+    videoUrl: '/samples/vid-05.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=800&auto=format&fit=crop&q=80',
     channelId: 'chan-techpulse',
@@ -134,7 +133,7 @@ export const SAMPLE_CATALOG: SampleVideo[] = [
     title: 'Next-Gen Quantum GPU Architecture Explained: Parallel Qubits in Silicon',
     description:
       'How topological insulators and silicon photonics are redefining high-performance tensor computing for real-time autonomous swarms.',
-    videoUrl: `${BUCKET}/ForBiggerJoyBlazes.mp4`,
+    videoUrl: '/samples/vid-06.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&auto=format&fit=crop&q=80',
     channelId: 'chan-quantum-insight',
@@ -152,7 +151,7 @@ export const SAMPLE_CATALOG: SampleVideo[] = [
     title: 'Electronic Music Festival Live Set — Soundwave 2026',
     description:
       'High-energy progressive house and synthwave set recorded live in 4K spatial audio at Soundwave Arena.',
-    videoUrl: `${BUCKET}/TearsOfSteel.mp4`,
+    videoUrl: '/samples/vid-07.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80',
     channelId: 'chan-soundwave',
@@ -170,7 +169,7 @@ export const SAMPLE_CATALOG: SampleVideo[] = [
     title: 'Formula 1 2026 Season Opener — Cinematic Race Highlights & Overtakes',
     description:
       'Experience wheel-to-wheel racing at 350 km/h with 4K cockpit telemetry and high-drama overtakes.',
-    videoUrl: `${BUCKET}/WeAreGoingOnBullrun.mp4`,
+    videoUrl: '/samples/vid-08.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=800&auto=format&fit=crop&q=80',
     channelId: 'chan-speed-channel',
@@ -188,7 +187,7 @@ export const SAMPLE_CATALOG: SampleVideo[] = [
     title: 'Autonomous Drone Racing Championship — 4K FPV Obstacle Course',
     description:
       'High-speed autonomous AI drones competing through neon-lit obstacles in record-breaking times.',
-    videoUrl: `${BUCKET}/WhatCarCanYouGetForAGrand.mp4`,
+    videoUrl: '/samples/vid-09.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1508614589041-895b88991e3e?w=800&auto=format&fit=crop&q=80',
     channelId: 'chan-fpv-pulse',
@@ -206,7 +205,7 @@ export const SAMPLE_CATALOG: SampleVideo[] = [
     title: 'Indie Game Developer Showcase 2026 — Top 10 Upcoming Masterpieces',
     description:
       'A curated showcase of the most creative indie games currently in development, featuring gameplay footage and developer insights.',
-    videoUrl: `${BUCKET}/BigBuckBunny.mp4`,
+    videoUrl: '/samples/vid-10.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1552824744-f9037cfa9074?w=800&auto=format&fit=crop&q=80',
     channelId: 'chan-indie-spotlight',
@@ -224,7 +223,7 @@ export const SAMPLE_CATALOG: SampleVideo[] = [
     title: 'AI Agent Swarms in Production: Lessons from 100M Daily Events',
     description:
       'Architecture breakdown of how multi-agent swarms coordinate autonomous tasks, prevent race conditions, and self-heal in distributed production clusters.',
-    videoUrl: `${BUCKET}/ElephantsDream.mp4`,
+    videoUrl: '/samples/vid-11.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=800&auto=format&fit=crop&q=80',
     channelId: 'chan-quant-labs',
@@ -242,7 +241,7 @@ export const SAMPLE_CATALOG: SampleVideo[] = [
     title: 'Cosmic Horizons: Ultra High Definition James Webb Deep Space Odyssey',
     description:
       'Travel through distant nebulae, gravitational lenses, and early galaxy formations captured by the James Webb Space Telescope in stunning detail.',
-    videoUrl: `${BUCKET}/ForBiggerBlazes.mp4`,
+    videoUrl: '/samples/vid-12.mp4',
     thumbnailUrl:
       'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&auto=format&fit=crop&q=80',
     channelId: 'chan-cosmos-odyssey',
