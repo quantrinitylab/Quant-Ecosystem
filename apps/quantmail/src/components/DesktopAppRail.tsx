@@ -21,6 +21,7 @@ import {
   type PillarId,
 } from './pillarTiles';
 import { triggerHapticTap } from './QuantPillarTopBar';
+import { MoreAppsMenu } from './MoreAppsMenu';
 
 export interface DesktopAppRailProps {
   currentPillar?: PillarId;
@@ -168,6 +169,24 @@ export function DesktopAppRail({
           );
         })}
       </nav>
+
+      {/*
+        "More apps" overflow (switcher discoverability, 2026-10-11): the 5
+        pillar tiles above are the in-product apps; sibling ecosystem apps
+        (QuantChat, QuantAI) live on their own subdomains and open from here
+        via a deliberate, user-triggered panel — never spontaneously. Separated
+        by spacing only (no divider lines, per UI rules). No keyboard shortcut
+        number: Ctrl+1..5 stay reserved for the 5 pillars.
+      */}
+      <div className="mt-2 w-full flex items-center justify-center">
+        <MoreAppsMenu
+          align="left"
+          buttonTestId="desktop-app-rail-tile-more"
+          buttonClassName="relative flex size-10 items-center justify-center rounded-xl text-white/60 opacity-60 transition-opacity duration-200 hover:bg-[var(--quant-surface-elevated)] hover:text-white hover:opacity-100 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+          ariaLabel="More Quant apps — open QuantChat or QuantAI"
+          title="More Quant apps"
+        />
+      </div>
     </aside>
   );
 }

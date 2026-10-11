@@ -136,5 +136,16 @@ describe('DesktopAppRail (slim 5-app switcher)', () => {
 
     // QuantPillarTopBar is wrapped with md:hidden so desktop uses the side rails instead
     expect(html).toContain('class="md:hidden"');
+
+    // Switcher discoverability (2026-10-11): the "More apps" overflow tile
+    // gives QuantChat/QuantAI a deliberate entry point from the desktop rail.
+    // Its accessible name must name the reachable apps.
+    expect(html).toContain('data-testid="desktop-app-rail-tile-more"');
+    expect(html).toContain('aria-haspopup="menu"');
+    expect(html).toContain('More Quant apps');
+    expect(html).toContain('QuantChat');
+    expect(html).toContain('QuantAI');
+    // Closed by default: no spontaneous panel in SSR markup.
+    expect(html).not.toContain('data-testid="ecosystem-apps-panel"');
   });
 });

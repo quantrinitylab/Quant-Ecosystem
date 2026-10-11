@@ -18,6 +18,7 @@ import { QuantGitLogo } from './QuantGitLogo';
 import { QuantGitUserIdModal } from './QuantGitUserIdModal';
 import { Quanty } from './Quanty';
 import { AccountBadge } from './AccountBadge';
+import { MoreAppsMenu } from './MoreAppsMenu';
 
 export type PillarId = 'mail' | 'calendar' | 'drive' | 'contacts' | 'quantgit';
 
@@ -1261,6 +1262,23 @@ export function QuantPillarTopBar({
               swoosh ribbon above (user-approved reference design). */}
 
         </div>
+
+          {/*
+            "More apps" overflow (switcher discoverability, 2026-10-11):
+            sibling ecosystem apps (QuantChat, QuantAI) live on their own
+            subdomains — reachable here through a deliberate, user-triggered
+            panel, never spontaneously. Sits OUTSIDE the user-approved 5-bay
+            capsule so the approved mobile switcher design is untouched.
+          */}
+          <div className="ml-2 shrink-0">
+            <MoreAppsMenu
+              align="below"
+              buttonTestId="pillar-more-apps"
+              buttonClassName="flex size-10 items-center justify-center rounded-full text-white/70 transition active:scale-95 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+              ariaLabel="More Quant apps — open QuantChat or QuantAI"
+              title="More Quant apps"
+            />
+          </div>
 
           {/* User profile avatar: RIGHT side. Opens the real account menu
               (switch account, add account, settings, security, sign out) —
