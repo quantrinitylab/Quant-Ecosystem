@@ -273,51 +273,42 @@ export function CompaniesSubView({
       }
     });
 
-    const orgSpecs = [
-      {
-        name: 'Alphabet Inc.',
-        domain: 'Mountain View, CA · @google.com',
-        matcher: (comp: string) => comp.includes('Alphabet') || comp.includes('Google'),
-      },
-      {
-        name: 'Microsoft Corp.',
-        domain: 'Redmond, WA · @microsoft.com',
-        matcher: (comp: string) => comp.includes('Microsoft'),
-      },
-      {
-        name: 'Linux Foundation',
-        domain: 'San Francisco, CA · @kernel.org',
-        matcher: (comp: string) => comp.includes('Linux'),
-      },
-      {
-        name: 'Quant Trinity Lab',
-        domain: 'Bengaluru, IN · @quantrinity.in',
-        matcher: (comp: string) => comp.includes('Quant Trinity') || comp.includes('Quant Sovereign'),
-      },
-      {
-        name: 'OpenAI',
-        domain: 'San Francisco, CA · @openai.com',
-        matcher: (comp: string) => comp.includes('OpenAI'),
-      },
-      {
-        name: 'Enterprise Cloud Inc',
-        domain: 'San Francisco, CA · @quantmail.in',
-        matcher: (comp: string) => comp.includes('Enterprise Cloud'),
-      },
-    ];
+    // Group by the contact's own `company` field — nothing is seeded, matched by
+    // substring rules, or looked up anywhere. Companies that appear here exist
+    // only because the user's contacts say they work there.
+    const groups = new Map<string, { name: string; members: SovereignContact[] }>();
+    all.forEach((c) => {
+      const raw = (c.company || '').trim();
+      if (!raw) return; // no company on the record — nothing honest to group by
+      const key = raw.toLowerCase();
+      const existing = groups.get(key);
+      if (existing) {
+        existing.members.push(c);
+      } else {
+        groups.set(key, { name: raw, members: [c] });
+      }
+    });
 
-    return orgSpecs
-      .map((org) => {
-        const members = all.filter((c) => {
-          const comp = c.company || '';
-          return org.matcher(comp);
+    return [...groups.values()]
+      .map((g) => {
+        // Subtitle is derived from the members' own email addresses: the most
+        // common email domain in the group. Never an invented HQ or domain.
+        const domainCounts = new Map<string, number>();
+        g.members.forEach((m) => {
+          const email = (m.email || '').trim();
+          const at = email.lastIndexOf('@');
+          if (at > 0) {
+            const domain = email.slice(at + 1).toLowerCase();
+            if (domain) domainCounts.set(domain, (domainCounts.get(domain) || 0) + 1);
+          }
         });
-        return {
-          ...org,
-          members,
-        };
+        let commonDomain = '';
+        domainCounts.forEach((count, domain) => {
+          if (count > (domainCounts.get(commonDomain) || 0)) commonDomain = domain;
+        });
+        return { ...g, subtitle: commonDomain ? `@${commonDomain}` : undefined };
       })
-      .filter((g) => g.members.length > 0);
+      .sort((a, b) => b.members.length - a.members.length || a.name.localeCompare(b.name));
   }, [contacts]);
 
   return (
@@ -339,19 +330,29 @@ export function CompaniesSubView({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-white tracking-wide">Enterprise Organizations</h2>
-              <span className="rounded-md border border-[var(--quant-info)]/80 bg-[#1E3A8A]/50 px-2 py-0.5 text-[10px] font-bold text-[#93C5FD] tracking-wider uppercase">
-                {companyGroups.length} COMPANIES
-              </span>
+              <h2 className="text-base font-bold text-white tracking-wide">Companies</h2>
+              {companyGroups.length > 0 && (
+                <span className="rounded-md border border-[var(--quant-info)]/80 bg-[#1E3A8A]/50 px-2 py-0.5 text-[10px] font-bold text-[#93C5FD] tracking-wider uppercase">
+                  {companyGroups.length} COMPANIES
+                </span>
+              )}
             </div>
             <p className="text-xs text-[#9CA3AF] mt-0.5">
-              Corporate domain directories mapped to verified sovereign tenants
+              Grouped from the organization fields in your own contacts — no directories, no external claims
             </p>
           </div>
         </div>
       </div>
 
       {/* Grouped Company Cards */}
+      {companyGroups.length === 0 ? (
+        <div className="rounded-2xl border border-[#262C3A] bg-[#0B0E14] p-8 text-center">
+          <p className="text-sm font-semibold text-[#E2E8F0]">No company data yet</p>
+          <p className="mt-1 text-xs text-[#94A3B8]">
+            Add an organization to your contacts and they will be grouped here automatically.
+          </p>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {companyGroups.map((group) => (
           <div
@@ -370,7 +371,9 @@ export function CompaniesSubView({
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white">{group.name}</h3>
-                    <p className="text-xs text-[#94A3B8]">{group.domain}</p>
+                    {group.subtitle && (
+                      <p className="text-xs text-[#94A3B8]">{group.subtitle}</p>
+                    )}
                   </div>
                 </div>
 
@@ -406,7 +409,9 @@ export function CompaniesSubView({
                               </svg>
                             )}
                           </div>
-                          <p className="text-[11px] text-[#94A3B8] truncate">{member.role || 'Team Member'}</p>
+                          {member.role && (
+                            <p className="text-[11px] text-[#94A3B8] truncate">{member.role}</p>
+                          )}
                         </div>
                       </div>
 
@@ -450,6 +455,7 @@ export function CompaniesSubView({
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }

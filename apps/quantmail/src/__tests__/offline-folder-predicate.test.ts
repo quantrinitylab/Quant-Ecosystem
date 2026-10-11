@@ -91,3 +91,42 @@ describe('belongsInFolder — SENT (QM-UIUX-082)', () => {
     expect(next.map((m) => m.id)).toEqual(['old-sent']);
   });
 });
+
+describe('belongsInFolder — ARCHIVE (archive-counts-divergent P1)', () => {
+  // The two Archive surfaces (inbox shelf + ?archived=1 view) read the same
+  // query, but the view can also boot from the offline cache, which seeds
+  // through this predicate. The predicate is strict on purpose: only
+  // `isArchived === true` admits a row, so the SERVER must send that flag
+  // truthfully (GET /emails now includes the folder relation for the
+  // formatEmailRecord bridge). These tests pin the client half of that
+  // contract — if the predicate ever loosened, unarchived rows would leak
+  // back into the cached archive list.
+  it('admits a row the server marked archived (isArchived bridged from the folder relation)', () => {
+    expect(belongsInFolder(email({ isArchived: true }), 'ARCHIVE')).toBe(true);
+  });
+
+  it('rejects a row the server did not mark archived — even one fetched from the archive endpoint', () => {
+    // Before the backend fix, GET /emails?folderType=ARCHIVE returned rows
+    // with isArchived:false (folder relation not included), so the seed
+    // dropped every cached archived row and the view showed
+    // "Nothing archived yet." while the shelf showed 8.
+    expect(belongsInFolder(email({ isArchived: false }), 'ARCHIVE')).toBe(false);
+    expect(belongsInFolder(email({}), 'ARCHIVE')).toBe(false);
+  });
+
+  it('keeps trashed mail out of ARCHIVE even when flagged archived', () => {
+    expect(belongsInFolder(email({ isArchived: true, trashedAt: new Date() }), 'ARCHIVE')).toBe(
+      false,
+    );
+  });
+
+  it('the offline seed keeps server-marked rows and drops unmarked ones', () => {
+    // Mirrors useInbox's seed: cached.filter((e) => belongsInFolder(e, 'ARCHIVE')).
+    const cached: Email[] = [
+      email({ id: 'kept', isArchived: true }),
+      email({ id: 'dropped', isArchived: false }),
+    ];
+    const seeded = cached.filter((e) => belongsInFolder(e, 'ARCHIVE'));
+    expect(seeded.map((e) => e.id)).toEqual(['kept']);
+  });
+});

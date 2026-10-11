@@ -38,44 +38,78 @@ export function slugify(text: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-const DEFAULT_BOOKING_LINKS: BookingLinkItem[] = [
-  {
-    id: 'link-30-min',
-    slug: '30-min-strategy-session',
-    title: '30 Min Strategy Session',
-    description: 'Quick discussion to review requirements, architecture roadmap, and next steps.',
-    duration: 30,
-    startHour: 9,
-    endHour: 17,
-    availableDays: [1, 2, 3, 4, 5],
-    isActive: true,
-    createdAt: '2026-09-01T00:00:00.000Z',
-  },
-  {
-    id: 'link-15-min',
-    slug: '15-min-quick-sync',
-    title: '15 Min Quick Sync',
-    description: 'Fast 1:1 check-in or quick question sync.',
-    duration: 15,
-    startHour: 10,
-    endHour: 16,
-    availableDays: [1, 2, 3, 4, 5],
-    isActive: true,
-    createdAt: '2026-09-05T00:00:00.000Z',
-  },
-  {
-    id: 'link-60-min',
-    slug: '60-min-deep-dive',
-    title: '60 Min Technical Deep Dive',
-    description: 'In-depth architectural review, live pair-programming, or system design session.',
-    duration: 60,
-    startHour: 9,
-    endHour: 18,
-    availableDays: [1, 2, 3, 4, 5],
-    isActive: true,
-    createdAt: '2026-09-10T00:00:00.000Z',
-  },
-];
+// NOTE (2026-10-11, fix/qm-bookinglinks-fake-data): the 3 hardcoded sample
+// booking links ("30 Min Strategy Session", "15 Min Quick Sync", "60 Min
+// Technical Deep Dive") that used to live here were REMOVED. They were
+// presented as the user's own links on first load — fake data. The honest
+// first-run state is an empty list; the modal already renders a "No booking
+// links created yet" empty state for that case. Seeded samples that a user's
+// browser persisted earlier are filtered out by parseStoredBookingLinks so
+// they never masquerade as real user data again.
+
+/**
+ * Exact id|slug pairs of the sample links the old version seeded.
+ * Only these exact pairs are treated as seeded fake data — a user's own
+ * link can never collide because created ids are `link-${Date.now()}-...`.
+ */
+const SEEDED_SAMPLE_LINK_KEYS = new Set([
+  'link-30-min|30-min-strategy-session',
+  'link-15-min|15-min-quick-sync',
+  'link-60-min|60-min-deep-dive',
+]);
+
+/**
+ * Parse the persisted booking-links value into a validated list.
+ * Returns [] for missing/corrupt/non-array values, and strips out any
+ * seeded sample links from the old fake-data version.
+ */
+export function parseStoredBookingLinks(raw: string | null | undefined): BookingLinkItem[] {
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(
+    (l): l is BookingLinkItem =>
+      !!l &&
+      typeof l === 'object' &&
+      typeof (l as BookingLinkItem).slug === 'string' &&
+      !SEEDED_SAMPLE_LINK_KEYS.has(
+        `${(l as BookingLinkItem).id}|${(l as BookingLinkItem).slug}`,
+      ),
+  );
+}
+
+/**
+ * Best-effort server sync for a newly created booking link.
+ * Returns true only when the backend accepted the link (HTTP 2xx).
+ * There is currently no /api/booking/links route, so this resolves
+ * false until the backend endpoint is wired — the caller must surface
+ * that honestly instead of silently pretending the save succeeded.
+ */
+export async function persistBookingLinkToServer(link: BookingLinkItem): Promise<boolean> {
+  try {
+    const res = await apiFetchRaw('/api/booking/links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: link.title,
+        slug: link.slug,
+        description: link.description,
+        duration: link.duration,
+        startHour: link.startHour,
+        endHour: link.endHour,
+        availableDays: link.availableDays,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 const WEEKDAY_NAMES = [
   { day: 1, label: 'Mon', full: 'Monday' },
@@ -92,21 +126,16 @@ const DURATION_PRESETS = [15, 30, 45, 60];
 export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
   isOpen,
   onClose,
-  userEmail = 'kundan@quantmail.in',
+  // No hardcoded default identity: the caller passes the signed-in user's
+  // real email (from useAuth). When it is absent we show an honest
+  // "Not signed in" in the footer instead of inventing an identity.
+  userEmail,
 }) => {
   const [links, setLinks] = useState<BookingLinkItem[]>(() => {
     if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('quant_calendar_booking_links');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch {
-        // fallback
-      }
+      return parseStoredBookingLinks(localStorage.getItem('quant_calendar_booking_links'));
     }
-    return DEFAULT_BOOKING_LINKS;
+    return [];
   });
 
   const [activeTab, setActiveTab] = useState<'list' | 'create'>('list');
@@ -217,30 +246,22 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    // Try posting to backend API if available
-    try {
-      await apiFetchRaw('/api/booking/links', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newLink.title,
-          slug: newLink.slug,
-          description: newLink.description,
-          duration: newLink.duration,
-          startHour: newLink.startHour,
-          endHour: newLink.endHour,
-          availableDays: newLink.availableDays,
-        }),
-      }).catch(() => {
-        // Fallback gracefully to client state
-      });
-    } catch {
-      // Local state is preserved
-    }
+    // Sync the link to the backend when the endpoint is available. The save
+    // is local-first: the link always lands in local state, but we are
+    // honest about whether the server actually accepted it — a failed sync
+    // surfaces an error toast instead of a fake success.
+    const serverSynced = await persistBookingLinkToServer(newLink);
 
     setLinks((prev) => [newLink, ...prev]);
     setIsSubmitting(false);
-    showToast({ text: 'Booking link created successfully!', type: 'success' });
+    if (serverSynced) {
+      showToast({ text: 'Booking link created successfully!', type: 'success' });
+    } else {
+      showToast({
+        text: 'Booking link saved on this device only — server sync failed. The link is not yet shareable from other devices.',
+        type: 'error',
+      });
+    }
 
     // Reset form
     setFormTitle('');
@@ -630,7 +651,10 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
         {/* Modal Footer */}
         <div className="px-6 py-3 border-t border-[var(--quant-surface-elevated)]/80 bg-black flex items-center justify-between text-xs text-[var(--quant-muted-foreground)]">
           <span className="flex items-center gap-1.5">
-            Host: <span className="font-semibold text-white">{userEmail}</span>
+            Host:{' '}
+            <span className="font-semibold text-white">
+              {userEmail && userEmail.trim() ? userEmail : 'Not signed in'}
+            </span>
           </span>
           <button
             type="button"

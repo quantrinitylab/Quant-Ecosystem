@@ -7,7 +7,6 @@ import 'package:quant_core/quant_core.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../models/chat_models.dart';
 import '../widgets/call_sheet.dart';
-import 'call_screen.dart';
 
 class CallsTabScreen extends StatefulWidget {
   const CallsTabScreen({super.key});
@@ -62,7 +61,7 @@ class _CallsTabScreenState extends State<CallsTabScreen> {
                 Icon(Icons.history_rounded, size: 14, color: QuantColors.textMuted),
                 SizedBox(width: 6),
                 Text(
-                  'RECENT E2EE CALLS',
+                  'RECENT CALLS',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -93,7 +92,7 @@ class _CallsTabScreenState extends State<CallsTabScreen> {
               const SnackBar(
                 backgroundColor: QuantColors.darkSlateCard,
                 content: Text(
-                  'Opening sovereign peer dialer (<18ms mesh)...',
+                  'Calling is not available in this build yet.',
                   style: TextStyle(color: QuantColors.textPrimary),
                 ),
               ),
@@ -135,7 +134,7 @@ class _CallsTabScreenState extends State<CallsTabScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'WebRTC Sovereign Mesh',
+                    'Call Quality',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -144,7 +143,9 @@ class _CallsTabScreenState extends State<CallsTabScreen> {
                   ),
                   SizedBox(height: 2),
                   Text(
-                    'Average latency: 16.8ms | 0% packet loss',
+                    // No calls have been measured in this build, so there
+                    // are no latency or packet-loss numbers to show.
+                    'No calls yet — nothing to measure',
                     style: TextStyle(
                       fontSize: 11,
                       color: QuantColors.textSecondary,
@@ -162,11 +163,11 @@ class _CallsTabScreenState extends State<CallsTabScreen> {
               border: Border.all(color: QuantColors.hairlineBorder),
             ),
             child: const Text(
-              'HEALTHY',
+              'NO DATA',
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
-                color: QuantColors.statusSuccess,
+                color: QuantColors.textMuted,
               ),
             ),
           ),

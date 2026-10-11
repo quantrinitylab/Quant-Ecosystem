@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { I18nContext } from '../i18n';
 import {
   parseSendEmailDraft,
   stripSendEmailEnvelope,
@@ -167,6 +168,54 @@ describe('QuantyModeChooser', () => {
     expect(html).toContain('>Chat<');
     expect(html).toContain('Voice Live Agent');
     expect(html).toContain('role="dialog"');
+  });
+
+  it('renders English copy by default (no Hinglish leak into the English UI)', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(QuantyModeChooser, { open: true, onSelect: () => undefined }),
+    );
+    expect(html).toContain('How can Quanty help?');
+    expect(html).toContain('aria-label="Choose a Quanty mode"');
+    expect(html).toContain('aria-label="Close"');
+    expect(html).toContain('Type and chat — as before');
+    expect(html).toContain('>New<');
+    expect(html).toContain('Speak — Quanty works live while you watch');
+    for (const leaked of [
+      'Quanty mode chunein',
+      'Quanty kaise help kare',
+      'Band karein',
+      'Likho aur baat karo',
+      '>Naya<',
+      'Bolo — Quanty live kaam karega',
+    ]) {
+      expect(html, `must not leak: ${leaked}`).not.toContain(leaked);
+    }
+  });
+
+  it("renders Devanagari Hindi copy when the app locale is 'hi'", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        I18nContext.Provider,
+        {
+          value: {
+            locale: 'hi' as const,
+            setLocale: () => undefined,
+            t: (key: string) => key,
+            supportedLocales: [],
+          },
+        },
+        React.createElement(QuantyModeChooser, { open: true, onSelect: () => undefined }),
+      ),
+    );
+    expect(html).toContain('क्वांटी आपकी कैसे मदद कर सकता है?');
+    expect(html).toContain('aria-label="क्वांटी मोड चुनें"');
+    expect(html).toContain('aria-label="बंद करें"');
+    expect(html).toContain('लिखें और बात करें — पहले जैसा');
+    expect(html).toContain('नया');
+    expect(html).toContain('बोलें — क्वांटी लाइव काम करेगा, आप देखेंगे');
+    for (const leaked of ['Quanty mode chunein', 'Band karein', 'Naya', 'Bolo —']) {
+      expect(html, `must not leak Roman-script Hinglish: ${leaked}`).not.toContain(leaked);
+    }
   });
 });
 

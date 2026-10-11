@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { useI18n } from '../../i18n';
 
 export type QuantyChooserSelection = 'chat' | 'voice';
 
@@ -31,6 +32,22 @@ export interface QuantyModeChooserProps {
 export function QuantyModeChooser({ open = false, onSelect, onClose, className = '' }: QuantyModeChooserProps) {
   const reduceMotion = useReducedMotion();
   const firstOptionRef = useRef<HTMLButtonElement>(null);
+  // Locale-consistency: this dialog previously hardcoded Roman-script Hinglish
+  // copy ("Quanty mode chunein", "Band karein") for every user, leaking into
+  // an otherwise English UI. Copy now follows the app locale (English default),
+  // same convention as the BB-P1-11 drawer fix in QuantyCopilotDrawer.
+  const { locale } = useI18n();
+  const copy = {
+    dialogLabel: locale === 'hi' ? 'क्वांटी मोड चुनें' : 'Choose a Quanty mode',
+    title: locale === 'hi' ? 'क्वांटी आपकी कैसे मदद कर सकता है?' : 'How can Quanty help?',
+    close: locale === 'hi' ? 'बंद करें' : 'Close',
+    chatSubtitle: locale === 'hi' ? 'लिखें और बात करें — पहले जैसा' : 'Type and chat — as before',
+    voiceBadge: locale === 'hi' ? 'नया' : 'New',
+    voiceSubtitle:
+      locale === 'hi'
+        ? 'बोलें — क्वांटी लाइव काम करेगा, आप देखेंगे'
+        : 'Speak — Quanty works live while you watch',
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -62,7 +79,7 @@ export function QuantyModeChooser({ open = false, onSelect, onClose, className =
             key="chooser-popup"
             role="dialog"
             aria-modal="true"
-            aria-label="Quanty mode chunein"
+            aria-label={copy.dialogLabel}
             className={`fixed inset-x-0 top-[88px] z-[69] mx-auto w-full max-w-xs ${className}`}
             initial={reduceMotion ? undefined : { opacity: 0, y: -14, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -71,11 +88,11 @@ export function QuantyModeChooser({ open = false, onSelect, onClose, className =
           >
             <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900/95 shadow-[0_20px_60px_rgba(0,0,0,0.6)] backdrop-blur-xl">
               <div className="flex items-center justify-between px-5 pb-1 pt-4">
-                <p className="text-sm font-semibold text-zinc-100">Quanty kaise help kare?</p>
+                <p className="text-sm font-semibold text-zinc-100">{copy.title}</p>
                 <button
                   type="button"
                   onClick={onClose}
-                  aria-label="Band karein"
+                  aria-label={copy.close}
                   className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition hover:bg-white/10 hover:text-zinc-200"
                 >
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -111,7 +128,7 @@ export function QuantyModeChooser({ open = false, onSelect, onClose, className =
                   <span className="min-w-0">
                     <span className="block text-[15px] font-semibold text-zinc-100">Chat</span>
                     <span className="block truncate text-xs text-zinc-500">
-                      Likho aur baat karo — pehle jaisa
+                      {copy.chatSubtitle}
                     </span>
                   </span>
                 </button>
@@ -140,11 +157,11 @@ export function QuantyModeChooser({ open = false, onSelect, onClose, className =
                     <span className="flex items-center gap-2 text-[15px] font-semibold text-zinc-100">
                       Voice Live Agent
                       <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300">
-                        Naya
+                        {copy.voiceBadge}
                       </span>
                     </span>
                     <span className="block truncate text-xs text-zinc-500">
-                      Bolo — Quanty live kaam karega, tum dekhoge
+                      {copy.voiceSubtitle}
                     </span>
                   </span>
                 </button>

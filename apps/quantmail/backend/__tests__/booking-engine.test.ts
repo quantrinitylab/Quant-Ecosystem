@@ -654,5 +654,97 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
       );
       expect(ics).toContain('END:VCALENDAR');
     });
+
+    it('omits the ORGANIZER line when the host email is unknown (never fabricates one)', () => {
+      const ics = generateIcsInvite({
+        uid: 'evt-unknown-host@quantmail.io',
+        summary: 'Demo Call',
+        startTime: new Date('2028-11-01T15:00:00.000Z'),
+        endTime: new Date('2028-11-01T15:30:00.000Z'),
+        organizer: { name: 'Unknown host', email: '' },
+        attendee: { name: 'Guest User', email: 'guest@external.com' },
+      });
+
+      expect(ics).not.toContain('ORGANIZER');
+      expect(ics).toContain('BEGIN:VEVENT');
+      expect(ics).toContain(
+        'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=Guest User:mailto:guest@external.com\r\n',
+      );
+    });
+  });
+
+  describe('6. Booking Link Host Identity: real owner, never fabricated', () => {
+    it('getBookingLink returns the real host name/email resolved from the owning user record', async () => {
+      await service.createBookingLink({
+        userId: 'host-user-1',
+        slug: 'identity-real-host',
+        title: 'Intro Call',
+        duration: 30,
+      });
+
+      const fetched = await service.getBookingLink('identity-real-host');
+      expect(fetched.hostName).toBe('Alex Host');
+      expect(fetched.hostEmail).toBe('alex.host@quantmail.io');
+    });
+
+    it('getBookingLink returns null host fields when the owner user record is missing (honest unknown)', async () => {
+      await service.createBookingLink({
+        userId: 'deleted-user-9',
+        slug: 'identity-unknown-host',
+        title: 'Intro Call',
+        duration: 30,
+      });
+
+      const fetched = await service.getBookingLink('identity-unknown-host');
+      expect(fetched.hostName).toBeNull();
+      expect(fetched.hostEmail).toBeNull();
+    });
+
+    it('confirmBooking returns the real host identity alongside the server-generated ICS', async () => {
+      await service.createBookingLink({
+        userId: 'host-user-1',
+        slug: 'confirm-real-host',
+        title: 'Intro Call',
+        duration: 30,
+        startHour: 0,
+        endHour: 23,
+        availableDays: [0, 1, 2, 3, 4, 5, 6],
+      });
+
+      const slot = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      slot.setMinutes(0, 0, 0);
+      const result = await service.confirmBooking('confirm-real-host', slot, {
+        name: 'Clara Client',
+        email: 'clara@client.com',
+      });
+
+      expect(result.hostName).toBe('Alex Host');
+      expect(result.hostEmail).toBe('alex.host@quantmail.io');
+      expect(result.icsContent).toContain('ORGANIZER;CN=Alex Host:mailto:alex.host@quantmail.io');
+    });
+
+    it('confirmBooking stays honest when the host user cannot be resolved: null fields, no ORGANIZER', async () => {
+      await service.createBookingLink({
+        userId: 'deleted-user-9',
+        slug: 'confirm-unknown-host',
+        title: 'Intro Call',
+        duration: 30,
+        startHour: 0,
+        endHour: 23,
+        availableDays: [0, 1, 2, 3, 4, 5, 6],
+      });
+
+      const slot = new Date(Date.now() + 72 * 60 * 60 * 1000);
+      slot.setMinutes(0, 0, 0);
+      const result = await service.confirmBooking('confirm-unknown-host', slot, {
+        name: 'Clara Client',
+        email: 'clara@client.com',
+      });
+
+      expect(result.hostName).toBeNull();
+      expect(result.hostEmail).toBeNull();
+      expect(result.icsContent).not.toContain('ORGANIZER');
+      expect(result.icsContent).toContain('BEGIN:VEVENT');
+    });
   });
 });

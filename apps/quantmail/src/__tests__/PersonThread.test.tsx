@@ -366,4 +366,24 @@ describe('PersonThread', () => {
     // Right-aligned like any sent message.
     expect(row!.getAttribute('data-sent')).toBe('true');
   });
+
+  it('never renders "Invalid Date" for an unparseable receivedAt', () => {
+    const broken = makeEmail({
+      id: 'broken-ts',
+      bodyText: 'message with a broken timestamp',
+      receivedAt: new Date(NaN),
+    } as Partial<Email>);
+    const conversation = makeConversation({ messages: [broken], lastMessage: broken });
+    const container = renderIntoDom(
+      <PersonThread conversation={conversation} currentUserEmail={ME} />,
+    );
+    const row = container.querySelector('[data-testid="thread-message"]');
+    expect(row).not.toBeNull();
+    expect(row!.textContent).toContain('message with a broken timestamp');
+    // The invalid timestamp degrades to an empty honest fallback.
+    expect(row!.textContent).not.toContain('Invalid Date');
+    const timeSlot = row!.querySelector('.text-right');
+    expect(timeSlot).not.toBeNull();
+    expect(timeSlot!.textContent!.trim()).toBe('');
+  });
 });

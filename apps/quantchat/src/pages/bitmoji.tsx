@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Head from 'next/head';
 import { logger } from '@quant/common';
 import { getAuthHeaders, getAuthHeadersWithContent } from '../lib/auth';
 import { apiFetchRaw } from '@quant/api-client';
@@ -244,6 +245,9 @@ export const BitmojiPage: React.FC<BitmojiPageProps> = ({ userId }) => {
 
   return (
     <div className="bitmoji-page">
+      <Head>
+        <title>Avatar Creator — QuantChat</title>
+      </Head>
       <header className="bitmoji-header">
         <h1>Create Your Avatar</h1>
         <div className="header-actions">

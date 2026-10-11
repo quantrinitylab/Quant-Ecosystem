@@ -6,16 +6,22 @@ import 'package:flutter/material.dart';
 import 'package:quant_core/quant_core.dart';
 import 'package:quant_theme/quant_theme.dart';
 
-/// Message delivery lifecycle status with 4-stage tick tracking:
+/// Message delivery lifecycle status with tick tracking:
 /// - pending / Clock: Sending (clock icon)
 /// - sent / SingleGrey: Sent to server (single grey check)
 /// - delivered / DoubleGrey: Delivered to recipient device (double grey check)
 /// - read / DoubleCyan: Read by recipient (double cyan check #00E5FF)
+/// - notSent / NotSent: The message was never handed to a transport. This is
+///   the honest terminal state for outgoing messages in builds where no
+///   messaging backend is connected: a message may only advance to
+///   sent/delivered/read from real server or socket acknowledgements,
+///   never from local timers.
 enum MessageDeliveryStatus {
   pending,
   sent,
   delivered,
-  read;
+  read,
+  notSent;
 
   /// Backward-compatible alias for previous sending state
   static const MessageDeliveryStatus sending = pending;
@@ -31,6 +37,8 @@ enum MessageDeliveryStatus {
         return 'DoubleGrey';
       case MessageDeliveryStatus.read:
         return 'DoubleCyan';
+      case MessageDeliveryStatus.notSent:
+        return 'NotSent';
     }
   }
 
@@ -45,6 +53,8 @@ enum MessageDeliveryStatus {
         return Icons.done_all_rounded;
       case MessageDeliveryStatus.read:
         return Icons.done_all_rounded;
+      case MessageDeliveryStatus.notSent:
+        return Icons.error_outline_rounded;
     }
   }
 
@@ -59,15 +69,18 @@ enum MessageDeliveryStatus {
         return const Color(0xFF94A3B8); // Double grey check
       case MessageDeliveryStatus.read:
         return QuantColors.sovereignCyan; // Double cyan read check
+      case MessageDeliveryStatus.notSent:
+        return QuantColors.statusError; // Honest failure state
     }
   }
 }
 
-/// Reusable Sovereign 4-Stage Delivery Tick Widget
+/// Reusable Delivery Tick Widget
 /// - Clock (Sending): Icons.access_time_rounded (Grey)
 /// - SingleGrey (Sent): Icons.check_rounded (Grey)
 /// - DoubleGrey (Delivered): Icons.done_all_rounded (Grey)
 /// - DoubleCyan (Read): Icons.done_all_rounded (Cyan)
+/// - NotSent (Never handed to a transport): Icons.error_outline_rounded (Red)
 class DeliveryTickWidget extends StatelessWidget {
   final MessageDeliveryStatus status;
   final double size;
@@ -139,7 +152,7 @@ class ChatMessage {
     required this.text,
     required this.timestamp,
     required this.isOutgoing,
-    this.deliveryStatus = MessageDeliveryStatus.sent,
+    this.deliveryStatus = MessageDeliveryStatus.pending,
     this.type = MessageType.text,
     this.audioDurationSeconds = 0,
     this.audioWaveform = const [],
@@ -402,7 +415,11 @@ class CallParticipant {
   final bool isVideoEnabled;
   final bool isSpeaking;
   final bool isScreenSharing;
-  final int latencyMs;
+
+  /// Measured round-trip latency in milliseconds. Null until a real
+  /// measurement exists — the UI renders nothing instead of a number
+  /// when this is null. Never seed this with an invented default.
+  final int? latencyMs;
   final String videoResolution;
   final int frameRateFps;
 
@@ -415,7 +432,7 @@ class CallParticipant {
     this.isVideoEnabled = true,
     this.isSpeaking = false,
     this.isScreenSharing = false,
-    this.latencyMs = 18,
+    this.latencyMs,
     this.videoResolution = '1080p',
     this.frameRateFps = 60,
   });
@@ -460,7 +477,10 @@ class CallHistoryItem {
   final bool isMissed;
   final String timestamp;
   final String duration;
-  final int latencyMs;
+
+  /// Measured latency of the call in milliseconds, or null when it was
+  /// never measured. No invented default.
+  final int? latencyMs;
 
   const CallHistoryItem({
     required this.id,
@@ -472,7 +492,7 @@ class CallHistoryItem {
     required this.isMissed,
     required this.timestamp,
     required this.duration,
-    this.latencyMs = 18,
+    this.latencyMs,
   });
 }
 

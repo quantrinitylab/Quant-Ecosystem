@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { IdentityAvatar } from './IdentityAvatar';
 import { showToast } from './InboxToast';
 import { IconBan, IconCheck, IconFileText, IconLock } from './icons';
+import { resolveMessageDate } from '../lib/honest-date';
 import type { Email } from '../types';
 
 export interface EmailSenderHeaderProps {
@@ -34,15 +35,24 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
     (Array.isArray((email as any).toAddresses) ? (email as any).toAddresses[0] : '') ||
     'me';
 
-  const dateObj = email.receivedAt ? new Date(email.receivedAt) : new Date();
-  const dateFormatted = dateObj.toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  /*
+   * QM-FIX (thread "Date:" showed non-date text): never fabricate a date.
+   * The old code fell back to `new Date()` — i.e. *today* — when `receivedAt`
+   * was absent, and rendered "Invalid Date" when it was unparseable. Resolve
+   * the best real date instead (receivedAt → createdAt → updatedAt); the
+   * details table below says so honestly when none exists.
+   */
+  const detailDate = resolveMessageDate(email);
+  const dateFormatted = detailDate
+    ? detailDate.toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : 'Unknown date';
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -82,7 +92,9 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
                 {senderName}
               </strong>
               <span className="text-xs text-[var(--quant-muted-foreground)]">
-                {dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                {detailDate
+                  ? detailDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                  : ''}
               </span>
             </div>
 

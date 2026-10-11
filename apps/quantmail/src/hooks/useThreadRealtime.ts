@@ -11,9 +11,13 @@
  *   - client → server `typing`       — our own typing state (rate-limited).
  *   - client → server `ping`         — heartbeat; the server closes idle sockets.
  *
- * Auth is the session token from `browserAuthSession` as `?token=` — the same
- * token the REST client uses. If there is no token, the socket never opens and
- * `connected` stays false; the mailbox poll remains the fallback.
+ * Auth is the session token from `browserAuthSession` — the same token the
+ * REST client uses. SECURITY: the token is never placed in the WebSocket URL
+ * query string (query params land in proxy/server logs and browser history);
+ * browsers cannot set an `Authorization` header on a WebSocket upgrade
+ * request, so the session token travels as a `Sec-WebSocket-Protocol`
+ * offer (`bearer.<jwt>`) instead. If there is no token, the socket never
+ * opens and `connected` stays false; the mailbox poll remains the fallback.
  *
  * Reconnects with exponential backoff (1s → 30s max). A 4000 close means another
  * tab superseded this connection, so it does not retry — navigating back
@@ -72,11 +76,34 @@ interface WireEvent {
   typing?: { userId?: string; displayName?: string; typing?: boolean };
 }
 
-function buildSocketUrl(threadId: string, token: string): string {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${window.location.host}/api/ws/thread/${encodeURIComponent(
-    threadId,
-  )}?token=${encodeURIComponent(token)}`;
+// ============================================================================
+// Thread WebSocket handshake auth — SECURITY
+// The session access token must NEVER be placed in the WebSocket URL query
+// string: query params land in reverse-proxy/server access logs and in browser
+// history. Browsers cannot set an `Authorization` header on a WebSocket upgrade
+// request, so the session token travels as a `Sec-WebSocket-Protocol` offer
+// (`bearer.<jwt>`) instead; the backend reads it from the offered protocol
+// list and never echoes it back in the 101 response.
+// ============================================================================
+export const THREAD_WS_SUBPROTOCOL = 'thread-v1';
+const THREAD_WS_BEARER_PREFIX = 'bearer.';
+
+export function buildThreadWsHandshake(opts: {
+  threadId: string;
+  wsHost: string;
+  secure: boolean;
+  token?: string | null;
+}): { url: string; protocols: string[] } {
+  const protocol = opts.secure ? 'wss:' : 'ws:';
+  const url = `${protocol}//${opts.wsHost}/api/ws/thread/${encodeURIComponent(opts.threadId)}`;
+  const protocols = [THREAD_WS_SUBPROTOCOL];
+  const token = opts.token?.trim();
+  if (token) {
+    // JWTs are base64url segments joined by '.' — all valid
+    // Sec-WebSocket-Protocol token characters (RFC 7230 tchar).
+    protocols.push(`${THREAD_WS_BEARER_PREFIX}${token}`);
+  }
+  return { url, protocols };
 }
 
 export function useThreadRealtime({
@@ -139,8 +166,16 @@ export function useThreadRealtime({
     const connect = () => {
       if (closedRef.current || supersededRef.current) return;
       clearTimers();
+      // SECURITY: the token never goes into the URL query string — it travels
+      // as a Sec-WebSocket-Protocol `bearer.<jwt>` offer instead.
+      const { url: wsUrl, protocols } = buildThreadWsHandshake({
+        threadId,
+        wsHost: window.location.host,
+        secure: window.location.protocol === 'https:',
+        token,
+      });
       try {
-        socket = new WebSocket(buildSocketUrl(threadId, token));
+        socket = new WebSocket(wsUrl, protocols);
       } catch {
         scheduleReconnect(connect);
         return;

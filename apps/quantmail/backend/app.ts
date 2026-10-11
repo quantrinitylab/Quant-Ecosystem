@@ -27,6 +27,7 @@ import attachmentRoutes from './routes/attachments';
 import e2eeRoutes from './routes/e2ee';
 import federationRoutes, { createFederationService } from './routes/federation';
 import { oauthRoutes } from './routes/oauth';
+import { ssoTicketRoutes } from './routes/sso-tickets';
 import { quantyMcpRoutes } from './routes/quanty-mcp';
 import phoneRoutes from './routes/phone';
 import { authRoutes } from './routes/auth';
@@ -47,6 +48,7 @@ import aiChatRoutes from './routes/ai-chat';
 import inboundWebhookRoutes from './routes/inbound-webhook';
 import { createMemoryService } from '@quant/ai';
 import { DeliverabilityAuthService } from './services/deliverability-auth.service';
+import { extractCollabWsToken } from './services/collab-ws-auth';
 import { InboundIngestAdapter } from './services/inbound-ingest.service';
 import { MailFilterService } from './services/mail-filter.service';
 import { MemoryBackedLearnedInboxCategoryStore } from './services/learned-inbox-category.service';
@@ -118,6 +120,12 @@ export function getConfig(): AppConfig {
       '/oauth/token',
       '/oauth/revoke',
       '/oauth/register',
+      // SSO ticket resolution is server-to-server: the receiving app's backend
+      // presents the ticket plus its OAuth client credentials, so the caller
+      // holds no user session. Auth is enforced inside the handler (same
+      // posture as /oauth/token). The mint endpoint stays behind the session
+      // auth hook and is deliberately NOT listed here.
+      '/sso/ticket/resolve',
       // Public booking link availability and booking slots (CAL-03)
       '/calendar/booking',
       '/calendar/booking/*',
@@ -290,39 +298,12 @@ export async function buildApp(config?: AppConfig) {
     {
       websocket: true,
       preValidation: async (req, reply) => {
-        let token: string | null = null;
-        const query = req.query as Record<string, string | undefined> | undefined;
-        if (typeof query?.['token'] === 'string' && query['token'].trim()) {
-          token = query['token'].trim();
-        } else if (req.url && req.url.includes('?')) {
-          const queryStart = req.url.indexOf('?');
-          const params = new URLSearchParams(req.url.slice(queryStart));
-          const qToken = params.get('token');
-          if (qToken?.trim()) token = qToken.trim();
-        }
-
-        if (!token) {
-          const cookies = req.cookies as Record<string, string | undefined> | undefined;
-          if (
-            typeof cookies?.['quant_access_token'] === 'string' &&
-            cookies['quant_access_token'].trim()
-          ) {
-            token = cookies['quant_access_token'].trim();
-          } else if (req.headers.cookie) {
-            const match = req.headers.cookie.match(/(?:^|;\s*)quant_access_token=([^;]+)/);
-            if (match?.[1]) {
-              token = decodeURIComponent(match[1].trim());
-            }
-          }
-        }
-
-        if (
-          !token &&
-          typeof req.headers.authorization === 'string' &&
-          req.headers.authorization.startsWith('Bearer ')
-        ) {
-          token = req.headers.authorization.slice(7).trim();
-        }
+        // SECURITY: query-string tokens are never accepted (they leak into
+        // proxy/server logs and browser history). The browser client sends the
+        // token as a Sec-WebSocket-Protocol `bearer.<jwt>` offer instead.
+        const token = extractCollabWsToken(
+          req as unknown as Parameters<typeof extractCollabWsToken>[0],
+        );
 
         if (!token) {
           return reply.code(401).send({
@@ -402,6 +383,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(passwordResetRoutes);
   await app.register(settingsTokenRoutes);
   await app.register(oauthRoutes);
+  await app.register(ssoTicketRoutes);
   await app.register(quantyMcpRoutes, { prefix: '/api/quanty/mcp' });
   await app.register(phoneRoutes);
   await app.register(emailsRoutes, {

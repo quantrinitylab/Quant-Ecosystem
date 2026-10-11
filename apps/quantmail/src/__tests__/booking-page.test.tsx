@@ -1,14 +1,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+
+// The booking surfaces call the same-origin Next proxy via @quant/api-client.
+// Stub it so these component tests run without the full workspace install and
+// so the backend-sync outcome is controllable per test.
+vi.mock('@quant/api-client', () => ({
+  apiFetchRaw: vi.fn(),
+}));
+
+import { apiFetchRaw } from '@quant/api-client';
 import PublicBookingPage from '../app/calendar/booking/[slug]/page';
 import {
+  applyBookingLinkResponse,
   generateIcsContent,
   generateGoogleCalendarUrl,
 } from '../app/calendar/booking/[slug]/booking-utils';
 import {
   BookingLinksModal,
   slugify,
+  parseStoredBookingLinks,
+  persistBookingLinkToServer,
   type BookingLinkItem,
 } from '../app/calendar/components/BookingLinksModal';
 import { CalendarHeader } from '../app/calendar/components/CalendarHeader';
@@ -35,8 +47,11 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
 
       // Verify Left Column: Host Details & Meeting Metadata
       expect(html).toContain('Host');
-      expect(html).toContain('Kundan Singh');
-      expect(html).toContain('kundan@quantmail.in');
+      // No fabricated host identity: the seed is an honest unknown until the
+      // backend booking-link record supplies the real host name/email.
+      expect(html).toContain('Unknown host');
+      expect(html).not.toContain('Kundan Singh');
+      expect(html).not.toContain('kundan@quantmail.in');
       expect(html).toContain('30 Min Strategy Session');
       expect(html).toContain('30 min duration');
       expect(html).toContain('QuantMeet Video Call');
@@ -73,6 +88,85 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
       expect(html).toContain('UTC');
       expect(html).toContain('America/New_York');
       expect(html).toContain('Europe/London');
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 1b. Host identity merge rules: real host from backend, never fabricated
+  // --------------------------------------------------------------------------
+  describe('applyBookingLinkResponse host identity rules', () => {
+    const seed = {
+      slug: 'strategy-session',
+      title: '30 Min Strategy Session',
+      description: 'One-on-one session.',
+      duration: 30,
+      startHour: 9,
+      endHour: 17,
+      availableDays: [1, 2, 3, 4, 5],
+      hostName: '',
+      hostEmail: '',
+    };
+
+    it('merges the real host name/email from the backend booking-link record', () => {
+      const merged = applyBookingLinkResponse(seed, {
+        slug: 'strategy-session',
+        title: 'Strategy Session',
+        hostName: 'Priya Nair',
+        hostEmail: 'priya.nair@quantmail.in',
+      });
+
+      expect(merged.hostName).toBe('Priya Nair');
+      expect(merged.hostEmail).toBe('priya.nair@quantmail.in');
+      expect(merged.title).toBe('Strategy Session');
+    });
+
+    it('leaves host identity honestly unknown when the backend omits it (never invents one)', () => {
+      const merged = applyBookingLinkResponse(seed, {
+        slug: 'strategy-session',
+        title: 'Strategy Session',
+        duration: 45,
+      });
+
+      expect(merged.hostName).toBe('');
+      expect(merged.hostEmail).toBe('');
+      expect(merged.hostName).not.toContain('Kundan');
+      expect(merged.hostEmail).not.toContain('kundan');
+    });
+
+    it('returns the previous details untouched when the response is missing', () => {
+      expect(applyBookingLinkResponse(seed, null)).toBe(seed);
+      expect(applyBookingLinkResponse(seed, undefined)).toBe(seed);
+    });
+  });
+
+  describe('generateIcsContent host honesty', () => {
+    const baseEvent = {
+      title: '30 Min Strategy Session',
+      startTime: new Date('2026-09-30T10:00:00.000Z'),
+      endTime: new Date('2026-09-30T10:30:00.000Z'),
+      attendeeName: 'Sarah Connor',
+      attendeeEmail: 'sarah@example.com',
+    };
+
+    it('omits the ORGANIZER line when the host identity is unknown (never fabricates)', () => {
+      const ics = generateIcsContent({ ...baseEvent, hostName: '', hostEmail: '' });
+
+      expect(ics).not.toContain('ORGANIZER');
+      expect(ics).not.toContain('Kundan Singh');
+      expect(ics).toContain('BEGIN:VEVENT');
+      expect(ics).toContain(
+        'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=Sarah Connor:mailto:sarah@example.com',
+      );
+    });
+
+    it('emits the real organizer when the backend supplied a host identity', () => {
+      const ics = generateIcsContent({
+        ...baseEvent,
+        hostName: 'Priya Nair',
+        hostEmail: 'priya.nair@quantmail.in',
+      });
+
+      expect(ics).toContain('ORGANIZER;CN=Priya Nair:mailto:priya.nair@quantmail.in');
     });
   });
 
@@ -135,34 +229,57 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
   // --------------------------------------------------------------------------
   // 3. BookingLinksModal Component (Host Manager)
   // --------------------------------------------------------------------------
+  // NOTE (2026-10-11, fix/qm-bookinglinks-fake-data): this modal must NEVER
+  // ship sample data. First load shows the honest "no links yet" empty state,
+  // never the old seeded "30 Min Strategy Session" fakes, and the footer
+  // shows the real signed-in email or an honest "Not signed in" — never a
+  // hardcoded identity.
   describe('BookingLinksModal Component', () => {
     it('returns null when isOpen is false', () => {
       const html = renderToStaticMarkup(
-        <BookingLinksModal isOpen={false} onClose={vi.fn()} userEmail="kundan@quantmail.in" />,
+        <BookingLinksModal isOpen={false} onClose={vi.fn()} userEmail="qa-user@quantmail.in" />,
       );
       expect(html).toBe('');
     });
 
-    it('renders modal dialog when isOpen is true with active booking links list', () => {
+    it('shows the honest empty state on first load — no sample links, no hardcoded identity', () => {
       const html = renderToStaticMarkup(
-        <BookingLinksModal isOpen={true} onClose={vi.fn()} userEmail="kundan@quantmail.in" />,
+        <BookingLinksModal isOpen={true} onClose={vi.fn()} userEmail="qa-user@quantmail.in" />,
       );
 
-      // Verify modal headers and description
+      // Modal chrome renders
       expect(html).toContain('Booking Links');
       expect(html).toContain('Calendly Parity');
-      expect(html).toContain('Active Links');
+      expect(html).toContain('Active Links (0)');
       expect(html).toContain('+ Create New Link');
 
-      // Verify default links are rendered
-      expect(html).toContain('30 Min Strategy Session');
-      expect(html).toContain('15 Min Quick Sync');
-      expect(html).toContain('60 Min Technical Deep Dive');
+      // Honest empty state, not seeded fakes
+      expect(html).toContain('No booking links created yet');
+      expect(html).toContain('Create Your First Link');
+      expect(html).not.toContain('30 Min Strategy Session');
+      expect(html).not.toContain('15 Min Quick Sync');
+      expect(html).not.toContain('60 Min Technical Deep Dive');
 
-      // Verify action buttons
-      expect(html).toContain('Copy Link');
-      expect(html).toContain('View Page');
-      expect(html).toContain('/calendar/booking/30-min-strategy-session');
+      // No hardcoded identity anywhere in the modal
+      expect(html).not.toContain('kundan@quantmail.in');
+      expect(html).not.toContain('Kundan Singh');
+    });
+
+    it('shows the real signed-in email in the footer', () => {
+      const html = renderToStaticMarkup(
+        <BookingLinksModal isOpen={true} onClose={vi.fn()} userEmail="real.user@quantmail.in" />,
+      );
+      expect(html).toContain('Host:');
+      expect(html).toContain('real.user@quantmail.in');
+    });
+
+    it('shows an honest "Not signed in" host label when no email is available', () => {
+      const html = renderToStaticMarkup(
+        <BookingLinksModal isOpen={true} onClose={vi.fn()} />,
+      );
+      expect(html).toContain('Host:');
+      expect(html).toContain('Not signed in');
+      expect(html).not.toContain('kundan@quantmail.in');
     });
 
     it('correctly auto-slugifies meeting titles with slugify helper', () => {
@@ -171,6 +288,128 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
       expect(slugify('  Live Pair-Programming Session!  ')).toBe('live-pair-programming-session');
       expect(slugify('QuantMail 2.0 Launch Sync')).toBe('quantmail-20-launch-sync');
       expect(slugify('Coffee & Catch-Up (15m)')).toBe('coffee-catch-up-15m');
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 3b. Fake-data purge: parseStoredBookingLinks
+  // --------------------------------------------------------------------------
+  describe('parseStoredBookingLinks (seeded-fake purge + validation)', () => {
+    const seededSample = JSON.stringify([
+      {
+        id: 'link-30-min',
+        slug: '30-min-strategy-session',
+        title: '30 Min Strategy Session',
+        duration: 30,
+        startHour: 9,
+        endHour: 17,
+        availableDays: [1, 2, 3, 4, 5],
+        isActive: true,
+        createdAt: '2026-09-01T00:00:00.000Z',
+      },
+      {
+        id: 'link-15-min',
+        slug: '15-min-quick-sync',
+        title: '15 Min Quick Sync',
+        duration: 15,
+        startHour: 10,
+        endHour: 16,
+        availableDays: [1, 2, 3, 4, 5],
+        isActive: true,
+        createdAt: '2026-09-05T00:00:00.000Z',
+      },
+      {
+        id: 'link-60-min',
+        slug: '60-min-deep-dive',
+        title: '60 Min Technical Deep Dive',
+        duration: 60,
+        startHour: 9,
+        endHour: 18,
+        availableDays: [1, 2, 3, 4, 5],
+        isActive: true,
+        createdAt: '2026-09-10T00:00:00.000Z',
+      },
+    ]);
+
+    const userLink: BookingLinkItem = {
+      id: 'link-1729000000000-abc12',
+      slug: 'my-real-meeting',
+      title: 'My Real Meeting',
+      duration: 30,
+      startHour: 9,
+      endHour: 17,
+      availableDays: [1, 2, 3],
+      isActive: true,
+      createdAt: '2026-10-11T00:00:00.000Z',
+    };
+
+    it('strips the exact seeded sample links persisted by the old version', () => {
+      expect(parseStoredBookingLinks(seededSample)).toEqual([]);
+    });
+
+    it('keeps user-created links while purging seeded samples from a mixed store', () => {
+      const mixed = JSON.stringify([userLink, ...JSON.parse(seededSample)]);
+      const result = parseStoredBookingLinks(mixed);
+      expect(result).toEqual([userLink]);
+    });
+
+    it('returns [] for missing, corrupt, or non-array stored values', () => {
+      expect(parseStoredBookingLinks(null)).toEqual([]);
+      expect(parseStoredBookingLinks(undefined)).toEqual([]);
+      expect(parseStoredBookingLinks('')).toEqual([]);
+      expect(parseStoredBookingLinks('not-json{{{')).toEqual([]);
+      expect(parseStoredBookingLinks(JSON.stringify({ not: 'an array' }))).toEqual([]);
+      expect(parseStoredBookingLinks(JSON.stringify(['a-string-not-an-object']))).toEqual([]);
+    });
+
+    it('does not drop a user link that merely shares a title with a sample', () => {
+      // Same title, but a real created id/slug — must survive the purge.
+      const lookalike: BookingLinkItem = {
+        ...userLink,
+        title: '30 Min Strategy Session',
+        slug: '30-min-strategy-session-custom',
+      };
+      expect(parseStoredBookingLinks(JSON.stringify([lookalike]))).toEqual([lookalike]);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 3c. Honest backend sync: persistBookingLinkToServer
+  // --------------------------------------------------------------------------
+  describe('persistBookingLinkToServer (honest sync result)', () => {
+    const link: BookingLinkItem = {
+      id: 'link-1729000000000-abc12',
+      slug: 'my-real-meeting',
+      title: 'My Real Meeting',
+      duration: 30,
+      startHour: 9,
+      endHour: 17,
+      availableDays: [1, 2, 3],
+      isActive: true,
+      createdAt: '2026-10-11T00:00:00.000Z',
+    };
+
+    beforeEach(() => {
+      vi.mocked(apiFetchRaw).mockReset();
+    });
+
+    it('returns true when the backend accepts the link (HTTP 2xx)', async () => {
+      vi.mocked(apiFetchRaw).mockResolvedValue({ ok: true } as Response);
+      await expect(persistBookingLinkToServer(link)).resolves.toBe(true);
+      expect(apiFetchRaw).toHaveBeenCalledWith(
+        '/api/booking/links',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+
+    it('returns false on non-2xx responses instead of silently pretending success', async () => {
+      vi.mocked(apiFetchRaw).mockResolvedValue({ ok: false, status: 404 } as Response);
+      await expect(persistBookingLinkToServer(link)).resolves.toBe(false);
+    });
+
+    it('returns false on network failure instead of throwing', async () => {
+      vi.mocked(apiFetchRaw).mockRejectedValue(new Error('network down'));
+      await expect(persistBookingLinkToServer(link)).resolves.toBe(false);
     });
   });
 
