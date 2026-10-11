@@ -23,6 +23,7 @@ import * as sentRoute from '../app/api/drive/shares/sent/route';
 import * as acceptRoute from '../app/api/drive/shares/[shareId]/accept/route';
 import * as declineRoute from '../app/api/drive/shares/[shareId]/decline/route';
 import * as moveRoute from '../app/api/drive/move/route';
+import * as foldersRoute from '../app/api/drive/folders/route';
 
 const BACKEND =
   process.env['QUANTDRIVE_BACKEND_URL'] ??
@@ -177,5 +178,60 @@ describe('QM-SCREEN-010 drive proxy gaps', () => {
     expect(res.status).toBe(502);
     const data = await res.json();
     expect(data.error.code).toBe('UPSTREAM_UNAVAILABLE');
+  });
+
+  // QM-FIX drive-folders-405: Quanty's organize flow calls GET
+  // /api/drive/folders (resolveFolderId). The route only exported POST, so
+  // every GET 405'd and the lookup silently fell back to null. These pin the
+  // new GET export to the backend's GET /drive/folders (flat list of all
+  // non-deleted folders, every depth), keeping the caller's `{ folders }`
+  // contract.
+  it('GET /api/drive/folders proxies to backend GET /drive/folders', async () => {
+    const payload = {
+      folders: [
+        { id: 'fld-1', name: 'Receipts', parentId: null, path: '/Receipts' },
+        { id: 'fld-2', name: '2024', parentId: 'fld-1', path: '/Receipts/2024' },
+      ],
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(payload));
+    const res = await foldersRoute.GET(requestFor('/folders', 'GET'));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${BACKEND}/drive/folders`);
+    expect(init.method).toBe('GET');
+    expect((init.headers as Record<string, string>)['Authorization']).toBe(AUTH);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(payload);
+  });
+
+  it('GET /api/drive/folders passes backend errors through with their status', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ success: false, error: { message: 'nope', code: 'X' } }, 500),
+    );
+    const res = await foldersRoute.GET(requestFor('/folders', 'GET'));
+    expect(res.status).toBe(500);
+    expect((await res.json()).success).toBe(false);
+  });
+
+  it('GET /api/drive/folders yields an honest 502 when the backend is unreachable', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('connection refused'));
+    const res = await foldersRoute.GET(requestFor('/folders', 'GET'));
+    expect(res.status).toBe(502);
+    const data = await res.json();
+    expect(data.error.code).toBe('UPSTREAM_UNAVAILABLE');
+  });
+
+  it('POST /api/drive/folders still proxies folder creation to the backend', async () => {
+    const body = { name: 'Invoices', parentId: null };
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ id: 'fld-9', name: 'Invoices' }, 201),
+    );
+    const res = await foldersRoute.POST(requestFor('/folders', 'POST', body));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${BACKEND}/drive/folders`);
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual(body);
+    expect(res.status).toBe(201);
   });
 });
