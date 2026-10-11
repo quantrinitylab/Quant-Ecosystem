@@ -183,6 +183,7 @@ export default async function paymentsRoutes(fastify: FastifyInstance) {
   );
 
   // POST /payments/refunds — refund a PaymentIntent. → `payments:write`.
+  // Caller-ownership enforced below (F-02b).
   fastify.post(
     '/refunds',
     { preHandler: fastify.requireAuth({ scopes: ['payments:write'] }) },
@@ -190,6 +191,35 @@ export default async function paymentsRoutes(fastify: FastifyInstance) {
       const parsed = refundSchema.safeParse(request.body ?? {});
       if (!parsed.success) {
         throw parsed.error;
+      }
+      // MONEY-OWNERSHIP (F-02b — same cross-user refund IDOR as QuantMax
+      // F-02): retrieve the PaymentIntent first and compare its
+      // `metadata.userId` (stamped by POST /payments/intents above) with the
+      // caller's verified `request.auth.userId`. Mismatch → 403
+      // USERID_MISMATCH. Unretrievable intent → 404, fail CLOSED.
+      // Ownership verification runs OUTSIDE the gateway-error mapping so the
+      // deliberate AppErrors reach the error handler untouched and
+      // `asPaymentError` only ever sees genuine refund-call failures.
+      let intent: Awaited<ReturnType<StripeGateway['retrievePaymentIntent']>>;
+      try {
+        intent = await fastify.payments.gateway.retrievePaymentIntent(
+          parsed.data.paymentIntentId,
+        );
+      } catch {
+        // Cannot verify ownership of an intent we cannot read → fail closed.
+        throw createAppError(
+          'Payment intent not found or ownership cannot be verified',
+          404,
+          'PAYMENT_INTENT_NOT_FOUND',
+        );
+      }
+      const ownerUserId = (intent.metadata as Record<string, string> | undefined)?.userId;
+      if (!ownerUserId || ownerUserId !== request.auth.userId) {
+        throw createAppError(
+          'You can only refund your own payment intents',
+          403,
+          'USERID_MISMATCH',
+        );
       }
       try {
         const refund = await fastify.payments.gateway.refund({

@@ -186,6 +186,12 @@ export default async function paymentsRoutes(fastify: FastifyInstance) {
   );
 
   // POST /payments/refunds — refund a PaymentIntent. → `payments:write`.
+  //
+  // MONEY-OWNERSHIP (fix for cross-user refund IDOR): the PaymentIntent is
+  // retrieved first and its `metadata.userId` (stamped by POST /payments/intents
+  // above) is compared to the caller's verified `request.auth.userId`.
+  // Mismatch → 403 USERID_MISMATCH. If the intent cannot be retrieved or its
+  // ownership cannot be verified, we fail CLOSED and never issue the refund.
   fastify.post(
     '/refunds',
     { preHandler: fastify.requireAuth({ scopes: ['payments:write'] }) },
@@ -193,6 +199,35 @@ export default async function paymentsRoutes(fastify: FastifyInstance) {
       const parsed = refundSchema.safeParse(request.body ?? {});
       if (!parsed.success) {
         throw parsed.error;
+      }
+      // NARROWED error mapping: ownership verification runs OUTSIDE the
+      // gateway-error mapping below, so the deliberate fail-closed AppErrors
+      // (404/403) reach the error handler untouched and `asPaymentError` only
+      // ever sees genuine gateway failures from the refund call itself. (The
+      // first draft discriminated inside the catch via `'statusCode' in err
+      // && 'code' in err`, but raw Stripe errors carry BOTH fields too — a
+      // failed refund would have escaped unmapped with Stripe's own status,
+      // code and message instead of the canonical 502 envelope.)
+      let intent: Awaited<ReturnType<StripeGateway['retrievePaymentIntent']>>;
+      try {
+        intent = await fastify.payments.gateway.retrievePaymentIntent(
+          parsed.data.paymentIntentId,
+        );
+      } catch {
+        // Cannot verify ownership of an intent we cannot read → fail closed.
+        throw createAppError(
+          'Payment intent not found or ownership cannot be verified',
+          404,
+          'PAYMENT_INTENT_NOT_FOUND',
+        );
+      }
+      const ownerUserId = (intent.metadata as Record<string, string> | undefined)?.userId;
+      if (!ownerUserId || ownerUserId !== request.auth.userId) {
+        throw createAppError(
+          'You can only refund your own payment intents',
+          403,
+          'USERID_MISMATCH',
+        );
       }
       try {
         const refund = await fastify.payments.gateway.refund({

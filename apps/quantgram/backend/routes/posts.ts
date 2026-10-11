@@ -100,7 +100,10 @@ export default async function postsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get<{ Params: { id: string } }>('/:id/comments', async (request, reply) => {
-    const comments = await getService(fastify).getComments(request.params.id);
+    // FIX (IDOR/privacy, F-01): pass the viewer so the service can gate the
+    // parent post's visibility before returning its comments.
+    const viewerId = (request as { auth?: { userId?: string } }).auth?.userId ?? '';
+    const comments = await getService(fastify).getComments(request.params.id, viewerId);
     return reply.send({ success: true, data: { comments } });
   });
 

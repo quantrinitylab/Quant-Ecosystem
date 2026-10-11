@@ -113,6 +113,16 @@ export class StripeGateway {
   }
 
   /**
+   * Retrieve a PaymentIntent by id. Added for caller-ownership verification
+   * before money-mutating operations (e.g. refund): the route compares
+   * `metadata.userId` with the caller's verified `request.auth.userId` and
+   * fails closed (403) on mismatch. No behavior change to existing methods.
+   */
+  async retrievePaymentIntent(paymentIntentId: string): Promise<Stripe.PaymentIntent> {
+    return this.stripe.paymentIntents.retrieve(paymentIntentId);
+  }
+
+  /**
    * Issue a refund for a PaymentIntent
    * @param params - Validated refund parameters
    * @returns The created Refund

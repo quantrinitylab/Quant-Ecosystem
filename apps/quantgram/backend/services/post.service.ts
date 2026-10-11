@@ -153,10 +153,17 @@ export class PostService {
     const followingIds = following.map((r: any) => r.followingId);
 
     // When the viewer follows nobody, fall back to the global PUBLIC feed.
+    // FIX (IDOR/privacy): the followed branch previously returned PRIVATE
+    // posts too. Restrict to PUBLIC + FOLLOWERS_ONLY; the viewer's own posts
+    // (any visibility) remain visible to them.
     const where =
       followingIds.length === 0
         ? { visibility: 'PUBLIC', deletedAt: null }
-        : { userId: { in: [...followingIds, viewerId] }, deletedAt: null };
+        : {
+            userId: { in: [...followingIds, viewerId] },
+            deletedAt: null,
+            OR: [{ visibility: 'PUBLIC' }, { visibility: 'FOLLOWERS_ONLY' }, { userId: viewerId }],
+          };
 
     const [rows, total] = await Promise.all([
       this.prisma.post.findMany({
@@ -179,6 +186,27 @@ export class PostService {
     return { posts, page, pageSize, total, hasMore: skip + rows.length < total };
   }
 
+  /**
+   * FIX (IDOR/privacy, F-01): the single visibility gate for post reads,
+   * shared by getPost() and getComments(). PRIVATE = owner only;
+   * FOLLOWERS_ONLY = owner + active FOLLOW edge viewer -> author; PUBLIC =
+   * anyone (including the anonymous public route, viewerId ''). Fail closed
+   * with 404 so the response is not an existence oracle.
+   */
+  private async assertPostVisible(row: any, viewerId: string): Promise<void> {
+    if (row.visibility === 'PRIVATE' && row.userId !== viewerId) {
+      throw createAppError('Post not found', 404, 'POST_NOT_FOUND');
+    }
+    if (row.visibility === 'FOLLOWERS_ONLY' && row.userId !== viewerId) {
+      const follow = await this.prisma.userRelationship.findFirst({
+        where: { followerId: viewerId, followingId: row.userId, type: 'FOLLOW' },
+      });
+      if (!follow) {
+        throw createAppError('Post not found', 404, 'POST_NOT_FOUND');
+      }
+    }
+  }
+
   async getPost(
     postId: string,
     viewerId: string,
@@ -193,6 +221,11 @@ export class PostService {
     if (!row || row.deletedAt) {
       throw createAppError('Post not found', 404, 'POST_NOT_FOUND');
     }
+
+    // FIX (IDOR/privacy): enforce the post's visibility. PRIVATE posts are
+    // owner-only; FOLLOWERS_ONLY posts additionally require an active FOLLOW
+    // edge viewer -> author. Fail closed with 404 (no existence oracle).
+    await this.assertPostVisible(row, viewerId);
 
     const [liked, saved] = await Promise.all([
       this.likedSet(viewerId, [postId]),
@@ -340,7 +373,17 @@ export class PostService {
     return this.shapeComment(comment);
   }
 
-  async getComments(postId: string): Promise<ShapedComment[]> {
+  async getComments(postId: string, viewerId: string): Promise<ShapedComment[]> {
+    // FIX (IDOR/privacy, F-01 extension beyond the sandbox fixed variant):
+    // GET /posts/:id/comments previously returned a PRIVATE/FOLLOWERS_ONLY
+    // post's comments to any authenticated caller. Load the post first and
+    // apply the same visibility gate as getPost() (404, fail closed).
+    const post = await this.prisma.post.findUnique({ where: { id: postId } });
+    if (!post || post.deletedAt) {
+      throw createAppError('Post not found', 404, 'POST_NOT_FOUND');
+    }
+    await this.assertPostVisible(post, viewerId);
+
     const rows = await this.prisma.comment.findMany({
       where: { postId, deletedAt: null },
       include: { user: true },
@@ -358,7 +401,20 @@ export class PostService {
     const pageSize = options.pageSize ?? 20;
     const skip = (page - 1) * pageSize;
 
-    const where = { userId: targetUserId, deletedAt: null };
+    // FIX (IDOR/privacy): the viewerId parameter was previously ignored for
+    // visibility. Strangers now see only PUBLIC posts; followers additionally
+    // see FOLLOWERS_ONLY; the owner sees everything.
+    let where: Record<string, unknown> = { userId: targetUserId, deletedAt: null };
+    if (viewerId !== targetUserId) {
+      const follow = viewerId
+        ? await this.prisma.userRelationship.findFirst({
+            where: { followerId: viewerId, followingId: targetUserId, type: 'FOLLOW' },
+          })
+        : null;
+      const or: Array<Record<string, unknown>> = [{ visibility: 'PUBLIC' }];
+      if (follow) or.push({ visibility: 'FOLLOWERS_ONLY' });
+      where = { userId: targetUserId, deletedAt: null, OR: or };
+    }
     const [rows, total] = await Promise.all([
       this.prisma.post.findMany({
         where,
