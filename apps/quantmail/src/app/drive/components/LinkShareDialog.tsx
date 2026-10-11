@@ -70,7 +70,7 @@ function scopeTitle(scope: LinkScope): string {
 }
 
 const inputClass =
-  'bg-[var(--quant-background)] border border-[#30363D] rounded-xl px-3 py-2 text-xs text-[#F0F6FC] placeholder-[#6E7681] focus:outline-none focus:border-[#38BDF8]';
+  'bg-[var(--quant-background)] border border-[#30363D] rounded-xl px-3 py-2 text-xs text-[#F0F6FC] placeholder-[#6E7681] focus:outline-none focus:border-[var(--app-accent)]';
 
 export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileName }) => {
   const [links, setLinks] = useState<DriveLinkEntry[] | null>(null);
@@ -265,7 +265,7 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
   return (
     <div className="p-4 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] space-y-3">
       <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8]">
+        <div className="w-8 h-8 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)]">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
@@ -404,7 +404,7 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
                 key={opt.value}
                 className={`flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
                   scope === opt.value
-                    ? 'border-[#38BDF8] bg-[#38BDF8]/5'
+                    ? 'border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)]'
                     : 'border-[#21262D] bg-[var(--quant-background)] hover:border-[#30363D]'
                 }`}
               >
@@ -414,7 +414,7 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
                   value={opt.value}
                   checked={scope === opt.value}
                   onChange={() => setScope(opt.value)}
-                  className="mt-0.5 accent-[#38BDF8]"
+                  className="mt-0.5 accent-[var(--app-accent)]"
                 />
                 <span>
                   <span className="block text-xs font-medium text-[#F0F6FC]">{opt.title}</span>
@@ -453,7 +453,7 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
                   {audienceEmails.map((email) => (
                     <span
                       key={email}
-                      className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full bg-[#38BDF8]/10 border border-[#38BDF8]/30 text-[#F0F6FC]"
+                      className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] text-[#F0F6FC]"
                     >
                       {email}
                       <button
@@ -497,7 +497,7 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
                     name="link-expiry"
                     checked={noExpiry}
                     onChange={() => setNoExpiry(true)}
-                    className="accent-[#38BDF8]"
+                    className="accent-[var(--app-accent)]"
                   />
                   No expiry
                 </label>
@@ -507,7 +507,7 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
                     name="link-expiry"
                     checked={!noExpiry}
                     onChange={() => setNoExpiry(false)}
-                    className="accent-[#38BDF8]"
+                    className="accent-[var(--app-accent)]"
                   />
                   On date
                 </label>

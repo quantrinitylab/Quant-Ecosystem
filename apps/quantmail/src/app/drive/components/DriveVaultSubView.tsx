@@ -48,7 +48,7 @@ export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
       {/* 1. Vault Status Card */}
       <div className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-5 shadow-[0_4px_28px_rgba(0,0,0,0.4)]">
         <div className="flex items-center gap-3.5">
-          <div className="size-12 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8] shrink-0 shadow-[0_0_16px_rgba(56,189,248,0.2)]">
+          <div className="size-12 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0 shadow-[0_0_16px_color-mix(in_srgb,var(--app-accent)_50%,transparent)]">
             <VaultShieldIcon className="size-6" />
           </div>
           <div>
@@ -86,7 +86,7 @@ export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
               return (
                 <div
                   key={item.id}
-                  className="group relative flex flex-col justify-between p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[#38BDF8]/40 hover:bg-[var(--quant-surface-elevated)] transition-all shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
+                  className="group relative flex flex-col justify-between p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)] transition-all shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-2">
@@ -99,7 +99,7 @@ export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
                       </span>
                     </div>
 
-                    <p className="text-xs font-bold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">
+                    <p className="text-xs font-bold text-[#F8FAFC] truncate group-hover:text-[var(--app-accent)] transition-colors">
                       {item.name}
                     </p>
                     <p className="text-[11px] text-[#94A3B8] mt-0.5">
@@ -114,7 +114,7 @@ export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
                       type="button"
                       aria-label={`Copy SHA-256 checksum for ${item.name}`}
                       onClick={(e) => handleCopySha256(item.id, item.sha256Checksum, e)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--quant-background)] border border-[#232938] text-[11px] font-mono text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[#38BDF8]/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--quant-background)] border border-[#232938] text-[11px] font-mono text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                     >
                       {isCopied ? (
                         <>

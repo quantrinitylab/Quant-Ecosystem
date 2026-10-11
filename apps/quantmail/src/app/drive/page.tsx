@@ -1718,15 +1718,15 @@ function DrivePageContent() {
                   role="tab"
                   aria-selected={sharedMode === 'with-me'}
                   onClick={() => setSharedMode('with-me')}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] ${
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                     sharedMode === 'with-me'
-                      ? 'bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/35'
+                      ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)]'
                       : 'text-[#94A3B8] border border-transparent hover:text-[#F8FAFC]'
                   }`}
                 >
                   Shared with me
                   {receivedShares.length > 0 && (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#38BDF8]/20 text-[#38BDF8]">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-accent)]">
                       {receivedShares.length}
                     </span>
                   )}
@@ -1736,15 +1736,15 @@ function DrivePageContent() {
                   role="tab"
                   aria-selected={sharedMode === 'by-me'}
                   onClick={() => setSharedMode('by-me')}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] ${
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                     sharedMode === 'by-me'
-                      ? 'bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/35'
+                      ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)]'
                       : 'text-[#94A3B8] border border-transparent hover:text-[#F8FAFC]'
                   }`}
                 >
                   Shared by me
                   {sentShares.length > 0 && (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#38BDF8]/20 text-[#38BDF8]">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-accent)]">
                       {sentShares.length}
                     </span>
                   )}
@@ -2069,7 +2069,7 @@ function DrivePageContent() {
                 <button
                   type="button"
                   onClick={() => setDetailsTarget(previewItem)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#232938] text-xs font-medium text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[#38BDF8]/50 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#232938] text-xs font-medium text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] transition-colors"
                   title="Show file details: owner, location, sharing, security scan state, versions"
                 >
                   <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

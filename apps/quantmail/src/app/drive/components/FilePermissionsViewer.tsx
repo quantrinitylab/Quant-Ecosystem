@@ -44,7 +44,7 @@ function ShareRow({ share }: { share: FileShareEntry }) {
       <div className="flex items-center gap-2.5 min-w-0">
         <div
           aria-hidden="true"
-          className="w-7 h-7 shrink-0 rounded-full bg-[#38BDF8]/15 border border-[#38BDF8]/30 text-[#38BDF8] flex items-center justify-center text-[11px] font-bold"
+          className="w-7 h-7 shrink-0 rounded-full bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] text-[var(--app-accent)] flex items-center justify-center text-[11px] font-bold"
         >
           {(share.email[0] || '?').toUpperCase()}
         </div>
@@ -69,7 +69,7 @@ function LinkRow({ link }: { link: FileLinkEntry }) {
         <div className="flex items-center gap-2.5 min-w-0">
           <div
             aria-hidden="true"
-            className="w-7 h-7 shrink-0 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8]"
+            className="w-7 h-7 shrink-0 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)]"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path

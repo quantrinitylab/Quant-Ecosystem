@@ -150,7 +150,7 @@ export function FileDetailsView({
           <button
             type="button"
             onClick={() => onNavigateToFolder?.(null, 'My Drive')}
-            className="text-[#38BDF8] hover:underline"
+            className="text-[var(--app-accent)] hover:underline"
           >
             My Drive
           </button>
@@ -160,7 +160,7 @@ export function FileDetailsView({
               <button
                 type="button"
                 onClick={() => onNavigateToFolder?.(crumb.id, crumb.name)}
-                className="text-[#38BDF8] hover:underline truncate max-w-[140px]"
+                className="text-[var(--app-accent)] hover:underline truncate max-w-[140px]"
                 title={crumb.name}
               >
                 {crumb.name}

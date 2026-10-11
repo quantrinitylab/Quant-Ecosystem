@@ -48,7 +48,7 @@ export function DriveCleanerSubView({ clusters = [] }: DriveCleanerSubViewProps)
       {/* 1. Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[#232938] bg-[var(--quant-surface)] shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
         <div className="flex items-center gap-3.5">
-          <div className="size-11 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8] shrink-0">
+          <div className="size-11 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
             <CleanerSparkleIcon className="size-5" />
           </div>
           <div>
@@ -88,12 +88,12 @@ export function DriveCleanerSubView({ clusters = [] }: DriveCleanerSubViewProps)
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
                   <div>
                     <h5 className="text-xs font-bold text-[#F8FAFC]">{cluster.title}</h5>
-                    <p className="text-[11px] text-[#38BDF8] font-medium mt-0.5">
+                    <p className="text-[11px] text-[var(--app-accent)] font-medium mt-0.5">
                       {cluster.similarity}
                     </p>
                   </div>
                   <div className="text-left sm:text-right">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-[#38BDF8]/10 text-[#38BDF8] border border-[#38BDF8]/30">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)]">
                       Reclaimable: {cluster.potentialSavings}
                     </span>
                   </div>
