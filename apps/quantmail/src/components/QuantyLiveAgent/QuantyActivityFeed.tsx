@@ -73,7 +73,13 @@ const STEP_SR: Record<QuantyStepStatus, string> = {
 
 function formatTime(iso: string): string {
   try {
-    return new Date(iso).toLocaleTimeString('hi-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const date = new Date(iso);
+    // Same defect family as quantyTime.formatClockTime: `new Date(garbage)`
+    // never throws, so the try/catch above is dead code. Guard NaN explicitly
+    // so broken step.updatedAt degrades to '' — never the literal
+    // "Invalid Date" in the live progress feed's step time slot.
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString('hi-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   } catch {
     return '';
   }
