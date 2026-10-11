@@ -51,14 +51,15 @@ export function AuthBrandPanel({ eyebrow, title, subtitle }: AuthBrandPanelProps
               copy="Quant AI surfaces what's urgent and drafts the reply."
             />
             {/*
-              Verified claim (audit 2026-10-09): both halves are provably true.
+              Copy-honesty note (2026-10-12): claim only what is provable.
               - In transit: nginx ingress forces TLS (ssl-redirect + force-ssl-redirect)
                 and HSTS (max-age 31536000) — infra/helm/quant-platform/values-production.yaml,
                 infra/k8s/ingress-quantmail.yaml; Cloudflare fronts the domain.
-              - At rest: RDS storage_encrypted=true with a customer KMS key
-                (kms_key_id = aws_kms_key.rds.arn) — infra/terraform/modules/rds/main.tf.
-              "Stays private" is shorthand; the settings page states the honest
-              boundary (your session and the delivery pipeline can read mail).
+              - At rest: NOT claimed here. Terraform sets storage_encrypted=true
+                (infra/terraform/modules/rds/main.tf:122) but the live staging RDS
+                instance quant-staging-postgres reports StorageEncrypted=False
+                (verified via boto3 describe-db-instances), so "at rest" is not a
+                provable truth today and must not appear in user-facing copy.
             */}
             <FeatureCard
               icon={
@@ -68,8 +69,8 @@ export function AuthBrandPanel({ eyebrow, title, subtitle }: AuthBrandPanelProps
                   <circle cx="12" cy="15.2" r="1.4" fill="currentColor" stroke="none" />
                 </svg>
               }
-              title="Encrypted in transit and at rest"
-              copy="Your mail stays private."
+              title="Encrypted in transit"
+              copy="Your mail is encrypted between your device and our servers."
             />
           </div>
         </div>
