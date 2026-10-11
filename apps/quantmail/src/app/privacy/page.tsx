@@ -28,20 +28,17 @@ export default function PrivacyPolicyPage() {
                 </div>
                 <div>
                   <h1 className="text-xl font-bold tracking-tight text-[var(--quant-foreground)] sm:text-2xl">
-                    Privacy Policy &amp; Google Play Data Safety
+                    Privacy Policy
                   </h1>
                   <p className="text-xs text-[var(--quant-muted-foreground)] mt-0.5">
-                    Quant Sovereign Ecosystem · Official Play Store Production Disclosure
+                    How QuantMail handles your data
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
-                  Google Play Certified
-                </span>
                 <span className="rounded-full border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-3 py-1 text-xs font-mono text-[var(--quant-muted-foreground)]">
-                  Effective: September 2026 · v1.0.0
+                  Last updated: October 2026
                 </span>
               </div>
             </div>
@@ -99,23 +96,19 @@ export default function PrivacyPolicyPage() {
             </p>
           </section>
 
-          {/* Section 2: Google Play Data Safety Matrix */}
+          {/* Section 2: Data Disclosure Matrix */}
           <section className="space-y-4 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-6">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-base font-semibold text-[var(--quant-foreground)] flex items-center gap-2">
                 <span className="flex size-6 items-center justify-center rounded-full bg-[var(--brand-soft)] text-xs font-bold text-[var(--brand-primary)]">
                   2
                 </span>
-                Google Play Data Safety Disclosure Matrix
+                Data Disclosure Matrix
               </h2>
-              <span className="text-[11px] font-mono text-[var(--brand-primary)]">
-                Target SDK 35 (Android 15) Compliant
-              </span>
             </div>
             <p className="text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
-              In accordance with Google Play Developer Policy and Data Safety requirements, the
-              table below enumerates all data collected, purpose of collection, transfer mechanisms,
-              and sharing boundaries:
+              The table below lists the data QuantMail collects, the purpose of collection, and
+              how that data is shared and protected:
             </p>
 
             <div className="overflow-x-auto rounded-xl border border-[var(--quant-border)]">
