@@ -28,10 +28,27 @@ describe('sample shorts (P0-3)', () => {
     }
   });
 
-  it('every thumbnailUrl is a real absolute https URL (no dead /thumbs/ paths)', () => {
+  it('every thumbnailUrl is a self-hosted poster frame (zero external deps)', () => {
     for (const s of SAMPLE_SHORTS) {
-      expect(s.thumbnailUrl, `${s.id} thumbnailUrl`).toMatch(/^https:\/\//);
+      expect(s.thumbnailUrl, `${s.id} thumbnailUrl`).toMatch(
+        /^\/samples\/posters\/short-\d{2}\.jpg$/,
+      );
+      expect(s.thumbnailUrl, `${s.id} must not use Unsplash`).not.toContain('unsplash');
       expect(s.thumbnailUrl, `${s.id} must not use a /thumbs/ path`).not.toContain('/thumbs/');
+    }
+  });
+
+  it('durations are the real measured clip lengths (6s title cards)', () => {
+    for (const s of SAMPLE_SHORTS) {
+      expect(s.duration, `${s.id} duration`).toBe(6);
+    }
+  });
+
+  it('channel avatars are self-hosted and sounds are honest (clips have no audio)', () => {
+    for (const s of SAMPLE_SHORTS) {
+      expect(s.channelAvatar, `${s.id} channelAvatar`).toBe('/samples/sample-avatar.svg');
+      expect(s.channelAvatar, `${s.id} must not use DiceBear`).not.toContain('dicebear');
+      expect(s.soundName, `${s.id} soundName`).toBe('No audio');
     }
   });
 
