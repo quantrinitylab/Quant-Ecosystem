@@ -1929,12 +1929,6 @@ function DrivePageContent() {
               trashItems={trashItems}
               onRestoreTrashItem={handleRestoreItem}
               onPurgeTrashItem={handlePurgeItem}
-              onUpgradeClick={() =>
-                showToast({
-                  text: 'Sovereign Enterprise Plan: Upgrade options requested.',
-                  type: 'info',
-                })
-              }
             />
           )}
 
@@ -1974,6 +1968,7 @@ function DrivePageContent() {
                 modifiedAt: f.modifiedAt,
                 isStarred: f.isStarred,
               }))}
+              getDownloadUrl={getDownloadUrl}
               onPreviewItem={(item) =>
                 handlePreviewItem({
                   id: item.id,
@@ -1981,7 +1976,7 @@ function DrivePageContent() {
                   type: 'file',
                   mimeType: item.mimeType,
                   size: item.size,
-                  modifiedAt: new Date().toISOString(),
+                  modifiedAt: item.modifiedAt,
                   isStarred: item.isStarred,
                 } as any)
               }

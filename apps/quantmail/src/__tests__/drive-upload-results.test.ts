@@ -130,22 +130,17 @@ describe('Drive operation promise contracts', () => {
     expect(state.chunkPlan.initiateCalls).toBe(2);
     expect(state.chunkPlan.chunkCalls).toBe(2);
     expect(state.request).toHaveBeenCalledWith('/api/drive/files?');
-    expect(state.cells[3].value).toEqual([
-      expect.objectContaining({ status: 'complete', progress: 100 }),
-      expect.objectContaining({ status: 'complete', progress: 100 }),
-    ]);
+    // The per-file uploads/progress tracking was removed — no consumer ever
+    // rendered it. Success = resolved promise + refreshed file list.
+    expect(state.cells[2].value).toBeNull();
   });
 
-  it('rejects a partial upload while preserving progress and refreshing successes', async () => {
+  it('rejects a partial upload while refreshing successes', async () => {
     state.chunkPlan.failSecondInitiate = true;
     await expect(useDrive().uploadFiles(files())).rejects.toThrow(
       'Uploaded 1 of 2 files. 1 failed or cancelled. Quota exceeded',
     );
     expect(state.request).toHaveBeenCalledWith('/api/drive/files?');
-    expect(state.cells[3].value).toEqual([
-      expect.objectContaining({ status: 'complete' }),
-      expect.objectContaining({ status: 'error', error: 'Quota exceeded' }),
-    ]);
     expect(state.cells[2].value).toContain('Uploaded 1 of 2 files');
   });
 
@@ -155,9 +150,8 @@ describe('Drive operation promise contracts', () => {
     // 2 failures + 1 success, all for the same chunk of the same session.
     expect(state.chunkPlan.chunkCalls).toBe(3);
     expect(state.chunkPlan.initiateCalls).toBe(1);
-    expect(state.cells[3].value).toEqual([
-      expect.objectContaining({ status: 'complete', progress: 100 }),
-    ]);
+    // No per-file progress state anymore — success = resolved promise.
+    expect(state.cells[2].value).toBeNull();
   });
 
   it('resumes an interrupted upload via the status endpoint on retry', async () => {

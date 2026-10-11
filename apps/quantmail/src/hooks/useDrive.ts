@@ -88,14 +88,6 @@ export interface SentShareItem {
   } | null;
 }
 
-interface UploadProgress {
-  fileId: string;
-  fileName: string;
-  progress: number;
-  status: 'pending' | 'uploading' | 'complete' | 'error';
-  error?: string;
-}
-
 interface StorageQuota {
   used: number;
   total: number;
@@ -111,8 +103,7 @@ export interface UseDriveReturn {
   files: DriveFile[];
   loading: boolean;
   error: string | null;
-  uploads: UploadProgress[];
-  quota: StorageQuota;
+  quota: StorageQuota | null;
   currentFolderId: string | null;
   breadcrumbs: { id: string | null; name: string }[];
   fetchFiles: (folderId?: string | null, filter?: string | null) => Promise<void>;
@@ -133,7 +124,6 @@ export interface UseDriveReturn {
   searchFiles: (query: string) => Promise<void>;
   getDownloadUrl: (fileId: string) => string;
   downloadFile: (fileId: string, fileName?: string) => Promise<void>;
-  cancelUpload: (uploadId: string) => void;
   acceptShare: (shareId: string) => Promise<{ success: boolean; share: any }>;
   declineShare: (shareId: string) => Promise<{ success: boolean; share: any }>;
   fetchReceivedShares: () => Promise<ReceivedShare[]>;
@@ -402,8 +392,10 @@ interface ResumableUploadTask {
   file: File;
   folderId: string | null;
   signal: AbortSignal;
-  onProgress: (percent: number) => void;
-  onSession: (binding: ChunkedSessionBinding) => void;
+  // Optional: no UI consumes per-file progress anymore, so callers pass no
+  // callbacks and the machinery still drives the chunk protocol honestly.
+  onProgress?: (percent: number) => void;
+  onSession?: (binding: ChunkedSessionBinding) => void;
 }
 
 const uploadFileResumable = async (task: ResumableUploadTask): Promise<void> => {
@@ -411,7 +403,7 @@ const uploadFileResumable = async (task: ResumableUploadTask): Promise<void> => 
 
   if (file.size === 0) {
     await uploadEmptyFileOneShot(file, folderId, signal);
-    onProgress(100);
+    onProgress?.(100);
     return;
   }
   // Client-side guard mirrors the backend 413 so the limit is visible up
@@ -443,7 +435,7 @@ const uploadFileResumable = async (task: ResumableUploadTask): Promise<void> => 
   }
 
   const { uploadId: serverUploadId, chunkSize, totalChunks } = session;
-  onSession({ serverUploadId, fingerprint });
+  onSession?.({ serverUploadId, fingerprint });
 
   const chunkByteSize = (index: number): number =>
     index === totalChunks - 1 ? file.size - index * chunkSize : chunkSize;
@@ -453,7 +445,7 @@ const uploadFileResumable = async (task: ResumableUploadTask): Promise<void> => 
   for (let i = 0; i < totalChunks; i++) {
     if (!session.missingChunks.includes(i)) uploadedBytes += chunkByteSize(i);
   }
-  onProgress(Math.min(100, Math.round((uploadedBytes / file.size) * 100)));
+  onProgress?.(Math.min(100, Math.round((uploadedBytes / file.size) * 100)));
 
   for (const chunkIndex of session.missingChunks) {
     if (signal.aborted) throw new Error('Upload cancelled');
@@ -463,27 +455,26 @@ const uploadFileResumable = async (task: ResumableUploadTask): Promise<void> => 
     );
     await postChunkWithRetry(serverUploadId, chunkIndex, contentBase64, signal);
     uploadedBytes += chunkByteSize(chunkIndex);
-    onProgress(Math.min(100, Math.round((uploadedBytes / file.size) * 100)));
+    onProgress?.(Math.min(100, Math.round((uploadedBytes / file.size) * 100)));
   }
 
   await completeChunkedSession(serverUploadId, signal);
   resumableSessions.delete(fingerprint);
-  onProgress(100);
+  onProgress?.(100);
 };
 
 export function useDrive(): UseDriveReturn {
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [uploads, setUploads] = useState<UploadProgress[]>([]);
-  const [quota, setQuota] = useState<StorageQuota>({ used: 0, total: 15 * 1024 * 1024 * 1024 });
+  // Quota is unknown until the backend answers: a fabricated 15 GB default
+  // used to sit here, presenting invented quota before the first fetch.
+  const [quota, setQuota] = useState<StorageQuota | null>(null);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<{ id: string | null; name: string }[]>([
     { id: null, name: 'My Drive' },
   ]);
   const abortControllers = useRef<Map<string, AbortController>>(new Map());
-  const uploadSessionIds = useRef<Map<string, ChunkedSessionBinding>>(new Map());
-  const cancelledUploadIds = useRef<Set<string>>(new Set());
   const fetchSeqRef = useRef<number>(0);
 
   const fetchFiles = useCallback(
@@ -522,44 +513,23 @@ export function useDrive(): UseDriveReturn {
     async (fileList: File[]) => {
       setError(null);
       const failures: string[] = [];
-      const newUploads: UploadProgress[] = fileList.map((file, i) => ({
-        fileId: `upload-${Date.now()}-${i}`,
-        fileName: file.name,
-        progress: 0,
-        status: 'pending' as const,
-      }));
-      setUploads((prev) => [...prev, ...newUploads]);
 
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
-        const uploadId = newUploads[i].fileId;
-        if (cancelledUploadIds.current.has(uploadId)) {
-          cancelledUploadIds.current.delete(uploadId);
-          continue;
-        }
+        const uploadId = `upload-${Date.now()}-${i}`;
         const controller = new AbortController();
         abortControllers.current.set(uploadId, controller);
 
-        setUploads((prev) =>
-          prev.map((u) => (u.fileId === uploadId ? { ...u, status: 'uploading' as const } : u)),
-        );
-        const setProgress = (progress: number) =>
-          setUploads((prev) => prev.map((u) => (u.fileId === uploadId ? { ...u, progress } : u)));
-
         try {
+          // Upload progress is deliberately untracked: no consumer ever
+          // rendered the uploads list, so per-file progress state was dead
+          // weight. Success/failure surfaces through fetchFiles + toasts.
           await uploadFileResumable({
             file,
             folderId: currentFolderId,
             signal: controller.signal,
-            onProgress: setProgress,
-            onSession: (binding) => uploadSessionIds.current.set(uploadId, binding),
           });
 
-          setUploads((prev) =>
-            prev.map((u) =>
-              u.fileId === uploadId ? { ...u, progress: 100, status: 'complete' as const } : u,
-            ),
-          );
           // Honest signal for the Drive mascot's success acknowledgement —
           // fired only here, after the upload truly completed (never on error).
           if (typeof window !== 'undefined') {
@@ -568,14 +538,8 @@ export function useDrive(): UseDriveReturn {
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'Upload failed';
           failures.push(errorMsg);
-          setUploads((prev) =>
-            prev.map((u) =>
-              u.fileId === uploadId ? { ...u, status: 'error' as const, error: errorMsg } : u,
-            ),
-          );
         } finally {
           abortControllers.current.delete(uploadId);
-          uploadSessionIds.current.delete(uploadId);
         }
       }
       await fetchFiles();
@@ -855,27 +819,6 @@ export function useDrive(): UseDriveReturn {
     }
   }, []);
 
-  const cancelUpload = useCallback((uploadId: string) => {
-    cancelledUploadIds.current.add(uploadId);
-    const controller = abortControllers.current.get(uploadId);
-    if (controller) {
-      controller.abort();
-      abortControllers.current.delete(uploadId);
-    }
-    // Release the server-side quota reservation for the chunked session, if
-    // one was initiated — best effort, never blocks the UI.
-    const binding = uploadSessionIds.current.get(uploadId);
-    uploadSessionIds.current.delete(uploadId);
-    if (binding) {
-      resumableSessions.delete(binding.fingerprint);
-      void apiRequest(
-        `/api/drive/upload/chunk/${encodeURIComponent(binding.serverUploadId)}/abort`,
-        { method: 'POST' },
-      ).catch(() => undefined);
-    }
-    setUploads((prev) => prev.filter((u) => u.fileId !== uploadId));
-  }, []);
-
   const acceptShare = useCallback(async (shareId: string) => {
     setError(null);
     try {
@@ -1031,7 +974,6 @@ export function useDrive(): UseDriveReturn {
     files,
     loading,
     error,
-    uploads,
     quota,
     currentFolderId,
     breadcrumbs,
@@ -1053,7 +995,6 @@ export function useDrive(): UseDriveReturn {
     searchFiles,
     getDownloadUrl,
     downloadFile,
-    cancelUpload,
     acceptShare,
     declineShare,
     fetchReceivedShares,
