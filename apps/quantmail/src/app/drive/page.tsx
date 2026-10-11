@@ -2552,7 +2552,7 @@ function DrivePageContent() {
           onClose={() => setAiSummaryFile(null)}
         />
 
-        {/* QuantDrive AI Duplicate Cleaner Modal */}
+        {/* QuantDrive Duplicate Cleaner Modal (honest non-AI label; content-hash detection) */}
         <AIDuplicateCleanerModal
           isOpen={isDuplicateCleanerOpen}
           onClose={() => setIsDuplicateCleanerOpen(false)}

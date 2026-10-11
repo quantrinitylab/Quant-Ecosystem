@@ -422,7 +422,8 @@ export class DuplicateCleanerManager {
 }
 
 /**
- * AIDuplicateCleanerModal Component
+ * AIDuplicateCleanerModal Component (renders as "Duplicate Cleaner" — honest
+ * non-AI label; the detection path is pure content-hash grouping, no LLM/AI).
  * Accessible dialog styled with Quant Studio tokens:
  * `var(--quant-surface-elevated)`, `var(--quant-surface-elevated)`, `var(--quant-primary)`, `var(--quant-destructive)`, `var(--quant-success)`
  */
@@ -482,7 +483,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="AI Duplicate Cleaner"
+      aria-label="Duplicate Cleaner"
       aria-labelledby="ai-duplicate-cleaner-title"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
     >
@@ -523,10 +524,10 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                 id="ai-duplicate-cleaner-title"
                 className="text-lg font-semibold text-white tracking-tight"
               >
-                AI Duplicate Cleaner
+                Duplicate Cleaner
               </h2>
               <p className="text-xs text-[#9CA3AF]">
-                Quant AI scanned storage and identified identical duplicate files by hash.
+                Scanned by content hash and identified identical duplicate files.
               </p>
             </div>
           </div>
