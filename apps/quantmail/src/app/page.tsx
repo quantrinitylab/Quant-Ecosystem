@@ -621,7 +621,7 @@ function EmailRow({
                 .join('') || 'GP'}
             </span>
           ) : (
-            <IdentityAvatar name={thread.participants[0] || 'You'} size="sm" className="mail-row-avatar" />
+            <IdentityAvatar name={thread.participants[0] || 'me'} size="sm" className="mail-row-avatar" />
           )}
         </span>
         <div className="mail-row-copy">
