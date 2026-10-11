@@ -6,7 +6,7 @@
 // restore a session with /auth/refresh, and rotates before the access token expires.
 // ============================================================================
 import { apiClient } from './api-client';
-import { getAuthToken, setAuthToken, clearAuthSession } from '../lib/auth';
+import { getAuthToken, setAuthToken, clearAuthSession, type AuthUser } from '../lib/auth';
 import { apiFetchRaw } from '@quant/api-client';
 
 export interface SessionData {
@@ -39,9 +39,11 @@ export function clearAccessToken(): void {
 }
 
 /** Ingests an SSO ticket/token, syncing memory, apiClient, and localStorage. */
-export function ingestSSOToken(token: string): void {
+export function ingestSSOToken(token: string, user?: AuthUser | null): void {
   setAccessToken(token);
-  setAuthToken(token);
+  // Store the server-verified identity too — without it the UI falls back to
+  // fabricated placeholders.
+  setAuthToken(token, user ?? null);
 }
 
 export function isTwoFactorChallenge(

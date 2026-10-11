@@ -23,11 +23,6 @@ vi.mock('../providers/auth-provider', () => ({
   }),
 }));
 
-// Mock BrandProvider
-vi.mock('../components/BrandProvider', () => ({
-  useBrandName: () => 'QuantAI',
-}));
-
 // Mock UniversalSSOTokenBridge
 vi.mock('@quant/shared-ui', () => ({
   UniversalSSOTokenBridge: {
@@ -43,7 +38,7 @@ const { NeuralFieldCanvas } = await import('../components/auth/NeuralFieldCanvas
 const LoginPageModule = await import('../app/login/page');
 const LoginPage = LoginPageModule.default;
 
-describe('QuantAI Luxury Neural Login UI/UX Suite', () => {
+describe('QuantAI Professional Login UI/UX Suite', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -51,61 +46,72 @@ describe('QuantAI Luxury Neural Login UI/UX Suite', () => {
   describe('NeuralFieldCanvas', () => {
     it('renders ambient canvas with accessible aria-hidden flag and pointer-events-none', () => {
       const html = renderToStaticMarkup(
-        React.createElement(NeuralFieldCanvas, { className: 'opacity-60' })
+        React.createElement(NeuralFieldCanvas, { className: 'opacity-40', interactive: false })
       );
       expect(html).toContain('<canvas');
       expect(html).toContain('aria-hidden="true"');
       expect(html).toContain('pointer-events-none');
-      expect(html).toContain('opacity-60');
     });
   });
 
-  describe('LoginPage Executive Console', () => {
-    it('renders sovereign intelligence headline and frontier agent subtitle', () => {
+  describe('LoginPage', () => {
+    it('renders the official QuantAI brand lockup, not a placeholder mark', () => {
       const html = renderToStaticMarkup(React.createElement(LoginPage));
-      expect(html).toContain('QuantAI Sovereign Intelligence');
-      expect(html).toContain('Frontier Agent OS · Real-time Voice · Neural Canvas');
+      expect(html).toContain('aria-label="QuantAI"');
+      // The old placeholder diamond lattice must be gone
+      expect(html).not.toContain('ai-core-grad-1');
+      expect(html).not.toContain('ai-core-glow');
     });
 
-    it('renders the real-time telemetry status pill', () => {
+    it('renders an honest headline and subtitle (no invented claims)', () => {
       const html = renderToStaticMarkup(React.createElement(LoginPage));
-      expect(html).toContain('Quanty 3.8 Flash Active');
-      expect(html).toContain('&lt;120ms Voice Latency');
+      expect(html).toContain('QuantAI');
+      expect(html).toContain('Sign in to chat with AI');
+      expect(html).not.toContain('Sovereign Intelligence');
+      expect(html).not.toContain('Frontier Agent OS');
+      expect(html).not.toContain('Neural Canvas');
     });
 
-    it('renders hero SSO button with obsidian-titanium style and pure SVG vector mark', () => {
+    it('does not render a fake telemetry status pill', () => {
+      const html = renderToStaticMarkup(React.createElement(LoginPage));
+      expect(html).not.toContain('Quanty 3.8 Flash Active');
+      expect(html).not.toContain('Voice Latency');
+    });
+
+    it('renders the Quant Account SSO button with a pure SVG vector mark', () => {
       const html = renderToStaticMarkup(React.createElement(LoginPage));
       expect(html).toContain('Continue with Quant Account');
-      // Verify SVG polygon for the lightning bolt
+      expect(html).toContain('One account for QuantAI, QuantMail and QuantChat');
       expect(html).toContain('<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"');
     });
 
-    it('renders geometric AI core lattice vector mark with gradient defs', () => {
-      const html = renderToStaticMarkup(React.createElement(LoginPage));
-      expect(html).toContain('id="ai-core-grad-1"');
-      expect(html).toContain('id="ai-core-grad-2"');
-      expect(html).toContain('id="ai-core-glow"');
-    });
-
-    it('renders high-density email and password credential inputs', () => {
+    it('renders accessible email and password credential inputs', () => {
       const html = renderToStaticMarkup(React.createElement(LoginPage));
       expect(html).toContain('id="login-email"');
       expect(html).toContain('id="login-password"');
       expect(html).toContain('placeholder="you@quantmail.in"');
       expect(html).toContain('Sign in with Email');
+      expect(html).toContain('for="login-email"');
+      expect(html).toContain('Show password');
     });
 
-    it('renders ecosystem registration link and sovereign encryption badge', () => {
+    it('renders an honest QuantID creation section without invented security claims', () => {
       const html = renderToStaticMarkup(React.createElement(LoginPage));
       expect(html).toContain('https://quantmail.in/register');
       expect(html).toContain('Create a QuantID');
-      expect(html).toContain('End-to-End Sovereign Encryption');
-      expect(html).toContain('Zero Telemetry Leakage');
+      // Honest about the cross-domain hop
+      expect(html).toContain('create it on QuantMail');
+      expect(html).not.toContain('End-to-End Sovereign Encryption');
+      expect(html).not.toContain('Zero Telemetry Leakage');
+    });
+
+    it('renders an honest footer', () => {
+      const html = renderToStaticMarkup(React.createElement(LoginPage));
+      expect(html).toContain('Your chats are tied to your Quant account');
     });
 
     it('guarantees ZERO raw Unicode emojis across the rendered markup', () => {
       const html = renderToStaticMarkup(React.createElement(LoginPage));
-      // Emoji Unicode ranges regex: ensures no emoji glyphs (like ⚡, 🔒, etc.) are raw text
       const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
       expect(emojiRegex.test(html)).toBe(false);
     });
