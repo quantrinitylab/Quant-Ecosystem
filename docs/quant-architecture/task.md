@@ -689,9 +689,20 @@ UNVERIFIED: signed-in sessions/2FA/connected-apps flows; whether GET /settings/t
 Fix agents dispatched (PR-only, never merge): lane1-fix-016-sessions (P0 sessions real list + revoke-all), lane1-fix-016-grants (P0 connected-apps real grants + P1 PAT management UI).
 
 ## QM-SCREEN-017 — Admin / domains / DLP / audit / organization policy
-Status: [ ] TODO
+Status: [x] DONE
+Owner: LANE-1
+Branch: lane1-audit-017
 Required: capability RBAC, tenant isolation, domain verification, DLP, audit explorer, legal hold, retention, export/deletion, incident visibility, break-glass controls.
 Dependencies: QM-WORK-011; backend integrity tasks.
+- [ ] FINDING P0: retention/legal-hold API is any-auth, not staff-gated — any signed-in user can create PERMANENT_DELETE retention policies, place legal holds on any custodian, and RELEASE legal holds. | expected: staff-only (requireStaff like routes/admin.ts) | actual: requireUserId only in routes/retention.ts | evidence: POST /retention/policies, POST /retention/legal-holds, DELETE /retention/legal-holds/:id all call requireUserId; no role check. Logged-out probe → honest 401s. Fix dispatched: lane1-fix-017-retention-authz (PR pending).
+- [ ] FINDING P1: privilege derived from userId string prefix in audit auth path — `role: auth.role || (auth.userId?.startsWith('admin') ? 'ADMIN' : undefined)` (routes/audit-logs.ts:105). | expected: role only from auth.role/orgRole | actual: 'admin'-prefixed ids silently escalate in AuditService.authorizeTenantAccess | evidence: code read; currently unreachable (Prisma generates ids) but latent. Same fix PR.
+- [ ] FINDING P1: no admin UI for legal holds / retention policies / organization member-role management; orgRole (AUDITOR/OWNER) never assigned anywhere, so org-scoped capability RBAC is unenforceable — only global ADMIN/MODERATOR works. Admin console links Domains + DLP&audit only. | expected: staff UI + assignable org roles | actual: backend-only, any-auth | evidence: components/admin/ has only AdminStates/DlpAuditView/DomainsView/OrgSelector; grep orgRole shows zero assignments.
+- [ ] FINDING P1: incident visibility + break-glass controls absent — no routes, no UI, nothing in admin console. | expected: per ledger Required | actual: not found repo-wide | evidence: grep break-glass/incident in backend + apps/quantmail/src → nothing.
+- [ ] FINDING P2: DLP empty-state copy claims policies "are created through the compliance API" but no write path for EnterpriseMailComplianceRule exists anywhere (list-only GET /admin/mail/dlp/policies). | expected: honest copy or a real creation path | actual: misleading hint | evidence: grep enterpriseMailComplianceRule.create → zero hits.
+VERDICT-LIVE: /admin, /admin/domains, /admin/dlp-audit logged-out → honest bounce to sign-in (desktop 1440x900). GET /api/admin/accounts/count, /api/audit-logs, /api/retention/legal-holds, /api/retention/policies logged out → honest 401 JSON. Signed-in staff/non-staff flows needs-auth — not verified. Shot: /tmp/lane1-017-desktop-admin.png (2026-10-11).
+PASSING (code): AdminGuard gates ADMIN+MODERATOR with honest access-denied panel + inbox redirect; backend admin.ts requireStaff on all KPI/domain/DLP/audit routes; M19 domains = real DNS verification (ownership TXT/MX/SPF/DKIM/DMARC) + staff-gated mutations + server-side audit writes (recordAdminAudit); M20 audit trail append-only (POST /audit-logs → 405, PUT/PATCH/DELETE → 403), DLP read-only real rows; moderation queue + system health use honest "not yet wired"/"probe pending" placeholders.
+UNVERIFIED: signed-in staff/non-staff flows (needs-auth); whether GET /admin/audit/logs staff cross-tenant viewer returns real rows on staging.
+Fix agent dispatched (PR-only, never merge): lane1-fix-017-retention-authz (P0 retention staff-gating + P1 prefix-role removal). UI gaps (legal-hold/retention console, org member management, incident visibility, break-glass) are design decisions → BLOCKERS.md if the user needs to decide.
 
 ## QM-SCREEN-018 — Help / privacy / terms / invite / groups / SSO / legacy route disposition
 Status: [ ] TODO
