@@ -16,6 +16,7 @@ import {
   generateIcsContent,
   generateGoogleCalendarUrl,
   resolveBookingFailureMessage,
+  resolveLinkLoadFailure,
 } from '../app/calendar/booking/[slug]/booking-utils';
 import {
   BookingLinksModal,
@@ -281,6 +282,99 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
         expect(msg).not.toContain('success');
         expect(msg).not.toContain('scheduled for you');
       }
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 2c. Honest dead-link load states (fix/qm-booking-deadlink-details):
+  // a 404/410/failed booking-link GET must surface an honest "link not
+  // found / inactive" state — never the seeded details as if real, and a
+  // network failure must never invent a meeting title from the URL slug.
+  // --------------------------------------------------------------------------
+  describe('resolveLinkLoadFailure (honest dead-link states, no invented details)', () => {
+    it('maps 404 BOOKING_LINK_NOT_FOUND to the not-found state', () => {
+      const { status, message } = resolveLinkLoadFailure(404);
+      expect(status).toBe('not-found');
+      expect(message).toContain('no longer exists');
+    });
+
+    it('maps 410 BOOKING_LINK_INACTIVE to the inactive state', () => {
+      const { status, message } = resolveLinkLoadFailure(410);
+      expect(status).toBe('inactive');
+      expect(message).toContain('no longer active');
+    });
+
+    it('prefers the real backend message when the server supplies one', () => {
+      expect(resolveLinkLoadFailure(404, 'Booking link not found').message).toBe(
+        'Booking link not found',
+      );
+      expect(resolveLinkLoadFailure(410, 'Booking link is inactive').message).toBe(
+        'Booking link is inactive',
+      );
+    });
+
+    it('maps network failure (status 0) to an honest connectivity error', () => {
+      const { status, message } = resolveLinkLoadFailure(0);
+      expect(status).toBe('error');
+      expect(message).toContain('Could not reach');
+      expect(message).toContain('try again');
+    });
+
+    it('maps server errors and unknown statuses to an honest retry error', () => {
+      expect(resolveLinkLoadFailure(500).status).toBe('error');
+      expect(resolveLinkLoadFailure(500).message).toContain('try again');
+      expect(resolveLinkLoadFailure(418).status).toBe('error');
+      expect(resolveLinkLoadFailure(400).message).toContain('invalid');
+      expect(resolveLinkLoadFailure(429).message).toContain('wait a moment');
+    });
+
+    it('never invents meeting details: the mapper takes no slug and returns no title', () => {
+      // The signature is (status, serverMessage?) — there is no slug input,
+      // so nothing can be derived from it, and no status returns a title.
+      for (const status of [0, 400, 404, 410, 429, 500, 418]) {
+        const { message } = resolveLinkLoadFailure(status);
+        expect(message).not.toContain('Strategy Session');
+        expect(message).not.toContain('min');
+      }
+    });
+  });
+
+  describe('applyBookingLinkResponse isActive merge (paused link = dead link)', () => {
+    const seed = {
+      slug: 'strategy-session',
+      title: '30 Min Strategy Session',
+      description: 'One-on-one session.',
+      duration: 30,
+      startHour: 9,
+      endHour: 17,
+      availableDays: [1, 2, 3, 4, 5],
+      hostName: '',
+      hostEmail: '',
+    };
+
+    it('carries isActive=false through so the page can show the inactive state', () => {
+      const merged = applyBookingLinkResponse(seed, { ...seed, isActive: false });
+      expect(merged.isActive).toBe(false);
+    });
+
+    it('defaults isActive to true when the backend omits it (older payloads)', () => {
+      const merged = applyBookingLinkResponse(seed, { ...seed });
+      expect(merged.isActive).toBe(true);
+    });
+  });
+
+  describe('PublicBookingPage initial render keeps the honest loading placeholder', () => {
+    it('does not show a dead-link error state before the fetch resolves', () => {
+      const html = renderToStaticMarkup(
+        <PublicBookingPage params={Promise.resolve({ slug: 'dead-link-xyz' })} />,
+      );
+
+      // Seeded placeholder layout while loading (existing behaviour kept)…
+      expect(html).toContain('Select a Date &amp; Time');
+      // …but no dead-link error copy before any fetch result.
+      expect(html).not.toContain('Booking link not found');
+      expect(html).not.toContain('This booking link is inactive');
+      expect(html).not.toContain("Couldn't load this booking link");
     });
   });
 
