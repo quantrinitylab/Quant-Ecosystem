@@ -17,7 +17,6 @@ import marketplaceRoutes from './routes/marketplace';
 import templatesRoutes from './routes/templates';
 import analyticsRoutes from './routes/analytics';
 import versioningRoutes from './routes/versioning';
-import permissionsRoutes from './routes/permissions';
 import collaborationRoutes from './routes/collaboration';
 import trainingRoutes from './routes/training';
 import federationRoutes from './routes/federation';
@@ -184,7 +183,6 @@ export async function buildApp(config?: AppConfig) {
   await app.register(templatesRoutes, { prefix: '/templates' });
   await app.register(analyticsRoutes, { prefix: '/analytics' });
   await app.register(versioningRoutes, { prefix: '/versioning' });
-  await app.register(permissionsRoutes, { prefix: '/permissions' });
   await app.register(collaborationRoutes, { prefix: '/collaboration' });
   await app.register(trainingRoutes, { prefix: '/training' });
   await app.register(federationRoutes, { prefix: '/federation' });

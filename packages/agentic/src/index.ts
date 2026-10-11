@@ -27,7 +27,6 @@ export * from './monitoring/agent-health.js';
 export * from './logging/agent-logs.js';
 export * from './workflows/workflow-engine.js';
 export * from './collaboration/agent-collaboration.js';
-export * from './permissions/agent-permissions.js';
 export * from './analytics/agent-analytics.js';
 export * from './federation/agent-federation.js';
 export * from './marketplace/agent-marketplace.js';

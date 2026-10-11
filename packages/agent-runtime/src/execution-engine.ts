@@ -82,6 +82,17 @@ export class ExecutionEngine {
 
       if (!hasPermission) {
         step.status = 'skipped';
+        // Honest denial: record WHY the step was skipped instead of a silent
+        // skip, so callers and the audit trail can see the permission decision.
+        const denial: ToolExecutionResult = {
+          success: false,
+          error: `Permission denied: agent '${agentId}' lacks '${requiredPermission}' for tool '${step.toolName}' (step tier '${step.tier}')`,
+          undoable: false,
+        };
+        step.result = denial;
+        auditEntries.push(
+          `permission-denied: step '${step.id}' (tool '${step.toolName}') skipped — agent '${agentId}' lacks '${requiredPermission}'`,
+        );
         continue;
       }
 
