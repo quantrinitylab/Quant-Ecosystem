@@ -471,9 +471,9 @@ ROUND-2 REGRESSION (2026-10-11 ~14:40–15:25 IST, LANE-1, branch lane1-audit-00
 - [ ] FINDING P3: divider lines in classic-inbox groups-lens list on mobile | expected: no divider lines (locked rule) | actual: divide-y divide-[var(--quant-surface-elevated)] + border-t below md: (disabled on desktop via md:divide-y-0) | evidence: apps/quantmail/src/app/page.tsx:3658, :3764, :3770 — pre-existing (commit f0edb21c), NOT a regression. Left unassigned (no P0/P1 this round); fold into next mail fix wave.
 
 ## QM-SCREEN-005 — Thread / reply / attachments / participants / related context
-Status: [x] DONE
-Owner: Track A screen-audit subagent
-Branch: architecture/quant-company-system-v1
+Status: [~] (round-2 regression audit claimed 2026-10-11 ~15:40 IST)
+Owner: LANE-1 (round-2 regression)
+Branch: lane1-audit-005-r2
 Required: message state, thread ordering, reply/reply-all/forward, attachments, external sender/phishing indicators, Calendar/Drive/Contacts/QuantGit relations, Quanty evidence + draft diff, realtime and offline reconciliation.
 Dependencies: QM-WORK-004.
 Track A audit (2026-10-10, web code: ConversationalThreadView.tsx 3493 lines + hooks; live thread NEEDS-AUTH):
