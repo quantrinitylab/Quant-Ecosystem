@@ -1,6 +1,5 @@
 import type { PrismaClient, Message } from '@prisma/client';
 import { Prisma, MessageType } from '@prisma/client';
-import * as crypto from 'node:crypto';
 import { createAppError } from '@quant/server-core';
 import { StorageClient, resolveStorageConfigFromEnv } from '@quant/storage';
 import { PrismaOutboxService, type OutboxService } from './outbox.service';
@@ -76,19 +75,46 @@ export interface PaginatedResult<T> {
   hasPrev: boolean;
 }
 
-export interface RecipientPublicKey {
-  userId: string;
-  publicKey: string;
-}
+/**
+ * QC-F-022: this service is a SERVER-SIDE message store — it receives and
+ * persists whatever `content` string the caller supplies. It is therefore
+ * NOT an end-to-end-encryption path, and it must never pretend to be one.
+ *
+ * The previous API offered `encryption: 'e2e'` + `recipientPublicKeys`:
+ * the caller sent PLAINTEXT to the server, the server generated the
+ * session key and encrypted on the server. Anyone with server access (or
+ * a server compromise) saw every "E2E" plaintext and session key — the
+ * exact thing E2EE exists to prevent. That server-side encryption has
+ * been removed entirely (no `encryptForRecipients`, no key handling here).
+ *
+ * Real E2EE in QuantChat is client-side only: the client encrypts with
+ * `@quant/encryption` and the server relays/stores only opaque
+ * ciphertext via the zero-knowledge relay (`backend/routes/e2ee.ts`,
+ * `backend/lib/e2ee-relay.ts`). A client may also store an already
+ * client-encrypted ciphertext string as `content` — the server treats it
+ * as opaque text and never sees the plaintext in that flow either.
+ *
+ * Any caller that still asks THIS service to perform "e2e" encryption
+ * (a runtime `encryption` or `recipientPublicKeys` property, which the
+ * typed input no longer offers) is rejected fail-closed below, before
+ * anything is persisted — never silently downgraded to plaintext storage
+ * under an E2EE label, and never "encrypted" on the server.
+ */
+export const E2EE_REQUIRES_CLIENT_SIDE_CODE = 'E2EE_REQUIRES_CLIENT_SIDE_ENCRYPTION';
 
-export interface EncryptedPayload {
-  ciphertext: string;
-  nonce: string;
-  authTag: string;
-  encryptedKeys: Array<{
-    recipientId: string;
-    encryptedKey: string;
-  }>;
+export function assertNoServerSideE2eeRequest(input: unknown): void {
+  if (!input || typeof input !== 'object') return;
+  const extra = input as { encryption?: unknown; recipientPublicKeys?: unknown };
+  const asksForE2e = extra.encryption !== undefined && extra.encryption !== null;
+  const suppliesKeys =
+    extra.recipientPublicKeys !== undefined && extra.recipientPublicKeys !== null;
+  if (asksForE2e || suppliesKeys) {
+    throw createAppError(
+      'End-to-end encryption must happen on the client; this server-side message service never encrypts plaintext. Encrypt with the client E2EE engine and relay/store only ciphertext via the /e2ee relay.',
+      400,
+      E2EE_REQUIRES_CLIENT_SIDE_CODE,
+    );
+  }
 }
 
 export interface SendMessageInput {
@@ -100,8 +126,8 @@ export interface SendMessageInput {
   replyToId?: string;
   metadata?: Record<string, unknown>;
   disappearMode?: 'off' | 'after_view' | '24h' | '7d' | '30d';
-  encryption?: 'e2e';
-  recipientPublicKeys?: RecipientPublicKey[];
+  // QC-F-022: deliberately NO `encryption` / `recipientPublicKeys` fields.
+  // See the block comment above — E2EE is client-side only.
 }
 
 export class MessageService {
@@ -158,72 +184,13 @@ export class MessageService {
     return this.storage;
   }
 
-  /**
-   * Encrypt plaintext for multiple recipients using AES-256-GCM with a
-   * random session key, encrypted per-recipient with their public key.
-   */
-  encryptForRecipients(
-    plaintext: string,
-    recipientPublicKeys: RecipientPublicKey[],
-  ): EncryptedPayload {
-    // Generate random AES-256 session key
-    const sessionKey = crypto.randomBytes(32);
-    const nonce = crypto.randomBytes(12);
-
-    // Encrypt the plaintext with AES-256-GCM
-    const cipher = crypto.createCipheriv('aes-256-gcm', sessionKey, nonce);
-    const ciphertext = Buffer.concat([
-      cipher.update(Buffer.from(plaintext, 'utf-8')),
-      cipher.final(),
-    ]);
-    const authTag = cipher.getAuthTag();
-
-    // Encrypt the session key for each recipient using their public key
-    const encryptedKeys = recipientPublicKeys.map((recipient) => {
-      const publicKeyDer = Buffer.from(recipient.publicKey, 'base64');
-      const publicKeyObj = crypto.createPublicKey({
-        key: publicKeyDer,
-        format: 'der',
-        type: 'spki',
-      });
-      const encryptedKey = crypto.publicEncrypt(
-        {
-          key: publicKeyObj,
-          padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
-          oaepHash: 'sha256',
-        },
-        sessionKey,
-      );
-      return {
-        recipientId: recipient.userId,
-        encryptedKey: encryptedKey.toString('base64'),
-      };
-    });
-
-    // Zero the session key after use to prevent memory leakage
-    sessionKey.fill(0);
-
-    return {
-      ciphertext: ciphertext.toString('base64'),
-      nonce: nonce.toString('base64'),
-      authTag: authTag.toString('base64'),
-      encryptedKeys,
-    };
-  }
-
   async sendMessage(input: SendMessageInput): Promise<Message> {
-    const {
-      conversationId,
-      senderId,
-      content,
-      type,
-      mediaUrl,
-      replyToId,
-      metadata,
-      disappearMode,
-      encryption,
-      recipientPublicKeys,
-    } = input;
+    // QC-F-022: fail closed before any lookup or persistence if a runtime
+    // caller still asks this server-side service to do "e2e" encryption.
+    assertNoServerSideE2eeRequest(input);
+
+    const { conversationId, senderId, content, type, mediaUrl, replyToId, metadata, disappearMode } =
+      input;
 
     // Verify user is a member of the conversation
     const membership = await this.prisma.conversationMember.findFirst({
@@ -261,23 +228,11 @@ export class MessageService {
       storedMetadata.snap = { ...snapMeta, durationSec };
     }
 
-    let storedContent = content;
-
-    // When encryption is 'e2e', encrypt the content for recipients. This check
-    // runs BEFORE any persistence: an E2EE send missing recipient public keys
-    // throws here, so neither the Message nor a MessageOutbox row is ever
-    // written (Req 7.5, 7.6, 16.1, 16.2).
-    if (encryption === 'e2e') {
-      if (!recipientPublicKeys || recipientPublicKeys.length === 0) {
-        throw createAppError(
-          'Recipient public keys required for E2E encryption',
-          400,
-          'MISSING_RECIPIENT_KEYS',
-        );
-      }
-      const encryptedPayload = this.encryptForRecipients(content, recipientPublicKeys);
-      storedContent = JSON.stringify(encryptedPayload);
-    }
+    // Stored exactly as supplied. If the caller client-encrypted the
+    // content before sending, this is opaque ciphertext to the server;
+    // otherwise it is ordinary server-stored plaintext (the honest,
+    // disclosed non-E2EE path) — never relabelled as E2EE (QC-F-022).
+    const storedContent = content;
 
     // Compute the recipient set: all active conversation members (leftAt: null)
     // except the sender (design Algorithm 2).
@@ -505,10 +460,11 @@ export class MessageService {
 
     const conversationIds = memberships.map((m: { conversationId: string }) => m.conversationId);
 
-    // NOTE: Messages with E2E encryption store ciphertext in the content field and cannot
-    // be searched server-side. A separate metadata index is needed for searching encrypted
-    // messages (e.g., client-side search or a dedicated encrypted search index).
-    // For now, we exclude messages whose content looks like E2E encrypted payloads.
+    // NOTE: A message whose content is CLIENT-side ciphertext (encrypted
+    // before it reached this server — QC-F-022) cannot be searched
+    // server-side; the blind index (routes/search.ts) covers that case.
+    // For now, we exclude messages whose content looks like a ciphertext
+    // payload from this plaintext search.
     const where = {
       conversationId: { in: conversationIds },
       isDeleted: false,

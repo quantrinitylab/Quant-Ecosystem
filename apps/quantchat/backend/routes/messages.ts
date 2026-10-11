@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError, enableIdempotency } from '@quant/server-core';
-import { MessageService } from '../services/message.service';
+import { MessageService, assertNoServerSideE2eeRequest } from '../services/message.service';
 import { publishConversationEvent } from '../services/realtime-publisher';
 
 const sendMessageSchema = z.object({
@@ -17,6 +17,15 @@ const sendMessageSchema = z.object({
   // by zod, so snaps were stored as ordinary permanent media and the
   // consumeSnap endpoint could never recognise them as snaps.
   disappearMode: z.enum(['off', 'after_view', '24h', '7d', '30d']).optional(),
+  // QC-F-022: captured ONLY so they can be rejected, never used. Zod would
+  // otherwise silently strip an `encryption: 'e2e'` / `recipientPublicKeys`
+  // request and store the plaintext as an ordinary message while the
+  // caller believes it was end-to-end encrypted. The handler (and the
+  // service, defence-in-depth) reject any presence of either field with
+  // E2EE_REQUIRES_CLIENT_SIDE_ENCRYPTION — E2EE is client-side only, via
+  // the /e2ee ciphertext relay.
+  encryption: z.unknown().optional(),
+  recipientPublicKeys: z.unknown().optional(),
 });
 
 const editMessageSchema = z.object({
@@ -43,6 +52,10 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
     if (!userId) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
+
+    // QC-F-022: reject a server-side "e2e" request before anything is
+    // persisted (the service repeats this guard for non-HTTP callers).
+    assertNoServerSideE2eeRequest(parseResult.data);
 
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new MessageService(prisma as never);
