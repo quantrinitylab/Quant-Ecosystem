@@ -7,7 +7,7 @@
 //   Mail: Inbox, Sent, Archive
 //   Calendar: Feed, Month, Week, Trackers, Schedule
 //   Drive: Home, Feed, AI Memory, Vault
-//   Contacts: Home, Favorites, Groups, Companies, AI Dedup
+//   Contacts: Home, Favorites, Groups, Companies, Dedup
 //   QuantGit (Gemini-approved): Quanty AI (logo-only) -> Feed -> Repos -> PRs -> Issues
 // Badge counts are NEVER hardcoded here — the sidebar passes real counts in
 // via props; a tab with no real count renders no badge at all.
@@ -916,7 +916,7 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
       },
       {
         id: 'dedup',
-        label: 'AI Dedup',
+        label: 'Dedup',
         icon: DedupWandIcon,
         targetPath: '/contacts',
         queryParam: { key: 'tab', value: 'dedup' },

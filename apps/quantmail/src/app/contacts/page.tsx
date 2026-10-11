@@ -56,7 +56,7 @@ type ContactsTabId = 'all' | 'favorites' | 'groups' | 'companies' | 'dedup';
 
 function SubviewTabNav({ activeTab, onTabChange }: { activeTab: ContactsTabId; onTabChange: (tab: ContactsTabId) => void }) {
   // SIA-P2-10: on desktop (md+) the pinned DesktopContextSidebar context rail
-  // already offers Home/Favorites/Groups/Companies/AI Dedup for this pillar —
+  // already offers Home/Favorites/Groups/Companies/Dedup for this pillar —
   // rendering this strip there too duplicated Companies/Groups/Dedup twice on
   // the same screen. Hide it at md+, keep it as the mobile nav.
   return (
@@ -899,7 +899,7 @@ export default function ContactsPage() {
                     Companies/Dedup/Groups sub-views (previously reachable only
                     by hand-typed ?tab= URLs).
                     SIA-P2-10: md:hidden — on desktop the pinned sidebar rail
-                    already lists Companies/Groups/AI Dedup; showing them here
+                    already lists Companies/Groups/Dedup; showing them here
                     too duplicated the same destinations on one screen. */}
                 <div className="flex items-center gap-1.5 md:hidden">
                   {(['companies', 'dedup', 'groups'] as const).map((tab) => (

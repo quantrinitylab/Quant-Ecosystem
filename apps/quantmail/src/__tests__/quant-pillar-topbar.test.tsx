@@ -518,7 +518,7 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       expect(html).toContain('FastCDC Clean');
     });
 
-    it('renders Contacts sub-category lenses: All 8, VIPs 4, Teams, AI Dedup', () => {
+    it('renders Contacts sub-category lenses: All 8, VIPs 4, Teams, Dedup (honest non-AI label)', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" hideLensStrip={false} />);
 
       expect(html).toContain('All');
@@ -526,7 +526,9 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       expect(html).toContain('VIPs');
       expect(html).toContain('4');
       expect(html).toContain('Teams');
-      expect(html).toContain('AI Dedup');
+      // qm-ai-dupe-claim: duplicate detection is heuristics, not AI — no "AI Dedup" claim
+      expect(html).not.toContain('AI Dedup');
+      expect(html).toContain('Dedup');
     });
 
     it('renders QuantGit sub-category lenses: All Repos, Open PRs 1, Issues, CI Runs', () => {
