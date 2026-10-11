@@ -19,6 +19,12 @@ interface PlanPreview {
   steps: Array<{ stepId: string; toolId: string; params?: Record<string, unknown> }>;
 }
 
+interface HeldPlanInfo {
+  planId: string;
+  reason?: string;
+  steps: Array<{ stepId: string; toolId: string }>;
+}
+
 interface StreamState {
   isStreaming: boolean;
   toolCalls: ToolCall[];
@@ -26,7 +32,7 @@ interface StreamState {
   planDescription?: string;
   error?: string;
   completed: boolean;
-  confirmationRequired?: { stepId: string; toolId: string };
+  confirmationRequired?: HeldPlanInfo;
   rollbackInProgress: boolean;
   planPreview?: PlanPreview;
 }
@@ -45,18 +51,37 @@ export function AskQuantPanel({ className = '' }: AskQuantPanelProps) {
   const abortRef = useRef<AbortController | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  // Last non-dry-run request body, so the confirmation dialog can re-send
-  // it with explicit confirmation (Accept) or abort it (Reject).
-  const lastRequestRef = useRef<Record<string, unknown> | null>(null);
+
+  /**
+   * Map a failed HTTP response to an honest, actionable message (instead of
+   * a generic "Failed to connect"). 401 means the backend's real JWT
+   * verification rejected the session — the user must sign in again.
+   */
+  const describeRequestError = useCallback(async (response: Response): Promise<string> => {
+    if (response.status === 401) {
+      return 'Your session expired — please sign in again.';
+    }
+    try {
+      const payload = (await response.clone().json()) as {
+        error?: string | { message?: string };
+      };
+      const message =
+        typeof payload.error === 'string'
+          ? payload.error
+          : payload.error?.message;
+      if (typeof message === 'string' && message.trim()) {
+        return response.status === 503
+          ? `Agent backend unavailable: ${message}`
+          : message;
+      }
+    } catch {
+      // Fall through to the generic message below.
+    }
+    return 'Failed to connect';
+  }, []);
 
   const sendRequest = useCallback(
     async (requestBody: Record<string, unknown>) => {
-      // Remember the last real (non-dry-run) request so a confirmation
-      // dialog can re-send it with explicit user confirmation.
-      if (!requestBody.dryRun) {
-        lastRequestRef.current = requestBody;
-      }
-
       setStreamState({
         isStreaming: true,
         toolCalls: [],
@@ -82,6 +107,10 @@ export function AskQuantPanel({ className = '' }: AskQuantPanelProps) {
             isStreaming: false,
             error: 'Failed to connect',
           }));
+          // Replace the generic message with the actionable one once parsed.
+          describeRequestError(response).then((message) => {
+            setStreamState((prev) => ({ ...prev, error: message }));
+          });
           return;
         }
 
@@ -120,7 +149,7 @@ export function AskQuantPanel({ className = '' }: AskQuantPanelProps) {
         }
       }
     },
-    [],
+    [describeRequestError],
   );
 
   const handleSubmit = useCallback(
@@ -146,10 +175,13 @@ export function AskQuantPanel({ className = '' }: AskQuantPanelProps) {
       error: undefined,
     }));
 
-    // The user reviewed the dry-run plan and clicked Execute — this is the
-    // explicit confirmation. The server only runs confirmation-gated tools
-    // when it sees confirmed: true.
-    await sendRequest({ input: trimmed, dryRun: false, confirmed: true });
+    // The user reviewed the dry-run plan and clicked Execute. Execution goes
+    // through the backend's held-plan flow: tier-1 steps run immediately,
+    // tier-2+ steps are held server-side and only resume via an explicit
+    // POST /api/agentic/confirm/:planId after the user accepts the
+    // confirmation dialog. No client-asserted `confirmed` flag is sent —
+    // the server never trusts the client's word that a plan was reviewed.
+    await sendRequest({ input: trimmed, dryRun: false });
   }, [input, sendRequest]);
 
   const handleSSEEvent = (eventType: string, data: Record<string, unknown>) => {
@@ -242,12 +274,22 @@ export function AskQuantPanel({ className = '' }: AskQuantPanelProps) {
         break;
       }
       case 'confirmation_required': {
-        const stepId = data.stepId as string;
-        const toolId = data.toolId as string;
-        setStreamState((prev) => ({
-          ...prev,
-          confirmationRequired: { stepId, toolId },
-        }));
+        // The backend held a tier-2+ plan server-side and issued a planId.
+        // Approval happens ONLY through POST /api/agentic/confirm/:planId —
+        // never by re-sending the request with a client-asserted flag.
+        const planId = typeof data.planId === 'string' ? data.planId : '';
+        const reason = typeof data.reason === 'string' ? data.reason : undefined;
+        const steps = Array.isArray(data.steps)
+          ? (data.steps as Array<{ stepId?: string; toolId?: string }>)
+              .filter((s) => typeof s.stepId === 'string' && typeof s.toolId === 'string')
+              .map((s) => ({ stepId: s.stepId as string, toolId: s.toolId as string }))
+          : [];
+        if (planId) {
+          setStreamState((prev) => ({
+            ...prev,
+            confirmationRequired: { planId, reason, steps },
+          }));
+        }
         break;
       }
       case 'rollback_start': {
@@ -325,36 +367,99 @@ export function AskQuantPanel({ className = '' }: AskQuantPanelProps) {
     }
   }, [voiceActive, sendRequest]);
 
+  /**
+   * Resolve the held plan via the explicit confirm round-trip. Accepting
+   * resumes the server-held plan (single-use planId, owner-bound on the
+   * backend); rejecting tells the backend to drop it. Nothing executes
+   * unless the backend's /agentic/confirm/:planId says so.
+   */
   const handleConfirmation = useCallback(
-    (accepted: boolean) => {
+    async (accepted: boolean) => {
       const pending = streamState.confirmationRequired;
       // Always dismiss the dialog first.
       setStreamState((prev) => ({ ...prev, confirmationRequired: undefined }));
       if (!pending) return;
 
-      if (accepted) {
-        // User accepted: re-send the original request with this step
-        // explicitly confirmed. The server will only run the gated tool
-        // when it sees the step ID in confirmedSteps.
-        const base = lastRequestRef.current ?? { input: input.trim(), dryRun: false };
-        const prevSteps = Array.isArray(base.confirmedSteps) ? base.confirmedSteps : [];
-        void sendRequest({
-          ...base,
-          dryRun: false,
-          confirmed: true,
-          confirmedSteps: [...prevSteps, pending.stepId],
-        });
-      } else {
-        // User rejected: abort the in-flight stream so nothing else runs.
-        abortRef.current?.abort();
+      setStreamState((prev) => ({ ...prev, isStreaming: true, error: undefined }));
+
+      let response: Response;
+      try {
+        response = await apiFetchRaw(
+          `/api/agentic/confirm/${encodeURIComponent(pending.planId)}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ approved: accepted }),
+            signal: abortRef.current?.signal ?? undefined,
+          },
+        );
+      } catch (err) {
         setStreamState((prev) => ({
           ...prev,
           isStreaming: false,
-          error: `Step ${pending.stepId} was rejected by the user. Execution stopped.`,
+          error: err instanceof Error ? err.message : 'Confirmation request failed',
+        }));
+        return;
+      }
+
+      if (!response.ok) {
+        const message = await describeRequestError(response);
+        setStreamState((prev) => ({ ...prev, isStreaming: false, error: message }));
+        return;
+      }
+
+      if (!accepted) {
+        setStreamState((prev) => ({
+          ...prev,
+          isStreaming: false,
+          completed: true,
+          error: 'Plan rejected by the user. Nothing was executed.',
+        }));
+        return;
+      }
+
+      // Approved: the backend executed the held plan. Render the results as
+      // completed tool calls so the user sees exactly what ran.
+      try {
+        const payload = (await response.json()) as {
+          success?: boolean;
+          data?: { results?: Array<{ toolId?: string; success?: boolean; data?: unknown; error?: string; latencyMs?: number }> };
+        };
+        const results = payload.data?.results ?? [];
+        const toolCalls: ToolCall[] = results.map((r, i) => ({
+          id: `confirmed-step-${i}`,
+          name: typeof r.toolId === 'string' ? r.toolId : 'tool',
+          status: r.success ? ('completed' as const) : ('failed' as const),
+          arguments: {},
+          result: r.data,
+          duration: typeof r.latencyMs === 'number' ? r.latencyMs : undefined,
+          error: r.error,
+        }));
+        const workflowSteps: WorkflowStep[] = results.map((r, i) => ({
+          stepId: `confirmed-step-${i}`,
+          toolId: typeof r.toolId === 'string' ? r.toolId : 'tool',
+          status: r.success ? ('completed' as const) : ('failed' as const),
+          completedAt: Date.now(),
+          result: r.data,
+          error: r.error,
+        }));
+        setStreamState((prev) => ({
+          ...prev,
+          isStreaming: false,
+          completed: true,
+          planPreview: undefined,
+          toolCalls,
+          workflowSteps,
+        }));
+      } catch {
+        setStreamState((prev) => ({
+          ...prev,
+          isStreaming: false,
+          error: 'Plan approved, but the result could not be read.',
         }));
       }
     },
-    [streamState.confirmationRequired, input, sendRequest],
+    [streamState.confirmationRequired, describeRequestError],
   );
 
   return (
@@ -444,10 +549,21 @@ export function AskQuantPanel({ className = '' }: AskQuantPanelProps) {
             <h3 className="text-sm font-semibold mb-1 text-yellow-700 dark:text-yellow-300">
               Confirmation Required
             </h3>
-            <p className="text-xs text-yellow-600 dark:text-yellow-400 mb-3">
-              Step {streamState.confirmationRequired.stepId} wants to execute{' '}
-              <strong>{streamState.confirmationRequired.toolId}</strong>. This action requires elevated permissions.
+            <p className="text-xs text-yellow-600 dark:text-yellow-400 mb-2">
+              This plan wants to run actions that need your approval.
+              {streamState.confirmationRequired.reason && (
+                <> Reason: <strong>{streamState.confirmationRequired.reason}</strong></>
+              )}
             </p>
+            {streamState.confirmationRequired.steps.length > 0 && (
+              <ul className="text-xs text-yellow-600 dark:text-yellow-400 mb-3 space-y-1">
+                {streamState.confirmationRequired.steps.map((step) => (
+                  <li key={step.stepId}>
+                    {step.stepId}: <strong>{step.toolId}</strong>
+                  </li>
+                ))}
+              </ul>
+            )}
             <div className="flex gap-2">
               <button
                 type="button"
