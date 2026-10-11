@@ -493,14 +493,14 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
                     exit={{ opacity: 0, y: 8, scale: 0.95 }}
                     transition={{ duration: 0.15 }}
                     role="listbox"
-                    aria-label="Sovereign voice personas list"
+                    aria-label="Voice personas list"
                     className="absolute left-0 mt-2 w-80 rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl p-2 z-50 text-xs"
                   >
                     <div className="px-3 py-2 border-b border-zinc-800 flex items-center justify-between">
                       <span className="font-semibold text-zinc-200 uppercase tracking-wider text-[10px]">
-                        Sovereign Voice Personas
+                        Voice Personas
                       </span>
-                      <span className="text-[10px] text-zinc-400">4 Trademarks</span>
+                      <span className="text-[10px] text-zinc-400">4 Voices</span>
                     </div>
                     {/* Honest voice attribution (F-046): each persona changes the
                         actual spoken voice — a dedicated voice on the server TTS
@@ -536,10 +536,13 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
                               <div className="min-w-0">
                                 <div className="font-semibold flex items-center gap-1.5">
                                   <span>{p.name}</span>
-                                  <span className="text-[10px] text-zinc-400 font-normal">
-                                    • {p.cadence}
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-zinc-300 font-normal">
+                                    {p.badge}
                                   </span>
                                 </div>
+                                <p className="text-[10px] text-zinc-400 font-normal mt-0.5">
+                                  • {p.cadence}
+                                </p>
                                 <p className="text-[11px] text-zinc-400 line-clamp-2 mt-0.5 leading-relaxed">
                                   {p.description}
                                 </p>

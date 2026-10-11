@@ -22,10 +22,10 @@ import { getVoiceStatus, VOICE_STATUS_STATES } from '../voice-status';
 
 describe('QuantAI Advanced Voice Mode Parity Suite (Task W39-A03)', () => {
   // --------------------------------------------------------------------------
-  // 1. Sovereign Voice Personas Architecture (CEO Astra Trademark Audit)
+  // 1. Voice Personas Architecture
   // --------------------------------------------------------------------------
-  describe('1. Sovereign Voice Personas Specifications', () => {
-    it('defines exactly the 4 trademark sovereign personas: Aura, Vesper, Zenith, Zephyr', () => {
+  describe('1. Voice Personas Specifications', () => {
+    it('defines exactly the 4 voice personas: Aura, Vesper, Zenith, Zephyr', () => {
       expect(PERSONA_LIST).toHaveLength(4);
       const personaIds = PERSONA_LIST.map((p) => p.id);
       expect(personaIds).toEqual(['aura', 'vesper', 'zenith', 'zephyr']);
@@ -91,6 +91,67 @@ describe('QuantAI Advanced Voice Mode Parity Suite (Task W39-A03)', () => {
       expect(DEFAULT_VOICE_CONFIG.autoInterrupt).toBe(true);
       expect(DEFAULT_VOICE_CONFIG.noiseSuppression).toBe(true);
       expect(DEFAULT_VOICE_CONFIG.echoCancellation).toBe(true);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // F-049: dead marketing metadata + unverified claims removal
+  // --------------------------------------------------------------------------
+  describe('F-049: no dead persona metadata, no unverified trademark claims', () => {
+    it('has no frequencyProfile field on any persona (dead marketing metadata removed)', () => {
+      for (const p of PERSONA_LIST) {
+        expect(p).not.toHaveProperty('frequencyProfile');
+        expect('frequencyProfile' in p).toBe(false);
+      }
+      expect(JSON.stringify(PERSONA_LIST)).not.toContain('frequencyProfile');
+    });
+
+    it('carries no trademark/audit claims in the persona catalog copy', () => {
+      const catalogText = JSON.stringify(PERSONA_LIST).toLowerCase();
+      expect(catalogText).not.toContain('trademark');
+      expect(catalogText).not.toContain('audited');
+    });
+
+    it('keeps every field the UI actually consumes after the removal', () => {
+      for (const p of PERSONA_LIST) {
+        expect(typeof p.name).toBe('string');
+        expect(p.name.length).toBeGreaterThan(0);
+        expect(typeof p.description).toBe('string');
+        expect(typeof p.tagline).toBe('string');
+        expect(typeof p.gradient).toBe('string');
+        expect(typeof p.accentColor).toBe('string');
+        expect(typeof p.defaultPitch).toBe('number');
+        expect(typeof p.defaultRate).toBe('number');
+        expect(typeof p.cadence).toBe('string');
+        expect(typeof p.sampleUtterance).toBe('string');
+        expect(typeof p.avatar).toBe('string');
+        expect(typeof p.badge).toBe('string');
+        expect(p.badge.length).toBeGreaterThan(0);
+        for (const st of ['idle', 'listening', 'thinking', 'speaking'] as const) {
+          expect(p.orbGradient[st]).toHaveLength(3);
+        }
+      }
+    });
+
+    it('gives every persona a unique, non-empty badge chip for the picker', () => {
+      const badges = PERSONA_LIST.map((p) => p.badge);
+      expect(new Set(badges).size).toBe(PERSONA_LIST.length);
+      for (const b of badges) expect(b.trim().length).toBeGreaterThan(0);
+    });
+
+    it('renders the voice modal with no trademark copy in default markup', () => {
+      const html = renderToStaticMarkup(
+        React.createElement(VoiceModeModal, { isOpen: true, onClose: vi.fn() }),
+      );
+      expect(html.toLowerCase()).not.toContain('trademark');
+    });
+
+    it('falls back gracefully for an unknown persona id (no crash after schema change)', () => {
+      const unknown = SOVEREIGN_PERSONAS['unknown' as VoicePersonaId];
+      expect(unknown).toBeUndefined();
+      expect(SOVEREIGN_PERSONAS['unknown' as VoicePersonaId] || SOVEREIGN_PERSONAS.aura).toBe(
+        SOVEREIGN_PERSONAS.aura,
+      );
     });
   });
 

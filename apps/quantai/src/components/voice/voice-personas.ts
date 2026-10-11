@@ -1,7 +1,7 @@
 // ============================================================================
-// QuantAI — Sovereign Voice Personas & Voice Engine Specifications
+// QuantAI — Voice Personas & Voice Engine Specifications
 // Task W39-A03: Real-Time Advanced Voice Mode Parity
-// Trademark Audited Personas: Aura, Vesper, Zenith, Zephyr
+// Voice Personas: Aura, Vesper, Zenith, Zephyr
 // ============================================================================
 
 export type VoiceState = 'idle' | 'listening' | 'thinking' | 'speaking';
@@ -26,7 +26,6 @@ export interface VoicePersona {
   defaultPitch: number; // 0.5 to 2.0 (default per persona)
   defaultRate: number; // 0.8 to 1.5 (default per persona)
   cadence: string; // 'warm & conversational', 'crisp & analytical', etc.
-  frequencyProfile: string; // 'Warm harmonic mid-tones', 'Crystal high-fidelity precision', etc.
   sampleUtterance: string; // Preview sample speech transcript
 }
 
@@ -50,7 +49,6 @@ export const SOVEREIGN_PERSONAS: Record<VoicePersonaId, VoicePersona> = {
     defaultPitch: 1.05,
     defaultRate: 1.0,
     cadence: 'Warm & Conversational',
-    frequencyProfile: 'Harmonic mid-low resonance with soft sibilance attenuation',
     sampleUtterance:
       "Hello there. I'm Aura. I'm right here with you—take all the time you need, and let's think through this together.",
   },
@@ -73,8 +71,6 @@ export const SOVEREIGN_PERSONAS: Record<VoicePersonaId, VoicePersona> = {
     defaultPitch: 0.95,
     defaultRate: 1.1,
     cadence: 'Crisp & Analytical',
-    frequencyProfile:
-      'High dynamic clarity with balanced upper harmonics and low latency modulation',
     sampleUtterance:
       "Vesper online. Data feeds synchronized. Let's dissect the architecture and pinpoint the optimal vectors.",
   },
@@ -97,8 +93,6 @@ export const SOVEREIGN_PERSONAS: Record<VoicePersonaId, VoicePersona> = {
     defaultPitch: 0.85,
     defaultRate: 0.95,
     cadence: 'Measured & Commanding',
-    frequencyProfile:
-      'Deep baritone resonance with linear phase reproduction and zero acoustic ringing',
     sampleUtterance:
       'Greetings. Zenith at your command. Let us evaluate the strategic horizon and execute with absolute conviction.',
   },
@@ -121,8 +115,6 @@ export const SOVEREIGN_PERSONAS: Record<VoicePersonaId, VoicePersona> = {
     defaultPitch: 1.15,
     defaultRate: 1.15,
     cadence: 'Dynamic & Playful',
-    frequencyProfile:
-      'Vibrant transient response with rapid pitch contours and expressive modulation',
     sampleUtterance:
       'Hey! Zephyr ready to roll! What wild idea or impossible puzzle are we cracking open today?',
   },
