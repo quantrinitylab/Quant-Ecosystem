@@ -1,6 +1,10 @@
 // ============================================================================
 // QuantCalendar — Booking Utilities (RFC 5545 ICS & Google Calendar URL)
 // Tasks W39-CAL01 & W39-CAL02
+//
+// NOTE: applyBookingLinkResponse lives here (NOT in page.tsx) because
+// Next.js build-time type validation rejects non-page exports from
+// page.tsx ("X is not a valid Page export field").
 // ============================================================================
 
 // Generate Google Calendar deep link
@@ -80,4 +84,44 @@ export function generateIcsContent(event: {
     'END:VEVENT',
     'END:VCALENDAR',
   ].join('\r\n');
+}
+
+export interface BookingLinkDetails {
+  slug: string;
+  title: string;
+  description: string;
+  duration: number; // in minutes
+  startHour: number;
+  endHour: number;
+  availableDays: number[];
+  // Real host identity from the backend booking-link record.
+  // Empty string = unknown host (rendered honestly as "unknown host").
+  hostName: string;
+  hostEmail: string;
+  hostAvatar?: string;
+}
+
+/**
+ * Merge a backend booking-link response into local meeting details.
+ * Host identity comes ONLY from the backend record — when the backend
+ * omits it, the result stays an honest "unknown" (''), never a hardcoded
+ * name. Pure function so the merge rule is unit-testable.
+ */
+export function applyBookingLinkResponse(
+  prev: BookingLinkDetails,
+  data: Record<string, any> | null | undefined,
+): BookingLinkDetails {
+  if (!data) return prev;
+  return {
+    ...prev,
+    slug: data.slug || prev.slug,
+    title: data.title || prev.title,
+    description: data.description || prev.description,
+    duration: data.duration || prev.duration,
+    startHour: data.startHour ?? prev.startHour,
+    endHour: data.endHour ?? prev.endHour,
+    availableDays: data.availableDays || prev.availableDays,
+    hostName: data.hostName || '',
+    hostEmail: data.hostEmail || '',
+  };
 }

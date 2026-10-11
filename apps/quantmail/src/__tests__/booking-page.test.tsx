@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import PublicBookingPage, { applyBookingLinkResponse } from '../app/calendar/booking/[slug]/page';
+import PublicBookingPage from '../app/calendar/booking/[slug]/page';
 import {
+  applyBookingLinkResponse,
   generateIcsContent,
   generateGoogleCalendarUrl,
 } from '../app/calendar/booking/[slug]/booking-utils';
