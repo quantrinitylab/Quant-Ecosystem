@@ -1303,7 +1303,7 @@ function DrivePageContent() {
          * Folder and Upload into it) plus the secondary Quanty / Duplicates
          * actions.
          */}
-        <div className="flex items-center gap-2 border-b border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-2 sm:px-8">
+        <div className="relative z-30 flex items-center gap-2 border-b border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-2 sm:px-8">
           {/* Breadcrumbs — hidden at root on mobile, where "My Drive" is redundant */}
           <nav
             className={`min-w-0 shrink items-center gap-1.5 text-xs text-[var(--quant-muted-foreground)] ${

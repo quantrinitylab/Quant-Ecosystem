@@ -5,12 +5,15 @@ import { Modal, Button } from '@quant/shared-ui';
 import type { ContactGroup } from '../../../types';
 
 const PRESET_COLORS = [
-  'var(--app-accent)',
+  // Contacts accent (amber) — the default. Must be real #rrggbb hex: the
+  // backend validates `color` strictly and rejects CSS var() references,
+  // which used to make every group save fail with "Failed to save group".
+  '#F59E0B',
   '#4E7BEE',
   '#10B981',
   '#EC4899',
   '#8B5CF6',
-  'var(--quant-warning)',
+  '#F97316',
   '#06B6D4',
   '#64748B',
 ];
@@ -33,7 +36,7 @@ export function ContactGroupModal({
   isSaving = false,
 }: ContactGroupModalProps) {
   const [name, setName] = useState('');
-  const [color, setColor] = useState<string | null>('var(--app-accent)');
+  const [color, setColor] = useState<string | null>('#F59E0B');
   const [emails, setEmails] = useState<string[]>([]);
   const [emailInput, setEmailInput] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -41,11 +44,11 @@ export function ContactGroupModal({
   useEffect(() => {
     if (group) {
       setName(group.name || '');
-      setColor(group.color || 'var(--app-accent)');
+      setColor(group.color || '#F59E0B');
       setEmails(group.emails || []);
     } else {
       setName('');
-      setColor('var(--app-accent)');
+      setColor('#F59E0B');
       setEmails([]);
     }
     setEmailInput('');
@@ -189,7 +192,7 @@ export function ContactGroupModal({
                 >
                   <span
                     className="w-1.5 h-1.5 rounded-full"
-                    style={{ backgroundColor: color || 'var(--app-accent)' }}
+                    style={{ backgroundColor: color || '#F59E0B' }}
                   />
                   {email}
                   <button

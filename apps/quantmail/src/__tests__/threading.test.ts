@@ -1409,6 +1409,38 @@ describe('threadMatchesQuery', () => {
     expect(threadMatchesQuery(flat, 'billing@vendor.example', ME)).toBe(true);
     expect(threadMatchesQuery(flat, 'payment', ME)).toBe(true);
   });
+
+  it('supports the from: operator against the sender address and name', () => {
+    const inbound = buildThread(
+      [
+        email({
+          id: 'i1',
+          subject: 'Standup',
+          from: { email: 'bob@example.com', name: 'Bob' },
+          to: [{ email: ME }],
+          bodyText: 'Notes attached',
+        }),
+      ],
+      ME,
+    );
+    expect(threadMatchesQuery(inbound, 'from:bob', ME)).toBe(true);
+    expect(threadMatchesQuery(inbound, 'from:bob@example.com', ME)).toBe(true);
+    expect(threadMatchesQuery(inbound, 'from:alice', ME)).toBe(false);
+    // from: on your own sent mail matches your address, not everyone else's.
+    expect(threadMatchesQuery(outbound(), 'from:kundan', ME)).toBe(true);
+    expect(threadMatchesQuery(outbound(), 'from:bob', ME)).toBe(false);
+  });
+
+  it('supports the to: operator against recipient addresses', () => {
+    expect(threadMatchesQuery(outbound(), 'to:alice', ME)).toBe(true);
+    expect(threadMatchesQuery(outbound(), 'to:startup.example', ME)).toBe(true);
+    expect(threadMatchesQuery(outbound(), 'to:bob', ME)).toBe(false);
+  });
+
+  it('ANDs operators with plain tokens', () => {
+    expect(threadMatchesQuery(outbound(), 'from:kundan budget', ME)).toBe(true);
+    expect(threadMatchesQuery(outbound(), 'from:bob budget', ME)).toBe(false);
+  });
 });
 
 /**
