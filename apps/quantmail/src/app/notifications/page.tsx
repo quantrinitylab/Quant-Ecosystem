@@ -110,7 +110,7 @@ export default function NotificationsPage() {
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <div className="flex h-full flex-col">
-        <div className="border-b border-[var(--quant-border)] p-4 sm:p-6">
+        <div className="p-4 sm:p-6">
           <div className="flex items-center justify-between gap-2">
             <div>
               <h1 className="flex items-center gap-2 text-lg font-semibold sm:text-xl">
@@ -194,7 +194,7 @@ export default function NotificationsPage() {
             {!isLoading && !error && notifications.length === 0 && (
               <EmptyState
                 title="No notifications"
-                description="When mail, calendar, drive, or security events need your attention, they will appear here."
+                description="When new mail arrives, a notification will appear here."
               />
             )}
 
@@ -212,11 +212,11 @@ export default function NotificationsPage() {
             )}
 
             {!isLoading && !error && visible.length > 0 && (
-              <ul className="overflow-hidden rounded-2xl border border-[var(--quant-border)]">
+              <ul className="space-y-2">
                 {visible.map((notification) => (
                   <li
                     key={notification.id}
-                    className={`border-b border-[var(--quant-border)] last:border-b-0 transition-colors ${
+                    className={`rounded-xl transition-colors ${
                       notification.isRead ? '' : 'bg-[var(--brand-primary)]/[0.04]'
                     }`}
                   >

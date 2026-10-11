@@ -76,6 +76,12 @@ vi.mock('../hooks/useInbox', () => ({
   }),
 }));
 
+// Mock the desktop-alert watcher (QM-SCREEN-015) for the same reason: it polls
+// via react-query, which has no provider in a static render.
+vi.mock('../hooks/useNewMailDesktopAlerts', () => ({
+  useNewMailDesktopAlerts: () => {},
+}));
+
 // Mock shared UI components
 vi.mock('@quant/shared-ui', () => ({
   PageTransition: ({ children }: { children: React.ReactNode }) => (

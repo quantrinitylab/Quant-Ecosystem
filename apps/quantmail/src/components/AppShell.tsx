@@ -31,6 +31,7 @@ const QuantyLiveAgent = dynamic(
   { ssr: false },
 );
 import { UndoSendProvider } from './UndoSendCountdownBar';
+import { useNewMailDesktopAlerts } from '../hooks/useNewMailDesktopAlerts';
 import { QuantPillarTopBar } from './QuantPillarTopBar';
 import { ContextBottomNavBar } from './ContextBottomNavBar';
 import { DesktopAppRail } from './DesktopAppRail';
@@ -112,6 +113,12 @@ export function AppShell({
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
+
+  // QM-SCREEN-015: the desktop-notification firing path behind the Settings
+  // "Desktop notifications" toggle. Polls the real notifications feed and fires
+  // one OS notification per new unread item while the tab is hidden; inert
+  // unless the user opted in and the browser granted permission.
+  useNewMailDesktopAlerts();
 
   // Dynamic theme engine with localStorage persistence (Task X20)
   const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark' | 'neon'>(theme);
