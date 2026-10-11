@@ -2,17 +2,27 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('@quant/server-core', () => ({
   createApp: vi.fn(),
-  createAppError: (message: string, statusCode: number, code: string) => {
-    const error = new Error(message) as Error & { statusCode: number; code: string };
+  createAppError: (
+    message: string,
+    statusCode: number,
+    code: string,
+    details?: Record<string, unknown>,
+  ) => {
+    const error = new Error(message) as Error & {
+      statusCode: number;
+      code: string;
+      details?: Record<string, unknown>;
+    };
     error.statusCode = statusCode;
     error.code = code;
+    if (details !== undefined) error.details = details;
     return error;
   },
 }));
 
 // Import after mocks so the route picks up the mocked createAppError.
 import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify';
-import adminAiProvidersRoutes from '../routes/admin-ai-providers';
+import adminAiProvidersRoutes, { isAdminRole } from '../routes/admin-ai-providers';
 import { DEFAULT_PROVIDER_ORDER } from '../services/ai-provider-settings.service';
 
 function makeMockPrisma() {
@@ -69,7 +79,8 @@ describe('/admin/ai/providers', () => {
     app.decorate('prisma', mock.prisma);
 
     // Map thrown errors to HTTP status (the real app has a global error
-    // handler; without it, ZodErrors surface as 500 here).
+    // handler; without it, ZodErrors surface as 500 here). Mirrors the
+    // server-core error handler: passes through code + details.
     app.setErrorHandler((error: any, _request: FastifyRequest, reply: FastifyReply) => {
       const status =
         typeof error.statusCode === 'number'
@@ -77,7 +88,14 @@ describe('/admin/ai/providers', () => {
           : error.name === 'ZodError'
             ? 400
             : 500;
-      reply.status(status).send({ success: false, error: { message: error.message } });
+      reply.status(status).send({
+        success: false,
+        error: {
+          code: error.code,
+          message: error.message,
+          ...(error.details !== undefined ? { details: error.details } : {}),
+        },
+      });
     });
 
     await app.register(adminAiProvidersRoutes);
@@ -100,8 +118,43 @@ describe('/admin/ai/providers', () => {
     expect(res.statusCode).toBe(403);
   });
 
+  // F-024 regression: the JWT carries the Prisma UserRole enum verbatim
+  // (uppercase), so the gate must accept 'ADMIN' and any case variant.
+  it.each(['Admin', 'aDmIn'])(
+    "GET allows mixed-case admin role '%s' (case-insensitive gate)",
+    async (role) => {
+      testAuth = { userId: 'admin-1', role };
+      const res = await app.inject({ method: 'GET', url: '/admin/ai/providers' });
+      expect(res.statusCode).toBe(200);
+    },
+  );
+
+  it('GET rejects the real uppercase USER role with 403', async () => {
+    testAuth = { userId: 'u1', role: 'USER' };
+    const res = await app.inject({ method: 'GET', url: '/admin/ai/providers' });
+    expect(res.statusCode).toBe(403);
+    const body = JSON.parse(res.body);
+    // Improvement: 403 names the missing capability without leaking internals.
+    expect(body.error.code).toBe('FORBIDDEN');
+    expect(body.error.details).toEqual({ required: 'admin' });
+    expect(JSON.stringify(body.error)).not.toMatch(/MODERATOR|Prisma|UserRole|JWT|role/i);
+    expect(Object.keys(body.error.details ?? {})).toEqual(['required']);
+  });
+
+  it('GET rejects missing role with 403', async () => {
+    testAuth = { userId: 'u1' };
+    const res = await app.inject({ method: 'GET', url: '/admin/ai/providers' });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('GET rejects empty role with 403', async () => {
+    testAuth = { userId: 'u1', role: '' };
+    const res = await app.inject({ method: 'GET', url: '/admin/ai/providers' });
+    expect(res.statusCode).toBe(403);
+  });
+
   it('GET returns the default order and provider availability for admins (no secrets)', async () => {
-    testAuth = { userId: 'admin-1', role: 'admin' };
+    testAuth = { userId: 'admin-1', role: 'ADMIN' };
     const res = await app.inject({ method: 'GET', url: '/admin/ai/providers' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
@@ -128,7 +181,7 @@ describe('/admin/ai/providers', () => {
   });
 
   it('PUT rejects an empty order with 400', async () => {
-    testAuth = { userId: 'admin-1', role: 'admin' };
+    testAuth = { userId: 'admin-1', role: 'ADMIN' };
     const res = await app.inject({
       method: 'PUT',
       url: '/admin/ai/providers',
@@ -138,7 +191,7 @@ describe('/admin/ai/providers', () => {
   });
 
   it('PUT rejects unknown provider ids with 400', async () => {
-    testAuth = { userId: 'admin-1', role: 'admin' };
+    testAuth = { userId: 'admin-1', role: 'ADMIN' };
     const res = await app.inject({
       method: 'PUT',
       url: '/admin/ai/providers',
@@ -148,7 +201,7 @@ describe('/admin/ai/providers', () => {
   });
 
   it('PUT rejects duplicate provider ids with 400', async () => {
-    testAuth = { userId: 'admin-1', role: 'admin' };
+    testAuth = { userId: 'admin-1', role: 'ADMIN' };
     const res = await app.inject({
       method: 'PUT',
       url: '/admin/ai/providers',
@@ -157,8 +210,26 @@ describe('/admin/ai/providers', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  describe('isAdminRole (unit)', () => {
+    it('accepts ADMIN in any case', () => {
+      expect(isAdminRole('ADMIN')).toBe(true);
+      expect(isAdminRole('admin')).toBe(true);
+      expect(isAdminRole('Admin')).toBe(true);
+      expect(isAdminRole('aDmIn')).toBe(true);
+    });
+    it('rejects other enum roles, empty, and non-strings', () => {
+      expect(isAdminRole('USER')).toBe(false);
+      expect(isAdminRole('MODERATOR')).toBe(false);
+      expect(isAdminRole('')).toBe(false);
+      expect(isAdminRole(undefined)).toBe(false);
+      expect(isAdminRole(null)).toBe(false);
+      expect(isAdminRole(42)).toBe(false);
+      expect(isAdminRole(' admin')).toBe(false);
+    });
+  });
+
   it('PUT persists a valid order and GET reflects it', async () => {
-    testAuth = { userId: 'admin-1', role: 'admin' };
+    testAuth = { userId: 'admin-1', role: 'ADMIN' };
     const put = await app.inject({
       method: 'PUT',
       url: '/admin/ai/providers',

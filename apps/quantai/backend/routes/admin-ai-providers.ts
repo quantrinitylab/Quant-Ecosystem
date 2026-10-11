@@ -27,6 +27,18 @@ interface AuthShape {
 }
 
 /**
+ * The JWT `role` claim carries the Prisma `UserRole` enum value verbatim
+ * (packages/auth token-service copies `user.role` straight into the payload),
+ * and that enum is `USER | ADMIN | MODERATOR | CREATOR | ADVERTISER` — all
+ * uppercase with no `@map`. The auth plugin passes the claim through
+ * unmodified, so the gate MUST compare case-insensitively; a strict
+ * `role !== 'admin'` check 403s every real admin (F-024).
+ */
+export function isAdminRole(role: unknown): boolean {
+  return typeof role === 'string' && role.toLowerCase() === 'admin';
+}
+
+/**
  * Reuses the existing auth plugin (`fastify.requireAuth`) and then enforces
  * the admin role from the verified JWT — the established RBAC mechanism,
  * not a new auth scheme.
@@ -35,9 +47,15 @@ function requireAdmin(fastify: FastifyInstance) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     await fastify.requireAuth()(request, reply);
     if (reply.sent) return;
-    const role = (request as unknown as AuthShape).auth?.role;
-    if (role !== 'admin') {
-      throw createAppError('Admin access required', 403, 'FORBIDDEN');
+    const auth = (request as unknown as AuthShape).auth;
+    if (!isAdminRole(auth?.role)) {
+      request.log.warn(
+        { userId: auth?.userId ?? 'unknown', method: request.method, url: request.url },
+        'admin gate denied request: caller lacks the admin role',
+      );
+      throw createAppError('Admin access required', 403, 'FORBIDDEN', {
+        required: 'admin',
+      });
     }
   };
 }
