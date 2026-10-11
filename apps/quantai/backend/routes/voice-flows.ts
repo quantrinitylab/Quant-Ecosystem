@@ -10,7 +10,13 @@ import {
 } from '../services/voice-flow.service';
 
 export default async function voiceFlowsRoutes(fastify: FastifyInstance) {
-  fastify.post('/validate', async (request, reply) => {
+  // Local graph validation/simulation carries no provider cost, but the
+  // endpoints are still gated: anonymous callers get a fail-closed 401 and
+  // the guard is declared here (not just inherited from createApp's global
+  // hook) so it survives standalone mounts.
+  const authed = { preHandler: fastify.requireAuth() };
+
+  fastify.post('/validate', authed, async (request, reply) => {
     try {
       const { graph } = request.body as { graph: VoiceFlowGraph };
       if (!graph) {
@@ -33,7 +39,7 @@ export default async function voiceFlowsRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/simulate', async (request, reply) => {
+  fastify.post('/simulate', authed, async (request, reply) => {
     try {
       const { graph, currentNodeId, userInput } = request.body as {
         graph: VoiceFlowGraph;

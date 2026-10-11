@@ -95,6 +95,26 @@ async function buildApp(
   if (port) {
     app.decorate('agentOwnership', port);
   }
+
+  if (route === 'voice') {
+    // voice.ts declares `preHandler: fastify.requireAuth()` (F-043). This
+    // ownership-focused suite stubs the guard with the same contract the real
+    // plugin enforces (401 when request.auth carries no userId); the real
+    // cryptographic verification path is covered in
+    // voice-paid-endpoints-auth.test.ts (node environment).
+    app.decorate('requireAuth', () => async (req: any, reply: any) => {
+      if (!req.auth?.userId) {
+        return reply.status(401).send({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Missing or invalid authorization header',
+            statusCode: 401,
+          },
+        });
+      }
+    });
+  }
   // Test-only auth hook: mirrors whatever sets request.auth in production.
   app.addHook('onRequest', async (req, _reply) => {
     if (user) {

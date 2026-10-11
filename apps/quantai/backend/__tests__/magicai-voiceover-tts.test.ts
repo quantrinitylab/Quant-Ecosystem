@@ -1,5 +1,11 @@
+// @vitest-environment node
+// (node env: section 6 registers the real auth plugin, which verifies HS256
+// via jose/WebCrypto — broken under the default jsdom environment. No DOM APIs
+// are used in this file.)
 import { describe, it, expect, beforeEach } from 'vitest';
 import Fastify from 'fastify';
+import { createHmac } from 'node:crypto';
+import { authPlugin } from '@quant/server-core';
 import voiceRoutes from '../routes/voice';
 import {
   listAvailableVoices,
@@ -277,8 +283,37 @@ describe('MagicAI Multi-Provider Voiceover & TTS Synthesis Engine', () => {
   describe('Fastify Voice Routes (/voice/voices, /voice/synthesize, /voice/ssml)', () => {
     let app: ReturnType<typeof Fastify>;
 
+    // Paid routes now declare `preHandler: fastify.requireAuth()` (F-043), so
+    // the harness registers the real auth plugin and mints HS256 test tokens.
+    const JWT_SECRET = 'magicai-voiceover-test-secret';
+    function mintToken(): string {
+      const now = Math.floor(Date.now() / 1000);
+      const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString(
+        'base64url',
+      );
+      const payload = Buffer.from(
+        JSON.stringify({
+          sub: 'user-1',
+          iss: 'quantai',
+          aud: 'quant-ecosystem',
+          iat: now,
+          exp: now + 3600,
+        }),
+      ).toString('base64url');
+      const sig = createHmac('sha256', JWT_SECRET)
+        .update(`${header}.${payload}`)
+        .digest('base64url');
+      return `${header}.${payload}.${sig}`;
+    }
+    const authHeaders = () => ({ authorization: `Bearer ${mintToken()}` });
+
     beforeEach(async () => {
       app = Fastify();
+      await app.register(authPlugin, {
+        jwtSecret: JWT_SECRET,
+        jwtIssuer: 'quantai',
+        jwtAudience: 'quant-ecosystem',
+      });
       await app.register(voiceRoutes, { prefix: '/voice' });
       await app.ready();
     });
@@ -312,6 +347,7 @@ describe('MagicAI Multi-Provider Voiceover & TTS Synthesis Engine', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/voice/synthesize',
+        headers: authHeaders(),
         payload: {
           text: 'Testing Fastify voice synthesis endpoint',
           voiceId: 'rachel',
@@ -332,6 +368,7 @@ describe('MagicAI Multi-Provider Voiceover & TTS Synthesis Engine', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/voice/synthesize',
+        headers: authHeaders(),
         payload: {
           text: 'Missing voiceId',
         },
@@ -345,6 +382,7 @@ describe('MagicAI Multi-Provider Voiceover & TTS Synthesis Engine', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/voice/ssml',
+        headers: authHeaders(),
         payload: {
           text: 'Hello from SSML route',
           speed: 1.25,
@@ -357,6 +395,24 @@ describe('MagicAI Multi-Provider Voiceover & TTS Synthesis Engine', () => {
       expect(data.ssml).toBe(
         '<speak><prosody rate="1.25" pitch="-5%">Hello from SSML route</prosody></speak>',
       );
+    });
+
+    it('POST /voice/synthesize rejects unauthenticated callers with 401 (F-043)', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/voice/synthesize',
+        payload: { text: 'hello', voiceId: 'rachel' },
+      });
+      expect(response.statusCode).toBe(401);
+    });
+
+    it('POST /voice/ssml rejects unauthenticated callers with 401 (F-043)', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/voice/ssml',
+        payload: { text: 'hello' },
+      });
+      expect(response.statusCode).toBe(401);
     });
   });
 });
