@@ -1,6 +1,12 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { inboxLensTarget, inboxResetTarget, syncSearchParam } from '../lib/inbox-nav';
+import {
+  inboxLensTarget,
+  inboxResetTarget,
+  normalizeSearchFolderParam,
+  syncSearchFolderParam,
+  syncSearchParam,
+} from '../lib/inbox-nav';
 
 /**
  * CUST-P1-6 regression: switching the inbox lens dropped `q` from the URL but
@@ -93,5 +99,61 @@ describe('CUST-P1-6 search → lens-switch contract', () => {
     // 3. the q-sync effect, running after the cleared query, must not
     //    navigate — the URL, the (emptied) searchbox and the panel agree
     expect(syncSearchParam(href, '')).toBeNull();
+  });
+});
+
+describe('normalizeSearchFolderParam', () => {
+  it('passes the five known scopes through', () => {
+    for (const scope of ['all', 'inbox', 'archive', 'spam', 'snoozed'] as const) {
+      expect(normalizeSearchFolderParam(scope)).toBe(scope);
+    }
+  });
+
+  it('degrades unknown and missing values to "all"', () => {
+    expect(normalizeSearchFolderParam(null)).toBe('all');
+    expect(normalizeSearchFolderParam('')).toBe('all');
+    expect(normalizeSearchFolderParam('trash')).toBe('all');
+    expect(normalizeSearchFolderParam('INBOX')).toBe('all');
+  });
+});
+
+describe('syncSearchFolderParam', () => {
+  it('sets sf when the scope narrows', () => {
+    expect(syncSearchFolderParam('https://quantmail.in/?view=inbox&q=test', 'archive')).toBe(
+      '/?view=inbox&q=test&sf=archive',
+    );
+  });
+
+  it('drops sf for "All mail"', () => {
+    expect(syncSearchFolderParam('https://quantmail.in/?view=inbox&q=test&sf=archive', 'all')).toBe(
+      '/?view=inbox&q=test',
+    );
+  });
+
+  it('keeps q and the other params while changing sf', () => {
+    expect(syncSearchFolderParam('https://quantmail.in/?view=inbox&q=test&sf=spam', 'snoozed')).toBe(
+      '/?view=inbox&q=test&sf=snoozed',
+    );
+  });
+
+  it('returns null when the URL already matches — no navigation needed', () => {
+    expect(syncSearchFolderParam('https://quantmail.in/?view=inbox&q=test&sf=spam', 'spam')).toBeNull();
+    expect(syncSearchFolderParam('https://quantmail.in/?view=inbox&q=test', 'all')).toBeNull();
+  });
+});
+
+describe('SIA-P2-6 search scope + query coherence', () => {
+  it('a cleared search drops both q and sf, never sf alone', () => {
+    // the user narrowed an active search to the archive
+    let href = 'https://quantmail.in' + syncSearchFolderParam('https://quantmail.in/?view=inbox&q=test', 'archive');
+    expect(href).toBe('https://quantmail.in/?view=inbox&q=test&sf=archive');
+
+    // the user clears the searchbox: q-sync drops q (sf still lingers), then
+    // the sf-sync runs with folder 'all' (no query) and drops sf too
+    href = 'https://quantmail.in' + (syncSearchParam(href, '') ?? '');
+    expect(href).toBe('https://quantmail.in/?view=inbox&sf=archive');
+    const cleaned = syncSearchFolderParam(href, 'all');
+    expect(cleaned).toBe('/?view=inbox');
+    expect(new URL(cleaned!, 'https://quantmail.in').searchParams.get('sf')).toBeNull();
   });
 });
