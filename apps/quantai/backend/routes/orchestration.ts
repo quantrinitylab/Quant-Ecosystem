@@ -5,7 +5,6 @@ import {
   CrossAppOrchestrator,
   type AppConnectors,
 } from '../services/cross-app-orchestrator.service';
-import { DemoModeConnector } from '../services/demo-mode.service';
 import { HttpAppConnectors } from '../services/http-connectors.service';
 
 const draftReplySchema = z.object({
@@ -29,19 +28,16 @@ const chatFollowupSchema = z.object({
 const ORCHESTRATION_APPS = ['mail', 'chat', 'docs', 'calendar', 'drive'];
 
 export default async function orchestrationRoutes(fastify: FastifyInstance) {
-  const isDemoMode = process.env['DEMO_MODE'] === 'true';
-
   function getUserId(request: FastifyRequest): string {
     const req = request as unknown as { auth?: { userId?: string } };
     if (req.auth?.userId) {
       return req.auth.userId;
     }
-    // P0 fix: fail closed. In demo mode a demo identity is intentional;
-    // otherwise an unauthenticated request must never get an identity
-    // (previously returned '' which could propagate as an anonymous id).
-    if (isDemoMode) {
-      return 'demo-user';
-    }
+    // F-002 fix: fail closed, always. The hardcoded DemoModeConnector dataset
+    // (alice/bob/charlie fixtures served as if real) and its unauthenticated
+    // 'demo-user' identity have been removed entirely — fake data behind these
+    // routes was a trust violation. An unauthenticated request must never get
+    // an identity here.
     throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
   }
 
@@ -54,22 +50,19 @@ export default async function orchestrationRoutes(fastify: FastifyInstance) {
   }
 
   /**
-   * Build a per-request orchestrator. In demo mode it uses the curated
-   * DemoModeConnector; otherwise it uses real HTTP connectors that call the
-   * sibling app backends with the user's bearer token (and fail closed when a
-   * backend is not configured — never fabricated data).
+   * Build a per-request orchestrator. It always uses real HTTP connectors that
+   * call the sibling app backends with the user's bearer token. When a backend
+   * is not configured the connector fails closed (503) — it never fabricates
+   * data. (F-002: the hardcoded DemoModeConnector fixtures were deleted; demo
+   * fixtures served through this envelope as if real were a trust violation.)
    */
   function buildOrchestrator(request: FastifyRequest, userId: string): CrossAppOrchestrator {
-    const connectors: AppConnectors = isDemoMode
-      ? new DemoModeConnector()
-      : new HttpAppConnectors({ token: bearerToken(request) });
+    const connectors: AppConnectors = new HttpAppConnectors({ token: bearerToken(request) });
 
     // The forwarded bearer token is the real authorization boundary (each app
     // authorizes independently). quantai grants the authenticated user
-    // orchestration access to their own cross-app data.
-    const permissions: Record<string, string[]> = isDemoMode
-      ? { '*': ORCHESTRATION_APPS }
-      : { [userId]: ORCHESTRATION_APPS };
+    // orchestration access to their own cross-app data — never a wildcard grant.
+    const permissions: Record<string, string[]> = { [userId]: ORCHESTRATION_APPS };
 
     return new CrossAppOrchestrator(connectors, permissions);
   }

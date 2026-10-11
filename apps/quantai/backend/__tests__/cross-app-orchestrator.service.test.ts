@@ -1,14 +1,151 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { CrossAppOrchestrator, type Permissions } from '../services/cross-app-orchestrator.service';
-import { DemoModeConnector } from '../services/demo-mode.service';
+import {
+  CrossAppOrchestrator,
+  type AppConnectors,
+  type CalendarEventReminder,
+  type Permissions,
+} from '../services/cross-app-orchestrator.service';
+
+/**
+ * Explicit unit-test fixture implementing AppConnectors with deterministic,
+ * in-memory data. This is a TEST DOUBLE only — it is never wired into any
+ * route. (F-002: the production DemoModeConnector, which served fabricated
+ * data through real HTTP routes, was deleted.)
+ */
+class StubAppConnectors implements AppConnectors {
+  mail = {
+    async search() {
+      return [
+        {
+          id: 'email-001',
+          from: 'alice@example.com',
+          subject: 'Q4 Budget Review',
+          snippet: 'Hi, please review the attached Q4 budget proposal...',
+          date: '2025-01-20T09:00:00.000Z',
+        },
+        {
+          id: 'email-002',
+          from: 'bob@example.com',
+          subject: 'Project Alpha Update',
+          snippet: 'The sprint is on track...',
+          date: '2025-01-20T10:00:00.000Z',
+        },
+      ];
+    },
+    async draft() {
+      return { draftId: 'draft-123' };
+    },
+  };
+
+  chat = {
+    async getMessages() {
+      return [
+        {
+          id: 'msg-001',
+          sender: 'alice',
+          content: 'We need to follow up on the API integration by Friday.',
+          timestamp: '2025-01-20T08:00:00.000Z',
+        },
+        {
+          id: 'msg-002',
+          sender: 'bob',
+          content: 'Action item: update the auth module.',
+          timestamp: '2025-01-20T08:05:00.000Z',
+        },
+      ];
+    },
+  };
+
+  docs = {
+    async create() {
+      return { docId: 'doc-123' };
+    },
+  };
+
+  calendar = {
+    async getEvents() {
+      return [
+        {
+          id: 'event-001',
+          title: 'Daily Standup',
+          start: '2025-01-20T09:00:00.000Z',
+          end: '2025-01-20T09:15:00.000Z',
+          attendees: ['alice@example.com', 'bob@example.com'],
+        },
+      ];
+    },
+    async createEvent(
+      title: string,
+      start: string,
+      end: string,
+      attendees: string[],
+      reminders?: CalendarEventReminder[],
+    ) {
+      return { id: 'event-999', title, start, end, attendees, reminders };
+    },
+  };
+
+  drive = {
+    async search() {
+      return [
+        {
+          id: 'file-001',
+          name: 'quarterly-report.pdf',
+          type: 'application/pdf',
+          modifiedAt: '2025-01-19T09:00:00.000Z',
+        },
+      ];
+    },
+    async summarize(fileId: string) {
+      return { fileId, summary: 'Quarterly performance metrics summary.' };
+    },
+  };
+
+  code = {
+    async listRepos() {
+      return [
+        {
+          id: 'repo-001',
+          name: 'quant-core',
+          fullName: 'quant/quant-core',
+          description: 'Core engine and microservices',
+          defaultBranch: 'main',
+          visibility: 'public',
+        },
+      ];
+    },
+    async getPullRequests() {
+      return [
+        {
+          id: 'pr-001',
+          number: 42,
+          title: 'feat: add high performance streaming',
+          status: 'OPEN',
+          authorId: 'user-001',
+          sourceBranch: 'feat/streaming',
+          targetBranch: 'main',
+        },
+      ];
+    },
+    async reviewPullRequest(_owner: string, _name: string, number: number) {
+      return {
+        summary: `Automated AI review for PR #${number}: all checks passed with no detected secrets.`,
+        riskLevel: 'LOW' as const,
+        filesChanged: 3,
+        findingsCount: 0,
+        suggestions: ['Consider adding an integration test for edge case timeout.'],
+      };
+    },
+  };
+}
 
 describe('CrossAppOrchestrator', () => {
   let orchestrator: CrossAppOrchestrator;
-  let connectors: DemoModeConnector;
+  let connectors: AppConnectors;
   let permissions: Permissions;
 
   beforeEach(() => {
-    connectors = new DemoModeConnector();
+    connectors = new StubAppConnectors();
     permissions = {
       'user-1': ['mail', 'chat', 'docs', 'calendar', 'drive', 'code'],
       'user-2': ['mail', 'calendar'],

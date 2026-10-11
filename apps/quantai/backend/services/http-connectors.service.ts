@@ -56,8 +56,8 @@ function envUrls(): HttpConnectorUrls {
  * Real cross-app connectors that call the sibling Quant app backends over HTTP,
  * forwarding the authenticated user's bearer token (each app independently
  * authorizes the request). When a required backend URL is not configured the
- * connector fails CLOSED with a clear 503 — it never fabricates data. This is
- * the production counterpart to DemoModeConnector.
+ * connector fails CLOSED with a clear 503 — it never fabricates data. Fabricated
+ * fixtures must never be served through production routes as if real (F-002).
  */
 export class HttpAppConnectors implements AppConnectors {
   private readonly token: string;
