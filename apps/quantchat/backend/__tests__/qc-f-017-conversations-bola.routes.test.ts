@@ -189,7 +189,7 @@ async function buildRouteApp(
     }
     return reply.status(500).send({ success: false, error: { message: e.message } });
   });
-  app.decorate('prisma', prisma);
+  (app as unknown as { decorate: (key: string, value: unknown) => void }).decorate('prisma', prisma);
   if (auth) {
     app.addHook('preHandler', async (req) => {
       (req as unknown as { auth: unknown }).auth = {
