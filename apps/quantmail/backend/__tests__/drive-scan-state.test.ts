@@ -67,8 +67,19 @@ function fileRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function fakePrisma(scanStatus: string | null = 'unknown') {
-  const rows = [fileRow({ scanStatus })];
+function fakePrisma(scanStatus: string | null = 'unknown', trashed = false) {
+  const rows = [
+    fileRow({
+      scanStatus,
+      ...(trashed
+        ? {
+            isDeleted: true,
+            trashRootId: 'file-1',
+            deletedAt: new Date('2026-10-09T00:00:00Z'),
+          }
+        : {}),
+    }),
+  ];
   const created: Record<string, unknown>[] = [];
   const file = {
     aggregate: vi.fn().mockResolvedValue({ _sum: { size: 0 } }),
@@ -76,13 +87,21 @@ function fakePrisma(scanStatus: string | null = 'unknown') {
       rows.find((r) => r.id === where.id) ?? null,
     ),
     findFirst: vi.fn().mockImplementation(async ({ where }: any) =>
-      rows.find((r) => (!where.id || r.id === where.id) && (!where.userId || r.userId === where.userId)) ?? null,
+      rows.find(
+        (r) =>
+          (!where.id || r.id === where.id) &&
+          (!where.userId || r.userId === where.userId) &&
+          // QM-SCREEN-011 R2: the restore quarantine gate filters on
+          // scanStatus — the mock must honor it for the gate to be testable.
+          (where.scanStatus === undefined || r.scanStatus === where.scanStatus),
+      ) ?? null,
     ),
     findMany: vi.fn().mockImplementation(async ({ where }: any) => {
       if (where?.id?.in) return rows.filter((r) => where.id.in.includes(r.id));
       return rows.filter((r) => !where?.userId || r.userId === where.userId);
     }),
     count: vi.fn().mockResolvedValue(rows.length),
+    updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     create: vi.fn().mockImplementation(async ({ data }: any) => {
       const row = { id: `file-${created.length + 2}`, ...data };
       created.push(row);
@@ -104,7 +123,12 @@ function fakePrisma(scanStatus: string | null = 'unknown') {
       findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue({ id: 'v1', versionNumber: 1 }),
     },
-    folder: { findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn().mockResolvedValue(null) },
+    folder: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findFirst: vi.fn().mockResolvedValue(null),
+      count: vi.fn().mockResolvedValue(0),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
     // QM-UIUX-079 — documents table projected into drive listings.
     // Empty fixture store; present so the route does not 500.
     document: {
@@ -177,6 +201,13 @@ describe('file-scan.service honesty contract', () => {
     expect(msg).not.toBe('Download failed');
   });
 
+  it('quarantineBlockedMessage conjugates every blocked action correctly', () => {
+    expect(quarantineBlockedMessage('restore')).toMatch(/cannot be restored/i);
+    expect(quarantineBlockedMessage('download')).toMatch(/cannot be downloaded/i);
+    expect(quarantineBlockedMessage('preview')).toMatch(/cannot be previewed/i);
+    expect(quarantineBlockedMessage('copy')).toMatch(/cannot be copied/i);
+  });
+
   it('quarantineFile persists the quarantine state', async () => {
     const prisma = fakePrisma('unknown') as any;
     await quarantineFile(prisma, 'file-1', 'EICAR test signature');
@@ -234,6 +265,28 @@ describe('Drive scan-state routes', () => {
     const res = await app.inject({ method: 'POST', url: '/drive/files/file-1/copy', payload: {} });
     expect(res.statusCode).toBe(403);
     expect(res.json().error.code).toBe('FILE_QUARANTINED');
+    await app.close();
+  });
+
+  it('blocks restoring a quarantined file with 403 + the verbatim quarantine instruction', async () => {
+    const app = await buildApp(fakePrisma('quarantined', true));
+    const res = await app.inject({ method: 'POST', url: '/drive/files/file-1/restore' });
+    expect(res.statusCode).toBe(403);
+    const err = res.json().error;
+    expect(err.code).toBe('FILE_QUARANTINED');
+    // Verbatim the same instruction the preview/download blocks use.
+    expect(err.message).toBe(quarantineBlockedMessage('restore'));
+    expect(err.message).toMatch(/cannot be restored/i);
+    // The file must still be in trash — the transaction never ran.
+    expect(res.json().ok).not.toBe(true);
+    await app.close();
+  });
+
+  it('restores a non-quarantined trashed file normally (no quarantine gate trip)', async () => {
+    const app = await buildApp(fakePrisma('unknown', true));
+    const res = await app.inject({ method: 'POST', url: '/drive/files/file-1/restore' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ ok: true });
     await app.close();
   });
 

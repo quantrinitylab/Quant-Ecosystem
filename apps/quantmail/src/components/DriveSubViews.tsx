@@ -4,7 +4,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { formatBytes } from '../lib/format-bytes';
 import { isDocumentDriveId } from '../lib/drive-ids';
 import { useStorageQuota } from '../hooks/useStorageQuota';
-import { FileScanBadge } from '../app/drive/components/FileScanBadge';
+import { FileScanBadge, normalizeScanStatus } from '../app/drive/components/FileScanBadge';
 
 // ============================================================================
 // SVG Vector Icons — strictly ZERO raw Unicode emojis
@@ -582,6 +582,14 @@ export function DriveTrashItemsList({
                   ? ` · Deleted ${new Date(item.deletedAt).toLocaleDateString()}`
                   : null}
               </p>
+              {/* QM-SCREEN-011 R2: quarantined (and every other non-clean)
+                  scan states are visible on trash rows — restore must never
+                  be a silent path out of quarantine. 'clean' stays quiet. */}
+              {normalizeScanStatus(item.scanStatus) !== 'clean' ? (
+                <div className="mt-1">
+                  <FileScanBadge status={item.scanStatus} reason={item.scanReason} />
+                </div>
+              ) : null}
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
