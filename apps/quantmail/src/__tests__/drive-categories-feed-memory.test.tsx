@@ -71,12 +71,11 @@ describe('QuantDrive Categories, Feed & AI Memory Suite', () => {
   // 1. Single Enterprise Storage Gauge Tests
   // ==========================================================================
   describe('1. SingleEnterpriseStorageGauge', () => {
-    it('renders exactly one enterprise storage gauge with total used, plan name, and remaining capacity', () => {
+    it('renders exactly one storage gauge with total used and remaining capacity — no invented plan names or tech claims', () => {
       const html = renderToStaticMarkup(
         <SingleEnterpriseStorageGauge
           usedFormatted="14.2 GB"
           totalFormatted="100 GB"
-          planName="Sovereign Enterprise Plan"
           remainingFormatted="85.8 GB remaining"
           usedBytes={14.2 * 1024 ** 3}
           totalBytes={100 * 1024 ** 3}
@@ -86,11 +85,14 @@ describe('QuantDrive Categories, Feed & AI Memory Suite', () => {
       expect(html).toContain('data-testid="single-enterprise-storage-gauge"');
       expect(html).toContain('14.2 GB');
       expect(html).toContain('/ 100 GB');
-      expect(html).toContain('Sovereign Enterprise Plan');
       expect(html).toContain('85.8 GB remaining');
-      expect(html).toContain('Upgrade Plan');
-      expect(html).toContain('role="progressbar"');
-      expect(html).toContain('FastCDC 64KB CAS · Zero-Egress Storage');
+      // Unverifiable marketing copy was removed: no plan naming, no upgrade
+      // dead-end, no FastCDC/enclave claims.
+      expect(html).not.toContain('Sovereign Enterprise Plan');
+      expect(html).not.toContain('Upgrade Plan');
+      expect(html).not.toContain('FastCDC');
+      expect(html).not.toContain('Zero-Egress');
+      expect(html).not.toContain('Hardware Enclave');
     });
 
     it('shows Calculating… instead of invented numbers when quota is unknown', () => {
@@ -160,7 +162,8 @@ describe('QuantDrive Categories, Feed & AI Memory Suite', () => {
       expect(html).toContain('100 GB');
       expect(html).not.toContain('128.4 GB');
       expect(html).not.toContain('2 TB');
-      expect(html).toContain('Sovereign Enterprise Plan');
+      expect(html).not.toContain('Sovereign Enterprise Plan');
+      expect(html).not.toContain('Upgrade Plan');
     });
 
     it('renders folders and recent items in Home view', () => {
@@ -208,6 +211,7 @@ describe('QuantDrive Categories, Feed & AI Memory Suite', () => {
       expect(html).not.toContain('Ecosystem_Architecture_Q3_HighRes.png');
       expect(html).not.toContain('QuantMeet_Keynote_Recording_4K.mp4');
       expect(html).not.toContain('Voice_Note_Sprint_Review.flac');
+      expect(html).toContain('No media yet');
     });
 
     it('renders real media files when provided via the files prop', () => {
@@ -225,6 +229,49 @@ describe('QuantDrive Categories, Feed & AI Memory Suite', () => {
         />,
       );
       expect(html).toContain('Real_Photo.png');
+    });
+
+    it('never invents format badges or a lightbox that shows no real media', () => {
+      const html = renderToStaticMarkup(
+        <DriveFeedSubView
+          files={[
+            {
+              id: 'real-1',
+              name: 'Real_Photo.png',
+              mimeType: 'image/png',
+              size: 1000000,
+              modifiedAt: '2026-10-06T10:00:00Z',
+            },
+          ]}
+        />,
+      );
+      // The old fallbacks invented '4K'/'FLAC'/'RAW' badges and a "Fast
+      // Lightbox Full-Resolution View" modal that rendered a fake gradient.
+      expect(html).not.toContain('>4K<');
+      expect(html).not.toContain('>FLAC<');
+      expect(html).not.toContain('>RAW<');
+      expect(html).not.toContain('Fast Lightbox');
+      expect(html).not.toContain('Zero-Knowledge');
+    });
+
+    it('groups old files under truthful buckets (This Week / Last Week / Earlier)', () => {
+      const html = renderToStaticMarkup(
+        <DriveFeedSubView
+          files={[
+            {
+              id: 'old-1',
+              name: 'Ancient_Clip.mp4',
+              mimeType: 'video/mp4',
+              size: 5000000,
+              modifiedAt: '2025-01-15T10:00:00Z',
+            },
+          ]}
+        />,
+      );
+      // A 2025 file must not be mislabeled "Last Week"; the dead
+      // "September 2026" group key is gone entirely.
+      expect(html).toContain('Earlier');
+      expect(html).not.toContain('September 2026');
     });
 
     it('contains strictly ZERO raw Unicode emojis in DriveFeedSubView', () => {

@@ -588,7 +588,7 @@ export function DriveTrashItemsList({
             <button
               type="button"
               onClick={(e) => onRestoreTrashItem?.(item.id, item.name, e)}
-              className="px-2.5 py-1 rounded-lg bg-[#38BDF8]/15 border border-[#38BDF8]/30 text-xs font-semibold text-[#38BDF8] hover:bg-[#38BDF8]/25 transition-colors"
+              className="px-2.5 py-1 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] text-xs font-semibold text-[var(--app-accent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] transition-colors"
             >
               Restore
             </button>
@@ -613,22 +613,18 @@ export function DriveTrashItemsList({
 export interface SingleEnterpriseStorageGaugeProps {
   usedFormatted?: string;
   totalFormatted?: string;
-  planName?: string;
   remainingFormatted?: string;
   usedBytes?: number;
   totalBytes?: number;
-  onUpgradeClick?: () => void;
   className?: string;
 }
 
 export function SingleEnterpriseStorageGauge({
   usedFormatted = 'Calculating…',
   totalFormatted = 'Calculating…',
-  planName = 'Sovereign Enterprise Plan',
   remainingFormatted = 'Calculating…',
   usedBytes = 0,
   totalBytes = 0,
-  onUpgradeClick,
   className = '',
 }: SingleEnterpriseStorageGaugeProps) {
   // Never invent numbers: while the quota is unknown show "Calculating…"
@@ -643,19 +639,12 @@ export function SingleEnterpriseStorageGauge({
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-3.5">
         <div className="flex items-center gap-3">
-          <div className="size-11 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8] shrink-0">
+          <div className="size-11 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
             <HardDriveIcon className="size-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-sm font-bold text-[#F8FAFC]">Enterprise Storage Gauge</h3>
-              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30 font-mono">
-                {planName}
-              </span>
-            </div>
-            <p className="text-xs text-[#94A3B8] mt-0.5">
-              FastCDC 64KB CAS · Zero-Egress Storage · Hardware Enclave Active
-            </p>
+            <h3 className="text-sm font-bold text-[#F8FAFC]">Storage</h3>
+            <p className="text-xs text-[#94A3B8] mt-0.5">Live usage from your Drive quota</p>
           </div>
         </div>
 
@@ -664,33 +653,14 @@ export function SingleEnterpriseStorageGauge({
             <div className="text-sm font-extrabold text-[#F8FAFC] tracking-tight">
               {usedFormatted} <span className="text-[#64748B] font-normal">/ {totalFormatted}</span>
             </div>
-            <p className="text-[11px] text-[#38BDF8] font-medium mt-0.5">
+            <p className="text-[11px] text-[var(--app-accent)] font-medium mt-0.5">
               {percentage}% used · {remainingFormatted}
             </p>
           </div>
-
-          <button
-            type="button"
-            onClick={onUpgradeClick}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#38BDF8]/15 border border-[#38BDF8]/40 text-xs font-semibold text-[#38BDF8] hover:bg-[#38BDF8]/25 hover:border-[#38BDF8]/70 shadow-[0_0_14px_rgba(56,189,248,0.15)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
-          >
-            <span>Upgrade Plan</span>
-            <svg
-              className="size-3.5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </button>
         </div>
       </div>
 
-      {/* Enterprise Gradient Progress Bar */}
+      {/* Storage quota progress bar */}
       <div
         role="progressbar"
         aria-valuenow={percentage}
@@ -701,7 +671,7 @@ export function SingleEnterpriseStorageGauge({
         className="w-full h-2 rounded-full bg-[var(--quant-surface-elevated)] overflow-hidden"
       >
         <div
-          className="h-full rounded-full bg-gradient-to-r from-[#38BDF8] via-[#0284C7] to-[#818CF8] shadow-[0_0_12px_rgba(56,189,248,0.5)] transition-all duration-500"
+          className="h-full rounded-full bg-[var(--app-accent)] shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_50%,transparent)] transition-all duration-500"
           style={{ width: `${percentage}%` }}
         />
       </div>
@@ -728,7 +698,6 @@ export interface DriveHomeSubViewProps {
   onOpenVersionHistory?: (item: DriveItem) => void;
   onOpenAiSummary?: (item: DriveItem) => void;
   onNavigateToFolder?: (folderId: string | null, folderName?: string) => void;
-  onUpgradeClick?: () => void;
   trashItems?: DriveItem[];
   onRestoreTrashItem?: (id: string, name: string, e?: React.MouseEvent) => void;
   onPurgeTrashItem?: (id: string, name: string, e?: React.MouseEvent) => void;
@@ -749,7 +718,6 @@ export function DriveHomeSubView({
   onOpenVersionHistory,
   onOpenAiSummary,
   onNavigateToFolder,
-  onUpgradeClick,
   trashItems = [],
   onRestoreTrashItem,
   onPurgeTrashItem,
@@ -872,8 +840,8 @@ export function DriveHomeSubView({
         icon: ImageIcon,
         accentColor: '#38BDF8',
         containerStyle:
-          'hover:border-[#38BDF8]/60 hover:bg-[#38BDF8]/5 hover:shadow-[0_0_20px_rgba(56,189,248,0.12)]',
-        badgeBg: 'bg-[#38BDF8]/15 text-[#38BDF8] border-[#38BDF8]/30',
+          'hover:border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] hover:shadow-[0_0_20px_color-mix(in_srgb,var(--app-accent)_12%,transparent)]',
+        badgeBg: 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)]',
       },
       {
         id: 'videos' as DriveCategory,
@@ -960,6 +928,8 @@ export function DriveHomeSubView({
   const categoryItems = useMemo(() => {
     if (!selectedCategory) return [];
 
+    // Trash renders ONLY real trashed files. When empty, the category view
+    // shows an honest empty state — never fabricated sample files.
     if (selectedCategory === 'trash') {
       // Honesty: trash shows ONLY real trash items. Never invent files here —
       // an empty trash is an honest empty state, not two placeholder rows.
@@ -1020,6 +990,18 @@ export function DriveHomeSubView({
     return matchingLive;
   }, [selectedCategory, files, trashItems, categorySearchQuery, selectedTag]);
 
+  // "Recent Items" must be honest: order by real modifiedAt, newest first.
+  // Files without a parseable date sink to the end instead of the top.
+  const recentOrderedFiles = useMemo(() => {
+    return [...files].sort((a, b) => {
+      const ta = Date.parse(a.modifiedAt || '');
+      const tb = Date.parse(b.modifiedAt || '');
+      const va = Number.isNaN(ta) ? -Infinity : ta;
+      const vb = Number.isNaN(tb) ? -Infinity : tb;
+      return vb - va;
+    });
+  }, [files]);
+
   return (
     <div id="drive-panel-home" role="tabpanel" aria-labelledby="drive-tab-home" className="space-y-6">
       {/* If category is NOT selected: Render 8 Category Cards + Folders & Files */}
@@ -1030,10 +1012,10 @@ export function DriveHomeSubView({
             <div>
               <h2 className="text-base font-extrabold text-[#F8FAFC] tracking-tight">Categories</h2>
               <p className="text-xs text-[#94A3B8] mt-0.5">
-                Organized storage with real-time FastCDC indexing &amp; instant search
+                Your files, organized by type
               </p>
             </div>
-            <div className="flex items-center gap-2 text-xs font-mono text-[#38BDF8] bg-[#38BDF8]/10 border border-[#38BDF8]/25 px-2.5 py-1 rounded-lg">
+            <div className="flex items-center gap-2 text-xs font-mono text-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] px-2.5 py-1 rounded-lg">
               <span>8 Categories Active</span>
             </div>
           </div>
@@ -1048,7 +1030,7 @@ export function DriveHomeSubView({
                   type="button"
                   data-testid={`category-card-${cat.id}`}
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`group text-left rounded-2xl p-4 border border-[#232938] bg-[var(--quant-surface)] transition-all duration-200 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] ${cat.containerStyle}`}
+                  className={`group text-left rounded-2xl p-4 border border-[#232938] bg-[var(--quant-surface)] transition-all duration-200 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${cat.containerStyle}`}
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div
@@ -1073,7 +1055,7 @@ export function DriveHomeSubView({
                   </h3>
                   <div className="flex items-center justify-between text-xs text-[#94A3B8] mt-1">
                     <span className="font-mono text-[11px]">{cat.formattedSize}</span>
-                    <span className="text-[11px] text-[#64748B] group-hover:text-[#38BDF8] font-medium transition-colors">
+                    <span className="text-[11px] text-[#64748B] group-hover:text-[var(--app-accent)] font-medium transition-colors">
                       Open &rarr;
                     </span>
                   </div>
@@ -1167,34 +1149,38 @@ export function DriveHomeSubView({
               </div>
             ) : viewMode === 'grid' ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {files.slice(0, 8).map((file) => (
+                {recentOrderedFiles.slice(0, 8).map((file) => (
                   <div
                     key={file.id}
                     onClick={() => onPreviewItem?.(file)}
-                    className="group rounded-xl p-3 border border-[#232938] bg-[var(--quant-surface)] hover:border-[#38BDF8]/50 hover:bg-[#38BDF8]/5 cursor-pointer transition-all flex flex-col justify-between"
+                    className="group rounded-xl p-3 border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] cursor-pointer transition-all flex flex-col justify-between"
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="size-8 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/25 flex items-center justify-center text-[#38BDF8] shrink-0">
+                      <div className="size-8 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
                         <DocumentIcon className="size-4" />
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onToggleStar?.(file, e);
-                        }}
-                        className="text-[#64748B] hover:text-amber-400 transition-colors"
-                        aria-label="Toggle star"
-                      >
-                        {file.isStarred ? (
-                          <StarFilledIcon className="size-3.5 text-amber-400" />
-                        ) : (
-                          <StarIcon className="size-3.5" />
-                        )}
-                      </button>
+                      {/* QM-UIUX-079: documents have no star flag (their star
+                          toggle 404s) — no star control, like RecentSubView. */}
+                      {file.type !== 'document' && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleStar?.(file, e);
+                          }}
+                          className="text-[#64748B] hover:text-amber-400 transition-colors"
+                          aria-label="Toggle star"
+                        >
+                          {file.isStarred ? (
+                            <StarFilledIcon className="size-3.5 text-amber-400" />
+                          ) : (
+                            <StarIcon className="size-3.5" />
+                          )}
+                        </button>
+                      )}
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">
+                      <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[var(--app-accent)] transition-colors">
                         {file.name}
                       </p>
                       <p className="text-[11px] text-[#64748B] mt-0.5 font-mono">
@@ -1212,14 +1198,14 @@ export function DriveHomeSubView({
               </div>
             ) : (
               <div className="rounded-xl border border-[#232938] bg-[var(--quant-surface)] overflow-hidden divide-y divide-[#232938]">
-                {files.slice(0, 10).map((file) => (
+                {recentOrderedFiles.slice(0, 10).map((file) => (
                   <div
                     key={file.id}
                     onClick={() => onPreviewItem?.(file)}
-                    className="flex items-center justify-between p-3 hover:bg-[#38BDF8]/5 cursor-pointer transition-colors"
+                    className="flex items-center justify-between p-3 hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="size-7 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/25 flex items-center justify-center text-[#38BDF8] shrink-0">
+                      <div className="size-7 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
                         <DocumentIcon className="size-3.5" />
                       </div>
                       <span className="text-xs font-semibold text-[#F8FAFC] truncate">
@@ -1242,7 +1228,7 @@ export function DriveHomeSubView({
                           e.stopPropagation();
                           onDownloadFile?.(file.id, file.name);
                         }}
-                        className="p-1 rounded text-[#64748B] hover:text-[#38BDF8]"
+                        className="p-1 rounded text-[#64748B] hover:text-[var(--app-accent)]"
                         title={isDocumentDriveId(file.id) ? 'Open in editor' : 'Download'}
                       >
                         <DownloadIcon className="size-3.5" />
@@ -1258,11 +1244,9 @@ export function DriveHomeSubView({
           <SingleEnterpriseStorageGauge
             usedFormatted={gaugeUsedFormatted}
             totalFormatted={gaugeTotalFormatted}
-            planName="Sovereign Enterprise Plan"
             remainingFormatted={gaugeRemainingFormatted}
             usedBytes={gaugeUsedBytes}
             totalBytes={gaugeTotalBytes}
-            onUpgradeClick={onUpgradeClick}
           />
         </>
       ) : (
@@ -1278,7 +1262,7 @@ export function DriveHomeSubView({
                   setSelectedTag(null);
                   setCategorySearchQuery('');
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-xs font-semibold text-[#94A3B8] hover:text-white hover:border-[#38BDF8]/50 hover:bg-[#38BDF8]/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-xs font-semibold text-[#94A3B8] hover:text-white hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
               >
                 <ArrowLeftIcon className="size-3.5" />
                 <span>All Categories</span>
@@ -1288,7 +1272,7 @@ export function DriveHomeSubView({
                 <h2 className="text-base font-extrabold text-[#F8FAFC] capitalize tracking-tight">
                   {selectedCategory}
                 </h2>
-                <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
+                <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)]">
                   {categoryStats[selectedCategory]?.count.toLocaleString()} items
                 </span>
                 <span className="text-xs text-[#64748B] font-mono">
@@ -1305,7 +1289,7 @@ export function DriveHomeSubView({
                 value={categorySearchQuery}
                 onChange={(e) => setCategorySearchQuery(e.target.value)}
                 placeholder={`Search ${selectedCategory}...`}
-                className="w-full h-8 pl-8 pr-3 rounded-lg border border-[#232938] bg-[var(--quant-surface-subtle)] text-xs text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:border-[#38BDF8] transition-colors"
+                className="w-full h-8 pl-8 pr-3 rounded-lg border border-[#232938] bg-[var(--quant-surface-subtle)] text-xs text-[#F8FAFC] placeholder-[#64748B] focus:outline-none focus:border-[var(--app-accent)] transition-colors"
               />
             </div>
           </div>
@@ -1350,6 +1334,7 @@ export function DriveHomeSubView({
               onRestoreTrashItem={onRestoreTrashItem}
               onPurgeTrashItem={onPurgeTrashItem}
             />
+
           ) : categoryItems.length === 0 ? (
             /* Empty category state */
             <div className="text-center py-16 rounded-2xl border border-dashed border-[#232938] bg-[var(--quant-surface-subtle)]">
@@ -1368,10 +1353,10 @@ export function DriveHomeSubView({
                 <div
                   key={item.id}
                   onClick={() => onPreviewItem?.(item)}
-                  className="group rounded-xl p-3.5 border border-[#232938] bg-[var(--quant-surface)] hover:border-[#38BDF8]/50 hover:bg-[#38BDF8]/5 cursor-pointer transition-all flex flex-col justify-between"
+                  className="group rounded-xl p-3.5 border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] cursor-pointer transition-all flex flex-col justify-between"
                 >
                   <div className="flex items-start justify-between gap-2 mb-3">
-                    <div className="size-9 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/25 flex items-center justify-center text-[#38BDF8] shrink-0">
+                    <div className="size-9 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
                       {selectedCategory === 'images' ? (
                         <ImageIcon className="size-4" />
                       ) : selectedCategory === 'videos' ? (
@@ -1391,7 +1376,7 @@ export function DriveHomeSubView({
                           e.stopPropagation();
                           onDownloadFile?.(item.id, item.name);
                         }}
-                        className="p-1 rounded text-[#64748B] hover:text-[#38BDF8] transition-colors"
+                        className="p-1 rounded text-[#64748B] hover:text-[var(--app-accent)] transition-colors"
                         aria-label={isDocumentDriveId(item.id) ? 'Open' : 'Download'}
                         title={isDocumentDriveId(item.id) ? 'Open in editor' : 'Download'}
                       >
@@ -1400,7 +1385,7 @@ export function DriveHomeSubView({
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">
+                    <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[var(--app-accent)] transition-colors">
                       {item.name}
                     </p>
                     <p className="text-[11px] text-[#64748B] mt-0.5 font-mono">
@@ -1416,11 +1401,9 @@ export function DriveHomeSubView({
           <SingleEnterpriseStorageGauge
             usedFormatted={gaugeUsedFormatted}
             totalFormatted={gaugeTotalFormatted}
-            planName="Sovereign Enterprise Plan"
             remainingFormatted={gaugeRemainingFormatted}
             usedBytes={gaugeUsedBytes}
             totalBytes={gaugeTotalBytes}
-            onUpgradeClick={onUpgradeClick}
           />
         </div>
       )}
@@ -1438,11 +1421,11 @@ export interface DriveFeedItem {
   type: 'image' | 'video' | 'audio';
   mimeType: string;
   size: number;
-  dateGroup: 'today' | 'yesterday' | 'last_week' | 'september_2026';
+  modifiedAt: string;
+  dateGroup: 'today' | 'yesterday' | 'this_week' | 'last_week' | 'earlier';
   dateLabel: string;
   dimensions?: string;
   duration?: string;
-  previewGradient: string;
   isStarred?: boolean;
   // QM-M39-009: security scan state — 'unknown' renders as "Not scanned",
   // never as safe.
@@ -1457,6 +1440,9 @@ export interface DriveFeedSubViewProps {
   /** QM-M39-005: open the read-only access viewer for the item. */
   onViewAccessItem?: (item: DriveFeedItem) => void;
   className?: string;
+  /** Builds the authenticated download/preview URL for a file id (same URL
+   * the file preview modal uses), so image tiles show the real file. */
+  getDownloadUrl?: (id: string) => string;
   /** Real media files from the Drive. When provided, the feed renders these
    * instead of placeholder content. */
   files?: Array<{
@@ -1477,11 +1463,11 @@ export function DriveFeedSubView({
   onShareItem,
   onViewAccessItem,
   className = '',
+  getDownloadUrl,
   files: realFiles,
 }: DriveFeedSubViewProps) {
   const [selectedFeedIds, setSelectedFeedIds] = useState<Set<string>>(new Set());
   const [mediaFilter, setMediaFilter] = useState<'all' | 'image' | 'video' | 'audio'>('all');
-  const [lightboxItem, setLightboxItem] = useState<DriveFeedItem | null>(null);
 
   // Feed items: real media files when available, otherwise empty.
   // Previously this rendered hardcoded sample files (feed-1, feed-2, …) with
@@ -1501,22 +1487,34 @@ export function DriveFeedSubView({
               ? 'video'
               : 'audio';
           const d = new Date(f.modifiedAt);
-          const today = new Date();
-          const yesterday = new Date(today);
-          yesterday.setDate(yesterday.getDate() - 1);
-          const isToday = d.toDateString() === today.toDateString();
-          const isYesterday = d.toDateString() === yesterday.toDateString();
-          const dateGroup: DriveFeedItem['dateGroup'] = isToday
-            ? 'today'
-            : isYesterday
-              ? 'yesterday'
-              : 'last_week';
+          const startOfToday = new Date();
+          startOfToday.setHours(0, 0, 0, 0);
+          const startOfDay = new Date(d);
+          startOfDay.setHours(0, 0, 0, 0);
+          // Unparseable dates sink to "Earlier" — never mislabeled "Today".
+          const daysAgo = Number.isNaN(startOfDay.getTime())
+            ? Infinity
+            : Math.max(0, Math.floor((startOfToday.getTime() - startOfDay.getTime()) / 86400000));
+          // Truthful buckets: Today / Yesterday / This Week / Last Week / Earlier.
+          // Previously everything older than yesterday was lumped under
+          // "Last Week", which mislabeled month-old files.
+          const dateGroup: DriveFeedItem['dateGroup'] =
+            daysAgo === 0
+              ? 'today'
+              : daysAgo === 1
+                ? 'yesterday'
+                : daysAgo <= 6
+                  ? 'this_week'
+                  : daysAgo <= 13
+                    ? 'last_week'
+                    : 'earlier';
           return {
             id: f.id,
             name: f.name,
             type,
             mimeType: f.mimeType,
             size: f.size,
+            modifiedAt: f.modifiedAt,
             dateGroup,
             dateLabel: d.toLocaleDateString('en-US', {
               month: 'short',
@@ -1541,8 +1539,9 @@ export function DriveFeedSubView({
   const groups: { key: DriveFeedItem['dateGroup']; label: string }[] = [
     { key: 'today', label: 'Today' },
     { key: 'yesterday', label: 'Yesterday' },
+    { key: 'this_week', label: 'This Week' },
     { key: 'last_week', label: 'Last Week' },
-    { key: 'september_2026', label: 'September 2026' },
+    { key: 'earlier', label: 'Earlier' },
   ];
 
   const toggleSelect = (id: string, e: React.MouseEvent) => {
@@ -1586,7 +1585,7 @@ export function DriveFeedSubView({
         <div>
           <h2 className="text-base font-extrabold text-[#F8FAFC] tracking-tight">Visual Media Feed</h2>
           <p className="text-xs text-[#94A3B8] mt-0.5">
-            Chronological high-fidelity timeline of photos, 4K videos, and lossless audio
+            Chronological timeline of your photos, videos, and audio files
           </p>
         </div>
 
@@ -1606,7 +1605,7 @@ export function DriveFeedSubView({
               onClick={() => setMediaFilter(filter.key)}
               className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
                 mediaFilter === filter.key
-                  ? 'bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/40 shadow-[0_0_12px_rgba(56,189,248,0.15)]'
+                  ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_15%,transparent)]'
                   : 'bg-[var(--quant-surface)] text-[#94A3B8] border border-[#232938] hover:text-white'
               }`}
             >
@@ -1618,7 +1617,7 @@ export function DriveFeedSubView({
 
       {/* Batch Selection Bar (if items selected) */}
       {selectedFeedIds.size > 0 && (
-        <div className="flex items-center justify-between px-4 py-2 rounded-xl bg-[#38BDF8]/15 border border-[#38BDF8]/40 text-xs">
+        <div className="flex items-center justify-between px-4 py-2 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] text-xs">
           <span className="font-semibold text-white">
             {selectedFeedIds.size} item{selectedFeedIds.size > 1 ? 's' : ''} selected
           </span>
@@ -1628,7 +1627,7 @@ export function DriveFeedSubView({
               onClick={handleBatchDownload}
               className="px-3 py-1.5 rounded-lg bg-[var(--quant-surface)] text-white border border-[#232938] hover:bg-[var(--quant-surface-elevated)] font-semibold flex items-center gap-1.5"
             >
-              <DownloadIcon className="size-3.5 text-[#38BDF8]" />
+              <DownloadIcon className="size-3.5 text-[var(--app-accent)]" />
               <span>Download Batch</span>
             </button>
             <button
@@ -1651,7 +1650,7 @@ export function DriveFeedSubView({
           return (
             <section key={group.key} className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className="size-2 rounded-full bg-[#38BDF8]" />
+                <span className="size-2 rounded-full bg-[var(--app-accent)]" />
                 <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#F8FAFC]">
                   {group.label}
                 </h3>
@@ -1668,20 +1667,25 @@ export function DriveFeedSubView({
                   return (
                     <div
                       key={item.id}
-                      onClick={() => {
-                        setLightboxItem(item);
-                        onPreviewItem?.(item);
-                      }}
+                      onClick={() => onPreviewItem?.(item)}
                       className={`group relative rounded-2xl border overflow-hidden cursor-pointer transition-all duration-200 aspect-[4/3] flex flex-col justify-between p-3 select-none ${
                         isSelected
-                          ? 'border-[#38BDF8] ring-2 ring-[#38BDF8]/40 shadow-[0_0_20px_rgba(56,189,248,0.2)]'
-                          : 'border-[#232938] hover:border-[#38BDF8]/60 bg-[var(--quant-surface)]'
+                          ? 'border-[var(--app-accent)] ring-2 ring-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] shadow-[0_0_20px_color-mix(in_srgb,var(--app-accent)_20%,transparent)]'
+                          : 'border-[#232938] hover:border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)] bg-[var(--quant-surface)]'
                       }`}
                     >
-                      {/* Gradient / Image visual simulation */}
-                      <div
-                        className={`absolute inset-0 bg-gradient-to-br ${item.previewGradient} opacity-70 group-hover:opacity-90 transition-opacity`}
-                      />
+                      {/* Real visual: the actual image when one can load;
+                          a neutral tile otherwise — never a fake gradient. */}
+                      {item.type === 'image' && getDownloadUrl ? (
+                        <img
+                          src={getDownloadUrl(item.id)}
+                          alt={item.name}
+                          loading="lazy"
+                          className="absolute inset-0 h-full w-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 bg-[var(--quant-surface-elevated)]" />
+                      )}
 
                       {/* Top Action Strip */}
                       <div className="relative z-10 flex items-center justify-between">
@@ -1691,7 +1695,7 @@ export function DriveFeedSubView({
                           onClick={(e) => toggleSelect(item.id, e)}
                           className={`size-6 rounded-lg flex items-center justify-center border transition-all ${
                             isSelected
-                              ? 'bg-[#38BDF8] border-[#38BDF8] text-black'
+                              ? 'bg-[var(--app-accent)] border-[var(--app-accent)] text-black'
                               : 'bg-black/40 border-white/20 text-transparent group-hover:border-white/50'
                           }`}
                           aria-label="Select item"
@@ -1709,14 +1713,13 @@ export function DriveFeedSubView({
                           </svg>
                         </button>
 
-                        {/* Format / Duration Badge */}
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-black/60 backdrop-blur-md text-white border border-white/10 uppercase">
-                          {item.type === 'video'
-                            ? item.duration || '4K'
-                            : item.type === 'audio'
-                            ? item.duration || 'FLAC'
-                            : item.dimensions || 'RAW'}
-                        </span>
+                        {/* Real metadata badge only — the mapping never invents
+                            '4K' / 'FLAC' / 'RAW', so no badge when unknown. */}
+                        {(item.duration || item.dimensions) && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-black/60 backdrop-blur-md text-white border border-white/10 uppercase">
+                            {item.type === 'image' ? item.dimensions : item.duration}
+                          </span>
+                        )}
                       </div>
 
                       {/* Center Type Indicator */}
@@ -1739,7 +1742,7 @@ export function DriveFeedSubView({
                         <p className="text-xs font-semibold text-white truncate">{item.name}</p>
                         <div className="flex items-center justify-between text-[10px] text-[#94A3B8] mt-0.5 font-mono">
                           <span>{formatBytes(item.size)}</span>
-                          <span className="text-[#38BDF8]">View Lightbox</span>
+                          <span className="text-[var(--app-accent)]">Preview</span>
                         </div>
                         {/* QM-M39-009: security scan state — 'unknown' renders as "Not scanned", never as safe */}
                         <div className="mt-1.5">
@@ -1755,92 +1758,15 @@ export function DriveFeedSubView({
         })}
       </div>
 
-      {/* Fast Lightbox Launcher Modal */}
-      {lightboxItem && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-lg p-4 sm:p-8"
-        >
-          <div className="relative w-full max-w-4xl rounded-2xl border border-[#232938] bg-[var(--quant-surface-subtle)] p-5 shadow-2xl flex flex-col max-h-[90vh]">
-            {/* Lightbox Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-[#232938]">
-              <div className="min-w-0 flex-1">
-                <h3 className="text-sm font-bold text-white truncate">{lightboxItem.name}</h3>
-                <p className="text-xs text-[#94A3B8] font-mono mt-0.5">
-                  {lightboxItem.dateLabel} · {formatBytes(lightboxItem.size)}
-                  {lightboxItem.dimensions ? ` · ${lightboxItem.dimensions}` : ''}
-                  {lightboxItem.duration ? ` · Duration: ${lightboxItem.duration}` : ''}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => onDownloadFile?.(lightboxItem.id, lightboxItem.name)}
-                  className="p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-[#94A3B8] hover:text-white hover:border-[#38BDF8]"
-                  title={isDocumentDriveId(lightboxItem.id) ? 'Open in editor' : 'Download File'}
-                >
-                  <DownloadIcon className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onShareItem?.(lightboxItem)}
-                  className="p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-[#94A3B8] hover:text-white hover:border-[#38BDF8]"
-                  title="Share File"
-                >
-                  <ShareIcon className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onViewAccessItem?.(lightboxItem)}
-                  className="p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface-elevated)] text-[#94A3B8] hover:text-white hover:border-[#38BDF8]"
-                  title="View who has access"
-                >
-                  <EyeIcon className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLightboxItem(null)}
-                  className="p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-[#94A3B8] hover:text-white hover:border-rose-500"
-                  title="Close Lightbox"
-                >
-                  <CloseIcon className="size-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Lightbox Preview Stage */}
-            <div className="flex-1 my-4 min-h-[300px] rounded-xl overflow-hidden border border-[#232938] bg-black flex items-center justify-center relative">
-              <div
-                className={`absolute inset-0 bg-gradient-to-br ${lightboxItem.previewGradient} opacity-60`}
-              />
-              <div className="relative z-10 text-center p-6 space-y-3">
-                {lightboxItem.type === 'video' ? (
-                  <VideoIcon className="size-16 text-white/80 mx-auto" />
-                ) : lightboxItem.type === 'audio' ? (
-                  <AudioIcon className="size-16 text-white/80 mx-auto" />
-                ) : (
-                  <ImageIcon className="size-16 text-white/80 mx-auto" />
-                )}
-                <div className="text-sm font-mono text-[#38BDF8] bg-black/60 px-3 py-1 rounded-full border border-[#38BDF8]/30 inline-block">
-                  Fast Lightbox Full-Resolution View
-                </div>
-              </div>
-            </div>
-
-            {/* Lightbox Footer */}
-            <div className="flex items-center justify-between text-xs text-[#94A3B8] pt-2 border-t border-[#232938]">
-              <span>FastCDC Content Addressable Media · Zero-Knowledge Sovereign Storage</span>
-              <button
-                type="button"
-                onClick={() => setLightboxItem(null)}
-                className="px-3 py-1 rounded-lg bg-[#38BDF8]/15 text-[#38BDF8] font-semibold border border-[#38BDF8]/40 hover:bg-[#38BDF8]/25"
-              >
-                Close
-              </button>
-            </div>
-          </div>
+      {/* Honest empty state: no media files yet — never fake tiles. */}
+      {feedItems.length === 0 && (
+        <div className="text-center py-16 rounded-2xl border border-dashed border-[#232938] bg-[var(--quant-surface-subtle)]">
+          <ImageIcon className="size-10 text-[#64748B] mx-auto mb-2" />
+          <p className="text-sm font-semibold text-[#F8FAFC]">No media yet</p>
+          <p className="text-xs text-[#64748B] mt-0.5 max-w-sm mx-auto">
+            Photos, videos, and audio you upload will appear here in a
+            chronological feed.
+          </p>
         </div>
       )}
     </div>
