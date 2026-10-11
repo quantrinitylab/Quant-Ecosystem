@@ -63,6 +63,9 @@ model User {
   oauthClients       OAuthClient[]        @relation("UserOwnedClients")
   oauthConsents      OAuthConsent[]
   authorizationCodes AuthorizationCode[]
+  // SSO identity-provider relations (QuantMail as the ecosystem IdP)
+  ssoTickets             SsoTicket[]
+  emailVerificationTokens EmailVerificationToken[]
   sentMessages       Message[]            @relation("MessageSender")
   conversations      ConversationMember[]
   emails             Email[]
