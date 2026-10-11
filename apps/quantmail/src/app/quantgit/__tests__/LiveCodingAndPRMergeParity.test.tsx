@@ -180,7 +180,7 @@ describe('QuantGit Live Coding In-Editor PR Creation & 3-Way Merge Security Gate
   });
 
   describe('2. Automated Security & CI Status Check Box (PullRequestsTab.tsx)', () => {
-    it('renders all 3 automated security and CI checks with green status', () => {
+    it('renders an honest "checks unknown" state when no check data exists (never invents a gate)', () => {
       const html = renderToStaticMarkup(
         <PullRequestsTab
           pullSearchQuery=""
@@ -193,32 +193,94 @@ describe('QuantGit Live Coding In-Editor PR Creation & 3-Way Merge Security Gate
       );
 
       expect(html).toContain('data-testid="security-ci-checks-box"');
-      expect(html).toContain('All checks have passed (55/56 checks verified green)');
-      expect(html).toContain('data-testid="security-ci-checks-list"');
+      expect(html).toContain('Checks status unknown');
+      expect(html).toContain('data-testid="security-ci-checks-unknown"');
+      expect(html).toContain('neither a pass nor a failure');
 
-      // Check 1: ci/quantgit-actions
-      expect(html).toContain('data-testid="check-ci-quantgit-actions"');
-      expect(html).toContain('ci/quantgit-actions');
-      expect(html).toContain('All tests passed.');
-
-      // Check 2: security/secret-scan
-      expect(html).toContain('data-testid="check-security-secret-scan"');
-      expect(html).toContain('security/secret-scan');
-      expect(html).toContain('No leaked credentials found.');
-
-      // Check 3: security/dependabot
-      expect(html).toContain('data-testid="check-security-dependabot"');
-      expect(html).toContain('security/dependabot');
-      expect(html).toContain('0 critical or high vulnerabilities.');
-
-      // All 3 display a green SVG check-circle indicator (QuantGitCheckCircleIcon)
-      // and Passed status — no emoji per the SVG-octicon polish.
-      const passedCount = (html.match(/Passed/g) || []).length;
-      expect(passedCount).toBeGreaterThanOrEqual(3);
-      expect(html).toContain('M5.4 8.3l1.9 1.9 3.3-3.9');
+      // Fabricated gate must be gone: no invented 55/56 count, no hardcoded
+      // green check list.
+      expect(html).not.toContain('55/56');
+      expect(html).not.toContain('All checks have passed (');
+      expect(html).not.toContain('data-testid="check-ci-quantgit-actions"');
+      expect(html).not.toContain('data-testid="check-security-secret-scan"');
+      expect(html).not.toContain('data-testid="check-security-dependabot"');
+      expect(html).not.toContain('No leaked credentials found.');
+      expect(html).not.toContain('0 critical or high vulnerabilities.');
     });
 
-    it('enables GitHub-class 3-way merge box with 3 merge options when all checks are green', () => {
+    it('renders real check data faithfully when the backend supplies checks', () => {
+      const realChecks: SecurityCheckItem[] = [
+        {
+          id: 'ci/build',
+          name: 'ci/build',
+          description: 'Build succeeded.',
+          status: 'passed',
+        },
+        {
+          id: 'ci/lint',
+          name: 'ci/lint',
+          description: 'Lint running.',
+          status: 'pending',
+        },
+      ];
+
+      const html = renderToStaticMarkup(
+        <PullRequestsTab
+          pullSearchQuery=""
+          setPullSearchQuery={vi.fn()}
+          filteredPulls={[MOCK_OPEN_PR]}
+          openPullsCount={1}
+          closedPullsCount={0}
+          initialSelectedPR={MOCK_OPEN_PR}
+          checks={realChecks}
+        />,
+      );
+
+      expect(html).toContain('data-testid="security-ci-checks-list"');
+      expect(html).toContain('data-testid="check-ci/build"');
+      expect(html).toContain('ci/build');
+      expect(html).toContain('Build succeeded.');
+      expect(html).toContain('Passed');
+      expect(html).toContain('data-testid="check-ci/lint"');
+      expect(html).toContain('Pending');
+      // Not all passed (one pending), but also not a failure headline.
+      expect(html).not.toContain('Some checks have failed');
+    });
+
+    it('enables GitHub-class 3-way merge box with 3 merge options when real checks are green', () => {
+      const passingChecks: SecurityCheckItem[] = [
+        {
+          id: 'ci/build',
+          name: 'ci/build',
+          description: 'Build succeeded.',
+          status: 'passed',
+        },
+      ];
+
+      const html = renderToStaticMarkup(
+        <PullRequestsTab
+          pullSearchQuery=""
+          setPullSearchQuery={vi.fn()}
+          filteredPulls={[MOCK_OPEN_PR]}
+          openPullsCount={1}
+          closedPullsCount={0}
+          initialSelectedPR={MOCK_OPEN_PR}
+          checks={passingChecks}
+        />,
+      );
+
+      expect(html).toContain('All checks have passed');
+      expect(html).not.toContain('55/56');
+      expect(html).toContain('data-testid="merge-enabled-box"');
+      expect(html).toContain('This branch has no conflicts with the base branch.');
+      expect(html).toContain('data-testid="merge-method-select"');
+      expect(html).toContain('Merge pull request (create merge commit)');
+      expect(html).toContain('Squash and merge (1 commit)');
+      expect(html).toContain('Rebase and merge (linear history)');
+      expect(html).toContain('data-testid="merge-pr-btn"');
+    });
+
+    it('keeps merge enabled (backend-gated) when check status is unknown', () => {
       const html = renderToStaticMarkup(
         <PullRequestsTab
           pullSearchQuery=""
@@ -230,13 +292,11 @@ describe('QuantGit Live Coding In-Editor PR Creation & 3-Way Merge Security Gate
         />,
       );
 
+      // Unknown status must not hard-block the real backend merge; the backend
+      // enforces required checks itself.
       expect(html).toContain('data-testid="merge-enabled-box"');
-      expect(html).toContain('This branch has no conflicts with the base branch.');
-      expect(html).toContain('data-testid="merge-method-select"');
-      expect(html).toContain('Merge pull request (create merge commit)');
-      expect(html).toContain('Squash and merge (1 commit)');
-      expect(html).toContain('Rebase and merge (linear history)');
       expect(html).toContain('data-testid="merge-pr-btn"');
+      expect(html).not.toContain('data-testid="merge-blocked-box"');
     });
 
     it('blocks merge and disables merge button when automated checks fail', () => {

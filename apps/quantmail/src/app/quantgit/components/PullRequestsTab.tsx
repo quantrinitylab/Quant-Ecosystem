@@ -44,7 +44,7 @@ export interface PullRequestsTabProps {
   repoId?: string;
   currentUsername?: string;
   showToast?: (message: string) => void;
-  onMergePR?: (prId: number, mergeMethod: MergeMethod) => Promise<void> | void;
+  onMergePR?: (prId: number, mergeMethod: MergeMethod) => Promise<boolean> | boolean | void;
   initialSelectedPR?: PRItem | null;
   checks?: SecurityCheckItem[];
   initialMergeMethod?: MergeMethod;
@@ -82,46 +82,21 @@ export function PullRequestsTab({
   const [isMerging, setIsMerging] = useState<boolean>(false);
   const [mergeCommitMsg, setMergeCommitMsg] = useState<string>('');
 
-  const DEFAULT_SECURITY_CHECKS: SecurityCheckItem[] = [
-    {
-      id: 'ci-quantgit-actions',
-      name: 'ci/quantgit-actions',
-      description: 'All tests passed.',
-      status: 'passed',
-    },
-    {
-      id: 'security-secret-scan',
-      name: 'security/secret-scan',
-      description: 'No leaked credentials found.',
-      status: 'passed',
-    },
-    {
-      id: 'security-dependabot',
-      name: 'security/dependabot',
-      description: '0 critical or high vulnerabilities.',
-      status: 'passed',
-    },
-  ];
-
+  // Honest check state: render ONLY checks supplied via the `checks` prop (real
+  // backend data). Never invent a pass/fail list — when no check data exists the
+  // box renders an explicit "status unknown" state instead of a fabricated gate.
   const activeChecks = React.useMemo(() => {
     if (checks && checks.length > 0) return checks;
-    if (selectedPR?.checksStatus === 'failing') {
-      return [
-        {
-          id: 'ci-quantgit-actions',
-          name: 'ci/quantgit-actions',
-          description: 'All tests passed.',
-          status: 'failed' as const,
-        },
-        DEFAULT_SECURITY_CHECKS[1],
-        DEFAULT_SECURITY_CHECKS[2],
-      ];
-    }
-    return DEFAULT_SECURITY_CHECKS;
-  }, [checks, selectedPR?.checksStatus]);
+    return [];
+  }, [checks]);
 
-  const allChecksPassed =
-    activeChecks.every((c) => c.status === 'passed') && selectedPR?.checksStatus !== 'failing';
+  const checksKnown = activeChecks.length > 0;
+  const anyCheckFailed = activeChecks.some((c) => c.status === 'failed');
+  const allChecksPassed = checksKnown && activeChecks.every((c) => c.status === 'passed');
+  // "Unknown" (no data) must not hard-block the real backend merge — the backend
+  // enforces required checks itself (403 BRANCH_PROTECTED). Only a REAL failed
+  // check blocks the merge UI.
+  const mergeAllowed = !anyCheckFailed;
 
   // Review decisions
   const [isReviewBoxOpen, setIsReviewBoxOpen] = useState<boolean>(false);
@@ -216,9 +191,10 @@ export function PullRequestsTab({
     try {
       let merged = false;
       if (onMergePR) {
-        // Parent owns the merge; a throw here means it failed.
-        await onMergePR(prNumber, selectedMergeMethod);
-        merged = true;
+        // Parent owns the merge and resolves true ONLY when it genuinely
+        // succeeded. Anything else (false / undefined / throw) means the PR
+        // stays open — never claim a merge that did not happen.
+        merged = (await onMergePR(prNumber, selectedMergeMethod)) === true;
       } else {
         const res = await apiFetchRaw(
           `/api/repos/${encodeURIComponent(repoId)}/pulls/${prNumber}/merge`,
@@ -527,31 +503,42 @@ export function PullRequestsTab({
               <div className="flex items-center gap-2">
                 <span
                   className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                    allChecksPassed ? 'text-emerald-400' : 'text-red-400'
+                    allChecksPassed
+                      ? 'text-emerald-400'
+                      : anyCheckFailed
+                        ? 'text-red-400'
+                        : 'text-[#D29922]'
                   }`}
                 >
                   {allChecksPassed ? (
                     <QuantGitCheckCircleIcon size={20} />
-                  ) : (
+                  ) : anyCheckFailed ? (
                     <QuantGitXCircleIcon size={20} />
+                  ) : (
+                    <QuantGitPendingDotIcon size={20} />
                   )}
                 </span>
                 <span className="font-semibold text-xs text-[#E6EDF3]">
                   {allChecksPassed
-                    ? 'All checks have passed (55/56 checks verified green)'
-                    : 'Some checks have failed or are required before merging'}
+                    ? 'All checks have passed'
+                    : anyCheckFailed
+                      ? 'Some checks have failed or are required before merging'
+                      : 'Checks status unknown — no check results available'}
                 </span>
               </div>
-              <button className="text-[#58A6FF] hover:underline text-[11px]">
-                Show all checks
-              </button>
+              {checksKnown && (
+                <button className="text-[#58A6FF] hover:underline text-[11px]">
+                  Show all checks
+                </button>
+              )}
             </div>
 
-            <div
-              className="divide-y divide-[#21262D] text-[11px] text-[#8D96A0] pt-1"
-              data-testid="security-ci-checks-list"
-            >
-              {activeChecks.map((check) => (
+            {checksKnown ? (
+              <div
+                className="divide-y divide-[#21262D] text-[11px] text-[#8D96A0] pt-1"
+                data-testid="security-ci-checks-list"
+              >
+                {activeChecks.map((check) => (
                 <div
                   key={check.id}
                   className="py-1.5 flex items-center justify-between"
@@ -595,12 +582,21 @@ export function PullRequestsTab({
                   </span>
                 </div>
               ))}
-            </div>
+              </div>
+            ) : (
+              <p
+                className="text-[11px] text-[#8D96A0] pt-1"
+                data-testid="security-ci-checks-unknown"
+              >
+                No checks have been reported for this pull request yet. Status is unknown — this is
+                neither a pass nor a failure.
+              </p>
+            )}
 
             {/* Merge Action Box */}
             <div className="pt-3 border-t border-[#30363D]" data-testid="merge-box-container">
               {selectedPR.state === 'open' ? (
-                allChecksPassed ? (
+                mergeAllowed ? (
                   <div className="space-y-3" data-testid="merge-enabled-box">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
@@ -909,8 +905,8 @@ export function PullRequestsTab({
                         <span className="px-1.5 py-0.2 rounded bg-[#1F242C] text-[#58A6FF] font-mono text-[10px]">
                           {pr.branchSource}
                         </span>
-                        <span className="px-1.5 py-0.2 rounded border border-[#238636] text-[#3FB950] text-[10px] font-semibold flex items-center gap-1">
-                          <QuantGitCheckIcon size={10} /> 55/56 passed
+                        <span className="px-1.5 py-0.2 rounded border border-[#30363D] text-[#8D96A0] text-[10px] font-semibold flex items-center gap-1">
+                          <QuantGitPendingDotIcon size={10} /> Checks unknown
                         </span>
                         <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#8D96A0] text-[10px]">
                           Review required
