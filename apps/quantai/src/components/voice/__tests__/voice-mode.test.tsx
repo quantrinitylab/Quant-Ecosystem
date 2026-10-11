@@ -18,6 +18,7 @@ import {
 import { VoiceOrb } from '../VoiceOrb';
 import { VoiceFloatingChip } from '../VoiceFloatingChip';
 import { VoiceModeModal } from '../VoiceModeModal';
+import { getVoiceStatus, VOICE_STATUS_STATES } from '../voice-status';
 
 describe('QuantAI Advanced Voice Mode Parity Suite (Task W39-A03)', () => {
   // --------------------------------------------------------------------------
@@ -402,7 +403,12 @@ describe('QuantAI Advanced Voice Mode Parity Suite (Task W39-A03)', () => {
         }),
       );
 
-      expect(html).toContain('Real-time Low Latency');
+      // F-048: the unverified "Real-time Low Latency" claim was removed; the
+      // header now shows an honest, state-driven status indicator instead.
+      expect(html).not.toContain('Real-time Low Latency');
+      expect(html).toContain('data-testid="voice-status-indicator"');
+      expect(html).toContain('aria-live="polite"');
+      expect(html).toContain('Listening');
       // The fake "Simulate Voice Turn" demo button was intentionally removed;
       // the real mic capture button is present instead.
       expect(html).toContain('data-testid="mute-toggle-button"');
@@ -419,6 +425,70 @@ describe('QuantAI Advanced Voice Mode Parity Suite (Task W39-A03)', () => {
       );
 
       expect(htmlOrb).toContain('Aura is speaking');
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 6. Honest voice status indicator (F-048): no unverified latency claims
+  // --------------------------------------------------------------------------
+  describe('6. Honest voice status indicator (F-048)', () => {
+    const UNVERIFIED_LATENCY_COPY = /real[-\s]?time|low latency/i;
+
+    it('covers every VoiceState with an honest label', () => {
+      const covered = new Set<VoiceState>();
+      for (const state of VOICE_STATUS_STATES) {
+        const info = getVoiceStatus(state, false);
+        covered.add(state);
+        expect(info.label).not.toMatch(UNVERIFIED_LATENCY_COPY);
+        expect(info.label.length).toBeGreaterThan(0);
+        expect(info.dotClass.length).toBeGreaterThan(0);
+      }
+      expect(covered).toEqual(new Set(['idle', 'listening', 'thinking', 'speaking']));
+    });
+
+    it('describes the actual turn flow per state', () => {
+      expect(getVoiceStatus('idle', false).label).toContain('tap the orb to speak');
+      expect(getVoiceStatus('listening', false).label).toContain('Listening');
+      // The actual pipeline is tap-to-stop -> POST STT -> chat; say so honestly.
+      expect(getVoiceStatus('thinking', false).label).toContain('Transcribing');
+      expect(getVoiceStatus('speaking', false).label).toContain('interrupt');
+    });
+
+    it('mic failure overrides any state with an honest unavailable message', () => {
+      for (const state of VOICE_STATUS_STATES) {
+        const info = getVoiceStatus(state, true);
+        expect(info.label).toBe('Microphone unavailable');
+        expect(info.label).not.toMatch(UNVERIFIED_LATENCY_COPY);
+      }
+    });
+
+    it('renders the honest indicator with aria-live and no latency claims', () => {
+      const html = renderToStaticMarkup(
+        React.createElement(VoiceModeModal, {
+          isOpen: true,
+          onClose: vi.fn(),
+          initialPersonaId: 'aura',
+        }),
+      );
+
+      expect(html).not.toMatch(/real-time low latency/i);
+      expect(html).not.toMatch(/advanced voice mode •/i);
+      expect(html).toContain('data-testid="voice-status-indicator"');
+      expect(html).toContain('aria-live="polite"');
+      // Default state is listening; the label must describe the tap-to-record flow.
+      expect(html).toContain('Listening — tap the orb when done');
+    });
+
+    it('renders nothing when the modal is closed', () => {
+      const html = renderToStaticMarkup(
+        React.createElement(VoiceModeModal, {
+          isOpen: false,
+          onClose: vi.fn(),
+          initialPersonaId: 'aura',
+        }),
+      );
+
+      expect(html).toBe('');
     });
   });
 });

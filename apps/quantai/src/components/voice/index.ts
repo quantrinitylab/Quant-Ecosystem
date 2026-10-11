@@ -4,6 +4,7 @@
 // ============================================================================
 
 export * from './voice-personas';
+export * from './voice-status';
 export * from './VoiceOrb';
 export * from './VoiceFloatingChip';
 export * from './VoiceModeModal';

@@ -15,6 +15,7 @@ import {
 } from './voice-personas';
 import { VoiceOrb } from './VoiceOrb';
 import { VoiceFloatingChip } from './VoiceFloatingChip';
+import { getVoiceStatus } from './voice-status';
 import { useVoiceCapture } from '../../hooks/useVoiceCapture';
 import { useBargeInWatch, stopAssistantPlayback } from './barge-in';
 import { apiFetchRaw } from '@quant/api-client';
@@ -415,6 +416,13 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
     );
   }
 
+  // Honest header status indicator (F-048): describes the real tap-to-record
+  // flow instead of claiming unverified "real-time low latency".
+  const statusInfo = getVoiceStatus(
+    voiceState,
+    Boolean(captureError) || captureState === 'denied',
+  );
+
   return (
     <>
       {/* Minimized Floating Status Chip */}
@@ -557,13 +565,14 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
               </AnimatePresence>
             </div>
 
-            {/* Center: Live Connectivity & Mode Indicator */}
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900/80 border border-zinc-800 text-[11px] text-zinc-300">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="font-medium">Advanced Voice Mode</span>
-              <span className="text-zinc-500">•</span>
-              <span className="text-zinc-400 uppercase tracking-wider text-[10px]">
-                Real-time Low Latency
+            {/* Center: Honest voice-state indicator (F-048 — no latency claims) */}
+            <div
+              data-testid="voice-status-indicator"
+              className="flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900/80 border border-zinc-800 text-[11px] text-zinc-300"
+            >
+              <span className={`w-2 h-2 rounded-full ${statusInfo.dotClass}`} aria-hidden="true" />
+              <span className="font-medium" aria-live="polite">
+                {statusInfo.label}
               </span>
             </div>
 
