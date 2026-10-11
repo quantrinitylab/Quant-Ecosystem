@@ -235,10 +235,10 @@ export default function LoginPage() {
   return (
     <>
       <Head>
-        <title>QuantGram Creator Media — Sign In</title>
+        <title>QuantGram — Sign In</title>
         <meta
           name="description"
-          content="QuantGram Creator Media: High-Octane Reels, Visual Stories, Sovereign Monetization."
+          content="QuantGram: share reels, stories and photos with your people. Sign in with your QuantID."
         />
       </Head>
 
@@ -267,48 +267,37 @@ export default function LoginPage() {
         {/* Centerpiece: Split Showcase on Desktop, Luxury Frosted Glass on Mobile */}
         <main className="w-full max-w-5xl mx-auto my-auto py-6 sm:py-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
-          {/* Left Column (Desktop Hero / Creator Pitch) */}
+          {/* Left Column (Desktop Hero) */}
           <section className="lg:col-span-6 flex flex-col items-center lg:items-start text-center lg:text-left space-y-6">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#FF5E62]/15 via-[#D946EF]/15 to-[#FF8C42]/15 border border-white/15 backdrop-blur-md">
-              <SparklesIcon className="w-4 h-4 text-[#FF8C42]" />
-              <span className="text-xs font-semibold tracking-wider uppercase text-zinc-200">
-                Next-Gen Creator Economy
-              </span>
-            </div>
-
             <div className="space-y-3">
               <div className="flex items-center justify-center lg:justify-start gap-3">
                 <GeometricAperturePrism className="w-12 h-12" />
                 <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight bg-gradient-to-r from-white via-zinc-100 to-zinc-300 bg-clip-text text-transparent">
-                  QuantGram Creator Media
+                  QuantGram
                 </h1>
               </div>
               <p className="text-base sm:text-lg font-medium text-zinc-300">
-                High-Octane Reels · Visual Stories · Sovereign Monetization
+                Share reels, stories and photos with your people.
               </p>
             </div>
 
-            {/* Creator Stats Banner */}
+            {/* What you can do here */}
             <div className="w-full p-4 rounded-2xl bg-white/[0.04] backdrop-blur-xl border border-white/10 shadow-xl space-y-2.5">
-              <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                <span>Network Performance Standards</span>
-                <span className="text-emerald-400">Live</span>
+              <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                What you can do here
               </div>
-              <div className="text-sm sm:text-base font-semibold tracking-wide bg-gradient-to-r from-[#FF8C42] via-[#FF5E62] to-[#D946EF] bg-clip-text text-transparent">
-                70% Direct Rev-Share · Zero Algorithm Censorship · 4K 120fps Streaming
-              </div>
-              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/5 text-xs text-zinc-300">
+              <div className="grid grid-cols-3 gap-2 pt-2 text-xs text-zinc-300">
                 <div className="flex items-center gap-1.5">
-                  <ShieldCheckIcon className="w-3.5 h-3.5 text-[#FF5E62] shrink-0" />
-                  <span className="truncate">Instant Payouts</span>
+                  <VideoIcon className="w-3.5 h-3.5 text-[#FF8C42] shrink-0" />
+                  <span className="truncate">Watch reels</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <SparklesIcon className="w-3.5 h-3.5 text-[#D946EF] shrink-0" />
-                  <span className="truncate">Web3 Sovereignty</span>
+                  <span className="truncate">Share stories</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <VideoIcon className="w-3.5 h-3.5 text-[#FF8C42] shrink-0" />
-                  <span className="truncate">Lossless Codec</span>
+                  <ShieldCheckIcon className="w-3.5 h-3.5 text-[#FF5E62] shrink-0" />
+                  <span className="truncate">Message friends</span>
                 </div>
               </div>
             </div>
@@ -316,13 +305,13 @@ export default function LoginPage() {
             {/* Feature Highlights Pills */}
             <div className="hidden lg:flex flex-wrap gap-2 text-xs text-zinc-400">
               <span className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/5">
-                Multi-Stop AR Filters
+                Photo posts
               </span>
               <span className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/5">
-                Vanish Mode Encrypted DMs
+                Explore feed
               </span>
               <span className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/5">
-                Live Collab Stages
+                Collab posts
               </span>
             </div>
           </section>

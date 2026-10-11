@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../services/api-client';
-import { getGuestFeaturedPosts } from '../data/public-reels';
 import type { Post } from '../types';
 
 export function useExplore() {
@@ -13,9 +12,9 @@ export function useExplore() {
           return response.data.posts;
         }
       } catch {
-        // Fall back to guest featured posts on failure
+        // No fake fallback: an empty feed is honest, invented posts are not.
       }
-      return getGuestFeaturedPosts() as unknown as Post[];
+      return [];
     },
   });
 }

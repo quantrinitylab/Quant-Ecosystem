@@ -11,7 +11,6 @@ import { PageTransition, ErrorState, EmptyState } from '@quant/shared-ui';
 import { useExplore } from '../hooks/useExplore';
 import { useAuth } from '../providers/auth-provider';
 import { GuestInteractionGate } from '../components/GuestInteractionGate';
-import { getGuestFeaturedPosts } from '../data/public-reels';
 import type { Post } from '../types';
 
 type Category = 'For You' | 'Travel' | 'Food' | 'Art' | 'Fashion' | 'Sports' | 'Music';

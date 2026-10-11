@@ -7,7 +7,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../services/api-client';
-import { getGuestFeaturedReels } from '../data/public-reels';
 
 interface Reel {
   id: string;
@@ -113,9 +112,9 @@ export function useReels(): [ReelsState, ReelsActions] {
           return response.data.reels;
         }
       } catch {
-        // Fall back to guest featured reels on failure
+        // No fake fallback: an empty feed is honest, invented reels are not.
       }
-      return getGuestFeaturedReels();
+      return [];
     },
   });
 
@@ -145,9 +144,8 @@ export function useReels(): [ReelsState, ReelsActions] {
     },
   });
 
-  const reels: Reel[] = (reelsQuery.data && reelsQuery.data.length > 0
-    ? reelsQuery.data
-    : getGuestFeaturedReels()) as unknown as Reel[];
+  // Honest empty state: no invented reels when the feed is unavailable.
+  const reels: Reel[] = (reelsQuery.data ?? []) as unknown as Reel[];
 
   // Seed the liked set from the per-viewer `isLiked` flags returned by the feed.
   useEffect(() => {

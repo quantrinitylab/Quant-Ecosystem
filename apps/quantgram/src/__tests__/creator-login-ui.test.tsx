@@ -53,12 +53,20 @@ describe('QuantGram Creator Login UI/UX Parity (Instagram / TikTok Class)', () =
     });
 
     it('renders the exact required headline and subtitle', () => {
-      expect(markup).toContain('QuantGram Creator Media');
-      expect(markup).toContain('High-Octane Reels · Visual Stories · Sovereign Monetization');
+      expect(markup).toContain('QuantGram');
+      expect(markup).toContain('Share reels, stories and photos with your people.');
     });
 
-    it('renders the creator stats banner with 70% rev-share, zero censorship, 4k 120fps', () => {
-      expect(markup).toContain('70% Direct Rev-Share · Zero Algorithm Censorship · 4K 120fps Streaming');
+    it('renders an honest feature banner with no invented claims', () => {
+      expect(markup).toContain('What you can do here');
+      expect(markup).toContain('Watch reels');
+      expect(markup).toContain('Share stories');
+      expect(markup).toContain('Message friends');
+      expect(markup).not.toContain('4K 120fps');
+      expect(markup).not.toContain('Vanish Mode');
+      expect(markup).not.toContain('Zero Algorithm Censorship');
+      expect(markup).not.toContain('Rev-Share');
+      expect(markup).not.toContain('Network Performance Standards');
     });
 
     it('renders frosted glass card with high-fashion classes', () => {
