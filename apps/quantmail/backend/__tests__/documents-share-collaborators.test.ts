@@ -155,7 +155,7 @@ describe('P0-4a — public share link contract', () => {
     // reading `data.shareToken` while the server only returned `data.token`.
     expect(typeof json.data.token).toBe('string');
     expect(json.data.token.length).toBeGreaterThan(0);
-    expect(json.data.shareUrl).toBe(`/documents/public/share/${json.data.token}`);
+    expect(json.data.shareUrl).toBe(`/drive/share/${json.data.token}`);
     expect(json.data.role).toBe('view');
     await app.close();
   });

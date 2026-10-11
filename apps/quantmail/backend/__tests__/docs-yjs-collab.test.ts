@@ -1411,7 +1411,7 @@ describe('QuantDocs Document Content Search & Export Engine (Tasks N09 & N10)', 
       expect(body.data.id).toBe('doc-share-test-1');
       expect(body.data.token).toBeDefined();
       expect(body.data.role).toBe('view');
-      expect(body.data.shareUrl).toContain('/documents/public/share/');
+      expect(body.data.shareUrl).toContain('/drive/share/');
 
       await app.close();
     });

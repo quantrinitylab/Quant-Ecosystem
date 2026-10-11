@@ -89,10 +89,13 @@ export const ShareModal: React.FC<ShareModalProps> = ({
       const token = res.data?.token;
       const sharePath = res.data?.shareUrl;
       if (token) {
+        // ONE canonical share path: /drive/share/<token>. The server answers
+        // shareUrl for new links; the fallback covers older servers that only
+        // return the token.
         const fullPublicUrl =
           sharePath && sharePath.startsWith('/')
             ? `${window.location.origin}${sharePath}`
-            : `${window.location.origin}/documents/public/share/${token}`;
+            : `${window.location.origin}/drive/share/${token}`;
         setPublicShareToken(token);
         setPublicShareUrl(fullPublicUrl);
         showToast({ text: 'Public share link generated!', type: 'success', subject: 'share-link' });
