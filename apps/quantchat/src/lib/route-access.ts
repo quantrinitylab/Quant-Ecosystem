@@ -63,8 +63,12 @@ export const APP_ROUTES: readonly string[] = [
   '/settings',
 ];
 
-/** Dynamic app routes: /chat/[id] and /meet/[roomId]. */
-const APP_ROUTE_PATTERNS: readonly RegExp[] = [/^\/chat\/[^/]+$/, /^\/meet\/[^/]+$/];
+/** Dynamic app routes: /chat/[id], /meet/[roomId] and /calls/[callId]. */
+const APP_ROUTE_PATTERNS: readonly RegExp[] = [
+  /^\/chat\/[^/]+$/,
+  /^\/meet\/[^/]+$/,
+  /^\/calls\/[^/]+$/,
+];
 
 const APP_ROUTE_SET: ReadonlySet<string> = new Set(APP_ROUTES);
 
