@@ -434,8 +434,8 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
     id: 'drive',
     label: 'Drive',
     path: '/drive',
-    badge: 'E2EE',
-    badgeTone: 'cyan',
+    // No E2EE badge: the Drive vault has no client-side encryption yet
+    // (see DriveVaultSubView). Badging the whole pillar E2EE was a false claim.
     accentColor: PILLAR_ACCENTS.drive,
     glowColor: 'rgba(52, 168, 83, 0.25)',
     icon: DrivePillarSvg,
@@ -1014,7 +1014,7 @@ export function QuantMailSuperAppHeader({
               </div>
               <div className="flex items-center justify-between text-[10px] text-[#64748B] mt-1">
                 <span>{storagePercentage}% capacity used</span>
-                <span className="text-sky-400 font-medium">FastCDC E2EE</span>
+                <span className="text-sky-400 font-medium">FastCDC dedup</span>
               </div>
             </div>
             )}

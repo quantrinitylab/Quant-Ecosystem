@@ -187,7 +187,7 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
 
     it('never ships hardcoded numeric lens badges in the pillar config', () => {
       // Regression guard for the phantom-counts bug: the config may carry
-      // static string labels (e.g. 'E2EE') but no fabricated numbers.
+      // static string labels (e.g. 'AI') but no fabricated numbers.
       for (const [pillar, lenses] of Object.entries(PILLAR_LENSES)) {
         for (const lens of lenses) {
           expect(
@@ -507,14 +507,16 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       expect(html).toContain('Reminders');
     });
 
-    it('renders Drive sub-category lenses: All Files, Docs, Media, Vault E2EE, FastCDC Clean', () => {
+    it('renders Drive sub-category lenses with no false E2EE badge on Vault', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="drive" hideLensStrip={false} />);
 
       expect(html).toContain('All Files');
       expect(html).toContain('Docs');
       expect(html).toContain('Media');
       expect(html).toContain('Vault');
-      expect(html).toContain('E2EE');
+      // Vault honesty: no client-side encryption exists yet, so the lens must
+      // not carry an E2EE badge.
+      expect(html).not.toContain('E2EE');
       expect(html).toContain('FastCDC Clean');
     });
 

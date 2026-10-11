@@ -128,7 +128,7 @@ describe('QuantMailSuperAppHeader — Amazon/Flipkart-Class Super-App Command He
       // Live badges
       expect(html).toContain('12'); // Mail unread
       expect(html).toContain('2'); // Calendar events
-      expect(html).toContain('E2EE'); // Drive badge
+      expect(html).not.toContain('E2EE'); // Drive E2EE badge removed — no client-side E2EE exists yet
       expect(html).toContain('8'); // Contacts VIPs
       expect(html).toContain('1'); // QuantGit PRs
     });
@@ -138,7 +138,7 @@ describe('QuantMailSuperAppHeader — Amazon/Flipkart-Class Super-App Command He
       expect(mailHtml).toContain('aria-selected="true" aria-label="Mail Pillar (12)"');
 
       const driveHtml = renderToStaticMarkup(<QuantMailSuperAppHeader activePillar="drive" />);
-      expect(driveHtml).toContain('aria-selected="true" aria-label="Drive Pillar (E2EE)"');
+      expect(driveHtml).toContain('aria-selected="true" aria-label="Drive Pillar"');
       // Underline glow color for Drive (canonical PILLAR_ACCENTS.drive #34A853, QM-UIUX-037)
       expect(driveHtml).toContain('#34A853');
       expect(driveHtml).toContain('rgba(52, 168, 83, 0.25)');
@@ -188,7 +188,7 @@ describe('QuantMailSuperAppHeader — Amazon/Flipkart-Class Super-App Command He
       expect(html).toContain('Drive Quota');
       expect(html).toContain('25 / 100 GB');
       expect(html).toContain('25% capacity used');
-      expect(html).toContain('FastCDC E2EE');
+      expect(html).toContain('FastCDC dedup');
     });
 
     it('renders Executive Quick Actions tile with 4 rapid action buttons', () => {

@@ -868,8 +868,11 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         id: 'vault',
         label: 'Vault',
         icon: VaultLockIcon,
-        badgeText: 'E2EE',
-        ariaLabel: 'Vault (AES-256 E2EE)',
+        // QM vault honesty: no client-side encryption is implemented for the
+        // vault (DriveVaultSubView says so plainly), so the tab must not carry
+        // an E2EE/AES security badge. Do not re-add one until real
+        // client-side encryption ships.
+        ariaLabel: 'Vault',
         targetPath: '/drive',
         queryParam: { key: 'tab', value: 'vault' },
       },
