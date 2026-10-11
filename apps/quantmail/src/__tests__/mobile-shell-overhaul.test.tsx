@@ -138,9 +138,11 @@ describe('Mobile Shell Overhaul — Worker A', () => {
       // sidebar (DesktopContextSidebar, effect-gated so absent from SSR
       // markup; covered directly in desktop-context-sidebar.test.tsx,
       // including id="app-shell-search-input").
-      // The hamburger is gone (2026-10-10 redesign: rail always pinned).
+      // The mobile pillar top bar deliberately HAS a hamburger
+      // (mobile-inbox P1, 2026-10-11): on phones it opens the nav drawer;
+      // the 2026-10-10 removal only dropped the desktop header hamburger.
       expect(html).not.toContain('id="app-shell-search-input"');
-      expect(html).not.toContain('Open navigation menu');
+      expect(html).toContain('Open navigation menu');
     });
 
     it('still honours customHeader (replaces the whole header element)', () => {

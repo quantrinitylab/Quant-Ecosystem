@@ -1,4 +1,8 @@
 // @vitest-environment jsdom
+
+// Silence React's "not configured to support act" warning in this jsdom
+// harness — act() flushes effects synchronously here by design.
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 // ============================================================================
 // Mobile navigation drawer — hamburger opener (mobile-inbox P1, 2026-10-11).
 //
@@ -28,13 +32,17 @@
 //       quant:sidebar:toggle) into the pillar top bar;
 //   (8) the drawer still carries inert + aria-hidden when not presented, so
 //       the change introduces no new focus-stranding.
+//
+// Component assertions use a small createRoot + act harness with plain DOM
+// queries — the repo's established pattern (no @testing-library/react in
+// this app).
 // ============================================================================
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import React, { createRef } from 'react';
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import React, { act, createRef } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), prefetch: vi.fn() }),
@@ -56,28 +64,63 @@ import { QuantPillarTopBar } from '../QuantPillarTopBar';
 
 const shellSrc = readFileSync(join(process.cwd(), 'src/components/AppShell.tsx'), 'utf8');
 
+const HAMBURGER = 'button[aria-label="Open navigation menu"]';
+
+let container: HTMLDivElement | null = null;
+let root: Root | null = null;
+
+function renderEl(el: React.ReactElement) {
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  act(() => {
+    root = createRoot(container!);
+    root.render(el);
+  });
+  return {
+    container: container!,
+    rerender(next: React.ReactElement) {
+      act(() => {
+        root!.render(next);
+      });
+    },
+  };
+}
+
+afterEach(() => {
+  if (root) {
+    act(() => {
+      root!.unmount();
+    });
+    root = null;
+  }
+  container?.remove();
+  container = null;
+  vi.clearAllMocks();
+});
+
 describe('mobile drawer hamburger', () => {
   it('renders a named hamburger button when the opener is wired', () => {
     const ref = createRef<HTMLButtonElement>();
-    render(
+    const { container } = renderEl(
       <QuantPillarTopBar
         onMenuClick={() => {}}
         menuTriggerRef={ref}
         menuExpanded={false}
       />,
     );
-    const btn = screen.getByRole('button', { name: 'Open navigation menu' });
-    expect(btn).toBeTruthy();
-    expect(btn.getAttribute('aria-expanded')).toBe('false');
+    const btn = container.querySelector<HTMLButtonElement>(HAMBURGER);
+    expect(btn).not.toBeNull();
+    expect(btn!.getAttribute('aria-expanded')).toBe('false');
   });
 
   it('is a 44px minimum touch target', () => {
     const ref = createRef<HTMLButtonElement>();
-    const { container } = render(
+    const { container } = renderEl(
       <QuantPillarTopBar onMenuClick={() => {}} menuTriggerRef={ref} />,
     );
-    const btn = screen.getByRole('button', { name: 'Open navigation menu' });
-    const cls = btn.getAttribute('class') ?? '';
+    const btn = container.querySelector<HTMLButtonElement>(HAMBURGER);
+    expect(btn).not.toBeNull();
+    const cls = btn!.getAttribute('class') ?? '';
     // 44px floor, stated redundantly so a Tailwind `size-11` purge can never
     // silently shrink the hit target.
     expect(cls).toMatch(/min-h-\[44px\]/);
@@ -87,42 +130,55 @@ describe('mobile drawer hamburger', () => {
 
   it('attaches menuTriggerRef to the button (drawer focus-return target)', () => {
     const ref = createRef<HTMLButtonElement>();
-    render(<QuantPillarTopBar onMenuClick={() => {}} menuTriggerRef={ref} />);
-    const btn = screen.getByRole('button', { name: 'Open navigation menu' });
+    const { container } = renderEl(
+      <QuantPillarTopBar onMenuClick={() => {}} menuTriggerRef={ref} />,
+    );
+    const btn = container.querySelector<HTMLButtonElement>(HAMBURGER);
     expect(ref.current).toBe(btn);
   });
 
   it('tapping it invokes the opener', () => {
     const onMenuClick = vi.fn();
-    render(<QuantPillarTopBar onMenuClick={onMenuClick} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Open navigation menu' }));
+    const { container } = renderEl(<QuantPillarTopBar onMenuClick={onMenuClick} />);
+    const btn = container.querySelector<HTMLButtonElement>(HAMBURGER);
+    expect(btn).not.toBeNull();
+    act(() => {
+      btn!.click();
+    });
     expect(onMenuClick).toHaveBeenCalledTimes(1);
   });
 
   it('aria-expanded follows the drawer state', () => {
-    const { rerender } = render(<QuantPillarTopBar onMenuClick={() => {}} menuExpanded={false} />);
+    const { container, rerender } = renderEl(
+      <QuantPillarTopBar onMenuClick={() => {}} menuExpanded={false} />,
+    );
     expect(
-      screen.getByRole('button', { name: 'Open navigation menu' }).getAttribute('aria-expanded'),
+      container
+        .querySelector<HTMLButtonElement>(HAMBURGER)!
+        .getAttribute('aria-expanded'),
     ).toBe('false');
     rerender(<QuantPillarTopBar onMenuClick={() => {}} menuExpanded={true} />);
     expect(
-      screen.getByRole('button', { name: 'Open navigation menu' }).getAttribute('aria-expanded'),
+      container
+        .querySelector<HTMLButtonElement>(HAMBURGER)!
+        .getAttribute('aria-expanded'),
     ).toBe('true');
   });
 
   it('renders no hamburger when no opener is wired (no dead button)', () => {
-    render(<QuantPillarTopBar />);
-    expect(screen.queryByRole('button', { name: 'Open navigation menu' })).toBeNull();
+    const { container } = renderEl(<QuantPillarTopBar />);
+    expect(container.querySelector(HAMBURGER)).toBeNull();
   });
 
   it('precedes the search field in DOM order', () => {
-    render(<QuantPillarTopBar onMenuClick={() => {}} />);
-    const btn = screen.getByRole('button', { name: 'Open navigation menu' });
-    const search = document.getElementById('quant-pillar-search-input');
+    const { container } = renderEl(<QuantPillarTopBar onMenuClick={() => {}} />);
+    const btn = container.querySelector<HTMLButtonElement>(HAMBURGER);
+    const search = container.querySelector('#quant-pillar-search-input');
+    expect(btn).not.toBeNull();
     expect(search).not.toBeNull();
     // The button must come first in the document: screen readers and Tab meet
     // the drawer opener before the search field.
-    expect(btn.compareDocumentPosition(search as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(btn!.compareDocumentPosition(search as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 
