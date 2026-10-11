@@ -208,19 +208,21 @@ export function SecurityTab({
         showToast('Secret scanning is not available for this repository yet.');
         return;
       }
-      // Only report counts the backend actually returned — never a canned result.
+      // HONESTY: the backend either ran a real scan or tells us it cannot.
+      // Never toast invented counts as findings.
       const data = (await res.json().catch(() => null)) as {
-        filesScanned?: number;
-        newLeaks?: number;
+        data?: { scanAvailable?: boolean; message?: string };
       } | null;
-      if (data && typeof data.filesScanned === 'number' && typeof data.newLeaks === 'number') {
+      const payload = data?.data;
+      if (payload && payload.scanAvailable === false) {
         showToast(
-          `Secret scan complete: ${data.filesScanned} files analyzed. ${data.newLeaks} new leaked credential${
-            data.newLeaks === 1 ? '' : 's'
-          } found.`,
+          payload.message ||
+            'Secret scanning is not wired up for this repository yet — no scan was run.',
         );
+      } else if (payload && payload.message) {
+        showToast(payload.message);
       } else {
-        showToast('Secret scan complete.');
+        showToast('Scan request acknowledged. No verified results returned.');
       }
     } catch {
       showToast('Secret scanning is not available for this repository yet.');
@@ -312,8 +314,8 @@ export function SecurityTab({
             <h2 className="font-bold text-white text-base">Security & Vulnerability Overview</h2>
           </div>
           <p className="text-[#7D8590] text-xs">
-            GitHub-class Dependabot advisories, secret credential scanner, CodeQL SAST engine, and
-            branch protection gates.
+            Dependabot advisories, secret scanning, and SAST findings appear here once the
+            scanners are wired up. Branch protection gates are configurable below.
           </p>
         </div>
 
@@ -666,13 +668,13 @@ export function SecurityTab({
             <div className="space-y-1">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <span>🔑 Git Credential & Secret Scanner</span>
-                <span className="px-2 py-px rounded-full bg-[#F85149]/20 text-[#F85149] font-mono text-[10px]">
-                  Active Protection
+                <span className="px-2 py-px rounded-full bg-[#7D8590]/20 text-[#7D8590] font-mono text-[10px]">
+                  Not wired up
                 </span>
               </h3>
               <p className="text-[#7D8590] text-xs">
-                Continuously analyzes repository commits and files for AWS keys, GitHub/GitLab
-                tokens, OpenAI API keys, RSA keys, and database credentials.
+                Secret scanning is not wired up yet — nothing is being scanned. Findings from a
+                future scan will appear here.
               </p>
             </div>
 
@@ -739,9 +741,9 @@ export function SecurityTab({
           >
             {filteredSecretAlerts.length === 0 ? (
               <div className="p-8 text-center space-y-2 text-[#7D8590]">
-                <p className="text-sm font-semibold text-[#3FB950]">✓ No leaked secrets found</p>
+                <p className="text-sm font-semibold text-[#7D8590]">Secret scanning isn&apos;t wired up yet</p>
                 <p className="text-xs">
-                  Your repository is clean of exposed credentials and private tokens.
+                  No scan has run, so there are no findings to show.
                 </p>
               </div>
             ) : (
@@ -835,22 +837,22 @@ export function SecurityTab({
             <div className="space-y-1">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <span>🔬 CodeQL Static Application Security Testing (SAST)</span>
-                <span className="px-2 py-px rounded-full bg-[#58A6FF]/20 text-[#58A6FF] font-mono text-[10px]">
-                  v2.17.2
+                <span className="px-2 py-px rounded-full bg-[#7D8590]/20 text-[#7D8590] font-mono text-[10px]">
+                  Not wired up
                 </span>
               </h3>
               <p className="text-[#7D8590] text-xs">
-                Semantic AST analysis detecting SQL Injection, Cross-Site Scripting (XSS), Path
-                Traversal, and Insecure Randomness before code reaches production.
+                SAST scanning is not wired up yet — nothing is being analyzed. Findings from a
+                future scan will appear here.
               </p>
             </div>
 
             <div className="text-right text-[11px] text-[#7D8590]">
               <div>
-                Engine: <span className="text-[#3FB950] font-semibold">Active CodeQL Matrix</span>
+                Engine: <span className="text-[#7D8590] font-semibold">Not connected</span>
               </div>
               <div>
-                Rule suites: <span className="text-white">security-extended</span>
+                Rule suites: <span className="text-white">—</span>
               </div>
             </div>
           </div>
@@ -897,12 +899,10 @@ export function SecurityTab({
           >
             {filteredCodeqlAlerts.length === 0 ? (
               <div className="p-8 text-center space-y-2 text-[#7D8590]">
-                <p className="text-sm font-semibold text-[#3FB950]">
-                  ✓ 0 Static Security Vulnerabilities
+                <p className="text-sm font-semibold text-[#7D8590]">
+                  SAST scanning isn&apos;t wired up yet
                 </p>
-                <p className="text-xs">
-                  CodeQL static code analysis reported clean results across all AST branches.
-                </p>
+                <p className="text-xs">No scan has run, so there are no findings to show.</p>
               </div>
             ) : (
               filteredCodeqlAlerts.map((alert) => (

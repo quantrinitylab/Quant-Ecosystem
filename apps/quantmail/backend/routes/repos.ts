@@ -467,199 +467,6 @@ const memoryCodeqlAlertsStore = new Map<string, BackendCodeqlAlert[]>();
 const memoryBranchRulesStore = new Map<string, any>();
 const memorySecurityPolicyStore = new Map<string, string>();
 
-const DEFAULT_BACKEND_DEPENDABOT_ALERTS: BackendSecurityAlert[] = [
-  {
-    id: 'sec-0',
-    package: 'express',
-    severity: 'critical',
-    cve: 'CVE-2026-3849',
-    cvss: 9.8,
-    title: 'Remote Code Execution via Prototype Pollution in nested query parser',
-    cweTitle: "CWE-94: Improper Control of Generation of Code ('Code Injection')",
-    vulnerableRange: '< 4.18.2',
-    patchedVersion: '4.18.2',
-    state: 'open',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'sec-1',
-    package: 'tar',
-    severity: 'high',
-    cve: 'CVE-2024-37890',
-    cvss: 7.5,
-    title: 'Arbitrary File Overwrite via symlink directory traversal',
-    cweTitle:
-      "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')",
-    vulnerableRange: '< 6.2.1',
-    patchedVersion: '6.2.1',
-    state: 'open',
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: 'sec-2',
-    package: 'micromatch',
-    severity: 'moderate',
-    cve: 'CVE-2024-4067',
-    cvss: 5.3,
-    title: 'Regular Expression Denial of Service (ReDoS) in glob parsing',
-    cweTitle: 'CWE-1333: Inefficient Regular Expression Complexity',
-    vulnerableRange: '< 4.0.8',
-    patchedVersion: '4.0.8',
-    state: 'open',
-    createdAt: new Date(Date.now() - 172800000).toISOString(),
-  },
-  {
-    id: 'sec-3',
-    package: 'ws',
-    severity: 'low',
-    cve: 'CVE-2024-37891',
-    cvss: 3.7,
-    title: 'WebSocket payload framing timing side-channel',
-    cweTitle: 'CWE-208: Observable Timing Discrepancy',
-    vulnerableRange: '< 8.17.1',
-    patchedVersion: '8.17.1',
-    state: 'open',
-    createdAt: new Date(Date.now() - 604800000).toISOString(),
-  },
-];
-
-const DEFAULT_BACKEND_SECRET_ALERTS: BackendSecretAlert[] = [
-  {
-    id: 'secret-1',
-    secretType: 'AWS Access Key',
-    maskedSecret: 'AKIA************',
-    rawMatch: 'AKIAIOSFODNN7EXAMPLE',
-    filePath: 'config/aws-credentials.env',
-    lineNumber: 14,
-    detectedAt: '12 minutes ago',
-    status: 'active',
-  },
-  {
-    id: 'secret-2',
-    secretType: 'GitHub Personal Access Token',
-    maskedSecret: 'ghp_************',
-    rawMatch: 'ghp_1234567890abcdefghijklmnopqrstuvwxyz',
-    filePath: 'scripts/deploy-staging.sh',
-    lineNumber: 28,
-    detectedAt: '1 hour ago',
-    status: 'active',
-  },
-  {
-    id: 'secret-3',
-    secretType: 'GitLab Personal Access Token',
-    maskedSecret: 'glpat-************',
-    rawMatch: 'glpat-xxxxxxxxxxxxxxxxxxxx',
-    filePath: '.gitlab-ci.yml',
-    lineNumber: 45,
-    detectedAt: '3 hours ago',
-    status: 'active',
-  },
-  {
-    id: 'secret-4',
-    secretType: 'OpenAI API Key',
-    maskedSecret: 'sk-************',
-    rawMatch: 'sk-proj-1234567890abcdefghijklmnopqrstuvwxyz',
-    filePath: 'backend/services/ai.ts',
-    lineNumber: 9,
-    detectedAt: 'Yesterday',
-    status: 'revoked',
-  },
-  {
-    id: 'secret-5',
-    secretType: 'RSA Private Key',
-    maskedSecret: '-----BEGIN RSA PRIVATE KEY-----************',
-    rawMatch: '-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA0...',
-    filePath: 'certs/server.key',
-    lineNumber: 1,
-    detectedAt: '3 days ago',
-    status: 'active',
-  },
-  {
-    id: 'secret-6',
-    secretType: 'Database Connection String',
-    maskedSecret: 'postgres://quant_admin:************@db.quant.local:5432/quantmail',
-    rawMatch: 'postgres://quant_admin:SuperSecretPass123!@db.quant.local:5432/quantmail',
-    filePath: 'prisma/.env',
-    lineNumber: 2,
-    detectedAt: '5 days ago',
-    status: 'active',
-  },
-];
-
-const DEFAULT_BACKEND_CODEQL_ALERTS: BackendCodeqlAlert[] = [
-  {
-    id: 'codeql-1',
-    ruleId: 'js/sql-injection',
-    ruleName: 'SQL Injection',
-    severity: 'critical',
-    filePath: 'apps/quantmail/backend/routes/repos.ts',
-    lineStart: 42,
-    lineEnd: 48,
-    description:
-      'Database query built from user-controlled string concatenation without parameterization.',
-    codeSnippet: "const query = `SELECT * FROM repos WHERE name = '${req.query.name}'`;",
-    recommendedFix:
-      'const repo = await prisma.repository.findFirst({ where: { name: req.query.name } });',
-    state: 'open',
-  },
-  {
-    id: 'codeql-2',
-    ruleId: 'js/xss',
-    ruleName: 'Cross-Site Scripting (XSS)',
-    severity: 'high',
-    filePath: 'apps/quantmail/src/components/MarkdownPreview.tsx',
-    lineStart: 115,
-    lineEnd: 118,
-    description: 'Raw HTML rendered into DOM tree without DOMPurify or HTML sanitization defense.',
-    codeSnippet: '<div dangerouslySetInnerHTML={{ __html: rawHtml }} />',
-    recommendedFix: '<div dangerouslySetInnerHTML={{ __html: sanitizeHtml(rawHtml) }} />',
-    state: 'open',
-  },
-  {
-    id: 'codeql-3',
-    ruleId: 'js/path-traversal',
-    ruleName: 'Path Traversal',
-    severity: 'high',
-    filePath: 'backend/services/storage.ts',
-    lineStart: 88,
-    lineEnd: 92,
-    description:
-      'Untrusted user input used directly in file system path resolution without basename guard.',
-    codeSnippet: 'const fullPath = path.join(uploadDir, req.body.fileName);',
-    recommendedFix: 'const safePath = path.resolve(uploadDir, path.basename(req.body.fileName));',
-    state: 'open',
-  },
-  {
-    id: 'codeql-4',
-    ruleId: 'js/insecure-randomness',
-    ruleName: 'Insecure Randomness',
-    severity: 'medium',
-    filePath: 'packages/auth/src/tokens.ts',
-    lineStart: 25,
-    lineEnd: 27,
-    description:
-      'Cryptographically weak pseudorandom generator Math.random() used for security token generation.',
-    codeSnippet: 'const token = Math.random().toString(36).substring(2);',
-    recommendedFix: "const token = crypto.randomBytes(32).toString('hex');",
-    state: 'open',
-  },
-  {
-    id: 'codeql-5',
-    ruleId: 'js/missing-auth-guard',
-    ruleName: 'Missing Auth Guard',
-    severity: 'critical',
-    filePath: 'apps/quantmail/backend/routes/admin.ts',
-    lineStart: 30,
-    lineEnd: 38,
-    description:
-      'Privileged admin endpoint does not verify caller RBAC authorization or session token.',
-    codeSnippet: "fastify.post('/api/admin/purge', async (req, reply) => { ... });",
-    recommendedFix:
-      "fastify.post('/api/admin/purge', { preHandler: [requireAdminRole] }, async (req, reply) => { ... });",
-    state: 'open',
-  },
-];
-
 const DEFAULT_SECURITY_POLICY_MD = `# Security Policy
 
 ## Supported Versions
@@ -3638,16 +3445,8 @@ export default async function reposRoutes(fastify: FastifyInstance) {
   fastify.get<{ Params: { id: string } }>('/:id/security/alerts', async (request, reply) => {
     const repo = await loadReadableRepo(request, request.params.id);
 
-    // Initialize repo security alerts if not present
-    if (!memorySecurityAlertsStore.has(repo.id)) {
-      memorySecurityAlertsStore.set(repo.id, [...DEFAULT_BACKEND_DEPENDABOT_ALERTS]);
-    }
-    if (!memorySecretAlertsStore.has(repo.id)) {
-      memorySecretAlertsStore.set(repo.id, [...DEFAULT_BACKEND_SECRET_ALERTS]);
-    }
-    if (!memoryCodeqlAlertsStore.has(repo.id)) {
-      memoryCodeqlAlertsStore.set(repo.id, [...DEFAULT_BACKEND_CODEQL_ALERTS]);
-    }
+    // HONESTY: alert lists start empty and stay empty until a real scanner
+    // produces findings. Never seed fabricated "findings" here.
     if (!memoryBranchRulesStore.has(repo.id)) {
       memoryBranchRulesStore.set(repo.id, {
         requirePullRequestReviews: true,
@@ -3690,6 +3489,8 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       success: true,
       data: {
         repositoryId: repo.id,
+        scanAvailable: false,
+        note: 'Security scanning is not wired up yet for this repository. No scan was performed; alert lists are empty.',
         summary,
         dependabot,
         secrets,
@@ -3707,50 +3508,30 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     const repo = await loadReadableRepo(request, request.params.id);
     const scanType = request.body?.scanType ?? 'all';
 
-    // Ensure store exists
-    if (!memorySecurityAlertsStore.has(repo.id)) {
-      memorySecurityAlertsStore.set(repo.id, [...DEFAULT_BACKEND_DEPENDABOT_ALERTS]);
-    }
-    if (!memorySecretAlertsStore.has(repo.id)) {
-      memorySecretAlertsStore.set(repo.id, [...DEFAULT_BACKEND_SECRET_ALERTS]);
-    }
-    if (!memoryCodeqlAlertsStore.has(repo.id)) {
-      memoryCodeqlAlertsStore.set(repo.id, [...DEFAULT_BACKEND_CODEQL_ALERTS]);
-    }
-
+    // HONESTY: no scanner is wired up yet — never fabricate scannedFiles /
+    // scannedCommits / durations or present counts as findings.
     const dependabot = memorySecurityAlertsStore.get(repo.id) ?? [];
     const secrets = memorySecretAlertsStore.get(repo.id) ?? [];
     const codeql = memoryCodeqlAlertsStore.get(repo.id) ?? [];
-
-    const scannedFiles = 48;
-    const scannedCommits = 14;
-    const scanDurationMs = 124;
 
     return reply.send({
       success: true,
       data: {
         repositoryId: repo.id,
         scanType,
-        scannedFiles,
-        scannedCommits,
-        scanDurationMs,
+        scanAvailable: false,
+        scannedFiles: 0,
+        scannedCommits: 0,
+        scanDurationMs: 0,
         findings: {
-          dependabot: dependabot.length,
-          secrets: secrets.filter((s) => s.status === 'active').length,
-          codeql: codeql.filter((c) => c.state === 'open').length,
+          dependabot: 0,
+          secrets: 0,
+          codeql: 0,
         },
-        summary: {
-          critical:
-            dependabot.filter((a) => a.severity === 'critical' && a.state === 'open').length +
-            codeql.filter((c) => c.severity === 'critical' && c.state === 'open').length,
-          high:
-            dependabot.filter((a) => a.severity === 'high' && a.state === 'open').length +
-            codeql.filter((c) => c.severity === 'high' && c.state === 'open').length,
-          moderate: dependabot.filter((a) => a.severity === 'moderate' && a.state === 'open')
-            .length,
-          low: dependabot.filter((a) => a.severity === 'low' && a.state === 'open').length,
-        },
-        message: `Security scan complete: ${scannedFiles} files and ${scannedCommits} commits analyzed.`,
+        summary: { critical: 0, high: 0, moderate: 0, low: 0 },
+        message:
+          'Security scanning is not wired up yet for this repository. No scan was performed.',
+        note: `Stored alerts carried over: dependabot=${dependabot.length}, secrets=${secrets.length}, codeql=${codeql.length}.`,
       },
     });
   });
@@ -3760,7 +3541,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
   }>('/:id/security/secrets/:alertId/revoke', async (request, reply) => {
     const repo = await loadWritableRepo(request, request.params.id);
     const { alertId } = request.params;
-    const secrets = memorySecretAlertsStore.get(repo.id) ?? [...DEFAULT_BACKEND_SECRET_ALERTS];
+    const secrets = memorySecretAlertsStore.get(repo.id) ?? [];
 
     const target = secrets.find((s) => s.id === alertId);
     if (!target) {
@@ -3785,7 +3566,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
   }>('/:id/security/secrets/:alertId/false-positive', async (request, reply) => {
     const repo = await loadWritableRepo(request, request.params.id);
     const { alertId } = request.params;
-    const secrets = memorySecretAlertsStore.get(repo.id) ?? [...DEFAULT_BACKEND_SECRET_ALERTS];
+    const secrets = memorySecretAlertsStore.get(repo.id) ?? [];
 
     const target = secrets.find((s) => s.id === alertId);
     if (!target) {
@@ -3810,9 +3591,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
   }>('/:id/security/dependabot/:alertId/fix-pr', async (request, reply) => {
     const repo = await loadWritableRepo(request, request.params.id);
     const { alertId } = request.params;
-    const dependabot = memorySecurityAlertsStore.get(repo.id) ?? [
-      ...DEFAULT_BACKEND_DEPENDABOT_ALERTS,
-    ];
+    const dependabot = memorySecurityAlertsStore.get(repo.id) ?? [];
 
     const target = dependabot.find((a) => a.id === alertId);
     if (!target) {

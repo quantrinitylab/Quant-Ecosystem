@@ -1133,7 +1133,8 @@ export const INITIAL_SECURITY_ALERTS: SecurityAlert[] = [
   },
 ];
 
-// Initial Secret Scanning Alerts
+// TEST-ONLY placeholder fixtures for the Security tab honesty suite.
+// All credential material is redacted placeholders — these are NOT real scans or secrets.
 export const INITIAL_SECRET_ALERTS: SecretScanningAlert[] = [
   {
     id: 'secret-1',
@@ -1159,7 +1160,7 @@ export const INITIAL_SECRET_ALERTS: SecretScanningAlert[] = [
     id: 'secret-3',
     secretType: 'GitLab Personal Access Token',
     maskedSecret: 'glpat-************',
-    rawMatch: 'glpat-xxxxxxxxxxxxxxxxxxxx',
+    rawMatch: '<redacted>',
     filePath: '.gitlab-ci.yml',
     lineNumber: 45,
     detectedAt: '3 hours ago',
@@ -1179,7 +1180,7 @@ export const INITIAL_SECRET_ALERTS: SecretScanningAlert[] = [
     id: 'secret-5',
     secretType: 'RSA Private Key',
     maskedSecret: '-----BEGIN RSA PRIVATE KEY-----************',
-    rawMatch: '-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA0...',
+    rawMatch: '<redacted>',
     filePath: 'certs/server.key',
     lineNumber: 1,
     detectedAt: '3 days ago',
@@ -1188,8 +1189,8 @@ export const INITIAL_SECRET_ALERTS: SecretScanningAlert[] = [
   {
     id: 'secret-6',
     secretType: 'Database Connection String',
-    maskedSecret: 'postgres://quant_admin:************@db.quant.local:5432/quantmail',
-    rawMatch: 'postgres://quant_admin:SuperSecretPass123!@db.quant.local:5432/quantmail',
+    maskedSecret: 'postgres://<redacted-user>:************@<redacted-host>',
+    rawMatch: '<redacted>',
     filePath: 'prisma/.env',
     lineNumber: 2,
     detectedAt: '5 days ago',

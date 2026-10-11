@@ -144,7 +144,8 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
 
       expect(html).toContain('data-testid="secret-scanning-view"');
       expect(html).toContain('Git Credential &amp; Secret Scanner');
-      expect(html).toContain('Active Protection');
+      expect(html).toContain('Not wired up');
+      expect(html).not.toContain('Active Protection');
       expect(html).toContain('data-testid="trigger-secret-scan-btn"');
       expect(html).toContain('Scan repository now');
       expect(html).toContain('data-testid="secret-search-input"');
@@ -208,8 +209,10 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
 
       expect(html).toContain('data-testid="codeql-sast-view"');
       expect(html).toContain('CodeQL Static Application Security Testing (SAST)');
-      expect(html).toContain('v2.17.2');
-      expect(html).toContain('security-extended');
+      expect(html).toContain('Not wired up');
+      expect(html).not.toContain('v2.17.2');
+      expect(html).not.toContain('Active CodeQL Matrix');
+      expect(html).toContain('Not connected');
       expect(html).toContain('data-testid="codeql-search-input"');
     });
 
@@ -223,8 +226,9 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
       );
 
       expect(html).toContain('data-testid="codeql-sast-view"');
-      // Honest empty state: 0 vulnerabilities reported
-      expect(html).toContain('0 Static Security Vulnerabilities');
+      // Honest empty state: scanner not wired up, never claims a clean scan
+      expect(html).toContain('wired up yet');
+      expect(html).not.toContain('0 Static Security Vulnerabilities');
       // Must NOT contain fabricated alert rule IDs or alert rows
       expect(html).not.toContain('js/sql-injection');
       expect(html).not.toContain('js/missing-auth-guard');
