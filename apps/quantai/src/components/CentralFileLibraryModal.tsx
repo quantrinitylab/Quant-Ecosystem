@@ -35,118 +35,12 @@ export interface CentralFileLibraryModalProps {
   currentChatId?: string;
   onAttachToChat?: (file: LibraryFileItem) => void | Promise<void>;
   initialCategory?: FileCategoryFilter;
+  // When omitted, the library starts EMPTY. No sample/demo files are fabricated:
+  // the modal only ever shows files the user actually uploaded.
   initialFiles?: LibraryFileItem[];
   storageQuotaBytes?: number; // Defaults to 50 MB
   apiEndpoint?: string;
 }
-
-// Default demonstration library files for instant presentation when initialFiles not provided
-export const DEFAULT_LIBRARY_FILES: LibraryFileItem[] = [
-  {
-    id: 'file-doc-01',
-    name: 'QuantAI-Architecture-v3.pdf',
-    sizeBytes: 4_850_000,
-    mimeType: 'application/pdf',
-    category: 'DOCUMENTS',
-    sourceChatId: 'chat-alpha-01',
-    attachedChatIds: ['chat-alpha-01', 'chat-beta-02'],
-    createdAt: '2026-09-20T10:15:00.000Z',
-    lastUsedAt: '2026-09-24T18:30:00.000Z',
-    usageCount: 4,
-    tags: ['specs', 'architecture'],
-  },
-  {
-    id: 'file-doc-02',
-    name: 'Executive-Summary-Q3.docx',
-    sizeBytes: 1_240_000,
-    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    category: 'DOCUMENTS',
-    sourceChatId: 'chat-leadership',
-    attachedChatIds: ['chat-leadership'],
-    createdAt: '2026-09-21T14:20:00.000Z',
-    lastUsedAt: '2026-09-22T09:12:00.000Z',
-    usageCount: 2,
-    tags: ['quarterly', 'strategy'],
-  },
-  {
-    id: 'file-code-01',
-    name: 'market-depth-orderbook.ts',
-    sizeBytes: 145_000,
-    mimeType: 'text/typescript',
-    category: 'CODE',
-    sourceChatId: 'chat-dev-quant',
-    attachedChatIds: ['chat-dev-quant', 'chat-bot-test', 'chat-parity-w39'],
-    createdAt: '2026-09-22T08:00:00.000Z',
-    lastUsedAt: '2026-09-24T22:45:00.000Z',
-    usageCount: 6,
-    tags: ['typescript', 'trading'],
-  },
-  {
-    id: 'file-code-02',
-    name: 'schema-migrations-v2.sql',
-    sizeBytes: 82_000,
-    mimeType: 'text/x-sql',
-    category: 'CODE',
-    sourceChatId: 'chat-db-migration',
-    attachedChatIds: ['chat-db-migration'],
-    createdAt: '2026-09-18T16:40:00.000Z',
-    lastUsedAt: '2026-09-19T11:20:00.000Z',
-    usageCount: 1,
-    tags: ['postgres', 'migrations'],
-  },
-  {
-    id: 'file-media-01',
-    name: 'quant-studio-hero-mockup.png',
-    sizeBytes: 3_420_000,
-    mimeType: 'image/png',
-    category: 'MEDIA',
-    sourceChatId: 'chat-design-sprint',
-    attachedChatIds: ['chat-design-sprint', 'chat-landing-review'],
-    createdAt: '2026-09-23T11:00:00.000Z',
-    lastUsedAt: '2026-09-24T20:15:00.000Z',
-    usageCount: 3,
-    tags: ['ui', 'mockup'],
-  },
-  {
-    id: 'file-media-02',
-    name: 'agent-avatar-astra.webp',
-    sizeBytes: 680_000,
-    mimeType: 'image/webp',
-    category: 'MEDIA',
-    sourceChatId: 'chat-astra-avatar',
-    attachedChatIds: ['chat-astra-avatar'],
-    createdAt: '2026-09-19T12:00:00.000Z',
-    lastUsedAt: '2026-09-20T15:45:00.000Z',
-    usageCount: 1,
-    tags: ['avatar', 'agent'],
-  },
-  {
-    id: 'file-data-01',
-    name: 'nasdaq-ticks-2026-09.csv',
-    sizeBytes: 1_850_000,
-    mimeType: 'text/csv',
-    category: 'DATA',
-    sourceChatId: 'chat-algo-backtest',
-    attachedChatIds: ['chat-algo-backtest', 'chat-model-eval'],
-    createdAt: '2026-09-21T09:30:00.000Z',
-    lastUsedAt: '2026-09-24T19:00:00.000Z',
-    usageCount: 5,
-    tags: ['dataset', 'stocks'],
-  },
-  {
-    id: 'file-data-02',
-    name: 'customer-retention-cohorts.xlsx',
-    sizeBytes: 135_000,
-    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    category: 'DATA',
-    sourceChatId: 'chat-analytics-bi',
-    attachedChatIds: ['chat-analytics-bi'],
-    createdAt: '2026-09-22T17:10:00.000Z',
-    lastUsedAt: '2026-09-23T10:00:00.000Z',
-    usageCount: 2,
-    tags: ['cohorts', 'metrics'],
-  },
-];
 
 const CATEGORY_TABS: Array<{ id: FileCategoryFilter; label: string; icon: string }> = [
   { id: 'ALL', label: 'All', icon: '📁' },
@@ -166,7 +60,7 @@ export function CentralFileLibraryModal({
   storageQuotaBytes = 50 * 1024 * 1024, // 50 MB
   apiEndpoint = '/files/library',
 }: CentralFileLibraryModalProps) {
-  const [files, setFiles] = useState<LibraryFileItem[]>(initialFiles ?? DEFAULT_LIBRARY_FILES);
+  const [files, setFiles] = useState<LibraryFileItem[]>(initialFiles ?? []);
   const [selectedCategory, setSelectedCategory] = useState<FileCategoryFilter>(initialCategory);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -461,24 +355,42 @@ export function CentralFileLibraryModal({
         {/* File Content Area */}
         <div className="flex-1 overflow-y-auto p-6 min-h-[320px]">
           {filteredFiles.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center py-16">
-              <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-2xl text-zinc-500 mb-3">
-                📂
+            files.length === 0 ? (
+              // True empty library: no fabricated files — honest "no files yet" state.
+              <div className="h-full flex flex-col items-center justify-center text-center py-16">
+                <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-2xl text-zinc-500 mb-3">
+                  🗄️
+                </div>
+                <h3 className="text-sm font-medium text-zinc-300 mb-1">
+                  Your file library is empty
+                </h3>
+                <p className="text-xs text-zinc-500 max-w-sm">
+                  Files you upload in any chat will appear here, ready to attach to new
+                  conversations without re-uploading.
+                </p>
               </div>
-              <h3 className="text-sm font-medium text-zinc-300 mb-1">No files match your filter</h3>
-              <p className="text-xs text-zinc-500 max-w-sm">
-                Try searching with a different keyword or switch to another category filter.
-              </p>
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="mt-3 text-xs text-emerald-400 hover:underline"
-                >
-                  Clear search query
-                </button>
-              )}
-            </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center py-16">
+                <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-2xl text-zinc-500 mb-3">
+                  📂
+                </div>
+                <h3 className="text-sm font-medium text-zinc-300 mb-1">
+                  No files match your filter
+                </h3>
+                <p className="text-xs text-zinc-500 max-w-sm">
+                  Try searching with a different keyword or switch to another category filter.
+                </p>
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="mt-3 text-xs text-emerald-400 hover:underline"
+                  >
+                    Clear search query
+                  </button>
+                )}
+              </div>
+            )
           ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredFiles.map((file) => {

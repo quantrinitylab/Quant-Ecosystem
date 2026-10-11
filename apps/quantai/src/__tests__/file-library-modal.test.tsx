@@ -8,7 +8,6 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   CentralFileLibraryModal,
-  DEFAULT_LIBRARY_FILES,
   type LibraryFileItem,
 } from '../components/CentralFileLibraryModal';
 
@@ -212,8 +211,8 @@ describe('CentralFileLibraryModal Component Suite', () => {
     });
   });
 
-  describe('6. Empty State Handling', () => {
-    it('renders informative empty state when initialFiles is empty', () => {
+  describe('6. Empty Library State (no fabricated files)', () => {
+    it('renders honest empty-library state when initialFiles is empty', () => {
       const html = renderToStaticMarkup(
         React.createElement(CentralFileLibraryModal, {
           isOpen: true,
@@ -222,13 +221,12 @@ describe('CentralFileLibraryModal Component Suite', () => {
         }),
       );
 
-      expect(html).toContain('No files match your filter');
-      expect(html).toContain('Try searching with a different keyword');
+      expect(html).toContain('Your file library is empty');
+      expect(html).toContain('Files you upload in any chat will appear here');
+      expect(html).toContain('0 files • 0 B');
     });
-  });
 
-  describe('7. Default Demo Library Fallback', () => {
-    it('falls back to DEFAULT_LIBRARY_FILES when initialFiles is omitted', () => {
+    it('renders empty-library state (never sample files) when initialFiles is omitted', () => {
       const html = renderToStaticMarkup(
         React.createElement(CentralFileLibraryModal, {
           isOpen: true,
@@ -236,10 +234,37 @@ describe('CentralFileLibraryModal Component Suite', () => {
         }),
       );
 
-      expect(DEFAULT_LIBRARY_FILES.length).toBe(8);
-      expect(html).toContain('QuantAI-Architecture-v3.pdf');
-      expect(html).toContain('market-depth-orderbook.ts');
-      expect(html).toContain('nasdaq-ticks-2026-09.csv');
+      expect(html).toContain('Your file library is empty');
+      // Fabricated demo filenames must never appear in the rendered modal
+      expect(html).not.toContain('QuantAI-Architecture-v3.pdf');
+      expect(html).not.toContain('Executive-Summary-Q3.docx');
+      expect(html).not.toContain('market-depth-orderbook.ts');
+      expect(html).not.toContain('schema-migrations-v2.sql');
+      expect(html).not.toContain('quant-studio-hero-mockup.png');
+      expect(html).not.toContain('agent-avatar-astra.webp');
+      expect(html).not.toContain('nasdaq-ticks-2026-09.csv');
+      expect(html).not.toContain('customer-retention-cohorts.xlsx');
+    });
+
+    it('no longer exports DEFAULT_LIBRARY_FILES from the component module', async () => {
+      const mod = await import('../components/CentralFileLibraryModal');
+      expect('DEFAULT_LIBRARY_FILES' in mod).toBe(false);
+    });
+
+    it('still shows the filter-no-match state when files exist but the filter excludes all', () => {
+      const docsOnly: LibraryFileItem[] = [sampleFiles[0]]; // DOCUMENTS only
+      const html = renderToStaticMarkup(
+        React.createElement(CentralFileLibraryModal, {
+          isOpen: true,
+          onClose: vi.fn(),
+          initialFiles: docsOnly,
+          initialCategory: 'CODE',
+        }),
+      );
+
+      expect(html).toContain('No files match your filter');
+      expect(html).not.toContain('Your file library is empty');
+      expect(html).toContain('Showing <strong class="text-zinc-200">0</strong> of 1 library items');
     });
   });
 });
