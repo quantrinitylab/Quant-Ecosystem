@@ -13,6 +13,7 @@ import { ingestSSOToken } from '../../services/auth-session';
 import { useBrandName } from '../../components/BrandProvider';
 import { NeuralFieldCanvas } from '../../components/auth/NeuralFieldCanvas';
 import { scrubSsoHandoffParams } from '../../lib/sso-url-params';
+import { resolvePostSsoDestination } from '../../lib/post-sso-destination';
 
 /** Only allow same-origin, absolute-path returns so ?returnTo cannot open-redirect. */
 function safeReturnPath(value: string | null): string | null {
@@ -139,14 +140,10 @@ function LoginForm() {
             window.history.replaceState({}, document.title, window.location.pathname);
           }
 
-          let targetDestination = destination();
-          if (rawReturn) {
-            const decoded = decodeURIComponent(rawReturn);
-            const validation = UniversalSSOTokenBridge.validateSafeReturnPath(decoded);
-            if (validation.isSafe && validation.sanitizedUrl !== '/login') {
-              targetDestination = validation.sanitizedUrl;
-            }
-          }
+          // F-207: decode + validate in a guarded resolver so a malformed
+          // `returnTo` can never skip the redirect and strand the user.
+          const fallback = destination();
+          const targetDestination = resolvePostSsoDestination(rawReturn, fallback);
           router.replace(targetDestination);
         }
       } catch {
