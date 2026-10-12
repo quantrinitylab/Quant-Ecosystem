@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import * as jose from 'jose';
 import type { AuthContext } from '@quant/auth';
 import type { PermissionScope, QuantApp } from '@quant/common';
+import type { AccountStatusResolver, AccountStatusVerdict } from '../types';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -117,9 +118,30 @@ function stepUpRequiredBody(
   };
 }
 
+/**
+ * QC-F-041 account-status gate: ask the app's opt-in resolver for the
+ * account's current status. A resolver that throws (or a missing user id,
+ * which callers skip before reaching here) must never wave a request
+ * through — a failed lookup resolves to 'unavailable' and the caller fails
+ * closed. With no resolver configured the verdict is always 'ok', which is
+ * exactly the pre-QC-F-041 stateless behaviour.
+ */
+async function resolveAccountStatus(
+  resolver: AccountStatusResolver | undefined,
+  userId: string,
+): Promise<AccountStatusVerdict> {
+  if (!resolver) return 'ok';
+  return resolver(userId).catch(() => 'unavailable' as const);
+}
+
 async function authPlugin(
   fastify: FastifyInstance,
-  opts: { jwtSecret: string; jwtIssuer: string; jwtAudience: string },
+  opts: {
+    jwtSecret: string;
+    jwtIssuer: string;
+    jwtAudience: string;
+    accountStatus?: AccountStatusResolver;
+  },
 ) {
   const secret = new TextEncoder().encode(opts.jwtSecret);
 
@@ -200,6 +222,48 @@ async function authPlugin(
         };
 
         request.auth = authContext;
+
+        // QC-F-041: account-status gate. JWT verification is stateless, so
+        // without this check a deleted/suspended user's token keeps working
+        // until expiry (QuantChat: 1h access, 30d refresh-as-access before
+        // QC-F-030). The resolver is opt-in per app; when configured, its
+        // verdict is authoritative and fail-closed. Runs before scope
+        // evaluation: a dead account gets its own honest code, never a
+        // misleading FORBIDDEN. Tokens without a subject keep the legacy
+        // downstream handling (routes reject a missing userId themselves).
+        if (opts.accountStatus && authContext.userId) {
+          const verdict = await resolveAccountStatus(opts.accountStatus, authContext.userId);
+          if (verdict === 'deleted') {
+            return reply.status(401).send({
+              success: false,
+              error: {
+                code: 'ACCOUNT_DELETED',
+                message: 'This account has been deleted',
+                statusCode: 401,
+              },
+            });
+          }
+          if (verdict === 'suspended') {
+            return reply.status(401).send({
+              success: false,
+              error: {
+                code: 'ACCOUNT_SUSPENDED',
+                message: 'This account is suspended',
+                statusCode: 401,
+              },
+            });
+          }
+          if (verdict === 'unavailable') {
+            return reply.status(503).send({
+              success: false,
+              error: {
+                code: 'UPSTREAM_UNAVAILABLE',
+                message: 'Auth service unavailable',
+                statusCode: 503,
+              },
+            });
+          }
+        }
 
         // Check scopes if required. Scope evaluation is backed by
         // `@quant/identity-permissions` (RBAC) via the `evaluateScopes`
@@ -295,6 +359,15 @@ async function authPlugin(
           tokenId: payload.jti ?? '',
           lastStrongAuthAt: readLastStrongAuthAt(payload),
         };
+
+        // QC-F-041: optional auth must not populate an identity for a
+        // deleted/suspended account either — and, per its contract, it
+        // never errors: a non-'ok' verdict (including a failed status
+        // lookup) simply leaves the request anonymous.
+        if (opts.accountStatus && authContext.userId) {
+          const verdict = await resolveAccountStatus(opts.accountStatus, authContext.userId);
+          if (verdict !== 'ok') return;
+        }
 
         request.auth = authContext;
       } catch {

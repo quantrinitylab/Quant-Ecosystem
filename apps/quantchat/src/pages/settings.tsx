@@ -350,6 +350,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
         method: 'DELETE',
         headers: { ...getAuthHeaders() },
       });
+      // QC-F-041: the account is gone — the client must stop presenting a
+      // logged-in session. Expire the session cookies + clear every local
+      // token trace (the same signOut the Sign Out button uses), then hard-
+      // navigate to /login. The server gate rejects the old tokens anyway;
+      // this keeps the UI honest about it.
+      await signOut();
+      window.location.href = '/login';
     } catch (err) {
       setError(sanitizeErrorMessage(err) || 'Delete failed');
     }

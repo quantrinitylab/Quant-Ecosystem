@@ -58,7 +58,7 @@ export { DEFAULT_REALTIME_CONFIG } from './types';
 
 // Auth
 export { ConnectionAuth, AuthError } from './auth';
-export type { AuthConfig } from './auth';
+export type { AuthConfig, AccountStatusVerdict, AccountStatusResolver } from './auth';
 
 // Delivery
 export { DeliveryManager } from './delivery';

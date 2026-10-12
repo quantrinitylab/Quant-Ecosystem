@@ -69,6 +69,32 @@ function decorations(fastify: FastifyInstance) {
   };
 }
 
+/**
+ * QC-F-041: thrown by the upsert helpers when the identity being signed in
+ * belongs to a soft-deleted account. Deleted accounts must never receive a
+ * fresh token pair — not via phone OTP (previously upsertPhoneUser happily
+ * re-issued a pair: full resurrection), and not via SSO exchange
+ * (previously the lookup's deletedAt filter made the deleted row invisible,
+ * the code tried to CREATE a duplicate, and the request died as a 500 on
+ * the email unique constraint). Handlers translate this into an honest
+ * 401 ACCOUNT_DELETED. Reactivation of a deleted account is a product
+ * decision for a deliberate future flow, never an accident of sign-in.
+ */
+export class AccountDeletedError extends Error {
+  readonly code = 'ACCOUNT_DELETED';
+  constructor() {
+    super('This account has been deleted');
+    this.name = 'AccountDeletedError';
+  }
+}
+
+function accountDeletedBody() {
+  return {
+    success: false,
+    error: { code: 'ACCOUNT_DELETED', message: 'This account has been deleted', statusCode: 401 },
+  };
+}
+
 export default async function authRoutes(fastify: FastifyInstance) {
   const { prisma, otpService, sessionTokens } = decorations(fastify);
 
@@ -98,6 +124,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         role: true,
         xpPoints: true,
         level: true,
+        deletedAt: true,
       },
     });
     if (!user) {
@@ -105,6 +132,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
         success: false,
         error: { code: 'USER_NOT_FOUND', message: 'User not found', statusCode: 404 },
       });
+    }
+    // QC-F-041 defense-in-depth: /auth/me is the identity-resolution path
+    // for the whole web session, so it refuses a deleted account itself —
+    // even on a deployment where the auth-plugin gate was not enabled,
+    // a deleted user must not be handed their profile as a live identity.
+    if (user.deletedAt) {
+      return reply.status(401).send(accountDeletedBody());
     }
     return reply.send({
       success: true,
@@ -362,7 +396,17 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
 
     // 2. Upsert the QuantChat user by verified email.
-    const { user, isNewUser } = await upsertSsoUser(prisma, identity);
+    let ssoUpsert: Awaited<ReturnType<typeof upsertSsoUser>>;
+    try {
+      ssoUpsert = await upsertSsoUser(prisma, identity);
+    } catch (err) {
+      // QC-F-041: deleted QuantChat account — a clean refusal, not a 500.
+      if (err instanceof AccountDeletedError) {
+        return reply.status(401).send(accountDeletedBody());
+      }
+      throw err;
+    }
+    const { user, isNewUser } = ssoUpsert;
 
     // 3. Issue QuantChat-native tokens (accepted by every protected route).
     const tokens = await sessionTokens.issue({ userId: user.id, username: user.username });
@@ -550,6 +594,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
           },
         });
       } catch (err) {
+        // QC-F-041: a deleted account is an honest 401, not a 500.
+        if (err instanceof AccountDeletedError) {
+          return reply.status(401).send(accountDeletedBody());
+        }
         return reply.status(500).send({
           success: false,
           error: { code: 'OTP_VERIFY_ERROR', message: 'Verification failed', statusCode: 500 },
@@ -566,7 +614,16 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
 
     const normalized = phoneNumber.replace(/[\s\-()]/g, '');
-    const { user, isNewUser } = await upsertPhoneUser(prisma, normalized);
+    let phoneUpsert: Awaited<ReturnType<typeof upsertPhoneUser>>;
+    try {
+      phoneUpsert = await upsertPhoneUser(prisma, normalized);
+    } catch (err) {
+      if (err instanceof AccountDeletedError) {
+        return reply.status(401).send(accountDeletedBody());
+      }
+      throw err;
+    }
+    const { user, isNewUser } = phoneUpsert;
 
     const tokens = await sessionTokens.issue({ userId: user.id, username: user.username });
     return reply.send({
@@ -596,10 +653,18 @@ async function upsertSsoUser(
   isNewUser: boolean;
 }> {
   const email = identity.email.toLowerCase();
+  // QC-F-041: look the row up WITHOUT the deletedAt filter so a deleted
+  // account is seen and refused explicitly. The old `deletedAt: null`
+  // filter made the deleted row invisible here, after which the create
+  // path below collided with the email unique constraint and the exchange
+  // died as a 500 — fail-closed only by accident.
   const existing = await prisma.user.findFirst({
-    where: { email, deletedAt: null },
-    select: { id: true, email: true, username: true, displayName: true, role: true },
+    where: { email },
+    select: { id: true, email: true, username: true, displayName: true, role: true, deletedAt: true },
   });
+  if (existing?.deletedAt) {
+    throw new AccountDeletedError();
+  }
   if (existing) {
     await prisma.user.update({
       where: { id: existing.id },
@@ -659,6 +724,12 @@ async function upsertPhoneUser(
 }> {
   const existing = await prisma.user.findUnique({ where: { phoneNumber: phone } });
   if (existing) {
+    // QC-F-041: a deleted account must not be resurrected by OTP. This
+    // lookup previously had no deletedAt handling at all, so a deleted
+    // phone user received a brand-new token pair on every verify.
+    if (existing.deletedAt) {
+      throw new AccountDeletedError();
+    }
     if (!existing.phoneVerified) {
       await prisma.user.update({ where: { id: existing.id }, data: { phoneVerified: true } });
     }
@@ -692,6 +763,10 @@ async function upsertPhoneUser(
       // If the phone was created concurrently, fall back to fetching it.
       const race = await prisma.user.findUnique({ where: { phoneNumber: phone } });
       if (race) {
+        // Same QC-F-041 refusal on the race path.
+        if (race.deletedAt) {
+          throw new AccountDeletedError();
+        }
         return {
           user: { id: race.id, username: race.username, phoneNumber: race.phoneNumber },
           isNewUser: false,
