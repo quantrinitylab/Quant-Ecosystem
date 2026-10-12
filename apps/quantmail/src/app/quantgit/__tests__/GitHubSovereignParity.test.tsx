@@ -169,7 +169,7 @@ describe('QuantGit 159-Screen GitHub Sovereign Parity Components', () => {
   });
 
   describe('DeveloperAppearanceSettings (Screens 39–52, 81–84)', () => {
-    it('renders theme preferences, markdown font, tab size, and feature previews', () => {
+    it('renders theme preferences, markdown font, tab size, and the honest feature roadmap', () => {
       const html = renderToStaticMarkup(<DeveloperAppearanceSettings />);
 
       expect(html).toContain('Appearance &amp; Accessibility');
@@ -178,8 +178,14 @@ describe('QuantGit 159-Screen GitHub Sovereign Parity Components', () => {
       expect(html).toContain('Use a fixed-width (monospace) font when editing Markdown');
       expect(html).toContain('Tab size preference');
       expect(html).toContain('Emoji skin tone preference');
-      expect(html).toContain('Feature Preview');
+      // QM-SCREEN-013 R4: the feature-preview rows invented capabilities
+      // ("Instant developer agent macros", colorblind diff themes). They are now
+      // an honestly-labelled roadmap — planned, not available, nothing to enable.
+      expect(html).toContain('Feature Roadmap');
+      expect(html).toContain('Planned — not available');
       expect(html).toContain('Command Palette');
+      expect(html).not.toContain('Feature Preview');
+      expect(html).toContain('Save Settings');
     });
   });
 

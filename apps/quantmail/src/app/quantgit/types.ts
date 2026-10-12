@@ -306,7 +306,10 @@ export type DeployedAgent = {
   name: string;
   role: string;
   pod: string;
-  status: 'active' | 'idle' | 'building' | 'analyzing';
+  // 'local-only' = honest neutral state for agents created with no agent backend
+  // connected. Never render a backend-connected status (active/building/analyzing)
+  // for an agent that has none.
+  status: 'active' | 'idle' | 'building' | 'analyzing' | 'local-only';
   currentTask: string;
   initial: string;
   color: string;

@@ -17,7 +17,10 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
         <div className="space-y-1">
           <h3 className="text-base font-bold text-white flex items-center gap-2">
             <BubbleAvatar state="coding" size={20} />
-            Autonomous Swarm Fleet & GitHub Copilot Workspace
+            Agent Workspace
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#30363D]/60 text-[#8D96A0] border border-[#30363D]">
+              Local only — no backend connected
+            </span>
           </h3>
           <p className="text-[#7D8590]">
             Workspace agents you configure here are local to this session. Connect a real agent
@@ -29,7 +32,7 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
           onClick={() => setModalState('deploy-agent')}
           className="px-3.5 py-1.5 rounded-md bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-black font-bold transition-colors"
         >
-          + Deploy Agent
+          + Add Agent
         </button>
       </div>
 
@@ -37,9 +40,9 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
         <div className="rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
           <QuantGitEmptyState
             icon="agent"
-            title="No agents deployed"
-            hint="Deploy an autonomous agent to start reviewing PRs, running migrations, and testing code."
-            actionLabel="+ Deploy Agent"
+            title="No agents added"
+            hint="Add a local agent placeholder. A connected agent backend is required before agents can review PRs, run migrations, or test code."
+            actionLabel="+ Add Agent"
             onAction={() => setModalState('deploy-agent')}
             testId="agents-empty"
           />
@@ -64,16 +67,14 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
                   <span className="text-[10px] font-mono text-[#7D8590]">{ag.pod}</span>
                 </div>
               </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#3FB950]/20 text-[#3FB950]">
-                {ag.status}
+              {/* Neutral pill only — no agent here is connected to a backend, so no
+                  'active'/running claim is ever rendered. */}
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#30363D]/60 text-[#8D96A0] border border-[#30363D]">
+                {ag.status === 'local-only' ? 'Local only' : ag.status}
               </span>
             </div>
             <p className="text-[11px] text-[var(--app-accent)] font-semibold">{ag.role}</p>
             <p className="text-[11px] text-[#7D8590] leading-relaxed">{ag.currentTask}</p>
-            <div className="bg-[#0D1117] p-2.5 rounded border border-[#21262D] space-y-1 text-[10px]">
-              <p className="font-bold text-white">Thought Chain:</p>
-              <p className="text-[#7D8590] italic">{ag.thoughts}</p>
-            </div>
           </div>
           ))}
         </div>
