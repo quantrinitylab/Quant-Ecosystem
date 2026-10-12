@@ -1,10 +1,9 @@
 'use client';
 
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { clearMailCache } from '../lib/offline/mail-cache';
 import { clearOutbox } from '../lib/offline/outbox';
-import { apiClient } from '../services/api-client';
+import { getQueryClient } from '../lib/query-client-registry';
 import {
   browserAuthSession,
   cleanupLegacyBrowserTokens,
@@ -57,7 +56,11 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const queryClient = useQueryClient();
+  // No `useQueryClient()` here, deliberately: the public auth shell renders
+  // this provider with no QueryClientProvider above it (lean auth shell), and
+  // on the app shell this provider is hoisted above QueryProvider so the
+  // session survives the /login → / transition. The query client is reached
+  // through the module registry instead — see `lib/query-client-registry.ts`.
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +78,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loadProfile = useCallback(async () => {
+    // Imported lazily: the public auth shell must not pay for the
+    // authenticated API-client chunk until a session actually exists to use
+    // it. On the auth shell this only runs after a successful sign-in.
+    const { apiClient } = await import('../services/api-client');
     const profile = await apiClient.getUserInfo();
     if (!profile.success || !profile.data) {
       throw new Error(profile.error?.message || 'Could not load your profile.');
@@ -83,8 +90,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    apiClient.onAuthenticationError(clearMemorySession);
-    return () => apiClient.onAuthenticationError(undefined);
+    // Lazy for the same reason as loadProfile: on the public auth shell there
+    // are no authenticated API calls to observe 401s from, so the chunk can
+    // wait until it is actually needed. The callback is stable and the client
+    // is a module singleton, so re-subscribing on remount simply overwrites.
+    let cancelled = false;
+    void import('../services/api-client').then((m) => {
+      if (!cancelled) m.apiClient.onAuthenticationError(clearMemorySession);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [clearMemorySession]);
 
   // Fail closed on every load: erase all historical JavaScript-readable token
@@ -264,9 +280,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .catch(() => {
           /* best effort: the session is already gone either way */
         });
-      queryClient.clear();
+      // Via the registry, not `useQueryClient()`: this provider renders with
+      // no QueryClientProvider above it on the public auth shell. No-op there
+      // (logout is only reachable from authenticated UI, where the provider —
+      // and its registered client — is always mounted).
+      getQueryClient()?.clear();
     }
-  }, [clearMemorySession, queryClient]);
+  }, [clearMemorySession]);
 
   const value: AuthContextValue = {
     user,
