@@ -3,7 +3,7 @@
 App: `apps/quantai`
 Routers: Next.js app router + pages router (legacy /models, /memory, /analytics, /automation, /device, /code, /image-gen, /personas, /plugins, /prompts, /training, /translate, /ecosystem)
 
-Role: ecosystem AI surface — chat with 7 models, artifacts, agent runtime, automations, cross-app Quanty. Ambiguity worth stating up front: QuantAI and the Quanty agent platform overlap. This spec covers the QuantAI PRODUCT screens (A01–A13); Quanty-the-platform is specified in docs/quant-architecture/06-ai-quanty-platform.md.
+Role: ecosystem AI surface — chat served by the single native model (Quant-1, the only platform-served entry in `apps/quantai/src/types/models.ts` `AVAILABLE_MODELS`), artifacts, agent runtime, automations, cross-app Quanty. Third-party BYOM entries are not user-listable (no key-entry UI exists); a server-side BYOM registry is reserved for a future key-entry flow. Ambiguity worth stating up front: QuantAI and the Quanty agent platform overlap. This spec covers the QuantAI PRODUCT screens (A01–A13); Quanty-the-platform is specified in docs/quant-architecture/06-ai-quanty-platform.md.
 
 Mobile: Flutter app at `flutter_apps/apps/quant_ai` plus responsive web.
 

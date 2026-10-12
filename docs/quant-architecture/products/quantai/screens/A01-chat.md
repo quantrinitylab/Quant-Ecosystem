@@ -7,7 +7,7 @@ Route: /
 
 ## Purpose
 
-Core AI chat: streaming responses across 7 models, conversation history, personas.
+Core AI chat: streaming responses from the single native model (Quant-1, `apps/quantai/src/types/models.ts`), conversation history, personas.
 
 ## Data contract
 
