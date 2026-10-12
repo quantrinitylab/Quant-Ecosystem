@@ -16,7 +16,6 @@ import type {
   Publisher,
   ARFilter,
   Bitmoji,
-  FriendLocation,
   Place,
   GeoFilter,
   SmartReply,
@@ -30,6 +29,8 @@ import type {
   InitiateCallRequest,
   CreateGroupRequest,
   LocationUpdateRequest,
+  PublishedLocation,
+  FriendOnMapEntry,
   StoryHighlight,
   PhoneAuthRequest,
   OTPVerifyRequest,
@@ -635,20 +636,36 @@ export class QuantChatApiClient {
   // Map
   // --------------------------------------------------------------------------
 
-  async updateLocation(request: LocationUpdateRequest): Promise<ApiResponse<FriendLocation>> {
+  async updateLocation(
+    request: LocationUpdateRequest,
+  ): Promise<ApiResponse<PublishedLocation>> {
     return this.post('/map/location', request);
   }
 
-  async getFriendLocations(friendIds: string[]): Promise<ApiResponse<FriendLocation[]>> {
-    return this.post('/map/friends', { friendIds });
+  /**
+   * Stop sharing: DELETE /map/location removes the caller's location row
+   * on the server (idempotent). This is the real Ghost Mode action
+   * (QC-F-056) — the previous `setGhostMode` POSTed to a ghost-mode
+   * endpoint that does not exist on the backend, so enabling ghost mode
+   * never hid anything server-side.
+   */
+  async deleteLocation(): Promise<ApiResponse<{ cleared: boolean }>> {
+    return this.delete('/map/location');
+  }
+
+  /**
+   * GET /map/friends — the caller's close friends currently sharing.
+   * The backend route is a GET with no body; the previous implementation
+   * POSTed `{ friendIds }` to it, a request the backend never accepted.
+   */
+  async getFriendLocations(): Promise<
+    ApiResponse<{ friends: FriendOnMapEntry[]; total: number }>
+  > {
+    return this.get('/map/friends');
   }
 
   async getNearbyPlaces(lat: number, lng: number, radius?: number): Promise<ApiResponse<Place[]>> {
     return this.get('/map/places', { params: { lat, lng, radius } });
-  }
-
-  async setGhostMode(enabled: boolean): Promise<ApiResponse<void>> {
-    return this.post('/map/ghost-mode', { enabled });
   }
 
   // --------------------------------------------------------------------------
