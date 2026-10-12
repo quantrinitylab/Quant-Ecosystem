@@ -172,7 +172,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       keys: 'g *',
       icon: 'star',
       keywords: ['pinned', 'important', 'flagged', 'starred'],
-      run: go('/?filter=starred'),
+      run: go('/?view=inbox&filter=starred'),
     },
     {
       id: 'nav.snoozed',
