@@ -26,6 +26,13 @@ export interface IssuesTabProps {
   handleToggleIssue: (id: number) => void;
   /** When true, renders skeleton rows instead of the issue list. */
   isLoading?: boolean;
+  /** Real backend wiring: POST /api/repos/:repo/issues. */
+  onCreateIssue: (title: string, body: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Real backend wiring: POST /api/repos/:repo/issues/:number/comments. */
+  onPostIssueComment: (
+    issueId: number,
+    body: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
 }
 
 export function IssuesTab({
@@ -38,6 +45,8 @@ export function IssuesTab({
   openIssueDetail,
   handleToggleIssue,
   isLoading = false,
+  onCreateIssue,
+  onPostIssueComment,
 }: IssuesTabProps) {
   const [selectedIssue, setSelectedIssue] = useState<IssueItem | null>(null);
   const [isCreatingIssue, setIsCreatingIssue] = useState(false);
@@ -45,10 +54,64 @@ export function IssuesTab({
   const [newBody, setNewBody] = useState('');
   const [newComment, setNewComment] = useState('');
   const [activeTabMode, setActiveTabMode] = useState<'write' | 'preview'>('write');
+  // Submission state for the real (non-stub) comment/create-issue flows.
+  // On failure the user's text is NEVER cleared — the honest error is shown
+  // inline instead, so no input is ever lost.
+  const [isPostingComment, setIsPostingComment] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const [isSubmittingIssue, setIsSubmittingIssue] = useState(false);
+  const [createIssueError, setCreateIssueError] = useState<string | null>(null);
 
   // Insert markdown tag helper
   const insertMarkdown = (prefix: string, suffix = '') => {
     setNewComment((prev) => `${prev}${prefix}text${suffix}`);
+  };
+
+  // Posts the typed comment through the real backend endpoint.
+  const submitComment = async () => {
+    if (!selectedIssue || isPostingComment) return;
+    const body = newComment.trim();
+    if (!body) return;
+    setIsPostingComment(true);
+    setCommentError(null);
+    try {
+      const result = await onPostIssueComment(selectedIssue.id, body);
+      if (result.ok) {
+        setNewComment('');
+      } else {
+        setCommentError(result.error || 'Failed to post comment. Your text was kept.');
+      }
+    } catch {
+      setCommentError('Failed to post comment — network error. Your text was kept.');
+    } finally {
+      setIsPostingComment(false);
+    }
+  };
+
+  // Creates the issue through the real backend endpoint.
+  const submitNewIssue = async () => {
+    if (isSubmittingIssue) return;
+    const title = newTitle.trim();
+    if (!title) {
+      setCreateIssueError('Title is required.');
+      return;
+    }
+    setIsSubmittingIssue(true);
+    setCreateIssueError(null);
+    try {
+      const result = await onCreateIssue(title, newBody);
+      if (result.ok) {
+        setNewTitle('');
+        setNewBody('');
+        setIsCreatingIssue(false);
+      } else {
+        setCreateIssueError(result.error || 'Failed to create issue. Your text was kept.');
+      }
+    } catch {
+      setCreateIssueError('Failed to create issue — network error. Your text was kept.');
+    } finally {
+      setIsSubmittingIssue(false);
+    }
   };
 
   return (
@@ -220,8 +283,12 @@ export function IssuesTab({
                     <textarea
                       rows={4}
                       value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
+                      onChange={(e) => {
+                        setNewComment(e.target.value);
+                        if (commentError) setCommentError(null);
+                      }}
                       placeholder="Leave a comment"
+                      data-testid="issue-comment-textarea"
                       className="w-full bg-[#0D1117] border border-[#30363D] focus:border-[#58A6FF] rounded-lg p-2.5 text-xs text-[#E6EDF3] outline-none"
                     />
                   ) : (
@@ -230,15 +297,27 @@ export function IssuesTab({
                     </div>
                   )}
 
+                  {commentError && (
+                    <p
+                      className="text-[#F85149] text-[11px] pt-1"
+                      role="alert"
+                      data-testid="issue-comment-error"
+                    >
+                      {commentError}
+                    </p>
+                  )}
+
                   <div className="flex justify-end pt-2">
                     <button
-                      onClick={() => {
-                        alert('Comment posted!');
-                        setNewComment('');
-                      }}
-                      className="px-4 py-1.5 rounded-lg bg-[#238636] hover:bg-[#2EA043] text-white font-semibold text-xs transition-colors"
+                      onClick={submitComment}
+                      disabled={isPostingComment || !newComment.trim()}
+                      title={
+                        isPostingComment ? 'Posting your comment…' : 'Post this comment to the issue'
+                      }
+                      data-testid="issue-comment-submit"
+                      className="px-4 py-1.5 rounded-lg bg-[#238636] hover:bg-[#2EA043] text-white font-semibold text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Comment
+                      {isPostingComment ? 'Posting…' : 'Comment'}
                     </button>
                   </div>
                 </div>
@@ -323,8 +402,12 @@ export function IssuesTab({
               <input
                 type="text"
                 value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
+                onChange={(e) => {
+                  setNewTitle(e.target.value);
+                  if (createIssueError) setCreateIssueError(null);
+                }}
                 placeholder="Title"
+                data-testid="issue-create-title"
                 className="w-full bg-[#0D1117] border border-[#30363D] focus:border-[#58A6FF] rounded-lg p-2 text-xs text-[#E6EDF3] outline-none"
               />
             </div>
@@ -336,19 +419,26 @@ export function IssuesTab({
                 value={newBody}
                 onChange={(e) => setNewBody(e.target.value)}
                 placeholder="Leave a description..."
+                data-testid="issue-create-body"
                 className="w-full bg-[#0D1117] border border-[#30363D] focus:border-[#58A6FF] rounded-lg p-2 text-xs text-[#E6EDF3] outline-none"
               />
             </div>
 
+            {createIssueError && (
+              <p className="text-[#F85149] text-[11px]" role="alert" data-testid="issue-create-error">
+                {createIssueError}
+              </p>
+            )}
+
             <div className="flex justify-end pt-2">
               <button
-                onClick={() => {
-                  alert(`Issue created: ${newTitle}`);
-                  setIsCreatingIssue(false);
-                }}
-                className="px-4 py-2 rounded-lg bg-[#238636] hover:bg-[#2EA043] text-white font-semibold text-xs shadow-sm transition-colors"
+                onClick={submitNewIssue}
+                disabled={isSubmittingIssue || !newTitle.trim()}
+                title={isSubmittingIssue ? 'Creating your issue…' : 'Create this issue'}
+                data-testid="issue-create-submit"
+                className="px-4 py-2 rounded-lg bg-[#238636] hover:bg-[#2EA043] text-white font-semibold text-xs shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Submit new issue
+                {isSubmittingIssue ? 'Creating…' : 'Submit new issue'}
               </button>
             </div>
           </div>
