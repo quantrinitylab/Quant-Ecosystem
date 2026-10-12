@@ -862,4 +862,90 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
       expect(result.icsContent).toContain('BEGIN:VEVENT');
     });
   });
+
+  describe('7. Past slots for today are never rendered bookable (fix/qm-booking-past-slots)', () => {
+    // Pin the clock (PR #965 date-boundary pattern) so the past-slot
+    // assertions survive date boundaries and runner timezones: both the
+    // pinned "now" and the queried date use local-time constructors,
+    // matching the service's server-local setHours arithmetic.
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2028, 9, 2, 10, 0, 0, 0)); // Monday 10:00 local
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    async function createHourlyLink(slug: string) {
+      await service.createBookingLink({
+        userId: 'host-user-1',
+        slug,
+        title: 'Hourly Consultation',
+        duration: 60,
+        availableDays: [1, 2, 3, 4, 5],
+        startHour: 9,
+        endHour: 13, // 4 slots: 9, 10, 11, 12
+      });
+    }
+
+    it('marks past and within-buffer slots unavailable, keeps later slots bookable', async () => {
+      await createHourlyLink('past-slots-today');
+      const slots = await service.getAvailableSlots('past-slots-today', new Date(2028, 9, 2));
+
+      expect(slots).toHaveLength(4);
+      expect(slots.map((s) => ({ hour: s.start.getHours(), available: s.available }))).toEqual([
+        { hour: 9, available: false }, // already started
+        { hour: 10, available: false }, // started exactly at now (<= now+15min)
+        { hour: 11, available: true },
+        { hour: 12, available: true },
+      ]);
+    });
+
+    it('applies the 15-minute buffer to slots starting in the near future', async () => {
+      await createHourlyLink('past-slots-buffer');
+      // 09:50 local: the 10:00 slot starts 10 minutes from now — inside the
+      // 15-minute buffer, so it must not be bookable even though it is "future".
+      vi.setSystemTime(new Date(2028, 9, 2, 9, 50, 0, 0));
+      const slots = await service.getAvailableSlots('past-slots-buffer', new Date(2028, 9, 2));
+
+      expect(slots.map((s) => ({ hour: s.start.getHours(), available: s.available }))).toEqual([
+        { hour: 9, available: false },
+        { hour: 10, available: false }, // within 15-min buffer
+        { hour: 11, available: true },
+        { hour: 12, available: true },
+      ]);
+    });
+
+    it('leaves future dates fully bookable (the buffer only bites near now)', async () => {
+      await createHourlyLink('past-slots-future');
+      const friday = new Date(2028, 9, 6); // Friday
+      const slots = await service.getAvailableSlots('past-slots-future', friday);
+
+      expect(slots).toHaveLength(4);
+      expect(slots.every((s) => s.available)).toBe(true);
+    });
+
+    it('exposes the unavailable flag through GET /calendar/booking/:slug/slots for today', async () => {
+      await createHourlyLink('past-slots-http');
+      // Local-time date param (no Z) keeps the weekday stable in any runner TZ.
+      const res = await app.inject({
+        method: 'GET',
+        url: '/calendar/booking/past-slots-http/slots?date=2028-10-02T12:00:00',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.success).toBe(true);
+      const availability = (body.data as Array<{ start: string; available: boolean }>).map(
+        (s) => ({ hour: new Date(s.start).getHours(), available: s.available }),
+      );
+      expect(availability).toEqual([
+        { hour: 9, available: false },
+        { hour: 10, available: false },
+        { hour: 11, available: true },
+        { hour: 12, available: true },
+      ]);
+    });
+  });
 });

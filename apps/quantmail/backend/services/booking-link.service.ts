@@ -77,6 +77,16 @@ export interface PrismaClient {
 
 export const LOCK_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+/**
+ * Near-future buffer (fix/qm-booking-past-slots): getAvailableSlots marks a
+ * slot as NOT bookable when it starts at or before now + this buffer.
+ * Mirrors the public booking page's client-side slot generator, which only
+ * treats `slotStart > now + 15min` as future. Server time is the source of
+ * truth; lockSlot/confirmBooking still reject genuinely past slots with the
+ * honest 400 INVALID_BOOKING_SLOT for race cases.
+ */
+export const BOOKING_SLOT_FUTURE_BUFFER_MS = 15 * 60 * 1000; // 15 minutes
+
 // ============================================================================
 // Guest-timezone slot math (public booking page timezone selector).
 // The host's startHour/endHour/availableDays are wall-clock values; when a
@@ -528,6 +538,11 @@ export class BookingLinkService {
       end: new Date(event['endTime'] as string | Date),
     }));
     const slots: BookingSlot[] = [];
+    // Never render already-started (or starting-within-buffer) slots as
+    // bookable: the authoritative slots answer must agree with the booking
+    // page, which maps `available` verbatim and only renders/selects
+    // available slots. Server time is the source of truth.
+    const bookableCutoff = Date.now() + BOOKING_SLOT_FUTURE_BUFFER_MS;
     for (const slotStart of slotStarts) {
       const slotEnd = new Date(slotStart.getTime() + slotDuration);
       const conflictsWithStandard = busySlots.some(
@@ -537,10 +552,11 @@ export class BookingLinkService {
         (occurrence) => slotStart < occurrence.endTime && slotEnd > occurrence.startTime,
       );
       const isLocked = globalSlotLockStore.isSlotLocked(slug, link.userId, slotStart.getTime());
+      const isPastOrTooSoon = slotStart.getTime() <= bookableCutoff;
       slots.push({
         start: slotStart,
         end: slotEnd,
-        available: !conflictsWithStandard && !conflictsWithRecurring && !isLocked,
+        available: !conflictsWithStandard && !conflictsWithRecurring && !isLocked && !isPastOrTooSoon,
       });
     }
     return slots;
