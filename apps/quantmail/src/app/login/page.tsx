@@ -357,7 +357,7 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[var(--quant-primary)] text-[var(--quant-background)] font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all shadow-[0_4px_20px_-4px_rgba(255,140,66,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] py-3 px-4 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)]"
+                className="auth-primary-action w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-[background-color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0d] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none"
               >
                 {isLoading ? 'Authenticating…' : 'Sign in'}
               </button>
@@ -425,7 +425,7 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[var(--quant-primary)] text-[var(--quant-background)] font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all shadow-[0_4px_20px_-4px_rgba(255,140,66,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] py-3 px-4 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)]"
+                className="auth-primary-action w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-[background-color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0d] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none"
               >
                 {isLoading ? 'Verifying…' : 'Verify and sign in'}
               </button>
@@ -519,7 +519,7 @@ function LoginFallback() {
         <div aria-hidden="true" className="space-y-4">
           <div className="h-[46px] rounded-xl border border-white/[0.08] bg-[var(--quant-surface)]/90" />
           <div className="h-[46px] rounded-xl border border-white/[0.08] bg-[var(--quant-surface)]/90" />
-          <div className="h-[46px] rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[var(--quant-primary)] opacity-40" />
+          <div className="h-[46px] rounded-xl auth-primary-action opacity-40" />
         </div>
       </div>
     </AuthShell>

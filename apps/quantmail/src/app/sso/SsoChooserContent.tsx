@@ -691,7 +691,7 @@ export function SsoChooserContent({
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[var(--quant-primary)] text-[var(--quant-background)] font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all shadow-[0_4px_20px_-4px_rgba(255,140,66,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] disabled:opacity-50"
+                className="auth-primary-action w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-[background-color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0d] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none mt-2"
               >
                 {submitting ? 'Signing in...' : `Continue to ${clientApp.name}`}
               </button>
@@ -748,7 +748,7 @@ export function SsoChooserContent({
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[var(--quant-primary)] text-[var(--quant-background)] font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all shadow-[0_4px_20px_-4px_rgba(255,140,66,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] disabled:opacity-50"
+                className="auth-primary-action w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-[background-color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0d] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none"
               >
                 {submitting ? 'Verifying...' : `Verify and Continue`}
               </button>
