@@ -265,14 +265,21 @@ export interface BookingSlotItem {
  * fully booked. An EMPTY array is an authoritative answer: the page must
  * render the honest "no slots" state. It must NEVER fall through to the
  * client-side slot generator, which would invent bookable slots the backend
- * then rejects at submit with 409 SLOT_UNAVAILABLE.
+ * rejects at submit with 409 SLOT_UNAVAILABLE.
  *
  * Returns the mapped slots (possibly []) when the payload is authoritative,
  * or null when the fetch did not produce a usable answer (success !== true
  * or data not an array) so the caller takes the genuine-failure path.
  * Pure function so the rule is unit-testable.
+ *
+ * timeZone: the guest's selected IANA timezone — slot labels are rendered in
+ * it (fix/qm-booking-tz-selector). Defaults to UTC for callers that do not
+ * carry a guest selection.
  */
-export function resolveSlotsResponse(json: unknown): BookingSlotItem[] | null {
+export function resolveSlotsResponse(
+  json: unknown,
+  timeZone: string = 'UTC',
+): BookingSlotItem[] | null {
   if (
     typeof json !== 'object' ||
     json === null ||
@@ -285,16 +292,76 @@ export function resolveSlotsResponse(json: unknown): BookingSlotItem[] | null {
   return data.map((s: any) => {
     const start = new Date(s.start);
     const end = new Date(s.end);
-    const hours = start.getHours();
-    const minutes = start.getMinutes();
-    const period = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 === 0 ? 12 : hours % 12;
-    const displayMinutes = minutes < 10 ? `0${minutes}` : `${minutes}`;
     return {
       start,
       end,
-      timeLabel: `${String(displayHours).padStart(2, '0')}:${displayMinutes} ${period}`,
+      timeLabel: formatSlotTimeLabelInTz(start, timeZone),
       available: s.available ?? true,
     };
+  });
+}
+
+// ============================================================================
+// Guest-timezone wall-time math (fix/qm-booking-tz-selector).
+// The booking page's timezone selector must shift displayed slot times AND
+// the date boundary. These pure helpers convert guest-local wall-clock times
+// in an IANA zone to UTC instants and render labels in that zone — the same
+// math the backend applies in booking-link.service getAvailableSlots.
+// ============================================================================
+
+/** Offset (local wall-clock time minus UTC) in ms for `timeZone` at a UTC instant. */
+export function bookingTzOffsetMs(timeZone: string, utcMs: number): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(new Date(utcMs));
+  const get = (type: string): number => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  // hour12:false can yield "24" at midnight; normalize.
+  const asUtc = Date.UTC(
+    get('year'),
+    get('month') - 1,
+    get('day'),
+    get('hour') % 24,
+    get('minute'),
+    get('second'),
+  );
+  return asUtc - utcMs;
+}
+
+/**
+ * Convert a guest-local wall time (year/month/day/hour/minute in `timeZone`)
+ * to the matching UTC instant. Iterates to a fixed point so DST transitions
+ * between midnight and the slot are respected.
+ */
+export function bookingWallTimeToUtcMs(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  timeZone: string,
+): number {
+  let guess = Date.UTC(year, month - 1, day, hour, minute);
+  for (let i = 0; i < 3; i++) {
+    const next = Date.UTC(year, month - 1, day, hour, minute) - bookingTzOffsetMs(timeZone, guess);
+    if (next === guess) break;
+    guess = next;
+  }
+  return guess;
+}
+
+/** "09:30 AM" label rendered in the guest's selected timezone. */
+export function formatSlotTimeLabelInTz(d: Date, timeZone: string): string {
+  return d.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZone,
   });
 }

@@ -354,6 +354,115 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
     });
   });
 
+  describe('2b. Guest timezone (tz) is honored by getAvailableSlots (fix/qm-booking-tz-selector)', () => {
+    // 2028-10-02 is a Monday, 2028-10-01 a Sunday. On 2028-10-02 New York is
+    // on EDT (UTC-4) and Kolkata on IST (UTC+5:30).
+    const MONDAY = new Date('2028-10-02T00:00:00.000Z');
+    const SUNDAY = new Date('2028-10-01T00:00:00.000Z');
+
+    async function seedTzLink(slug: string) {
+      await service.createBookingLink({
+        userId: 'host-user-1',
+        slug,
+        title: 'TZ Test Link',
+        duration: 60,
+        availableDays: [1, 2, 3, 4, 5],
+        startHour: 9,
+        endHour: 17, // 8 hourly slots
+      });
+    }
+
+    function wallHourInTz(iso: string, tz: string): number {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        hour: 'numeric',
+        hour12: false,
+      }).formatToParts(new Date(iso));
+      return Number(parts.find((p) => p.type === 'hour')?.value);
+    }
+
+    it('shifts slot instants so wall-times are 09:00-17:00 in America/New_York', async () => {
+      await seedTzLink('tz-ny');
+      const slots = await service.getAvailableSlots('tz-ny', MONDAY, 'America/New_York');
+
+      expect(slots).toHaveLength(8);
+      // 09:00 EDT (UTC-4) == 13:00Z; last slot 16:00 EDT == 20:00Z
+      expect(slots[0].start.toISOString()).toBe('2028-10-02T13:00:00.000Z');
+      expect(slots[7].start.toISOString()).toBe('2028-10-02T20:00:00.000Z');
+      for (const s of slots) {
+        const h = wallHourInTz(s.start.toISOString(), 'America/New_York');
+        expect(h).toBeGreaterThanOrEqual(9);
+        expect(h).toBeLessThan(17);
+      }
+      expect(slots.every((s) => s.available)).toBe(true);
+    });
+
+    it('shifts slot instants for Asia/Kolkata (non-hour UTC+5:30 offset)', async () => {
+      await seedTzLink('tz-ist');
+      const slots = await service.getAvailableSlots('tz-ist', MONDAY, 'Asia/Kolkata');
+
+      expect(slots).toHaveLength(8);
+      // 09:00 IST == 03:30Z
+      expect(slots[0].start.toISOString()).toBe('2028-10-02T03:30:00.000Z');
+      for (const s of slots) {
+        const h = wallHourInTz(s.start.toISOString(), 'Asia/Kolkata');
+        expect(h).toBeGreaterThanOrEqual(9);
+        expect(h).toBeLessThan(17);
+      }
+    });
+
+    it('different guest timezones produce different absolute slot instants', async () => {
+      await seedTzLink('tz-diff');
+      const ny = await service.getAvailableSlots('tz-diff', MONDAY, 'America/New_York');
+      const ist = await service.getAvailableSlots('tz-diff', MONDAY, 'Asia/Kolkata');
+      expect(ny[0].start.getTime()).not.toBe(ist[0].start.getTime());
+    });
+
+    it('honors availableDays against the guest-timezone calendar day (Sunday -> no slots)', async () => {
+      await seedTzLink('tz-weekday');
+      const slots = await service.getAvailableSlots('tz-weekday', SUNDAY, 'America/New_York');
+      expect(slots).toHaveLength(0);
+    });
+
+    it('falls back to legacy server-local behavior for invalid or empty tz', async () => {
+      await seedTzLink('tz-fallback');
+      const legacy = await service.getAvailableSlots('tz-fallback', MONDAY);
+      const badTz = await service.getAvailableSlots('tz-fallback', MONDAY, 'Not/AZone');
+      const emptyTz = await service.getAvailableSlots('tz-fallback', MONDAY, '');
+      const iso = (ss: Array<{ start: Date }>) => ss.map((s) => s.start.toISOString());
+      expect(iso(badTz)).toEqual(iso(legacy));
+      expect(iso(emptyTz)).toEqual(iso(legacy));
+    });
+
+    it('HTTP GET /calendar/booking/:slug/slots honors the tz query param', async () => {
+      await seedTzLink('tz-http');
+      const res = await app.inject({
+        method: 'GET',
+        url: '/calendar/booking/tz-http/slots?date=2028-10-02&tz=America/New_York',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.success).toBe(true);
+      expect(body.data).toHaveLength(8);
+      // First slot must be the NY-shifted instant, not a server-tz slot.
+      expect(body.data[0].start).toBe('2028-10-02T13:00:00.000Z');
+    });
+
+    it('HTTP GET slots without tz keeps the legacy behavior (no regression)', async () => {
+      await seedTzLink('tz-http-legacy');
+      const res = await app.inject({
+        method: 'GET',
+        url: '/calendar/booking/tz-http-legacy/slots?date=2028-10-02T00:00:00.000Z',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.success).toBe(true);
+      expect(body.data).toHaveLength(8);
+    });
+  });
+
   describe('3. Slot Locking and Concurrency Conflict Detection (409 SLOT_UNAVAILABLE)', () => {
     it('locks a slot with 10-minute TTL and prevents double-locking by another booker (409 SLOT_UNAVAILABLE)', async () => {
       await service.createBookingLink({

@@ -2315,7 +2315,10 @@ export default async function calendarRoutes(
   };
 
   const handleGetBookingSlots = async (
-    request: FastifyRequest<{ Params: { slug: string }; Querystring: { date?: string } }>,
+    request: FastifyRequest<{
+      Params: { slug: string };
+      Querystring: { date?: string; tz?: string };
+    }>,
     reply: FastifyReply,
   ) => {
     if (!request.query.date) {
@@ -2326,6 +2329,7 @@ export default async function calendarRoutes(
       data: await bookingService().getAvailableSlots(
         request.params.slug,
         toDate(request.query.date, 'date'),
+        request.query.tz,
       ),
     });
   };
@@ -2379,11 +2383,11 @@ export default async function calendarRoutes(
   fastify.get<{ Params: { slug: string } }>('/booking/links/:slug', handleGetBookingLink);
   fastify.get<{ Params: { slug: string } }>('/calendar/booking/:slug', handleGetBookingLink);
 
-  fastify.get<{ Params: { slug: string }; Querystring: { date?: string } }>(
+  fastify.get<{ Params: { slug: string }; Querystring: { date?: string; tz?: string } }>(
     '/booking/links/:slug/slots',
     handleGetBookingSlots,
   );
-  fastify.get<{ Params: { slug: string }; Querystring: { date?: string } }>(
+  fastify.get<{ Params: { slug: string }; Querystring: { date?: string; tz?: string } }>(
     '/calendar/booking/:slug/slots',
     handleGetBookingSlots,
   );
