@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { buildForwardedCookieHeader } from '../../../lib/auth-cookie-filter';
 
 // QuantAI auth entry. QuantAI does not issue tokens — the ecosystem identity
 // root does (QuantMail backend, JWT issuer https://quantrinity.in). This handler
@@ -24,36 +25,8 @@ const IDENTITY_URL =
   process.env['QUANTMAIL_BACKEND_URL'] ??
   'http://quant-quantmail-backend:3011';
 
-// The refresh cookie the identity service issues. A missing cookie on /refresh is
-// an expected unauthenticated state, not an error.
-const REFRESH_COOKIE = 'quantmail_refresh';
-
 // Actions that legitimately need the browser's refresh cookie server-side.
 const COOKIE_FORWARD_ACTIONS = new Set(['refresh', 'logout']);
-
-/**
- * Parse a Cookie header and return a new header value containing ONLY the
- * identity refresh cookie. Returns null when the refresh cookie is absent or
- * has no usable value, so callers can omit the Cookie header entirely.
- *
- * Deliberately strict: malformed pairs (no '='), empty values, and
- * case-variant lookalikes (quantmail_Refresh) are dropped rather than guessed.
- */
-export const buildForwardedCookieHeader = (
-  cookieHeader: string | null,
-): string | null => {
-  if (!cookieHeader) return null;
-  for (const pair of cookieHeader.split(';')) {
-    const eq = pair.indexOf('=');
-    if (eq < 0) continue;
-    const name = pair.slice(0, eq).trim();
-    const value = pair.slice(eq + 1).trim();
-    if (name === REFRESH_COOKIE && value.length > 0) {
-      return `${REFRESH_COOKIE}=${value}`;
-    }
-  }
-  return null;
-};
 
 const errorResponse = (statusCode: number, code: string, message: string) =>
   NextResponse.json(
@@ -124,17 +97,10 @@ export async function POST(
     const isJson = contentType.includes('application/json') || contentType.includes('+json');
     if (!isJson) {
       await backendResponse.body?.cancel();
-      console.warn(`[auth-proxy] action=${action} backend returned non-JSON response`);
       return errorResponse(
         502,
         'AUTH_BACKEND_INVALID_RESPONSE',
         'The authentication service returned an invalid response.',
-      );
-    }
-
-    if (backendResponse.status >= 500) {
-      console.warn(
-        `[auth-proxy] action=${action} backend error status=${backendResponse.status}`,
       );
     }
 
@@ -144,7 +110,6 @@ export async function POST(
       headers: copyBackendHeaders(backendResponse.headers),
     });
   } catch {
-    console.warn(`[auth-proxy] action=${action} identity service unreachable`);
     return errorResponse(
       502,
       'AUTH_BACKEND_UNAVAILABLE',
