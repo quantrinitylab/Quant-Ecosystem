@@ -98,6 +98,93 @@ function makeStoriesFakePrisma() {
 
   const views: Array<{ storyId: string; viewerId: string }> = [];
 
+  // QC-F-078: a successful story reply now DELIVERS a real direct message
+  // (existing-DM reuse or privacy-gated bootstrap + MessageService send),
+  // so this fake also models conversations/messages/outbox/streaks. The
+  // audience assertions below are unchanged; the reply-success case now
+  // additionally proves a message actually landed.
+  const deliveredMessages: Array<Record<string, unknown>> = [];
+  const deliveredOutbox: Array<Record<string, unknown>> = [];
+  const streakRows = new Map<string, Record<string, unknown>>();
+  let conversationSeq = 0;
+  let messageSeq = 0;
+
+  function matchMembers(where: any) {
+    return members.filter((m) => {
+      if (typeof where.userId === 'string' && m.userId !== where.userId) return false;
+      if (where.userId?.in && !where.userId.in.includes(m.userId)) return false;
+      if (typeof where.conversationId === 'string' && m.conversationId !== where.conversationId)
+        return false;
+      if (where.conversationId?.in && !where.conversationId.in.includes(m.conversationId))
+        return false;
+      if ('leftAt' in where && m.leftAt !== where.leftAt) return false;
+      return true;
+    });
+  }
+
+  const conversationDelegate = {
+    async findMany({ where }: any) {
+      return conversations
+        .filter(
+          (c) =>
+            (!where.id?.in || where.id.in.includes(c.id)) &&
+            (where.type === undefined || c.type === where.type),
+        )
+        .map((c) => ({ id: c.id }));
+    },
+    async create({ data }: any) {
+      const row = { id: `conv_new_${++conversationSeq}`, ...data };
+      conversations.push(row as never);
+      return row;
+    },
+    async update({ where, data }: any) {
+      const row = conversations.find((c) => c.id === where.id) as
+        | Record<string, unknown>
+        | undefined;
+      if (row) Object.assign(row, data);
+      return row;
+    },
+  };
+
+  const conversationMemberDelegate = {
+    async findMany({ where }: any) {
+      return matchMembers(where).map((m) => ({ ...m }));
+    },
+    async findFirst({ where }: any) {
+      return matchMembers(where)[0] ?? null;
+    },
+    async createMany({ data }: any) {
+      for (const d of data) {
+        members.push({
+          conversationId: d.conversationId,
+          userId: d.userId,
+          leftAt: d.leftAt ?? null,
+        } as never);
+      }
+      return { count: data.length };
+    },
+  };
+
+  const messageDelegate = {
+    async create({ data }: any) {
+      const row = { id: `msg_${++messageSeq}`, createdAt: NOW, ...data };
+      deliveredMessages.push(row);
+      return row;
+    },
+  };
+
+  const txClient = {
+    conversation: conversationDelegate,
+    conversationMember: conversationMemberDelegate,
+    message: messageDelegate,
+    messageOutbox: {
+      async create({ data }: any) {
+        deliveredOutbox.push(data);
+        return data;
+      },
+    },
+  };
+
   const prisma = {
     story: {
       async findMany() {
@@ -146,8 +233,11 @@ function makeStoriesFakePrisma() {
     },
     closeFriend: {
       async findMany({ where }: any) {
+        // Two caller shapes: loadFriendContext passes userId as { in: [...] },
+        // PrivacyService.isFriendOf passes a plain string.
+        const ids = typeof where.userId === 'string' ? [where.userId] : (where.userId.in ?? []);
         return closeFriendEdges
-          .filter((e) => where.userId.in.includes(e.userId) && e.friendId === where.friendId)
+          .filter((e) => ids.includes(e.userId) && e.friendId === where.friendId)
           .map((e) => ({ userId: e.userId }));
       },
     },
@@ -157,34 +247,37 @@ function makeStoriesFakePrisma() {
           .filter((u) => where.id.in.includes(u.id))
           .map((u) => ({ id: u.id, preferences: u.preferences }));
       },
-    },
-    conversationMember: {
-      async findMany({ where }: any) {
-        if (typeof where.userId === 'string') {
-          return members
-            .filter((m) => m.userId === where.userId && m.leftAt === where.leftAt)
-            .map((m) => ({ conversationId: m.conversationId }));
-        }
-        return members
-          .filter(
-            (m) =>
-              where.conversationId.in.includes(m.conversationId) &&
-              where.userId.in.includes(m.userId) &&
-              m.leftAt === where.leftAt,
-          )
-          .map((m) => ({ conversationId: m.conversationId, userId: m.userId }));
+      async findUnique({ where }: any) {
+        const row = userById.get(where.id);
+        return row ? { preferences: row.preferences } : null;
       },
     },
-    conversation: {
-      async findMany({ where }: any) {
-        return conversations
-          .filter((c) => where.id.in.includes(c.id) && c.type === where.type)
-          .map((c) => ({ id: c.id }));
+    conversationMember: conversationMemberDelegate,
+    conversation: conversationDelegate,
+    message: messageDelegate,
+    streak: {
+      async findUnique({ where }: any) {
+        const key = where.userAId_userBId;
+        return streakRows.get(`${key.userAId}|${key.userBId}`) ?? null;
       },
+      async create({ data }: any) {
+        const row = { id: `streak_${streakRows.size + 1}`, ...data };
+        streakRows.set(`${data.userAId}|${data.userBId}`, row);
+        return row;
+      },
+      async update({ where, data }: any) {
+        const key = where.userAId_userBId;
+        const row = { ...(streakRows.get(`${key.userAId}|${key.userBId}`) ?? {}), ...data };
+        streakRows.set(`${key.userAId}|${key.userBId}`, row);
+        return row;
+      },
+    },
+    async $transaction(cb: any) {
+      return cb(txClient);
     },
   };
 
-  return { prisma, storyById, views };
+  return { prisma, storyById, views, messages: deliveredMessages, outbox: deliveredOutbox };
 }
 
 async function buildRouteApp(
@@ -324,6 +417,31 @@ describe('QC-F-021 stories audience gate', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ success: true });
+    // QC-F-078: success now means the reply was actually DELIVERED as a
+    // direct message to the author (before the fix this case returned the
+    // same 200 while storing nothing — the fake-success this file's sibling
+    // suite pins against).
+    expect(fake.messages).toHaveLength(1);
+    expect(fake.messages[0]).toMatchObject({
+      senderId: CLOSE_FRIEND.userId,
+      content: 'nice',
+      metadata: { storyReply: { storyId: 'story-default-cf' } },
+    });
+    expect(res.json().conversationId).toBe(fake.messages[0]!['conversationId']);
+    expect(fake.outbox).toHaveLength(1);
+    expect(fake.outbox[0]).toMatchObject({ recipientIds: [AUTHOR_DEFAULT.userId] });
+  });
+
+  it('reply: a stranger replying to an invisible story stores no message', async () => {
+    const server = await asStories(STRANGER);
+    const res = await server.inject({
+      method: 'POST',
+      url: '/stories/story-default-all/reply',
+      payload: { message: 'nice' },
+    });
+    expect(res.statusCode).toBe(404);
+    expect(fake.messages).toHaveLength(0);
+    expect(fake.outbox).toHaveLength(0);
   });
 
   it('feed: unauthenticated request is rejected 401', async () => {
