@@ -6,6 +6,8 @@ import {
   isTwoFactorChallenge,
   ingestSSOToken,
 } from '../services/auth-session';
+import type { LogoutResult } from '../services/auth-session';
+import { subscribeToGlobalLogout } from '../services/ecosystem-logout';
 import { getAuthToken } from '../lib/auth';
 
 export type LoginOutcome =
@@ -19,7 +21,8 @@ interface AuthContextValue {
   isLoading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<LoginOutcome>;
-  logout: () => Promise<void>;
+  /** Logs out locally AND broadcasts ecosystem single-logout; resolves with how far the broadcast got. */
+  logout: () => Promise<LogoutResult>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -154,10 +157,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [clearSession],
   );
 
-  const logout = useCallback(async () => {
-    await authSession.logout();
+  // Defense direction of ecosystem single-logout (F-182): when any other
+  // Quant app (e.g. QuantMail) logs out, GLOBAL_LOGOUT arrives on the shared
+  // bus and this tab must drop its session too. Idempotent — a logout while
+  // already logged out is a no-op.
+  useEffect(() => {
+    return subscribeToGlobalLogout(() => {
+      clearSession();
+    });
+  }, [clearSession]);
+
+  const logout = useCallback(async (): Promise<LogoutResult> => {
+    const result = await authSession.logout();
     setIsAuthenticated(false);
     setError(null);
+    return result;
   }, []);
 
   return (
