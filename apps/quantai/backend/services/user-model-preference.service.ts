@@ -11,8 +11,8 @@
 import { createAppError } from '@quant/server-core';
 import { resolveUserModelDetailed, type ResolvedUserModel } from '@quant/ai';
 
-/** The platform default when a user has expressed no preference. */
-export const DEFAULT_USER_MODEL = 'openai/gpt-4o-mini';
+/** The platform default when a user has expressed no preference (Meta-first). */
+export const DEFAULT_USER_MODEL = 'muse-spark-1.3';
 
 interface UserModelPreferenceRow {
   id: string;

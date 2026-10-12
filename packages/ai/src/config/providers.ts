@@ -20,6 +20,14 @@ export interface FallbackChainConfig {
 
 const PROVIDER_CONFIGS: ProviderConfig[] = [
   {
+    id: 'meta',
+    name: 'Meta',
+    apiKeyEnvVar: 'META_API_KEY',
+    models: ['muse-spark-1.3', 'muse-spark-1.3-voice'],
+    isAvailable: () => Boolean(process.env['META_API_KEY'] ?? process.env['META_AI_API_KEY']),
+    costMultiplier: 0.5,
+  },
+  {
     id: 'openai',
     name: 'OpenAI',
     apiKeyEnvVar: 'OPENAI_API_KEY',
@@ -67,6 +75,15 @@ export function getProviderConfig(providerId: string): ProviderConfig | undefine
 }
 
 /**
+ * List all known provider ids in priority order (Meta first). This is the
+ * strict allow-list for admin provider configuration — the backend validates
+ * PUT /admin/ai/providers against exactly these ids.
+ */
+export function listProviderIds(): string[] {
+  return PROVIDER_CONFIGS.map((p) => p.id);
+}
+
+/**
  * Get all providers that currently have their API keys configured
  */
 export function getAvailableProviders(): ProviderConfig[] {
@@ -75,8 +92,8 @@ export function getAvailableProviders(): ProviderConfig[] {
 
 /**
  * Get the fallback chain based on which providers are available.
- * Returns providers in priority order: OpenAI > Anthropic > Google.
- * Returns null if no providers are available.
+ * Returns providers in priority order (Meta > OpenAI > Anthropic > Google > OpenRouter,
+ * per PROVIDER_CONFIGS order). Returns null if no providers are available.
  */
 export function getFallbackChain(): FallbackChainConfig | null {
   const available = getAvailableProviders();

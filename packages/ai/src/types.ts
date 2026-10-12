@@ -146,6 +146,12 @@ export interface AIInferenceRequest {
   /** Maximum sequential tool-calling rounds (default 5). Each round executes
    * returned tool calls and feeds results back to the model. */
   maxToolRounds?: number;
+  /** Admin-configured provider priority/failover order (ordered provider ids,
+   * e.g. ['meta','openai','anthropic']). When present, the ModelRouter applies
+   * it to failover chains, default-model selection, and scoring. When absent,
+   * the compiled default order applies. Resolved per request by the backend
+   * (fail-open: chat must never break because the settings lookup failed). */
+  providerPriorityOrder?: string[];
 }
 
 /** Conversation message for context */

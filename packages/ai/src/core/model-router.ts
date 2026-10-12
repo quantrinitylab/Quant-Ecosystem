@@ -15,6 +15,32 @@ import { RoutingTable } from './routing-table';
 import type { ProviderHealthMonitor } from './provider-health';
 
 /**
+ * Order a list of model ids by provider priority. Models whose provider appears
+ * earlier in `order` come first; relative order within the same provider (and
+ * for providers absent from `order`) is preserved (stable sort).
+ * Exported for unit testing.
+ */
+export function orderModelsByProviderPriority(
+  modelIds: string[],
+  order: readonly string[],
+  getProvider: (modelId: string) => string | undefined,
+): string[] {
+  const rank = new Map<string, number>();
+  order.forEach((providerId, index) => {
+    if (!rank.has(providerId)) rank.set(providerId, index);
+  });
+  const unranked = Number.MAX_SAFE_INTEGER;
+  return modelIds
+    .map((id, originalIndex) => ({
+      id,
+      originalIndex,
+      rank: rank.get(getProvider(id) ?? '') ?? unranked,
+    }))
+    .sort((a, b) => a.rank - b.rank || a.originalIndex - b.originalIndex)
+    .map((entry) => entry.id);
+}
+
+/**
  * Model Router
  *
  * Intelligently routes AI requests to the most appropriate model based on:
@@ -25,6 +51,7 @@ import type { ProviderHealthMonitor } from './provider-health';
  * - Quality requirements
  * - Circuit breaker state
  * - Task-based routing with provider health awareness
+ * - Admin-configured provider priority/failover order (when set)
  */
 export class ModelRouter {
   private models: Map<string, AIModelConfig> = new Map();
@@ -40,6 +67,12 @@ export class ModelRouter {
    * initializes its providers so the router never picks an unusable model.
    */
   private availableProviders: Set<string> | null = null;
+  /**
+   * Admin-configured provider priority/failover order (ordered provider ids).
+   * Null (default) = compiled default order. A per-request
+   * `AIInferenceRequest.providerPriorityOrder` overrides this when present.
+   */
+  private providerPriorityOrder: string[] | null = null;
 
   constructor(
     circuitBreakerRegistry?: CircuitBreakerRegistry,
@@ -80,12 +113,16 @@ export class ModelRouter {
     // Determine required capabilities from the request
     const capabilities = this.inferCapabilities(request);
 
+    // Admin-configured provider priority/failover order: per-request wins,
+    // then the router-level default set via setProviderPriorityOrder().
+    const priorityOrder = this.effectivePriorityOrder(request);
+
     // Find eligible models
     const eligible = this.getEligibleModels(capabilities, request);
 
     if (eligible.length === 0) {
-      // Use fallback chain
-      const fallback = this.getFallbackModel(capabilities);
+      // Use fallback chain (reordered by provider priority when configured)
+      const fallback = this.getFallbackModel(capabilities, priorityOrder);
       if (fallback) return fallback;
       // Ultimate fallback: env-configured default model, if it is available.
       const defaultId = process.env['AI_DEFAULT_MODEL'];
@@ -95,8 +132,16 @@ export class ModelRouter {
           return configuredDefault;
         }
       }
-      // Otherwise, the first available model of any provider.
-      const firstAvailable = Array.from(this.models.values()).find((m) => this.isModelAvailable(m));
+      // Otherwise, the first available model of any provider — honoring the
+      // provider priority order when configured.
+      const availableIds = this.orderByPriority(
+        Array.from(this.models.values())
+          .filter((m) => this.isModelAvailable(m))
+          .map((m) => m.id),
+        priorityOrder,
+      );
+      const firstAvailable =
+        availableIds.length > 0 ? this.models.get(availableIds[0]!) : undefined;
       if (firstAvailable) return firstAvailable;
       // Legacy fallback for callers with no provider gating configured.
       const defaultModel = this.models.get('gpt-4o-mini');
@@ -179,6 +224,38 @@ export class ModelRouter {
   }
 
   /**
+   * Set the admin-configured provider priority/failover order (ordered
+   * provider ids, e.g. ['meta','openai','anthropic']). It reorders failover
+   * chains, the default-model fallback, and adds a modest scoring bonus so the
+   * configured order is a real signal without overwhelming quality/latency/
+   * cost. Null or empty clears it (compiled default order applies).
+   */
+  setProviderPriorityOrder(order: string[] | null): void {
+    this.providerPriorityOrder = order && order.length > 0 ? [...order] : null;
+  }
+
+  /** The router-level provider priority order, or null when unset. */
+  getProviderPriorityOrder(): string[] | null {
+    return this.providerPriorityOrder ? [...this.providerPriorityOrder] : null;
+  }
+
+  /**
+   * Effective priority order for a request: the per-request
+   * `providerPriorityOrder` wins when present, else the router-level order.
+   */
+  private effectivePriorityOrder(request: AIInferenceRequest): string[] | null {
+    const fromRequest = request.providerPriorityOrder;
+    if (fromRequest && fromRequest.length > 0) return fromRequest;
+    return this.providerPriorityOrder;
+  }
+
+  /** Order model ids by provider priority (no-op when order is null/empty). */
+  private orderByPriority(modelIds: string[], order: string[] | null): string[] {
+    if (!order || order.length === 0) return modelIds;
+    return orderModelsByProviderPriority(modelIds, order, (id) => this.models.get(id)?.provider);
+  }
+
+  /**
    * Register a new model
    */
   registerModel(config: AIModelConfig): void {
@@ -214,11 +291,16 @@ export class ModelRouter {
   }
 
   /**
-   * Get a fallback model from the fallback chains
+   * Get a fallback model from the fallback chains. When a provider priority
+   * order is supplied, the chain is reordered so earlier-listed providers are
+   * tried first (this is the failover order).
    */
-  private getFallbackModel(capabilities: AICapability[]): AIModelConfig | null {
+  private getFallbackModel(
+    capabilities: AICapability[],
+    priorityOrder: string[] | null = null,
+  ): AIModelConfig | null {
     const primaryCapability = capabilities[0] ?? 'text_generation';
-    const chain = this.getFallbackChain(primaryCapability);
+    const chain = this.orderByPriority(this.getFallbackChain(primaryCapability), priorityOrder);
 
     for (const modelId of chain) {
       const model = this.models.get(modelId);
@@ -320,6 +402,17 @@ export class ModelRouter {
     // Context window fit (0-10 points)
     const utilization = request.prompt.length / 4 / model.maxContextLength;
     score += utilization < 0.8 ? 10 : 5;
+
+    // Admin provider priority: earlier-listed providers get a modest bonus so
+    // the configured failover order is a real signal without overwhelming
+    // quality/latency/cost (max +10 points on a ~100-point scale).
+    const priorityOrder = request.providerPriorityOrder ?? this.providerPriorityOrder;
+    if (priorityOrder && priorityOrder.length > 0) {
+      const providerIndex = priorityOrder.indexOf(model.provider);
+      if (providerIndex >= 0) {
+        score += (priorityOrder.length - providerIndex) * 2;
+      }
+    }
 
     return score;
   }
