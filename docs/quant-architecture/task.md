@@ -1004,9 +1004,9 @@ STILL-UNVERIFIED: signed-in sessions/grants/PAT/2FA flows live.
 R3 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 1 P2 (R3-NEW-1; R2-NEW-1/R2-NEW-2 confirmed still present, not re-counted). No fix agents spawned (no P0/P1). Rotation -> QM-SCREEN-017 R3.
 
 ## QM-SCREEN-017 — Admin / domains / DLP / audit / organization policy
-Status: [x] DONE (R1 audit + R2 regression audit complete 2026-10-12; R1 P0/P1 authz fixes verified intact on origin/main; remaining UI/design gaps still open)
+Status: [~] IN_PROGRESS (R3 regression audit, LANE-1, branch lane1-audit-017r3; prior R1+R2 DONE)
 Owner: LANE-1
-Branch: lane1-audit-017
+Branch: lane1-audit-017r3
 Required: capability RBAC, tenant isolation, domain verification, DLP, audit explorer, legal hold, retention, export/deletion, incident visibility, break-glass controls.
 Dependencies: QM-WORK-011; backend integrity tasks.
 - [x] FINDING P0: retention/legal-hold API is any-auth, not staff-gated — any signed-in user can create PERMANENT_DELETE retention policies, place legal holds on any custodian, and RELEASE legal holds. | expected: staff-only (requireStaff like routes/admin.ts) | actual: requireUserId only in routes/retention.ts | evidence: POST /retention/policies, POST /retention/legal-holds, DELETE /retention/legal-holds/:id all call requireUserId; no role check. Logged-out probe → honest 401s. FIXED: PR #855 (merge b72a98b4, commit a05f5fc9) staff-gated all six retention routes (requireStaff, STAFF_ROLES ADMIN+MODERATOR, 401/403 semantics); diff scope CLEAN (retention.ts, audit-logs.ts + 3 test files only). Verified intact on origin/main 6757f022 (2026-10-12 R2: git-grep requireStaff on all six routes).
