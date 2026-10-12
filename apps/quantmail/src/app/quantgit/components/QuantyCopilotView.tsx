@@ -549,7 +549,9 @@ export function QuantyCopilotView({
                       <div>
                         <div className="font-semibold text-white">Skills & Tools</div>
                         <div className="text-[10px] text-[#7D8590]">
-                          Autonomous coding, QA & memory skills
+                          {/* QM-SCREEN-013 R3 P2: honest framing — this is a
+                              planned roadmap, not a live capability library. */}
+                          Planned skills — not available yet
                         </div>
                       </div>
                     </div>
@@ -749,6 +751,11 @@ export function QuantyCopilotView({
                     </button>
                     <span className="font-bold text-white text-xs">Skills & Tools</span>
                   </div>
+                  {/* QM-SCREEN-013 R3 P2: roadmap framing — these are planned
+                      capabilities, none of them wired up yet. */}
+                  <p className="text-[10px] text-[#7D8590] -mt-1 pb-1">
+                    Roadmap preview — none of these skills are available yet.
+                  </p>
                   <input
                     type="text"
                     value={skillsSearch}
@@ -829,6 +836,11 @@ export function QuantyCopilotView({
                                   {sk.cat}
                                 </span>
                                 <span className="font-medium text-white truncate">{sk.name}</span>
+                                {/* QM-SCREEN-013 R3 P2: each entry reads as
+                                    planned, not live. */}
+                                <span className="px-1.5 py-px rounded text-[var(--q-type-xs)] font-bold bg-[#21262D] text-[#7D8590] border border-[#30363D] shrink-0">
+                                  Planned
+                                </span>
                               </div>
                               <div className="text-[10px] text-[#7D8590] leading-snug mt-0.5">
                                 {sk.desc}

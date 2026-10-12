@@ -2170,34 +2170,61 @@ pnpm install && pnpm dev
                 className="hidden"
                 onChange={async (e) => {
                   const filesList = e.target.files;
+                  const inputEl = e.target;
                   if (!filesList || filesList.length === 0) return;
-                  for (let i = 0; i < filesList.length; i++) {
-                    const uploadedFile = filesList[i];
-                    const reader = new FileReader();
-                    reader.onload = async (event) => {
-                      const textContent =
-                        typeof event.target?.result === 'string' ? event.target.result : '';
-                      const filePath = currentPath
-                        ? `${currentPath}/${uploadedFile.name}`
-                        : uploadedFile.name;
-                      if (onCommitBlob) {
-                        try {
-                          await onCommitBlob({
-                            path: filePath,
-                            branch: currentBranch,
-                            content: textContent,
-                            message: `Upload ${uploadedFile.name}`,
-                            expectedBlobSha: '',
-                          });
-                        } catch (err) {
-                          showToast(`Failed to upload ${uploadedFile.name}`);
-                        }
-                      }
-                    };
-                    reader.readAsText(uploadedFile);
+                  // QM-SCREEN-013 R3 P1: never claim success before every
+                  // upload's commit has actually confirmed. Per-file commits
+                  // settle independently; the success toast only fires after
+                  // all of them have settled.
+                  if (!onCommitBlob) {
+                    showToast('File upload is not wired up yet');
+                    inputEl.value = '';
+                    return;
                   }
-                  showToast(`Uploaded ${filesList.length} file(s) successfully`);
-                  e.target.value = '';
+                  const uploads = Array.from(filesList).map(
+                    (uploadedFile) =>
+                      new Promise<boolean>((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = async (event) => {
+                          const textContent =
+                            typeof event.target?.result === 'string' ? event.target.result : '';
+                          const filePath = currentPath
+                            ? `${currentPath}/${uploadedFile.name}`
+                            : uploadedFile.name;
+                          try {
+                            await onCommitBlob({
+                              path: filePath,
+                              branch: currentBranch,
+                              content: textContent,
+                              message: `Upload ${uploadedFile.name}`,
+                              expectedBlobSha: '',
+                            });
+                            resolve(true);
+                          } catch (err) {
+                            showToast(`Failed to upload ${uploadedFile.name}`);
+                            resolve(false);
+                          }
+                        };
+                        reader.onerror = () => {
+                          showToast(`Failed to upload ${uploadedFile.name}`);
+                          resolve(false);
+                        };
+                        reader.readAsText(uploadedFile);
+                      }),
+                  );
+                  const outcomes = await Promise.all(uploads);
+                  const succeeded = outcomes.filter(Boolean).length;
+                  const failed = outcomes.length - succeeded;
+                  if (failed === 0) {
+                    showToast(`Uploaded ${outcomes.length} file(s) successfully`);
+                  } else if (succeeded > 0) {
+                    showToast(
+                      `Uploaded ${succeeded} of ${outcomes.length} file(s); ${failed} failed`,
+                    );
+                  }
+                  // If every file failed, the per-file failure toasts above
+                  // already told the story — no misleading summary here.
+                  inputEl.value = '';
                 }}
               />
             </div>
