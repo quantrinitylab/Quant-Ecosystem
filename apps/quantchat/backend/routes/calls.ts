@@ -1,8 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import type { PrismaClient } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import { CallService } from '../services/call.service';
 import { CallRecordService, type CallRecordPrisma } from '../services/call-record.service';
+import { ConversationService } from '../services/conversation.service';
 
 const initiate1v1Schema = z.object({
   calleeId: z.string().min(1),
@@ -69,6 +71,34 @@ function getCallService(): CallService {
   return sharedCallService;
 }
 
+/**
+ * QC-F-075: build the conversation-membership gate used by POST /calls/create.
+ *
+ * The gate lives in ConversationService (the QC-F-017 service-layer pattern),
+ * so this helper only resolves the shared `fastify.prisma` decorator into a
+ * service instance. Authorization must FAIL CLOSED: when Prisma (or the
+ * delegates the gate needs) is unavailable, membership cannot be verified
+ * and call creation is refused with 503 MEMBERSHIP_CHECK_UNAVAILABLE —
+ * deliberately a different code from CALLS_UNAVAILABLE ("LiveKit is down")
+ * so the two failure modes stay distinguishable. Skipping the gate when the
+ * database handle is missing would silently reopen the impersonation hole.
+ */
+function getMembershipGate(fastify: FastifyInstance): ConversationService {
+  const prisma = (fastify as unknown as { prisma?: PrismaClient }).prisma;
+  if (
+    !prisma ||
+    typeof prisma.conversation?.findUnique !== 'function' ||
+    typeof prisma.conversationMember?.findMany !== 'function'
+  ) {
+    throw createAppError(
+      'Call creation is unavailable: conversation membership cannot be verified.',
+      503,
+      'MEMBERSHIP_CHECK_UNAVAILABLE',
+    );
+  }
+  return new ConversationService(prisma);
+}
+
 export default async function callsRoutes(fastify: FastifyInstance) {
   const callRecord = getCallRecordService(fastify);
 
@@ -117,7 +147,16 @@ export default async function callsRoutes(fastify: FastifyInstance) {
     }
   }
 
-  // POST /calls/create — Creates a LiveKit room and generates participant tokens
+  // POST /calls/create — Creates a LiveKit room for conversation members.
+  //
+  // QC-F-075: this handler used to mint a LiveKit token for EVERY
+  // participantId and return the whole map to the initiator — a valid,
+  // signed, canPublish JWT in each participant's name (identity = that
+  // user), for arbitrary userIds the caller made up. That is call
+  // impersonation by design, so token minting no longer happens here at
+  // all: the response is only the roomId, and every participant fetches
+  // their OWN token via POST /calls/:id/join or GET /calls/:id/token,
+  // where CallService.generateCallToken enforces call participation.
   fastify.post('/create', async (request, reply) => {
     const parseResult = createCallSchema.safeParse(request.body);
     if (!parseResult.success) {
@@ -136,15 +175,21 @@ export default async function callsRoutes(fastify: FastifyInstance) {
     // Never mint unsigned mock tokens.
     const callService = getCallService();
 
-    // Create real LiveKit room and generate tokens
+    // QC-F-075 membership gate — AFTER the LiveKit check (the pre-existing
+    // 503 suite runs without a database and "calls are down" is the honest
+    // first answer), BEFORE the room is created (a rejected attempt must
+    // not orphan a LiveKit room) and OUTSIDE the try below (a 403/404 from
+    // the gate must not be wrapped into 502 CALL_CREATE_FAILED). Every id
+    // in allParticipants — caller included — must be an active member of
+    // conversationId, and the conversation must exist; otherwise no room,
+    // no token and no durable history row is created.
+    const membershipGate = getMembershipGate(fastify);
+    await membershipGate.assertAllMembers(conversationId, allParticipants);
+
+    // Create the real LiveKit room. No tokens are generated here (see the
+    // QC-F-075 note above); participants join via /:id/join for their own.
     try {
       const call = await callService.initiateGroupCall(userId, participantIds);
-
-      // Generate tokens for all participants
-      const tokens: Record<string, string> = {};
-      for (const pid of allParticipants) {
-        tokens[pid] = await callService.generateCallToken(call.callId, pid);
-      }
 
       await persistStarted({
         conversationId,
@@ -155,7 +200,7 @@ export default async function callsRoutes(fastify: FastifyInstance) {
 
       return reply.status(201).send({
         success: true,
-        data: { roomId: call.callId, tokens },
+        data: { roomId: call.callId },
       });
     } catch (err) {
       throw createAppError(
