@@ -44,6 +44,7 @@ export interface MessageRow {
   metadata: Record<string, unknown>;
   isEdited: boolean;
   isDeleted: boolean;
+  isAIGenerated: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -177,6 +178,7 @@ export function createFakeMessagePrisma(seed: SeedConversation[] = []): FakeMess
               metadata: (data.metadata as Record<string, unknown>) ?? {},
               isEdited: false,
               isDeleted: false,
+              isAIGenerated: (data.isAIGenerated as boolean) ?? false,
               createdAt: now,
               updatedAt: now,
             };
