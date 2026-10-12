@@ -1057,6 +1057,12 @@ PR #959 (lane1-fix-018r2-purge-dividers, R2 fix PR): CLOSED 2026-10-12 as SUPERS
 PASSING (R3): /help, /privacy, /terms, /sso, /invite/* all honest logged-out; no token-in-URL (sso-ticket-handoff.ts mints ticket via POST + strips legacy token params, pinned by tests); /forgot-password still exists and public; group-join redirects signed-out to /login?returnTo=…; terms copy honest as-is; eyebrows consistent on terms/privacy.
 STILL-UNVERIFIED: signed-in flows on all these surfaces (needs-auth); whether backend deploy of #863/#951/#855 actually lands (orchestrator).
 R3 NEW-FINDINGS COUNT: 0 P0 + 1 P1 + 4 P2. Fix agents: 1 dispatched (lane1-fix-018r3-privacy-copy). No fix agent for backend-deploy P0 (orchestrator-owned, out of lane scope).
+FIX-AGENT RECONCILIATION (2026-10-12 ~16:20 IST): PR #1030 opened (branch lane1-fix-018r3-privacy-copy, from origin/main e7d54cce, 4 commits) — NOT merged. Diff verified CLEAN (privacy/page.tsx, SsoChooserContent.tsx 1-line hairline removal, help/page.tsx, + new privacy-copy.test.ts 6 tests). Evidence-driven resolutions:
+- Retention (R3-NEW-1 P1): evidence supports **7 days** — staging terraform wires EKS service CloudWatch log groups to retention_in_days=7; no 30-day operational-log retention exists in code. Both page spots now say 7 days.
+- Backups (R3-NEW-2 P2): live RDS BackupRetentionPeriod=7 (boto3-verified) → "rolling rotation — currently 7 days"; "immutable"/"cryptographic shredding" removed (zero code evidence).
+- Encryption (R3-NEW-3 P2): live RDS reports **StorageEncrypted=False** → at-a-glance no longer claims AES-GCM at rest; all spots now "TLS 1.3 in transit" only, with an honest note that at-rest encryption is configured in terraform but not yet enabled on the live database. (The at-a-glance stat badge was thus partially FALSE before this fix.)
+Validation: new tests 6/6 pass; auth-copy-honesty 5/5; tsc clean on touched files. NOTE: the agent's "pre-existing tsc errors on origin/main (apiFetchRaw)" claim is a FALSE ALARM — git show origin/main:packages/api-client/src/index.ts re-exports apiFetchRaw (count 1); the failure was a stale-symlink artifact in its fresh worktree. Not filed.
+R3-NEW-1..5 stay [ ] until #1030 is merged + deployed + live-verified. Merge pipeline (orchestrator) owns the merge once gate+full-sweep are green.
 Rotation → QM-SCREEN-007 (search) ROUND 4, queued.
 PRIOR: [x] DONE (ROUND 2 regression complete 2026-10-12 ~05:20 IST; fixes tracked via PRs; R2-NEW-1 P0 backend-deploy gap filed as systemic)
 Owner: LANE-1
