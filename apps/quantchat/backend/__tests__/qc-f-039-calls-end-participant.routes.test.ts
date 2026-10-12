@@ -60,7 +60,35 @@ function makeFakePrisma() {
       return row;
     },
   );
-  const prisma: CallRecordPrisma = {
+  // QC-F-075: POST /calls/create is now conversation-membership gated, so
+  // the fake also serves the gate's two delegates — conv-1 exists and
+  // user-a / user-b / user-c (the participants these tests create calls
+  // with) are its active members. user-x is deliberately NOT a member;
+  // the gate F-039 pins is about CALL participation on /end, not
+  // conversation membership, so no F-039 assertion changes — the create
+  // setup simply has to pass the new gate honestly, like a real client.
+  const memberIds = ['user-a', 'user-b', 'user-c'];
+  const prisma: CallRecordPrisma & {
+    conversation: {
+      findUnique: (args: { where: { id: string } }) => Promise<{ id: string } | null>;
+    };
+    conversationMember: {
+      findMany: (args: {
+        where: { conversationId: string; userId: { in: string[] }; leftAt: Date | null };
+      }) => Promise<{ userId: string }[]>;
+    };
+  } = {
+    conversation: {
+      findUnique: async ({ where }) => (where.id === 'conv-1' ? { id: 'conv-1' } : null),
+    },
+    conversationMember: {
+      findMany: async ({ where }) =>
+        where.conversationId === 'conv-1' && where.leftAt === null
+          ? memberIds
+              .filter((id) => where.userId.in.includes(id))
+              .map((userId) => ({ userId }))
+          : [],
+    },
     call: {
       create: async ({ data }) => {
         const row: CallRow = {
