@@ -88,6 +88,16 @@ export function getConfig(): AppConfig {
       '/auth/sso/exchange',
       '/meetings/webhooks/livekit',
       '/voice-bot/alert',
+      // QC-F-197: /ws/chat ka ekmatra auth gate backend/routes/websocket.ts ka
+      // ConnectionAuth hai (single iss/aud + QC-F-030 kind gate + QC-F-037
+      // membership) — browser WebSocket Authorization header laga NAHI sakta,
+      // isiliye shipped client token ko Sec-WebSocket-Protocol se bhejta hai,
+      // jo global hook padhta hi NAHI aur har subprotocol-only upgrade ko
+      // handler se pehle 401 se kaat deta tha. Exemption EXACT path + GET
+      // only hai: isi plugin ki /ws/presence hook par hi nirbhar hai (uske
+      // paas handler-level auth NAHI hai), isiliye '/ws' ya '/ws/*' KABHI
+      // NAHI — sirf ye ek route, sirf GET.
+      { path: '/ws/chat', methods: ['GET'], exact: true },
     ],
   };
 }
