@@ -216,7 +216,7 @@ function Icon({ name, className = 'h-4 w-4' }: { name: IconName; className?: str
   route. That is the trade the inbox's Spam chip already declined in writing at
   `src/app/page.tsx:1861-1866`, and this matches it.
 */
-const NAV_GROUPS: Array<{
+export const NAV_GROUPS: Array<{
   label: string;
   items: Array<{
     id: string;
@@ -248,6 +248,11 @@ const NAV_GROUPS: Array<{
       // Trash). The group header stays "Mail" (the app's name).
       { id: 'inbox', label: 'Inbox', icon: 'inbox', path: '/' },
       { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
+      // QM-SCHEDULED: scheduled sends are real queued rows now (GET
+      // /emails?folderType=SCHEDULED), so the folder gets a drawer entry —
+      // Gmail order (after Sent), same `clock` glyph the keyboard registry
+      // already uses for scheduled-adjacent commands.
+      { id: 'scheduled', label: 'Scheduled', icon: 'clock', path: '/scheduled' },
       { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
       { id: 'archive', label: 'Archive', icon: 'archive', path: '/?tab=archive', tab: 'archive' },
       { id: 'spam', label: 'Spam', icon: 'spam', path: '/?lens=spam', lens: 'spam' },

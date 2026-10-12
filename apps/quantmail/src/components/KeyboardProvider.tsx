@@ -166,6 +166,17 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       run: go('/drafts'),
     },
     {
+      // QM-SCHEDULED: keyboard route to the Scheduled mailbox (queued
+      // future sends, cancellable/editable). `g h` — "hold".
+      id: 'nav.scheduled',
+      label: 'Go to scheduled',
+      group: 'Navigation',
+      keys: 'g h',
+      icon: 'clock',
+      keywords: ['scheduled', 'later', 'queued', 'pending sends'],
+      run: go('/scheduled'),
+    },
+    {
       id: 'nav.pinned',
       label: 'Go to pinned',
       group: 'Navigation',

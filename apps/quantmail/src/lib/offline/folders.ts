@@ -76,6 +76,28 @@ export function belongsInFolder(email: Email, folderType: string | undefined): b
       // server-sent field the client `Email` type does not declare; read it
       // the same way `lib/threading.ts` does.
       return !isTrashed && (email as { isSent?: boolean }).isSent === true;
+    case 'SCHEDULED': {
+      // Scheduled is the server's queued-future-send filter, not a folder:
+      // the backend's `GET /emails?folderType=SCHEDULED` filters
+      // `isSent = true, deliveryStatus = 'queued', sentAt > now`
+      // (backend/routes/emails.ts), and `formatEmailRecord` bridges the
+      // scheduled fire time onto the wire as `scheduledAt`. Falling through
+      // to `default` admitted every non-trashed message into the cached
+      // Scheduled list, so the /scheduled view's offline seed / error
+      // fallback showed received mail as if it were scheduled — the same
+      // bug class as the SENT/SPAM cases above. `isSent`/`deliveryStatus`
+      // are server-sent fields the client `Email` type does not declare;
+      // read them the same way `lib/threading.ts` does.
+      const server = email as { isSent?: boolean; deliveryStatus?: string };
+      const scheduledAtMs = email.scheduledAt ? new Date(email.scheduledAt).getTime() : NaN;
+      return (
+        !isTrashed &&
+        server.isSent === true &&
+        server.deliveryStatus === 'queued' &&
+        !Number.isNaN(scheduledAtMs) &&
+        scheduledAtMs > Date.now()
+      );
+    }
     case 'DRAFTS':
       // Drafts is the server's `isDraft` flag, not a folder: the backend's
       // `GET /emails?folderType=DRAFTS` filters `isDraft = true, isTrash = false`

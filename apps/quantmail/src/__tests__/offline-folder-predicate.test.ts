@@ -52,6 +52,50 @@ describe('belongsInFolder — SPAM (PAUD-P0-1 / QM-UIUX-074)', () => {
   });
 });
 
+describe('belongsInFolder — SCHEDULED (QM-SCHEDULED)', () => {
+  // Mirrors the backend's `GET /emails?folderType=SCHEDULED` filter
+  // (`isSent = true, deliveryStatus = 'queued', sentAt > now`, with
+  // `formatEmailRecord` bridging the fire time onto the wire as
+  // `scheduledAt`). Before the predicate existed, the default case admitted
+  // every non-trashed message into the cached Scheduled list, so a cold
+  // /scheduled load would show received mail as scheduled.
+  const FUTURE = new Date(Date.now() + 60 * 60 * 1000);
+  const PAST = new Date(Date.now() - 60 * 60 * 1000);
+  const scheduledEmail = (overrides: Partial<Email> = {}): Email =>
+    email({
+      isSent: true,
+      deliveryStatus: 'queued',
+      scheduledAt: FUTURE,
+      ...overrides,
+    } as Partial<Email>);
+
+  it('admits a queued future send into SCHEDULED', () => {
+    expect(belongsInFolder(scheduledEmail(), 'SCHEDULED')).toBe(true);
+  });
+
+  it('keeps delivered mail out of SCHEDULED even when it was once queued', () => {
+    expect(
+      belongsInFolder(scheduledEmail({ deliveryStatus: 'delivered', scheduledAt: PAST }), 'SCHEDULED'),
+    ).toBe(false);
+  });
+
+  it('keeps a fired-but-unpicked send (time already past) out of SCHEDULED', () => {
+    // The backend drops these too (sentAt > now): the row is no longer
+    // "scheduled" even if the worker has not delivered it yet.
+    expect(belongsInFolder(scheduledEmail({ scheduledAt: PAST }), 'SCHEDULED')).toBe(false);
+  });
+
+  it('keeps ordinary received mail out of SCHEDULED (the default-case bug)', () => {
+    expect(belongsInFolder(email(), 'SCHEDULED')).toBe(false);
+  });
+
+  it('keeps trashed scheduled mail out of SCHEDULED', () => {
+    expect(
+      belongsInFolder(scheduledEmail({ trashedAt: new Date() }), 'SCHEDULED'),
+    ).toBe(false);
+  });
+});
+
 describe('belongsInFolder — SENT (QM-UIUX-082)', () => {
   // `isSent` is a server-sent field the client `Email` type does not declare
   // (see lib/threading.ts); the backend's `GET /emails?folderType=SENT`
