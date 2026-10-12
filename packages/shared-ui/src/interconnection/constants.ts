@@ -12,9 +12,9 @@ export const CORE_QUANT_APPS: Record<CoreQuantAppId, QuantAppDescriptor> = {
     id: 'quantmail',
     name: 'QuantMail',
     tagline: 'Intelligent AI-First Email & Messaging Fabric',
-    description: 'Autonomous email triage, AI drafting, zero-inbox sync, and encrypted threads.',
+    description: 'Email and messaging workflows with integrated AI assistance.',
     category: 'social_communication',
-    accentColor: '#3B82F6', // Blue
+    accentColor: '#FF8C42', // Locked QuantMail orange
     icon: 'mail',
     defaultPort: 3000,
     subdomain: 'mail',
@@ -27,7 +27,7 @@ export const CORE_QUANT_APPS: Record<CoreQuantAppId, QuantAppDescriptor> = {
     name: 'QuantChat',
     tagline: 'Real-Time High-Concurrency Messaging & Audio Rooms',
     description:
-      'Sub-millisecond messaging, E2EE channels, rich media canvas, and live voice notes.',
+      'Real-time messaging, rich media, voice notes, and group communication.',
     category: 'social_communication',
     accentColor: '#10B981', // Emerald
     icon: 'message-square',
