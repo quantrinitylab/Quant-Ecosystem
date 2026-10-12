@@ -33,6 +33,11 @@ import { AudioRoomService } from '../services/audio-room.service';
 
 const ALICE = { userId: 'user_alice', username: 'alice' };
 const BOB = { userId: 'user_bob', username: 'bob' };
+// QC-F-042 amend (gap 1): the receipts scenarios presuppose real messages
+// sent by SENDER in a conversation SENDER and ALICE both belong to —
+// ALICE is the recipient who records receipts; SENDER is the only user
+// authorized to query their status.
+const SENDER = { userId: 'user_sender', username: 'sender' };
 
 interface ReceiptRow {
   messageId: string;
@@ -68,11 +73,24 @@ function makeFakePrisma() {
         return [...rows.values()].filter((r) => r.messageId === where.messageId);
       },
     },
-    // No `message` delegate rows: conversationIdForMessage returns null and
-    // the realtime tick is skipped, as when the store has no such message.
+    // QC-F-042 amend (gap 1): ReceiptService proves object authorization
+    // (message exists + active membership + recipient/sender roles), so
+    // the messages under test are modelled: msg_1/msg_2/msg_3 were sent by
+    // SENDER in 'conv_f018', whose active members are SENDER and ALICE.
+    // conversationIdForMessage resolves from the same rows.
     message: {
-      async findUnique() {
-        return null;
+      async findUnique({ where }: any) {
+        return ['msg_1', 'msg_2', 'msg_3'].includes(where.id)
+          ? { conversationId: 'conv_f018', senderId: SENDER.userId }
+          : null;
+      },
+    },
+    conversationMember: {
+      async findFirst({ where }: any) {
+        return where.conversationId === 'conv_f018' &&
+          (where.userId === SENDER.userId || where.userId === ALICE.userId)
+          ? { conversationId: where.conversationId, userId: where.userId, leftAt: null }
+          : null;
       },
     },
   };
@@ -384,7 +402,12 @@ describe('QC-F-018 receipts identity', () => {
     expect(rows.get('msg_2::user_alice')?.readAt).toBeInstanceOf(Date);
     expect(rows.has('msg_2::user_victim')).toBe(false);
 
-    const statusRes = await alice.inject({
+    // QC-F-042 amend (gap 1): receipt status is sender-only, so the status
+    // query is made by the message's SENDER (same store). The F-018 point
+    // is unchanged: the forged `?senderId=user_victim` is ignored and the
+    // JWT identity (user_sender) is what authorizes and shapes the answer.
+    const sender = await appFor(SENDER, prisma);
+    const statusRes = await sender.inject({
       method: 'GET',
       url: '/receipts/msg_2/status?senderId=user_victim',
     });

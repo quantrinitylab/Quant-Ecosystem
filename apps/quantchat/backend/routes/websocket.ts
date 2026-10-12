@@ -14,6 +14,7 @@ import {
   type ChatEventType,
 } from '../services/chat-event-envelope';
 import { DeliveryReceiptService } from '../services/delivery-receipt.service';
+import { getPrivacyService, type PrivacyService } from '../services/privacy.service';
 
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
@@ -62,8 +63,16 @@ export async function websocketRoutes(fastify: FastifyInstance) {
    * against the DB. Cleared when the socket closes.
    */
   const verifiedRooms = new Map<WebSocket, Set<string>>();
-  /** Per-channel recent envelopes for §20 resume. Keyed by canonical channel. */
-  const resumeBuffers = new Map<string, ChatEventEnvelope[]>();
+  /**
+   * Per-channel recent envelopes for §20 resume. Keyed by canonical channel.
+   * QC-F-042 amend (gap 3): each entry also carries the event's per-recipient
+   * delivery exclusions, so a resume replay can never disclose an event to a
+   * user the live delivery deliberately withheld it from.
+   */
+  const resumeBuffers = new Map<
+    string,
+    Array<{ envelope: ChatEventEnvelope; excludeUserIds?: string[] }>
+  >();
 
   // W3 — First-class delivery and read receipts (Task 14, design Data Model 5 /
   // Sequence 2 / Requirement 10). Recipient sockets ack receipt and signal reads
@@ -76,6 +85,15 @@ export async function websocketRoutes(fastify: FastifyInstance) {
   // recording is skipped but realtime fan-out of the tick event still happens.
   const prismaClient = (fastify as unknown as { prisma?: unknown }).prisma;
   const deliveryReceipts = prismaClient ? new DeliveryReceiptService(prismaClient as never) : null;
+
+  // QC-F-042 — privacy enforcement for the realtime layer. One shared
+  // PrivacyService (30s-cached resolver) gates presence publication, the
+  // presence list, typing frames, and read-receipt fan-out below. When no
+  // Prisma is wired (minimal harness) there is no prefs store to consult
+  // and the layer keeps its previous behaviour.
+  const privacy: PrivacyService | null = prismaClient
+    ? getPrivacyService(prismaClient)
+    : null;
 
   // W2 — Cross-instance realtime fan-out (design Component 2 / Algorithm 4).
   // Select the backplane implementation here (Task 6.2): use the Redis pub/sub
@@ -141,14 +159,23 @@ export async function websocketRoutes(fastify: FastifyInstance) {
   });
 
   /** Append an envelope to the per-channel resume buffer (bounded). */
-  function bufferForResume(channel: string, envelope: ChatEventEnvelope): void {
+  function bufferForResume(
+    channel: string,
+    envelope: ChatEventEnvelope,
+    excludeUserIds?: readonly string[],
+  ): void {
     if (isEphemeralEvent(envelope.event_type)) return;
     let buffer = resumeBuffers.get(channel);
     if (!buffer) {
       buffer = [];
       resumeBuffers.set(channel, buffer);
     }
-    buffer.push(envelope);
+    buffer.push({
+      envelope,
+      ...(excludeUserIds && excludeUserIds.length > 0
+        ? { excludeUserIds: [...excludeUserIds] }
+        : {}),
+    });
     while (buffer.length > RESUME_BUFFER_SIZE) buffer.shift();
   }
 
@@ -156,7 +183,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
   function latestCursor(channel: string): string | null {
     const buffer = resumeBuffers.get(channel);
     if (!buffer || buffer.length === 0) return null;
-    return buffer[buffer.length - 1]?.cursor ?? null;
+    return buffer[buffer.length - 1]?.envelope.cursor ?? null;
   }
 
   /**
@@ -174,9 +201,10 @@ export async function websocketRoutes(fastify: FastifyInstance) {
   backplane.onMessage((conversationId: string, event: RoomEvent) => {
     if (event.originInstanceId === backplane.instanceId) return;
     const frame = event.envelope ?? event.payload;
-    // Buffer remote envelopes for §20 resume as well.
+    // Buffer remote envelopes for §20 resume as well (with their delivery
+    // exclusions, so a replay honours them too).
     if (event.envelope && conversationId !== BACKPLANE_PRESENCE_CHANNEL) {
-      bufferForResume(conversationChannel(conversationId), event.envelope);
+      bufferForResume(conversationChannel(conversationId), event.envelope, event.excludeUserIds);
     }
     // Presence transitions are user-scoped, not room-scoped: a remote instance
     // published it on the dedicated presence channel, so fan it out to every
@@ -193,9 +221,13 @@ export async function websocketRoutes(fastify: FastifyInstance) {
     if (!room) return;
     const data = JSON.stringify(frame);
     for (const client of room) {
-      if (client.readyState === client.OPEN) {
-        client.send(data);
-      }
+      if (client.readyState !== client.OPEN) continue;
+      // QC-F-042 amend (gap 3): per-recipient exclusion — never deliver an
+      // event to a socket whose user the publisher excluded (e.g. a read
+      // tick withheld from a receipts-off sender).
+      const clientUserId = socketUsers.get(client);
+      if (clientUserId && event.excludeUserIds?.includes(clientUserId)) continue;
+      client.send(data);
     }
   });
 
@@ -218,6 +250,17 @@ export async function websocketRoutes(fastify: FastifyInstance) {
    * K25 — carried as a `chat.presence.v1` §18 envelope (ephemeral, §19).
    */
   async function publishPresence(userId: string, status: 'online' | 'offline'): Promise<void> {
+    // QC-F-042: a user with showOnlineStatus off never has their transitions
+    // published — not to this instance's sockets and not over the backplane
+    // (which is why remote instances need no second gate: the event simply
+    // never exists). The presence ZSET itself is untouched — the
+    // DeliveryWorker's offline check depends on it; only PUBLICATION is
+    // gated. A prefs read failure resolves most-restrictive (false), so an
+    // error hides the transition instead of leaking it.
+    if (privacy) {
+      const { prefs } = await privacy.resolve(userId);
+      if (!prefs.showOnlineStatus) return;
+    }
     // Sender identity comes from the authenticated socket — never from client
     // input (fail-closed, QuantWave radar P0 lesson).
     const envelope = await buildChatEvent({
@@ -350,7 +393,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
     if (joinRoom(conversationId, socket)) {
       ensureSubscribed(conversationId);
     }
-    resumeForJoin(socket, conversationId, lastEventCursor);
+    resumeForJoin(socket, conversationId, lastEventCursor, userId);
     return true;
   }
 
@@ -401,6 +444,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
     socket: WebSocket,
     conversationId: string,
     lastEventCursor: unknown,
+    userId: string,
   ): void {
     const channel = conversationChannel(conversationId);
     const send = (frame: unknown): void => {
@@ -420,13 +464,19 @@ export async function websocketRoutes(fastify: FastifyInstance) {
       return;
     }
     const buffer = resumeBuffers.get(channel) ?? [];
-    const missed = buffer.filter((e) => e.sequence > parsed.sequence);
-    const oldestBuffered = buffer.length > 0 ? buffer[0]?.sequence ?? null : null;
+    // QC-F-042 amend (gap 3): entries excluded for THIS user are never
+    // replayed to them — a reconnect must not undo the live withholding.
+    const missed = buffer.filter(
+      (e) =>
+        e.envelope.sequence > parsed.sequence &&
+        !(e.excludeUserIds?.includes(userId) ?? false),
+    );
+    const oldestBuffered = buffer.length > 0 ? buffer[0]?.envelope.sequence ?? null : null;
     if (oldestBuffered !== null && parsed.sequence < oldestBuffered) {
       send({ type: 'snapshot_required', cursor: latestCursor(channel) });
       return;
     }
-    for (const envelope of missed) send(envelope);
+    for (const entry of missed) send(entry.envelope);
     send({ type: 'resumed', replayed: missed.length, cursor: latestCursor(channel) });
   }
 
@@ -443,7 +493,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
     conversationId: string,
     eventType: ChatEventType,
     input: { resourceRef: string; aggregateVersion?: number; data: unknown },
-    opts?: { exclude?: WebSocket },
+    opts?: { exclude?: WebSocket; excludeUserIds?: readonly string[] },
   ): Promise<ChatEventEnvelope | null> {
     const channel = conversationChannel(conversationId);
     let envelope: ChatEventEnvelope;
@@ -460,16 +510,20 @@ export async function websocketRoutes(fastify: FastifyInstance) {
       fastify.log.error({ err, conversationId, eventType }, 'event envelope build failed');
       return null;
     }
-    bufferForResume(channel, envelope);
+    bufferForResume(channel, envelope, opts?.excludeUserIds);
 
     // 1. Local delivery (origin instance delivers at publish time).
+    // QC-F-042 amend (gap 3): sockets belonging to an excluded user are
+    // skipped — the per-recipient filter travels with the event (see the
+    // RoomEvent below) so remote instances and resume replays honour it too.
     const room = rooms.get(conversationId);
     if (room) {
       const data = JSON.stringify(envelope);
       for (const client of room) {
-        if (client !== opts?.exclude && client.readyState === client.OPEN) {
-          client.send(data);
-        }
+        if (client === opts?.exclude || client.readyState !== client.OPEN) continue;
+        const clientUserId = socketUsers.get(client);
+        if (clientUserId && opts?.excludeUserIds?.includes(clientUserId)) continue;
+        client.send(data);
       }
     }
 
@@ -479,6 +533,9 @@ export async function websocketRoutes(fastify: FastifyInstance) {
       originInstanceId: backplane.instanceId,
       payload: envelope,
       envelope,
+      ...(opts?.excludeUserIds && opts.excludeUserIds.length > 0
+        ? { excludeUserIds: [...opts.excludeUserIds] }
+        : {}),
     };
     try {
       await backplane.publish(conversationId, event);
@@ -486,6 +543,51 @@ export async function websocketRoutes(fastify: FastifyInstance) {
       fastify.log.error({ err, conversationId }, 'backplane publish failed');
     }
     return envelope;
+  }
+
+  /**
+   * QC-F-042 amend (PR #956 review gap 2) — bind a receipt frame's messageId
+   * to the conversation it claims. QC-F-037's `ensureFrameMember` proves the
+   * caller belongs to the CLIENT-SUPPLIED conversationId, but nothing proved
+   * the messageId lives in that conversation: a member of conversation A
+   * could pass conversationId=A + a messageId from conversation B and get a
+   * receipt written (and a tick fanned into A) for B's message. Returns the
+   * message's owning conversation + sender, or null when the binding cannot
+   * be proven (no store, no message delegate, unknown message, DB error) —
+   * callers treat null as "drop the frame" (fail-closed).
+   */
+  async function lookupMessageBinding(
+    messageId: string,
+  ): Promise<{ conversationId: string; senderId: string } | null> {
+    if (!prismaClient) return null;
+    const prisma = prismaClient as {
+      message?: {
+        findUnique: (
+          args: unknown,
+        ) => Promise<{ conversationId?: unknown; senderId?: unknown } | null>;
+      };
+    };
+    if (!prisma.message?.findUnique) return null;
+    try {
+      const row = await prisma.message.findUnique({
+        where: { id: messageId },
+        select: { conversationId: true, senderId: true },
+      });
+      if (
+        !row ||
+        typeof row.conversationId !== 'string' ||
+        typeof row.senderId !== 'string'
+      ) {
+        return null;
+      }
+      return { conversationId: row.conversationId, senderId: row.senderId };
+    } catch (err: unknown) {
+      fastify.log.error(
+        { err, messageId },
+        'message binding lookup failed; dropping receipt frame (fail-closed)',
+      );
+      return null;
+    }
   }
 
   /**
@@ -505,25 +607,82 @@ export async function websocketRoutes(fastify: FastifyInstance) {
     conversationId: string,
     recipientId: string,
   ): void {
-    const fan = (): void => {
-      void publishRoomEvent(conversationId, 'chat.message.receipt_updated.v1', {
-        resourceRef: messageId,
-        aggregateVersion: 1,
-        data: { messageId, conversationId, userId: recipientId, receipt },
-      });
-    };
+    void (async () => {
+      // QC-F-042 amend (gap 2): bind the message to the frame's conversation
+      // before anything is written or fanned out. With a store wired, an
+      // unprovable or mismatched binding — or the message's own sender
+      // trying to ack it (the sender is never its recipient) — drops the
+      // frame silently: no DB write, no event. Without any store (minimal
+      // harness) there is nothing to bind against and the historical
+      // fan-only behaviour is kept.
+      let senderId: string | null = null;
+      if (prismaClient) {
+        const binding = await lookupMessageBinding(messageId);
+        if (
+          !binding ||
+          binding.conversationId !== conversationId ||
+          binding.senderId === recipientId
+        ) {
+          fastify.log.error(
+            { messageId, conversationId, recipientId, receipt },
+            'receipt frame dropped: message not bound to this conversation for this recipient',
+          );
+          return;
+        }
+        senderId = binding.senderId;
+      }
 
-    if (!deliveryReceipts) {
-      // No durable store wired (minimal harness): still propagate the tick.
-      fan();
-      return;
-    }
+      const fan = (): void => {
+        void (async () => {
+          // QC-F-042 amend (gap 3): sender-side reciprocity on the LIVE
+          // event. The reader-side gate below stops a receipts-off READER
+          // from emitting reads; this stops a receipts-off SENDER from
+          // RECEIVING them live — previously only the REST status view was
+          // masked, so the disclosure happened anyway over WS. The event
+          // still reaches the room's other members (per-recipient filter,
+          // carried through the backplane and the resume buffer).
+          // Delivered ticks are never gated (transport fact).
+          let excludeUserIds: string[] | undefined;
+          if (receipt === 'read' && senderId && privacy) {
+            const { prefs } = await privacy.resolve(senderId);
+            if (!prefs.showReadReceipts) excludeUserIds = [senderId];
+          }
+          void publishRoomEvent(
+            conversationId,
+            'chat.message.receipt_updated.v1',
+            {
+              resourceRef: messageId,
+              aggregateVersion: 1,
+              data: { messageId, conversationId, userId: recipientId, receipt },
+            },
+            { excludeUserIds },
+          );
+        })();
+      };
 
-    deliveryReceipts[method](messageId, recipientId)
-      .then(fan)
-      .catch((err: unknown) => {
+      if (!deliveryReceipts) {
+        // No durable store wired (minimal harness): still propagate the tick.
+        fan();
+        return;
+      }
+
+      // QC-F-042 reader-side gate (WS path): when the reader's
+      // showReadReceipts is off, the read is neither persisted nor fanned
+      // out — the REST path in ReceiptService.markMessageRead applies the
+      // same rule. Delivered receipts are never gated. The check runs before
+      // recording so a suppressed read leaves no row behind.
+      if (method === 'recordRead' && privacy) {
+        const { prefs } = await privacy.resolve(recipientId);
+        if (!prefs.showReadReceipts) return;
+      }
+
+      try {
+        await deliveryReceipts[method](messageId, recipientId);
+        fan();
+      } catch (err: unknown) {
         fastify.log.error({ err, messageId, recipientId, receipt }, 'receipt recording failed');
-      });
+      }
+    })();
   }
 
   /**
@@ -648,16 +807,28 @@ export async function websocketRoutes(fastify: FastifyInstance) {
                 fresh: false,
               })
             ) {
-              void publishRoomEvent(
-                message.conversationId,
-                'chat.typing.v1',
-                {
-                  resourceRef: userId,
-                  aggregateVersion: 1,
-                  data: { userId, isTyping: Boolean(message.isTyping) },
-                },
-                { exclude: socket },
-              );
+              const conversationId = message.conversationId;
+              const isTyping = Boolean(message.isTyping);
+              // QC-F-042: the sender's showTypingIndicator gates their own
+              // typing frames. A suppressed frame is dropped SILENTLY — no
+              // error frame back to the sender (typing is a soft signal; an
+              // error would invite client retries/spam).
+              void (async () => {
+                if (privacy) {
+                  const { prefs } = await privacy.resolve(userId);
+                  if (!prefs.showTypingIndicator) return;
+                }
+                await publishRoomEvent(
+                  conversationId,
+                  'chat.typing.v1',
+                  {
+                    resourceRef: userId,
+                    aggregateVersion: 1,
+                    data: { userId, isTyping },
+                  },
+                  { exclude: socket },
+                );
+              })();
             }
           }
 
@@ -722,6 +893,14 @@ export async function websocketRoutes(fastify: FastifyInstance) {
   );
 
   fastify.get('/presence', async () => {
-    return { online: presence.getOnlineInApp('quantchat') };
+    const online = presence.getOnlineInApp('quantchat');
+    // QC-F-042: users with showOnlineStatus off are filtered out of the
+    // snapshot (their ZSET entry stays — only visibility is gated). A
+    // prefs failure hides the user rather than failing the whole list.
+    if (!privacy || online.length === 0) return { online };
+    const resolved = await privacy.resolveMany(online);
+    return {
+      online: online.filter((id) => resolved.get(id)?.prefs.showOnlineStatus ?? false),
+    };
   });
 }

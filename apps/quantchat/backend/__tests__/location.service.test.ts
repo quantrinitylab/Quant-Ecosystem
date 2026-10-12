@@ -219,9 +219,17 @@ describe('LocationService.getFriendsOnMap (privacy)', () => {
       },
     ]);
     // User profiles only fetched for the sharing friend id.
+    // QC-F-042: `preferences` joins the select so the owner's own
+    // whoCanSeeLocation pref can be enforced on the already-fetched rows.
     expect(prisma.user.findMany).toHaveBeenCalledWith({
       where: { id: { in: ['friend-1'] } },
-      select: { id: true, username: true, displayName: true, avatarUrl: true },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        avatarUrl: true,
+        preferences: true,
+      },
     });
   });
 

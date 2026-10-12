@@ -1,6 +1,7 @@
 import type { PrismaClient, Conversation, ConversationMember } from '@prisma/client';
 import { Prisma, ConversationType, ConversationRole } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
+import { getPrivacyService, type PrivacyService } from './privacy.service';
 
 /** Map the public (lowercase) conversation-type string to the Prisma enum. */
 function toConversationType(type: string): ConversationType {
@@ -113,7 +114,14 @@ const activeMembersWithUser = {
 } as const;
 
 export class ConversationService {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly privacy: PrivacyService;
+
+  constructor(
+    private readonly prisma: PrismaClient,
+    privacy?: PrivacyService,
+  ) {
+    this.privacy = privacy ?? getPrivacyService(prisma);
+  }
 
   /**
    * QC-F-017: authorization gate for every conversation-scoped operation.
@@ -174,6 +182,38 @@ export class ConversationService {
         400,
         'INVALID_PARTICIPANT_COUNT',
       );
+    }
+
+    // QC-F-042: whoCanMessage gate — NEW direct conversations only. The
+    // target's pref decides whether a stranger may START a conversation:
+    // 'everyone' allows anyone, 'nobody' allows no one, 'friends' (the
+    // default) allows the target's close friends and existing chat
+    // partners (PrivacyService.isFriendOf v1). Existing conversations are
+    // deliberately NOT gated anywhere — sendMessage keeps membership as
+    // its only authority, so flipping this pref never strands a live
+    // conversation. Group creation is out of scope for v1 (being invited
+    // into a group is a different social act). A target that does not
+    // exist keeps today's behaviour (missing-target → no gate); a prefs
+    // read failure answers an honest 503, not a fabricated refusal.
+    if (type === 'direct') {
+      const targetId = participantIds[0];
+      if (targetId && targetId !== creatorId) {
+        const verdict = await this.privacy.checkCanMessage(creatorId, targetId);
+        if (verdict === 'denied') {
+          throw createAppError(
+            'This user is not accepting new messages',
+            403,
+            'MESSAGE_NOT_ALLOWED',
+          );
+        }
+        if (verdict === 'unavailable') {
+          throw createAppError(
+            'Privacy preferences are temporarily unavailable',
+            503,
+            'UPSTREAM_UNAVAILABLE',
+          );
+        }
+      }
     }
 
     const allParticipants = [creatorId, ...participantIds.filter((id) => id !== creatorId)];

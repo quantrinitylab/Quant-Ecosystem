@@ -2,6 +2,31 @@ import { describe, it, expect } from 'vitest';
 import { ReceiptService } from '../services/receipt.service';
 import { PollService } from '../services/poll.service';
 
+// QC-F-042 amend (gap 1): ReceiptService now proves object authorization
+// (message exists, caller is an active member, recipient != sender,
+// status viewer == sender) before touching MessageDelivery. The whoxa
+// scenarios presuppose legitimate actors — a real message, sent by the
+// status viewer, in a conversation both parties belong to — modelled by
+// these delegates. The receipt assertions below are unchanged.
+function receiptAuthzDelegates(messageId: string, senderId: string, memberIds: string[]) {
+  return {
+    message: {
+      async findUnique({ where }: any) {
+        return where.id === messageId
+          ? { conversationId: `conv_${messageId}`, senderId }
+          : null;
+      },
+    },
+    conversationMember: {
+      async findFirst({ where }: any) {
+        return where.conversationId === `conv_${messageId}` && memberIds.includes(where.userId)
+          ? { conversationId: where.conversationId, userId: where.userId, leftAt: null }
+          : null;
+      },
+    },
+  };
+}
+
 describe('Whoxa Receipts & Polls Engine', () => {
   it('marks message delivered and returns delivered status', async () => {
     const fakeRows = new Map<string, any>();
@@ -35,6 +60,7 @@ describe('Whoxa Receipts & Polls Engine', () => {
           return results;
         },
       },
+      ...receiptAuthzDelegates('msg_101', 'user_sender', ['user_sender', 'user_alice']),
     };
 
     const receiptService = new ReceiptService(fakePrisma as any);
@@ -82,6 +108,7 @@ describe('Whoxa Receipts & Polls Engine', () => {
           return results;
         },
       },
+      ...receiptAuthzDelegates('msg_102', 'user_sender', ['user_sender', 'user_bob']),
     };
 
     const receiptService = new ReceiptService(fakePrisma as any);
@@ -128,6 +155,7 @@ describe('Whoxa Receipts & Polls Engine', () => {
           return results;
         },
       },
+      ...receiptAuthzDelegates('msg_group_1', 'sender', ['sender', 'user_a', 'user_b']),
     };
 
     const receiptService = new ReceiptService(fakePrisma as any);
