@@ -9,7 +9,7 @@ import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UniversalSSOTokenBridge } from '@quant/shared-ui';
 import { useAuth } from '../../providers/auth-provider';
-import { ingestSSOToken } from '../../services/auth-session';
+import { ingestSSOToken, SESSION_EXPIRED_REASON } from '../../services/auth-session';
 import { useBrandName } from '../../components/BrandProvider';
 import { NeuralFieldCanvas } from '../../components/auth/NeuralFieldCanvas';
 import { scrubSsoHandoffParams } from '../../lib/sso-url-params';
@@ -98,6 +98,10 @@ function LoginForm() {
     () => safeReturnPath(searchParams?.get('returnTo') ?? null) ?? '/',
     [searchParams],
   );
+
+  // Arrived here because the session died server-side (expired/revoked during
+  // a silent rotation): say so plainly instead of a bare sign-in form.
+  const sessionExpired = searchParams?.get('reason') === SESSION_EXPIRED_REASON;
 
   // Auto-redirect if already authenticated or session restored via SSO / refresh
   useEffect(() => {
@@ -393,6 +397,27 @@ function LoginForm() {
               </button>
             </div>
           </div>
+
+          {!error && sessionExpired ? (
+            <div
+              role="status"
+              className="flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200"
+            >
+              <svg
+                className="mt-0.5 h-4 w-4 shrink-0 text-amber-400"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 6v6l4 2" />
+              </svg>
+              <span>Your session expired. Sign in again to continue.</span>
+            </div>
+          ) : null}
 
           {error ? (
             <div

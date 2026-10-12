@@ -12,7 +12,7 @@ import {
   savePreservedChatState,
   loadPreservedChatState,
 } from '../lib/auth';
-import { authSession } from '../services/auth-session';
+import { authSession, SESSION_EXPIRED_REASON } from '../services/auth-session';
 import type { ToolCall } from '../types/tool-calls';
 import { apiFetchRaw } from '@quant/api-client';
 
@@ -141,7 +141,9 @@ async function refreshOrReLogin(): Promise<boolean> {
     clearAuthSession();
   } catch {}
   if (typeof window !== 'undefined') {
-    window.location.href = `/login?returnTo=${encodeURIComponent('/')}`;
+    // Carry the reason so /login can explain the sign-out (session expired
+    // server-side) instead of looking like a random bounce.
+    window.location.href = `/login?returnTo=${encodeURIComponent('/')}&reason=${SESSION_EXPIRED_REASON}`;
   }
   return false;
 }

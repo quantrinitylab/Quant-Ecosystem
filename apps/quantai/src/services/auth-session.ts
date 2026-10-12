@@ -102,6 +102,13 @@ async function postAuth(action: string, body?: unknown): Promise<SessionResult> 
   }
 }
 
+/**
+ * Query param set on the /login redirect when the session died server-side
+ * (expired/revoked refresh cookie), so the login page can say WHY the user
+ * was signed out instead of showing a bare sign-in form.
+ */
+export const SESSION_EXPIRED_REASON = 'session-expired';
+
 export const authSession = {
   login(email: string, password: string): Promise<SessionResult> {
     return postAuth('login', { email, password });
@@ -111,13 +118,28 @@ export const authSession = {
     if (res.success && res.data?.accessToken) {
       return res;
     }
-    // Fallback: If an SSO token is stored in localStorage or cookie, re-hydrate from it
-    const stored = getAuthToken();
-    if (stored) {
-      setAccessToken(stored);
-      return { success: true, data: { accessToken: stored } };
+    // The server refused to rotate the session (expired/revoked refresh
+    // cookie, or no session at all). NEVER resurrect the stale local token:
+    // the old fallback re-hydrated localStorage and returned success:true,
+    // so the rotation timer kept reporting success for a server-revoked
+    // session (F-203) — defeating server-side revocation. Clear every bit of
+    // local token material so the revocation actually takes effect, and
+    // return the genuine failure so every caller signs the user out.
+    clearAccessToken();
+    if (!res.success) {
+      return res;
     }
-    return res;
+    // Server answered "clean, no session" (NO_SESSION) without an error
+    // payload: a refresh that yields no fresh token is NOT a successful
+    // refresh. Report it as a failure so callers clear the session.
+    return {
+      success: false,
+      data: res.data,
+      error: res.error ?? {
+        code: 'NO_SESSION',
+        message: 'Your session expired. Sign in again.',
+      },
+    };
   },
   async logout(): Promise<void> {
     await postAuth('logout').catch(() => undefined);
