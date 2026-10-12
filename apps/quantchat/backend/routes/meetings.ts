@@ -1,7 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
-import { RoomService, type RoomPrisma, type RoomSettings } from '../services/room.service';
+import {
+  RoomService,
+  type Room,
+  type RoomPrisma,
+  type RoomSettings,
+} from '../services/room.service';
 import { MeetingChatService } from '../services/meeting-chat.service';
 import { LiveKitGateway } from '../services/livekit-gateway.service';
 import {
@@ -84,9 +89,39 @@ function mapRoomError(error: unknown): never {
     'User already in room': { status: 409, code: 'USER_ALREADY_IN_ROOM' },
     'Participant not found in room': { status: 404, code: 'PARTICIPANT_NOT_FOUND' },
     'Only the host can end the meeting': { status: 403, code: 'FORBIDDEN' },
+    'Not a participant of this meeting': { status: 403, code: 'NOT_A_PARTICIPANT' },
   };
   const mapping = mappings[message];
   throw createAppError(message, mapping?.status ?? 400, mapping?.code ?? 'ROOM_ERROR');
+}
+
+// QC-F-061: shared read-access definition for meeting rooms. The host owns
+// the room even before joining (createRoom seeds no participant row), so
+// read access is host-or-participant — the same definition QC-F-040's
+// RecordingService gates recordings with, and the same error message /
+// NOT_A_PARTICIPANT code (mapped in mapRoomError above).
+function isRoomParticipant(room: Room, userId: string): boolean {
+  return room.hostId === userId || room.participants.some((p) => p.userId === userId);
+}
+
+function requireRoomParticipant(room: Room, userId: string): void {
+  if (!isRoomParticipant(room, userId)) {
+    throw new Error('Not a participant of this meeting');
+  }
+}
+
+// QC-F-061: identity-free room preview for logged-in non-participants. The
+// meet join gate renders only from name/status/count; who is inside the
+// room (hostId, settings, participant rows) is never part of the preview.
+function toRoomPreview(room: Room) {
+  return {
+    id: room.id,
+    name: room.name,
+    status: room.status,
+    createdAt: room.createdAt,
+    participantCount: room.participants.length,
+    participants: [] as Room['participants'],
+  };
 }
 
 function toTranscript(
@@ -153,9 +188,13 @@ export default async function meetingsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get<{ Params: { id: string } }>('/rooms/:id', async (request, reply) => {
-    requireUserId(request);
+    const userId = requireUserId(request);
     try {
-      return reply.send(await roomService.getRoom(request.params.id));
+      const room = await roomService.getRoom(request.params.id);
+      // QC-F-061: the full room (hostId, settings, every participant row)
+      // goes only to the host/participants; any other logged-in caller gets
+      // the identity-free preview the join gate renders from.
+      return reply.send(isRoomParticipant(room, userId) ? room : toRoomPreview(room));
     } catch (error) {
       mapRoomError(error);
     }
@@ -218,7 +257,14 @@ export default async function meetingsRoutes(fastify: FastifyInstance) {
     try {
       const room = await roomService.getRoom(request.params.id);
       const participant = room.participants.find((item) => item.userId === userId);
-      if (!participant) return reply.send(room);
+      if (!participant) {
+        // QC-F-061: leaving a room you are not in is a no-op, but it must
+        // not leak the full room — this branch used to return every
+        // participant row to any logged-in caller. The host keeps the full
+        // room (read access is host-or-participant); outsiders get the
+        // identity-free preview, and nobody is removed.
+        return reply.send(isRoomParticipant(room, userId) ? room : toRoomPreview(room));
+      }
       return reply.send(await roomService.leaveRoom(request.params.id, participant.id));
     } catch (error) {
       mapRoomError(error);
@@ -244,9 +290,15 @@ export default async function meetingsRoutes(fastify: FastifyInstance) {
     try {
       const room = await roomService.getRoom(request.params.id);
       const participant = room.participants.find((item) => item.userId === userId);
+      // QC-F-061: writing requires a participant row, and the author's
+      // displayName comes from that row — never from the request body — so
+      // a caller can neither inject into a meeting they are not in nor post
+      // under someone else's name. (The schema still accepts a body
+      // displayName for legacy clients; it is ignored here.)
+      if (!participant) throw new Error('Not a participant of this meeting');
       const message = chatService.postMessage(request.params.id, {
         userId,
-        displayName: parsed.data.displayName ?? participant?.displayName ?? userId,
+        displayName: participant.displayName,
         text: parsed.data.text,
       });
       return reply.status(201).send(message);
@@ -256,9 +308,10 @@ export default async function meetingsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get<{ Params: { id: string } }>('/rooms/:id/chat', async (request, reply) => {
-    requireUserId(request);
+    const userId = requireUserId(request);
     try {
-      await roomService.getRoom(request.params.id);
+      const room = await roomService.getRoom(request.params.id);
+      requireRoomParticipant(room, userId);
       return reply.send(chatService.listMessages(request.params.id));
     } catch (error) {
       mapRoomError(error);
@@ -271,7 +324,12 @@ export default async function meetingsRoutes(fastify: FastifyInstance) {
     if (!parsed.success) throw parsed.error;
 
     try {
-      await roomService.getRoom(request.params.id);
+      const room = await roomService.getRoom(request.params.id);
+      // QC-F-061: same participant-row write gate as chat — a reaction is
+      // stored under the caller's userId, so non-participants must not be
+      // able to plant one inside a meeting they are not in.
+      const participant = room.participants.find((item) => item.userId === userId);
+      if (!participant) throw new Error('Not a participant of this meeting');
       return reply.status(201).send(
         chatService.postReaction(request.params.id, {
           userId,
@@ -284,9 +342,10 @@ export default async function meetingsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get<{ Params: { id: string } }>('/rooms/:id/reactions', async (request, reply) => {
-    requireUserId(request);
+    const userId = requireUserId(request);
     try {
-      await roomService.getRoom(request.params.id);
+      const room = await roomService.getRoom(request.params.id);
+      requireRoomParticipant(room, userId);
       return reply.send(chatService.listReactions(request.params.id));
     } catch (error) {
       mapRoomError(error);

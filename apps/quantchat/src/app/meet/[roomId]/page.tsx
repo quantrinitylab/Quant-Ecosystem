@@ -306,14 +306,18 @@ export default function MeetRoomPage() {
 
   // ── C08.2 Join Gate ──────────────────────────────────────────────────────
   if (phase === 'gate' && roomInfo) {
+    // QC-F-061: a non-participant receives an identity-free preview whose
+    // participants list is empty — the headcount comes from
+    // participantCount so the gate never renders a false "0 participants".
+    const participantCount = roomInfo.participantCount ?? roomInfo.participants.length;
     return (
       <AppShell>
         <TopBar title="Join meeting" onBack={() => router.push(routes.meet)} />
         <main className="flex-1 overflow-y-auto px-4 py-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{roomInfo.name}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {roomInfo.participants.length} participant
-            {roomInfo.participants.length === 1 ? '' : 's'} in the room ·{' '}
+            {participantCount} participant
+            {participantCount === 1 ? '' : 's'} in the room ·{' '}
             {roomInfo.status === 'active' ? 'Live now' : 'Ended'}
           </p>
 
