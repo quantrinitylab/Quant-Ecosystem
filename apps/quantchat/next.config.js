@@ -69,7 +69,21 @@ const nextConfig = {
           },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()',
+            // `(self)` — NOT `()`. QuantChat's own core surfaces live on these
+            // three features: the camera tab, story creator, duet mode and
+            // avatar capture call `getUserMedia` for camera+mic, voice notes
+            // and calls/meet need the microphone, and the map needs
+            // geolocation. An empty allowlist (`camera=()`) rejects those
+            // calls on THIS origin too — before the browser ever shows its
+            // permission prompt — and the resulting NotAllowedError looks to
+            // the user like they denied permission, when it was really this
+            // server header. `(self)` only lifts that self-block: the
+            // browser's own permission prompt stays the real gate, and no
+            // embedded third-party frame can ask unless a page explicitly
+            // delegates via `allow=` (none does). Do not "harden" this back
+            // to `()` — that silently kills every media surface above
+            // (QC-F-153). Same lesson QuantMail learned for its microphone.
+            value: 'camera=(self), microphone=(self), geolocation=(self)',
           },
         ],
       },
