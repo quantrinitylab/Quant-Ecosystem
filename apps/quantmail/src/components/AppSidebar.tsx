@@ -231,8 +231,10 @@ const NAV_GROUPS: Array<{
      */
     lens?: string;
     /**
-     * SIA-P1-5: tab items live on `/` with `?tab=` set. Archive is the inbox
-     * page's archived view (`/archive` redirects to `/?tab=archive`).
+     * SIA-P1-5: tab items live on `/?view=inbox` with `?tab=` set. Archive is
+     * the inbox page's archived view (`/archive` redirects to
+     * `/?view=inbox&tab=archive`). The People home at bare `/` never reads
+     * `tab`, so dropping ?view=inbox lands on the People home instead.
      */
     tab?: string;
     shortcut?: string;
@@ -249,7 +251,7 @@ const NAV_GROUPS: Array<{
       { id: 'inbox', label: 'Inbox', icon: 'inbox', path: '/' },
       { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
       { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
-      { id: 'archive', label: 'Archive', icon: 'archive', path: '/?tab=archive', tab: 'archive' },
+      { id: 'archive', label: 'Archive', icon: 'archive', path: '/?view=inbox&tab=archive', tab: 'archive' },
       { id: 'spam', label: 'Spam', icon: 'spam', path: '/?lens=spam', lens: 'spam' },
       { id: 'trash', label: 'Trash', icon: 'trash', path: '/trash' },
     ],
