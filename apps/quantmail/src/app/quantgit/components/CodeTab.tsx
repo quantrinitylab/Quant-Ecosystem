@@ -569,7 +569,6 @@ export interface CodeTabProps {
   }) => Promise<any> | any;
   initialEditingFile?: FileNode | null;
   initialEditorMode?: 'edit' | 'preview' | 'diff';
-  initialIsBlameActive?: boolean;
   initialIsRawActive?: boolean;
   initialIsSearchOpen?: boolean;
   initialIsDeleteModalOpen?: boolean;
@@ -655,7 +654,6 @@ export function CodeTab({
   onStartPullRequest,
   initialEditingFile = null,
   initialEditorMode = 'edit',
-  initialIsBlameActive = false,
   initialIsRawActive = false,
   initialIsSearchOpen = false,
   initialIsDeleteModalOpen = false,
@@ -679,7 +677,6 @@ export function CodeTab({
   const [editorTheme, setEditorTheme] = useState<'github-dark' | 'github-light'>('github-dark');
   const [editorMode, setEditorMode] = useState<'edit' | 'preview' | 'diff'>(initialEditorMode);
   const [diffViewStyle, setDiffViewStyle] = useState<'split' | 'unified'>('split');
-  const [isBlameActive, setIsBlameActive] = useState(initialIsBlameActive);
   const [isRawActive, setIsRawActive] = useState(initialIsRawActive);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(initialIsDeleteModalOpen);
@@ -1208,21 +1205,6 @@ pnpm install && pnpm dev
                 Raw
               </button>
 
-              {/* Blame Toggle */}
-              <button
-                type="button"
-                data-testid="blame-toggle-button"
-                onClick={() => setIsBlameActive((prev) => !prev)}
-                className={`px-2.5 py-1 rounded border text-xs font-semibold ${
-                  isBlameActive
-                    ? 'bg-[#388BFD]/20 border-[#388BFD] text-[#58A6FF]'
-                    : 'border-[#30363D] bg-[#21262D] text-[#E6EDF3] hover:bg-[#30363D]'
-                }`}
-                title="Toggle git commit blame author annotations"
-              >
-                Blame
-              </button>
-
               {/* History Button */}
               <button
                 type="button"
@@ -1593,7 +1575,7 @@ pnpm install && pnpm dev
                 </div>
               </div>
             ) : (
-              /* 4. Edit Mode: Interactive Code Editor with Blame column and line numbers */
+              /* 4. Edit Mode: Interactive Code Editor with line numbers */
               <div
                 className={`flex flex-1 min-h-0 font-mono text-xs ${
                   editorTheme === 'github-dark'
@@ -1614,20 +1596,6 @@ pnpm install && pnpm dev
                     <div key={idx}>{idx + 1}</div>
                   ))}
                 </div>
-
-                {/* Optional Git Blame column — no backend blame endpoint exists yet, so no fabricated rows */}
-                {isBlameActive && (
-                  <div
-                    data-testid="blame-gutter"
-                    className={`select-none py-3 px-2 border-r font-mono text-[11px] leading-6 shrink-0 ${
-                      editorTheme === 'github-dark'
-                        ? 'bg-[var(--quant-surface-elevated)]/40 text-[#7D8590] border-[#30363D]'
-                        : 'bg-[#F6F8FA] text-[#57606A] border-[#D0D7DE]'
-                    }`}
-                  >
-                    <div className="px-2 text-[10px] text-[#8B949E]">Blame unavailable</div>
-                  </div>
-                )}
 
                 {/* Textarea Code Input */}
                 <textarea
@@ -2170,7 +2138,7 @@ pnpm install && pnpm dev
                       setCommitMessage('Create new-file.ts');
                       setDeleteCommitMessage('');
                       setEditorMode('edit');
-                      setIsBlameActive(false);
+
                       setIsRawActive(false);
                       setIsSearchOpen(false);
                       setIsDeleteModalOpen(false);
@@ -2439,7 +2407,7 @@ pnpm install && pnpm dev
                     setCommitMessage(`Update ${file.path}`);
                     setDeleteCommitMessage(`Delete ${file.name}`);
                     setEditorMode('edit');
-                    setIsBlameActive(false);
+
                     setIsRawActive(false);
                     setIsSearchOpen(false);
                     setIsDeleteModalOpen(false);
