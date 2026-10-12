@@ -5,6 +5,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DriveMobileTabStrip } from '../app/drive/components/DriveMobileTabStrip';
 import { DriveContextTabsHeader } from '../app/drive/components/DriveContextTabsHeader';
+import { DriveSharedByMeSubView } from '../app/drive/components/DriveSharedByMeSubView';
+import type { SentShareItem } from '../hooks/useDrive';
 
 /**
  * qm-drive-blue-accent — per-app accent regression tests.
@@ -14,7 +16,9 @@ import { DriveContextTabsHeader } from '../app/drive/components/DriveContextTabs
  * QuantGit purple). On /drive routes AppShell sets `--app-accent` to the
  * Drive green, so Drive UI must only use `var(--app-accent)`-derived accents —
  * never the hardcoded sky-blue `#38BDF8` (or its `#0284C7` / rgba(56,189,248,…)
- * companions) that once covered all 8 Drive subviews + both tab strips.
+ * companions) that once covered all 8 Drive subviews + both tab strips,
+ * and never the Mail-orange `var(--quant-primary)` token that once leaked
+ * onto the shared-by-me folder icon (regression pinned 2026-10-12).
  *
  * These tests pin:
  *  - zero hardcoded sky-blue tokens anywhere under app/drive (components +
@@ -148,5 +152,68 @@ describe('qm-drive-blue-accent: no #60A5FA leaks in R3-touched drive lib files',
     // Note: #10B981 (memory sync-status badge) and #EC4899 (Videos category
     // chip) remain elsewhere in this file by design — those are not pillar
     // chips and are out of the R3 scope.
+  });
+});
+
+describe('qm-drive-orange-accent: no Mail-orange token in any drive surface', () => {
+  // The only legit accent inside Drive UI is var(--app-accent) (green on
+  // /drive routes). The Mail-orange var(--quant-primary) leaked onto the
+  // shared-by-me folder icon — this pins that out everywhere.
+  for (const { name, src } of TSX_FILES) {
+    it(`components/${name} does not contain var(--quant-primary)`, () => {
+      expect(src).not.toContain('var(--quant-primary)');
+    });
+  }
+
+  it('drive/page.tsx does not contain var(--quant-primary)', () => {
+    expect(PAGE).not.toContain('var(--quant-primary)');
+  });
+});
+
+describe('qm-drive-orange-accent: DriveSharedByMeSubView folder icon uses the green accent', () => {
+  const sharedByMeSrc = TSX_FILES.find(
+    (f) => f.name === 'DriveSharedByMeSubView.tsx',
+  )!.src;
+
+  it('source renders the folder icon with var(--app-accent), not var(--quant-primary)', () => {
+    expect(sharedByMeSrc).toContain('<FolderIcon className="size-5 text-[var(--app-accent)]"');
+    expect(sharedByMeSrc).not.toContain('text-[var(--quant-primary)]');
+  });
+
+  const folderItem: SentShareItem = {
+    id: 'item-folder-1',
+    name: 'Design assets',
+    type: 'folder',
+    mimeType: 'application/vnd.quant.folder',
+    size: 0,
+    updatedAt: '2026-10-01T10:00:00.000Z',
+    sharedCount: 2,
+    scanStatus: 'unknown',
+    scanReason: null,
+    sharedWith: [
+      { email: 'teammate@example.com', name: 'Teammate', permission: 'view', status: 'accepted', sharedAt: '2026-10-01T10:00:00.000Z' },
+    ],
+    linkShare: null,
+  };
+
+  const fileItem: SentShareItem = {
+    ...folderItem,
+    id: 'item-file-1',
+    name: 'report.pdf',
+    type: 'file',
+    mimeType: 'application/pdf',
+    size: 123456,
+  };
+
+  it('renders folder + file rows without the orange token', () => {
+    const html = renderToStaticMarkup(
+      <DriveSharedByMeSubView items={[folderItem, fileItem]} loading={false} />,
+    );
+    expect(html).toContain('Design assets');
+    expect(html).toContain('report.pdf');
+    // The icon container and folder icon both resolve to the green accent…
+    expect(html).toContain('text-[var(--app-accent)]');
+    // …and nothing renders the Mail-orange token.
+    expect(html).not.toContain('var(--quant-primary)');
   });
 });
