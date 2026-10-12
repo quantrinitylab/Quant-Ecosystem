@@ -264,15 +264,38 @@ export default function RegisterPage() {
 
             <div>
               <label className="flex cursor-pointer items-start gap-3 py-1">
-                <input
-                  type="checkbox"
-                  required
-                  checked={termsAccepted}
-                  onChange={(event) => setTermsAccepted(event.target.checked)}
-                  aria-invalid={Boolean(fieldErrors.terms)}
-                  aria-describedby={fieldErrors.terms ? 'reg-terms-error' : undefined}
-                  className="mt-0.5 h-4 w-4 rounded border-[var(--quant-border)] accent-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#121215]"
-                />
+                {/* 44px touch target: the native input fills a 44x44 hit area
+                    (padded + negative-margined so layout is unchanged) while
+                    the visible box stays 16px. */}
+                <span className="relative mt-0.5 inline-flex shrink-0 items-center justify-center p-[14px] -m-[14px]">
+                  <input
+                    type="checkbox"
+                    required
+                    checked={termsAccepted}
+                    onChange={(event) => setTermsAccepted(event.target.checked)}
+                    aria-invalid={Boolean(fieldErrors.terms)}
+                    aria-describedby={fieldErrors.terms ? 'reg-terms-error' : undefined}
+                    className="peer absolute inset-0 m-0 h-full w-full cursor-pointer opacity-0"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none flex h-4 w-4 items-center justify-center rounded border border-[var(--quant-border)] bg-transparent transition-colors peer-checked:border-[var(--brand-primary)] peer-checked:bg-[var(--brand-primary)] peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--brand-primary)] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[#121215]"
+                  />
+                  <svg
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 transition-opacity peer-checked:opacity-100"
+                  >
+                    <path
+                      d="M13.5 4.5 6.5 11.5 2.5 7.5"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
                 <span className="text-xs leading-5 text-[var(--quant-muted-foreground)]">
                   I acknowledge the{' '}
                   <Link
