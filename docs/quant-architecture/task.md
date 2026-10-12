@@ -1169,7 +1169,11 @@ R4 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 0 P2 (2 P1 + 3 P2 carryovers confirmed stil
 Rotation → QM-SCREEN-018 (help) R4, queued.
 
 ## QM-SCREEN-018 — Help / privacy / terms / invite / groups / SSO / legacy route disposition
-Status: [x] DONE (ROUND 3 regression audit complete 2026-10-12 ~16:10 IST; 1 fix agent dispatched lane1-fix-018r3-privacy-copy; #959 closed as superseded)
+Status: [~] IN_PROGRESS (ROUND 4 regression audit claimed 2026-10-13 ~01:40 IST)
+Owner: LANE-1
+Branch: lane1-audit-018r4
+R4-AUDIT-CLAIM: LANE-1 claims QM-SCREEN-018 for ROUND 4 regression vs R3 base origin/main 226c5025 → current tip; read-only code audit on origin/main + live logged-out desktop+mobile Chrome + live curl; PR #1030 merged (2026-10-12 10:46:42Z) — R3-NEW-1..5 to be re-verified as FIXED in code + live.
+PREV: [x] DONE (ROUND 3 regression audit complete 2026-10-12 ~16:10 IST; 1 fix agent dispatched lane1-fix-018r3-privacy-copy; #959 closed as superseded)
 Owner: LANE-1
 Branch: lane1-audit-018r3
 R3-AUDIT (2026-10-12 ~15:40-16:10 IST): origin/main tree 226c5025 + live desktop Chrome 1440x900 + mobile 390x844 (shots /tmp/lane1-018r3/) + live curl. Audit scope: all six R1 findings re-checked, all three R2-NEW findings re-checked, new-finding hunt.
