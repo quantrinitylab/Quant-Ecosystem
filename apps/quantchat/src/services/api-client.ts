@@ -97,10 +97,15 @@ export interface MeetingParticipant {
 export interface MeetingRoomSummary {
   id: string;
   name: string;
-  hostId: string;
+  // QC-F-061: absent on the identity-free preview the backend returns to
+  // logged-in non-participants (GET /meetings/rooms/:id); present on the
+  // full room returned to the host and participants.
+  hostId?: string;
   status: 'active' | 'closed';
-  settings: MeetingRoomSettings;
+  settings?: MeetingRoomSettings;
   participants: MeetingParticipant[];
+  /** QC-F-061: headcount for previews, whose participants list is empty. */
+  participantCount?: number;
   createdAt: string;
 }
 
