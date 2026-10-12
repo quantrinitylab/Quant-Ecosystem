@@ -9,6 +9,7 @@
 // (Requirement 1.4). UI components import from `@/features/agents`.
 
 export * from './types';
+export * from './agentTaskPlan';
 export * from './useAgentRuntime';
 export * from './useAgentSwarm';
 export * from './useQuantTools';
