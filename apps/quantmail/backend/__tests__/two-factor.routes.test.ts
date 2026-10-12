@@ -442,7 +442,7 @@ describe('POST /auth/2fa/verify', () => {
         httpOnly: true,
         secure: true,
         sameSite: 'strict',
-        path: '/auth',
+        path: '/',
         maxAge: 2_592_000,
       }),
     });
