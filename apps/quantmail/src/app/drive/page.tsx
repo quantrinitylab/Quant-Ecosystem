@@ -48,7 +48,6 @@ import { FileActivityModal } from '../../components/drive/FileActivityModal';
 import { FileAISummaryDrawer } from '../../components/drive/FileAISummaryDrawer';
 import { AIDuplicateCleanerModal } from '../../components/drive/AIDuplicateCleanerModal';
 import { QuantyFileWorkspace } from '../../components/drive/QuantyFileWorkspace';
-import { StorageQuotaBar } from '../../components/drive/StorageQuotaBar';
 import { apiFetchRaw } from '@quant/api-client';
 import { browserApiRequest } from '../../services/browser-api-request';
 import { browserAuthSession } from '../../services/browser-auth-session';
@@ -95,7 +94,7 @@ function getFileIcon(mimeType: string, type: string, className = 'w-5 h-5'): Rea
   if (m.startsWith('image/')) {
     return (
       <svg
-        className={`${className} text-[#60A5FA] shrink-0`}
+        className={`${className} text-[var(--app-accent)] shrink-0`}
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"

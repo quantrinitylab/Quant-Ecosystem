@@ -293,7 +293,7 @@ export function FileActivityModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-[var(--quant-surface-elevated)] flex items-center justify-between gap-3 bg-[var(--quant-surface-elevated)]">
+        <div className="px-5 py-4 flex items-center justify-between gap-3 bg-[var(--quant-surface-elevated)]">
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-[var(--quant-foreground)] flex items-center gap-2">
               <span>Activity</span>

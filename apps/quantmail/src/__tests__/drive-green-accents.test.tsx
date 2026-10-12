@@ -41,6 +41,24 @@ for (const f of readdirSync(COMPONENTS_DIR)) {
 }
 const PAGE = readFileSync(new URL('../app/drive/page.tsx', import.meta.url), 'utf8');
 
+// QM-SCREEN-010/011 R3: these drive-lib files had #60A5FA leaks that are now
+// driven to var(--app-accent) (drive green on /drive routes). DriveSubViews
+// holds the cross-app pillar chips aligned to PILLAR_ACCENTS.
+const readDriveLib = (name: string) =>
+  readFileSync(new URL(`../components/drive/${name}`, import.meta.url), 'utf8');
+const R3_TOUCHED: { name: string; src: string }[] = [
+  'DriveAISearchBar.tsx',
+  'FileAISummaryDrawer.tsx',
+  'AIDuplicateCleanerModal.tsx',
+  'FileActivityModal.tsx',
+  'FileVersionHistoryModal.tsx',
+  'QuantyFileWorkspace.tsx',
+].map((name) => ({ name: `drive/${name}`, src: readDriveLib(name) }));
+const DRIVE_SUB_VIEWS = readFileSync(
+  new URL('../components/DriveSubViews.tsx', import.meta.url),
+  'utf8',
+);
+
 /** Sky-blue tokens that must never appear in Drive UI again. */
 const FORBIDDEN_TOKENS = ['#38BDF8', '#38bdf8', '#0284C7', 'rgba(56,189,248'];
 
@@ -106,5 +124,29 @@ describe('qm-drive-blue-accent: drive page shared-mode tabs use the token', () =
   it('shared-mode tabs + preview Details button reference var(--app-accent)', () => {
     const matches = PAGE.match(/text-\[var\(--app-accent\)\]/g);
     expect(matches?.length).toBeGreaterThan(0);
+  });
+});
+
+describe('qm-drive-blue-accent: no #60A5FA leaks in R3-touched drive lib files', () => {
+  // #60A5FA (blue) leaks on drive surfaces are routed through var(--app-accent),
+  // which resolves to drive green (#34A853) on /drive routes. StorageQuotaBar is
+  // intentionally not in this list (dead in production; its own test owns it).
+  const LEAK_TOKEN = '#60A5FA';
+  for (const { name, src } of R3_TOUCHED) {
+    it(`components/${name} does not contain "${LEAK_TOKEN}"`, () => {
+      expect(src).not.toContain(LEAK_TOKEN);
+      expect(src).not.toContain(LEAK_TOKEN.toLowerCase());
+    });
+  }
+
+  it('components/DriveSubViews.tsx pillar chips use locked PILLAR_ACCENTS hexes', () => {
+    expect(DRIVE_SUB_VIEWS).toContain("#4285F4");
+    expect(DRIVE_SUB_VIEWS).toContain("#34A853");
+    expect(DRIVE_SUB_VIEWS).toContain("#F59E0B");
+    expect(DRIVE_SUB_VIEWS).toContain("#FF6B35");
+    expect(DRIVE_SUB_VIEWS).not.toContain("#38BDF8");
+    // Note: #10B981 (memory sync-status badge) and #EC4899 (Videos category
+    // chip) remain elsewhere in this file by design — those are not pillar
+    // chips and are out of the R3 scope.
   });
 });
