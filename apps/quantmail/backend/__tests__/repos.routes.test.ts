@@ -6,7 +6,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Fastify from 'fastify';
 import { errorHandlerPlugin } from '@quant/server-core';
-import reposRoutes, { resetRepoStores } from '../routes/repos';
+import reposRoutes, { resetRepoStores, seedSecurityAlertsForTests } from '../routes/repos';
+import type { BackendSecurityAlert } from '../routes/repos';
 
 const MOCK_REPO = {
   id: 'repo-1',
@@ -3090,6 +3091,67 @@ describe('QuantGit Security Endpoints Honesty (no security-scan theater)', () =>
       url: '/repos/repo-1/security/secrets/secret-1/revoke',
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  it('POST fix-pr for an unknown dependabot alert returns 404 and invents nothing', async () => {
+    const app = await buildApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/security/dependabot/does-not-exist/fix-pr',
+    });
+    expect(res.statusCode).toBe(404);
+    const body = res.json();
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe('ALERT_NOT_FOUND');
+    const raw = JSON.stringify(body);
+    expect(raw).not.toContain('prId');
+    expect(raw.toLowerCase()).not.toContain('generated');
+  });
+
+  it('POST fix-pr for a real alert honestly refuses with 501 instead of inventing a PR number', async () => {
+    const app = await buildApp();
+    const alert: BackendSecurityAlert = {
+      id: 'dep-1',
+      package: 'express',
+      severity: 'critical',
+      cve: 'CVE-2026-3849',
+      cvss: 9.8,
+      title: 'express vulnerable to template injection',
+      cweTitle: 'CWE-94',
+      vulnerableRange: '< 4.18.2',
+      patchedVersion: '4.18.2',
+      state: 'open',
+      createdAt: '2026-10-12T00:00:00.000Z',
+    };
+    seedSecurityAlertsForTests('repo-1', [alert]);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/security/dependabot/dep-1/fix-pr',
+    });
+    expect(res.statusCode).toBe(501);
+    const body = res.json();
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe('FIX_PR_NOT_SUPPORTED');
+    expect(body.error.message).toContain('not wired up yet');
+    expect(body.error.message).toContain('No PR was created');
+    expect(body.error.details).toMatchObject({
+      alertId: 'dep-1',
+      package: 'express',
+      patchedVersion: '4.18.2',
+    });
+
+    // No invented PR number anywhere in the response — and no success claim.
+    const raw = JSON.stringify(body);
+    expect(raw).not.toMatch(/"prId"/);
+    expect(raw.toLowerCase()).not.toContain('generated');
+
+    // The refusal must not stamp a fabricated fixPrId onto the alert row.
+    const alerts = await app.inject({ method: 'GET', url: '/repos/repo-1/security/alerts' });
+    const row = alerts.json().data.dependabot.find((a: { id: string }) => a.id === 'dep-1');
+    expect(row).toBeDefined();
+    expect(row.fixPrId).toBeUndefined();
   });
 });
 

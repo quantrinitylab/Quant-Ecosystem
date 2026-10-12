@@ -480,6 +480,20 @@ export function resetRepoStores(): void {
   memorySecurityPolicyStore.clear();
 }
 
+/**
+ * Test-only seam: seed dependabot alerts into the in-memory security store so
+ * route tests can exercise handlers that read real alert rows. Production code
+ * never fabricates alerts — the store starts empty (see GET
+ * /:id/security/alerts). Exists solely to test the fix-pr handler's honest
+ * refusal path without inventing data in the handler itself.
+ */
+export function seedSecurityAlertsForTests(
+  repoId: string,
+  alerts: BackendSecurityAlert[],
+): void {
+  memorySecurityAlertsStore.set(repoId, alerts);
+}
+
 export async function dispatchWebhook(
   hook: WebhookRecord,
   event: string,
@@ -3790,7 +3804,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
 
   fastify.post<{
     Params: { id: string; alertId: string };
-  }>('/:id/security/dependabot/:alertId/fix-pr', async (request, reply) => {
+  }>('/:id/security/dependabot/:alertId/fix-pr', async (request) => {
     const repo = await loadWritableRepo(request, request.params.id);
     const { alertId } = request.params;
     const dependabot = memorySecurityAlertsStore.get(repo.id) ?? [];
@@ -3800,20 +3814,19 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       throw createAppError('Dependabot alert not found', 404, 'ALERT_NOT_FOUND');
     }
 
-    const prId = 300 + Math.floor(Math.random() * 50);
-    target.fixPrId = prId;
-    memorySecurityAlertsStore.set(repo.id, dependabot);
-
-    return reply.send({
-      success: true,
-      data: {
-        alertId,
-        prId,
-        package: target.package,
-        patchedVersion: target.patchedVersion,
-        message: `Dependabot fix PR #${prId} generated for ${target.package} (${target.patchedVersion})`,
-      },
-    });
+    // HONESTY: dependabot fix-PR generation is NOT wired up. A real fix PR
+    // would require locating the manifest that pins the vulnerable package
+    // inside repo storage, bumping it to the patched version, committing on a
+    // new branch, and creating a real pullRequest row (see POST /:id/pulls
+    // for the genuine PR-creation path). None of that exists yet, so fail
+    // loudly with 501 instead of inventing a PR number and claiming a PR was
+    // generated. No PR was created and no branch was opened.
+    throw createAppError(
+      `Dependabot fix-PR generation is not wired up yet for ${target.package}. No PR was created and no branch was opened.`,
+      501,
+      'FIX_PR_NOT_SUPPORTED',
+      { alertId, package: target.package, patchedVersion: target.patchedVersion },
+    );
   });
 
   fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
