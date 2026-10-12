@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { createAppError } from '@quant/server-core';
-import { AudioRoomService, AudioRoomRole } from '../services/audio-room.service';
+import { AudioRoomService } from '../services/audio-room.service';
 
 // QC-F-018 — identity forgery fix.
 // Actor identity comes ONLY from the authenticated request context
@@ -72,15 +72,19 @@ const audioRoomsRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // POST /audio-rooms/:id/join
+  // QC-F-107: a `role` in the request body is NEVER honoured — new
+  // participants always join as 'listener' (the service no longer even
+  // accepts a role). A body-supplied role is silently ignored, not
+  // rejected, so older clients do not break; role changes happen only
+  // through the host/co-host-authorised /promote path.
   fastify.post('/:id/join', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as { role?: AudioRoomRole } | undefined;
 
     const { userId, username } = requireAuthContext(request);
     const userInfo = { userId, username, displayName: username };
 
     try {
-      const result = AudioRoomService.joinAudioRoom(id, userInfo, body?.role);
+      const result = AudioRoomService.joinAudioRoom(id, userInfo);
       return reply.send({ success: true, data: result });
     } catch (err: any) {
       return reply.status(404).send({ success: false, error: err.message });
