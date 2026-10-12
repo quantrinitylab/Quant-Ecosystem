@@ -186,30 +186,44 @@ interface Row extends ScheduledMessageRecord {
 }
 
 // Minimal in-memory Prisma double covering only what the worker touches.
+// QC-F-095: the worker now re-checks conversation membership before
+// delivering, so the fake also serves `conversationMember.findFirst` and a
+// top-level `scheduledMessage.update`. The property's rows (u1 in c1) count
+// as an active membership, preserving the property's original claims.
 function makeFakePrisma(rows: Row[]) {
+  const scheduledUpdate = async ({
+    where,
+    data,
+  }: {
+    where: { id: string };
+    data: { status: Row['status'] };
+  }) => {
+    const row = rows.find((r) => r.id === where.id);
+    if (row) row.status = data.status;
+    return row;
+  };
   const tx = {
     message: {
       create: async (args: { data: unknown }) => ({ id: 'm', ...(args.data as object) }),
     },
     conversation: { update: async () => ({}) },
-    scheduledMessage: {
-      update: async ({
-        where,
-        data,
-      }: {
-        where: { id: string };
-        data: { status: Row['status'] };
-      }) => {
-        const row = rows.find((r) => r.id === where.id);
-        if (row) row.status = data.status;
-        return row;
-      },
-    },
+    scheduledMessage: { update: scheduledUpdate },
   };
   return {
+    conversationMember: {
+      findFirst: async ({
+        where,
+      }: {
+        where: { conversationId: string; userId: string; leftAt: null };
+      }) =>
+        rows.some((r) => r.userId === where.userId && r.conversationId === where.conversationId)
+          ? { id: `mem_${where.userId}_${where.conversationId}` }
+          : null,
+    },
     scheduledMessage: {
       findMany: async ({ where }: { where: { status: string; scheduledFor: { lte: Date } } }) =>
         rows.filter((r) => r.status === where.status && r.scheduledFor <= where.scheduledFor.lte),
+      update: scheduledUpdate,
     },
     $transaction: async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),
   };

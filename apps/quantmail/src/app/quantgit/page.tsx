@@ -55,6 +55,7 @@ import { AppSidebar } from '../../components/AppSidebar';
 import { CodeTab } from './components/CodeTab';
 import { CommitsTab } from './components/CommitsTab';
 import { mapBackendCommitToItem } from './components/mapBackendCommit';
+import { mapBackendBranchToItem } from './components/mapBackendBranch';
 import { BranchesTab } from './components/BranchesTab';
 import { IssuesTab } from './components/IssuesTab';
 import { PullRequestsTab } from './components/PullRequestsTab';
@@ -827,19 +828,7 @@ function QuantGitContent() {  const router = useRouter();
           if (json.success && Array.isArray(json.data) && json.data.length > 0) {
             setRepoBranches(json.data.map((b: any) => b.name));
             setDetailedBranches(
-              json.data.map((b: any) => ({
-                name: b.name,
-                sha: b.sha || b.commitSha || '',
-                isDefault:
-                  b.isDefault ?? (b.name === selectedRepo?.defaultBranch || b.name === 'main'),
-                isProtected: b.isProtected ?? false,
-                protection: b.protection ?? (b.isProtected ? 'require_reviews' : 'none'),
-                aheadBy: b.aheadBy ?? 0,
-                behindBy: b.behindBy ?? 0,
-                lastCommitAuthor: b.lastCommitAuthor || currentUsername,
-                lastCommitMessage: b.lastCommitMessage || 'Update branch',
-                lastCommitTime: b.lastCommitTime || 'recently',
-              })),
+              json.data.map((b: any) => mapBackendBranchToItem(b, selectedRepo?.defaultBranch)),
             );
           }
         }
@@ -847,7 +836,7 @@ function QuantGitContent() {  const router = useRouter();
         // Retain existing branches
       }
     },
-    [apiFetch, currentUsername, selectedRepo?.defaultBranch],
+    [apiFetch, selectedRepo?.defaultBranch],
   );
 
   const fetchRepoCommits = useCallback(
@@ -2220,7 +2209,10 @@ function QuantGitContent() {  const router = useRouter();
                           isProtected: b === selectedRepo.defaultBranch,
                           aheadBy: 0,
                           behindBy: 0,
-                          lastCommitAuthor: currentUsername,
+                          // Honest fallback: the name-only list carries no
+                          // per-branch commit data, so leave the author empty
+                          // and let BranchesTab render its 'Unknown' fallback.
+                          lastCommitAuthor: '',
                           lastCommitMessage: selectedRepo.latestCommit || '',
                           lastCommitTime: selectedRepo.latestCommitTime || '',
                         }))

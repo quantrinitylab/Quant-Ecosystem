@@ -28,6 +28,18 @@ export function inboxResetTarget(): string {
 }
 
 /**
+ * CUST-P1-4 — classic-inbox URL for the `x` (select) shortcut fired from a
+ * thread view (/thread/[id], /people/[personId]). RootPage renders PeopleHome
+ * unless `?view=inbox` is present, and `?selected=` is only consumed inside
+ * InboxPageContent — a bare `/?selected=<id>` lands on PeopleHome where the
+ * param is silently dropped and the row never pre-selects. `view=inbox` is
+ * load-bearing here, not cosmetic.
+ */
+export function inboxSelectTarget(threadId: string): string {
+  return `/?view=inbox&selected=${encodeURIComponent(threadId)}`;
+}
+
+/**
  * Apply the `q` contract to a URL: a non-empty query sets `q`, an empty query
  * drops it, everything else is preserved.
  *

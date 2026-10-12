@@ -262,12 +262,6 @@ function LoginForm() {
                   <label htmlFor="login-id" className="text-[13px] font-medium text-zinc-300">
                     Email address
                   </label>
-                  <Link
-                    href="/forgot-email"
-                    className="-my-3.5 -mr-2 inline-flex items-center px-2 py-3.5 text-xs font-medium text-[var(--quant-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
-                  >
-                    Forgot email?
-                  </Link>
                 </div>
                 <input
                   id="login-id"

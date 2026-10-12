@@ -51,6 +51,16 @@ export interface RoomEvent {
    * and test harnesses that only set `payload` keep working.
    */
   envelope?: ChatEventEnvelope;
+  /**
+   * QC-F-042 amend (gap 3) — per-recipient delivery exclusion. When set,
+   * the websocket layer must NOT deliver this event to sockets authenticated
+   * as any of these user ids (locally, on remote instances, or via §20
+   * resume replay). Used for read-receipt ticks addressed to a room whose
+   * message sender turned their own read receipts off: the event is real
+   * for the room, but disclosing it live to that sender would defeat their
+   * setting. Optional; absent means deliver to the whole room as before.
+   */
+  excludeUserIds?: string[];
 }
 
 /** Handler invoked with each inbound backplane event for a conversation. */

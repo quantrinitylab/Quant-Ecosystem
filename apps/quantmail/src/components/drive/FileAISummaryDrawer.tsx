@@ -563,9 +563,9 @@ export function FileAISummaryDrawer({
         className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col bg-[var(--quant-surface-elevated)] text-slate-100 shadow-2xl border-l border-[var(--quant-surface-elevated)] transition-transform duration-300 ease-in-out ${className}`}
       >
         {/* Drawer Header */}
-        <div className="flex items-center justify-between border-b border-[var(--quant-surface-elevated)] px-6 py-4 bg-[var(--quant-surface-elevated)]/90 backdrop-blur-md">
+        <div className="flex items-center justify-between px-6 py-4 bg-[var(--quant-surface-elevated)]/90 backdrop-blur-md">
           <div className="flex items-center gap-3 min-w-0">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-[var(--quant-primary)]/20 via-[var(--quant-primary)]/10 to-[#60A5FA]/20 border border-[var(--quant-primary)]/30 text-[var(--quant-primary)]">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-[var(--quant-primary)]/20 via-[var(--quant-primary)]/10 to-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] border border-[var(--quant-primary)]/30 text-[var(--quant-primary)]">
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path
                   strokeLinecap="round"
@@ -660,7 +660,7 @@ export function FileAISummaryDrawer({
         </div>
 
         {/* 3 Tab Navigation View */}
-        <div className="flex border-b border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-6">
+        <div className="flex bg-[var(--quant-surface-elevated)] px-6">
           <button
             type="button"
             data-testid="tab-summary"
@@ -693,7 +693,7 @@ export function FileAISummaryDrawer({
             onClick={() => manager.setActiveTab('entities')}
             className={`flex items-center gap-2 py-3 px-3 text-sm font-medium border-b-2 transition-all ${
               activeTab === 'entities'
-                ? 'border-[#60A5FA] text-[#60A5FA]'
+                ? 'border-[var(--app-accent)] text-[var(--app-accent)]'
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-700'
             }`}
           >
@@ -883,7 +883,7 @@ export function FileAISummaryDrawer({
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-[#60A5FA]" />
+                      <span className="h-2 w-2 rounded-full bg-[var(--app-accent)]" />
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
                         Key Takeaways ({data.keyPoints.length})
                       </h3>
@@ -955,7 +955,7 @@ export function FileAISummaryDrawer({
                 >
                   <div className="flex items-center gap-2">
                     <svg
-                      className="w-4 h-4 text-[#60A5FA]"
+                      className="w-4 h-4 text-[var(--app-accent)]"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -976,7 +976,7 @@ export function FileAISummaryDrawer({
                       <span
                         key={`dt-${idx}`}
                         data-testid="entity-pill-date"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#60A5FA]/30 bg-[#60A5FA]/10 px-2.5 py-1 text-xs font-mono text-[#60A5FA]"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] px-2.5 py-1 text-xs font-mono text-[var(--app-accent)]"
                       >
                         📅 {date}
                       </span>
@@ -1082,11 +1082,11 @@ export function FileAISummaryDrawer({
                   data-testid="deep-extract-btn"
                   onClick={() => manager.extractEntities(file)}
                   disabled={state.isExtractingEntities}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-[#60A5FA]/30 bg-[#60A5FA]/10 hover:bg-[#60A5FA]/20 text-xs font-medium text-[#60A5FA] transition-colors disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-xs font-medium text-[var(--app-accent)] transition-colors disabled:opacity-50"
                 >
                   {state.isExtractingEntities ? (
                     <>
-                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#60A5FA] border-t-transparent" />
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--app-accent)] border-t-transparent" />
                       <span>Extracting invoice/receipt entities...</span>
                     </>
                   ) : (
@@ -1183,7 +1183,7 @@ export function FileAISummaryDrawer({
         </div>
 
         {/* Drawer Footer Controls */}
-        <div className="border-t border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/90 p-4 flex items-center justify-between text-xs">
+        <div className="bg-[var(--quant-surface-elevated)]/90 p-4 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2 text-slate-400">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
             <span>Quanty ONNX Inference Ready</span>

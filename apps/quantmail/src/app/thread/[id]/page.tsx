@@ -8,6 +8,7 @@ import { ConversationalThreadView } from '../../../components/ConversationalThre
 import { useMailMutations } from '../../../hooks/useMailMutations';
 import { useEdgeSwipeBack } from '../../../hooks/useEdgeSwipeBack';
 import { useThreadViewKeyboard } from '../../../hooks/useThreadViewKeyboard';
+import { inboxSelectTarget } from '../../../lib/inbox-nav';
 
 function validInternalReturnTo(value: string | null): string | null {
   if (!value) return null;
@@ -110,7 +111,9 @@ export default function ThreadPage() {
     }, []),
     onSelect: useCallback(() => {
       if (!threadId) return;
-      router.push(`/?selected=${encodeURIComponent(threadId)}`);
+      // view=inbox is load-bearing: RootPage renders PeopleHome without it,
+      // and ?selected= is only consumed inside InboxPageContent.
+      router.push(inboxSelectTarget(threadId));
     }, [threadId, router]),
     onClose: useCallback(() => {
       leaveThread(false);

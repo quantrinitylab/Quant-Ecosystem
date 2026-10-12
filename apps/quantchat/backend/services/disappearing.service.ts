@@ -1,6 +1,7 @@
 import type { PrismaClient, Message } from '@prisma/client';
 import { MessageType } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
+import { getPrivacyService, type PrivacyService } from './privacy.service';
 
 export type ExpiryMode = 'after_view' | '24h' | '7d' | '30d';
 
@@ -18,8 +19,14 @@ const EXPIRY_DURATIONS: Record<Exclude<ExpiryMode, 'after_view'>, number> = {
 
 export class DisappearingService {
   private scheduledJobs: Map<string, NodeJS.Timeout> = new Map();
+  private readonly privacy: PrivacyService;
 
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    privacy?: PrivacyService,
+  ) {
+    this.privacy = privacy ?? getPrivacyService(prisma);
+  }
 
   async scheduleExpiry(messageId: string, mode: ExpiryMode): Promise<ScheduledExpiry> {
     const message = await this.prisma.message.findUnique({
@@ -238,7 +245,11 @@ export class DisappearingService {
     messageId: string,
     viewerId: string,
     viewerName: string,
-  ): Promise<{ conversationId: string; systemMessageId: string }> {
+  ): Promise<{
+    conversationId: string;
+    systemMessageId: string | null;
+    notified: boolean;
+  }> {
     const message = await this.prisma.message.findUnique({
       where: { id: messageId },
     });
@@ -257,6 +268,22 @@ export class DisappearingService {
       throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
     }
 
+    // QC-F-042: the AUTHOR's allowScreenshots pref gates the notification.
+    // Screenshots cannot be prevented (least of all on web) — this pref was
+    // never a block; its honest meaning is the notification: false (the
+    // default) = "tell me when someone screenshots my message" (today's
+    // behaviour), true = "I allow screenshots, do not notify me". Only the
+    // message author's pref counts — the screenshot-taker's own setting is
+    // irrelevant. When the author opted out, no system message is created
+    // and the caller is told the truth via `notified: false`.
+    const authorId = (message as { senderId?: unknown }).senderId;
+    if (typeof authorId === 'string' && authorId) {
+      const { prefs } = await this.privacy.resolve(authorId);
+      if (prefs.allowScreenshots) {
+        return { conversationId: message.conversationId, systemMessageId: null, notified: false };
+      }
+    }
+
     const systemMessage = await this.prisma.message.create({
       data: {
         conversationId: message.conversationId,
@@ -272,7 +299,11 @@ export class DisappearingService {
       },
     });
 
-    return { conversationId: message.conversationId, systemMessageId: systemMessage.id };
+    return {
+      conversationId: message.conversationId,
+      systemMessageId: systemMessage.id,
+      notified: true,
+    };
   }
 
   /** Clean up timers on service shutdown */

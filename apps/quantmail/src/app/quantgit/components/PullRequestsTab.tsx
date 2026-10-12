@@ -55,6 +55,83 @@ export interface PullRequestsTabProps {
 
 
 
+/**
+ * Merge-conflict pre-check state for a PR. Rendered by {@link MergeConflictStatus}.
+ * The "no conflicts" claim may ONLY appear in the `mergeable` state, which is
+ * produced by a real backend dry-run (`GET /:id/pulls/:number/mergeable`).
+ * `unknown` (check unavailable) must never render either claim.
+ */
+export type MergeConflictCheckState =
+  | { status: 'checking' }
+  | { status: 'mergeable' }
+  | { status: 'conflict'; conflicts: string[] }
+  | { status: 'unknown' };
+
+/**
+ * Honest merge-conflict status line for the merge box. Every state is backed by
+ * the backend pre-check — nothing is claimed before the check completes.
+ */
+export function MergeConflictStatus({ check }: { check: MergeConflictCheckState }) {
+  if (check.status === 'checking') {
+    return (
+      <div className="flex items-center gap-2" data-testid="merge-conflict-checking">
+        <span className="text-[#D29922]">
+          <QuantGitPendingDotIcon size={14} />
+        </span>
+        <span className="text-[11px] text-[#8D96A0]">Checking for merge conflicts…</span>
+      </div>
+    );
+  }
+  if (check.status === 'conflict') {
+    const files = check.conflicts ?? [];
+    const shown = files.slice(0, 5);
+    return (
+      <div className="flex flex-col gap-1" data-testid="merge-conflict-detected">
+        <div className="flex items-center gap-2">
+          <span className="text-[#F85149]">
+            <QuantGitXIcon size={14} />
+          </span>
+          <span className="text-[11px] text-[#F85149] font-semibold">
+            This branch has conflicts with the base branch that must be resolved before merging.
+          </span>
+        </div>
+        {shown.length > 0 && (
+          <ul className="text-[11px] text-[#8D96A0] font-mono pl-6 list-disc">
+            {shown.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+            {files.length > shown.length && <li>…and {files.length - shown.length} more</li>}
+          </ul>
+        )}
+      </div>
+    );
+  }
+  if (check.status === 'unknown') {
+    return (
+      <div className="flex items-center gap-2" data-testid="merge-conflict-unknown">
+        <span className="text-[#D29922]">
+          <QuantGitWarningIcon size={14} />
+        </span>
+        <span className="text-[11px] text-[#8D96A0]">
+          Merge-conflict status is unknown — the pre-check is unavailable. This is neither a
+          pass nor a failure.
+        </span>
+      </div>
+    );
+  }
+  // status === 'mergeable': rendered ONLY after the backend dry-run verified it.
+  return (
+    <div className="flex items-center gap-2" data-testid="merge-conflict-clean">
+      <span className="text-[#3FB950]">
+        <QuantGitCheckIcon size={14} />
+      </span>
+      <span className="text-[11px] text-[#8D96A0]">
+        This branch has no conflicts with the base branch.
+      </span>
+    </div>
+  );
+}
+
 export function PullRequestsTab({
   pullSearchQuery,
   setPullSearchQuery,
@@ -93,10 +170,56 @@ export function PullRequestsTab({
   const checksKnown = activeChecks.length > 0;
   const anyCheckFailed = activeChecks.some((c) => c.status === 'failed');
   const allChecksPassed = checksKnown && activeChecks.every((c) => c.status === 'passed');
+  // Merge-conflict pre-check — real backend data only. The merge box must NEVER
+  // claim "no conflicts" from client-side guesswork: until the backend dry-run
+  // reports back, the status is 'checking' (honest unknown), and if the check
+  // is unavailable it stays 'unknown'. A known conflict blocks the merge UI.
+  const [mergeConflictCheck, setMergeConflictCheck] = useState<MergeConflictCheckState>({
+    status: 'checking',
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedPR || selectedPR.state !== 'open') {
+      setMergeConflictCheck({ status: 'checking' });
+      return;
+    }
+    const prNumber = (selectedPR as any).number || selectedPR.id;
+    setMergeConflictCheck({ status: 'checking' });
+    (async () => {
+      try {
+        const res = await apiFetchRaw(
+          `/api/repos/${encodeURIComponent(repoId)}/pulls/${prNumber}/mergeable`,
+        );
+        const json = await res.json().catch(() => null);
+        if (cancelled) return;
+        const data = res.ok && json?.success ? json.data : null;
+        if (data?.mergeable === true) {
+          setMergeConflictCheck({ status: 'mergeable' });
+        } else if (data?.mergeable === false) {
+          setMergeConflictCheck({
+            status: 'conflict',
+            conflicts: Array.isArray(data.conflicts)
+              ? data.conflicts.map((f: unknown) => String(f))
+              : [],
+          });
+        } else {
+          // mergeable === null, non-ok, or malformed body: stay honest — unknown.
+          setMergeConflictCheck({ status: 'unknown' });
+        }
+      } catch {
+        if (!cancelled) setMergeConflictCheck({ status: 'unknown' });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPR, repoId]);
+
   // "Unknown" (no data) must not hard-block the real backend merge — the backend
-  // enforces required checks itself (403 BRANCH_PROTECTED). Only a REAL failed
-  // check blocks the merge UI.
-  const mergeAllowed = !anyCheckFailed;
+  // enforces required checks itself (403 BRANCH_PROTECTED / 409 MERGE_CONFLICT).
+  // Only a REAL failed check, or a REAL detected conflict, blocks the merge UI.
+  const mergeAllowed = !anyCheckFailed && mergeConflictCheck.status !== 'conflict';
 
   // Review decisions — start EMPTY and load only real backend data.
   // Never seed or invent reviews: a fabricated APPROVED review rendered as
@@ -327,6 +450,7 @@ export function PullRequestsTab({
 
     try {
       let merged = false;
+      let backendError: string | null = null;
       if (onMergePR) {
         // Parent owns the merge and resolves true ONLY when it genuinely
         // succeeded. Anything else (false / undefined / throw) means the PR
@@ -342,6 +466,14 @@ export function PullRequestsTab({
           },
         );
         merged = res.ok;
+        if (!merged) {
+          // Surface the backend's real error (e.g. 409 "Merge conflict
+          // detected") instead of a vague generic message — honest errors only.
+          const json = await res.json().catch(() => null);
+          const msg =
+            typeof json?.error?.message === 'string' ? json.error.message.trim() : '';
+          backendError = msg || null;
+        }
       }
 
       if (merged) {
@@ -350,7 +482,7 @@ export function PullRequestsTab({
         showToast?.(`Pull request #${prNumber} merged successfully!`);
       } else {
         // Do not claim success when the merge did not happen.
-        showToast?.(`Could not merge pull request #${prNumber}. Please try again.`);
+        showToast?.(backendError || `Could not merge pull request #${prNumber}. Please try again.`);
       }
     } catch {
       showToast?.(`Could not merge pull request #${prNumber}. Please try again.`);
@@ -744,14 +876,10 @@ export function PullRequestsTab({
                 mergeAllowed ? (
                   <div className="space-y-3" data-testid="merge-enabled-box">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[#3FB950]">
-                          <QuantGitCheckIcon size={14} />
-                        </span>
-                        <span className="text-[11px] text-[#8D96A0]">
-                          This branch has no conflicts with the base branch.
-                        </span>
-                      </div>
+                      {/* Conflict status comes ONLY from the backend pre-check
+                          (GET /:id/pulls/:number/mergeable). It never claims
+                          "no conflicts" before the check completes. */}
+                      <MergeConflictStatus check={mergeConflictCheck} />
 
                       {/* Merge strategy selector and button */}
                       <div className="flex items-center gap-1.5">
@@ -853,11 +981,21 @@ export function PullRequestsTab({
                     className="p-3.5 bg-red-950/20 border border-red-500/30 rounded-lg flex items-center justify-between text-xs"
                     data-testid="merge-blocked-box"
                   >
-                    <div className="flex items-center gap-2 text-red-400">
-                      <QuantGitXIcon size={14} />
-                      <span className="font-semibold">
-                        Merging is blocked. Required security & CI checks must pass before merging.
-                      </span>
+                    <div className="flex flex-col gap-1 text-red-400">
+                      <div className="flex items-center gap-2">
+                        <QuantGitXIcon size={14} />
+                        <span className="font-semibold">
+                          {mergeConflictCheck.status === 'conflict'
+                            ? 'Merging is blocked. Resolve the merge conflicts above before merging.'
+                            : 'Merging is blocked. Required security & CI checks must pass before merging.'}
+                        </span>
+                      </div>
+                      {mergeConflictCheck.status === 'conflict' &&
+                        (mergeConflictCheck.conflicts ?? []).length > 0 && (
+                          <span className="text-[11px] text-[#8D96A0] font-mono pl-6">
+                            Conflicting files: {mergeConflictCheck.conflicts.join(', ')}
+                          </span>
+                        )}
                     </div>
                     <button
                       type="button"

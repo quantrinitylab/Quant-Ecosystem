@@ -20,6 +20,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
+import { DEFAULT_PRIVACY, getPrivacyService } from '../services/privacy.service';
 
 const privacySchema = z.object({
   whoCanMessage: z.enum(['everyone', 'friends', 'nobody']).optional(),
@@ -57,16 +58,9 @@ const settingsBodySchema = z
   })
   .strict();
 
-const DEFAULT_PRIVACY = {
-  whoCanMessage: 'friends',
-  whoCanSeeStory: 'friends',
-  whoCanSeeLocation: 'friends',
-  showOnlineStatus: true,
-  showReadReceipts: true,
-  showTypingIndicator: true,
-  allowScreenshots: false,
-  hideFromSearch: false,
-} as const;
+// QC-F-042: DEFAULT_PRIVACY now lives in services/privacy.service.ts — the
+// single definition shared by this settings view and every enforcement
+// gate, so what the UI shows and what the backend applies cannot drift.
 
 const DEFAULT_NOTIFICATIONS = {
   messages: true,
@@ -166,6 +160,10 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
       where: { id: userId },
       data: { preferences: prefs as Prisma.InputJsonValue },
     });
+    // QC-F-042: enforcement gates cache prefs for 30s (PrivacyService);
+    // a successful save invalidates this user's entry on the shared
+    // instance so the new prefs apply immediately in this process.
+    getPrivacyService(prisma).invalidate(userId);
     return reply.send({ success: true, data: toSettingsView(next) });
   });
 

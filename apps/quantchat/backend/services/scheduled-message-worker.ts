@@ -9,6 +9,12 @@
 //
 // On delivery the worker creates a real Message and flips the schedule status
 // to SENT in a single transaction, making the operation idempotent across ticks.
+//
+// QC-F-095: before delivering, the worker re-checks that the scheduler is
+// still an active member of the conversation (the same gate
+// MessageService.sendMessage applies). Membership can end between creation
+// and delivery; a deterministic gate failure flips the row to CANCELLED
+// (terminal) instead of injecting the message or retrying forever.
 // ============================================================================
 
 import type { PrismaClient } from '@prisma/client';
@@ -34,11 +40,17 @@ interface SchedulerTxClient {
 }
 
 export interface SchedulerPrisma {
+  conversationMember: {
+    findFirst: (args: {
+      where: { conversationId: string; userId: string; leftAt: null };
+    }) => Promise<{ id: string } | null>;
+  };
   scheduledMessage: {
     findMany: (args: {
       where: { status: string; scheduledFor: { lte: Date } };
       orderBy?: unknown;
     }) => Promise<ScheduledMessageRecord[]>;
+    update: (args: unknown) => Promise<unknown>;
   };
   $transaction: <T>(fn: (tx: SchedulerTxClient) => Promise<T>) => Promise<T>;
 }
@@ -102,6 +114,9 @@ export class ScheduledMessageWorker {
 
       for (const record of due) {
         try {
+          if (!(await this.passesDeliveryGate(record))) {
+            continue; // gate-cancelled: not delivered, not an error
+          }
           await this.deliver(record);
           this.options.onDelivered?.(record);
           delivered++;
@@ -115,6 +130,35 @@ export class ScheduledMessageWorker {
       this.running = false;
     }
     return delivered;
+  }
+
+  /**
+   * QC-F-095 delivery gate — runs OUTSIDE the delivery transaction on
+   * purpose: if the gate ran inside it, a later rollback would also undo
+   * the CANCELLED flip and the row would stay PENDING forever (poison-row
+   * retry loop).
+   *
+   * - Membership lookup returns null → deterministic failure (never a
+   *   member, left/was removed since scheduling, conversation hard-deleted,
+   *   or the conversationId never existed): flip the row to CANCELLED in
+   *   its own update and report "do not deliver". No Message is created,
+   *   onDelivered/onError do not fire, and the row is never picked up again.
+   * - Membership lookup throws → transient failure: the throw propagates to
+   *   tick()'s per-record catch (onError) and the row stays PENDING for the
+   *   next tick. A transient DB problem must never cancel real schedules.
+   */
+  private async passesDeliveryGate(record: ScheduledMessageRecord): Promise<boolean> {
+    const membership = await this.prisma.conversationMember.findFirst({
+      where: { conversationId: record.conversationId, userId: record.userId, leftAt: null },
+    });
+    if (membership) {
+      return true;
+    }
+    await this.prisma.scheduledMessage.update({
+      where: { id: record.id },
+      data: { status: 'CANCELLED' },
+    });
+    return false;
   }
 
   private async deliver(record: ScheduledMessageRecord): Promise<void> {

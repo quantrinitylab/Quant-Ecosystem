@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -128,6 +128,18 @@ describe('CalendarWeekView', () => {
     onSelectEvent: noop,
   };
 
+  // Date-bomb guard: the now-line (and the today highlight) only render when the
+  // real clock falls inside the displayed week (isToday gate in CalendarWeekView).
+  // Pin the clock to a fixed morning inside the Oct 5-11 week so every assertion
+  // in this block is time-independent and cannot red-gate CI on a different day.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 7, 10, 0, 0)); // Wed 2026-10-07 10:00 local
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders 7 day headers Monday-first by default', () => {
     const html = renderToStaticMarkup(<CalendarWeekView {...baseProps} />);
     expect(html).toContain('data-testid="calendar-week-view"');
@@ -184,6 +196,14 @@ describe('CalendarWeekView', () => {
   it('shows a current-time line in the today column', () => {
     const html = renderToStaticMarkup(<CalendarWeekView {...baseProps} selectedDate={new Date()} />);
     expect(html).toContain('week-now-line');
+  });
+
+  it('hides the current-time line when today is outside the displayed week', () => {
+    // Fake today a month later: none of the Oct 5-11 columns is today, so the
+    // isToday-gated now-line must not render.
+    vi.setSystemTime(new Date(2026, 10, 5, 10, 0, 0)); // Thu 2026-11-05 10:00 local
+    const html = renderToStaticMarkup(<CalendarWeekView {...baseProps} />);
+    expect(html).not.toContain('week-now-line');
   });
 
   it('renders toolbar with prev/next/today controls and range label', () => {

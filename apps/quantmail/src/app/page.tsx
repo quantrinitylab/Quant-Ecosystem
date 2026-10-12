@@ -1294,8 +1294,9 @@ function InboxPageContent() {
 
   /*
    * CUST-P1-4: `x` (select) in a thread view navigates here with
-   * `?selected=<threadId>`. Pre-select that conversation for bulk actions,
-   * then drop the param so a refresh does not re-select.
+   * `?view=inbox&selected=<threadId>` (see inboxSelectTarget). Pre-select that
+   * conversation for bulk actions, then drop the param so a refresh does not
+   * re-select.
    */
   useEffect(() => {
     const selected = searchParams?.get('selected');

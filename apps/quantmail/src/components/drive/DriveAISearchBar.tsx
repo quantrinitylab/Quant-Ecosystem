@@ -418,7 +418,7 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
       <div
         className={`flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--quant-surface-elevated)] border transition-all duration-200 shadow-lg ${
           isOpen
-            ? 'border-[#60A5FA] ring-2 ring-[#60A5FA]/20'
+            ? 'border-[var(--app-accent)] ring-2 ring-[color-mix(in_srgb,var(--app-accent)_20%,transparent)]'
             : 'border-[var(--quant-surface-elevated)] hover:border-slate-600'
         }`}
       >
@@ -427,7 +427,7 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
           {state.isSearching ? (
             <svg
               data-testid="search-spinner"
-              className="w-4 h-4 animate-spin text-[#60A5FA]"
+              className="w-4 h-4 animate-spin text-[var(--app-accent)]"
               fill="none"
               viewBox="0 0 24 24"
             >
@@ -489,7 +489,7 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
           // when the input refused to shrink (fixed via `min-w-0` above).
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 shrink-0 whitespace-nowrap select-none ${
             state.isSemantic
-              ? 'bg-[#60A5FA]/15 text-[#60A5FA] border border-[#60A5FA]/30 hover:bg-[#60A5FA]/25'
+              ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_25%,transparent)]'
               : 'bg-[var(--quant-surface-elevated)] text-slate-300 border border-slate-700 hover:bg-slate-800'
           }`}
         >
@@ -562,7 +562,7 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
           className="absolute left-0 right-0 top-full mt-2 z-50 overflow-hidden rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] shadow-2xl backdrop-blur-xl"
         >
           {/* Header Status Bar */}
-          <div className="flex items-center justify-between px-3.5 py-2 border-b border-[var(--quant-surface-elevated)] text-xs text-slate-400 bg-[var(--quant-surface-elevated)]/80">
+          <div className="flex items-center justify-between px-3.5 py-2 text-xs text-slate-400 bg-[var(--quant-surface-elevated)]/80">
             <span data-testid="results-count-label">
               {state.isSearching
                 ? 'Scanning in-file contents...'
@@ -591,7 +591,7 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
           </div>
 
           {/* Results List */}
-          <div className="max-h-80 overflow-y-auto divide-y divide-[var(--quant-surface-elevated)]/50 py-1">
+          <div className="max-h-80 overflow-y-auto flex flex-col gap-0.5 py-1">
             {state.error && (
               <div
                 data-testid="search-error-message"
@@ -633,7 +633,7 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
                   onMouseEnter={() => manager.selectIndex(idx)}
                   className={`px-3.5 py-2.5 cursor-pointer transition-colors duration-150 flex flex-col gap-1 ${
                     isSelected
-                      ? 'bg-[var(--quant-surface-elevated)] border-l-2 border-[#60A5FA]'
+                      ? 'bg-[var(--quant-surface-elevated)] border-l-2 border-[var(--app-accent)]'
                       : 'hover:bg-[var(--quant-surface-elevated)]/60'
                   }`}
                 >
@@ -641,7 +641,7 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <svg
-                        className="w-4 h-4 text-[#60A5FA] shrink-0"
+                        className="w-4 h-4 text-[var(--app-accent)] shrink-0"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"

@@ -1205,12 +1205,12 @@ export function DriveHomeSubView({
                 ))}
               </div>
             ) : (
-              <div className="rounded-xl border border-[#232938] bg-[var(--quant-surface)] overflow-hidden divide-y divide-[#232938]">
+              <div className="rounded-xl border border-[#232938] bg-[var(--quant-surface)] overflow-hidden">
                 {recentOrderedFiles.slice(0, 10).map((file) => (
                   <div
                     key={file.id}
                     onClick={() => onPreviewItem?.(file)}
-                    className="flex items-center justify-between p-3 hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] cursor-pointer transition-colors"
+                    className="flex items-center justify-between px-3 py-3.5 hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className="size-7 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
@@ -1261,7 +1261,7 @@ export function DriveHomeSubView({
         /* DEDICATED CATEGORY VIEW */
         <div data-testid={`dedicated-category-view-${selectedCategory}`} className="space-y-5">
           {/* Top back bar and category title */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#232938]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -1589,7 +1589,7 @@ export function DriveFeedSubView({
       className={`space-y-6 ${className}`}
     >
       {/* Top Media Bar & Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#232938]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
         <div>
           <h2 className="text-base font-extrabold text-[#F8FAFC] tracking-tight">Visual Media Feed</h2>
           <p className="text-xs text-[#94A3B8] mt-0.5">
@@ -1832,27 +1832,27 @@ export function DriveAiMemorySubView({
     () => ({
       QuantMail: {
         name: 'QuantMail',
-        color: 'var(--app-accent)',
+        color: '#FF6B35',
         icon: MailAppIcon,
-        borderStyle: 'border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)]',
+        borderStyle: 'border-[#FF6B35]/40 bg-[#FF6B35]/10 text-[#FF6B35]',
       },
       QuantCalendar: {
         name: 'QuantCalendar',
-        color: '#38BDF8',
+        color: '#4285F4',
         icon: DocumentIcon,
-        borderStyle: 'border-[#38BDF8]/40 bg-[#38BDF8]/10 text-[#38BDF8]',
+        borderStyle: 'border-[#4285F4]/40 bg-[#4285F4]/10 text-[#4285F4]',
       },
       QuantDrive: {
         name: 'QuantDrive',
-        color: '#10B981',
+        color: '#34A853',
         icon: HardDriveIcon,
-        borderStyle: 'border-[#10B981]/40 bg-[#10B981]/10 text-[#10B981]',
+        borderStyle: 'border-[#34A853]/40 bg-[#34A853]/10 text-[#34A853]',
       },
       QuantContacts: {
         name: 'QuantContacts',
-        color: '#EC4899',
+        color: '#F59E0B',
         icon: LayersIcon,
-        borderStyle: 'border-[#EC4899]/40 bg-[#EC4899]/10 text-[#EC4899]',
+        borderStyle: 'border-[#F59E0B]/40 bg-[#F59E0B]/10 text-[#F59E0B]',
       },
       QuantGit: {
         name: 'QuantGit',
@@ -1899,7 +1899,7 @@ export function DriveAiMemorySubView({
       className={`space-y-6 ${className}`}
     >
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#232938]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
         <div className="flex items-center gap-3">
           <div className="size-10 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
             <BrainIcon className="size-5" />
@@ -2076,7 +2076,7 @@ export function DriveAiMemorySubView({
                   </div>
                 )}
 
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#232938]/60">
+                <div className="flex items-center justify-end gap-2 pt-1">
                   {onForgetMemory && (
                     <button
                       type="button"
