@@ -891,6 +891,7 @@ LIVE (2026-10-11 ~21:55 IST): /drive → sign-in gate desktop+mobile (no leak, s
 REQUIREMENT GAPS vs Required (R2 update): resumable transfer IMPLEMENTED (chunk protocol, in-memory sessions 24h TTL); offline cache STILL MISSING; scan-state listing coverage now complete except Trash (P2 above); signed delivery IMPLEMENTED but public-link quarantine BYPASS (P0 above); preview matrix honest; versioning/share/editor/Quanty all verified wired.
 
 ## QM-SCREEN-012 — Contacts / people / relationship context
+Status: [~] IN PROGRESS — LANE-1, branch lane-1/audit-qm-screen-012-contacts-r4. R4 REGRESSION AUDIT (2026-10-12 ~19:35 IST, window R3-base ad3ecba0 → origin/main @ ced5bf56a). Regression vs R3: contacts-path commits diff-review + all prior fixes intact-check + live logged-out verification. Blockers unchanged (block/restrict definition + Message-button destination — awaiting user).
 Status: [x] DONE — LANE-1, branch lane-1/audit-qm-screen-012-contacts-r3. R3 REGRESSION AUDIT COMPLETE (2026-10-12 ~08:35-08:45 IST): zero regressions on origin/main @ ad3ecba0; 0 new P0/P1 found; no fix agents needed. (R2 history preserved below:)
 R3 VERDICTS:
 - [x] FINDING P0 (R2, from R2 audit): contact Mail Conversations broken search | FIX: PR #935 (lane1-fix-012r2-mailconvo, merged 2026-10-11) — R3 VERIFIED INTACT on main: contactThreadSearchParams (ContactsSubViews.tsx:614) -> apiClient.searchEmails -> api/emails/search proxy -> EmailService.search ANDs from/to filters. Zero diff on P0 path since merge.
