@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { UniversalSSOTokenBridge, useAuth } from '@quant/shared-ui';
 import { apiClient } from '../../services/api-client';
 import { persistSession } from '../../lib/auth-session';
+import { resolveReturnTo } from '../../lib/return-to';
 import { CryptographicMeshCanvas } from './CryptographicMeshCanvas';
 import { apiFetchRaw } from '@quant/api-client';
 
@@ -191,13 +192,24 @@ export default function LoginPage(props: LoginPageProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  // Post-login destination: the gate (or a cross-app handoff) carries the
+  // intended deep link in ?returnTo=; it is validated against the route
+  // registry (QC-F-049) and defaults to '/'. Read lazily from the URL so
+  // the very first post-login navigation already uses it (the SSO href
+  // effect below reads the same parameter for the SSO round-trip).
+  const [returnTarget] = useState(() =>
+    typeof window === 'undefined'
+      ? '/'
+      : resolveReturnTo(new URLSearchParams(window.location.search).get('returnTo')),
+  );
 
-  // Auto-redirect if already authenticated or session restored
+  // Auto-redirect if already authenticated or session restored — to the
+  // preserved destination, not a hardcoded home (QC-F-049).
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      router.replace('/');
+      router.replace(returnTarget);
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, router, returnTarget]);
 
   // Auto-capture SSO tokens returned from QuantMail Account Chooser or Cross-App Jump Bridge.
   // The token in the URL is a QuantMail-issued JWT, which is NOT valid for
@@ -336,14 +348,14 @@ export default function LoginPage(props: LoginPageProps) {
           return;
         }
         persistSession(res.data.accessToken, res.data.refreshToken);
-        router.replace('/');
+        router.replace(returnTarget);
       } catch {
         setError('Network error. Please try again.');
       } finally {
         setBusy(false);
       }
     },
-    [identifier, password, router],
+    [identifier, password, router, returnTarget],
   );
 
   return (

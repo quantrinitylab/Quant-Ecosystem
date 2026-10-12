@@ -28,6 +28,10 @@ export function PagesAuthGate({ children }: { children: React.ReactNode }) {
   // ('unknown' -> render through) rather than crashing the shell.
   const rawPath = router?.asPath || router?.pathname || '';
   const pathname = rawPath ? rawPath.split(/[?#]/)[0] || '/' : null;
+  // Everything after the pathname ('?query' / '#hash') rides along so the
+  // gate can preserve it as the post-login return target (QC-F-049) —
+  // asPath is the only Pages Router value that still contains it.
+  const suffix = rawPath && pathname ? rawPath.slice(pathname.length) : null;
 
   const onRedirect = useCallback(
     (path: string) => {
@@ -41,7 +45,7 @@ export function PagesAuthGate({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <AuthGateCore pathname={pathname} onRedirect={onRedirect}>
+    <AuthGateCore pathname={pathname} suffix={suffix} onRedirect={onRedirect}>
       {children}
     </AuthGateCore>
   );

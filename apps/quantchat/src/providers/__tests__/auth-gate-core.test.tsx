@@ -7,7 +7,9 @@
 // logic now lives in AuthGateCore; these tests pin its behavior for every
 // classification the route registry can return:
 //
-//   app route + logged out  -> redirect to /login, children never render
+//   app route + logged out  -> redirect to /login?returnTo=<target>
+//                              (QC-F-049 deep-link preservation), children
+//                              never render
 //   app route + logged in   -> children render, no redirect
 //   app route + resolving   -> session spinner, no redirect yet
 //   public route            -> children render regardless of session
@@ -66,10 +68,10 @@ describe('AuthGateCore', () => {
     container.remove();
   });
 
-  function renderGate(pathname: string) {
+  function renderGate(pathname: string, suffix?: string | null, suffixReady?: boolean) {
     act(() => {
       root.render(
-        <AuthGateCore pathname={pathname} onRedirect={onRedirect}>
+        <AuthGateCore pathname={pathname} suffix={suffix} suffixReady={suffixReady} onRedirect={onRedirect}>
           <div>protected content</div>
         </AuthGateCore>,
       );
@@ -79,14 +81,55 @@ describe('AuthGateCore', () => {
   it('redirects a logged-out visitor on an app route to /login and never renders children', () => {
     renderGate('/settings');
     expect(onRedirect).toHaveBeenCalledTimes(1);
-    expect(onRedirect).toHaveBeenCalledWith('/login');
+    // QC-F-049: the destination rides along as returnTo so login can
+    // bring the visitor back here instead of dropping them on '/'.
+    expect(onRedirect).toHaveBeenCalledWith('/login?returnTo=%2Fsettings');
     expect(container.textContent).not.toContain('protected content');
   });
 
   it('redirects a logged-out visitor on a Pages Router route too (the P0 routes)', () => {
     renderGate('/calls');
-    expect(onRedirect).toHaveBeenCalledWith('/login');
+    expect(onRedirect).toHaveBeenCalledWith('/login?returnTo=%2Fcalls');
     expect(container.textContent).not.toContain('protected content');
+  });
+
+  it('preserves a deep link (dynamic route + query) across the login bounce (QC-F-049)', () => {
+    renderGate('/meet/room-9', '?code=4821');
+    expect(onRedirect).toHaveBeenCalledWith(
+      '/login?returnTo=%2Fmeet%2Froom-9%3Fcode%3D4821',
+    );
+    expect(container.textContent).not.toContain('protected content');
+  });
+
+  it('adds no returnTo for the app root — it is already the post-login default', () => {
+    renderGate('/');
+    expect(onRedirect).toHaveBeenCalledWith('/login');
+  });
+
+  it('preserves a root-route suffix across the bounce (PR #961 review)', () => {
+    renderGate('/', '?view=inbox&lens=snoozed');
+    expect(onRedirect).toHaveBeenCalledTimes(1);
+    expect(onRedirect).toHaveBeenCalledWith(
+      '/login?returnTo=%2F%3Fview%3Dinbox%26lens%3Dsnoozed',
+    );
+    expect(container.textContent).not.toContain('protected content');
+  });
+
+  it('waits for suffix readiness before redirecting, then redirects once with the suffix (PR #961 review)', () => {
+    // The shell has not captured the suffix for this pathname yet: the
+    // redirect must NOT fire with a null suffix (that was the race —
+    // the first navigation to /login is the only one that happens).
+    renderGate('/meet/room-9', null, false);
+    expect(onRedirect).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain('protected content');
+    expect(container.textContent).toContain('Redirecting to sign in...');
+
+    // The capture lands: exactly one redirect, with the full suffix.
+    renderGate('/meet/room-9', '?code=4821#join', true);
+    expect(onRedirect).toHaveBeenCalledTimes(1);
+    expect(onRedirect).toHaveBeenCalledWith(
+      '/login?returnTo=%2Fmeet%2Froom-9%3Fcode%3D4821%23join',
+    );
   });
 
   it('renders children for an authenticated visitor on an app route', () => {
