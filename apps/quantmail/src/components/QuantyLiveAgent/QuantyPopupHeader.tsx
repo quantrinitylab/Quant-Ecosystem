@@ -65,7 +65,7 @@ export function QuantyPopupHeader({
       {/* Avatar, name, live status */}
       <div className="-mt-2 flex flex-col items-center">
         <motion.span
-          className="block overflow-hidden rounded-full bg-[#14100b] shadow-[0_10px_40px_rgba(255,170,60,0.35)] ring-1 ring-amber-400/40"
+          className="block overflow-hidden rounded-full bg-[#14100b] shadow-[0_10px_40px_color-mix(in_srgb,var(--app-accent)_35%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--app-accent)_40%,transparent)]"
           animate={busy ? { scale: [1, 1.04, 1] } : { scale: 1 }}
           transition={busy ? { duration: 2, repeat: Infinity, ease: 'easeInOut' } : { duration: 0.2 }}
         >

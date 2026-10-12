@@ -43,7 +43,7 @@ export interface QuantyAvatarProps {
  * - idle: gentle vertical float (breathing)
  * - thinking: soft pulse
  * - working: spinning conic ring around the bubble
- * - waiting-confirm: amber ring pulse (needs the user)
+ * - waiting-confirm: accent ring pulse (needs the user)
  * - done: checkmark badge pops in
  * - failed: red dot + shake
  *
@@ -82,7 +82,7 @@ export function QuantyAvatar({
             onClick={onToggle}
             aria-label={`Quanty — ${caption}. Tap karke details dekhein.`}
             title={`Quanty — ${caption}`}
-            className="pointer-events-auto relative rounded-full outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            className="pointer-events-auto relative rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
             animate={
               reduceMotion
                 ? undefined
@@ -116,11 +116,11 @@ export function QuantyAvatar({
               />
             )}
 
-            {/* Waiting-confirm ring — amber pulse */}
+            {/* Waiting-confirm ring — accent pulse */}
             {needsConfirm && (
               <motion.span
                 aria-hidden="true"
-                className="absolute -inset-1.5 rounded-full border-2 border-amber-400"
+                className="absolute -inset-1.5 rounded-full border-2 border-[var(--app-accent)]"
                 animate={reduceMotion ? undefined : { opacity: [1, 0.35, 1], scale: [1, 1.06, 1] }}
                 transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
               />
@@ -137,7 +137,7 @@ export function QuantyAvatar({
             )}
 
             {/* The bubble itself */}
-            <span className="relative block overflow-hidden rounded-full bg-[#14100b] shadow-[0_8px_30px_rgba(255,170,60,0.35)] ring-1 ring-amber-400/40">
+            <span className="relative block overflow-hidden rounded-full bg-[#14100b] shadow-[0_8px_30px_color-mix(in_srgb,var(--app-accent)_35%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--app-accent)_40%,transparent)]">
               <BubbleAvatar state={bubbleState} size={size} title="Quanty" />
             </span>
 
