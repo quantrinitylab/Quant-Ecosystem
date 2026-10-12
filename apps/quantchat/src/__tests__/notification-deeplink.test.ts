@@ -1,31 +1,47 @@
 import { describe, it, expect } from 'vitest';
 import { resolveDeepLink, NOTIFICATION_CATEGORIES } from '../lib/notification-deeplink';
+import { classifyPath } from '../lib/route-access';
 
-describe('resolveDeepLink (Task 10.5)', () => {
+describe('resolveDeepLink (Task 10.5, QC-F-142 map)', () => {
   it('maps MESSAGES to /chat/{id}', () => {
     expect(resolveDeepLink('MESSAGES', 'conv123')).toBe('/chat/conv123');
   });
 
-  it('maps CALLS to /notifications (no call UI exists)', () => {
-    expect(resolveDeepLink('CALLS', 'anything')).toBe('/notifications');
-    expect(resolveDeepLink('CALLS')).toBe('/notifications');
+  it('maps MESSAGES without an id to the chat list / (there is no /chat index route)', () => {
+    expect(resolveDeepLink('MESSAGES')).toBe('/');
+    expect(resolveDeepLink('MESSAGES', '')).toBe('/');
   });
 
-  it('maps STORIES to /stories/{id}', () => {
-    expect(resolveDeepLink('STORIES', 'story9')).toBe('/stories/story9');
+  it('maps CALLS to the real /calls history page, with or without an id', () => {
+    expect(resolveDeepLink('CALLS', 'anything')).toBe('/calls');
+    expect(resolveDeepLink('CALLS')).toBe('/calls');
   });
 
-  it('maps REELS to /reels/{id}', () => {
-    expect(resolveDeepLink('REELS', 'reel7')).toBe('/reels/reel7');
+  it('maps STORIES to /stories — the page reads no story id from the URL', () => {
+    expect(resolveDeepLink('STORIES', 'story9')).toBe('/stories');
+    expect(resolveDeepLink('STORIES')).toBe('/stories');
   });
 
-  it('maps STREAKS to the conversation /chat/{id}', () => {
+  it('maps REELS to /reels — the page reads no reel id from the URL', () => {
+    expect(resolveDeepLink('REELS', 'reel7')).toBe('/reels');
+    expect(resolveDeepLink('REELS')).toBe('/reels');
+  });
+
+  it('maps STREAKS to the conversation /chat/{id}, and to / without one', () => {
     expect(resolveDeepLink('STREAKS', 'conv5')).toBe('/chat/conv5');
+    expect(resolveDeepLink('STREAKS')).toBe('/');
   });
 
-  it('maps SYSTEM and unknown categories to /notifications', () => {
-    expect(resolveDeepLink('SYSTEM')).toBe('/notifications');
-    expect(resolveDeepLink('WAT' as never)).toBe('/notifications');
+  it('maps SYSTEM and unknown categories to / (no /notifications page exists)', () => {
+    expect(resolveDeepLink('SYSTEM')).toBe('/');
+    expect(resolveDeepLink('SYSTEM', 'sys1')).toBe('/');
+    expect(resolveDeepLink('WAT' as never)).toBe('/');
+    expect(resolveDeepLink('WAT' as never, 'x')).toBe('/');
+  });
+
+  it('trims surrounding whitespace from the content id', () => {
+    expect(resolveDeepLink('MESSAGES', '  conv123  ')).toBe('/chat/conv123');
+    expect(resolveDeepLink('MESSAGES', '   ')).toBe('/');
   });
 
   it('always returns an absolute path for every known category', () => {
@@ -34,8 +50,17 @@ describe('resolveDeepLink (Task 10.5)', () => {
     }
   });
 
+  it('every output is a REAL route — classifyPath never reports unknown (QC-F-142 route-existence guard)', () => {
+    for (const category of NOTIFICATION_CATEGORIES) {
+      for (const id of ['x', '', undefined] as const) {
+        expect(classifyPath(resolveDeepLink(category, id))).toBe('app');
+      }
+    }
+    expect(classifyPath(resolveDeepLink('WAT' as never, 'x'))).toBe('app');
+  });
+
   it('falls back to base routes when no id is provided', () => {
-    expect(resolveDeepLink('MESSAGES')).toBe('/chat');
+    expect(resolveDeepLink('MESSAGES')).toBe('/');
     expect(resolveDeepLink('STORIES')).toBe('/stories');
     expect(resolveDeepLink('REELS')).toBe('/reels');
   });
