@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { createAppError } from '@quant/server-core';
 import { ReceiptService } from '../services/receipt.service';
+import { getPrivacyService } from '../services/privacy.service';
 import { publishConversationEvent } from '../services/realtime-publisher';
 
 // QC-F-018 — identity forgery fix.
@@ -35,16 +36,39 @@ async function conversationIdForMessage(
   fastify: Parameters<FastifyPluginAsync>[0],
   messageId: string,
 ): Promise<string | null> {
+  const ref = await messageRefForMessage(fastify, messageId);
+  return ref?.conversationId ?? null;
+}
+
+/**
+ * Resolve a message's conversation id + sender id. The sender id drives the
+ * QC-F-042 amend (gap 3) live-tick exclusion below. Returns null under the
+ * same conditions as {@link conversationIdForMessage}.
+ */
+async function messageRefForMessage(
+  fastify: Parameters<FastifyPluginAsync>[0],
+  messageId: string,
+): Promise<{ conversationId: string; senderId: string | null } | null> {
   try {
     const prisma = (fastify as unknown as { prisma?: unknown }).prisma as
-      | { message?: { findUnique: (args: unknown) => Promise<{ conversationId?: string } | null> } }
+      | {
+          message?: {
+            findUnique: (
+              args: unknown,
+            ) => Promise<{ conversationId?: string; senderId?: string } | null>;
+          };
+        }
       | undefined;
     if (!prisma?.message) return null;
     const row = await prisma.message.findUnique({
       where: { id: messageId },
-      select: { conversationId: true },
+      select: { conversationId: true, senderId: true },
     });
-    return typeof row?.conversationId === 'string' ? row.conversationId : null;
+    if (typeof row?.conversationId !== 'string') return null;
+    return {
+      conversationId: row.conversationId,
+      senderId: typeof row.senderId === 'string' ? row.senderId : null,
+    };
   } catch {
     return null;
   }
@@ -85,12 +109,25 @@ const receiptsRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     // K25 — realtime tick for REST-recorded read receipts.
-    const conversationId = await conversationIdForMessage(fastify, messageId);
-    if (conversationId) {
-      void publishConversationEvent(fastify, conversationId, {
+    // QC-F-042 amend (gap 3): sender-side reciprocity applies to the LIVE
+    // tick too, not just the REST status view — a sender whose own
+    // showReadReceipts is off must not receive the live read event (the
+    // WS recordAndFan path applies the identical exclusion). Other room
+    // members still receive it; the exclusion is per-recipient.
+    const ref = await messageRefForMessage(fastify, messageId);
+    if (ref) {
+      let excludeUserIds: string[] | undefined;
+      if (ref.senderId && ref.senderId !== recipientId) {
+        const { prefs } = await getPrivacyService(
+          (fastify as unknown as { prisma?: unknown }).prisma,
+        ).resolve(ref.senderId);
+        if (!prefs.showReadReceipts) excludeUserIds = [ref.senderId];
+      }
+      void publishConversationEvent(fastify, ref.conversationId, {
         eventType: 'chat.message.receipt_updated.v1',
         resourceRef: messageId,
-        data: { messageId, conversationId, userId: recipientId, receipt: 'read' },
+        data: { messageId, conversationId: ref.conversationId, userId: recipientId, receipt: 'read' },
+        excludeUserIds,
       });
     }
 
