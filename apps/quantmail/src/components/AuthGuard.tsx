@@ -47,6 +47,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     // so the AuthGuard must not hard-bounce them to /login.
     pathname?.startsWith('/invite/') ||
     pathname?.startsWith('/groups/join/') ||
+    // Public calendar booking links (fix/qm-booking-guest-bounce): the
+    // booking page is a fully public, signed-out booking flow (the backend
+    // GET/POST booking endpoints are public), so guests opening a host's
+    // booking link must see the flow — or the honest dead-link state for a
+    // bad slug — instead of being hard-bounced to /login.
+    pathname?.startsWith('/calendar/booking/') ||
     isInternalLabPath(pathname ?? '');
 
   useEffect(() => {
