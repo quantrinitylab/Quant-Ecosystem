@@ -231,8 +231,12 @@ const NAV_GROUPS: Array<{
      */
     lens?: string;
     /**
-     * SIA-P1-5: tab items live on `/` with `?tab=` set. Archive is the inbox
-     * page's archived view (`/archive` redirects to `/?tab=archive`).
+     * SIA-P1-5: tab items live on the classic inbox page — Archive is the
+     * inbox page's archived view, and the People home (the root route's
+     * default) ignores the `tab` param. So Archive must link straight at
+     * `/?view=inbox&tab=archive`: a bare `/?tab=archive` silently lands on
+     * the plain People home (`/archive`'s shim replaces to this URL too,
+     * but the drawer should get there in one hop).
      */
     tab?: string;
     shortcut?: string;
@@ -249,7 +253,7 @@ const NAV_GROUPS: Array<{
       { id: 'inbox', label: 'Inbox', icon: 'inbox', path: '/' },
       { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
       { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
-      { id: 'archive', label: 'Archive', icon: 'archive', path: '/?tab=archive', tab: 'archive' },
+      { id: 'archive', label: 'Archive', icon: 'archive', path: '/?view=inbox&tab=archive', tab: 'archive' },
       { id: 'spam', label: 'Spam', icon: 'spam', path: '/?lens=spam', lens: 'spam' },
       { id: 'trash', label: 'Trash', icon: 'trash', path: '/trash' },
     ],
