@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AIGeneratedBadge } from './AIGeneratedBadge';
 import { apiFetchRaw } from '@quant/api-client';
@@ -20,6 +20,11 @@ export interface AutoReplyToggleResponse {
   data?: { conversationId: string; enabled: boolean; cancelledCount: number };
 }
 
+export interface AutoReplyStateResponse {
+  success: boolean;
+  data?: { conversationId: string; enabled: boolean };
+}
+
 export interface AIAgentPanelProps {
   conversationId: string;
   /** Initial enabled state (e.g. restored from per-conversation settings). */
@@ -31,7 +36,28 @@ export interface AIAgentPanelProps {
     conversationId: string;
     enabled: boolean;
   }) => Promise<{ enabled: boolean; cancelledCount: number }>;
+  /**
+   * State-restore fetcher override (defaults to GET /api/ai/auto-reply/state).
+   * QC-F-067: the panel previously always mounted OFF because no read path
+   * existed; on mount it now restores the caller's persisted per-user state.
+   */
+  fetchAutoReplyState?: (args: {
+    conversationId: string;
+  }) => Promise<{ enabled: boolean }>;
   className?: string;
+}
+
+async function defaultFetchAutoReplyState(args: {
+  conversationId: string;
+}): Promise<{ enabled: boolean }> {
+  const res = await apiFetchRaw(
+    `/api/ai/auto-reply/state?conversationId=${encodeURIComponent(args.conversationId)}`,
+    { method: 'GET' },
+  );
+  if (!res.ok) throw new Error('state fetch failed');
+  const json = (await res.json()) as AutoReplyStateResponse;
+  if (!json.success || !json.data) throw new Error('state fetch failed');
+  return { enabled: json.data.enabled };
 }
 
 async function defaultToggleAutoReply(args: {
@@ -54,11 +80,29 @@ export function AIAgentPanel({
   initialEnabled = false,
   onToggle,
   toggleAutoReply = defaultToggleAutoReply,
+  fetchAutoReplyState = defaultFetchAutoReplyState,
   className = '',
 }: AIAgentPanelProps) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+
+  // QC-F-067: restore the persisted per-user state on mount (and whenever
+  // the conversation changes). A failed restore keeps the current display
+  // state — it must never flip a toggle the user can see on its own.
+  useEffect(() => {
+    let live = true;
+    fetchAutoReplyState({ conversationId })
+      .then((state) => {
+        if (live) setEnabled(state.enabled);
+      })
+      .catch(() => {
+        // State unavailable (offline / not a member): leave as-is.
+      });
+    return () => {
+      live = false;
+    };
+  }, [conversationId, fetchAutoReplyState]);
 
   const handleToggle = useCallback(async () => {
     if (pending) return;

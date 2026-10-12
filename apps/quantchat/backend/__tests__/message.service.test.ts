@@ -91,6 +91,7 @@ describe('MessageService', () => {
           type: 'TEXT',
           mediaUrl: null,
           replyToId: null,
+          isAIGenerated: false,
           metadata: {},
         },
       });
@@ -135,6 +136,7 @@ describe('MessageService', () => {
           type: 'IMAGE',
           mediaUrl: 'https://cdn.example.com/photo.jpg',
           replyToId: 'msg-original',
+          isAIGenerated: false,
           metadata: { caption: 'My photo' },
         },
       });

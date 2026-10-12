@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createAppError, enableIdempotency } from '@quant/server-core';
 import { MessageService, assertNoServerSideE2eeRequest } from '../services/message.service';
 import { publishConversationEvent } from '../services/realtime-publisher';
+import { triggerAutoReplies } from '../services/auto-reply.service';
 
 const sendMessageSchema = z.object({
   content: z.string().min(1).max(10000),
@@ -89,6 +90,20 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
       aggregateVersion:
         typeof sentMessage.version === 'number' ? sentMessage.version : 1,
       data: message,
+    });
+
+    // QC-F-067: the auto-reply trigger that never existed. Members who
+    // personally enabled auto-reply for this conversation get a generated
+    // reply delivered as their own AI-flagged message. Fire-and-forget —
+    // generation latency/failure never touches this 201. The REST schema
+    // cannot set isAIGenerated, so a client-sent message is never treated
+    // as AI output here.
+    triggerAutoReplies(fastify, {
+      conversationId: sendConversationId,
+      senderId: userId,
+      messageId: sentMessage.id,
+      content: parseResult.data.content,
+      isAIGenerated: false,
     });
 
     // QM-UIUX-054: this handler previously called
