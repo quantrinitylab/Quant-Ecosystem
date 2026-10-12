@@ -40,6 +40,13 @@ import {
   CLUE_ENERGY,
 } from '../types';
 import { toDateInput } from '../lib/calendar-geometry';
+import { apiFetchRaw } from '@quant/api-client';
+import {
+  suggestFreeSlots,
+  formatSlotLabel,
+  parseTimeToMinutes,
+  type FreeSlot,
+} from '../lib/free-busy-slots';
 
 export interface CalendarEventFormProps {
   activeSheetType: EntryType | null;
@@ -112,6 +119,90 @@ export function CalendarEventForm({
     setFormState((prev) => ({
       ...prev,
       attendees: prev.attendees.filter((a) => a !== email),
+    }));
+  };
+
+  // ---------------------------------------------------------------------------
+  // "Find a time" — availability panel for the attendee section.
+  // Calls GET /api/calendar/events/free-busy, which exposes ONLY the signed-in
+  // user's own busy blocks. Guest calendars are not visible to QuantMail, so
+  // the panel says that honestly instead of inventing per-guest availability.
+  // ---------------------------------------------------------------------------
+  type FindTimeState =
+    | { status: 'idle' }
+    | { status: 'loading' }
+    | { status: 'ready'; slots: FreeSlot[] }
+    | { status: 'error'; message: string };
+
+  const [findTime, setFindTime] = React.useState<FindTimeState>({ status: 'idle' });
+
+  // Suggestions are date-specific — clear them when the date changes.
+  React.useEffect(() => {
+    setFindTime({ status: 'idle' });
+  }, [formState.startDate]);
+
+  const eventDurationMinutes = (): number => {
+    const startMin = parseTimeToMinutes(formState.startTime);
+    const endMin = parseTimeToMinutes(formState.endTime);
+    if (Number.isFinite(startMin) && Number.isFinite(endMin) && endMin > startMin) {
+      return endMin - startMin;
+    }
+    return 60;
+  };
+
+  const handleFindATime = async () => {
+    setFindTime({ status: 'loading' });
+    try {
+      const dayStr = formState.startDate || toDateInput(new Date());
+      const dayStart = new Date(`${dayStr}T08:00:00`);
+      const dayEnd = new Date(`${dayStr}T20:00:00`);
+      if (Number.isNaN(dayStart.getTime()) || Number.isNaN(dayEnd.getTime())) {
+        throw new Error('Could not read the selected date');
+      }
+      const res = await apiFetchRaw('/api/calendar/events/free-busy', {
+        params: { start: dayStart.toISOString(), end: dayEnd.toISOString() },
+        timeout: 15000,
+      });
+      if (!res.ok) {
+        throw new Error(`Availability check failed (${res.status})`);
+      }
+      const json: {
+        data?: { busy?: Array<{ start?: unknown; end?: unknown }> };
+      } = await res.json();
+      const busy = Array.isArray(json?.data?.busy)
+        ? json.data.busy.filter(
+            (b): b is { start: string; end: string } =>
+              !!b && typeof b.start === 'string' && typeof b.end === 'string',
+          )
+        : [];
+      const slots = suggestFreeSlots({
+        busy,
+        windowStart: dayStart,
+        windowEnd: dayEnd,
+        durationMin: eventDurationMinutes(),
+        stepMin: 30,
+        maxSlots: 6,
+      });
+      setFindTime({ status: 'ready', slots });
+    } catch (error) {
+      setFindTime({
+        status: 'error',
+        message:
+          error instanceof Error ? error.message : 'Availability check failed',
+      });
+    }
+  };
+
+  const handleApplySlot = (slot: FreeSlot) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const toTime = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    setFormState((prev) => ({
+      ...prev,
+      startDate: toDateInput(slot.start),
+      endDate: toDateInput(slot.end),
+      ...(prev.allDay
+        ? {}
+        : { startTime: toTime(slot.start), endTime: toTime(slot.end) }),
     }));
   };
 
@@ -491,6 +582,60 @@ export function CalendarEventForm({
                             </button>
                           </span>
                         ))}
+                      </div>
+                    )}
+                    {formState.attendees.length > 0 && (
+                      <div className="pl-7 pt-1">
+                        <button
+                          type="button"
+                          onClick={handleFindATime}
+                          disabled={findTime.status === 'loading'}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-[var(--quant-surface-elevated)] px-3 py-1.5 text-[11px] text-white transition-colors hover:bg-[#3A404D] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                        >
+                          <IconClock className="size-3.5 text-[var(--app-accent)]" />
+                          {findTime.status === 'loading'
+                            ? 'Checking availability…'
+                            : 'Find a time'}
+                        </button>
+                        {findTime.status === 'ready' && (
+                          <div className="mt-2 space-y-1.5">
+                            <p className="text-[11px] text-[var(--quant-muted-foreground)]">
+                              Open on <span className="text-white">your</span>{' '}
+                              calendar — guest calendars aren&apos;t visible to
+                              QuantMail yet, so confirm with them before sending.
+                            </p>
+                            {findTime.slots.length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5">
+                                {findTime.slots.map((slot) => (
+                                  <button
+                                    key={slot.start.toISOString()}
+                                    type="button"
+                                    onClick={() => handleApplySlot(slot)}
+                                    className="rounded-full border border-[#3A404D]/80 px-3 py-1.5 text-[11px] text-white transition-colors hover:border-[var(--app-accent)] hover:bg-[var(--app-accent)]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                                  >
+                                    {formatSlotLabel(slot)}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-[11px] text-[var(--quant-muted-foreground)]">
+                                No open slots that day on your calendar.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        {findTime.status === 'error' && (
+                          <p className="mt-2 text-[11px] text-rose-400">
+                            Couldn&apos;t check availability — {findTime.message}.{' '}
+                            <button
+                              type="button"
+                              onClick={handleFindATime}
+                              className="underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                            >
+                              Retry
+                            </button>
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
