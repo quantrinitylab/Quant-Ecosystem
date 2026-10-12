@@ -89,6 +89,46 @@ interface RequestOptions {
 }
 
 /**
+ * True when a mail search string uses Gmail-style operator syntax that the
+ * legacy literal search (GET /emails/search) would match as plain text.
+ * Mirrors the operator vocabulary of the backend SearchQueryService
+ * (backend/services/search-query.service.ts): a known operator prefix at the
+ * start of the query or after whitespace, or a "quoted phrase".
+ *
+ * Deliberately conservative: `bob@x.com`, `12:30`, and unknown prefixes
+ * (`note: blah`) do NOT count — the backend parser treats those as literal
+ * terms too, so routing them to the operator path would change nothing but
+ * the response shape.
+ */
+const SEARCH_OPERATOR_PATTERN =
+  /(?:^|\s)(from|to|subject|label|in|folder|has|is|before|after|newer_than|older_than):/i;
+const QUOTED_PHRASE_PATTERN = /"[^"]+"/;
+
+export function hasSearchOperatorSyntax(query: string): boolean {
+  if (!query || typeof query !== 'string') return false;
+  return SEARCH_OPERATOR_PATTERN.test(query) || QUOTED_PHRASE_PATTERN.test(query);
+}
+
+/**
+ * True when the /search page's filter chips ride along with the query. The
+ * operator route (GET /search/emails) has no chip params and resolves
+ * `label:` against raw label values while the chip path resolves names to
+ * ids — so a chip-filtered query always stays on the legacy literal path,
+ * where the chips keep working exactly as before.
+ */
+function hasSearchFilterChips(params: Partial<SearchEmailRequest>): boolean {
+  return Boolean(
+    params.from?.trim() ||
+      params.to?.trim() ||
+      params.subject?.trim() ||
+      params.hasAttachment === true ||
+      params.label?.trim() ||
+      params.dateFrom?.trim() ||
+      params.dateTo?.trim(),
+  );
+}
+
+/**
  * One OAuth authorization the signed-in user granted to a third-party app.
  * Served by GET /oauth/grants — the only source the security page's
  * "Connected Applications" tab is allowed to quote.
@@ -631,6 +671,21 @@ export class QuantMailApiClient {
   }
 
   /**
+   * Gmail-style operator queries (`from:kundan`, `"exact phrase"`,
+   * `has:attachment`, `before:2026-01-01`, ...) go to the operator-aware
+   * backend route GET /search/emails (Next proxy /api/search/emails), which
+   * parses them with SearchQueryService. The legacy literal path
+   * (GET /emails/search) matches the raw query string with `contains`, so
+   * operators typed there silently matched nothing.
+   *
+   * Plain-text queries — and operator-looking queries combined with the
+   * /search page's filter chips — keep the exact legacy path, so their
+   * behaviour is unchanged: the operator route has no chip params, and its
+   * `label:` operator matches raw label values while the chip path resolves
+   * label names to ids, so folding chips in would silently drop the label
+   * filter. If the operator path answers success:false (backend down,
+   * 4xx/5xx), fall back to the literal search rather than failing the query.
+   *
    * The backend's search schema requires `q`; the app has always called the parameter
    * `query`. The Next proxy renames it, so the two only agreed as long as every call
    * went through the proxy — point `NEXT_PUBLIC_API_URL` at the backend and every
@@ -639,6 +694,24 @@ export class QuantMailApiClient {
   async searchEmails(params: Partial<SearchEmailRequest>): Promise<PaginatedResponse<Email>> {
     const query = (params as { query?: string; q?: string }).query;
     const q = (params as { q?: string }).q ?? query;
+    if (
+      typeof q === 'string' &&
+      q.trim().length > 0 &&
+      hasSearchOperatorSyntax(q) &&
+      !hasSearchFilterChips(params)
+    ) {
+      try {
+        const operatorRes = (await this.get('/search/emails', {
+          params: { q: q.trim(), page: params.page, pageSize: params.pageSize } as Record<
+            string,
+            string | number | boolean | undefined
+          >,
+        })) as PaginatedResponse<Email>;
+        if (operatorRes && operatorRes.success) return operatorRes;
+      } catch {
+        // Fall through to the literal search below.
+      }
+    }
     return this.get('/emails/search', {
       params: { ...params, ...(q ? { q } : {}) } as Record<
         string,

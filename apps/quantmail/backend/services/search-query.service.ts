@@ -428,7 +428,11 @@ export class SearchQueryService {
 
         const whereSql = whereClauses.join(' AND ');
         const countSql = `SELECT COUNT(*)::int AS total FROM emails WHERE ${whereSql}`;
-        const dataSql = `SELECT id, "userId", "folderId", "threadId", "fromAddress", "fromName", "toAddresses", "ccAddresses", "bccAddresses", subject, "bodyPlain", snippet, "isRead", "isStarred", "isArchived", "isDraft", "isTrash", "isSpam", "hasAttachments", "createdAt", "receivedAt", "sentAt" FROM emails WHERE ${whereSql} ORDER BY "receivedAt" DESC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
+        // `attachments` and `labels` ride along so formatEmailRecord (applied
+        // by the /search/emails route) keeps the attachment clip icon and
+        // label filters honest: it derives `hasAttachments` from the
+        // attachments array, and the client's chip matcher reads `labels`.
+        const dataSql = `SELECT id, "userId", "folderId", "threadId", "fromAddress", "fromName", "toAddresses", "ccAddresses", "bccAddresses", subject, "bodyPlain", snippet, "isRead", "isStarred", "isArchived", "isDraft", "isTrash", "isSpam", "hasAttachments", "attachments", "labels", "createdAt", "receivedAt", "sentAt" FROM emails WHERE ${whereSql} ORDER BY "receivedAt" DESC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
 
         const [countRes, data] = await Promise.all([
           (this.prisma as any).$queryRawUnsafe(countSql, ...params),
