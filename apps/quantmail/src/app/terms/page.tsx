@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
 import { AuthShell } from '../../components/auth/AuthShell';
-import { PageTransition } from '@quant/shared-ui';
 
 const SECTIONS = [
   {
@@ -30,7 +29,7 @@ const SECTIONS = [
 
 export default function TermsPage() {
   return (
-    <PageTransition>
+    <div className="auth-page-enter">
       <AuthShell
         brand={
           <AuthBrandPanel
@@ -76,6 +75,6 @@ export default function TermsPage() {
           </p>
         </div>
       </AuthShell>
-    </PageTransition>
+    </div>
   );
 }
