@@ -76,7 +76,7 @@ export function DriveContextTabsHeader({
     },
     {
       id: 'vault',
-      label: 'Sovereign Vault',
+      label: 'Vault',
       shortLabel: 'Vault',
       icon: PadlockIcon,
       ariaLabel: 'Vault — locked file storage',

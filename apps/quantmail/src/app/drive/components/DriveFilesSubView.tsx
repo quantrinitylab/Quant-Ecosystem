@@ -184,12 +184,9 @@ export function DriveFilesSubView({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-[#F8FAFC]">Storage Quota Meter</h3>
-                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)]">
-                  Enterprise Sovereign Cloud
-                </span>
               </div>
               <p className="text-xs text-[#94A3B8] mt-0.5">
-                FastCDC Content-Defined Chunking · Zero-Egress Storage
+                Your current usage and available space.
               </p>
             </div>
           </div>
@@ -390,9 +387,6 @@ export function DriveFilesSubView({
           <h4 className="text-xs font-bold uppercase tracking-wider text-[#94A3B8]">
             Files ({displayedFiles.length})
           </h4>
-          <span className="text-[11px] text-[#64748B]">
-            All objects backed by FastCDC 64KB CAS
-          </span>
         </div>
 
         {displayedFiles.length === 0 ? (
@@ -402,7 +396,7 @@ export function DriveFilesSubView({
             </div>
             <h5 className="text-base font-bold text-[#F8FAFC]">No files in this view</h5>
             <p className="text-xs text-[#94A3B8] max-w-sm mx-auto">
-              Upload documents, images, or archives to store them in your sovereign QuantDrive.
+              Upload documents, images, or archives to store them in your QuantDrive.
             </p>
           </div>
         ) : viewMode === 'grid' ? (

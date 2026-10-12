@@ -96,11 +96,11 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
   // 1. DriveContextTabsHeader Tests
   //
   // NOTE (Wave 89): the header was redesigned from 5 tabs
-  // (My Files/Shared/Vault/Starred/Cleaner) to 4 sovereign tabs
+  // (My Files/Shared/Vault/Starred/Cleaner) to 4 context tabs
   // (Home/Feed/AI Memory/Vault). These assertions track the new contract.
   // ==========================================================================
   describe('1. DriveContextTabsHeader Component', () => {
-    it('renders all 4 sovereign context tabs', () => {
+    it('renders all 4 context tabs', () => {
       const html = renderToStaticMarkup(
         <DriveContextTabsHeader activeTab="home" onTabChange={() => {}} />,
       );
@@ -113,7 +113,10 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
       expect(html).toContain('Home');
       expect(html).toContain('Feed');
       expect(html).toContain('AI Memory');
-      expect(html).toContain('Sovereign Vault');
+      // R3-P2 copy honesty: the vault tab must carry a provable label —
+      // no "Sovereign" marketing anywhere in the header.
+      expect(html).toContain('>Vault<');
+      expect(html).not.toMatch(/Sovereign/i);
     });
 
     it('sets aria-selected="true" on active tab', () => {
@@ -161,9 +164,14 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
       // Mocked hook value: 14.2 GB used of 100 GB total.
       expect(html).toContain('14.2 GB');
       expect(html).toContain('/ 100 GB');
-      expect(html).toContain('Enterprise Sovereign Cloud');
+      expect(html).toContain('Your current usage and available space.');
       expect(html).toContain('role="progressbar"');
       expect(html).not.toContain('Calculating');
+      // R3-P1 copy honesty: no unprovable marketing claims on the quota card.
+      expect(html).not.toContain('Enterprise Sovereign Cloud');
+      expect(html).not.toContain('FastCDC Content-Defined Chunking');
+      expect(html).not.toContain('Zero-Egress');
+      expect(html).not.toContain('All objects backed by FastCDC');
     });
 
     it('renders all 4 color-coded type cards (PDF Red, DOC Blue, CODE Green, ZIP Gold)', () => {
