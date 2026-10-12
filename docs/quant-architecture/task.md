@@ -1046,9 +1046,9 @@ PASSING (code): voice genuinely wired to Web Speech API with honest per-failure 
 - R4 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 0 P2. Rotation -> QM-SCREEN-015 R4.
 
 ## QM-SCREEN-015 — Notifications / activity / reminders
-Status: [~] IN_PROGRESS
-Owner: LANE-1
-Branch: lane1-audit-015
+Status: [~] IN_PROGRESS — LANE-1, branch lane1-audit-015r4 (2026-10-12 ~22:40 IST)
+
+R4-PLAN: (a) diff origin/main c9603775 → HEAD for all notification paths; (b) verify R1 fix PRs #840/#841 still intact; (c) re-confirm R2/R3-CONFIRMED P2 dead-CSS carryover; (d) fresh hunt (hairlines, fake copy, toast-theater, token-in-URL, fake badges); (e) live logged-out /notifications desktop+mobile + 401 probes; (f) signed-in = needs-auth.
 Required: durable notification center, grouping/dedupe, read/unread, lock-screen privacy, action reauthorization, cross-app events, quiet hours/focus.
 Dependencies: notification architecture 20; QM-WORK-008.
 Audit: 2026-10-11 ~08:40-09:10 IST (LANE-1). Code: code-audit agent vs origin/main 0a90b11c (read-only). Live: logged-out desktop 1440x900 + mobile 390x844 via local Chrome + proxy 127.0.0.1:8888.
