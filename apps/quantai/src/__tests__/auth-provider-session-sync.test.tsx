@@ -7,6 +7,7 @@ import { UniversalSSOTokenBridge } from '@quant/shared-ui';
 import type { SSOEventMessage } from '@quant/shared-ui';
 import { AuthProvider, useAuth } from '../providers/auth-provider';
 import type { LoginOutcome } from '../providers/auth-provider';
+import type { LogoutResult } from '../services/auth-session';
 import { clearAuthSession, getAuthToken, setAuthToken } from '../lib/auth';
 import { clearAccessToken, getAccessToken } from '../services/auth-session';
 
@@ -14,7 +15,7 @@ interface ProbeCtx {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<LoginOutcome>;
-  logout: () => Promise<void>;
+  logout: () => Promise<LogoutResult>;
 }
 
 function resetBridgeSingleton() {
