@@ -812,11 +812,31 @@ NEW R2 finding:
 NOT VERIFIED (needs live/auth): signed-in E2E of trash/restore/purge/accept/decline/move, desktop tab reachability, Recent Items ordering, accent visual after fix.
 FIX AGENTS (PR-only, tracked separately): lane1-fix-010r2-fake-purge (revive/port #826 onto current main, all STILL-BROKEN items above) → MERGED #923 (2026-10-11/12); lane1-fix-010r2-drive-accent (R2-P1-4 blue→green) → MERGED #921. Rotation → QM-SCREEN-011 R2.
 
-Lane-1 R4 REGRESSION — [~] IN PROGRESS (2026-10-12 ~18:40 IST, lane-1 deep audit loop)
+Lane-1 R4 REGRESSION — [x] DONE (2026-10-12 ~18:40–19:05 IST, lane-1 deep audit loop)
 Owner: LANE-1
 Branch: lane-1/audit-qm-screen-010-011-drive-r4
 Audit scope: origin/main @ 4fc384a6 vs R3 base 1b3f30fb — drive screens QM-SCREEN-010 + QM-SCREEN-011 combined (rotation queues them together).
-(pending — full results appended on completion)
+Method: read-only subagent code audit (git show/grep on origin/main only — working tree ignored per stale-tree lesson) + live logged-out desktop 1440x900 + mobile 390x844 via local Chrome + proxy 127.0.0.1:8888; signed-in flows needs-auth.
+DRIVE-PATH COMMITS since R3 (all benign, zero regressions): #971 merged 08:27 IST (FastCDC/Zero-Egress/Sovereign copy removal); #972 merged 08:37 IST (pillar accents + #60A5FA→accent + dividers + dead StorageQuotaBar import); #958 merged 13:57 IST (shared-by-me folder icon; INCOMPLETE — sky-400/500 still live at :188,309, re-filed); #1035 (copy-to-suggested-folder honesty, backend 404 FOLDER_NOT_FOUND userId-scoped); #983 brand accents; screen-014-r3 amber→var(--app-accent); #984/#993/#981 framer-motion→CSS (cosmetic, drive toasts preserved); #1036 no drive files.
+R3 FINDINGS — VERIFICATION RESULTS (all on origin/main 4fc384a6):
+- [x] R3-P1 marketing claims (FastCDC/Zero-Egress/Enterprise Sovereign, DriveFilesSubView.tsx:188,192,394) — FIXED (#971; strings gone; 'Sovereign Vault'→'Vault' in DriveContextTabsHeader). Residue: non-user-visible JSX comment drive/page.tsx:1565.
+- [x] R3-P2 pillar colors — FIXED (#972; DriveSubViews.tsx:1833-1860 match PILLAR_ACCENTS lock: #FF6B35/#4285F4/#34A853/#F59E0B/#8B5CF6).
+- [x] R3-P2 #60A5FA leaks — FIXED (#972; zero matches in DriveAISearchBar/FileAISummaryDrawer/drive/page.tsx).
+- [x] R3-P2 divider hairlines — FIXED (#972; no divide-y/structural border-t/b; leftovers are spinner visuals + active-tab underlines).
+- [x] R3-P2 "Sovereign" adjectives — FIXED (#971; user-visible instances gone).
+- [x] R3-P2 dead StorageQuotaBar import — FIXED (#972; import removed from drive/page.tsx).
+- [ ] R3-P3 CARRYOVER: test fixture still asserts 'FastCDC 64KB CAS storage lowered cloud egress to $0.00' — test-only | evidence: drive-ai-insights.test.tsx:395,419.
+MERGE WATCH — #958 merged 13:57 IST but INCOMPLETE: sky-400/500 STILL PRESENT in DriveSharedByMeSubView.tsx:188 (public-link pill), :309 (link status text); re-filed as R4-NEW-5 below.
+LIVE (2026-10-12 ~18:45 IST): /drive → honest sign-in desktop+mobile (copy provable only: "Mail + chat threads", "AI triage", "Encrypted in transit"); /drive/doc/test-doc-id → 307 → sign-in; /drive/share/bogus-token-12345 → 200 sign-in gate, no leak; /api/drive/{files,quota,trash,shares/received,folders} → 401 logged-out (airtight). Shots: /tmp/lane1-010-011-r4/{desktop,mobile}-drive.png. Signed-in flows needs-auth.
+VERIFIED CLEAN: zero ?token= in production drive flows (share token is server-side-validated path param; honest NOT_FOUND/EXPIRED/SIGN_IN_REQUIRED in share-resolve); catch-all src/app/api/[...path]/route.ts + ALLOWED_BACKEND_ROUTES `/^drive(?:|(?:\/[^/]+)*)$/` cover all /api/drive/* (no proxy gaps); backend drive.ts — 20 route registrations, 55 requireUserId calls, public-share routes token-scoped + expiry-enforced; LinkShareDialog toasts fire after awaited API success (no toast-theater); no fake names/counts/surfaces on drive; "Encrypted in transit" remains the only claim on the auth gate (AuthBrandPanel.tsx:72).
+- [ ] R4-NEW-1 P1: blanket "FastCDC Deduped" badge on EVERY file card/row regardless of actual dedup state | expected: rendered only when backend reports deduped, else honest "not wired" | actual: unconditional per-file badge | evidence: DriveFilesSubView.tsx:422-424 (grid cards), :515 (list rows) — #971 removed the section-level claims but left these
+- [ ] R4-NEW-2 P2: mail-orange var(--quant-primary) spinners on drive surfaces | expected: var(--app-accent) drive-green | actual: orange | evidence: FileActivityModal.tsx:349, FileVersionHistoryModal.tsx:366, QuantyFileWorkspace.tsx:697 — unpinned (drive-green-accents.test.tsx scans only app/drive/components)
+- [ ] R4-NEW-3 P2: super-app header quota tile uses blue gradient bar + "FastCDC dedup" claim | expected: drive-green accent, provable copy only | actual: bg-gradient-to-r from-sky-500 to-indigo-500 bar + text-sky-400 "FastCDC dedup" | evidence: QuantMailSuperAppHeader.tsx:1023-1030 (quota numbers themselves real — gate honest)
+- [ ] R4-NEW-4 P2: non-green badges on drive surfaces — purple role pills DriveSharedByMeSubView.tsx:47,55 + DriveSharedSubView.tsx:160,168, purple vault badge DriveVaultSubView.tsx:93,97, purple AI chips FileAISummaryDrawer.tsx:1034,1055 | expected: per-app-accent lock (drive green) | actual: purple semantic-coding | evidence: as listed (arguably semantic, but the lock is strict)
+- [ ] R4-NEW-5 P2: sky-400/500 still on DriveSharedByMeSubView.tsx:188 (public-link pill), :309 (link status text) — #958 merged 13:57 IST fixed only the folder icon | expected: drive-green | actual: sky leak
+- [ ] R4-NEW-6 P3 (note): orphaned StorageQuotaBar.tsx (zero page imports, test-only) still holds #60A5FA at :255,279,296 — inert, misleading for future reuse
+- [ ] R4-NEW-7 P3 (note): user-facing "FastCDC tags" placeholder + "FastCDC Clean" label overstate | evidence: QuantPillarTopBar.tsx:343,395
+FIX AGENTS (PR-only to main, never merge; reconcile on return — diff their branch before flipping findings): lane1-fix-010-011r4-dedup-badge-honesty (R4-NEW-1 P1) → PR TBD; lane1-fix-010-011r4-accent-cleanup (R4-NEW-2/3/4/5) → PR TBD. Rotation → QM-SCREEN-012 R4.
 
 Lane-1 R3 REGRESSION — [x] DONE (2026-10-12 ~07:40-08:00 IST, lane-1 deep audit loop)
 Owner: LANE-1
