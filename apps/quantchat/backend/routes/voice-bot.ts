@@ -37,17 +37,23 @@ const dialogueTurnSchema = z.object({
 });
 
 export function createVoiceBotServices(fastify: FastifyInstance) {
-  const callService = new CallService({
-    apiKey: process.env['LIVEKIT_API_KEY'] ?? 'devkey',
-    apiSecret: process.env['LIVEKIT_API_SECRET'] ?? 'devsecret',
-    wsUrl: process.env['LIVEKIT_WS_URL'] ?? 'ws://localhost:7880',
-  });
+  const apiKey = process.env['LIVEKIT_API_KEY'];
+  const apiSecret = process.env['LIVEKIT_API_SECRET'];
+  const wsUrl = process.env['LIVEKIT_WS_URL'];
 
-  const voiceBot = new VoiceBotAgentService({
-    apiKey: process.env['LIVEKIT_API_KEY'] ?? 'devkey',
-    apiSecret: process.env['LIVEKIT_API_SECRET'] ?? 'devsecret',
-    wsUrl: process.env['LIVEKIT_WS_URL'] ?? 'ws://localhost:7880',
-  });
+  // QC-F-076: fail closed like routes/calls.ts — there is intentionally no
+  // public dev fallback for the API key/secret: those fallback strings
+  // are public source constants, so tokens minted with them are forgeable
+  // by anyone. When
+  // LiveKit is not configured (any of the three values missing or empty),
+  // no CallService / ring generator is built at all, so no code path can
+  // mint a token; the routes surface an honest 503 VOICE_BOT_UNAVAILABLE
+  // instead (see requireRingGenerator below). The VoiceBotAgentService is
+  // still constructed: its non-LiveKit work (sessions, dialogue, TTS) is
+  // real without LiveKit, and its own token path fails closed internally.
+  const voiceBot = new VoiceBotAgentService(
+    apiKey && apiSecret && wsUrl ? { apiKey, apiSecret, wsUrl } : {},
+  );
 
   const dialogue = new MeetingReminderDialogueService();
 
@@ -57,14 +63,25 @@ export function createVoiceBotServices(fastify: FastifyInstance) {
     },
   };
 
-  const ringGenerator = new CallRingGeneratorService({
+  let callService: CallService | null = null;
+  let ringGenerator: CallRingGeneratorService | null = null;
+  if (apiKey && apiSecret && wsUrl) {
+    callService = new CallService({ apiKey, apiSecret, wsUrl });
+    ringGenerator = new CallRingGeneratorService({
+      callService,
+      voiceBot,
+      dialogueService: dialogue,
+      broadcaster,
+    });
+  }
+
+  return {
     callService,
     voiceBot,
-    dialogueService: dialogue,
-    broadcaster,
-  });
-
-  return { callService, voiceBot, dialogue, ringGenerator };
+    dialogue,
+    ringGenerator,
+    liveKitConfigured: ringGenerator !== null,
+  };
 }
 
 export interface VoiceBotRouteOptions {
@@ -86,6 +103,21 @@ export default async function voiceBotRoutes(
   const services = decorated || createVoiceBotServices(fastify);
   const ringGenerator = options.ringGenerator || services.ringGenerator;
   const voiceBot = options.voiceBot || services.voiceBot;
+
+  // QC-F-076: when LiveKit is not configured the factory builds no ring
+  // generator. Every call-flow handler then fails closed with an honest
+  // 503 instead of minting tokens with a public fallback secret.
+  function requireRingGenerator(): CallRingGeneratorService {
+    if (!ringGenerator) {
+      throw createAppError(
+        'Voice bot calls are unavailable: LiveKit is not configured. ' +
+          'Set LIVEKIT_API_KEY, LIVEKIT_API_SECRET and LIVEKIT_WS_URL to enable voice bot calls.',
+        503,
+        'VOICE_BOT_UNAVAILABLE',
+      );
+    }
+    return ringGenerator;
+  }
 
   // POST /voice-bot/alert — Trigger outbound call alert for a meeting
   fastify.post('/alert', async (request, reply) => {
@@ -135,7 +167,7 @@ export default async function voiceBotRoutes(
       throw parseResult.error;
     }
 
-    const activeCall = await ringGenerator.triggerMeetingCallAlert(parseResult.data);
+    const activeCall = await requireRingGenerator().triggerMeetingCallAlert(parseResult.data);
     return reply.status(201).send({
       success: true,
       data: {
@@ -150,8 +182,9 @@ export default async function voiceBotRoutes(
 
   // POST /voice-bot/calls/:callId/answer — User answers incoming call
   fastify.post<{ Params: { callId: string } }>('/calls/:callId/answer', async (request, reply) => {
+    const ring = requireRingGenerator();
     const authUserId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
-    const call = ringGenerator.getCall(request.params.callId);
+    const call = ring.getCall(request.params.callId);
 
     if (!call) {
       throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
@@ -166,7 +199,7 @@ export default async function voiceBotRoutes(
     }
 
     const targetUserId = authUserId || call.userId;
-    const result = await ringGenerator.answerCall(request.params.callId, targetUserId);
+    const result = await ring.answerCall(request.params.callId, targetUserId);
     return reply.send({
       success: true,
       data: {
@@ -184,8 +217,9 @@ export default async function voiceBotRoutes(
 
   // POST /voice-bot/calls/:callId/decline — User declines call
   fastify.post<{ Params: { callId: string } }>('/calls/:callId/decline', async (request, reply) => {
+    const ring = requireRingGenerator();
     const authUserId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
-    const call = ringGenerator.getCall(request.params.callId);
+    const call = ring.getCall(request.params.callId);
 
     if (!call) {
       throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
@@ -200,7 +234,7 @@ export default async function voiceBotRoutes(
     }
 
     const targetUserId = authUserId || call.userId;
-    await ringGenerator.declineCall(request.params.callId, targetUserId);
+    await ring.declineCall(request.params.callId, targetUserId);
 
     return reply.send({
       success: true,
@@ -210,8 +244,9 @@ export default async function voiceBotRoutes(
 
   // POST /voice-bot/calls/:callId/turn — User sends conversational turn (voice or text)
   fastify.post<{ Params: { callId: string } }>('/calls/:callId/turn', async (request, reply) => {
+    const ring = requireRingGenerator();
     const authUserId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
-    const call = ringGenerator.getCall(request.params.callId);
+    const call = ring.getCall(request.params.callId);
 
     if (!call) {
       throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
@@ -234,7 +269,7 @@ export default async function voiceBotRoutes(
       throw parseResult.error;
     }
 
-    const result = await ringGenerator.processDialogueTurn(
+    const result = await ring.processDialogueTurn(
       request.params.callId,
       parseResult.data.userUtterance,
     );
@@ -255,8 +290,9 @@ export default async function voiceBotRoutes(
 
   // GET /voice-bot/calls/:callId — Get call & transcript status
   fastify.get<{ Params: { callId: string } }>('/calls/:callId', async (request, reply) => {
+    const ring = requireRingGenerator();
     const authUserId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
-    const call = ringGenerator.getCall(request.params.callId);
+    const call = ring.getCall(request.params.callId);
     if (!call) {
       throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
     }
