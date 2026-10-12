@@ -28,6 +28,7 @@ import themesRoutes from './routes/themes';
 import ephemeralRoutes from './routes/ephemeral';
 import gamesRoutes from './routes/games';
 import channelsRoutes from './routes/channels';
+import discoverRoutes from './routes/discover';
 import voiceNoteRoutes from './routes/voice-notes';
 import mapRoutes from './routes/map';
 import meetingsRoutes from './routes/meetings';
@@ -217,6 +218,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(voiceNoteRoutes, { prefix: '/voice-notes' });
   await app.register(memoriesRoutes, { prefix: '/memories' });
   await app.register(spotlightRoutes, { prefix: '/spotlight' });
+  await app.register(discoverRoutes, { prefix: '/discover' });
   await app.register(storiesRoutes, { prefix: '/stories' });
   await app.register(mapRoutes, { prefix: '/map' });
   await app.register(notificationsRoutes, { prefix: '/notifications' });

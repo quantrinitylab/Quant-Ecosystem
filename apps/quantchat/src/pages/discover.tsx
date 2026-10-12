@@ -74,10 +74,25 @@ export const DiscoverPage: React.FC = () => {
   }, [loadContent]);
 
   const handleSubscribe = async (publisherId: string) => {
-    await apiClient.subscribe(publisherId);
+    // QC-F-077: the old handler ignored the result and always incremented
+    // the counter locally — a fake success on a call that always 404'd.
+    // Now the backend performs the real subscription and returns the real
+    // count; the UI changes ONLY on success, and only to what the server
+    // reported (never a guessed +1).
+    const res = await apiClient.subscribe(publisherId);
+    if (!res.success) return;
     setPublishers((prev) =>
       prev.map((p) =>
-        p.id === publisherId ? { ...p, subscriberCount: p.subscriberCount + 1 } : p,
+        p.id === publisherId
+          ? {
+              ...p,
+              isSubscribed: true,
+              subscriberCount:
+                typeof res.data?.subscriberCount === 'number'
+                  ? res.data.subscriberCount
+                  : p.subscriberCount,
+            }
+          : p,
       ),
     );
   };
@@ -97,11 +112,20 @@ export const DiscoverPage: React.FC = () => {
       key={pub.id}
       className="flex items-center gap-3 rounded-xl p-3 hover:bg-[var(--quant-muted)]"
     >
-      <img
-        src={pub.avatarUrl}
-        alt={pub.name}
-        className="h-11 w-11 shrink-0 rounded-full object-cover"
-      />
+      {pub.avatarUrl ? (
+        <img
+          src={pub.avatarUrl}
+          alt={pub.name}
+          className="h-11 w-11 shrink-0 rounded-full object-cover"
+        />
+      ) : (
+        <div
+          aria-hidden="true"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--quant-muted)] text-sm font-semibold"
+        >
+          {pub.name.charAt(0).toUpperCase()}
+        </div>
+      )}
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">
           {pub.name} {pub.isVerified && '✓'}
@@ -112,17 +136,27 @@ export const DiscoverPage: React.FC = () => {
       </div>
       <button
         type="button"
-        className="min-h-[44px] shrink-0 rounded-full bg-emerald-500 px-4 text-sm font-semibold text-white hover:bg-emerald-600"
+        disabled={pub.isSubscribed}
+        className="min-h-[44px] shrink-0 rounded-full bg-emerald-500 px-4 text-sm font-semibold text-white hover:bg-emerald-600 disabled:bg-[var(--quant-muted)] disabled:text-[var(--quant-muted-foreground)]"
         onClick={() => void handleSubscribe(pub.id)}
       >
-        Subscribe
+        {pub.isSubscribed ? 'Subscribed' : 'Subscribe'}
       </button>
     </div>
   );
 
   const feedCard = (item: DiscoverItem) => (
     <div key={item.id} className="overflow-hidden rounded-xl bg-[var(--quant-muted)]">
-      <img src={item.thumbnailUrl} alt={item.title} className="aspect-video w-full object-cover" />
+      {item.thumbnailUrl ? (
+        <img src={item.thumbnailUrl} alt={item.title} className="aspect-video w-full object-cover" />
+      ) : (
+        <div
+          aria-hidden="true"
+          className="flex aspect-video w-full items-center justify-center text-2xl font-semibold text-[var(--quant-muted-foreground)]"
+        >
+          {item.title.charAt(0).toUpperCase()}
+        </div>
+      )}
       <div className="p-3">
         <h4 className="truncate text-sm font-medium">{item.title}</h4>
         <div className="mt-0.5 flex items-center gap-2 text-xs text-[var(--quant-muted-foreground)]">
@@ -262,15 +296,26 @@ export const DiscoverPage: React.FC = () => {
                           className="aspect-video w-full object-cover"
                         />
                         <div className="flex items-center gap-2 p-3">
-                          <img
-                            src={item.publisherAvatarUrl}
-                            alt={item.publisherName}
-                            className="h-8 w-8 rounded-full object-cover"
-                          />
+                          {item.publisherAvatarUrl ? (
+                            <img
+                              src={item.publisherAvatarUrl}
+                              alt={item.publisherName}
+                              className="h-8 w-8 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div
+                              aria-hidden="true"
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--quant-background)] text-xs font-semibold"
+                            >
+                              {item.publisherName.charAt(0).toUpperCase()}
+                            </div>
+                          )}
                           <div className="min-w-0">
                             <h4 className="truncate text-sm font-medium">{item.title}</h4>
                             <div className="truncate text-xs text-[var(--quant-muted-foreground)]">
-                              {item.publisherName} · {formatViews(item.viewCount)} views
+                              {/* QC-F-077: real engagement, not invented views —
+                                  QuantChat tracks reel likes, not views. */}
+                              {item.publisherName} · {formatViews(item.likeCount ?? 0)} likes
                             </div>
                           </div>
                         </div>
