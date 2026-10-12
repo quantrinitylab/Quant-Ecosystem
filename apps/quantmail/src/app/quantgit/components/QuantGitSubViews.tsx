@@ -582,16 +582,16 @@ export function QuantGitPrsSubView({
   showToast,
 }: QuantGitPrsSubViewProps) {
   const [filterState, setFilterState] = useState<'open' | 'merged' | 'closed'>('open');
-  const [mergedPrs, setMergedPrs] = useState<Record<string, boolean>>({});
 
   const handleMergeClick = (pr: PullRequestItem) => {
-    setMergedPrs((prev) => ({ ...prev, [pr.id]: true }));
+    // No local merge theater here: this landing view has no repository context,
+    // so it never merges itself. The parent reports the real outcome (or the
+    // honest "select a repository first" instruction) — never claim success.
     onMergePR?.(pr.id);
-    showToast?.(`Pull request #${pr.prNumber} merged!`);
   };
 
-  const openCount = prs.filter((p) => !mergedPrs[p.id] && p.status !== 'closed').length;
-  const mergedCount = Object.keys(mergedPrs).length + prs.filter((p) => p.status === 'merged').length;
+  const openCount = prs.filter((p) => p.status !== 'closed' && p.status !== 'merged').length;
+  const mergedCount = prs.filter((p) => p.status === 'merged').length;
   const closedCount = prs.filter((p) => p.status === 'closed').length;
 
   return (
@@ -670,7 +670,7 @@ export function QuantGitPrsSubView({
             </div>
           )}
           {prs.map((pr) => {
-            const isMerged = mergedPrs[pr.id] || pr.status === 'merged';
+            const isMerged = pr.status === 'merged';
 
             return (
               <div

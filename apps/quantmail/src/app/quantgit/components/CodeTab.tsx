@@ -558,6 +558,10 @@ export interface CodeTabProps {
   onSelectBranch?: (branch: string) => void;
   // QM-SCREEN-013 P2: navigates to the real commit-history ('commits') tab.
   onOpenCommitHistory?: () => void;
+  // QM-SCREEN-013: when set, the workspace is showing the file tree at a
+  // detached commit SHA instead of the branch head.
+  browsingCommitSha?: string | null;
+  onExitBrowseCommit?: () => void;
   showToast: (msg: string) => void;
   onCommitBlob?: (input: CommitBlobInput) => Promise<void>;
   onDeleteBlob?: (path: string, message: string, branch: string) => Promise<void>;
@@ -648,6 +652,8 @@ export function CodeTab({
   onNavigatePath,
   onSelectBranch,
   onOpenCommitHistory,
+  browsingCommitSha = null,
+  onExitBrowseCommit,
   showToast,
   onCommitBlob,
   onDeleteBlob,
@@ -2002,6 +2008,34 @@ pnpm install && pnpm dev
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
       {/* Left / Main Column (75%) */}
       <div className="lg:col-span-3 space-y-4">
+        {/* QM-SCREEN-013: "Browse code at commit" — honest indicator of the
+            detached-commit workspace state. Edits and commits still land on
+            the current branch; the tree shown is the commit's tree. */}
+        {browsingCommitSha && (
+          <div
+            data-testid="browse-commit-banner"
+            className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-xs"
+          >
+            <span className="text-[#C9D1D9]">
+              Browsing files at commit{' '}
+              <span className="font-mono text-[#8B5CF6] font-semibold">
+                {browsingCommitSha.slice(0, 7)}
+              </span>
+              <span className="text-[#7D8590]">
+                {' '}— edits and commits still apply to the{' '}
+                <span className="font-mono text-[#58A6FF]">{currentBranch}</span>{' '}
+                branch
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={onExitBrowseCommit}
+              className="px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
+            >
+              Back to branch
+            </button>
+          </div>
+        )}
         {/* 1. File Navigation Controls Bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex flex-wrap items-center gap-2">
