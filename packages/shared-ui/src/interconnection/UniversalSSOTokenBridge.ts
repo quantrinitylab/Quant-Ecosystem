@@ -63,9 +63,25 @@ export class UniversalSSOTokenBridge {
    */
   private static handoffUserInfoUrl = '/api/auth/userinfo';
 
-  public static configureHandoffVerification(options: { userInfoUrl?: string }): void {
+  /**
+   * Same-origin SSO exchange endpoint (QC-F-085). A verified handoff
+   * candidate is a FOREIGN token (e.g. a QuantMail JWT): it proves identity
+   * at userinfo, but it is NOT a session token for this app. The bridge
+   * exchanges it here for this app's native token pair and stores ONLY the
+   * exchanged pair. Apps whose exchange route differs can override it via
+   * configureHandoffVerification.
+   */
+  private static handoffExchangeUrl = '/api/auth/sso/exchange';
+
+  public static configureHandoffVerification(options: {
+    userInfoUrl?: string;
+    exchangeUrl?: string;
+  }): void {
     if (options.userInfoUrl && typeof options.userInfoUrl === 'string') {
       UniversalSSOTokenBridge.handoffUserInfoUrl = options.userInfoUrl;
+    }
+    if (options.exchangeUrl && typeof options.exchangeUrl === 'string') {
+      UniversalSSOTokenBridge.handoffExchangeUrl = options.exchangeUrl;
     }
   }
 
@@ -376,6 +392,54 @@ export class UniversalSSOTokenBridge {
   }
 
   /**
+   * Exchanges a server-verified FOREIGN handoff token for THIS app's native
+   * token pair via the same-origin SSO exchange endpoint (QC-F-085).
+   *
+   * Returns null — fail closed — when the exchange endpoint rejects the
+   * token, is unreachable, or returns no usable native access token. An
+   * "exchange" that echoes the candidate back is NOT an exchange and is
+   * rejected: the returned access token must differ from the candidate.
+   */
+  private static async exchangeHandoffToken(
+    candidateToken: string,
+  ): Promise<{ accessToken: string; refreshToken?: string; expiresIn?: number } | null> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      try {
+        const res = await fetch(UniversalSSOTokenBridge.handoffExchangeUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ssoToken: candidateToken }),
+          credentials: 'same-origin',
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!res.ok) return null;
+        const raw = (await res.json().catch(() => null)) as Record<string, any> | null;
+        // Accept both a bare token body and a { success, data } envelope.
+        const body = (raw?.data || raw) as Record<string, any> | null;
+        if (!body || typeof body !== 'object') return null;
+        const accessToken = body.accessToken;
+        if (typeof accessToken !== 'string' || !accessToken) return null;
+        if (accessToken === candidateToken) return null;
+        const refreshToken =
+          typeof body.refreshToken === 'string' && body.refreshToken && body.refreshToken !== candidateToken
+            ? (body.refreshToken as string)
+            : undefined;
+        const expiresIn =
+          typeof body.expiresIn === 'number' && body.expiresIn > 0 ? (body.expiresIn as number) : undefined;
+        return { accessToken, refreshToken, expiresIn };
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    } catch {
+      // Network error, timeout, or aborted — fail closed.
+      return null;
+    }
+  }
+
+  /**
    * Consumes an SSO handoff ticket from the current URL if present — FAIL CLOSED.
    *
    * Strips the ticket from the browser address bar via history.replaceState to
@@ -389,6 +453,12 @@ export class UniversalSSOTokenBridge {
    * or null when there is no ticket or verification fails (forged, tampered,
    * expired, or unreachable backend). On failure nothing is stored and no
    * session is established.
+   *
+   * QC-F-085: a verified candidate is still a FOREIGN token. Before anything
+   * is stored, the candidate is exchanged via the SSO exchange endpoint for
+   * this app's native token pair, and only that pair is persisted — the
+   * candidate itself is never written to storage or cookies. If the exchange
+   * fails, consumption fails closed exactly like a failed verification.
    */
   public async consumeHandoffTicket(url?: string): Promise<ConsumedSSOTicket | null> {
     if (typeof window === 'undefined' && !url) return null;
@@ -443,17 +513,29 @@ export class UniversalSSOTokenBridge {
     const verifiedUser = await UniversalSSOTokenBridge.verifyTokenWithUserInfo(candidateToken);
     if (!verifiedUser) return null;
 
-    // Safely store the SERVER-VERIFIED token in standard ecosystem keys
-    UniversalSSOTokenBridge.safeSetItem('localStorage', 'quant_access_token', candidateToken);
-    UniversalSSOTokenBridge.safeSetItem('localStorage', 'quant_auth_token', candidateToken);
-    UniversalSSOTokenBridge.safeSetItem('localStorage', 'token', candidateToken);
-    UniversalSSOTokenBridge.safeSetItem('localStorage', 'quant_token', candidateToken);
-    UniversalSSOTokenBridge.safeSetItem('localStorage', 'quantchat_access_token', candidateToken);
+    // QC-F-085: verification is NOT session establishment. The verified
+    // candidate is a FOREIGN token (e.g. a QuantMail JWT) — storing it as
+    // this app's session token poisons every data call: this app's backend
+    // rejects foreign issuer/audience, the fail-closed clear bounces the
+    // user to /login, and the ticket has already been stripped from the
+    // URL, so there is no way back. Exchange the verified candidate for
+    // THIS app's native token pair first; only the exchanged pair may be
+    // stored. Exchange failure fails closed — nothing is stored and no
+    // session is established.
+    const exchanged = await UniversalSSOTokenBridge.exchangeHandoffToken(candidateToken);
+    if (!exchanged) return null;
 
-    if (typeof document !== 'undefined') {
-      document.cookie =
-        'quant_access_token=' + candidateToken + '; path=/; max-age=86400; SameSite=Lax';
-      document.cookie = 'token=' + candidateToken + '; path=/; max-age=86400; SameSite=Lax';
+    // Persist ONLY the exchanged native pair, under the same key set the
+    // canonical session writer uses. The candidate token is never written
+    // to any storage key, and no JS-readable cookie is set (session cookies
+    // are the server's httpOnly responsibility).
+    UniversalSSOTokenBridge.safeSetItem('localStorage', 'quant_access_token', exchanged.accessToken);
+    UniversalSSOTokenBridge.safeSetItem('localStorage', 'quant_auth_token', exchanged.accessToken);
+    UniversalSSOTokenBridge.safeSetItem('localStorage', 'token', exchanged.accessToken);
+    UniversalSSOTokenBridge.safeSetItem('localStorage', 'quant_token', exchanged.accessToken);
+    UniversalSSOTokenBridge.safeSetItem('localStorage', 'quantchat_access_token', exchanged.accessToken);
+    if (exchanged.refreshToken) {
+      UniversalSSOTokenBridge.safeSetItem('localStorage', 'quant_refresh_token', exchanged.refreshToken);
     }
 
     // Session identity comes ONLY from the server-verified userinfo response.
@@ -466,9 +548,9 @@ export class UniversalSSOTokenBridge {
       avatarUrl: verifiedUser.avatarUrl ?? undefined,
       tier: verifiedUser.tier,
       currentApp: unverified?.currentApp,
-      token: candidateToken,
+      token: exchanged.accessToken,
     };
-    this.setCurrentSession(session, 3600);
+    this.setCurrentSession(session, exchanged.expiresIn ?? 3600);
     this.broadcastSSOEvent('SESSION_INITIALIZED', session.currentApp || 'quantmail');
 
     // Validate and sanitize return path
@@ -721,7 +803,22 @@ export class UniversalSSOTokenBridge {
     UniversalSSOTokenBridge.safeRemoveItem('localStorage', 'quant_auth_tokens');
     UniversalSSOTokenBridge.safeRemoveItem('localStorage', 'quant_access_token');
     UniversalSSOTokenBridge.safeRemoveItem('localStorage', 'quant_refresh_token');
+    // QC-F-085: the alias keys must go too — a surviving alias lets the
+    // stored-token fallback chains resurrect a cleared (or poisoned) token.
+    UniversalSSOTokenBridge.safeRemoveItem('localStorage', 'token');
+    UniversalSSOTokenBridge.safeRemoveItem('localStorage', 'quant_token');
+    UniversalSSOTokenBridge.safeRemoveItem('localStorage', 'quantchat_access_token');
     UniversalSSOTokenBridge.safeRemoveItem('localStorage', 'quant_sso_sync_event');
+    // Expire any legacy JS-readable session cookies (older builds set them;
+    // httpOnly server cookies are expired by the logout route itself).
+    try {
+      if (typeof document !== 'undefined') {
+        document.cookie = 'quant_access_token=; path=/; max-age=0; SameSite=Lax';
+        document.cookie = 'token=; path=/; max-age=0; SameSite=Lax';
+      }
+    } catch {
+      // Sandboxed iframe restrictions
+    }
     UniversalSSOTokenBridge.safeClear('sessionStorage');
 
     try {
