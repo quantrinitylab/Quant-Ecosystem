@@ -9,6 +9,10 @@ Mobile: Flutter app at `flutter_apps/apps/quant_ai` plus responsive web.
 
 Desktop: no native desktop client in the repo; desktop is the responsive web build.
 
+## Quick start
+
+Developer setup (install, env, run, test): see [`apps/quantai/README.md`](../../../../apps/quantai/README.md).
+
 ## Screen inventory (from `docs/quant-architecture/12-screen-inventory.md`)
 
 | ID | Screen | Status | Route |
