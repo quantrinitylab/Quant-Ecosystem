@@ -70,10 +70,10 @@ export default function AccountSettingsPage() {
               </div>
               <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-3">
                 <div className="text-[11px] font-semibold text-[var(--quant-foreground)]">
-                  TLS 1.2+ &amp; AES-256
+                  TLS 1.2+ in transit
                 </div>
                 <div className="text-[10px] text-[var(--quant-muted-foreground)] mt-0.5">
-                  Enforced encryption in transit and encrypted data storage at rest.
+                  Enforced encryption in transit.
                 </div>
               </div>
             </div>

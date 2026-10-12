@@ -58,10 +58,10 @@ export default function PrivacyPolicyPage() {
               </div>
               <div>
                 <div className="text-[11px] font-medium text-[var(--quant-muted-foreground)]">
-                  Data Sharing
+                  Third-Party Data Sharing
                 </div>
                 <div className="mt-0.5 text-sm font-bold text-[var(--brand-primary)]">
-                  No External Sharing
+                  Mail delivery only (AWS SES)
                 </div>
               </div>
               <div>
@@ -138,8 +138,11 @@ export default function PrivacyPolicyPage() {
                     <td className="py-2 pr-4">
                       Core App functionality: sending, receiving, and displaying mail
                     </td>
-                    <td className="py-2 pr-4 font-semibold text-[var(--brand-primary)]">
-                      Never Shared
+                    {/* Never Shared is dishonest here: outbound mail passes through
+                        AWS SES (backend/lib/ses-sender.ts, SESv2 SendEmail), which by
+                        construction handles message content to deliver it. */}
+                    <td className="py-2 pr-4">
+                      AWS SES (mail delivery)
                     </td>
                     <td className="py-2">TLS 1.3 in transit</td>
                   </tr>
@@ -181,6 +184,11 @@ export default function PrivacyPolicyPage() {
                 </tbody>
               </table>
             </div>
+            <p className="mt-3 text-xs leading-5 text-[var(--quant-muted-foreground)]">
+              Processor disclosure: outbound mail passes through AWS SES — our
+              mail-delivery pipeline — which by construction handles message
+              content in order to hand it to the recipient&apos;s provider.
+            </p>
           </section>
 
           {/* Section 3: Zero Advertising */}
