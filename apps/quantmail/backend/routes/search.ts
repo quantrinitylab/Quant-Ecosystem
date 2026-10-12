@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { SearchQueryService } from '../services/search-query.service';
+import { formatEmailRecord } from '../lib/format-email';
 
 const searchSchema = z.object({
   q: z.string().min(1).max(1000),
@@ -38,7 +39,25 @@ export default async function searchRoutes(fastify: FastifyInstance) {
       limit: parseResult.data.limit,
     });
 
-    return reply.send({ success: true, data: result });
+    // One API, one shape for a list of emails: the same flat envelope as
+    // GET /emails/search, with every row run through formatEmailRecord so
+    // the frontend Email contract (from: {email,name}, to: [{email,name}],
+    // attachments, ...) holds here too. The web mail search fans out to
+    // this route for operator queries and reads `data` as the item array —
+    // raw DB rows (fromAddress/fromName/...) would render as blank senders.
+    const items = (result.data as Record<string, any>[]).map((row) =>
+      formatEmailRecord(row),
+    );
+    return reply.send({
+      success: true,
+      data: items,
+      page: result.page,
+      pageSize: result.pageSize,
+      totalPages: result.totalPages,
+      totalCount: result.total,
+      hasNext: result.hasMore,
+      hasPrev: result.page > 1,
+    });
   });
 
   // GET /search/drive?q=...&page=&pageSize=&limit=
