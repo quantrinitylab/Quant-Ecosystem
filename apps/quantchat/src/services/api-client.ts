@@ -575,7 +575,11 @@ export class QuantChatApiClient {
     return this.get('/discover/publishers');
   }
 
-  async subscribe(publisherId: string): Promise<ApiResponse<unknown>> {
+  async subscribe(
+    publisherId: string,
+  ): Promise<
+    ApiResponse<{ subscribed: boolean; alreadySubscribed?: boolean; subscriberCount?: number }>
+  > {
     return this.post(`/discover/publishers/${publisherId}/subscribe`, {});
   }
 
