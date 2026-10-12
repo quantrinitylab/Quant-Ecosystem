@@ -926,8 +926,33 @@ export interface CreateGroupRequest {
   settings?: Partial<GroupSettings>;
 }
 
+/**
+ * Wire shape for POST /map/location — exactly what the backend route
+ * validates (backend/routes/map.ts `updateLocationSchema`). The previous
+ * `{ location: GeoLocation }` shape never matched that schema, so every
+ * publish would have failed validation even if a caller had existed
+ * (QC-F-056).
+ */
 export interface LocationUpdateRequest {
-  location: GeoLocation;
-  battery?: number;
-  speed?: number;
+  latitude: number;
+  longitude: number;
+}
+
+/** Wire shape returned by POST /map/location (the caller's stored row). */
+export interface PublishedLocation {
+  userId: string;
+  latitude: number;
+  longitude: number;
+  updatedAt: string;
+}
+
+/** One entry of GET /map/friends — a close friend currently sharing. */
+export interface FriendOnMapEntry {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  latitude: number;
+  longitude: number;
+  updatedAt: string;
 }

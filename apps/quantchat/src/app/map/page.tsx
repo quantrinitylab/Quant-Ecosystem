@@ -12,6 +12,7 @@ import { GhostModeToggle } from '../../components/map/GhostModeToggle';
 import { HeatmapOverlay } from '../../components/map/HeatmapOverlay';
 import { navItems, routes } from '../../lib/navigation';
 import { shouldBroadcastLocation } from './locationBroadcast';
+import { publishLocation, clearSharedLocation } from './locationShare';
 import { applyFriendLocationUpdate, type FriendLocationUpdate } from './friendLocationUpdate';
 import type { GeoPosition, FriendLocation } from '../../components/map';
 import { apiFetchRaw } from '@quant/api-client';
@@ -65,16 +66,13 @@ interface FriendsOnMapResponse {
 export default function MapPage() {
   const router = useRouter();
 
-  // QM-UIUX-060: migrated from the dead RealtimeProvider (`/ws`) to the
-  // working `chatSocket` singleton (`/ws/chat`). Honest transport note: the
-  // backend `/ws/chat` handler has no map channel today, so location frames
-  // below are best-effort hints on the single real connection (the old
-  // provider's socket had the same limitation) — the source of truth for
-  // friend positions is the real REST endpoint, which is refetched on the
-  // same 30s cadence as the location broadcast.
-  const publish = useCallback((event: Record<string, unknown>) => {
-    chatSocket.send({ type: String(event.type ?? ''), ...event });
-  }, []);
+  // Transport note (QM-UIUX-060 + QC-F-056): friend positions are read from
+  // the real REST endpoint (GET /api/map/friends, refetched every 30s), and
+  // my own location is published through the real REST endpoint too
+  // (POST /api/map/location; DELETE when Ghost Mode turns on). The earlier
+  // WebSocket `location-update` / `ghost-mode-*` frames went to a backend
+  // handler with no map channel and were silently dropped — nothing was
+  // ever stored, and ghost mode never removed the server row.
 
   const [activeTab, setActiveTab] = useState<'friends' | 'explore'>('friends');
   const [ghostMode, setGhostMode] = useState(false);
@@ -144,6 +142,9 @@ export default function MapPage() {
   // ─── Task 8.2: Subscribe to friend location updates via WebSocket ─────
   // Over the shared chatSocket singleton (QM-UIUX-060). Normalized events
   // carry their payload in `data`; legacy passthrough frames use `payload`.
+  // Honest note: the backend does not emit `friend-location-update` frames
+  // today, so in practice pins refresh via the 30s REST refetch above; this
+  // subscription only applies an update if a real frame ever arrives.
   useEffect(() => {
     chatSocket.acquire();
 
@@ -161,6 +162,9 @@ export default function MapPage() {
   }, []);
 
   // ─── Task 8.6: Location broadcast every 30s when ghost mode is OFF ────
+  // QC-F-056: the broadcast is a real REST publish (POST /api/map/location),
+  // not a WebSocket frame — the backend stores it as the caller's
+  // FriendLocation row, which is what close friends' maps actually read.
   useEffect(() => {
     // Clear any existing interval
     if (broadcastIntervalRef.current) {
@@ -169,11 +173,9 @@ export default function MapPage() {
     }
 
     if (!shouldBroadcastLocation(ghostMode)) {
-      // Task 8.5: When ghost mode enabled, send hide event and never broadcast
-      publish({
-        type: 'ghost-mode-enabled',
-        timestamp: Date.now(),
-      });
+      // Ghost mode ON: never broadcast. The server row itself is removed by
+      // the toggle handler (DELETE /api/map/location), so there is nothing
+      // left for friends to see.
       return;
     }
 
@@ -183,13 +185,7 @@ export default function MapPage() {
 
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          publish({
-            type: 'location-update',
-            payload: {
-              position: [pos.coords.longitude, pos.coords.latitude],
-              timestamp: Date.now(),
-            },
-          });
+          void publishLocation(apiFetchRaw, pos.coords.latitude, pos.coords.longitude);
         },
         () => {
           // Silently fail — location not available
@@ -210,34 +206,25 @@ export default function MapPage() {
         broadcastIntervalRef.current = null;
       }
     };
-  }, [ghostMode, publish]);
+  }, [ghostMode]);
 
   // ─── Task 8.5: Ghost mode toggle handler ──────────────────────────────
-  const handleGhostModeToggle = useCallback(
-    (enabled: boolean) => {
-      setGhostMode(enabled);
+  const handleGhostModeToggle = useCallback((enabled: boolean) => {
+    setGhostMode(enabled);
 
-      if (enabled) {
-        // Clear broadcast interval immediately (Task 8.6)
-        if (broadcastIntervalRef.current) {
-          clearInterval(broadcastIntervalRef.current);
-          broadcastIntervalRef.current = null;
-        }
-        // Send ghost mode event to hide pin from friends within 5s
-        publish({
-          type: 'ghost-mode-enabled',
-          timestamp: Date.now(),
-        });
-      } else {
-        // Disable ghost mode → resume broadcasting
-        publish({
-          type: 'ghost-mode-disabled',
-          timestamp: Date.now(),
-        });
+    if (enabled) {
+      // Clear broadcast interval immediately (Task 8.6)
+      if (broadcastIntervalRef.current) {
+        clearInterval(broadcastIntervalRef.current);
+        broadcastIntervalRef.current = null;
       }
-    },
-    [publish],
-  );
+      // QC-F-056: actually stop sharing server-side — DELETE removes the
+      // caller's FriendLocation row, so the pin disappears for close
+      // friends instead of only hiding in this client's local state.
+      void clearSharedLocation(apiFetchRaw);
+    }
+    // Disable ghost mode → the broadcast effect resumes publishing.
+  }, []);
 
   // ─── Task 8.3: Navigate to chat on "Open Chat" tap ────────────────────
   const handleOpenChat = useCallback(

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   LocationService,
   assertValidCoordinates,
+  FRIEND_LOCATION_MAX_AGE_MS,
   type CloseFriendRecord,
   type FriendLocationRecord,
   type MapUserRecord,
@@ -154,6 +155,11 @@ describe('LocationService.getFriendsOnMap (privacy)', () => {
   let prisma: ReturnType<typeof createMockPrisma>;
   let service: LocationService;
 
+  // Fixed clock for the freshness contract (QC-F-056): the makeLocation
+  // fixture rows are stamped 2024-01-01T00:00:00Z, i.e. 30 minutes old at
+  // NOW — inside the 1-hour "currently sharing" window.
+  const NOW = new Date('2024-01-01T00:30:00.000Z');
+
   beforeEach(() => {
     prisma = createMockPrisma();
     service = new LocationService(prisma);
@@ -172,14 +178,17 @@ describe('LocationService.getFriendsOnMap (privacy)', () => {
     prisma.closeFriend.findMany.mockResolvedValue([makeEdge('friend-1'), makeEdge('friend-2')]);
     prisma.friendLocation.findMany.mockResolvedValue([]);
 
-    await service.getFriendsOnMap('caller-1');
+    await service.getFriendsOnMap('caller-1', NOW);
 
     expect(prisma.closeFriend.findMany).toHaveBeenCalledWith({
       where: { userId: 'caller-1' },
       select: { friendId: true },
     });
     expect(prisma.friendLocation.findMany).toHaveBeenCalledWith({
-      where: { userId: { in: ['friend-1', 'friend-2'] } },
+      where: {
+        userId: { in: ['friend-1', 'friend-2'] },
+        updatedAt: { gte: new Date(NOW.getTime() - FRIEND_LOCATION_MAX_AGE_MS) },
+      },
       orderBy: { updatedAt: 'desc' },
     });
   });
@@ -205,7 +214,7 @@ describe('LocationService.getFriendsOnMap (privacy)', () => {
       makeUser({ id: 'friend-1', username: 'alice', displayName: 'Alice', avatarUrl: null }),
     ]);
 
-    const result = await service.getFriendsOnMap('caller-1');
+    const result = await service.getFriendsOnMap('caller-1', NOW);
 
     expect(result).toEqual([
       {
@@ -234,7 +243,63 @@ describe('LocationService.getFriendsOnMap (privacy)', () => {
     // Only friend-1 has a resolvable profile.
     prisma.user.findMany.mockResolvedValue([makeUser({ id: 'friend-1' })]);
 
-    const result = await service.getFriendsOnMap('caller-1');
+    const result = await service.getFriendsOnMap('caller-1', NOW);
+
+    expect(result.map((f) => f.userId)).toEqual(['friend-1']);
+  });
+
+  // ─── QC-F-056: freshness window ─────────────────────────────────────────
+  // A FriendLocation row used to count as "currently sharing" forever, so a
+  // user who stopped publishing (or ghosted through a client whose clear
+  // never landed) stayed on close friends' maps indefinitely.
+
+  it('excludes a stale row even when the store returns it', async () => {
+    prisma.closeFriend.findMany.mockResolvedValue([makeEdge('friend-1'), makeEdge('friend-2')]);
+    prisma.friendLocation.findMany.mockResolvedValue([
+      makeLocation({ id: 'loc-1', userId: 'friend-1' }), // 30 min old at NOW — fresh
+      makeLocation({
+        id: 'loc-2',
+        userId: 'friend-2',
+        updatedAt: new Date(NOW.getTime() - FRIEND_LOCATION_MAX_AGE_MS - 60_000), // 1h01m old — stale
+      }),
+    ]);
+    prisma.user.findMany.mockResolvedValue([
+      makeUser({ id: 'friend-1' }),
+      makeUser({ id: 'friend-2', username: 'bob', displayName: 'Bob' }),
+    ]);
+
+    const result = await service.getFriendsOnMap('caller-1', NOW);
+
+    expect(result.map((f) => f.userId)).toEqual(['friend-1']);
+    // Profiles are fetched only for friends who are actually on the map.
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['friend-1'] } },
+      select: { id: true, username: true, displayName: true, avatarUrl: true },
+    });
+  });
+
+  it('returns [] when every sharing row is stale', async () => {
+    prisma.closeFriend.findMany.mockResolvedValue([makeEdge('friend-1')]);
+    prisma.friendLocation.findMany.mockResolvedValue([
+      makeLocation({
+        updatedAt: new Date(NOW.getTime() - 2 * FRIEND_LOCATION_MAX_AGE_MS),
+      }),
+    ]);
+
+    const result = await service.getFriendsOnMap('caller-1', NOW);
+
+    expect(result).toEqual([]);
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it('includes a row exactly at the freshness boundary', async () => {
+    prisma.closeFriend.findMany.mockResolvedValue([makeEdge('friend-1')]);
+    prisma.friendLocation.findMany.mockResolvedValue([
+      makeLocation({ updatedAt: new Date(NOW.getTime() - FRIEND_LOCATION_MAX_AGE_MS) }),
+    ]);
+    prisma.user.findMany.mockResolvedValue([makeUser({ id: 'friend-1' })]);
+
+    const result = await service.getFriendsOnMap('caller-1', NOW);
 
     expect(result.map((f) => f.userId)).toEqual(['friend-1']);
   });
