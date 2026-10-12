@@ -11,10 +11,14 @@ interface Row extends ScheduledMessageRecord {
 }
 
 // Minimal in-memory Prisma double covering only what the worker touches.
-// QC-F-095: the worker now re-checks conversation membership before
-// delivering, so the fake also serves `conversationMember.findFirst` and a
-// top-level `scheduledMessage.update` (the gate's CANCELLED flip). By
-// default every row's (userId, conversationId) pair counts as an active
+// QC-F-095: the worker re-checks conversation membership before delivering.
+// QC-F-095 AMEND: claim + membership + delivery happen inside ONE
+// transaction, so the fake's tx serves `conversationMember.findFirst` and a
+// compare-and-swap `scheduledMessage.updateMany` (synchronous check-and-set
+// in the body, so it is atomic under JS interleaving the way the row lock
+// makes it atomic in Postgres), and $transaction models rollback: a throw
+// restores row statuses and drops messages created inside the transaction.
+// By default every row's (userId, conversationId) pair counts as an active
 // member, preserving these tests' original claims.
 function makeFakePrisma(rows: Row[]) {
   const created: Array<{ conversationId: string; senderId: string; content: string }> = [];
@@ -30,7 +34,29 @@ function makeFakePrisma(rows: Row[]) {
     if (row) row.status = data.status;
     return row;
   };
+  const scheduledUpdateMany = ({
+    where,
+    data,
+  }: {
+    where: { id: string; status: Row['status'] };
+    data: { status: Row['status'] };
+  }) => {
+    const row = rows.find((r) => r.id === where.id);
+    if (!row || row.status !== where.status) return Promise.resolve({ count: 0 });
+    row.status = data.status;
+    return Promise.resolve({ count: 1 });
+  };
   const tx = {
+    conversationMember: {
+      findFirst: async ({
+        where,
+      }: {
+        where: { conversationId: string; userId: string; leftAt: null };
+      }) =>
+        members.has(`${where.userId}::${where.conversationId}`)
+          ? { id: `mem_${where.userId}_${where.conversationId}` }
+          : null,
+    },
     message: {
       create: async ({
         data,
@@ -42,25 +68,26 @@ function makeFakePrisma(rows: Row[]) {
       },
     },
     conversation: { update: async () => ({}) },
-    scheduledMessage: { update: scheduledUpdate },
+    scheduledMessage: { updateMany: scheduledUpdateMany, update: scheduledUpdate },
   };
   const prisma = {
-    conversationMember: {
-      findFirst: async ({
-        where,
-      }: {
-        where: { conversationId: string; userId: string; leftAt: null };
-      }) =>
-        members.has(`${where.userId}::${where.conversationId}`)
-          ? { id: `mem_${where.userId}_${where.conversationId}` }
-          : null,
-    },
     scheduledMessage: {
       findMany: async ({ where }: { where: { status: string; scheduledFor: { lte: Date } } }) =>
         rows.filter((r) => r.status === where.status && r.scheduledFor <= where.scheduledFor.lte),
-      update: scheduledUpdate,
     },
-    $transaction: async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),
+    $transaction: async (fn: (t: typeof tx) => Promise<unknown>) => {
+      const statusSnapshot = rows.map((r) => r.status);
+      const createdSnapshot = created.length;
+      try {
+        return await fn(tx);
+      } catch (error) {
+        rows.forEach((r, i) => {
+          r.status = statusSnapshot[i]!;
+        });
+        created.length = createdSnapshot;
+        throw error;
+      }
+    },
   };
   return { prisma, created };
 }
