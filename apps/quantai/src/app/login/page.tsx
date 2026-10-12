@@ -5,7 +5,7 @@
 // Unified QuantID authentication: continue with your Quant account or sign in
 // with email + password.
 // ============================================================================
-import React, { Suspense, useCallback, useEffect, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UniversalSSOTokenBridge } from '@quant/shared-ui';
 import { useAuth } from '../../providers/auth-provider';
@@ -13,6 +13,12 @@ import { ingestSSOToken } from '../../services/auth-session';
 import { useBrandName } from '../../components/BrandProvider';
 import { NeuralFieldCanvas } from '../../components/auth/NeuralFieldCanvas';
 import { scrubSsoHandoffParams } from '../../lib/sso-url-params';
+import {
+  extractSsoTicket,
+  resolveSsoTicket,
+  scrubSsoTicketFromAddressBar,
+  SsoTicketError,
+} from '../../lib/sso-ticket-client';
 
 /** Only allow same-origin, absolute-path returns so ?returnTo cannot open-redirect. */
 function safeReturnPath(value: string | null): string | null {
@@ -93,6 +99,12 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [twoFactorNotice, setTwoFactorNotice] = useState(false);
+  // QuantMail opaque-ticket SSO status: honest loading / error UI for the
+  // ticket exchange (the ticket itself is single-use, so failures name the
+  // real cause and offer a retry where retrying can help).
+  const [ssoStatus, setSsoStatus] = useState<'idle' | 'resolving' | 'error'>('idle');
+  const [ssoError, setSsoError] = useState<string | null>(null);
+  const ssoTicketRef = useRef<string | null>(null);
 
   const destination = useCallback(
     () => safeReturnPath(searchParams?.get('returnTo') ?? null) ?? '/',
@@ -106,9 +118,77 @@ function LoginForm() {
     }
   }, [isAuthenticated, isLoading, router, destination]);
 
-  // Auto-capture SSO tokens returned from QuantMail Account Chooser or Cross-App Jump Bridge
+  // Auto-capture SSO handoffs returned from the QuantMail Account Chooser or
+  // Cross-App Jump Bridge.
+  //
+  // The chooser now redirects with ONLY `?__quant_sso_ticket=` (opaque ticket,
+  // QuantMail PR #881): it can never validate as an access token, so it must
+  // NOT go through UniversalSSOTokenBridge.consumeHandoffTicket (which
+  // bearer-verifies). We POST it to our own backend instead, which resolves it
+  // server-to-server with the identity root and mints a QuantAI SSO session.
+  // Legacy `?token=` / `?accessToken=` handoffs keep flowing through the
+  // shared bridge below.
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    let cancelled = false;
+
+    const exchangeOpaqueTicket = async (ticket: string) => {
+      setSsoStatus('resolving');
+      setSsoError(null);
+      // Read the return path BEFORE scrubbing (__quant_return is scrubbed too).
+      const rawReturn = searchParams?.get('returnTo') ?? searchParams?.get('__quant_return');
+      // Scrub the single-use ticket from the address bar BEFORE the exchange,
+      // regardless of outcome, so it never lingers in history.
+      scrubSsoTicketFromAddressBar();
+      try {
+        const result = await resolveSsoTicket(ticket);
+        if (cancelled) return;
+        const u = result.user;
+        // Store the server-verified identity too — without it the UI falls
+        // back to fabricated placeholders.
+        ingestSSOToken(result.sessionToken, {
+          id: u.id,
+          email: u.email,
+          name: u.displayName || u.username || undefined,
+        });
+        setSsoStatus('idle');
+
+        let targetDestination = destination();
+        if (rawReturn) {
+          try {
+            const decoded = decodeURIComponent(rawReturn);
+            const validation = UniversalSSOTokenBridge.validateSafeReturnPath(decoded);
+            if (validation.isSafe && validation.sanitizedUrl !== '/login') {
+              targetDestination = validation.sanitizedUrl;
+            }
+          } catch {
+            // Keep the default destination.
+          }
+        }
+        router.replace(targetDestination);
+      } catch (caught) {
+        if (cancelled) return;
+        // Honest failure: name the real cause. A burned/expired ticket cannot
+        // be retried (single-use); network failures can.
+        setSsoStatus('error');
+        setSsoError(
+          caught instanceof SsoTicketError
+            ? caught.message
+            : 'Sign-in via QuantMail failed. Please try again.',
+        );
+      }
+    };
+
+    const opaqueTicket = extractSsoTicket(window.location.search);
+    if (opaqueTicket) {
+      // Kept for the "Try again" button — the URL copy is already scrubbed.
+      ssoTicketRef.current = opaqueTicket;
+      void exchangeOpaqueTicket(opaqueTicket);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     (async () => {
       try {
         const bridge = UniversalSSOTokenBridge.getInstance();
@@ -153,7 +233,39 @@ function LoginForm() {
         // Sandboxed environment
       }
     })();
-  }, [router, destination]);
+    return () => {
+      cancelled = true;
+    };
+  }, [router, destination, searchParams]);
+
+  // Retry the ticket exchange (only helps when the first attempt never
+  // reached the identity service — e.g. a network timeout. A consumed ticket
+  // fails again with the honest "expired" copy above).
+  const retrySsoTicketExchange = useCallback(() => {
+    const ticket = ssoTicketRef.current;
+    if (!ticket || ssoStatus === 'resolving') return;
+    setSsoStatus('resolving');
+    setSsoError(null);
+    resolveSsoTicket(ticket)
+      .then((result) => {
+        const u = result.user;
+        ingestSSOToken(result.sessionToken, {
+          id: u.id,
+          email: u.email,
+          name: u.displayName || u.username || undefined,
+        });
+        setSsoStatus('idle');
+        router.replace(destination());
+      })
+      .catch((caught: unknown) => {
+        setSsoStatus('error');
+        setSsoError(
+          caught instanceof SsoTicketError
+            ? caught.message
+            : 'Sign-in via QuantMail failed. Please try again.',
+        );
+      });
+  }, [router, destination, ssoStatus]);
 
   // "Continue with Quant Account" always performs a real SSO handshake with QuantMail.
   // We deliberately do NOT short-circuit on a locally stored token: reusing a stale/expired
@@ -273,6 +385,65 @@ function LoginForm() {
             </button>
           </div>
         </div>
+
+        {/* QuantMail SSO ticket status — honest loading / error state for the
+            opaque-ticket exchange (never a silent dead-end). */}
+        {ssoStatus !== 'idle' ? (
+          <div
+            role={ssoStatus === 'error' ? 'alert' : 'status'}
+            aria-live="polite"
+            className={
+              ssoStatus === 'error'
+                ? 'mb-5 flex items-start gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs leading-relaxed text-red-200'
+                : 'mb-5 flex items-center gap-3 rounded-2xl border border-violet-500/30 bg-violet-500/10 p-3.5 text-xs leading-relaxed text-violet-200'
+            }
+          >
+            {ssoStatus === 'resolving' ? (
+              <>
+                <svg
+                  className="h-4 w-4 shrink-0 animate-spin text-violet-300"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+                  <path
+                    d="M22 12a10 10 0 0 1-10 10"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span>Signing you in via QuantMail…</span>
+              </>
+            ) : (
+              <>
+                <svg
+                  className="mt-0.5 h-4 w-4 shrink-0 text-red-400"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span className="flex-1">{ssoError ?? 'Sign-in via QuantMail failed.'}</span>
+                <button
+                  type="button"
+                  onClick={retrySsoTicketExchange}
+                  className="shrink-0 rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 font-semibold text-white transition-colors hover:bg-white/10"
+                >
+                  Try again
+                </button>
+              </>
+            )}
+          </div>
+        ) : null}
 
         {/* Clean Minimalist Divider */}
         <div className="relative my-6 flex items-center justify-center">

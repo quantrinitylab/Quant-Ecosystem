@@ -2,6 +2,7 @@ import { createApp } from '@quant/server-core';
 import type { AppConfig } from '@quant/server-core';
 import chatRoutes from './routes/chat';
 import authRoutes from './routes/auth';
+import ssoTicketRoutes from './routes/sso-ticket';
 import agentsRoutes from './routes/agents';
 import sessionsRoutes from './routes/sessions';
 import messagesRoutes from './routes/messages';
@@ -100,6 +101,11 @@ export function getConfig(): AppConfig {
     jwtIssuer: process.env['JWT_ISSUER'] ?? 'quantai',
     jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
     env,
+    // POST /auth/sso/ticket is public by design: the caller presents a
+    // single-use QuantMail SSO ticket (not a session) and auth is enforced
+    // inside the handler via the ticket + OAuth client credentials — the same
+    // shape as the identity's own /sso/ticket/resolve endpoint.
+    publicPaths: [{ path: '/auth/sso/ticket', methods: ['POST'], exact: true }],
   };
 }
 
@@ -154,6 +160,9 @@ export async function buildApp(config?: AppConfig) {
   // Identity: GET /auth/me backs the frontend SSO ticket verification
   // (/api/auth/userinfo). Without it SSO round-trips silently bounce.
   await app.register(authRoutes, { prefix: '/auth' });
+  // QuantMail opaque-ticket SSO handoff: resolves the ticket server-side and
+  // mints a QuantAI SSO session (public path declared in getConfig()).
+  await app.register(ssoTicketRoutes, { prefix: '/auth' });
   await app.register(askRoutes);
   await app.register(scheduledTasksRoutes, { prefix: '/agents/scheduled' });
   await app.register(mcpConnectorsRoutes, { prefix: '/connectors' });

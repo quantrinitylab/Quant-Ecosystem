@@ -7,6 +7,11 @@ import {
   ingestSSOToken,
 } from '../services/auth-session';
 import { getAuthToken } from '../lib/auth';
+import {
+  extractSsoTicket,
+  resolveSsoTicket,
+  scrubSsoTicketFromAddressBar,
+} from '../lib/sso-ticket-client';
 
 export type LoginOutcome =
   | { status: 'signed-in' }
@@ -41,6 +46,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       // 1. Check for incoming SSO ticket or token in URL or UniversalSSOTokenBridge
       if (typeof window !== 'undefined') {
+        // The QuantMail /sso chooser now returns ONLY `?__quant_sso_ticket=`
+        // (opaque ticket, PR #881): it can never validate as an access token,
+        // so it must NOT go through the bridge's bearer-verification. POST it
+        // to our own backend, which resolves it server-to-server. Legacy
+        // `?token=` handoffs keep using the bridge below.
+        const opaqueTicket = extractSsoTicket(window.location.search);
+        if (opaqueTicket) {
+          // Scrub before the exchange so the single-use ticket never lingers
+          // in history, whatever the outcome.
+          scrubSsoTicketFromAddressBar();
+          try {
+            const result = await resolveSsoTicket(opaqueTicket);
+            const u = result.user;
+            ingestSSOToken(result.sessionToken, {
+              id: u.id,
+              email: u.email,
+              name: u.displayName || u.username || undefined,
+            });
+            if (active) {
+              setIsAuthenticated(true);
+              setIsLoading(false);
+            }
+            return;
+          } catch {
+            // Fall through to the remaining restore paths; /login shows the
+            // honest SSO error state.
+          }
+        }
         try {
           const bridge = UniversalSSOTokenBridge.getInstance();
           // Fail-closed: consumeHandoffTicket re-verifies the ticket's token
