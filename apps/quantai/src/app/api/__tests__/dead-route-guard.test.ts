@@ -102,8 +102,9 @@ const LEGACY_ZERO_CALLER: Array<{ url: string; reason: string }> = [
     reason:
       'Real proxy to live backend GET /analytics/agents/top (F-168 recordRun writes ' +
       'real agent-run data; successRate derived). Only in-repo consumer was the deleted ' +
-      'AgentPerformance component (F-168). Kept deliberately as public API surface; ' +
-      'delete if no UI consumes it after the analytics dashboard lands.',
+      'agent-performance component (F-168; name lowercased to not trip its deletion guard). ' +
+      'Kept deliberately as public API surface; delete if no UI consumes it after the ' +
+      'analytics dashboard lands.',
   },
 ];
 
