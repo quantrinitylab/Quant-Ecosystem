@@ -166,8 +166,11 @@ describe('error boundary carries no framer-motion', () => {
     const el = renderBoundary();
     const button = el.querySelector('button[type="button"]') as HTMLButtonElement;
     // Brand primary orange, dark text, 44px touch floor — the pixels the
-    // shared Button variant="primary" size="md" rendered.
-    expect(button.className).toMatch(/bg-\[#FF8C42\]/);
+    // shared Button variant="primary" size="md" rendered. error.tsx expresses
+    // the orange via theme tokens (QM-UIUX-004: no raw hexes); the token
+    // chain is --quant-primary -> --brand-primary = #FF8C42, so the pixels
+    // are identical to the shared Button's bg-[#FF8C42].
+    expect(button.className).toMatch(/bg-\[var\(--quant-primary\)\]/);
     expect(button.className).toMatch(/text-\[#111111\]/);
     expect(button.className).toMatch(/min-h-\[44px\]/);
   });
