@@ -1,20 +1,16 @@
 // ============================================================================
 // QuantAI - Frontend API Client
 // ============================================================================
+//
+// NOTE (F-162 cleanup): this client is intentionally minimal. The app
+// standardized on `apiFetchRaw` from `@quant/api-client` for direct route
+// calls, so the ~22 legacy route methods that used to live here (chat,
+// devices, automations, models, training, ecosystem, analytics, plugins)
+// were deleted after a repo-wide caller audit found them all dead. The only
+// live surface is the token holder (setToken, used by services/auth-session.ts).
+// listConversations is also gone (F-161: the useConversations hook was dead).
+// New routes must be added via apiFetchRaw at the call site — not here.
 
-import type {
-  Conversation,
-  ConversationMessage,
-  Device,
-  DeviceCommand,
-  Automation,
-  AutomationRun,
-  AIModel,
-  EcosystemApp,
-  AnalyticsData,
-  Plugin,
-  AssistantPersonality,
-} from '../types';
 import { getAuthToken } from '../lib/auth';
 import { apiFetchRaw } from '@quant/api-client';
 
@@ -30,9 +26,6 @@ class QuantAIApiClient {
   setToken(token: string): void {
     this.token = token;
   }
-  getToken(): string | null {
-    return this.token || getAuthToken();
-  }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<ApiResponse<T>> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -43,95 +36,32 @@ class QuantAIApiClient {
       headers,
       body: body ? JSON.stringify(body) : undefined,
     });
+    if (!res.ok) {
+      // Fail-closed (F-162 improvement): a non-2xx (502 HTML page, empty body,
+      // gateway error) must never reach `res.json()` and throw a raw
+      // SyntaxError — map it to the standard envelope so callers see a clean
+      // `{ success: false, error }` instead.
+      let message = res.statusText || 'Request failed';
+      try {
+        const parsed = (await res.json()) as Partial<{
+          message?: unknown;
+          error?: { message?: unknown } | unknown;
+        }>;
+        // Accept a top-level `message` or the standard `{ error: { message } }` envelope.
+        const nested =
+          typeof parsed?.error === 'object' && parsed.error !== null
+            ? (parsed.error as { message?: unknown }).message
+            : undefined;
+        const candidate = parsed?.message ?? nested;
+        if (typeof candidate === 'string' && candidate) {
+          message = candidate;
+        }
+      } catch {
+        // Non-JSON error body (e.g. HTML) — keep the status text.
+      }
+      return { success: false, error: { code: `HTTP_${res.status}`, message } };
+    }
     return res.json();
-  }
-
-  // Assistant
-  async chat(
-    message: string,
-    conversationId?: string,
-    attachments?: any[],
-  ): Promise<ApiResponse<{ conversation: Conversation; response: ConversationMessage }>> {
-    return this.request('POST', '/assistant/chat', { message, conversationId, attachments });
-  }
-  async deleteConversation(id: string): Promise<ApiResponse<void>> {
-    return this.request('DELETE', `/assistant/conversations/${id}`);
-  }
-  async updatePersonality(personality: Partial<AssistantPersonality>): Promise<ApiResponse<any>> {
-    return this.request('PUT', '/assistant/personality', personality);
-  }
-
-  // Devices
-  async registerDevice(data: any): Promise<ApiResponse<Device>> {
-    return this.request('POST', '/devices', data);
-  }
-  async listDevices(): Promise<ApiResponse<Device[]>> {
-    return this.request('GET', '/devices');
-  }
-  async sendCommand(
-    deviceId: string,
-    type: string,
-    params: any,
-  ): Promise<ApiResponse<DeviceCommand>> {
-    return this.request('POST', `/devices/${deviceId}/command`, { type, params });
-  }
-
-  // Automation
-  async createAutomation(data: any): Promise<ApiResponse<Automation>> {
-    return this.request('POST', '/automations', data);
-  }
-  async listAutomations(): Promise<ApiResponse<Automation[]>> {
-    return this.request('GET', '/automations');
-  }
-  async getAutomation(id: string): Promise<ApiResponse<Automation>> {
-    return this.request('GET', `/automations/${id}`);
-  }
-  async updateAutomation(id: string, data: any): Promise<ApiResponse<Automation>> {
-    return this.request('PUT', `/automations/${id}`, data);
-  }
-  async toggleAutomation(id: string): Promise<ApiResponse<any>> {
-    return this.request('POST', `/automations/${id}/toggle`);
-  }
-  async executeAutomation(id: string): Promise<ApiResponse<AutomationRun>> {
-    return this.request('POST', `/automations/${id}/execute`);
-  }
-  async deleteAutomation(id: string): Promise<ApiResponse<void>> {
-    return this.request('DELETE', `/automations/${id}`);
-  }
-  async listAutomationRuns(id: string): Promise<ApiResponse<AutomationRun[]>> {
-    return this.request('GET', `/automations/${id}/runs`);
-  }
-
-  // Models
-  async listModels(): Promise<ApiResponse<AIModel[]>> {
-    return this.request('GET', '/models');
-  }
-  async compareModels(ids: string[]): Promise<ApiResponse<any>> {
-    return this.request('POST', '/models/compare', { modelIds: ids });
-  }
-
-  // Ecosystem
-  async listEcosystemApps(): Promise<ApiResponse<EcosystemApp[]>> {
-    return this.request('GET', '/ecosystem/apps');
-  }
-  async toggleAppAI(appId: string): Promise<ApiResponse<EcosystemApp>> {
-    return this.request('POST', `/ecosystem/apps/${appId}/toggle-ai`);
-  }
-
-  // Analytics
-  async getAnalytics(): Promise<ApiResponse<AnalyticsData>> {
-    return this.request('GET', '/analytics');
-  }
-
-  // Plugins
-  async listPlugins(): Promise<ApiResponse<Plugin[]>> {
-    return this.request('GET', '/plugins');
-  }
-  async installPlugin(id: string): Promise<ApiResponse<void>> {
-    return this.request('POST', `/plugins/${id}/install`);
-  }
-  async uninstallPlugin(id: string): Promise<ApiResponse<void>> {
-    return this.request('DELETE', `/plugins/${id}/uninstall`);
   }
 }
 
