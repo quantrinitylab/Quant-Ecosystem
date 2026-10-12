@@ -993,6 +993,12 @@ R2 REGRESSION AUDIT COMPLETE (2026-10-12 ~02:35–03:10 IST) — LANE-1, branch 
 LIVE logged-out (desktop 1440x900 + mobile 390x844 via local Chrome + proxy 127.0.0.1:8888): /settings + /security → honest sign-in page (no content leak); GET /api/settings/tokens, /api/auth/sessions, /api/oauth/grants → honest 401. Shots: /tmp/lane1-016r2-desktop-settings.png, /tmp/lane1-016r2-mobile-security.png. Signed-in sessions/grants/PAT/2FA flows needs-auth — not verified live. Code audit: lane-1 read-only on origin/main (code-audit subagent preview confirmed R1 fixes intact; full report lost on delivery — spot re-verified above).
 R2 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 2 P2. No fix agents spawned (no P0/P1). Rotation → QM-SCREEN-017 (admin) R2.
 
+R3 REGRESSION AUDIT START (claim) — 2026-10-12 ~13:36 IST.
+Status: [~] IN_PROGRESS (R3 regression audit)
+Owner: LANE-1
+Branch: lane1-audit-016r3
+Scope: verify R1 fix PRs #845 (sessions real list + revoke-all) + #846 (connected-apps real grants + PAT UI) still intact on latest origin/main; re-check R2-NEW-1 (3 border-t hairlines, security/page.tsx), R2-NEW-2 (Revoke All sessions one-click), carryover P1 (no Quanty grants/memory consent surface); fresh hunt for new P0/P1/P2; logged-out live desktop+mobile + API 401 probes.
+
 ## QM-SCREEN-017 — Admin / domains / DLP / audit / organization policy
 Status: [x] DONE (R1 audit + R2 regression audit complete 2026-10-12; R1 P0/P1 authz fixes verified intact on origin/main; remaining UI/design gaps still open)
 Owner: LANE-1
