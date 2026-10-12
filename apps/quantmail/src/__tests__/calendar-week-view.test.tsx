@@ -182,7 +182,7 @@ describe('CalendarWeekView', () => {
   });
 
   it('shows a current-time line in the today column', () => {
-    const html = renderToStaticMarkup(<CalendarWeekView {...baseProps} />);
+    const html = renderToStaticMarkup(<CalendarWeekView {...baseProps} selectedDate={new Date()} />);
     expect(html).toContain('week-now-line');
   });
 
