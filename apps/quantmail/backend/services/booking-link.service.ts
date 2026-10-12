@@ -77,6 +77,96 @@ export interface PrismaClient {
 
 export const LOCK_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+// ============================================================================
+// Guest-timezone slot math (public booking page timezone selector).
+// The host's startHour/endHour/availableDays are wall-clock values; when a
+// guest picks an IANA timezone the requested calendar day is interpreted in
+// that zone so displayed slot times are honest in the chosen timezone.
+// Pure Intl-based math — no extra date library required.
+// ============================================================================
+
+const tzPartsFormatterCache = new Map<string, Intl.DateTimeFormat>();
+const tzWeekdayFormatterCache = new Map<string, Intl.DateTimeFormat>();
+
+function getTzPartsFormatter(timeZone: string): Intl.DateTimeFormat {
+  let f = tzPartsFormatterCache.get(timeZone);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    tzPartsFormatterCache.set(timeZone, f);
+  }
+  return f;
+}
+
+/** True when `tz` is a usable IANA timezone name (invalid names fall back to legacy server-tz behavior). */
+export function isValidIanaTimeZone(tz: string): boolean {
+  if (typeof tz !== 'string' || tz.trim() === '') return false;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Offset (local wall-clock time minus UTC) in milliseconds for `timeZone` at the given UTC instant. */
+export function tzOffsetMs(timeZone: string, utcMs: number): number {
+  const parts = getTzPartsFormatter(timeZone).formatToParts(new Date(utcMs));
+  const get = (type: string): number => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  // hour12:false can yield "24" at midnight; normalize.
+  const asUtc = Date.UTC(
+    get('year'),
+    get('month') - 1,
+    get('day'),
+    get('hour') % 24,
+    get('minute'),
+    get('second'),
+  );
+  return asUtc - utcMs;
+}
+
+/**
+ * Convert a guest-local wall time (year/month/day/hour/minute in `timeZone`)
+ * to the matching UTC instant. Iterates to a fixed point so DST transitions
+ * between midnight and the slot are respected.
+ */
+export function zonedWallTimeToUtcMs(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  timeZone: string,
+): number {
+  let guess = Date.UTC(year, month - 1, day, hour, minute);
+  for (let i = 0; i < 3; i++) {
+    const next = Date.UTC(year, month - 1, day, hour, minute) - tzOffsetMs(timeZone, guess);
+    if (next === guess) break;
+    guess = next;
+  }
+  return guess;
+}
+
+/** Guest-local weekday (0=Sun … 6=Sat) of a calendar day in `timeZone`. Noon is used to dodge DST-midnight edges. */
+export function zonedWeekday(year: number, month: number, day: number, timeZone: string): number {
+  let f = tzWeekdayFormatterCache.get(timeZone);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' });
+    tzWeekdayFormatterCache.set(timeZone, f);
+  }
+  const noonUtc = zonedWallTimeToUtcMs(year, month, day, 12, 0, timeZone);
+  const name = f.format(new Date(noonUtc));
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(name);
+}
+
 export function formatIcsDateTime(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   const year = date.getUTCFullYear();
@@ -349,47 +439,97 @@ export class BookingLinkService {
     globalSlotLockStore.removeLock(lockId);
   }
 
-  async getAvailableSlots(slug: string, date: Date): Promise<BookingSlot[]> {
+  async getAvailableSlots(
+    slug: string,
+    date: Date,
+    guestTimezone?: string,
+  ): Promise<BookingSlot[]> {
     const link = await this.getBookingLink(slug);
     if (!link.isActive) return [];
-    if (!link.availableDays.includes(date.getDay())) return [];
-    const dayStart = new Date(date);
-    dayStart.setHours(link.startHour, 0, 0, 0);
-    const dayEnd = new Date(date);
-    dayEnd.setHours(link.endHour, 0, 0, 0);
-    const slotWindowEnd = new Date(
-      Math.min(dayEnd.getTime(), dayStart.getTime() + MAX_SLOT_WINDOW_MS),
-    );
+    const slotDuration = link.duration * 60 * 1000;
+    const tz =
+      typeof guestTimezone === 'string' && isValidIanaTimeZone(guestTimezone)
+        ? guestTimezone
+        : null;
+
+    // Candidate slot start instants + the busy-query window, resolved either in
+    // the guest's selected timezone or (legacy) in server-local time.
+    let slotStarts: Date[];
+    let windowStart: Date;
+    let windowEnd: Date;
+
+    if (tz) {
+      // The requested date is the guest's calendar day: derive parts from the
+      // UTC instant the client sent (YYYY-MM-DD parsed as UTC midnight).
+      const year = date.getUTCFullYear();
+      const month = date.getUTCMonth() + 1;
+      const day = date.getUTCDate();
+      if (!link.availableDays.includes(zonedWeekday(year, month, day, tz))) return [];
+      const starts: Date[] = [];
+      const totalMinutes = (link.endHour - link.startHour) * 60;
+      for (let offsetMin = 0; offsetMin + link.duration <= totalMinutes; offsetMin += link.duration) {
+        const wallMinutes = link.startHour * 60 + offsetMin;
+        starts.push(
+          new Date(
+            zonedWallTimeToUtcMs(
+              year,
+              month,
+              day,
+              Math.floor(wallMinutes / 60),
+              wallMinutes % 60,
+              tz,
+            ),
+          ),
+        );
+      }
+      slotStarts = starts;
+      windowStart = starts.length > 0 ? starts[0] : new Date(zonedWallTimeToUtcMs(year, month, day, link.startHour, 0, tz));
+      const dayEndUtc = zonedWallTimeToUtcMs(year, month, day, link.endHour, 0, tz);
+      windowEnd = new Date(Math.min(dayEndUtc, windowStart.getTime() + MAX_SLOT_WINDOW_MS));
+    } else {
+      if (!link.availableDays.includes(date.getDay())) return [];
+      const dayStart = new Date(date);
+      dayStart.setHours(link.startHour, 0, 0, 0);
+      const dayEnd = new Date(date);
+      dayEnd.setHours(link.endHour, 0, 0, 0);
+      windowStart = dayStart;
+      windowEnd = new Date(Math.min(dayEnd.getTime(), dayStart.getTime() + MAX_SLOT_WINDOW_MS));
+      const starts: Date[] = [];
+      let current = dayStart.getTime();
+      while (current + slotDuration <= windowEnd.getTime()) {
+        starts.push(new Date(current));
+        current += slotDuration;
+      }
+      slotStarts = starts;
+    }
+
     const events = await this.prisma.event.findMany({
       where: {
         userId: link.userId,
         recurrenceRule: null,
-        startTime: { lt: slotWindowEnd },
-        endTime: { gt: dayStart },
+        startTime: { lt: windowEnd },
+        endTime: { gt: windowStart },
       },
     });
     const recurringEvents = (await this.prisma.event.findMany({
       where: {
         userId: link.userId,
         recurrenceRule: { not: null },
-        startTime: { lte: slotWindowEnd },
+        startTime: { lte: windowEnd },
       },
       take: 200,
     })) as Array<Record<string, unknown>>;
     const recurringService = new RecurringService(this.prisma as any);
     const expandedOccurrences = recurringEvents.flatMap((event) =>
-      recurringService.expandOccurrences(this.toCalendarEvent(event), dayStart, slotWindowEnd),
+      recurringService.expandOccurrences(this.toCalendarEvent(event), windowStart, windowEnd),
     );
     const busySlots = (events as Array<Record<string, unknown>>).map((event) => ({
       start: new Date(event['startTime'] as string | Date),
       end: new Date(event['endTime'] as string | Date),
     }));
     const slots: BookingSlot[] = [];
-    const slotDuration = link.duration * 60 * 1000;
-    let current = dayStart.getTime();
-    while (current + slotDuration <= slotWindowEnd.getTime()) {
-      const slotStart = new Date(current);
-      const slotEnd = new Date(current + slotDuration);
+    for (const slotStart of slotStarts) {
+      const slotEnd = new Date(slotStart.getTime() + slotDuration);
       const conflictsWithStandard = busySlots.some(
         (busy) => busy.start < slotEnd && busy.end > slotStart,
       );
@@ -402,7 +542,6 @@ export class BookingLinkService {
         end: slotEnd,
         available: !conflictsWithStandard && !conflictsWithRecurring && !isLocked,
       });
-      current += slotDuration;
     }
     return slots;
   }

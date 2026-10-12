@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TIMEZONES } from '../../types';
-import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolveSlotsResponse } from './booking-utils';
+import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolveSlotsResponse, bookingWallTimeToUtcMs, formatSlotTimeLabelInTz } from './booking-utils';
 import type { BookingLinkDetails, BookingLinkLoadStatus, BookingSlotItem } from './booking-utils';
 import {
   IconClock,
@@ -223,32 +223,40 @@ export default function PublicBookingPage(props: PageProps) {
     };
   }, [resolvedSlug, linkReloadNonce]);
 
-  // Generate or fetch available slots for the selected date
+  // Generate or fetch available slots for the selected date.
+  // Fallback path: wall-clock times are computed in the guest's selected
+  // timezone so the dropdown is honored even when the slots API is unreachable.
   const generateSlotsForDate = useCallback(
-    (targetDate: Date, duration: number, startHour: number, endHour: number): BookingSlotItem[] => {
+    (
+      targetDate: Date,
+      duration: number,
+      startHour: number,
+      endHour: number,
+      timeZone: string,
+    ): BookingSlotItem[] => {
       const slots: BookingSlotItem[] = [];
       const now = new Date();
 
-      const base = new Date(targetDate);
-      base.setHours(startHour, 0, 0, 0);
-
-      const endOfDay = new Date(targetDate);
-      endOfDay.setHours(endHour, 0, 0, 0);
+      const year = targetDate.getFullYear();
+      const month = targetDate.getMonth() + 1;
+      const day = targetDate.getDate();
 
       const stepMs = duration * 60 * 1000;
-      let curr = base.getTime();
+      const totalMinutes = (endHour - startHour) * 60;
 
-      while (curr + stepMs <= endOfDay.getTime()) {
-        const slotStart = new Date(curr);
-        const slotEnd = new Date(curr + stepMs);
-
-        // Format label: e.g. "09:30 AM"
-        const hours = slotStart.getHours();
-        const minutes = slotStart.getMinutes();
-        const period = hours >= 12 ? 'PM' : 'AM';
-        const displayHours = hours % 12 === 0 ? 12 : hours % 12;
-        const displayMinutes = minutes < 10 ? `0${minutes}` : `${minutes}`;
-        const timeLabel = `${String(displayHours).padStart(2, '0')}:${displayMinutes} ${period}`;
+      for (let offsetMin = 0; offsetMin + duration <= totalMinutes; offsetMin += duration) {
+        const wallMinutes = startHour * 60 + offsetMin;
+        const slotStart = new Date(
+          bookingWallTimeToUtcMs(
+            year,
+            month,
+            day,
+            Math.floor(wallMinutes / 60),
+            wallMinutes % 60,
+            timeZone,
+          ),
+        );
+        const slotEnd = new Date(slotStart.getTime() + stepMs);
 
         // Slot is only available if in future
         const isFuture = slotStart.getTime() > now.getTime() + 15 * 60 * 1000;
@@ -256,11 +264,9 @@ export default function PublicBookingPage(props: PageProps) {
         slots.push({
           start: slotStart,
           end: slotEnd,
-          timeLabel,
+          timeLabel: formatSlotTimeLabelInTz(slotStart, timeZone),
           available: isFuture,
         });
-
-        curr += stepMs;
       }
 
       return slots;
@@ -268,7 +274,7 @@ export default function PublicBookingPage(props: PageProps) {
     [],
   );
 
-  // Fetch slots whenever selectedDate or meetingDetails change
+  // Fetch slots whenever selectedDate, meetingDetails, or the guest's timezone change
   useEffect(() => {
     let isMounted = true;
 
@@ -286,11 +292,14 @@ export default function PublicBookingPage(props: PageProps) {
 
     async function loadSlots() {
       const dateStr = formatDateToYmd(selectedDate);
+      const tzParam = encodeURIComponent(selectedTimezone);
       try {
-        const res = await apiFetchRaw(`/api/calendar/booking/${resolvedSlug}/slots?date=${dateStr}`);
+        const res = await apiFetchRaw(
+          `/api/calendar/booking/${resolvedSlug}/slots?date=${dateStr}&tz=${tzParam}`,
+        );
         if (res.ok) {
           const json = await res.json();
-          const slots = resolveSlotsResponse(json);
+          const slots = resolveSlotsResponse(json, selectedTimezone);
           if (slots !== null && isMounted) {
             // The backend answer is authoritative — even when it is an empty
             // array (fully booked date / link inactive for this date). Render
@@ -316,13 +325,14 @@ export default function PublicBookingPage(props: PageProps) {
         // Fallback
       }
 
-      // High-fidelity fallback slot generation
+      // High-fidelity fallback slot generation (wall-times in the guest's timezone)
       if (isMounted) {
         const generated = generateSlotsForDate(
           selectedDate,
           meetingDetails.duration,
           meetingDetails.startHour,
           meetingDetails.endHour,
+          selectedTimezone,
         );
         setAvailableSlots(generated);
         setIsLoadingSlots(false);
@@ -333,7 +343,7 @@ export default function PublicBookingPage(props: PageProps) {
     return () => {
       isMounted = false;
     };
-  }, [selectedDate, resolvedSlug, meetingDetails, linkStatus, generateSlotsForDate]);
+  }, [selectedDate, resolvedSlug, meetingDetails, linkStatus, selectedTimezone, generateSlotsForDate]);
 
   // Handle Month Navigation
   const handlePrevMonth = () => {
@@ -556,15 +566,16 @@ export default function PublicBookingPage(props: PageProps) {
     setSubmitError(null);
   };
 
-  // Format Date for Summary Header
+  // Format Date for Summary Header (in the guest's selected timezone)
   const formattedSelectedDate = useMemo(() => {
     return selectedDate.toLocaleDateString('en-US', {
       weekday: 'long',
       month: 'short',
       day: 'numeric',
       year: 'numeric',
+      timeZone: selectedTimezone,
     });
-  }, [selectedDate]);
+  }, [selectedDate, selectedTimezone]);
 
   return (
     <div className="min-h-screen bg-[var(--quant-background)] text-[var(--quant-foreground)] font-sans flex flex-col justify-between selection:bg-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] selection:text-white">
@@ -796,6 +807,7 @@ export default function PublicBookingPage(props: PageProps) {
                         {selectedDate.toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
+                          timeZone: selectedTimezone,
                         })}
                       </span>
                     </div>
@@ -976,6 +988,7 @@ export default function PublicBookingPage(props: PageProps) {
                           month: 'long',
                           day: 'numeric',
                           year: 'numeric',
+                          timeZone: selectedTimezone,
                         })}
                       </span>
                     </div>

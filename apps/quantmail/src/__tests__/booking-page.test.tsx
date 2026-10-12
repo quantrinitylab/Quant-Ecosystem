@@ -18,6 +18,8 @@ import {
   resolveBookingFailureMessage,
   resolveLinkLoadFailure,
   resolveSlotsResponse,
+  bookingWallTimeToUtcMs,
+  formatSlotTimeLabelInTz,
 } from '../app/calendar/booking/[slug]/booking-utils';
 import {
   BookingLinksModal,
@@ -396,6 +398,54 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
       expect(resolveSlotsResponse(null)).toBeNull();
       expect(resolveSlotsResponse(undefined)).toBeNull();
       expect(resolveSlotsResponse('garbage')).toBeNull();
+    });
+
+    it('renders slot labels in the guest-selected timezone (fix/qm-booking-tz-selector)', () => {
+      // 13:00Z == 09:00 EDT in America/New_York on 2028-10-02
+      const slots = resolveSlotsResponse(
+        { success: true, data: [slotPayload('2028-10-02T13:00:00.000Z')] },
+        'America/New_York',
+      );
+      expect(slots).toHaveLength(1);
+      expect(slots![0].timeLabel).toBe('09:00 AM');
+    });
+
+    it('defaults to UTC labels when no timezone is passed', () => {
+      const slots = resolveSlotsResponse({
+        success: true,
+        data: [slotPayload('2028-10-02T13:00:00.000Z')],
+      });
+      expect(slots![0].timeLabel).toBe('01:00 PM');
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 2e. Guest-timezone wall-time math (fix/qm-booking-tz-selector): the
+  // timezone dropdown must shift displayed slot times and the date boundary.
+  // --------------------------------------------------------------------------
+  describe('bookingWallTimeToUtcMs / formatSlotTimeLabelInTz', () => {
+    it('converts a New York wall time to the correct UTC instant (EDT, UTC-4)', () => {
+      expect(bookingWallTimeToUtcMs(2028, 10, 2, 9, 0, 'America/New_York')).toBe(
+        Date.UTC(2028, 9, 2, 13, 0),
+      );
+    });
+
+    it('handles non-hour offsets (Asia/Kolkata, UTC+5:30)', () => {
+      expect(bookingWallTimeToUtcMs(2028, 10, 2, 9, 0, 'Asia/Kolkata')).toBe(
+        Date.UTC(2028, 9, 2, 3, 30),
+      );
+      expect(formatSlotTimeLabelInTz(new Date(Date.UTC(2028, 9, 2, 3, 30)), 'Asia/Kolkata')).toBe(
+        '09:00 AM',
+      );
+    });
+
+    it('respects DST: January New York is EST (UTC-5), October is EDT (UTC-4)', () => {
+      expect(bookingWallTimeToUtcMs(2028, 1, 10, 9, 0, 'America/New_York')).toBe(
+        Date.UTC(2028, 0, 10, 14, 0),
+      );
+      expect(bookingWallTimeToUtcMs(2028, 10, 2, 9, 0, 'America/New_York')).toBe(
+        Date.UTC(2028, 9, 2, 13, 0),
+      );
     });
   });
 
