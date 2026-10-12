@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { hasCookie } from '../../../lib/cookies';
 
 // QuantAI auth entry. QuantAI does not issue tokens — the ecosystem identity
 // root does (QuantMail backend, JWT issuer https://quantrinity.in). This handler
@@ -55,8 +56,11 @@ export async function POST(
   }
 
   if (action === 'refresh') {
+    // NO_SESSION fast-path: only the *exact* refresh cookie counts. A substring
+    // check (cookie.includes('quantmail_refresh=')) is bypassable — e.g.
+    // `xquantmail_refresh=` — and would proxy a doomed refresh upstream.
     const cookie = request.headers.get('cookie') ?? '';
-    if (!cookie.includes(`${REFRESH_COOKIE}=`)) {
+    if (!hasCookie(cookie, REFRESH_COOKIE)) {
       return NextResponse.json(
         {
           success: false,
