@@ -115,7 +115,7 @@ describe('app-switcher re-tap refresh', () => {
         // (src/app/sent/page.tsx, backed by `GET /emails?folderType=SENT`).
         // `/drafts`, `/spam`, `/trash` added by SIA-P1-5 (unified folder list):
         // all are real routes (src/app/drafts|spam|trash/page.tsx).
-        expect(tab.targetPath).toMatch(/^\/(archive|sent|drafts|spam|trash|calendar|drive|contacts|quantgit(\/repositories)?)?$/);
+        expect(tab.targetPath).toMatch(/^\/(archive|sent|drafts|spam|trash|scheduled|calendar|drive|contacts|quantgit(\/repositories)?)?$/);
       }
     }
   });
