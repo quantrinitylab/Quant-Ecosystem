@@ -54,9 +54,36 @@ const privacySource = readFileSync(
   'utf8',
 );
 
+const accountSettingsSource = readFileSync(
+  (function findAccountSettingsSource(): string {
+    const rels = [
+      'src/app/settings/account/page.tsx',
+      'apps/quantmail/src/app/settings/account/page.tsx',
+    ];
+    let dir = process.cwd();
+    for (let depth = 0; depth < 8; depth++) {
+      for (const rel of rels) {
+        const candidate = join(dir, rel);
+        if (existsSync(candidate)) return candidate;
+      }
+      const parent = join(dir, '..');
+      if (parent === dir) break;
+      dir = parent;
+    }
+    throw new Error(
+      `privacy-copy: could not locate src/app/settings/account/page.tsx from ${process.cwd()}`,
+    );
+  })(),
+  'utf8',
+);
+
 // Strip JSX block comments and line comments; only user-facing strings are
 // subject to the provable-truth rule (audit notes may name removed claims).
 const userFacing = privacySource
+  .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+  .replace(/(^|\s)\/\/[^\n]*/g, '');
+
+const accountUserFacing = accountSettingsSource
   .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
   .replace(/(^|\s)\/\/[^\n]*/g, '');
 
@@ -97,5 +124,42 @@ describe('Privacy page copy honesty', () => {
 
   it('keeps the honest at-rest rollout note (no false claim, no silence)', () => {
     expect(userFacing).toMatch(/not yet enabled on the live database/);
+  });
+
+  it('does not badge the Messages row "Never Shared" (SES is the delivery pipeline)', () => {
+    // Outbound mail passes through AWS SES (backend/lib/ses-sender.ts,
+    // SESv2 SendEmail), which by construction handles message content — the
+    // old emerald "Never Shared" cell contradicted this and the honest
+    // settings security copy. The row must disclose AWS SES as the processor.
+    const messagesRow = userFacing.match(
+      />Messages<\/td>([\s\S]*?)<\/tr>/,
+    );
+    expect(messagesRow).not.toBeNull();
+    expect(messagesRow![1]).not.toMatch(/Never Shared/);
+    expect(messagesRow![1]).toMatch(/AWS SES \(mail delivery\)/);
+  });
+
+  it('discloses the AWS SES processor under the data matrix', () => {
+    expect(userFacing).toMatch(/Processor disclosure/);
+    expect(userFacing).toMatch(/AWS SES/);
+    expect(userFacing).toMatch(/handles message[\s\S]{0,30}content in order to hand it to the recipient/);
+  });
+
+  it('At-a-glance tile agrees with the SES disclosure (no "No External Sharing")', () => {
+    // The old "Data Sharing: No External Sharing" tile contradicted the
+    // processor disclosure on the same page.
+    expect(userFacing).not.toMatch(/No External Sharing/);
+    expect(userFacing).toMatch(/Mail delivery only \(AWS SES\)/);
+  });
+
+  it('settings account security card claims only provable TLS in transit', () => {
+    // Same unprovable-at-rest family as PR #954's login/settings fix: the card
+    // read "TLS 1.2+ & AES-256" / "Enforced encryption in transit and
+    // encrypted data storage at rest" while the live RDS reports
+    // StorageEncrypted=False. Restricted to the provable transit half.
+    expect(accountUserFacing).not.toMatch(/at rest/i);
+    expect(accountUserFacing).not.toMatch(/AES-256/);
+    expect(accountUserFacing).toMatch(/TLS 1\.2\+ in transit/);
+    expect(accountUserFacing).toMatch(/Enforced encryption in transit\./);
   });
 });
