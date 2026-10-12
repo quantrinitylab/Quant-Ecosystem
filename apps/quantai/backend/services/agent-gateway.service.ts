@@ -24,10 +24,11 @@ import {
   type ToolResult,
 } from '@quant/quant-tools';
 import { createAppError } from '@quant/server-core';
-import { getEndpoint, getToolRoute } from './app-endpoints';
+import { resolveToolEndpoint } from './canonical-endpoints';
 import {
   createHttpToolHandler,
   mapQuantCalendarCreate,
+  mapQuantChatSend,
   mapQuantMailSend,
 } from './http-tool-handler';
 
@@ -53,6 +54,7 @@ const HELD_PLAN_TTL_MS = 10 * 60 * 1000; // 10 minutes
 /** Param mappers per toolId (agent schema -> target API shape). */
 const PARAM_MAPPERS: Record<string, (p: Record<string, unknown>) => Record<string, unknown>> = {
   'quantmail.send': mapQuantMailSend,
+  'quantchat.send': mapQuantChatSend,
   'quantcalendar.create-event': mapQuantCalendarCreate,
 };
 
@@ -69,27 +71,37 @@ class AgentGateway {
     this.registerHttpHandlers();
   }
 
-  /** Register a real HTTP handler for every tool that has an endpoint route. */
+  /**
+   * Register a real HTTP handler for every tool that resolves through the
+   * canonical registry. Tools with no canonical backing stay unregistered —
+   * honestly unavailable instead of pointed at a stale route.
+   */
   private registerHttpHandlers(): void {
     let registered = 0;
+    const unbound: string[] = [];
     for (const tool of allTools) {
-      const endpoint = getEndpoint(tool.appId);
-      if (!endpoint) continue;
-      const route = getToolRoute(tool.appId, tool.id);
-      if (!route) continue;
+      const resolved = resolveToolEndpoint(tool.id);
+      if (!resolved) {
+        unbound.push(tool.id);
+        continue;
+      }
       this.executor.registerHandler(
         tool.id,
         createHttpToolHandler({
-          endpoint,
+          endpoint: resolved,
           toolId: tool.id,
-          route,
+          route: resolved,
+          pathParams: resolved.pathParams,
           mapParams: PARAM_MAPPERS[tool.id],
         }),
       );
       registered += 1;
     }
     // eslint-disable-next-line no-console
-    console.log(`[agent-gateway] registered ${registered} HTTP tool handlers`);
+    console.log(
+      `[agent-gateway] registered ${registered} HTTP tool handlers from the canonical registry` +
+        (unbound.length > 0 ? `; ${unbound.length} tools have no canonical route: ${unbound.join(', ')}` : ''),
+    );
   }
 
   getExecutor(): ToolExecutor {

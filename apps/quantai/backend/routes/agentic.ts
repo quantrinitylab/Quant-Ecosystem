@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { orchestrator, WorkflowEngine } from '@quant/agentic';
 import { getAgentGateway } from '../services/agent-gateway.service';
-import { APP_ENDPOINTS, checkAppHealth } from '../services/app-endpoints';
+import { checkAppHealth, gatewayApps } from '../services/canonical-endpoints';
 
 const workflowSchema = z.object({
   name: z.string(),
@@ -251,10 +251,12 @@ export default async function agenticRoutes(fastify: FastifyInstance) {
   /**
    * GET /agentic/apps/health — per-app reachability for the gateway.
    * Powers the "app status dots" UI and graceful degradation.
+   * Apps are the canonical route owners backing at least one gateway tool
+   * (WR-AI-002: resolved from the registry, not a hardcoded table).
    */
   fastify.get('/apps/health', async (request, reply) => {
     requireUserId(request);
-    const apps = await Promise.all(APP_ENDPOINTS.map((e) => checkAppHealth(e.appId)));
+    const apps = await Promise.all(gatewayApps().map((appId) => checkAppHealth(appId)));
     return reply.send({ success: true, data: { apps } });
   });
 }

@@ -1,16 +1,30 @@
 // ============================================================================
-// Agent Gateway — App Endpoint Registry (Phase 2)
+// Agent Gateway — App Endpoint Registry
 // ============================================================================
-// Maps each Quant appId to its backend base URL + the HTTP routes that back
-// individual cross-app tools. URLs come from env vars (QUANTAPP_<APP>_URL);
-// nothing is hardcoded so staging/prod can point anywhere.
+// @deprecated (WR-AI-002) — DO NOT import in new code.
 //
-// Apps that don't exist yet (or aren't deployed) degrade gracefully:
-// getEndpoint() returns undefined and the gateway marks their tools
-// unavailable instead of crashing.
+// Canonical route resolution lives in ./canonical-endpoints.ts, which resolves
+// method+path+availability from the @quant/app-registry catalog. This module
+// remains ONLY as a thin backwards-compatible shim: every export below is
+// DERIVED from the registry at import time — there is no hardcoded route
+// table here anymore.
+//
+// The old table's stale routes (quantchat.send-message -> POST /messages,
+// quantchat.search -> GET /messages/search, localhost:3999 placeholders) are
+// gone: the shim exposes the canonical routes instead.
+//
+// Removal: after the #382 single-source-of-truth agreement lands and all
+// consumers migrate to ./canonical-endpoints.
 // ============================================================================
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+import {
+  allResolvedToolEndpoints,
+  checkAppHealth as canonicalCheckAppHealth,
+  resolveToolEndpoint,
+  type HttpMethod,
+} from './canonical-endpoints';
+
+export type { HttpMethod };
 
 export interface ToolRoute {
   method: HttpMethod;
@@ -19,7 +33,7 @@ export interface ToolRoute {
 }
 
 export interface AppEndpoint {
-  /** e.g. 'quantmail' — must match ToolDefinition.appId */
+  /** e.g. 'quantmail' — the owning app from the canonical routeRef */
   appId: string;
   /** Base URL of the app's backend, no trailing slash */
   baseUrl: string;
@@ -27,114 +41,60 @@ export interface AppEndpoint {
   healthPath: string;
   /** Per-request timeout in ms */
   timeoutMs: number;
-  /** toolId -> HTTP route on the target backend */
+  /** toolId -> HTTP route, derived from the canonical registry */
   toolRoutes: Record<string, ToolRoute>;
 }
 
-function env(name: string, fallback: string): string {
-  const v = process.env[name];
-  return v && v.trim() ? v.trim().replace(/\/+$/, '') : fallback;
-}
+/**
+ * @deprecated — derived from the canonical registry; prefer
+ * allResolvedToolEndpoint()/gatewayApps() from ./canonical-endpoints.
+ */
+export const APP_ENDPOINTS: AppEndpoint[] = (() => {
+  const byApp = new Map<string, AppEndpoint>();
+  for (const { toolId, ...resolved } of allResolvedToolEndpoints()) {
+    let ep = byApp.get(resolved.appId);
+    if (!ep) {
+      ep = {
+        appId: resolved.appId,
+        baseUrl: resolved.baseUrl,
+        healthPath: resolved.healthPath,
+        timeoutMs: resolved.timeoutMs,
+        toolRoutes: {},
+      };
+      byApp.set(resolved.appId, ep);
+    }
+    ep.toolRoutes[toolId] = { method: resolved.method, path: resolved.path };
+  }
+  return [...byApp.values()];
+})();
 
-const DEFAULT_TIMEOUT_MS = 15000;
-
-export const APP_ENDPOINTS: AppEndpoint[] = [
-  {
-    appId: 'quantmail',
-    baseUrl: env('QUANTAPP_QUANTMAIL_URL', 'http://localhost:3001'),
-    healthPath: '/health',
-    timeoutMs: DEFAULT_TIMEOUT_MS,
-    toolRoutes: {
-      // POST /emails with { toAddresses, subject, bodyPlain/bodyHtml, send: true }
-      'quantmail.send': { method: 'POST', path: '/emails' },
-      'quantmail.search': { method: 'GET', path: '/emails/search' },
-      'quantmail.archive': { method: 'POST', path: '/emails/archive' },
-      'quantmail.draft': { method: 'POST', path: '/emails' },
-    },
-  },
-  {
-    appId: 'quantchat',
-    baseUrl: env('QUANTAPP_QUANTCHAT_URL', 'http://localhost:3002'),
-    healthPath: '/health',
-    timeoutMs: DEFAULT_TIMEOUT_MS,
-    toolRoutes: {
-      'quantchat.send-message': { method: 'POST', path: '/messages' },
-      'quantchat.search': { method: 'GET', path: '/messages/search' },
-    },
-  },
-  // ------------------------------------------------------------------
-  // Apps below have tool definitions but no deployed backend yet.
-  // They resolve to a loopback placeholder and are reported unreachable
-  // by the health check; their tools stay listed but marked unavailable.
-  // ------------------------------------------------------------------
-  {
-    appId: 'quantcalendar',
-    baseUrl: env('QUANTAPP_QUANTCALENDAR_URL', 'http://localhost:3999'),
-    healthPath: '/health',
-    timeoutMs: 5000,
-    toolRoutes: {
-      // TODO(phase2): wire to the real calendar backend once deployed.
-      'quantcalendar.create-event': { method: 'POST', path: '/events' },
-      'quantcalendar.list-today': { method: 'GET', path: '/events/today' },
-      'quantcalendar.reschedule': { method: 'PATCH', path: '/events' },
-      'quantcalendar.cancel': { method: 'DELETE', path: '/events' },
-      'quantcalendar.invite': { method: 'POST', path: '/events/invite' },
-    },
-  },
-  {
-    appId: 'quantdrive',
-    baseUrl: env('QUANTAPP_QUANTDRIVE_URL', 'http://localhost:3999'),
-    healthPath: '/health',
-    timeoutMs: 5000,
-    toolRoutes: {
-      // TODO(phase2): wire to the real drive backend once deployed.
-      'quantdrive.list': { method: 'GET', path: '/files' },
-      'quantdrive.upload': { method: 'POST', path: '/files' },
-    },
-  },
-];
-
-const byAppId = new Map<string, AppEndpoint>(APP_ENDPOINTS.map((e) => [e.appId, e]));
-
-/** Returns the endpoint for an appId, or undefined when unknown. */
+/**
+ * @deprecated — prefer resolveToolEndpoint(toolId) from ./canonical-endpoints.
+ * Returns the endpoint for an appId, or undefined when unknown.
+ */
 export function getEndpoint(appId: string): AppEndpoint | undefined {
-  return byAppId.get(appId);
+  return APP_ENDPOINTS.find((e) => e.appId === appId);
 }
 
-/** Returns the HTTP route for a toolId, or undefined when unmapped. */
+/**
+ * @deprecated — prefer resolveToolEndpoint(toolId) from ./canonical-endpoints.
+ * Returns the HTTP route for a toolId, or undefined when unmapped.
+ */
 export function getToolRoute(appId: string, toolId: string): ToolRoute | undefined {
-  return byAppId.get(appId)?.toolRoutes[toolId];
+  const resolved = resolveToolEndpoint(toolId);
+  if (!resolved || resolved.appId !== appId) return undefined;
+  return { method: resolved.method, path: resolved.path };
 }
 
-/** Quick reachability probe used by GET /agentic/apps/health. */
+/**
+ * @deprecated — prefer checkAppHealth from ./canonical-endpoints.
+ * Quick reachability probe used by GET /agentic/apps/health.
+ */
 export async function checkAppHealth(appId: string): Promise<{
   appId: string;
   reachable: boolean;
   latencyMs: number;
   toolCount: number;
 }> {
-  const ep = byAppId.get(appId);
-  const started = Date.now();
-  if (!ep) {
-    return { appId, reachable: false, latencyMs: 0, toolCount: 0 };
-  }
-  try {
-    const res = await fetch(ep.baseUrl + ep.healthPath, {
-      method: 'GET',
-      signal: AbortSignal.timeout(Math.min(ep.timeoutMs, 5000)),
-    });
-    return {
-      appId,
-      reachable: res.ok,
-      latencyMs: Date.now() - started,
-      toolCount: Object.keys(ep.toolRoutes).length,
-    };
-  } catch {
-    return {
-      appId,
-      reachable: false,
-      latencyMs: Date.now() - started,
-      toolCount: Object.keys(ep.toolRoutes).length,
-    };
-  }
+  return canonicalCheckAppHealth(appId);
 }
