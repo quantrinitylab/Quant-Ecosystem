@@ -687,7 +687,20 @@ Owner: LANE-1
 Branch: lane1-audit-008r5
 Audit started: 2026-10-13 ~03:37 IST (lane-1 deep audit loop, ROUND 5)
 Base: R4 @ 57170917 (origin/main 2026-10-12 17:25 IST) → origin/main da6d3975 (fresh fetch, 2026-10-13 02:47 IST).
-(diff review + live results appended as the audit completes)
+ZERO calendar-path changes since R4 (79 commits in range, none matching calendar|booking|event|rsvp|ics|quantmeet|recurr in diff paths; confirmed via git log glob on all calendar paths + diff --name-only grep). R5 is a pure re-verification pass on an unchanged tree.
+R5 BYTE-VERIFIED STILL IN MAIN (git grep origin/main, line numbers identical to R4): agendaEventWindow in query key (page.tsx:306); setMetaDriveLink 7 call sites (calendar.ts); driveLink in toEventDto (:433); occurrence-id GET resolution with allowAttendees (:1371-1448); viewerIsAttendee+viewerIsOwner gating intact.
+R5 BYTE-VERIFIED STILL OPEN (no new class, all carried forward unchanged):
+- P1 no attendee invitations dispatched (calendar.ts: 0 hits for sendMail/dispatchMail/mailService/sendEmail) -> BLOCKERS.md user design decision (invite semantics).
+- P1 RSVP changes + cancellations silent (rsvp + DELETE handlers) -> BLOCKER: user design decision (notification semantics).
+- P2 detail page orphaned (onSelectEvent={setSelectedEvent} page.tsx:1279/1289/1307/1319/1331 opens edit sheet; only UniversalSearchResults links to detail) -> BLOCKER: user design decision (nav pattern).
+- P2 DTO defaults missing tz to 'UTC' (toEventDto :260/:423).
+- P2 attendee input no email validation (attendeeInput = z.string().max(320), :25).
+- P3 `as never` casts (page.tsx:1027-1028, event/[id]/page.tsx:176).
+- P3 R4-new guest __QUANT_META__ leak in toEventDto description (:417).
+- (008 carryovers: offline edits/blocker #10, divider density/blocker #9, detached infinite-scroll dead code/blocker #8; 009 carryovers: no QuantMeet link gen/blocker, no cancellation semantics, no related mail/files.)
+R5 NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents dispatched (protocol: P0/P1 only).
+LIVE (2026-10-13 ~03:40 IST, logged-out): /calendar → honest sign-in page desktop (1440x900) + mobile (390x844), clean renders; GET /api/calendar/events → 401, GET /api/calendar/events/:id → 401 (auth airtight, unchanged). Signed-in calendar UI remains needs-auth. Evidence: /tmp/lane1-008r5-desktop-calendar.png + mobile-calendar.png. Proxy forwarder 127.0.0.1:8888 healthy. /tmp chrome orphans cleaned.
+Status: [x] DONE (R5 regression audit complete 2026-10-13 ~03:45 IST; zero diffs since R4; all carryovers confirmed unchanged)
 
 ## QM-SCREEN-008 — Calendar home / agenda / day / week / month
 Status: [x] DONE (audit complete 2026-10-11 ~02:10 IST; fixes tracked via their PRs)
