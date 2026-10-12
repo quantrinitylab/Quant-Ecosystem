@@ -110,6 +110,12 @@ export interface QuantyFileWorkspaceState {
     suggestion: OrganizeSuggestion | null;
     appliedResult: { action: 'moved' | 'copied'; folder: string } | null;
     error: string | null;
+    /**
+     * Set when the suggested folder does not exist yet: the copy was NOT
+     * attempted, and the UI offers to create the folder instead of reporting
+     * a false success.
+     */
+    missingFolderName: string | null;
   };
   summarize: {
     status: AsyncStatus;
@@ -147,7 +153,7 @@ export class QuantyFileWorkspaceManager {
       currentFile: null,
       ask: { command: '', status: 'idle', task: null, error: null, polling: false },
       search: { query: '', status: 'idle', results: [], error: null },
-      organize: { status: 'idle', suggestion: null, appliedResult: null, error: null },
+      organize: { status: 'idle', suggestion: null, appliedResult: null, error: null, missingFolderName: null },
       summarize: { status: 'idle', data: null, error: null },
     };
   }
@@ -196,7 +202,7 @@ export class QuantyFileWorkspaceManager {
     if (this.state.currentFile?.id === file?.id) return;
     this.state.currentFile = file;
     // A different file invalidates the previous organize/summarize results.
-    this.state.organize = { status: 'idle', suggestion: null, appliedResult: null, error: null };
+    this.state.organize = { status: 'idle', suggestion: null, appliedResult: null, error: null, missingFolderName: null };
     this.state.summarize = { status: 'idle', data: null, error: null };
     this.notify();
   }
@@ -371,7 +377,7 @@ export class QuantyFileWorkspaceManager {
   public async suggestDestination(): Promise<void> {
     const file = this.state.currentFile;
     if (!file) return;
-    this.state.organize = { status: 'busy', suggestion: null, appliedResult: null, error: null };
+    this.state.organize = { status: 'busy', suggestion: null, appliedResult: null, error: null, missingFolderName: null };
     this.notify();
     try {
       const res = await this.apiFetch('/api/drive/ai/organize', {
@@ -391,6 +397,7 @@ export class QuantyFileWorkspaceManager {
         },
         appliedResult: null,
         error: null,
+        missingFolderName: null,
       };
     } catch (error) {
       this.state.organize = {
@@ -398,6 +405,7 @@ export class QuantyFileWorkspaceManager {
         suggestion: null,
         appliedResult: null,
         error: error instanceof Error ? error.message : 'Could not suggest a destination.',
+        missingFolderName: null,
       };
     }
     this.notify();
@@ -408,7 +416,9 @@ export class QuantyFileWorkspaceManager {
     const file = this.state.currentFile;
     const suggestion = this.state.organize.suggestion;
     if (!file || !suggestion) return;
-    this.state.organize = { ...this.state.organize, status: 'busy', error: null };
+    // A move attempt supersedes any stale "folder missing" state from a copy
+    // attempt — the organize-apply backend creates the folder itself.
+    this.state.organize = { ...this.state.organize, status: 'busy', error: null, missingFolderName: null };
     this.notify();
     try {
       const res = await this.apiFetch('/api/drive/ai/organize', {
@@ -439,17 +449,35 @@ export class QuantyFileWorkspaceManager {
     this.notify();
   }
 
-  /** Copy the file into the suggested folder (resolved by name when needed). */
+  /**
+   * Copy the file into the suggested folder (resolved by name when needed).
+   *
+   * Honesty rule: if the folder does not exist, the copy is NOT attempted.
+   * Posting { targetFolderId: null } would silently duplicate the file in
+   * place while the UI reported a successful copy to the suggested folder.
+   * Instead the state records the missing folder so the UI can offer to
+   * create it.
+   */
   public async copyToSuggestedFolder(): Promise<void> {
     const file = this.state.currentFile;
     const suggestion = this.state.organize.suggestion;
     if (!file || !suggestion) return;
-    this.state.organize = { ...this.state.organize, status: 'busy', error: null };
+    this.state.organize = { ...this.state.organize, status: 'busy', error: null, missingFolderName: null };
     this.notify();
     try {
       // The organize-suggest call does not create the folder (apply=false), so
       // resolve the destination folder id via the folder listing first.
       const folderId = await this.resolveFolderId(suggestion.category);
+      if (!folderId) {
+        this.state.organize = {
+          ...this.state.organize,
+          status: 'error',
+          missingFolderName: suggestion.category,
+          error: `Folder "${suggestion.category}" doesn't exist yet.`,
+        };
+        this.notify();
+        return;
+      }
       const res = await this.apiFetch(`/api/drive/files/${encodeURIComponent(file.id)}/copy`, {
         method: 'POST',
         body: JSON.stringify({ targetFolderId: folderId }),
@@ -459,6 +487,7 @@ export class QuantyFileWorkspaceManager {
       this.state.organize = {
         ...this.state.organize,
         status: 'done',
+        missingFolderName: null,
         appliedResult: { action: 'copied', folder: suggestion.suggestedFolder },
         error: null,
       };
@@ -467,6 +496,56 @@ export class QuantyFileWorkspaceManager {
       this.state.organize = {
         ...this.state.organize,
         status: 'error',
+        missingFolderName: null,
+        error: error instanceof Error ? error.message : 'The copy did not complete.',
+      };
+    }
+    this.notify();
+  }
+
+  /**
+   * Create the missing suggested folder, then copy the file into it.
+   * Only reachable after copyToSuggestedFolder recorded a missing folder,
+   * so the reported destination is always the real one.
+   */
+  public async createFolderAndCopy(): Promise<void> {
+    const file = this.state.currentFile;
+    const suggestion = this.state.organize.suggestion;
+    const folderName = this.state.organize.missingFolderName;
+    if (!file || !suggestion || !folderName) return;
+    this.state.organize = { ...this.state.organize, status: 'busy', error: null };
+    this.notify();
+    try {
+      const createRes = await this.apiFetch('/api/drive/folders', {
+        method: 'POST',
+        body: JSON.stringify({ name: folderName }),
+      });
+      const createData = await this.parseJson(createRes);
+      const newFolderId = typeof createData?.id === 'string' ? createData.id : null;
+      if (!createRes.ok || !newFolderId) {
+        throw new Error(
+          this.errorMessage(createData, `Could not create folder "${folderName}".`),
+        );
+      }
+      const res = await this.apiFetch(`/api/drive/files/${encodeURIComponent(file.id)}/copy`, {
+        method: 'POST',
+        body: JSON.stringify({ targetFolderId: newFolderId }),
+      });
+      const data = await this.parseJson(res);
+      if (!res.ok) throw new Error(this.errorMessage(data, 'The copy did not complete.'));
+      this.state.organize = {
+        ...this.state.organize,
+        status: 'done',
+        missingFolderName: null,
+        appliedResult: { action: 'copied', folder: suggestion.suggestedFolder },
+        error: null,
+      };
+      this.onFilesChanged?.();
+    } catch (error) {
+      this.state.organize = {
+        ...this.state.organize,
+        status: 'error',
+        missingFolderName: folderName,
         error: error instanceof Error ? error.message : 'The copy did not complete.',
       };
     }
@@ -523,7 +602,16 @@ export class QuantyFileWorkspaceManager {
   // -- helpers -----------------------------------------------------------------
 
   private errorMessage(data: Record<string, unknown>, fallback: string): string {
-    return typeof data.error === 'string' && data.error ? data.error : fallback;
+    if (typeof data.error === 'string' && data.error) return data.error;
+    // The backend serializes app errors as { error: { code, message, ... } } —
+    // surfacing that real message keeps failures honest instead of collapsing
+    // them into the generic fallback.
+    const nested = data.error;
+    if (nested && typeof nested === 'object') {
+      const message = (nested as Record<string, unknown>).message;
+      if (typeof message === 'string' && message) return message;
+    }
+    return fallback;
   }
 
   private async parseJson(res: Response): Promise<Record<string, unknown>> {
@@ -981,6 +1069,15 @@ export function QuantyFileWorkspace({
                         {organize.appliedResult.action === 'moved' ? 'Moved' : 'Copied'} to{' '}
                         {organize.appliedResult.folder}.
                       </p>
+                    )}
+                    {organize.missingFolderName && !organize.appliedResult && organize.status !== 'busy' && (
+                      <button
+                        type="button"
+                        onClick={() => void manager.createFolderAndCopy()}
+                        className="mt-2 h-9 w-full rounded-lg bg-[var(--quant-primary)] text-xs font-semibold text-black hover:opacity-90"
+                      >
+                        Create &quot;{organize.missingFolderName}&quot; and copy here
+                      </button>
                     )}
                   </div>
                 )}
