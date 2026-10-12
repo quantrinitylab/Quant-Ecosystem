@@ -64,13 +64,17 @@ export function buildStreakExpiryNotification(
   now: number = Date.now(),
 ): NotificationPayload {
   const remaining = msUntilExpiry(streak, now);
-  const otherUserId = recipientUserId === streak.userAId ? streak.userBId : streak.userAId;
   return {
     userId: recipientUserId,
     category: 'STREAKS',
     title: '🔥 Your streak is about to end!',
     body: `Only ${formatRemaining(remaining)} left to keep your ${streak.count}-day streak alive. Send a message!`,
-    contentId: streak.conversationId ?? otherUserId,
+    // QC-F-142: contentId means "the conversation to open". When the
+    // conversation is unknown it stays EMPTY (the resolver then lands on
+    // the chat list) — the old fallback put the OTHER USER's id here,
+    // which resolved to /chat/<userId>, a conversation that does not
+    // exist.
+    contentId: streak.conversationId ?? undefined,
     priority: 'normal',
     tag: `streak:${streak.id ?? `${streak.userAId}-${streak.userBId}`}`,
   };
