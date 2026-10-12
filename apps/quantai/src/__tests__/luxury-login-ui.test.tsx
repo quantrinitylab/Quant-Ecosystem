@@ -112,5 +112,16 @@ describe('QuantAI Luxury Neural Login UI/UX Suite', () => {
       const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
       expect(emojiRegex.test(html)).toBe(false);
     });
+
+    // F-214: identity spec — QuantMail is the identity root. The login page
+    // must offer password recovery, and it must route to QuantMail's reset
+    // page. A LOCAL reset flow on QuantAI would violate the frozen spec.
+    it('renders a Forgot password link routing to QuantMail (never a local reset flow)', () => {
+      const html = renderToStaticMarkup(React.createElement(LoginPage));
+      expect(html).toContain('Forgot password?');
+      expect(html).toContain('https://quantmail.in/forgot-password');
+      expect(html).not.toContain('href="/reset-password"');
+      expect(html).not.toContain('href="/forgot-password"');
+    });
   });
 });

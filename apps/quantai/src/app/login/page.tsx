@@ -394,6 +394,18 @@ function LoginForm() {
             </div>
           </div>
 
+          {/* F-214: identity spec — QuantMail is the identity root. Password
+              reset happens ONLY on QuantMail; this link routes there and no
+              local reset flow is ever built on QuantAI. */}
+          <div className="flex justify-end">
+            <a
+              href="https://quantmail.in/forgot-password"
+              className="text-xs font-medium text-zinc-400 underline-offset-4 transition hover:text-violet-300 hover:underline"
+            >
+              Forgot password?
+            </a>
+          </div>
+
           {error ? (
             <div
               role="alert"
