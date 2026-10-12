@@ -41,8 +41,19 @@ vi.mock('livekit-server-sdk', () => {
 
 describe('voice-bot Fastify routes (Task VC-01 & VC-02)', () => {
   let app: FastifyInstance;
+  let savedLiveKitEnv: Record<string, string | undefined>;
 
   beforeEach(async () => {
+    // QC-F-076: the voice-bot factory no longer falls back to public dev
+    // credentials, so this harness configures LiveKit explicitly with
+    // test fixtures (same pattern as calls.routes.test.ts).
+    savedLiveKitEnv = {};
+    for (const key of ['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'LIVEKIT_WS_URL']) {
+      savedLiveKitEnv[key] = process.env[key];
+    }
+    process.env['LIVEKIT_API_KEY'] = 'test-livekit-key';
+    process.env['LIVEKIT_API_SECRET'] = 'test-livekit-secret';
+    process.env['LIVEKIT_WS_URL'] = 'ws://livekit.test:7880';
     app = Fastify({ logger: false });
     await app.register(voiceBotRoutes, { prefix: '/voice-bot' });
     await app.ready();
@@ -50,6 +61,13 @@ describe('voice-bot Fastify routes (Task VC-01 & VC-02)', () => {
 
   afterEach(async () => {
     await app.close();
+    for (const key of ['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'LIVEKIT_WS_URL']) {
+      if (savedLiveKitEnv[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = savedLiveKitEnv[key];
+      }
+    }
   });
 
   it('POST /voice-bot/alert initiates an outbound call alert', async () => {

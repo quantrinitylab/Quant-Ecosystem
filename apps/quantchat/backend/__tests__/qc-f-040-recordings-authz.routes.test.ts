@@ -1,5 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { errorHandlerPlugin } from '@quant/server-core';
 import meetingsRoutes from '../routes/meetings';
 import type { RoomPrisma, RoomSettings } from '../services/room.service';
@@ -272,6 +272,30 @@ function errorCode(res: { json: () => unknown }): string {
 
 describe('QC-F-040 meetings recordings authorization', () => {
   let apps: FastifyInstance[] = [];
+  let savedLiveKitEnv: Record<string, string | undefined>;
+
+  // QC-F-076: meetings join fails closed without LiveKit config; the join
+  // calls below are setup for the recordings assertions, so this suite
+  // configures LiveKit explicitly with test fixtures.
+  beforeAll(() => {
+    savedLiveKitEnv = {};
+    for (const key of ['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'LIVEKIT_WS_URL']) {
+      savedLiveKitEnv[key] = process.env[key];
+    }
+    process.env['LIVEKIT_API_KEY'] = 'test-livekit-key';
+    process.env['LIVEKIT_API_SECRET'] = 'test-livekit-secret';
+    process.env['LIVEKIT_WS_URL'] = 'ws://livekit.test:7880';
+  });
+
+  afterAll(() => {
+    for (const key of ['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'LIVEKIT_WS_URL']) {
+      if (savedLiveKitEnv[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = savedLiveKitEnv[key];
+      }
+    }
+  });
 
   async function openApp(
     authUserId: string | null,

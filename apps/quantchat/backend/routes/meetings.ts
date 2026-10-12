@@ -149,19 +149,53 @@ export default async function meetingsRoutes(fastify: FastifyInstance) {
   const summaryService = new SummaryService(prisma, ai);
   const actionItemsService = new ActionItemsService(prisma, ai);
 
-  const livekitGateway = new LiveKitGateway({
-    apiKey: process.env['LIVEKIT_API_KEY'] ?? 'devkey',
-    apiSecret: process.env['LIVEKIT_API_SECRET'] ?? 'devsecret',
-    wsUrl:
-      process.env['LIVEKIT_WS_URL'] ??
-      process.env['LIVEKIT_URL'] ??
-      process.env['NEXT_PUBLIC_LIVEKIT_URL'] ??
-      'ws://localhost:7880',
-  });
-  const webhookService = new LiveKitWebhookService(
-    process.env['LIVEKIT_API_KEY'] ?? 'devkey',
-    process.env['LIVEKIT_API_SECRET'] ?? 'devsecret',
-  );
+  // QC-F-076: LiveKit clients are built LAZILY and fail closed, mirroring
+  // routes/calls.ts — there is intentionally no public dev fallback for
+  // the API key/secret: those fallback strings are public source
+  // constants, so any token or webhook signed with them is forgeable by
+  // anyone. Construction stays
+  // lazy so the backend (and every non-LiveKit meetings surface) boots
+  // without LiveKit configured; the first actual LiveKit use throws an
+  // honest 503 MEETINGS_UNAVAILABLE instead.
+  let livekitGateway: LiveKitGateway | null = null;
+  function getLiveKitGateway(): LiveKitGateway {
+    if (!livekitGateway) {
+      const apiKey = process.env['LIVEKIT_API_KEY'];
+      const apiSecret = process.env['LIVEKIT_API_SECRET'];
+      const wsUrl =
+        process.env['LIVEKIT_WS_URL'] ??
+        process.env['LIVEKIT_URL'] ??
+        process.env['NEXT_PUBLIC_LIVEKIT_URL'];
+      if (!apiKey || !apiSecret || !wsUrl) {
+        throw createAppError(
+          'Meetings are unavailable: LiveKit is not configured. ' +
+            'Set LIVEKIT_API_KEY, LIVEKIT_API_SECRET and LIVEKIT_WS_URL (or LIVEKIT_URL) to enable meetings.',
+          503,
+          'MEETINGS_UNAVAILABLE',
+        );
+      }
+      livekitGateway = new LiveKitGateway({ apiKey, apiSecret, wsUrl });
+    }
+    return livekitGateway;
+  }
+
+  let webhookService: LiveKitWebhookService | null = null;
+  function getWebhookService(): LiveKitWebhookService {
+    if (!webhookService) {
+      const apiKey = process.env['LIVEKIT_API_KEY'];
+      const apiSecret = process.env['LIVEKIT_API_SECRET'];
+      if (!apiKey || !apiSecret) {
+        throw createAppError(
+          'Meetings are unavailable: LiveKit is not configured. ' +
+            'Set LIVEKIT_API_KEY and LIVEKIT_API_SECRET to enable meetings.',
+          503,
+          'MEETINGS_UNAVAILABLE',
+        );
+      }
+      webhookService = new LiveKitWebhookService(apiKey, apiSecret);
+    }
+    return webhookService;
+  }
 
   fastify.post('/rooms', async (request, reply) => {
     const userId = requireUserId(request);
@@ -228,7 +262,7 @@ export default async function meetingsRoutes(fastify: FastifyInstance) {
         throw createAppError('Participant not found in room', 404, 'PARTICIPANT_NOT_FOUND');
       }
 
-      const token = await livekitGateway.generateToken(
+      const token = await getLiveKitGateway().generateToken(
         room.id,
         userId,
         participant.displayName,
@@ -244,7 +278,7 @@ export default async function meetingsRoutes(fastify: FastifyInstance) {
         token,
         participant,
         // Public SFU connection URL (not a secret — media auth is the token).
-        serverUrl: livekitGateway.getServerUrl(),
+        serverUrl: getLiveKitGateway().getServerUrl(),
       });
     } catch (error) {
       if ((error as { statusCode?: number }).statusCode) throw error;
@@ -401,7 +435,7 @@ export default async function meetingsRoutes(fastify: FastifyInstance) {
     config: { rawBody: true },
     handler: async (request, reply) => {
       const body = typeof request.body === 'string' ? request.body : JSON.stringify(request.body);
-      const event = await webhookService.handleWebhook(body, request.headers.authorization);
+      const event = await getWebhookService().handleWebhook(body, request.headers.authorization);
       if (event) {
         fastify.log.info({ event: event.type, room: event.roomName }, 'LiveKit webhook processed');
       }

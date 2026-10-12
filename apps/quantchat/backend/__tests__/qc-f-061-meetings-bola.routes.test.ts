@@ -279,7 +279,19 @@ describe('QC-F-061 meetings room/chat/reactions authorization', () => {
   // must share one app for cross-user chat assertions to mean anything.
   let authUserId: string | null;
 
+  let savedLiveKitEnv: Record<string, string | undefined>;
+
   beforeEach(async () => {
+    // QC-F-076: meetings join fails closed without LiveKit config; the
+    // joinAs setup below needs a configured gateway, so this harness sets
+    // explicit test fixtures (same pattern as calls.routes.test.ts).
+    savedLiveKitEnv = {};
+    for (const key of ['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'LIVEKIT_WS_URL']) {
+      savedLiveKitEnv[key] = process.env[key];
+    }
+    process.env['LIVEKIT_API_KEY'] = 'test-livekit-key';
+    process.env['LIVEKIT_API_SECRET'] = 'test-livekit-secret';
+    process.env['LIVEKIT_WS_URL'] = 'ws://livekit.test:7880';
     authUserId = HOST;
     const { prisma } = makeFakePrisma();
     app = Fastify({ logger: false });
@@ -299,6 +311,13 @@ describe('QC-F-061 meetings room/chat/reactions authorization', () => {
 
   afterEach(async () => {
     await app.close();
+    for (const key of ['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'LIVEKIT_WS_URL']) {
+      if (savedLiveKitEnv[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = savedLiveKitEnv[key];
+      }
+    }
   });
 
   async function as<T>(userId: string | null, fn: () => Promise<T>): Promise<T> {

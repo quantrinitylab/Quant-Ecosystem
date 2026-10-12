@@ -299,21 +299,36 @@ export class VoiceBotAgentService {
   private readonly sessions = new Map<string, VoiceBotSession>();
 
   constructor(config: VoiceBotAgentConfig = {}) {
-    this.apiKey = config.apiKey || process.env['LIVEKIT_API_KEY'] || 'devkey';
-    this.apiSecret = config.apiSecret || process.env['LIVEKIT_API_SECRET'] || 'devsecret';
+    // QC-F-076: no public dev fallback for the API key/secret — those
+    // fallback strings are public source constants, so tokens minted with
+    // them are forgeable by anyone. Missing credentials mean "not
+    // configured" (empty string): the room
+    // client is then never built and generateBotToken() fails closed.
+    this.apiKey = config.apiKey || process.env['LIVEKIT_API_KEY'] || '';
+    this.apiSecret = config.apiSecret || process.env['LIVEKIT_API_SECRET'] || '';
     this.wsUrl = config.wsUrl || process.env['LIVEKIT_WS_URL'] || 'ws://localhost:7880';
     this.botIdentity = config.botIdentity || 'quanty-voice-bot';
     this.tts = config.ttsProvider || new CartesiaTTSProvider();
     this.stt = config.sttProvider || new DeterministicSTTProvider();
 
-    try {
-      this.roomClient = new RoomServiceClient(this.wsUrl, this.apiKey, this.apiSecret);
-    } catch {
-      this.roomClient = null;
+    if (this.apiKey && this.apiSecret) {
+      try {
+        this.roomClient = new RoomServiceClient(this.wsUrl, this.apiKey, this.apiSecret);
+      } catch {
+        this.roomClient = null;
+      }
     }
   }
 
   async generateBotToken(roomName: string): Promise<string> {
+    if (!this.apiKey || !this.apiSecret) {
+      throw createAppError(
+        'Voice bot calls are unavailable: LiveKit is not configured. ' +
+          'Set LIVEKIT_API_KEY, LIVEKIT_API_SECRET and LIVEKIT_WS_URL to enable voice bot calls.',
+        503,
+        'VOICE_BOT_UNAVAILABLE',
+      );
+    }
     const grant: VideoGrant = {
       room: roomName,
       roomJoin: true,
