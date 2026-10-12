@@ -812,6 +812,12 @@ NEW R2 finding:
 NOT VERIFIED (needs live/auth): signed-in E2E of trash/restore/purge/accept/decline/move, desktop tab reachability, Recent Items ordering, accent visual after fix.
 FIX AGENTS (PR-only, tracked separately): lane1-fix-010r2-fake-purge (revive/port #826 onto current main, all STILL-BROKEN items above) → MERGED #923 (2026-10-11/12); lane1-fix-010r2-drive-accent (R2-P1-4 blue→green) → MERGED #921. Rotation → QM-SCREEN-011 R2.
 
+Lane-1 R4 REGRESSION — [~] IN PROGRESS (2026-10-12 ~18:40 IST, lane-1 deep audit loop)
+Owner: LANE-1
+Branch: lane-1/audit-qm-screen-010-011-drive-r4
+Audit scope: origin/main @ 4fc384a6 vs R3 base 1b3f30fb — drive screens QM-SCREEN-010 + QM-SCREEN-011 combined (rotation queues them together).
+(pending — full results appended on completion)
+
 Lane-1 R3 REGRESSION — [x] DONE (2026-10-12 ~07:40-08:00 IST, lane-1 deep audit loop)
 Owner: LANE-1
 Branch: lane-1/audit-qm-screen-010-011-drive-r3
