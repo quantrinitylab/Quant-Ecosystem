@@ -69,11 +69,22 @@ export default function PrivacyPolicyPage() {
                   Account Deletion
                 </div>
                 <div className="mt-0.5 text-sm font-bold text-[var(--quant-foreground)]">
-                  Self-Service Purge
+                  <a
+                    href="mailto:privacy@quantmail.in"
+                    className="text-[var(--brand-primary)] underline-offset-4 hover:underline"
+                  >
+                    Contact Support
+                  </a>
                 </div>
               </div>
             </div>
           </section>
+
+          <p className="text-sm leading-6 text-[var(--quant-muted-foreground)]">
+            To request deletion of your account and data, email privacy@quantmail.in from your
+            account email. Deletion is handled manually by our privacy team — there is currently no
+            self-service deletion flow in the app.
+          </p>
 
           {/* Section 1: Overview */}
           <section>
@@ -180,7 +191,7 @@ export default function PrivacyPolicyPage() {
             <div className="mt-2 space-y-3 text-sm leading-6 text-[var(--quant-muted-foreground)]">
               <p>
                 <strong className="text-[var(--quant-foreground)]">No Tracking SDKs:</strong> The
-                QuantMail Android application (`com.quant.app`) and web platform contain zero
+                QuantMail Android application (`com.quant.mail`) and web platform contain zero
                 third-party advertising SDKs, zero Google AdMob binaries, zero Meta Audience Network
                 libraries, and zero data broker trackers.
               </p>
@@ -202,7 +213,7 @@ export default function PrivacyPolicyPage() {
           {/* Section 4: Cryptographic Security Protocols */}
           <section>
             <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
-              4. Technical Security Protocols &amp; Android Sandbox Hardening
+              4. Technical Security Protocols
             </h2>
             <div className="mt-3 grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
@@ -211,12 +222,7 @@ export default function PrivacyPolicyPage() {
                 </div>
                 <p className="mt-1 text-sm leading-6 text-[var(--quant-muted-foreground)]">
                   All network communication is strictly over HTTPS utilizing modern TLS 1.3 with
-                  Perfect Forward Secrecy. In `AndroidManifest.xml`,{' '}
-                  <code className="font-mono text-[var(--brand-primary)]">
-                    usesCleartextTraffic
-                  </code>{' '}
-                  is permanently disabled (`false`), rejecting unencrypted HTTP connections
-                  entirely.
+                  Perfect Forward Secrecy.
                 </p>
               </div>
 
@@ -231,33 +237,14 @@ export default function PrivacyPolicyPage() {
                 </p>
               </div>
 
-              <div>
-                <div className="text-sm font-semibold text-[var(--brand-primary)]">
-                  Android WebView Sandbox Hardening
-                </div>
-                <p className="mt-1 text-sm leading-6 text-[var(--quant-muted-foreground)]">
-                  Mobile WebSettings are hardened with{' '}
-                  <code className="font-mono">MIXED_CONTENT_NEVER_ALLOW</code>,
-                  disabling file scheme access (
-                  <code className="font-mono">allowFileAccess = false</code>) and
-                  content provider exposure (
-                  <code className="font-mono">allowContentAccess = false</code>).
-                </p>
-              </div>
+              {/* WebView hardening claims removed 2026-10-12: the Android manifest
+                  contains no WebView mixed-content or file-access settings, and no
+                  such settings were found in the Flutter app — do not re-add
+                  without a verified source. */}
 
-              <div>
-                <div className="text-sm font-semibold text-[var(--brand-primary)]">
-                  Secure OAuth via Chrome Custom Tabs
-                </div>
-                <p className="mt-1 text-sm leading-6 text-[var(--quant-muted-foreground)]">
-                  External authentication providers (Google, GitHub, Apple) are intercepted in{' '}
-                  <code className="font-mono">shouldOverrideUrlLoading</code> and
-                  launched within isolated{' '}
-                  <code className="font-mono">CustomTabsIntent</code> windows,
-                  preventing credential exposure and eliminating Google&apos;s{' '}
-                  <code className="font-mono">disallowed_useragent</code> restriction.
-                </p>
-              </div>
+              {/* Custom Tabs OAuth claims removed 2026-10-12: no
+                  shouldOverrideUrlLoading / CustomTabsIntent usage exists in the
+                  Flutter app — do not re-add without a verified source. */}
             </div>
           </section>
 
