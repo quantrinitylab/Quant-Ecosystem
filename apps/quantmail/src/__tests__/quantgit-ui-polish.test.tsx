@@ -167,7 +167,7 @@ describe('QuantGit UI polish — SVG icons, loading states, empty states, a11y',
     it('renders empty state when no agents', () => {
       const html = renderToStaticMarkup(<AgentsTab agents={[]} setModalState={noop} />);
       expect(html).toContain('agents-empty');
-      expect(html).toContain('No agents deployed');
+      expect(html).toContain('No agents added');
     });
 
     it('renders agent cards when agents exist', () => {
