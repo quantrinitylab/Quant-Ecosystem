@@ -38,9 +38,21 @@ describe('buildLoginRedirect (gate side)', () => {
     );
   });
 
-  it('adds no parameter for the app root (already the default target)', () => {
+  it('adds no parameter for the BARE app root (already the default target)', () => {
     expect(buildLoginRedirect('/')).toBe('/login');
-    expect(buildLoginRedirect('/', '?utm=x')).toBe('/login');
+    expect(buildLoginRedirect('/', '')).toBe('/login');
+    expect(buildLoginRedirect('/', null)).toBe('/login');
+  });
+
+  it('preserves a root-route query suffix — root query is real app state (PR #961 review)', () => {
+    expect(buildLoginRedirect('/', '?view=inbox&lens=snoozed')).toBe(
+      '/login?returnTo=%2F%3Fview%3Dinbox%26lens%3Dsnoozed',
+    );
+    expect(buildLoginRedirect('/', '?utm=x')).toBe('/login?returnTo=%2F%3Futm%3Dx');
+  });
+
+  it('preserves a root-route hash suffix', () => {
+    expect(buildLoginRedirect('/', '#join')).toBe('/login?returnTo=%2F%23join');
   });
 
   it('adds no parameter when there is no pathname yet', () => {
@@ -65,6 +77,8 @@ describe('resolveReturnTo (login side)', () => {
   it('keeps the query and hash of a valid target', () => {
     expect(resolveReturnTo('/meet/room-9?code=4821')).toBe('/meet/room-9?code=4821');
     expect(resolveReturnTo('/chat/conv-1#reply')).toBe('/chat/conv-1#reply');
+    // The root itself is an app route; its query is state, not decoration.
+    expect(resolveReturnTo('/?view=inbox&lens=snoozed')).toBe('/?view=inbox&lens=snoozed');
   });
 
   it('falls back to / when absent or empty', () => {
@@ -108,6 +122,13 @@ describe('resolveReturnTo (login side)', () => {
     const redirect = buildLoginRedirect('/chat/conv-7', '?focus=latest');
     const param = new URLSearchParams(redirect.split('?')[1]).get('returnTo');
     expect(resolveReturnTo(param)).toBe('/chat/conv-7?focus=latest');
+  });
+
+  it('round-trips a root-route suffix with buildLoginRedirect (PR #961 review)', () => {
+    const redirect = buildLoginRedirect('/', '?view=inbox&lens=snoozed');
+    const param = new URLSearchParams(redirect.slice('/login?'.length)).get('returnTo');
+    expect(param).toBe('/?view=inbox&lens=snoozed');
+    expect(resolveReturnTo(param)).toBe('/?view=inbox&lens=snoozed');
   });
 });
 
