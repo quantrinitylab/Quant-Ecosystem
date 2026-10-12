@@ -9,6 +9,7 @@ import { useInbox } from '../../../hooks/useInbox';
 import { useMailMutations } from '../../../hooks/useMailMutations';
 import { useAuth } from '../../../providers/auth-provider';
 import { groupEmailsByPerson, type PersonConversation } from '../../../lib/peopleGrouping';
+import { inboxSelectTarget } from '../../../lib/inbox-nav';
 import { PersonThread } from '../../../components/PersonThread';
 import { ThreadComposer } from '../../../components/ThreadComposer';
 import type { Email } from '../../../types';
@@ -172,11 +173,13 @@ export default function PersonPage() {
     }, []),
     onSelect: useCallback(() => {
       // Select by thread id so the inbox pre-selects the right row; fall back
-      // to the last message id if the thread id is absent.
+      // to the last message id if the thread id is absent. view=inbox is
+      // load-bearing: RootPage renders PeopleHome without it, and ?selected=
+      // is only consumed inside InboxPageContent.
       const lastMessage = conversation?.messages[conversation.messages.length - 1];
       const selectId = lastMessage?.threadId || lastMessage?.id;
       if (!selectId) return;
-      router.push(`/?selected=${encodeURIComponent(selectId)}`);
+      router.push(inboxSelectTarget(selectId));
     }, [conversation, router]),
     onClose: useCallback(() => {
       router.push(backHref);
