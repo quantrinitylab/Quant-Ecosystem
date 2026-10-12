@@ -208,13 +208,39 @@ describe('PrivacyService.resolve', () => {
 });
 
 describe('extractPrivacyPrefs', () => {
-  it('falls back per-field to the default on an invalid stored value', () => {
+  it('resolves an individually malformed field fail-closed, absent fields keep defaults (amend gap 4)', () => {
+    // PR #956 review gap 4: the previous per-field fallback to
+    // DEFAULT_PRIVACY failed open — `showOnlineStatus: 'yes'` (a string)
+    // resolved to `true` and exposed presence. A PRESENT-but-malformed
+    // field now takes its most-restrictive value; the block's source stays
+    // 'stored' (the block itself is well-formed).
     const { prefs: p, source } = extractPrivacyPrefs(
       prefs({ whoCanMessage: 'aliens', showOnlineStatus: 'yes' }),
     );
     expect(source).toBe('stored');
     expect(p.whoCanMessage).toBe('friends');
-    expect(p.showOnlineStatus).toBe(true);
+    expect(p.showOnlineStatus).toBe(false);
+    // Genuinely ABSENT fields still merge over the declared defaults —
+    // setting one toggle must not silently flip the other seven.
+    expect(p.whoCanSeeLocation).toBe('friends');
+    expect(p.showReadReceipts).toBe(true);
+    expect(p.hideFromSearch).toBe(false);
+  });
+
+  it('resolves every malformed field to its most-restrictive value (amend gap 4)', () => {
+    const { prefs: p, source } = extractPrivacyPrefs(
+      prefs({
+        whoCanSeeLocation: 'everyone',
+        showReadReceipts: 'false',
+        showTypingIndicator: 1,
+        hideFromSearch: 'true',
+      }),
+    );
+    expect(source).toBe('stored');
+    expect(p.whoCanSeeLocation).toBe('nobody');
+    expect(p.showReadReceipts).toBe(false);
+    expect(p.showTypingIndicator).toBe(false);
+    expect(p.hideFromSearch).toBe(true);
   });
 
   it('treats a non-object preferences blob as an error, null as default', () => {

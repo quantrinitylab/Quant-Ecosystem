@@ -106,6 +106,20 @@ function createFakePrisma(members: MemberRow[]) {
         return { ...row };
       },
     },
+    // QC-F-042 amend (gap 2): the WS layer now binds a receipt frame's
+    // messageId to its owning conversation before recording. Case 6's
+    // scenario presupposes a real message — msg-t6, sent by alice in
+    // conv-t6, acked by bob — modelled here. Unknown ids return null
+    // (unbound frames are dropped).
+    message: {
+      async findUnique(args: {
+        where: { id: string };
+      }): Promise<{ conversationId: string; senderId: string } | null> {
+        return args.where.id === 'msg-t6'
+          ? { conversationId: 'conv-t6', senderId: 'alice' }
+          : null;
+      },
+    },
     __deliveries: deliveries,
   };
 }

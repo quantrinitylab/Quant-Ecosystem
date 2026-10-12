@@ -376,8 +376,37 @@ describe('QC-F-042 read receipts: reader creation gate + sender visibility gate'
         },
       },
       closeFriend: { async findMany() { return []; } },
-      conversationMember: { async findMany() { return []; } },
+      conversationMember: {
+        async findMany() { return []; },
+        // QC-F-042 amend (gap 1): ReceiptService now proves membership
+        // before recording/querying receipts. These scenarios presuppose
+        // ACTIVE members of 'conv-rcpt' — modelled here; authorization
+        // failures themselves are pinned in qc-f-042-amend-receipts.test.ts.
+        async findFirst(args: unknown) {
+          const w = (args as { where: { conversationId: string; userId: string; leftAt: null } }).where;
+          const members = [READER_OFF.userId, STRANGER.userId, SENDER_OFF.userId, SENDER_ON.userId, 'user_rsender'];
+          return w.conversationId === 'conv-rcpt' && members.includes(w.userId)
+            ? { conversationId: w.conversationId, userId: w.userId, leftAt: null }
+            : null;
+        },
+      },
       conversation: { async findMany() { return []; } },
+      // QC-F-042 amend (gap 1): message rows for the authorization checks.
+      // msg-1/msg-2 were sent by a third party ('user_rsender'); the two
+      // reciprocity messages are sent BY the two senders under test.
+      message: {
+        async findUnique(args: unknown) {
+          const id = (args as { where: { id: string } }).where.id;
+          const senders: Record<string, string> = {
+            'msg-1': 'user_rsender',
+            'msg-2': 'user_rsender',
+            'msg-3': SENDER_OFF.userId,
+            'msg-4': SENDER_ON.userId,
+          };
+          const senderId = senders[id];
+          return senderId ? { conversationId: 'conv-rcpt', senderId } : null;
+        },
+      },
     };
     const service = new ReceiptService(fake as never, new PrivacyService(fake as never));
     return { service, rows };
@@ -406,13 +435,19 @@ describe('QC-F-042 read receipts: reader creation gate + sender visibility gate'
 
   it('sender with receipts off never sees a read status (reciprocity); sender with defaults does', async () => {
     const { service } = makeReceipts();
+    // QC-F-042 amend (gap 1): receipt status is sender-only now, so the
+    // two viewers can no longer query the SAME message — each sender
+    // queries their OWN message (msg-3 = SENDER_OFF's, msg-4 =
+    // SENDER_ON's), both read by the same reader. The reciprocity
+    // assertions themselves are unchanged.
     await service.markMessageRead('msg-3', STRANGER.userId);
+    await service.markMessageRead('msg-4', STRANGER.userId);
 
     const forOff = await service.getMessageReceiptStatus('msg-3', SENDER_OFF.userId);
     expect(forOff.status).toBe('delivered');
     expect(forOff.receipts[0]?.status).toBe('delivered');
 
-    const forOn = await service.getMessageReceiptStatus('msg-3', SENDER_ON.userId);
+    const forOn = await service.getMessageReceiptStatus('msg-4', SENDER_ON.userId);
     expect(forOn.status).toBe('read');
     expect(forOn.receipts[0]?.status).toBe('read');
   });
@@ -638,8 +673,10 @@ describe('QC-F-042 receipts route: suppressed read stores nothing', () => {
         },
       },
       message: {
+        // QC-F-042 amend (gap 1): msg-1 was sent by OWNER; the caller in
+        // these scenarios (READER_OFF) is its recipient in 'conv-1'.
         async findUnique() {
-          return { conversationId: 'conv-1' };
+          return { conversationId: 'conv-1', senderId: OWNER.userId };
         },
       },
       user: {
@@ -652,7 +689,18 @@ describe('QC-F-042 receipts route: suppressed read stores nothing', () => {
         },
       },
       closeFriend: { async findMany() { return []; } },
-      conversationMember: { async findMany() { return []; } },
+      conversationMember: {
+        async findMany() { return []; },
+        // QC-F-042 amend (gap 1): READER_OFF is an active member of conv-1
+        // (the scenario's presupposition); OWNER is the sender.
+        async findFirst(args: unknown) {
+          const w = (args as { where: { conversationId: string; userId: string; leftAt: null } }).where;
+          return w.conversationId === 'conv-1' &&
+            (w.userId === READER_OFF.userId || w.userId === OWNER.userId)
+            ? { conversationId: w.conversationId, userId: w.userId, leftAt: null }
+            : null;
+        },
+      },
       conversation: { async findMany() { return []; } },
     };
     return { prisma, rows };
