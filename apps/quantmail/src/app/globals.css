@@ -3244,7 +3244,9 @@ body {
   border-radius: 1rem;
   overflow: hidden;
 }
-/* The real backend shortcut (:name) a template can be recalled by. */
+/* Display-only template identifier (:name). Not a typing trigger — no composer
+   recalls templates by typing; a template is inserted by selecting it in the
+   templates picker. */
 .template-shortcut {
   margin-left: auto;
   flex-shrink: 0;
