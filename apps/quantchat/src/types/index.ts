@@ -527,10 +527,16 @@ export interface DiscoverItem extends BaseEntity {
   description?: string;
   thumbnailUrl: string;
   mediaUrl: string;
-  category: DiscoverCategory;
+  // Optional: the backend only sends a category when the source's metadata
+  // really carries one (QC-F-077) — it never relabels uncategorised content.
+  category?: DiscoverCategory;
   tags: string[];
-  viewCount: number;
-  shareCount: number;
+  // Real engagement counters (Reels only). There is NO view tracking in
+  // QuantChat, so this type deliberately has no viewCount — QC-F-077 removed
+  // the fabricated "views" the trending card used to render.
+  likeCount?: number;
+  commentCount?: number;
+  shareCount?: number;
   isFeatured: boolean;
   isTrending: boolean;
   duration?: number;
@@ -543,11 +549,14 @@ export interface Publisher extends BaseEntity {
   description: string;
   avatarUrl: string;
   coverUrl: string;
-  category: DiscoverCategory;
+  // Optional for the same reason as DiscoverItem.category (QC-F-077).
+  category?: DiscoverCategory;
   subscriberCount: number;
   contentCount: number;
   isVerified: boolean;
   website?: string;
+  /** True when the caller already has a real subscription row (QC-F-077). */
+  isSubscribed?: boolean;
 }
 
 export interface Subscription {
