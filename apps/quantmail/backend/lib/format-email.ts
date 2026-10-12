@@ -134,6 +134,25 @@ export function formatEmailRecord<T extends Record<string, any>>(email: T): T {
       email.snoozedUntil ??
       (email as { thread?: { snoozedUntil?: unknown } | null }).thread?.snoozedUntil ??
       undefined,
+    /*
+     * Scheduled-send bridging: the client `Email` type carries `scheduledAt`,
+     * but the database records a future send as `sentAt` (the scheduled fire
+     * time, stamped by the send service) plus `deliveryStatus = 'queued'`
+     * (the BullMQ delay holds the job back). Without this mapping a queued
+     * row arrives with `scheduledAt` undefined and the Scheduled mailbox
+     * would have to special-case the wire shape — and the client's
+     * `belongsInFolder(row, 'SCHEDULED')` offline predicate would drop
+     * every row on a cold load (the SNOOZED bug class above). Only queued
+     * rows get the bridge: once the job fires, `sentAt` is a historical
+     * send time, not a schedule.
+     *
+     * Explicitly-set values win (an optimistic patch sets it directly);
+     * `undefined` keys do not survive JSON, so non-scheduled rows read
+     * exactly as before.
+     */
+    scheduledAt:
+      email.scheduledAt ??
+      (email.deliveryStatus === 'queued' && email.sentAt ? email.sentAt : undefined),
     trashedAt:
       email.trashedAt ?? (email.isTrash ? (email.deletedAt ?? email.updatedAt ?? null) : undefined),
   };

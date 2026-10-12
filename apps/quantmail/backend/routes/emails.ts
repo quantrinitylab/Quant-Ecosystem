@@ -1391,16 +1391,21 @@ export default async function emailsRoutes(
     const page = Math.max(1, Number(q.page) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(q.pageSize || q.limit) || 50));
     const skip = (page - 1) * pageSize;
+    const folderType = q.folderType?.toUpperCase();
     // QM-UIUX-040: optional keyset cursor. Absent = the offset behaviour
-    // every existing caller relies on, unchanged.
+    // every existing caller relies on, unchanged. The cursor encodes the
+    // descending receivedAt/createdAt/id ordering below; the SCHEDULED view
+    // orders by sentAt ascending (soonest first), so a cursor from any other
+    // view would page it wrongly — force offset mode there.
     const cursor =
-      typeof q.cursor === 'string' && q.cursor.length > 0
-        ? decodeEmailListCursor(q.cursor)
-        : null;
+      folderType === 'SCHEDULED'
+        ? null
+        : typeof q.cursor === 'string' && q.cursor.length > 0
+          ? decodeEmailListCursor(q.cursor)
+          : null;
 
     const prisma = getPrisma(fastify);
     const where: any = { userId, deletedAt: null };
-    const folderType = q.folderType?.toUpperCase();
     if (q.folderId) {
       where.folderId = q.folderId;
     } else if (folderType === 'TRASH') {
@@ -1414,6 +1419,19 @@ export default async function emailsRoutes(
     } else if (folderType === 'DRAFTS') {
       where.isDraft = true;
       where.isTrash = false;
+    } else if (folderType === 'SCHEDULED') {
+      // Scheduled sends: the send fired into the outbox with a future sendAt.
+      // The send service stamps that fire time into `sentAt` and leaves
+      // `deliveryStatus = 'queued'` while the BullMQ delay holds the job
+      // back — until it fires, the row is still cancellable via
+      // POST /emails/:id/cancel-send. This is the Scheduled mailbox: only
+      // queued sends whose scheduled time is still in the future (a send
+      // whose time has passed is no longer "scheduled", even if the worker
+      // has not picked it up yet).
+      where.isSent = true;
+      where.deliveryStatus = 'queued';
+      where.isTrash = false;
+      where.sentAt = { gt: new Date() };
     } else if (folderType === 'SPAM') {
       where.isSpam = true;
       where.isTrash = false;
@@ -1494,6 +1512,12 @@ export default async function emailsRoutes(
       { createdAt: 'desc' },
       { id: 'desc' },
     ];
+    // The Scheduled mailbox is a to-do list, not a timeline: soonest send
+    // first.
+    const listOrderBy: Prisma.EmailOrderByWithRelationInput[] =
+      folderType === 'SCHEDULED'
+        ? [{ sentAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }]
+        : timelineOrder;
     // The row window and the counts run in parallel, exactly as before.
     // Counts describe the whole mailbox view — they use the un-narrowed
     // `where`, so a cursor page never shrinks the totals.
@@ -1533,14 +1557,14 @@ export default async function emailsRoutes(
         ? prisma.email.findMany({
             where: listWhere,
             take: pageSize + 1,
-            orderBy: timelineOrder,
+            orderBy: listOrderBy,
             include: listInclude,
           })
         : prisma.email.findMany({
             where,
             skip,
             take: pageSize,
-            orderBy: timelineOrder,
+            orderBy: listOrderBy,
             include: listInclude,
           }),
       prisma.email.count({ where }),
