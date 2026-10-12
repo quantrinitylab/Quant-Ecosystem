@@ -154,6 +154,11 @@ function QuantGitContent() {  const router = useRouter();
   const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
   const [activeGitHubTab, setActiveGitHubTab] = useState<GitHubTab>('code');
   const [currentBranch, setCurrentBranch] = useState<string>('main');
+  // QM-SCREEN-013: "Browse code at commit" — the file-tree ref currently being
+  // browsed as a detached commit SHA. When set, the code tab's workspace view
+  // shows the tree at this commit instead of the branch head. Cleared whenever
+  // the user picks a branch or opens another repository.
+  const [browsingCommitSha, setBrowsingCommitSha] = useState<string | null>(null);
   const [currentPath, setCurrentPath] = useState<string>('');
   const [viewingFile, setViewingFile] = useState<FileNode | null>(null);
   const [viewingBlobSha, setViewingBlobSha] = useState('');
@@ -340,6 +345,8 @@ function QuantGitContent() {  const router = useRouter();
       setActiveGitHubTab(tab);
       setViewingFile(null);
       setModalState('none');
+      // A newly opened repository always starts at its branch head.
+      setBrowsingCommitSha(null);
 
       navigateQuantGit({
         kind: 'repo',
@@ -471,8 +478,11 @@ function QuantGitContent() {  const router = useRouter();
 
       try {
         const repoTarget = repo.id || repo.name;
+        // QM-SCREEN-013: when browsing at a commit, load the blob at that
+        // commit. The backend GET /:id/file reads `ref` (git accepts a SHA
+        // tree-ish); sending `ref` also makes branch-accurate reads correct.
         const query = new URLSearchParams({
-          branch,
+          ref: browsingCommitSha ?? branch,
           path: file.path,
         });
         const response = await apiFetch(
@@ -538,7 +548,7 @@ function QuantGitContent() {  const router = useRouter();
         );
       }
     },
-    [apiFetch, currentBranch, repositoryOwner, selectedRepo],
+    [apiFetch, browsingCommitSha, currentBranch, repositoryOwner, selectedRepo],
   );
 
   useEffect(() => {
@@ -551,8 +561,10 @@ function QuantGitContent() {  const router = useRouter();
     return subscribeToQuantGitRoute(applyLocation);
   }, []);
 
-  // Fetch real repositories from backend with graceful fallback
-  const fetchRepos = useCallback(async () => {
+  // Fetch real repositories from backend with graceful fallback.
+  // Returns the fresh list so callers can act on it (e.g. open a repo that
+  // was just created) instead of relying on stale closure state.
+  const fetchRepos = useCallback(async (): Promise<Repo[]> => {
     try {
       const res = await apiFetch('/api/repos');
       if (res.ok) {
@@ -591,15 +603,19 @@ function QuantGitContent() {  const router = useRouter();
               : undefined,
           }));
           setBaseRepos(mappedRepos);
+          return mappedRepos;
         } else {
           // Genuine empty state — no fake repos. UI shows "No repositories yet".
           setBaseRepos([]);
+          return [];
         }
       } else {
         setBaseRepos([]);
+        return [];
       }
     } catch {
       setBaseRepos([]);
+      return [];
     }
   }, [currentUsername, apiFetch]);
 
@@ -707,6 +723,7 @@ function QuantGitContent() {  const router = useRouter();
 
     if (pendingRoute.kind === 'blob') {
       setActiveGitHubTab('code');
+      setBrowsingCommitSha(null);
       setCurrentBranch(pendingRoute.branch);
       setCurrentPath(pendingRoute.path);
 
@@ -895,6 +912,7 @@ function QuantGitContent() {  const router = useRouter();
             },
           ];
         });
+        setBrowsingCommitSha(null);
         setCurrentBranch(name);
         showToast(`Branch "${name}" created in repository!`);
         emitQuantGitMascotEvent('branch');
@@ -969,7 +987,9 @@ function QuantGitContent() {  const router = useRouter();
       fetchRepoBranches(selectedRepo.id || selectedRepo.name);
       fetchRepoCommits(selectedRepo.id || selectedRepo.name, currentBranch);
       fetchRepoActions(selectedRepo.id || selectedRepo.name);
-      fetchRepoTree(selectedRepo.id || selectedRepo.name, currentBranch);
+      // A commit-SHA ref is a real git tree-ish — the backend runs
+      // `git ls-tree <ref>`, so browsing at a commit shows the true tree.
+      fetchRepoTree(selectedRepo.id || selectedRepo.name, browsingCommitSha ?? currentBranch);
       setSettingsName(selectedRepo.name);
       setSettingsDesc(selectedRepo.description || '');
       setSettingsBranch(selectedRepo.defaultBranch || 'main');
@@ -978,6 +998,7 @@ function QuantGitContent() {  const router = useRouter();
   }, [
     selectedRepo,
     currentBranch,
+    browsingCommitSha,
     fetchRepoIssues,
     fetchRepoPulls,
     fetchRepoBranches,
@@ -1519,11 +1540,16 @@ function QuantGitContent() {  const router = useRouter();
     }
   };
 
+  // QM-SCREEN-013: picking a branch always exits "browse code at commit" mode.
+  const handleSelectBranch = useCallback((branch: string) => {
+    setBrowsingCommitSha(null);
+    setCurrentBranch(branch);
+  }, []);
+
   const handleMergePR = async (
     prNumber: number,
     mergeMethod: 'merge' | 'squash' | 'rebase' = 'merge',
-  ): Promise<boolean> => {
-    if (!selectedRepo) return false;
+  ): Promise<boolean> => {    if (!selectedRepo) return false;
     const repoTarget = selectedRepo.id || selectedRepo.name;
     try {
       const res = await apiFetch(
@@ -2133,8 +2159,9 @@ function QuantGitContent() {  const router = useRouter();
               if (matched) {
                 openRepository(matched);
               } else {
-                showToast(`Opened repository: ${repoName}`);
-                emitQuantGitMascotEvent('repo');
+                // Honest: the repository was NOT opened — no such repo exists.
+                showToast(`Repository "${repoName}" not found`);
+                emitQuantGitMascotEvent('error');
               }
             }}
             onMergePR={(prId) => {
@@ -2146,10 +2173,15 @@ function QuantGitContent() {  const router = useRouter();
               showToast('Select a repository first to merge');
             }}
             onOpenPR={(prId) => {
-              showToast(`Opened PR details: ${prId}`);
+              // No repo context here — no detail navigation happens. Honest
+              // instruction instead of a false "opened" claim.
+              void prId;
+              showToast('Select a repository first to view pull request details');
             }}
             onSelectIssue={(issueId) => {
-              showToast(`Opened Issue details: ${issueId}`);
+              // Same: no navigation without a repository.
+              void issueId;
+              showToast('Select a repository first to view issue details');
             }}
             onNewRepo={() => setModalState('new-repo')}
             onNewIssue={() => setModalState('new-issue')}
@@ -2172,12 +2204,14 @@ function QuantGitContent() {  const router = useRouter();
                   setModalState={setModalState}
                   openBlobEditor={openBlobEditor}
                   onNavigatePath={setCurrentPath}
-                  onSelectBranch={setCurrentBranch}
+                  onSelectBranch={handleSelectBranch}
                   onOpenCommitHistory={() => setActiveGitHubTab('commits')}
                   showToast={showToast}
                   onCommitBlob={handleCommitBlob}
                   onDeleteBlob={handleDeleteBlob}
                   onStartPullRequest={handleStartPullRequest}
+                  browsingCommitSha={browsingCommitSha}
+                  onExitBrowseCommit={() => setBrowsingCommitSha(null)}
                 />
               )}
 
@@ -2187,9 +2221,15 @@ function QuantGitContent() {  const router = useRouter();
                   currentBranch={currentBranch}
                   repoBranches={repoBranches}
                   commits={commits}
-                  onSelectBranch={setCurrentBranch}
+                  onSelectBranch={handleSelectBranch}
                   onBrowseCodeAtCommit={(sha) => {
-                    showToast(`Switched workspace view to commit ${sha.slice(0, 7)}`);
+                    // Real switch: the tree refetch runs `git ls-tree <sha>`
+                    // and the code tab renders that tree. The toast only
+                    // fires after the switch state is committed.
+                    setBrowsingCommitSha(sha);
+                    setCurrentPath('');
+                    setActiveGitHubTab('code');
+                    showToast(`Browsing repository files at commit ${sha.slice(0, 7)}`);
                   }}
                   showToast={showToast}
                 />
@@ -2219,7 +2259,7 @@ function QuantGitContent() {  const router = useRouter();
                   }
                   currentBranch={currentBranch}
                   onSelectBranch={(b) => {
-                    setCurrentBranch(b);
+                    handleSelectBranch(b);
                     showToast(`Checked out branch: ${b}`);
                   }}
                   // AUD-P0-G3: wired to the real backend handlers — no local-only
@@ -2228,7 +2268,7 @@ function QuantGitContent() {  const router = useRouter();
                   onDeleteBranch={async (b) => {
                     const ok = await handleDeleteBranch(b);
                     if (ok && currentBranch === b) {
-                      setCurrentBranch(selectedRepo.defaultBranch || 'main');
+                      handleSelectBranch(selectedRepo.defaultBranch || 'main');
                     }
                     return ok;
                   }}

@@ -67,7 +67,8 @@ export interface QuantyCopilotViewProps {
   setIsPersonalizeOpen: (open: boolean) => void;
   baseRepos: Repo[];
   openRepository: (repo: Repo) => void;
-  fetchRepos: () => Promise<void>;
+  // Returns the freshly fetched list so the caller can act on it directly.
+  fetchRepos: () => Promise<Repo[]>;
   setActiveDeckTab: (tab: MainDeckTab) => void;
   showToast: (msg: string) => void;
 }
@@ -387,10 +388,30 @@ export function QuantyCopilotView({
                                           );
                                           if (found) {
                                             openRepository(found);
-                                          } else {
-                                            void fetchRepos();
-                                            showToast(`Switching to ${targetName}`);
+                                            return;
                                           }
+                                          // Not in the current list — refetch and try again
+                                          // against the fresh data. Never claim a switch
+                                          // that did not happen.
+                                          void (async () => {
+                                            try {
+                                              const fresh = await fetchRepos();
+                                              const foundFresh = fresh.find(
+                                                (r) => r.name === targetName,
+                                              );
+                                              if (foundFresh) {
+                                                openRepository(foundFresh);
+                                              } else {
+                                                showToast(
+                                                  `Repository "${targetName}" could not be found`,
+                                                );
+                                              }
+                                            } catch {
+                                              showToast(
+                                                `Repository "${targetName}" could not be found`,
+                                              );
+                                            }
+                                          })();
                                         }}
                                         className="px-2 py-0.5 rounded bg-[#21262D] hover:bg-[#30363D] text-[#58A6FF] text-[10px] font-medium transition-colors"
                                       >

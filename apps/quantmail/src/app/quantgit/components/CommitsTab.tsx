@@ -88,9 +88,10 @@ export function CommitsTab({
 
   const handleBrowseCode = (commit: CommitItem, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    const short = commit.sha.slice(0, 7);
+    // QM-SCREEN-013: the parent performs the real workspace switch to this
+    // commit (tree refetch + code tab). No toast here — the parent toasts once
+    // after the switch state is committed.
     onBrowseCodeAtCommit?.(commit.sha);
-    showToast(`Browsing repository files at ${short}`);
   };
 
   const toggleFileExpansion = (filename: string) => {
