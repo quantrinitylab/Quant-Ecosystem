@@ -67,15 +67,19 @@ export function sanitizeInternalReturnPath(
  * Build the gate's redirect for a logged-out visitor on an app route.
  * `suffix` is everything after the pathname in the current URL ('?query'
  * and/or '#hash', as read by the router shell). The destination survives
- * as a single encoded `returnTo` parameter; the app root needs no
- * parameter because '/' is already the post-login default.
+ * as a single encoded `returnTo` parameter. The BARE app root needs no
+ * parameter because '/' is already the post-login default — but a root
+ * WITH a suffix ('/?view=inbox&lens=snoozed') carries real app state in
+ * its query/hash and must round-trip like any other deep link; dropping
+ * it silently erases the visitor's destination (PR #961 review).
  */
 export function buildLoginRedirect(
   pathname: string | null,
   suffix?: string | null,
 ): string {
-  if (!pathname || pathname === '/') return '/login';
+  if (!pathname) return '/login';
   const candidate = suffix ? pathname + suffix : pathname;
+  if (candidate === '/') return '/login';
   const safe = sanitizeInternalReturnPath(candidate);
   if (!safe) return '/login';
   return `/login?returnTo=${encodeURIComponent(safe)}`;
