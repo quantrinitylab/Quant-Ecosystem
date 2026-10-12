@@ -44,8 +44,8 @@ function permissionChipClass(permission: string): string {
   return display === 'Editor'
     ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)]'
     : display === 'Admin'
-      ? 'bg-purple-500/15 text-purple-400 border-purple-500/35'
-      : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/35';
+      ? 'bg-[color-mix(in_srgb,var(--app-accent)_22%,transparent)] text-[var(--app-accent)] border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] font-bold'
+      : 'bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)] border-[color-mix(in_srgb,var(--app-accent)_28%,transparent)] opacity-90';
 }
 
 function statusChipClass(status: string): string {
@@ -185,7 +185,7 @@ export function DriveSharedByMeSubView({
                         {item.linkShare && !isLinkExpired && (
                           <span
                             title={`Public link is on${linkExpiry ? ` — expires ${linkExpiry}` : ''}${item.linkShare.requiresPassword ? ' — password protected' : ''}`}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-sky-500/15 text-sky-400 border border-sky-500/35"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)]"
                           >
                             <CopyIcon className="size-3" />
                             Link on
@@ -306,7 +306,7 @@ export function DriveSharedByMeSubView({
                         {isLinkExpired ? (
                           <span className="text-red-400 font-medium">expired{linkExpiry ? ` on ${linkExpiry}` : ''}</span>
                         ) : (
-                          <span className="text-sky-400 font-medium">
+                          <span className="text-[var(--app-accent)] font-medium">
                             on{linkExpiry ? ` — expires ${linkExpiry}` : ' — never expires'}
                             {item.linkShare.requiresPassword ? ' — password protected' : ''}
                           </span>

@@ -157,8 +157,8 @@ export function DriveSharedSubView({
                         item.permission === 'Editor'
                           ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)]'
                           : item.permission === 'Admin'
-                          ? 'bg-purple-500/15 text-purple-400 border-purple-500/35'
-                          : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/35'
+                          ? 'bg-[color-mix(in_srgb,var(--app-accent)_22%,transparent)] text-[var(--app-accent)] border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] font-bold'
+                          : 'bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)] border-[color-mix(in_srgb,var(--app-accent)_28%,transparent)] opacity-90'
                       }`}
                     >
                       {item.permission}

@@ -90,11 +90,11 @@ export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="size-9 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
+                      <div className="size-9 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
                         <PadlockIcon className="size-4" />
                       </div>
 
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-500/10 text-purple-300 border border-purple-500/30 uppercase tracking-wider">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] uppercase tracking-wider">
                         {item.cipherAlgorithm}
                       </span>
                     </div>

@@ -1031,7 +1031,7 @@ export function FileAISummaryDrawer({
                 >
                   <div className="flex items-center gap-2">
                     <svg
-                      className="w-4 h-4 text-purple-400"
+                      className="w-4 h-4 text-[var(--app-accent)]"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -1052,7 +1052,7 @@ export function FileAISummaryDrawer({
                       <span
                         key={`ct-${idx}`}
                         data-testid="entity-pill-contact"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-xs font-medium text-purple-300"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] px-2.5 py-1 text-xs font-medium text-[var(--app-accent)]"
                       >
                         👤 {contact}
                       </span>

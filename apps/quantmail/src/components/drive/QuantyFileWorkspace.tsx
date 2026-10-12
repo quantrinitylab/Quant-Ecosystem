@@ -694,7 +694,7 @@ function ErrorLine({ message }: { message: string | null }) {
 function BusyLine({ label }: { label: string }) {
   return (
     <p className="mt-2 flex items-center gap-2 text-xs text-[var(--quant-muted-foreground)]" aria-live="polite">
-      <span className="inline-block size-3 animate-spin rounded-full border-2 border-[var(--quant-primary)]/30 border-t-[var(--quant-primary)]" />
+      <span className="inline-block size-3 animate-spin rounded-full border-2 border-[var(--app-accent)]/30 border-t-[var(--app-accent)]" />
       {label}
     </p>
   );
