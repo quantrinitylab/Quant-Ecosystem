@@ -1035,7 +1035,10 @@ Rotation → QM-SCREEN-018 (help) R3, queued.
 Status: [x] DONE (R3 regression audit complete 2026-10-12; #855 fixes verified intact on origin/main 01b700aee; 0 new findings; 1 false-alarm P0 withdrawn with correction)
 
 ## QM-SCREEN-018 — Help / privacy / terms / invite / groups / SSO / legacy route disposition
-Status: [x] DONE (ROUND 2 regression complete 2026-10-12 ~05:20 IST; fixes tracked via PRs; R2-NEW-1 P0 backend-deploy gap filed as systemic)
+Status: [~] IN_PROGRESS — ROUND 3 regression audit, 2026-10-12 ~15:40 IST
+Owner: LANE-1
+Branch: lane1-audit-018r3
+PRIOR: [x] DONE (ROUND 2 regression complete 2026-10-12 ~05:20 IST; fixes tracked via PRs; R2-NEW-1 P0 backend-deploy gap filed as systemic)
 Owner: LANE-1
 Branch: lane1-audit-018r2
 R2-AUDIT (2026-10-12 ~04:40 IST): re-checking all 6 R1 findings against origin/main (both R1 fix PRs #862 + #863 MERGED 2026-10-11) + new-finding hunt on help/privacy/terms/invite/groups/sso pages + live desktop+mobile Chrome. Signed-in flows needs-auth.
