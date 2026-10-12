@@ -6,8 +6,9 @@
 // restore a session with /auth/refresh, and rotates before the access token expires.
 // ============================================================================
 import { apiClient } from './api-client';
-import { getAuthToken, setAuthToken, clearAuthSession } from '../lib/auth';
+import { getAuthToken, setAuthToken, clearAuthSession, getAuthUser } from '../lib/auth';
 import { apiFetchRaw } from '@quant/api-client';
+import { broadcastGlobalLogout } from './ecosystem-logout';
 
 export interface SessionData {
   accessToken?: string;
@@ -27,6 +28,18 @@ export interface SessionResult {
   success: boolean;
   data?: SessionData;
   error?: { code?: string; message?: string };
+}
+
+/**
+ * Honest logout outcome (F-182): whether the ecosystem single-logout
+ * broadcast reached the bus. Local tokens are always cleared regardless —
+ * a dead bus never blocks this tab's logout, it is only reported.
+ */
+export interface LogoutResult {
+  /** True when GLOBAL_LOGOUT was emitted on the `quant_sso_bus`. */
+  broadcasted: boolean;
+  /** Machine-readable reason when the broadcast could not be emitted. */
+  broadcastError?: string;
 }
 
 let accessToken: string | null = null;
@@ -119,8 +132,20 @@ export const authSession = {
     }
     return res;
   },
-  async logout(): Promise<void> {
+  async logout(): Promise<LogoutResult> {
+    // Capture the identity BEFORE clearing: the broadcast seed carries it
+    // for receivers, and clearAccessToken() wipes it from memory+storage.
+    const user = getAuthUser();
     await postAuth('logout').catch(() => undefined);
     clearAccessToken();
+    // Ecosystem single logout (F-182): tell QuantMail and every other Quant
+    // app/tab to close their sessions. Never throws — if the bus is dead we
+    // still completed this tab's logout and report the miss honestly.
+    const eco = broadcastGlobalLogout(
+      user ? { id: user.id, email: user.email, name: user.name } : null,
+    );
+    return eco.broadcasted
+      ? { broadcasted: true }
+      : { broadcasted: false, broadcastError: eco.reason };
   },
 };

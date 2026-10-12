@@ -72,6 +72,9 @@ beforeEach(() => {
   authState.isAuthenticated = true;
   authState.isLoading = false;
   authState.logout.mockReset();
+  // The real provider resolves a LogoutResult; default to a successful
+  // ecosystem broadcast so the happy-path sheet flow is exercised.
+  authState.logout.mockResolvedValue({ broadcasted: true });
   routerMocks.back.mockReset();
   routerMocks.replace.mockReset();
   routerMocks.push.mockReset();
@@ -137,12 +140,33 @@ describe('Quanty Settings screen', () => {
     expect(el.querySelector('[data-testid="data-controls-sheet"]')).not.toBeNull();
   });
 
-  it('logs out for real: confirm calls logout() and routes to /login', async () => {
+  it('logs out for real: confirm broadcasts single-logout, shows the everywhere copy, then routes to /login', async () => {
     const el = await renderPage();
     await clickTestId(el, 'settings-row-logout');
     expect(el.querySelector('[data-testid="logout-sheet"]')).not.toBeNull();
     await clickTestId(el, 'logout-confirm');
     expect(authState.logout).toHaveBeenCalledTimes(1);
+    // Honest outcome: the sheet reports the ecosystem result before leaving.
+    expect(el.querySelector('[data-testid="logout-everywhere"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="logout-everywhere"]')?.textContent).toMatch(
+      /signed out everywhere/i,
+    );
+    await clickTestId(el, 'logout-done');
+    expect(routerMocks.replace).toHaveBeenCalledWith('/login');
+  });
+
+  it('shows the honest local-only warning when the ecosystem broadcast could not reach the bus', async () => {
+    authState.logout.mockResolvedValue({ broadcasted: false, broadcastError: 'BUS_UNAVAILABLE' });
+    const el = await renderPage();
+    await clickTestId(el, 'settings-row-logout');
+    await clickTestId(el, 'logout-confirm');
+    expect(el.querySelector('[data-testid="logout-local-only"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="logout-local-only"]')?.textContent).toMatch(
+      /couldn.t reach your other/i,
+    );
+    // No silent redirect: the user must acknowledge the warning first.
+    expect(routerMocks.replace).not.toHaveBeenCalled();
+    await clickTestId(el, 'logout-done');
     expect(routerMocks.replace).toHaveBeenCalledWith('/login');
   });
 

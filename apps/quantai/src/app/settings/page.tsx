@@ -61,18 +61,35 @@ export default function SettingsPage() {
   const { isAuthenticated, isLoading, logout } = useAuth();
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  // Honest single-logout outcome shown in the sheet after confirming:
+  // 'everywhere' = the ecosystem broadcast reached the bus,
+  // 'local-only' = this device is signed out but sibling apps could not be reached.
+  const [logoutOutcome, setLogoutOutcome] = useState<'idle' | 'everywhere' | 'local-only'>(
+    'idle',
+  );
 
-  const closeSheet = () => setSheet(null);
+  const closeSheet = () => {
+    setSheet(null);
+    setLogoutOutcome('idle');
+  };
 
   async function handleLogout() {
     setLoggingOut(true);
+    setLogoutOutcome('idle');
     try {
-      await logout();
+      // The provider always resolves a LogoutResult; tolerate test doubles
+      // that resolve undefined by treating "unknown" as broadcast-ok=false?
+      // No — unknown means we cannot claim everywhere: report local-only.
+      const result = await logout();
+      setLogoutOutcome(result && result.broadcasted ? 'everywhere' : 'local-only');
     } finally {
       setLoggingOut(false);
-      closeSheet();
-      router.replace('/login');
     }
+  }
+
+  function finishLogout() {
+    closeSheet();
+    router.replace('/login');
   }
 
   const user = getAuthUser();
@@ -220,27 +237,64 @@ export default function SettingsPage() {
       {sheet === 'legal' && <LegalSheet onClose={closeSheet} />}
       {sheet === 'logout' && (
         <SettingsSheet
-          title="Log out?"
-          subtitle="You'll need to sign in again to use QuantAI."
-          onClose={closeSheet}
+          title={logoutOutcome === 'idle' ? 'Log out?' : 'Signed out'}
+          subtitle={
+            logoutOutcome === 'idle'
+              ? "You'll need to sign in again to use QuantAI."
+              : undefined
+          }
+          onClose={logoutOutcome === 'idle' ? closeSheet : finishLogout}
           testId="logout-sheet"
         >
-          <div className="space-y-3">
-            <SheetDangerButton onClick={handleLogout} disabled={loggingOut} testId="logout-confirm">
-              {loggingOut ? 'Logging out…' : 'Log out'}
-            </SheetDangerButton>
-            <button
-              type="button"
-              onClick={closeSheet}
-              className="w-full py-2 text-[15px] text-white/60 hover:text-white"
-            >
-              Cancel
-            </button>
-          </div>
-          <SheetNote>
-            This signs you out of QuantAI on this device. Your QuantID stays active for the other
-            Quant apps.
-          </SheetNote>
+          {logoutOutcome === 'idle' && (
+            <>
+              <div className="space-y-3">
+                <SheetDangerButton
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  testId="logout-confirm"
+                >
+                  {loggingOut ? 'Logging out…' : 'Log out'}
+                </SheetDangerButton>
+                <button
+                  type="button"
+                  onClick={closeSheet}
+                  className="w-full py-2 text-[15px] text-white/60 hover:text-white"
+                >
+                  Cancel
+                </button>
+              </div>
+              <SheetNote>
+                This signs you out of QuantAI and every other Quant app, everywhere you are
+                signed in.
+              </SheetNote>
+            </>
+          )}
+          {logoutOutcome === 'everywhere' && (
+            <>
+              <p className="text-[15px] text-white/80" data-testid="logout-everywhere">
+                You are signed out everywhere — QuantAI and your other Quant apps.
+              </p>
+              <div className="mt-4 space-y-3">
+                <SheetDangerButton onClick={finishLogout} testId="logout-done">
+                  Done
+                </SheetDangerButton>
+              </div>
+            </>
+          )}
+          {logoutOutcome === 'local-only' && (
+            <>
+              <p className="text-[15px] text-amber-300" data-testid="logout-local-only">
+                Signed out of QuantAI on this device, but we couldn&apos;t reach your other
+                Quant apps — sign out of those separately.
+              </p>
+              <div className="mt-4 space-y-3">
+                <SheetDangerButton onClick={finishLogout} testId="logout-done">
+                  Done
+                </SheetDangerButton>
+              </div>
+            </>
+          )}
         </SettingsSheet>
       )}
     </div>

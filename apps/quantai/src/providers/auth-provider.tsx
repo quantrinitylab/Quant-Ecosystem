@@ -1,12 +1,21 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { UniversalSSOTokenBridge } from '@quant/shared-ui';
+import type { SSOEventMessage } from '@quant/shared-ui';
 import {
   authSession,
   clearAccessToken,
   isTwoFactorChallenge,
   ingestSSOToken,
 } from '../services/auth-session';
-import { getAuthToken } from '../lib/auth';
+import type { LogoutResult } from '../services/auth-session';
+import { subscribeToGlobalLogout } from '../services/ecosystem-logout';
+import {
+  broadcastSessionInitialized,
+  broadcastTokenRefreshed,
+  subscribeToSessionInitialized,
+  subscribeToTokenRefreshed,
+} from '../services/ecosystem-session-sync';
+import { getAuthToken, getAuthUser, readStoredAuthToken } from '../lib/auth';
 
 export type LoginOutcome =
   | { status: 'signed-in' }
@@ -19,7 +28,8 @@ interface AuthContextValue {
   isLoading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<LoginOutcome>;
-  logout: () => Promise<void>;
+  /** Logs out locally AND broadcasts ecosystem single-logout; resolves with how far the broadcast got. */
+  logout: () => Promise<LogoutResult>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -116,12 +126,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const timer = window.setInterval(
       async () => {
         const session = await authSession.refresh();
-        if (!session.success || !session.data?.accessToken) clearSession();
+        if (!session.success || !session.data?.accessToken) {
+          clearSession();
+          return;
+        }
+        // F-189: tell sibling tabs the token rotated so they drop their stale
+        // in-memory copy instead of calling APIs with it until their own
+        // rotation. Never throws; a dead bus must not break the refresh cycle.
+        broadcastTokenRefreshed();
       },
       12 * 60 * 1000,
     );
     return () => window.clearInterval(timer);
   }, [isAuthenticated, clearSession]);
+
+  // F-189: adopt a session announced on the ecosystem bus when this tab is
+  // signed out. Bus events carry NO token (bridge design), so adoption is
+  // always gated on a real token in this origin's storage — a forged event
+  // can only trigger a no-op re-read, never a fabricated session.
+  const tryAdoptSession = useCallback(
+    async (event: SSOEventMessage): Promise<boolean> => {
+      if (authedRef.current) return false;
+      // Same-origin case: a sibling QuantAI tab just signed in and the token
+      // is already in shared localStorage (written by the fail-closed SSO
+      // handoff or the login flow).
+      const stored = readStoredAuthToken();
+      if (stored) {
+        ingestSSOToken(stored);
+        setIsAuthenticated(true);
+        return true;
+      }
+      // Cross-app case (no shared storage): one honest background attempt via
+      // the HttpOnly refresh cookie, adopted only on real success.
+      if (event.sourceApp !== 'quantai') {
+        try {
+          const session = await authSession.refresh();
+          if (session.success && session.data?.accessToken) {
+            setIsAuthenticated(true);
+            return true;
+          }
+        } catch {
+          // Stay signed out; the login page remains the honest entry point.
+        }
+      }
+      return false;
+    },
+    [],
+  );
+
+  // F-189: cross-tab / cross-app session sync over the `quant_sso_bus`.
+  // GLOBAL_LOGOUT is wired separately (F-182); this effect covers the other
+  // two directions. TOKEN_REFRESHED never resurrects a logged-out tab, and a
+  // refresh announced for a different user id is ignored.
+  useEffect(() => {
+    const unsubSession = subscribeToSessionInitialized((event) => {
+      if (authedRef.current) return;
+      void tryAdoptSession(event);
+    });
+    const unsubRefresh = subscribeToTokenRefreshed((event) => {
+      if (!authedRef.current) return;
+      const me = getAuthUser()?.id;
+      if (event.userId && me && event.userId !== me) return;
+      const stored = readStoredAuthToken();
+      if (stored) ingestSSOToken(stored);
+    });
+    return () => {
+      unsubSession();
+      unsubRefresh();
+    };
+  }, [tryAdoptSession]);
 
   const login = useCallback(
     async (email: string, password: string): Promise<LoginOutcome> => {
@@ -141,6 +214,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         if (!session.data.accessToken) throw new Error('Sign-in failed.');
         setIsAuthenticated(true);
+        // F-189: announce the new session so sibling tabs adopt it instead of
+        // sitting signed-out. Never throws; a dead bus must not break login.
+        broadcastSessionInitialized();
         return { status: 'signed-in' };
       } catch (caught) {
         clearSession();
@@ -154,10 +230,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [clearSession],
   );
 
-  const logout = useCallback(async () => {
-    await authSession.logout();
+  // Defense direction of ecosystem single-logout (F-182): when any other
+  // Quant app (e.g. QuantMail) logs out, GLOBAL_LOGOUT arrives on the shared
+  // bus and this tab must drop its session too. Idempotent — a logout while
+  // already logged out is a no-op.
+  useEffect(() => {
+    return subscribeToGlobalLogout(() => {
+      clearSession();
+    });
+  }, [clearSession]);
+
+  const logout = useCallback(async (): Promise<LogoutResult> => {
+    const result = await authSession.logout();
     setIsAuthenticated(false);
     setError(null);
+    return result;
   }, []);
 
   return (

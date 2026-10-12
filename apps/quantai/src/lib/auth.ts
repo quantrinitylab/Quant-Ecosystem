@@ -51,6 +51,27 @@ export function getAuthToken(): string | null {
 }
 
 /**
+ * Reads the auth token from localStorage ONLY, bypassing the in-memory
+ * cache. Needed for cross-tab sync: when another tab rotates the token,
+ * this tab's memoryToken is stale, so getAuthToken() would keep returning
+ * the old value. F-189.
+ */
+export function readStoredAuthToken(): string | null {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return null;
+  try {
+    return (
+      localStorage.getItem('quant_access_token') ||
+      localStorage.getItem('quant_auth_token') ||
+      localStorage.getItem('token') ||
+      localStorage.getItem('quant_token') ||
+      localStorage.getItem('quantchat_access_token')
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Persists auth token and user in memory session, localStorage, and cookie.
  * Clears guest exploration flag upon successful login.
  */
