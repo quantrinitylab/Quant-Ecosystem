@@ -1,93 +1,86 @@
 'use client';
 
 import Link from 'next/link';
-import { AppShell } from '../../components/AppShell';
-import { AppSidebar } from '../../components/AppSidebar';
+import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
+import { AuthShell } from '../../components/auth/AuthShell';
 
+/**
+ * Standalone public legal page (mirrors /terms): no AppShell, no AppSidebar,
+ * no inbox chrome for signed-out visitors. Pure-black, no divider lines,
+ * Mail orange accents. Copy is unchanged from the previous version.
+ */
 export default function PrivacyPolicyPage() {
   return (
-    <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <div className="workspace-page privacy-workspace flex h-full flex-col overflow-hidden bg-[var(--quant-background)]">
-        {/* Page Header */}
-        <header className="shrink-0 border-b border-[var(--quant-border)] bg-[var(--quant-card)] px-4 pb-4 pt-6 sm:px-8">
-          <div className="mx-auto max-w-4xl">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="flex size-11 items-center justify-center rounded-xl border border-[var(--brand-soft-border)] bg-[var(--brand-soft)] text-[var(--brand-primary)]">
-                  <svg
-                    className="size-6"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    aria-hidden="true"
-                  >
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                    <path d="m9 12 2 2 4-4" />
-                  </svg>
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold tracking-tight text-[var(--quant-foreground)] sm:text-2xl">
-                    Privacy Policy
-                  </h1>
-                  <p className="text-xs text-[var(--quant-muted-foreground)] mt-0.5">
-                    How QuantMail handles your data
-                  </p>
-                </div>
-              </div>
+    <AuthShell
+      brand={
+        <AuthBrandPanel
+          eyebrow="Legal"
+          title="Privacy Policy."
+          subtitle="How QuantMail handles your data."
+        />
+      }
+    >
+      <div>
+        <div className="mb-8">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
+            Legal
+          </p>
+          <h1 className="text-[28px] font-semibold tracking-[-0.035em] text-[var(--quant-foreground)] sm:text-[30px]">
+            Privacy Policy
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
+            Last updated October 2026.
+          </p>
+        </div>
 
-              <div className="flex items-center gap-2">
-                <span className="rounded-full border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-3 py-1 text-xs font-mono text-[var(--quant-muted-foreground)]">
-                  Last updated: October 2026
-                </span>
-              </div>
-            </div>
-
-            {/* Quick Stat Badges */}
-            <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-[var(--quant-border-subtle)]">
-              <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-3">
+        <div className="space-y-8">
+          {/* At-a-glance */}
+          <section>
+            <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
+              At a glance
+            </h2>
+            <div className="mt-3 grid grid-cols-2 gap-4">
+              <div>
                 <div className="text-[11px] font-medium text-[var(--quant-muted-foreground)]">
                   Third-Party Ads
                 </div>
-                <div className="text-sm font-bold text-emerald-400 mt-0.5">Zero (0) Ads</div>
+                <div className="mt-0.5 text-sm font-bold text-[var(--brand-primary)]">
+                  Zero (0) Ads
+                </div>
               </div>
-              <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-3">
+              <div>
                 <div className="text-[11px] font-medium text-[var(--quant-muted-foreground)]">
                   Data Encryption
                 </div>
-                <div className="text-sm font-bold text-[var(--brand-primary)] mt-0.5">
+                <div className="mt-0.5 text-sm font-bold text-[var(--brand-primary)]">
                   TLS 1.3 &amp; AES-GCM
                 </div>
               </div>
-              <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-3">
+              <div>
                 <div className="text-[11px] font-medium text-[var(--quant-muted-foreground)]">
                   Data Sharing
                 </div>
-                <div className="text-sm font-bold text-emerald-400 mt-0.5">No External Sharing</div>
+                <div className="mt-0.5 text-sm font-bold text-[var(--brand-primary)]">
+                  No External Sharing
+                </div>
               </div>
-              <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-3">
+              <div>
                 <div className="text-[11px] font-medium text-[var(--quant-muted-foreground)]">
                   Account Deletion
                 </div>
-                <div className="text-sm font-bold text-[var(--quant-foreground)] mt-0.5">
+                <div className="mt-0.5 text-sm font-bold text-[var(--quant-foreground)]">
                   Self-Service Purge
                 </div>
               </div>
             </div>
-          </div>
-        </header>
+          </section>
 
-        {/* Policy Content Body */}
-        <div className="mx-auto w-full max-w-4xl flex-1 space-y-8 overflow-y-auto px-4 py-8 sm:px-8 text-sm text-[var(--quant-foreground)]">
           {/* Section 1: Overview */}
-          <section className="space-y-3 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-6">
-            <h2 className="text-base font-semibold text-[var(--quant-foreground)] flex items-center gap-2">
-              <span className="flex size-6 items-center justify-center rounded-full bg-[var(--brand-soft)] text-xs font-bold text-[var(--brand-primary)]">
-                1
-              </span>
-              Sovereign Privacy Commitment
+          <section>
+            <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
+              1. Sovereign Privacy Commitment
             </h2>
-            <p className="text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
+            <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
               QuantMail (provided by Quantrinity as part of the Quant Sovereign Ecosystem) is
               engineered on fundamental cryptographic privacy and data autonomy principles. Unlike
               ad-driven email providers, QuantMail does not read, index, parse, or monetize your
@@ -97,76 +90,80 @@ export default function PrivacyPolicyPage() {
           </section>
 
           {/* Section 2: Data Disclosure Matrix */}
-          <section className="space-y-4 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-6">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <h2 className="text-base font-semibold text-[var(--quant-foreground)] flex items-center gap-2">
-                <span className="flex size-6 items-center justify-center rounded-full bg-[var(--brand-soft)] text-xs font-bold text-[var(--brand-primary)]">
-                  2
-                </span>
-                Data Disclosure Matrix
-              </h2>
-            </div>
-            <p className="text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
+          <section>
+            <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
+              2. Data Disclosure Matrix
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
               The table below lists the data QuantMail collects, the purpose of collection, and
               how that data is shared and protected:
             </p>
-
-            <div className="overflow-x-auto rounded-xl border border-[var(--quant-border)]">
-              <table className="w-full text-left text-xs border-collapse">
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)]">
-                    <th className="p-3 font-semibold">Data Category</th>
-                    <th className="p-3 font-semibold">Specific Fields</th>
-                    <th className="p-3 font-semibold">Purpose</th>
-                    <th className="p-3 font-semibold">Shared with 3rd Parties?</th>
-                    <th className="p-3 font-semibold">Encryption Status</th>
+                  <tr className="text-[var(--quant-muted-foreground)]">
+                    <th className="py-2 pr-4 font-semibold">Data Category</th>
+                    <th className="py-2 pr-4 font-semibold">Specific Fields</th>
+                    <th className="py-2 pr-4 font-semibold">Purpose</th>
+                    <th className="py-2 pr-4 font-semibold">Shared with 3rd Parties?</th>
+                    <th className="py-2 font-semibold">Encryption Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[var(--quant-border-subtle)] text-[var(--quant-muted-foreground)]">
+                <tbody className="text-[var(--quant-muted-foreground)]">
                   <tr>
-                    <td className="p-3 font-medium text-[var(--quant-foreground)]">
+                    <td className="py-2 pr-4 font-medium text-[var(--quant-foreground)]">
                       Personal Info
                     </td>
-                    <td className="p-3">Email address, Display name, Account identifier</td>
-                    <td className="p-3">Account creation, login authentication, mail routing</td>
-                    <td className="p-3 text-emerald-400 font-semibold">Never Shared</td>
-                    <td className="p-3">TLS 1.3 in transit · AES-256 at rest</td>
+                    <td className="py-2 pr-4">Email address, Display name, Account identifier</td>
+                    <td className="py-2 pr-4">Account creation, login authentication, mail routing</td>
+                    <td className="py-2 pr-4 font-semibold text-[var(--brand-primary)]">
+                      Never Shared
+                    </td>
+                    <td className="py-2">TLS 1.3 in transit · AES-256 at rest</td>
                   </tr>
                   <tr>
-                    <td className="p-3 font-medium text-[var(--quant-foreground)]">Messages</td>
-                    <td className="p-3">Emails, subjects, message body, attachments, drafts</td>
-                    <td className="p-3">
+                    <td className="py-2 pr-4 font-medium text-[var(--quant-foreground)]">Messages</td>
+                    <td className="py-2 pr-4">Emails, subjects, message body, attachments, drafts</td>
+                    <td className="py-2 pr-4">
                       Core App functionality: sending, receiving, and displaying mail
                     </td>
-                    <td className="p-3 text-emerald-400 font-semibold">Never Shared</td>
-                    <td className="p-3">TLS 1.3 in transit · AES-256-GCM at rest</td>
+                    <td className="py-2 pr-4 font-semibold text-[var(--brand-primary)]">
+                      Never Shared
+                    </td>
+                    <td className="py-2">TLS 1.3 in transit · AES-256-GCM at rest</td>
                   </tr>
                   <tr>
-                    <td className="p-3 font-medium text-[var(--quant-foreground)]">Contacts</td>
-                    <td className="p-3">Address book entries (name, email addresses, labels)</td>
-                    <td className="p-3">Recipient autocomplete, contact card synchronization</td>
-                    <td className="p-3 text-emerald-400 font-semibold">Never Shared</td>
-                    <td className="p-3">TLS 1.3 in transit · AES-256-GCM at rest</td>
+                    <td className="py-2 pr-4 font-medium text-[var(--quant-foreground)]">Contacts</td>
+                    <td className="py-2 pr-4">Address book entries (name, email addresses, labels)</td>
+                    <td className="py-2 pr-4">Recipient autocomplete, contact card synchronization</td>
+                    <td className="py-2 pr-4 font-semibold text-[var(--brand-primary)]">
+                      Never Shared
+                    </td>
+                    <td className="py-2">TLS 1.3 in transit · AES-256-GCM at rest</td>
                   </tr>
                   <tr>
-                    <td className="p-3 font-medium text-[var(--quant-foreground)]">
+                    <td className="py-2 pr-4 font-medium text-[var(--quant-foreground)]">
                       App Performance &amp; Logs
                     </td>
-                    <td className="p-3">Crash diagnostics, delivery latency timestamps</td>
-                    <td className="p-3">Reliability monitoring, network reconnection telemetry</td>
-                    <td className="p-3 text-emerald-400 font-semibold">Never Shared</td>
-                    <td className="p-3">Ephemeral, anonymized, scrubbed within 7 days</td>
+                    <td className="py-2 pr-4">Crash diagnostics, delivery latency timestamps</td>
+                    <td className="py-2 pr-4">Reliability monitoring, network reconnection telemetry</td>
+                    <td className="py-2 pr-4 font-semibold text-[var(--brand-primary)]">
+                      Never Shared
+                    </td>
+                    <td className="py-2">Ephemeral, anonymized, scrubbed within 7 days</td>
                   </tr>
                   <tr>
-                    <td className="p-3 font-medium text-[var(--quant-foreground)]">
+                    <td className="py-2 pr-4 font-medium text-[var(--quant-foreground)]">
                       Security &amp; Device Tokens
                     </td>
-                    <td className="p-3">Session refresh tokens, FCM push notification token</td>
-                    <td className="p-3">
+                    <td className="py-2 pr-4">Session refresh tokens, FCM push notification token</td>
+                    <td className="py-2 pr-4">
                       Authenticating device session and waking app for incoming mail
                     </td>
-                    <td className="p-3 text-emerald-400 font-semibold">Never Shared</td>
-                    <td className="p-3">
+                    <td className="py-2 pr-4 font-semibold text-[var(--brand-primary)]">
+                      Never Shared
+                    </td>
+                    <td className="py-2">
                       HttpOnly secure cookies &amp; cryptographic token rotation
                     </td>
                   </tr>
@@ -176,14 +173,11 @@ export default function PrivacyPolicyPage() {
           </section>
 
           {/* Section 3: Zero Advertising */}
-          <section className="space-y-3 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-6">
-            <h2 className="text-base font-semibold text-[var(--quant-foreground)] flex items-center gap-2">
-              <span className="flex size-6 items-center justify-center rounded-full bg-[var(--brand-soft)] text-xs font-bold text-[var(--brand-primary)]">
-                3
-              </span>
-              Strict Zero Third-Party Advertising Policy
+          <section>
+            <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
+              3. Strict Zero Third-Party Advertising Policy
             </h2>
-            <div className="space-y-2 text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
+            <div className="mt-2 space-y-3 text-sm leading-6 text-[var(--quant-muted-foreground)]">
               <p>
                 <strong className="text-[var(--quant-foreground)]">No Tracking SDKs:</strong> The
                 QuantMail Android application (`com.quant.app`) and web platform contain zero
@@ -206,22 +200,19 @@ export default function PrivacyPolicyPage() {
           </section>
 
           {/* Section 4: Cryptographic Security Protocols */}
-          <section className="space-y-3 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-6">
-            <h2 className="text-base font-semibold text-[var(--quant-foreground)] flex items-center gap-2">
-              <span className="flex size-6 items-center justify-center rounded-full bg-[var(--brand-soft)] text-xs font-bold text-[var(--brand-primary)]">
-                4
-              </span>
-              Technical Security Protocols &amp; Android Sandbox Hardening
+          <section>
+            <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
+              4. Technical Security Protocols &amp; Android Sandbox Hardening
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-              <div className="rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-4 space-y-2">
-                <div className="font-semibold text-xs text-[var(--brand-primary)]">
+            <div className="mt-3 grid grid-cols-1 gap-5 md:grid-cols-2">
+              <div>
+                <div className="text-sm font-semibold text-[var(--brand-primary)]">
                   Encryption in Transit (TLS 1.3)
                 </div>
-                <p className="text-xs text-[var(--quant-muted-foreground)] leading-relaxed">
+                <p className="mt-1 text-sm leading-6 text-[var(--quant-muted-foreground)]">
                   All network communication is strictly over HTTPS utilizing modern TLS 1.3 with
                   Perfect Forward Secrecy. In `AndroidManifest.xml`,{' '}
-                  <code className="text-[11px] font-mono text-[var(--brand-primary)]">
+                  <code className="font-mono text-[var(--brand-primary)]">
                     usesCleartextTraffic
                   </code>{' '}
                   is permanently disabled (`false`), rejecting unencrypted HTTP connections
@@ -229,56 +220,53 @@ export default function PrivacyPolicyPage() {
                 </p>
               </div>
 
-              <div className="rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-4 space-y-2">
-                <div className="font-semibold text-xs text-[var(--brand-primary)]">
+              <div>
+                <div className="text-sm font-semibold text-[var(--brand-primary)]">
                   Encryption at Rest (AES-256-GCM)
                 </div>
-                <p className="text-xs text-[var(--quant-muted-foreground)] leading-relaxed">
+                <p className="mt-1 text-sm leading-6 text-[var(--quant-muted-foreground)]">
                   Mailbox databases, message attachments, and contact books are persisted with
                   authenticated AES-256-GCM encryption. Cryptographic keys are isolated and rotated
                   according to NIST SP 800-57 guidelines.
                 </p>
               </div>
 
-              <div className="rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-4 space-y-2">
-                <div className="font-semibold text-xs text-[var(--brand-primary)]">
+              <div>
+                <div className="text-sm font-semibold text-[var(--brand-primary)]">
                   Android WebView Sandbox Hardening
                 </div>
-                <p className="text-xs text-[var(--quant-muted-foreground)] leading-relaxed">
+                <p className="mt-1 text-sm leading-6 text-[var(--quant-muted-foreground)]">
                   Mobile WebSettings are hardened with{' '}
-                  <code className="text-[11px] font-mono">MIXED_CONTENT_NEVER_ALLOW</code>,
+                  <code className="font-mono">MIXED_CONTENT_NEVER_ALLOW</code>,
                   disabling file scheme access (
-                  <code className="text-[11px] font-mono">allowFileAccess = false</code>) and
+                  <code className="font-mono">allowFileAccess = false</code>) and
                   content provider exposure (
-                  <code className="text-[11px] font-mono">allowContentAccess = false</code>).
+                  <code className="font-mono">allowContentAccess = false</code>).
                 </p>
               </div>
 
-              <div className="rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-4 space-y-2">
-                <div className="font-semibold text-xs text-[var(--brand-primary)]">
+              <div>
+                <div className="text-sm font-semibold text-[var(--brand-primary)]">
                   Secure OAuth via Chrome Custom Tabs
                 </div>
-                <p className="text-xs text-[var(--quant-muted-foreground)] leading-relaxed">
+                <p className="mt-1 text-sm leading-6 text-[var(--quant-muted-foreground)]">
                   External authentication providers (Google, GitHub, Apple) are intercepted in{' '}
-                  <code className="text-[11px] font-mono">shouldOverrideUrlLoading</code> and
+                  <code className="font-mono">shouldOverrideUrlLoading</code> and
                   launched within isolated{' '}
-                  <code className="text-[11px] font-mono">CustomTabsIntent</code> windows,
+                  <code className="font-mono">CustomTabsIntent</code> windows,
                   preventing credential exposure and eliminating Google&apos;s{' '}
-                  <code className="text-[11px] font-mono">disallowed_useragent</code> restriction.
+                  <code className="font-mono">disallowed_useragent</code> restriction.
                 </p>
               </div>
             </div>
           </section>
 
           {/* Section 5: Data Retention */}
-          <section className="space-y-3 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-6">
-            <h2 className="text-base font-semibold text-[var(--quant-foreground)] flex items-center gap-2">
-              <span className="flex size-6 items-center justify-center rounded-full bg-[var(--brand-soft)] text-xs font-bold text-[var(--brand-primary)]">
-                5
-              </span>
-              Data Retention &amp; Automatic Purge Schedules
+          <section>
+            <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
+              5. Data Retention &amp; Automatic Purge Schedules
             </h2>
-            <ul className="list-disc pl-5 space-y-1.5 text-xs text-[var(--quant-muted-foreground)] leading-relaxed">
+            <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-6 text-[var(--quant-muted-foreground)]">
               <li>
                 <strong className="text-[var(--quant-foreground)]">Active Mailbox Records:</strong>{' '}
                 Retained for the lifetime of the user account until manually deleted or until
@@ -308,75 +296,62 @@ export default function PrivacyPolicyPage() {
           </section>
 
           {/* Section 6: Contact Info */}
-          <section className="space-y-3 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-6">
-            <h2 className="text-base font-semibold text-[var(--quant-foreground)] flex items-center gap-2">
-              <span className="flex size-6 items-center justify-center rounded-full bg-[var(--brand-soft)] text-xs font-bold text-[var(--brand-primary)]">
-                6
-              </span>
-              Contact Information &amp; Data Protection Officer
+          <section>
+            <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
+              6. Contact Information &amp; Data Protection Officer
             </h2>
-            <p className="text-xs text-[var(--quant-muted-foreground)] leading-relaxed">
+            <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
               If you have any questions, regulatory inquiries under GDPR / CCPA / Indian IT Rules,
               or need manual assistance with data removal, contact our dedicated security and
               privacy officers:
             </p>
-            <div className="flex flex-wrap gap-4 pt-1 text-xs">
-              <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-3">
+            <div className="mt-3 space-y-3 text-sm">
+              <div>
                 <div className="font-semibold text-[var(--quant-foreground)]">
                   Privacy &amp; Data Safety
                 </div>
                 <a
                   href="mailto:privacy@quantmail.in"
-                  className="text-[var(--brand-primary)] hover:underline mt-0.5 block"
+                  className="mt-0.5 block text-[var(--brand-primary)] hover:underline"
                 >
                   privacy@quantmail.in
                 </a>
               </div>
-              <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-3">
+              <div>
                 <div className="font-semibold text-[var(--quant-foreground)]">
                   Security &amp; Vulnerability Disclosure
                 </div>
                 <a
                   href="mailto:security@quantmail.in"
-                  className="text-[var(--brand-primary)] hover:underline mt-0.5 block"
+                  className="mt-0.5 block text-[var(--brand-primary)] hover:underline"
                 >
                   security@quantmail.in
                 </a>
               </div>
-              <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-3">
+              <div>
                 <div className="font-semibold text-[var(--quant-foreground)]">
                   Production Web Portal
                 </div>
                 <a
                   href="https://quantmail.in"
-                  className="text-[var(--brand-primary)] hover:underline mt-0.5 block"
+                  className="mt-0.5 block text-[var(--brand-primary)] hover:underline"
                 >
                   https://quantmail.in
                 </a>
               </div>
             </div>
           </section>
-
-          {/* Footer Back Link */}
-          <div className="flex items-center justify-between pt-4 border-t border-[var(--quant-border)] text-xs text-[var(--quant-muted-foreground)]">
-            <span>© 2026 Quantrinity Inc. All rights reserved.</span>
-            <div className="flex items-center gap-4">
-              <Link href="/settings" className="hover:text-[var(--quant-foreground)] underline">
-                Settings
-              </Link>
-              <Link
-                href="/settings/account"
-                className="hover:text-[var(--quant-foreground)] underline"
-              >
-                Account Deletion
-              </Link>
-              <Link href="/" className="hover:text-[var(--quant-foreground)] underline">
-                Return to Mail
-              </Link>
-            </div>
-          </div>
         </div>
+
+        <p className="mt-8 text-center text-sm text-[var(--quant-muted-foreground)]">
+          <Link
+            href="/login"
+            className="font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline"
+          >
+            Return to sign in
+          </Link>
+        </p>
       </div>
-    </AppShell>
+    </AuthShell>
   );
 }
