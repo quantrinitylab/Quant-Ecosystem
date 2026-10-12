@@ -22,25 +22,104 @@ const PRESERVED_CHAT_KEY = 'quantai_preserved_chat_state';
 const GUEST_KEY = 'quantai_guest';
 const USER_KEY = 'quant_user';
 
+// ---------------------------------------------------------------------------
+// Authorized token keys (F-204 — token-source audit)
+//
+// Named, frozen registry of every localStorage key getAuthToken() is allowed
+// to read. Each entry is explicitly scoped; a `cross-app-sso` entry is an
+// OPT-IN cross-app read and must carry a justification for why the foreign
+// key is trusted on QuantAI's origin.
+//
+// Scope notes:
+// - Tokens in this ecosystem are ecosystem-scoped, not per-app: QuantMail is
+//   the identity root, and UniversalSSOTokenBridge.consumeHandoffTicket()
+//   stores the SERVER-VERIFIED handoff token under every ecosystem key below
+//   only after GET /api/auth/userinfo accepts it. QuantAI's backend
+//   (packages/server-core/src/plugins/auth.ts) verifies the JWT against the
+//   ecosystem issuer list (quantmail + quant-ecosystem audience) and rejects
+//   any non-'access' token `kind` — a QuantChat refresh token presented as a
+//   bearer is 401'd server-side.
+// - localStorage is per-origin: QuantChat's own writes to
+//   'quantchat_access_token' live on quantchat.quantrinity.in and can never
+//   appear on QuantAI's origin. The only writer of that key on this origin
+//   is the verified SSO bridge, so its value is always a server-verified
+//   ecosystem access token — the read is legitimate cross-app SSO, not token
+//   confusion. It was kept (not dropped) for that reason; removing it would
+//   break verified SSO sessions that landed through the handoff flow.
+// ---------------------------------------------------------------------------
+
+/** Scope of a token key in the authorized registry. */
+export type TokenKeyScope = 'quantai' | 'ecosystem-sso' | 'cross-app-sso';
+
+export interface AuthorizedTokenKey {
+  /** The localStorage key name. */
+  key: string;
+  /** Who may legitimately have written this key. */
+  scope: TokenKeyScope;
+  /** Honest justification for reading this key — required on every entry. */
+  reason: string;
+}
+
+/**
+ * FROZEN registry of authorized token keys, in read-precedence order.
+ * Any new cross-app key added here must update the cross-app snapshot in
+ * src/__tests__/auth-token-keys.test.ts or that suite fails.
+ */
+export const AUTHORIZED_TOKEN_KEYS: readonly AuthorizedTokenKey[] = Object.freeze([
+  {
+    key: 'quant_access_token',
+    scope: 'ecosystem-sso',
+    reason:
+      'Primary QuantAI key. Written by QuantAI setAuthToken() and by UniversalSSOTokenBridge after server-side verification of the QuantMail SSO handoff.',
+  },
+  {
+    key: 'quant_auth_token',
+    scope: 'ecosystem-sso',
+    reason:
+      'Legacy ecosystem key; written by the same verified SSO flow as quant_access_token.',
+  },
+  {
+    key: 'token',
+    scope: 'ecosystem-sso',
+    reason:
+      'Generic ecosystem key. Written by UniversalSSOTokenBridge for verified handoff tokens; also mirrored by QuantAI setAuthToken().',
+  },
+  {
+    key: 'quant_token',
+    scope: 'ecosystem-sso',
+    reason:
+      'Ecosystem SSO key written by UniversalSSOTokenBridge for verified handoff tokens.',
+  },
+  {
+    key: 'quantchat_access_token',
+    scope: 'cross-app-sso',
+    reason:
+      'F-204 OPT-IN cross-app read. Named for QuantChat, but on QuantAI\'s origin the ONLY writer is UniversalSSOTokenBridge.consumeHandoffTicket(), which stores it solely after server-side verification (GET /api/auth/userinfo) of a QuantMail-issued ecosystem JWT. QuantChat\'s native writes live on its own origin and never reach this localStorage. The value is therefore always a server-verified ecosystem access token — not token confusion.',
+  },
+]);
+
 // In-memory session cache for fast synchronous access
 let memoryToken: string | null = null;
 let memoryUser: AuthUser | null = null;
 
 /**
  * Reads the auth token from memory session or localStorage.
- * Checks 'quant_access_token', 'quant_auth_token', 'token', 'quant_token', and 'quantchat_access_token'.
+ * Consults AUTHORIZED_TOKEN_KEYS in order — see the registry above for why
+ * each key (including the cross-app SSO key) is trusted.
  * Returns null if no token is stored or environment is not browser.
  */
 export function getAuthToken(): string | null {
   if (memoryToken) return memoryToken;
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return null;
   try {
-    const token =
-      localStorage.getItem('quant_access_token') ||
-      localStorage.getItem('quant_auth_token') ||
-      localStorage.getItem('token') ||
-      localStorage.getItem('quant_token') ||
-      localStorage.getItem('quantchat_access_token');
+    let token: string | null = null;
+    for (const entry of AUTHORIZED_TOKEN_KEYS) {
+      const candidate = localStorage.getItem(entry.key);
+      if (candidate) {
+        token = candidate;
+        break;
+      }
+    }
     if (token) {
       memoryToken = token;
     }
@@ -111,11 +190,9 @@ export function clearAuthSession(): void {
   memoryUser = null;
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
   try {
-    localStorage.removeItem('quant_access_token');
-    localStorage.removeItem('quant_auth_token');
-    localStorage.removeItem('token');
-    localStorage.removeItem('quant_token');
-    localStorage.removeItem('quantchat_access_token');
+    for (const entry of AUTHORIZED_TOKEN_KEYS) {
+      localStorage.removeItem(entry.key);
+    }
     localStorage.removeItem(USER_KEY);
     try {
       document.cookie = 'quant_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';

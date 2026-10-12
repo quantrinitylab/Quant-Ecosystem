@@ -204,12 +204,10 @@ export default function AIPage() {
       });
     }
     try {
-      const stored =
-        localStorage.getItem('token') ||
-        localStorage.getItem('quant_token') ||
-        localStorage.getItem('quantchat_access_token');
-      if (stored) {
-        localStorage.setItem('token', stored);
+      // Single source of truth for token lookup (lib/auth AUTHORIZED_TOKEN_KEYS,
+      // precedence own-first then verified cross-app SSO). Also refreshes the
+      // module's memory cache so later getAuthToken() calls are consistent.
+      if (getAuthToken()) {
         setIsAuthenticated(true);
         setAuthUser(getAuthUser());
         return;
