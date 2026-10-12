@@ -48,6 +48,7 @@ import {
 import authRoutes from './routes/auth';
 import { OtpService, Msg91SmsSender } from './lib/otp-service';
 import { SessionTokenIssuer } from './lib/session-tokens';
+import { createAccountStatusGate } from './lib/account-status';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -93,7 +94,35 @@ export function getConfig(): AppConfig {
 
 export async function buildApp(config?: AppConfig) {
   const appConfig = config ?? getConfig();
-  const app = await createApp(appConfig);
+
+  // QC-F-041: account-status gate. The gate's resolver is handed to
+  // createApp() as part of the config, but it reads through the prisma
+  // decoration that createApp() itself installs — so the gate is built
+  // around a provider that only dereferences the app once it exists
+  // (the resolver runs at request time, never during boot).
+  let appRef: Awaited<ReturnType<typeof createApp>> | undefined;
+  const accountStatusGate = createAccountStatusGate(
+    () => (appRef as unknown as { prisma?: PrismaClient } | undefined)?.prisma,
+  );
+
+  // Enablement: an explicit config.accountStatus always wins (route/unit
+  // tests inject their own resolver). Otherwise the prisma-backed gate is
+  // on for every real deployment (development / staging / production) and
+  // off in env 'test', whose harness runs without a database — a gate
+  // there could only ever answer 'unavailable' and 503 the whole suite;
+  // the gate's own behaviour is pinned by its dedicated suites instead.
+  const effectiveConfig: AppConfig = {
+    ...appConfig,
+    accountStatus:
+      appConfig.accountStatus ??
+      (appConfig.env === 'test' ? undefined : accountStatusGate.resolver),
+  };
+
+  const app = await createApp(effectiveConfig);
+  appRef = app;
+  // Shared with routes/websocket.ts (verifier) and routes/settings.ts
+  // (DELETE /account invalidates its own user's cached verdict).
+  app.decorate('accountStatusGate', accountStatusGate);
 
   app.decorate(
     'otpService',
