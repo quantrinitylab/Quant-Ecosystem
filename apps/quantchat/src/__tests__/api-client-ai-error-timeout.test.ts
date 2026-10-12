@@ -1,6 +1,8 @@
 // @vitest-environment node
 // ============================================================================
 // QM-UIUX-088 — api-client timeout + sanitized error mapping regression tests
+// QC-F-068: the vehicle method is now getSmartReplies (real contract) —
+// chatWithAI was removed because POST /ai/chat never existed on the backend.
 // ============================================================================
 //
 // On the original code, QuantChatApiClient.request() passed NO timeout to
@@ -75,7 +77,7 @@ describe('api-client timeout (QM-UIUX-088)', () => {
 
   it('arms an AbortSignal on requests by default (timeout wired through)', async () => {
     const fetchMock = stubHangingFetch();
-    const pending = privateRequest(client)('POST', '/ai/chat', { message: 'hi' }, { timeout: 40 });
+    const pending = privateRequest(client)('POST', '/ai/smart-replies', { message: 'hi' }, { timeout: 40 });
     const res = await pending;
     expect(res.success).toBe(false);
     expect(res.error?.code).toBe('TIMEOUT');
@@ -85,7 +87,7 @@ describe('api-client timeout (QM-UIUX-088)', () => {
 
   it('maps a per-call timeout expiry to a TIMEOUT error, not a blanket network error', async () => {
     stubHangingFetch();
-    const res = await privateRequest(client)('POST', '/ai/chat', { message: 'hi' }, { timeout: 40 });
+    const res = await privateRequest(client)('POST', '/ai/smart-replies', { message: 'hi' }, { timeout: 40 });
     expect(res.success).toBe(false);
     expect(res.error?.code).toBe('TIMEOUT');
     expect(res.error?.message).toBe('Request timed out. Please try again.');
@@ -94,13 +96,13 @@ describe('api-client timeout (QM-UIUX-088)', () => {
   it('honours timeout: 0 as "no timeout" (no signal armed by the client)', async () => {
     const fetchMock = vi.fn(
       async (_input: RequestInfo | URL, _init?: RequestInit) =>
-        new Response(JSON.stringify({ success: true, data: { response: 'ok' } }), {
+        new Response(JSON.stringify({ success: true, data: { suggestions: [] } }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         }),
     );
     vi.stubGlobal('fetch', fetchMock);
-    const res = await privateRequest(client)('POST', '/ai/chat', { message: 'hi' }, { timeout: 0 });
+    const res = await privateRequest(client)('POST', '/ai/smart-replies', { message: 'hi' }, { timeout: 0 });
     expect(res.success).toBe(true);
     const [, init] = fetchMock.mock.calls[0]! as unknown as [string, RequestInit];
     expect(init.signal).toBeUndefined();
@@ -109,7 +111,7 @@ describe('api-client timeout (QM-UIUX-088)', () => {
   it('the default 30s ceiling fires for a hung AI request (fake timers)', async () => {
     vi.useFakeTimers();
     stubHangingFetch();
-    const pending = client.chatWithAI('hello');
+    const pending = client.getSmartReplies({ conversationId: 'conv-1', recentMessages: [{ sender: 'them', content: 'hello' }] });
     await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
     const res = await pending;
     expect(res.success).toBe(false);
@@ -120,7 +122,7 @@ describe('api-client timeout (QM-UIUX-088)', () => {
 describe('api-client sanitized error mapping (QM-UIUX-088)', () => {
   it('surfaces the real failure message instead of the blanket "Network request failed"', async () => {
     stubRejectingFetch(new Error('Backend exploded while generating'));
-    const res = await client.chatWithAI('hi');
+    const res = await client.getSmartReplies({ conversationId: 'conv-1', recentMessages: [{ sender: 'them', content: 'hi' }] });
     expect(res.success).toBe(false);
     expect(res.error?.code).toBe('NETWORK_ERROR');
     expect(res.error?.message).toBe('Backend exploded while generating');
@@ -133,7 +135,7 @@ describe('api-client sanitized error mapping (QM-UIUX-088)', () => {
         'POST http://10.1.2.3:9000/ai failed: Bearer abcdef1234567890XYZ api_key=sk-1234567890abcdef',
       ),
     );
-    const res = await client.chatWithAI('hi');
+    const res = await client.getSmartReplies({ conversationId: 'conv-1', recentMessages: [{ sender: 'them', content: 'hi' }] });
     expect(res.success).toBe(false);
     expect(res.error?.message).not.toContain('10.1.2.3');
     expect(res.error?.message).not.toContain('http://');
@@ -143,7 +145,7 @@ describe('api-client sanitized error mapping (QM-UIUX-088)', () => {
 
   it('maps a TimeoutError rejection to TIMEOUT', async () => {
     stubRejectingFetch(new DOMException('timed out', 'TimeoutError'));
-    const res = await client.chatWithAI('hi');
+    const res = await client.getSmartReplies({ conversationId: 'conv-1', recentMessages: [{ sender: 'them', content: 'hi' }] });
     expect(res.error?.code).toBe('TIMEOUT');
   });
 
@@ -152,7 +154,7 @@ describe('api-client sanitized error mapping (QM-UIUX-088)', () => {
     const controller = new AbortController();
     const pending = privateRequest(client)(
       'POST',
-      '/ai/chat',
+      '/ai/smart-replies',
       { message: 'hi' },
       { signal: controller.signal, timeout: 60_000 },
     );
@@ -165,7 +167,7 @@ describe('api-client sanitized error mapping (QM-UIUX-088)', () => {
 
   it('still falls back to the generic message when the error carries no message', async () => {
     stubRejectingFetch(new Error(''));
-    const res = await client.chatWithAI('hi');
+    const res = await client.getSmartReplies({ conversationId: 'conv-1', recentMessages: [{ sender: 'them', content: 'hi' }] });
     expect(res.error?.code).toBe('NETWORK_ERROR');
     expect(res.error?.message).toBe('Network request failed');
   });
