@@ -152,6 +152,52 @@ export class ConversationService {
     return membership;
   }
 
+  /**
+   * QC-F-075: bulk membership gate for operations that act on a SET of users
+   * inside one conversation (POST /calls/create). requireMembership above
+   * only answers for a single requester; the calls route checked NOBODY — it
+   * minted a LiveKit token for every caller-supplied participantId (any
+   * arbitrary userId could be impersonated) and persisted a durable call
+   * row against an unchecked conversationId.
+   *
+   * Semantics (pinned by tests):
+   * - conversation does not exist → 404 CONVERSATION_NOT_FOUND (the same
+   *   code getConversation / updateConversation use);
+   * - EVERY userId in the set must be an ACTIVE member (`leftAt: null`) —
+   *   any missing user fails the whole set with 403 NOT_A_MEMBER, the same
+   *   vocabulary as requireMembership. The failing user is not named: a
+   *   member caller can already see the participant list via
+   *   GET /conversations/:id, and a non-member caller learns nothing beyond
+   *   the NOT_A_MEMBER they would get from requireMembership.
+   *
+   * One findMany covers the whole set; duplicate ids are de-duplicated.
+   */
+  async assertAllMembers(conversationId: string, userIds: string[]): Promise<void> {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { id: true },
+    });
+
+    if (!conversation) {
+      throw createAppError('Conversation not found', 404, 'CONVERSATION_NOT_FOUND');
+    }
+
+    const uniqueIds = [...new Set(userIds)];
+    if (uniqueIds.length === 0) {
+      return;
+    }
+
+    const rows = await this.prisma.conversationMember.findMany({
+      where: { conversationId, userId: { in: uniqueIds }, leftAt: null },
+      select: { userId: true },
+    });
+    const memberIds = new Set(rows.map((row) => row.userId));
+
+    if (uniqueIds.some((id) => !memberIds.has(id))) {
+      throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
+    }
+  }
+
   private async requireAdmin(
     conversationId: string,
     requesterId: string,
