@@ -54,9 +54,6 @@ class QuantAIApiClient {
   ): Promise<ApiResponse<{ conversation: Conversation; response: ConversationMessage }>> {
     return this.request('POST', '/assistant/chat', { message, conversationId, attachments });
   }
-  async listConversations(): Promise<ApiResponse<Conversation[]>> {
-    return this.request('GET', '/assistant/conversations');
-  }
   async deleteConversation(id: string): Promise<ApiResponse<void>> {
     return this.request('DELETE', `/assistant/conversations/${id}`);
   }

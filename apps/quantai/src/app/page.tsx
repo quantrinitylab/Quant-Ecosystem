@@ -298,6 +298,7 @@ export default function AIPage() {
   const {
     results: searchResults,
     isSearching: isSearchingConversations,
+    error: conversationSearchError,
     active: searchActive,
   } = useConversationSearch(sidebarSearch);
 
@@ -354,9 +355,14 @@ export default function AIPage() {
 
     // While searching, show flat server-side results (title + message content).
     if (searchActive) {
+      const searchFailed = Boolean(conversationSearchError) && !isSearchingConversations;
       items.push({
         id: 'search-header',
-        label: isSearchingConversations ? 'Searching…' : `Results (${searchResults.length})`,
+        label: searchFailed
+          ? 'Search unavailable'
+          : isSearchingConversations
+            ? 'Searching…'
+            : `Results (${searchResults.length})`,
         icon: <span>🔍</span>,
       });
       for (const conv of searchResults) {
@@ -394,6 +400,7 @@ export default function AIPage() {
     searchActive,
     searchResults,
     isSearchingConversations,
+    conversationSearchError,
   ]);
 
   // P0 (2026-10-10, user-locked): guests never see the chat shell — the
