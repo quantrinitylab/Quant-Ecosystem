@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
 import { AuthShell } from '../../components/auth/AuthShell';
-import { PageTransition } from '@quant/shared-ui';
+import { AuthPageTransition } from '../../components/auth/AuthPageTransition';
 import { QUANT_MAIL_DOMAIN } from '../../config/identity';
 import { apiClient } from '../../services/api-client';
 
@@ -39,7 +39,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <PageTransition>
+    <AuthPageTransition>
       <AuthShell
         brand={
           <AuthBrandPanel
@@ -156,6 +156,6 @@ export default function ForgotPasswordPage() {
           ) : null}
         </div>
       </AuthShell>
-    </PageTransition>
+    </AuthPageTransition>
   );
 }
