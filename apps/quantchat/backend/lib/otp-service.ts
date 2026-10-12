@@ -60,7 +60,10 @@ export interface RequestResult {
   expiresInSec?: number;
   retryAfterSec?: number;
   error?: string;
-  demoCode?: string;
+  // QC-F-062: the OTP itself is NEVER part of a result/response — in any env,
+  // with any sender. There is deliberately no `demoCode` field here: its mere
+  // existence invites a caller to forward the code to an unauthenticated
+  // client, which turns /auth/otp/request into a phone-account takeover.
 }
 
 export interface VerifyResult {
@@ -192,17 +195,13 @@ export class OtpService {
     win.count += 1;
     this.rate.set(phone, win);
 
-    const isDemo = Boolean(
-      sent.isFallback ||
-      process.env.NODE_ENV !== 'production' ||
-      process.env.STAGING ||
-      process.env.OTP_DEMO_FALLBACK,
-    );
-
+    // QC-F-062: never return the code to the caller. `sent.isFallback` and
+    // env flags (NODE_ENV / STAGING / OTP_DEMO_FALLBACK) must never turn the
+    // response into a code leak — the code's only destinations are the SMS
+    // itself and this service's pending store (verifyCode).
     return {
       ok: true,
       expiresInSec: Math.floor(this.config.codeTtlMs / 1000),
-      ...(isDemo ? { demoCode: code } : {}),
     };
   }
 
@@ -326,12 +325,10 @@ export class AwsSnsSmsSender implements SmsSender {
   ): Promise<{ success: boolean; error?: string; isFallback?: boolean }> {
     const config = readAwsSnsConfig(this.configOverride);
     if (!config) {
-      // In production if explicitly configured without AWS keys, fail closed unless in staging or fallback mode
-      if (
-        process.env.NODE_ENV === 'production' &&
-        !process.env.STAGING &&
-        !process.env.OTP_DEMO_FALLBACK
-      ) {
+      // QC-F-062: fail closed in production with NO env bypass. STAGING /
+      // OTP_DEMO_FALLBACK are plain strings ('false' is truthy), so letting
+      // them weaken this guard turned a config slip into a silent demo mode.
+      if (process.env.NODE_ENV === 'production') {
         return {
           success: false,
           error: 'SMS_GATEWAY_NOT_CONFIGURED: AWS SNS credentials are required in production',
@@ -415,7 +412,9 @@ export class AwsSnsSmsSender implements SmsSender {
  * MSG91 SMS sender implementing {@link SmsSender}.
  *
  * Uses MSG91 Flow API (https://api.msg91.com/api/v5/flow/) to send OTP SMS.
- * Requires MSG91_AUTH_KEY env var. Falls back to LoggingSmsSender when not configured.
+ * Requires MSG91_AUTH_KEY env var. Falls back to LoggingSmsSender when not
+ * configured in non-production only; in production a missing key fails
+ * closed (SMS_GATEWAY_NOT_CONFIGURED) — QC-F-062.
  */
 export class Msg91SmsSender implements SmsSender {
   private readonly fallback: LoggingSmsSender;
@@ -438,6 +437,18 @@ export class Msg91SmsSender implements SmsSender {
   ): Promise<{ success: boolean; error?: string; isFallback?: boolean }> {
     const authKey = process.env.MSG91_AUTH_KEY?.trim();
     if (!authKey) {
+      // QC-F-062: production must fail closed when the gateway is not
+      // configured (same contract + error code as AwsSnsSmsSender). Silently
+      // falling back here reported success:true + isFallback:true without any
+      // SMS being sent — and that fallback signal used to leak the OTP itself
+      // in the /auth/otp/request response. No STAGING / OTP_DEMO_FALLBACK
+      // bypass: those string flags are truthy even when set to 'false'.
+      if (process.env.NODE_ENV === 'production') {
+        return {
+          success: false,
+          error: 'SMS_GATEWAY_NOT_CONFIGURED: MSG91 credentials are required in production',
+        };
+      }
       return this.fallback.send(phoneNumber, message);
     }
 

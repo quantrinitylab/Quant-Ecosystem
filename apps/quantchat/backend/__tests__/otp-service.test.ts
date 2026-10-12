@@ -18,6 +18,18 @@ function codeFrom(sender: { messages: { body: string }[] }): string {
   return /(\d{6})/.exec(last)![1];
 }
 
+/** Capturing sender that reports itself as a fallback (LoggingSmsSender shape). */
+function makeFallbackSender(): SmsSender & { messages: { phone: string; body: string }[] } {
+  const messages: { phone: string; body: string }[] = [];
+  return {
+    messages,
+    async send(phone, body) {
+      messages.push({ phone, body });
+      return { success: true, isFallback: true };
+    },
+  };
+}
+
 describe('OtpService', () => {
   it('rejects malformed phone numbers (E.164 required)', async () => {
     const svc = new OtpService(makeSender());
@@ -393,5 +405,159 @@ describe('Msg91SmsSender', () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('Network timeout');
+  });
+});
+
+// ============================================================================
+// QC-F-062 — the OTP must NEVER be returned to the caller, and production
+// must fail closed when the SMS gateway is not configured.
+// ============================================================================
+//
+// Before the fix, OtpService.requestCode attached `demoCode: code` to its
+// result whenever ANY of these held: the sender reported isFallback, NODE_ENV
+// was not exactly 'production', or STAGING / OTP_DEMO_FALLBACK was set to any
+// (truthy) string — and the public POST /auth/otp/request forwarded it to an
+// unauthenticated caller. Msg91SmsSender additionally fell back silently
+// (success:true, isFallback:true, no SMS sent) whenever MSG91_AUTH_KEY was
+// missing, in any env. These tests pin the closed behaviour; the core cases
+// FAIL on the pre-fix code (see build report's negative control).
+
+describe('QC-F-062 — OTP leak closed + production fail-closed', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    delete process.env['STAGING'];
+    delete process.env['OTP_DEMO_FALLBACK'];
+    delete process.env['MSG91_AUTH_KEY'];
+    delete process.env['AWS_REGION'];
+    delete process.env['AWS_ACCESS_KEY_ID'];
+    delete process.env['AWS_SECRET_ACCESS_KEY'];
+    delete process.env['SNS_REGION'];
+    delete process.env['SNS_ACCESS_KEY_ID'];
+    delete process.env['SNS_SECRET_ACCESS_KEY'];
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it('never returns demoCode when the sender is a fallback — and the code still verifies via the sender capture only', async () => {
+    const sender = makeFallbackSender();
+    const svc = new OtpService(sender);
+    const result = await svc.requestCode('+14155550123');
+    expect(result.ok).toBe(true);
+    expect(result).not.toHaveProperty('demoCode');
+    // The code is genuine — it is just only reachable through the "SMS" itself.
+    expect(svc.verifyCode('+14155550123', codeFrom(sender)).ok).toBe(true);
+  });
+
+  it('never returns demoCode with a LoggingSmsSender (the dev fallback buildApp-adjacent shape)', async () => {
+    const svc = new OtpService(new LoggingSmsSender(() => {}));
+    const result = await svc.requestCode('+14155550123');
+    expect(result.ok).toBe(true);
+    expect(result).not.toHaveProperty('demoCode');
+  });
+
+  it('never returns demoCode when NODE_ENV is development', async () => {
+    process.env.NODE_ENV = 'development';
+    const sender = makeSender();
+    const svc = new OtpService(sender);
+    const result = await svc.requestCode('+14155550123');
+    expect(result.ok).toBe(true);
+    expect(result).not.toHaveProperty('demoCode');
+  });
+
+  it('never returns demoCode when NODE_ENV is unset', async () => {
+    delete process.env['NODE_ENV'];
+    const sender = makeSender();
+    const svc = new OtpService(sender);
+    const result = await svc.requestCode('+14155550123');
+    expect(result.ok).toBe(true);
+    expect(result).not.toHaveProperty('demoCode');
+  });
+
+  it("never returns demoCode when STAGING='false' (a truthy string) in production", async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.STAGING = 'false';
+    const sender = makeSender();
+    const svc = new OtpService(sender);
+    const result = await svc.requestCode('+14155550123');
+    expect(result.ok).toBe(true);
+    expect(result).not.toHaveProperty('demoCode');
+  });
+
+  it("never returns demoCode when OTP_DEMO_FALLBACK='false' (a truthy string) in production", async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.OTP_DEMO_FALLBACK = 'false';
+    const sender = makeSender();
+    const svc = new OtpService(sender);
+    const result = await svc.requestCode('+14155550123');
+    expect(result.ok).toBe(true);
+    expect(result).not.toHaveProperty('demoCode');
+  });
+
+  it('safe production control: real sender + production env → ok, no demoCode, code verifies', async () => {
+    process.env.NODE_ENV = 'production';
+    const sender = makeSender();
+    const svc = new OtpService(sender);
+    const result = await svc.requestCode('+14155550123');
+    expect(result.ok).toBe(true);
+    expect(result).not.toHaveProperty('demoCode');
+    expect(svc.verifyCode('+14155550123', codeFrom(sender)).ok).toBe(true);
+  });
+
+  it('Msg91 fails closed in production when MSG91_AUTH_KEY is absent — fallback never runs, nothing is logged', async () => {
+    process.env.NODE_ENV = 'production';
+    const loggedMessages: string[] = [];
+    const sender = new Msg91SmsSender((msg) => loggedMessages.push(msg));
+    const result = await sender.send('+14155550123', 'Your code is 123456');
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('SMS_GATEWAY_NOT_CONFIGURED');
+    expect(loggedMessages).toHaveLength(0);
+  });
+
+  it("Msg91 fails closed in production even when STAGING is set ('true' and 'false' — no env bypass)", async () => {
+    process.env.NODE_ENV = 'production';
+    const sender = new Msg91SmsSender(() => {});
+    process.env.STAGING = 'true';
+    const withTrue = await sender.send('+14155550123', 'Your code is 123456');
+    expect(withTrue.success).toBe(false);
+    expect(withTrue.error).toContain('SMS_GATEWAY_NOT_CONFIGURED');
+    process.env.STAGING = 'false';
+    const withFalse = await sender.send('+14155550123', 'Your code is 123456');
+    expect(withFalse.success).toBe(false);
+    expect(withFalse.error).toContain('SMS_GATEWAY_NOT_CONFIGURED');
+  });
+
+  it('Msg91 non-production fallback is preserved when the key is absent', async () => {
+    process.env.NODE_ENV = 'test';
+    const loggedMessages: string[] = [];
+    const sender = new Msg91SmsSender((msg) => loggedMessages.push(msg));
+    const result = await sender.send('+14155550123', 'Your code is 123456');
+    expect(result.success).toBe(true);
+    expect(result.isFallback).toBe(true);
+    expect(loggedMessages[0]).not.toContain('123456');
+    expect(loggedMessages[0]).toContain('[REDACTED]');
+  });
+
+  it('OtpService surfaces SMS_GATEWAY_NOT_CONFIGURED and stores no pending code when Msg91 is unconfigured in production', async () => {
+    process.env.NODE_ENV = 'production';
+    const svc = new OtpService(new Msg91SmsSender(() => {}));
+    const result = await svc.requestCode('+14155550123');
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('SMS_GATEWAY_NOT_CONFIGURED');
+    // Nothing was "sent", so nothing may verify.
+    expect(svc.verifyCode('+14155550123', '123456').ok).toBe(false);
+  });
+
+  it("AwsSns fails closed in production even when STAGING='false' (env bypass removed)", async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.STAGING = 'false';
+    const loggedMessages: string[] = [];
+    const sender = new AwsSnsSmsSender(undefined, (msg) => loggedMessages.push(msg));
+    const result = await sender.send('+14155550123', 'Your code is 123456');
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('SMS_GATEWAY_NOT_CONFIGURED');
+    expect(loggedMessages).toHaveLength(0);
   });
 });

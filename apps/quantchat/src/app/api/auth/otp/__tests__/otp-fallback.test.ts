@@ -36,6 +36,36 @@ describe('OTP Fail-Closed Authentication (no demo bypass)', () => {
     expect(activeOtpCodes.get('+919876543210')).toBeUndefined();
   });
 
+  it('request OTP strips demoCode from a successful upstream passthrough (QC-F-062 defense-in-depth)', async () => {
+    // Simulates a stale backend that still returns the code in its response:
+    // the proxy must not forward it to the browser.
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: { message: 'Verification code sent', expiresIn: 300, demoCode: '654321' },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ) as unknown as Response,
+    );
+
+    const req = new Request('http://localhost/api/auth/otp/request', {
+      method: 'POST',
+      body: JSON.stringify({ phoneNumber: '+919876543210' }),
+    });
+
+    const res = await requestPOST(req);
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).not.toContain('demoCode');
+    expect(text).not.toContain('654321');
+    const json = JSON.parse(text);
+    expect(json.success).toBe(true);
+    expect(json.data.message).toBe('Verification code sent');
+    expect(json.data.expiresIn).toBe(300);
+    expect(json.data.demoCode).toBeUndefined();
+  });
+
   it('request OTP fails closed when upstream responds with an error status', async () => {
     global.fetch = vi
       .fn()

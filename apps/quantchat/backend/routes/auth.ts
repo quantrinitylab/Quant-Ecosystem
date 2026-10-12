@@ -529,12 +529,14 @@ export default async function authRoutes(fastify: FastifyInstance) {
         ...(result.retryAfterSec ? { metadata: { retryAfter: result.retryAfterSec } } : {}),
       });
     }
+    // QC-F-062: the response must never carry the OTP itself (no demoCode) —
+    // this endpoint is public, so anything in the body is readable by an
+    // unauthenticated caller asking for a victim's number.
     return reply.send({
       success: true,
       data: {
         message: 'Verification code sent',
         expiresIn: result.expiresInSec ?? 300,
-        ...(result.demoCode ? { demoCode: result.demoCode } : {}),
       },
     });
   });
