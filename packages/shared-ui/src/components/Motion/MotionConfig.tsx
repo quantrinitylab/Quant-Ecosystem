@@ -1,7 +1,6 @@
 'use client';
 
-import React, { createContext, useContext } from 'react';
-import { useReducedMotion } from 'framer-motion';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
 export interface MotionConfigContextValue {
   shouldAnimate: boolean;
@@ -13,8 +12,29 @@ export interface MotionProviderProps {
   children: React.ReactNode;
 }
 
+/**
+ * fix/qm-auth-no-framer: local matchMedia implementation of
+ * framer-motion's useReducedMotion (which is exactly this: a
+ * prefers-reduced-motion media query listener). Drops the framer-motion
+ * import from this module so lightweight consumers (e.g. LoadingState,
+ * rendered by AuthGuard on every page incl. /login) don't pull the 114KB
+ * library into their chunk.
+ */
+export function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReduced(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return reduced;
+}
+
 export function MotionProvider({ children }: MotionProviderProps) {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const shouldAnimate = !prefersReducedMotion;
 
   return (

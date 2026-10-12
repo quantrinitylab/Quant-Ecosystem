@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
 import { AuthShell } from '../../components/auth/AuthShell';
-import { PageTransition } from '@quant/shared-ui';
 
 type Topic = {
   title: string;
@@ -35,7 +34,7 @@ const TOPICS: Topic[] = [
 
 export default function HelpPage() {
   return (
-    <PageTransition>
+    <div className="auth-page-enter">
       <AuthShell
         brand={
           <AuthBrandPanel
@@ -89,6 +88,6 @@ export default function HelpPage() {
           </p>
         </div>
       </AuthShell>
-    </PageTransition>
+    </div>
   );
 }

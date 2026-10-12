@@ -1309,6 +1309,42 @@ body {
 .reading-reply-bar { display: flex; gap: .6rem; padding: 1rem 1.4rem; border-top: 1px solid var(--quant-border-subtle); background: rgba(13,13,14,.92); backdrop-filter: blur(18px); }.reading-reply-bar > button:first-child { flex: 1; border: 1px solid var(--quant-border); border-radius: .7rem; padding: 0 .9rem; background: var(--quant-surface); color: #A1A4AC; text-align: left; font-size: .72rem; }.reading-send-shortcut { min-height: 2.65rem; border-radius: .65rem; padding: 0 1rem; background: var(--quant-primary); color: #111111; font-size: .7rem; font-weight: 750; }
 
 /* Authentication */
+/* Zero-JS page-enter animation for the public auth pages. This replaces the
+   framer-motion PageTransition (packages/shared-ui) on the auth shell and
+   reproduces it exactly: opacity 0→1 + translateY(20px→0) over 300ms with
+   ease-out cubic-bezier(0.0, 0.0, 0.2, 1.0) (= @quant/brand duration.moderate
+   + easeOut). Compositor-only: zero JS runs to animate the auth shell. */
+@keyframes auth-page-enter {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.auth-page-transition { animation: auth-page-enter 300ms cubic-bezier(0.0, 0.0, 0.2, 1.0); }
+/* Mirrors PageTransition's useReducedMotion branch, which renders a plain div. */
+@media (prefers-reduced-motion: reduce) {
+  .auth-page-transition { animation: none; }
+}
+
+/* QuantMail logo micro-interaction: replaces the framer-motion motion.span
+   wrapper (identical motion — hover scale 1.08 over 0.22s ease-out; click
+   spin 360deg over 0.65s cubic-bezier(0.34,1.56,0.64,1) with the
+   1 -> 0.88 -> 1.12 -> 1 scale pulse). Keeps the 114KB framer-motion chunk
+   out of every page bundle (the logo renders in the root layout tree). */
+.qm-logo-motion { transition: transform 0.22s ease-out; }
+.qm-logo-hovered { transform: scale(1.08); }
+.qm-logo-spinning { animation: qm-logo-spin 0.65s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+@keyframes qm-logo-spin {
+  0% { transform: rotate(0deg) scale(1); }
+  30% { transform: rotate(108deg) scale(0.88); }
+  65% { transform: rotate(234deg) scale(1.12); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qm-logo-motion { transition: none; }
+  .qm-logo-hovered { transform: none; }
+  .qm-logo-spinning { animation: none; }
+}
 .auth-shell { display: grid; min-height: 100dvh; grid-template-columns: minmax(0, 1.12fr) minmax(28rem, .88fr); background: #080809; color: var(--quant-foreground); color-scheme: dark; }
 .auth-shell-mobile-brand { display: none; }.auth-shell-brand { position: relative; min-height: 100dvh; overflow: hidden; border-right: 1px solid rgba(255,255,255,.075); }
 .auth-shell-form { position: relative; display: flex; min-height: 100dvh; align-items: center; overflow: hidden; padding: 3rem clamp(2rem, 5vw, 5.2rem); background: #0b0b0c; }

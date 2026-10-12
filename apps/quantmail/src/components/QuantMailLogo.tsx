@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { resolveCanvasColor } from '../lib/canvas-color';
-import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useLiveMark, type MarkFrame } from './marks/useLiveMark';
 import {
@@ -440,16 +439,14 @@ export function QuantMailLogo({
 
   const art = (
     <>
-      <motion.span
-        className="relative flex items-center justify-center w-full h-full"
-        animate={{
-          rotate: isSpinning ? 360 : 0,
-          scale: isSpinning ? [1, 0.88, 1.12, 1] : isHovered ? 1.08 : 1,
-        }}
-        transition={{
-          rotate: { duration: 0.65, ease: [0.34, 1.56, 0.64, 1] },
-          scale: { duration: 0.22, ease: 'easeOut' },
-        }}
+      {/*
+        * CSS (qm-logo-motion) instead of framer-motion: identical motion —
+        * hover scale 1.08 (0.22s ease-out), click spin 360deg/0.65s
+        * cubic-bezier(0.34,1.56,0.64,1) with the 1 -> 0.88 -> 1.12 -> 1 scale
+        * pulse. Keeps the 114KB framer-motion chunk out of every page bundle.
+        */}
+      <span
+        className={`relative flex items-center justify-center w-full h-full qm-logo-motion${isSpinning ? ' qm-logo-spinning' : isHovered ? ' qm-logo-hovered' : ''}`}
       >
         <canvas
           ref={canvasRef}
@@ -464,7 +461,7 @@ export function QuantMailLogo({
            */
           className="w-full h-full drop-shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
         />
-      </motion.span>
+      </span>
 
       {showBadge && unreadCount > 0 && (
         <span className="absolute -top-1 -right-1.5 z-20 pointer-events-none transition-transform duration-200 group-hover:scale-110">
