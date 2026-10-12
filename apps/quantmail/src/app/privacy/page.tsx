@@ -53,7 +53,7 @@ export default function PrivacyPolicyPage() {
                   Data Encryption
                 </div>
                 <div className="mt-0.5 text-sm font-bold text-[var(--brand-primary)]">
-                  TLS 1.3 &amp; AES-GCM
+                  TLS 1.3 in transit
                 </div>
               </div>
               <div>
@@ -130,7 +130,7 @@ export default function PrivacyPolicyPage() {
                     <td className="py-2 pr-4 font-semibold text-[var(--brand-primary)]">
                       Never Shared
                     </td>
-                    <td className="py-2">TLS 1.3 in transit · AES-256 at rest</td>
+                    <td className="py-2">TLS 1.3 in transit</td>
                   </tr>
                   <tr>
                     <td className="py-2 pr-4 font-medium text-[var(--quant-foreground)]">Messages</td>
@@ -141,7 +141,7 @@ export default function PrivacyPolicyPage() {
                     <td className="py-2 pr-4 font-semibold text-[var(--brand-primary)]">
                       Never Shared
                     </td>
-                    <td className="py-2">TLS 1.3 in transit · AES-256-GCM at rest</td>
+                    <td className="py-2">TLS 1.3 in transit</td>
                   </tr>
                   <tr>
                     <td className="py-2 pr-4 font-medium text-[var(--quant-foreground)]">Contacts</td>
@@ -150,7 +150,7 @@ export default function PrivacyPolicyPage() {
                     <td className="py-2 pr-4 font-semibold text-[var(--brand-primary)]">
                       Never Shared
                     </td>
-                    <td className="py-2">TLS 1.3 in transit · AES-256-GCM at rest</td>
+                    <td className="py-2">TLS 1.3 in transit</td>
                   </tr>
                   <tr>
                     <td className="py-2 pr-4 font-medium text-[var(--quant-foreground)]">
@@ -228,12 +228,12 @@ export default function PrivacyPolicyPage() {
 
               <div>
                 <div className="text-sm font-semibold text-[var(--brand-primary)]">
-                  Encryption at Rest (AES-256-GCM)
+                  Encryption at Rest (rolling out)
                 </div>
                 <p className="mt-1 text-sm leading-6 text-[var(--quant-muted-foreground)]">
-                  Mailbox databases, message attachments, and contact books are persisted with
-                  authenticated AES-256-GCM encryption. Cryptographic keys are isolated and rotated
-                  according to NIST SP 800-57 guidelines.
+                  Database encryption at rest is configured in our infrastructure templates, but it
+                  is not yet enabled on the live database — so we do not claim it here. This section
+                  will be updated once the rollout is complete and verified.
                 </p>
               </div>
 
@@ -270,14 +270,13 @@ export default function PrivacyPolicyPage() {
                   Telemetry &amp; Audit Logs:
                 </strong>{' '}
                 Access logs, session handshake records, and diagnostic metrics are scrubbed and
-                permanently destroyed within 30 days.
+                permanently destroyed within 7 days.
               </li>
               <li>
-                <strong className="text-[var(--quant-foreground)]">
-                  Encrypted Rolling Backups:
-                </strong>{' '}
-                Disaster recovery snapshots are retained on an immutable 30-day rotation schedule,
-                after which cryptographic shredding occurs.
+                <strong className="text-[var(--quant-foreground)]">Rolling Backups:</strong>{' '}
+                Disaster-recovery database snapshots are retained on an automatic rolling rotation
+                — currently 7 days — and expired snapshots are removed automatically as new ones
+                arrive.
               </li>
             </ul>
           </section>
