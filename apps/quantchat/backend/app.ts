@@ -162,16 +162,25 @@ export async function buildApp(config?: AppConfig) {
   await app.register(pollsRoutes, { prefix: '/polls' });
 
   const voiceBotServices = createVoiceBotServices(app);
-  const proactiveCallWorker = new ProactiveCallWorker({
-    redisUrl: appConfig.redisUrl,
-    ringGenerator: voiceBotServices.ringGenerator,
-    onError: (err) => app.log.error({ err }, 'proactive call worker error'),
-  });
-  if (appConfig.env !== 'test') {
+  // QC-F-076: without LiveKit configuration the factory builds no ring
+  // generator, so the proactive caller stays off instead of holding a
+  // dependency that could only mint tokens with a fallback secret.
+  const proactiveRingGenerator = voiceBotServices.ringGenerator;
+  const proactiveCallWorker = proactiveRingGenerator
+    ? new ProactiveCallWorker({
+        redisUrl: appConfig.redisUrl,
+        ringGenerator: proactiveRingGenerator,
+        onError: (err) => app.log.error({ err }, 'proactive call worker error'),
+      })
+    : null;
+  if (!proactiveCallWorker) {
+    app.log.warn('Proactive voice-bot calls disabled: LiveKit is not configured');
+  }
+  if (proactiveCallWorker && appConfig.env !== 'test') {
     proactiveCallWorker.start();
   }
   app.addHook('onClose', async () => {
-    await proactiveCallWorker.stop();
+    await proactiveCallWorker?.stop();
   });
 
   const autoReplyManager = new AutoReplyManager();
