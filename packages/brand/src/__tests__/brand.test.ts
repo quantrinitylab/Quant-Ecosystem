@@ -62,7 +62,7 @@ describe('generateAppCSS', () => {
   it('returns CSS with the correct app color for quantmail', () => {
     const css = generateAppCSS('quantmail');
     expect(css).toContain(':root');
-    expect(css).toContain('--app-color: #3B82F6');
+    expect(css).toContain('--app-color: #FF8C42');
     expect(css).toContain('--app-name: "QuantMail"');
   });
 

@@ -12,8 +12,8 @@ export interface AppBrandConfig {
 export const quantmail: AppBrandConfig = {
   id: 'quantmail',
   name: 'QuantMail',
-  color: '#3B82F6',
-  hue: 217,
+  color: '#FF8C42',
+  hue: 24,
   description: 'Email reimagined with AI-powered organization',
   iconRef: 'quantmail',
 };
@@ -39,8 +39,8 @@ export const quantai: AppBrandConfig = {
 export const quantcalendar: AppBrandConfig = {
   id: 'quantcalendar',
   name: 'QuantCalendar',
-  color: '#F97316',
-  hue: 25,
+  color: '#3B82F6',
+  hue: 217,
   description: 'Smart scheduling and time management',
   iconRef: 'quantcalendar',
 };
@@ -57,8 +57,8 @@ export const quantdocs: AppBrandConfig = {
 export const quantdrive: AppBrandConfig = {
   id: 'quantdrive',
   name: 'QuantDrive',
-  color: '#6366F1',
-  hue: 239,
+  color: '#16A34A',
+  hue: 142,
   description: 'Cloud storage and file management',
   iconRef: 'quantdrive',
 };
