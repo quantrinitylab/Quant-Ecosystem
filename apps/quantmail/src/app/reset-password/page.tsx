@@ -27,7 +27,6 @@ import {
   PasswordStrengthMeter,
   structuralComplaint,
 } from '../../components/auth/PasswordStrengthMeter';
-import { PageTransition } from '@quant/shared-ui';
 import { apiClient } from '../../services/api-client';
 
 /** The codes that mean the link itself is finished, not the password. */
@@ -117,7 +116,7 @@ function ResetPasswordForm() {
   );
 
   return (
-    <PageTransition>
+    <div className="auth-page-enter">
       <AuthShell brand={brand}>
         <div>
           <div className="mb-8">
@@ -321,7 +320,7 @@ function ResetPasswordForm() {
           )}
         </div>
       </AuthShell>
-    </PageTransition>
+    </div>
   );
 }
 

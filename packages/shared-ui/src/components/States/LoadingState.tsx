@@ -5,8 +5,7 @@
 // ============================================================================
 
 import React from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
-import { useMotionConfig } from '../Motion/MotionConfig';
+import { useMotionConfig, usePrefersReducedMotion } from '../Motion/MotionConfig';
 
 export interface LoadingStateProps {
   variant?: 'spinner' | 'skeleton' | 'dots';
@@ -22,7 +21,7 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
   animated = true,
 }) => {
   const { shouldAnimate: contextAnimate } = useMotionConfig();
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const shouldAnimate = animated && contextAnimate && !prefersReducedMotion;
 
   const sizeMap = {
@@ -39,12 +38,10 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
     >
       {variant === 'spinner' &&
         (shouldAnimate ? (
-          <motion.svg
-            className={`${sizeMap[size]} text-[var(--brand-primary)]`}
+          <svg
+            className={`${sizeMap[size]} text-[var(--brand-primary)] animate-spin`}
             fill="none"
             viewBox="0 0 24 24"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
           >
             <circle
               className="opacity-25"
@@ -59,7 +56,7 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
               fill="currentColor"
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             />
-          </motion.svg>
+          </svg>
         ) : (
           <svg
             className={`${sizeMap[size]} text-[var(--brand-primary)]`}
@@ -98,16 +95,10 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
         (shouldAnimate ? (
           <div className="flex items-center gap-1">
             {[0, 1, 2].map((i) => (
-              <motion.span
+              <span
                 key={i}
-                className="w-2 h-2 bg-[var(--brand-primary)] rounded-full"
-                animate={{ y: [0, -6, 0] }}
-                transition={{
-                  duration: 0.6,
-                  repeat: Infinity,
-                  delay: i * 0.15,
-                  ease: 'easeInOut',
-                }}
+                className="w-2 h-2 bg-[var(--brand-primary)] rounded-full animate-bounce"
+                style={{ animationDuration: '0.6s', animationDelay: `${i * 0.15}s` }}
               />
             ))}
           </div>
