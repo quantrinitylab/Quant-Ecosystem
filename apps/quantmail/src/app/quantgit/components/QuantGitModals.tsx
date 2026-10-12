@@ -659,7 +659,7 @@ export function QuantGitModals({
             className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl w-full max-w-md p-5 text-xs space-y-4 shadow-2xl animate-in fade-in"
           >
             <div className="flex items-center justify-between border-b border-[#21262D] pb-2">
-              <h3 className="font-bold text-white text-sm">Deploy Specialized Agent</h3>
+              <h3 className="font-bold text-white text-sm">Add Specialized Agent</h3>
               <button
                 type="button"
                 onClick={() => setModalState('none')}
@@ -668,6 +668,10 @@ export function QuantGitModals({
                 ✕
               </button>
             </div>
+            <p className="text-[11px] text-[#8D96A0] leading-relaxed -mb-1">
+              Local only — no agent backend is connected. This creates a local placeholder, not a
+              running agent.
+            </p>
             <div className="space-y-1">
               <label className="font-semibold text-white">Agent Name</label>
               <input
@@ -709,7 +713,7 @@ export function QuantGitModals({
                 type="submit"
                 className="px-4 py-1.5 rounded bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-black font-bold"
               >
-                Deploy to Swarm
+                Add Agent
               </button>
             </div>
           </form>

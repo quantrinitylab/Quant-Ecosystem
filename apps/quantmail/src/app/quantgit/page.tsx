@@ -1840,14 +1840,13 @@ function QuantGitContent() {  const router = useRouter();
       name: newAgentName.trim(),
       role: newAgentRole.trim() || 'Specialized Developer Agent',
       pod: newAgentPod,
-      status: 'active',
-      currentTask: 'Initialized and listening on swarm event bus.',
+      // Local-only workspace agent — no agent backend exists. Honest labeling only:
+      // never fabricate an 'active' status, a swarm task, thought chain, or setup steps.
+      status: 'local-only',
+      currentTask: 'Local only — not connected to an agent backend.',
       initial: newAgentName.trim().charAt(0).toUpperCase(),
       color: 'var(--app-accent)',
-      steps: ['Loaded sovereign context', 'Mounted workspace volume'],
-      thoughts: 'Ready for local tasks.',
     };
-    // Local-only workspace agent — no backend exists yet. Honest labeling.
     setAgents([...agents, newAg]);
     setNewAgentName('');
     setNewAgentRole('');
