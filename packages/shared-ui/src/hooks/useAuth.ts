@@ -100,8 +100,20 @@ export function useAuth(): UseAuthReturn {
           const bridge = UniversalSSOTokenBridge.getInstance();
           const consumed = await bridge.consumeHandoffTicket();
           if (consumed?.ticket) {
-            token = consumed.session?.token || consumed.ticket;
-            storeTokens({ accessToken: token });
+            // QC-F-085: the ticket itself is NEVER a session token — it is
+            // either an opaque single-use ticket or an envelope wrapping a
+            // FOREIGN token. The bridge exchanges the verified candidate
+            // for this app's native pair and persists only that pair, so
+            // the session token is the exchanged native token (returned on
+            // the session, and readable back from storage). No ticket
+            // fallback: a consume that could not exchange fails closed.
+            const sessionToken = consumed.session?.token;
+            token =
+              sessionToken && sessionToken !== consumed.ticket
+                ? sessionToken
+                : getStoredToken();
+            if (token && token === consumed.ticket) token = null;
+            if (token) storeTokens({ accessToken: token });
           }
         } catch {
           // Sandboxed environment
@@ -349,6 +361,23 @@ function clearStoredTokens(): void {
     if (!storage) return;
     storage.removeItem(ACCESS_TOKEN_KEY);
     storage.removeItem(REFRESH_TOKEN_KEY);
+    // QC-F-085: clear EVERY alias key the session writers use — leaving an
+    // alias behind lets the stored-token fallback chains (bootstrapSession,
+    // getAuthToken) resurrect a cleared or poisoned token after logout.
+    storage.removeItem('quant_auth_token');
+    storage.removeItem('token');
+    storage.removeItem('quant_token');
+    storage.removeItem('quantchat_access_token');
+  } catch {
+    // Sandboxed iframe restrictions
+  }
+  // Expire any legacy JS-readable session cookies (older builds set them;
+  // httpOnly server cookies are expired by the logout route itself).
+  try {
+    if (typeof document !== 'undefined') {
+      document.cookie = 'quant_access_token=; path=/; max-age=0; SameSite=Lax';
+      document.cookie = 'token=; path=/; max-age=0; SameSite=Lax';
+    }
   } catch {
     // Sandboxed iframe restrictions
   }
