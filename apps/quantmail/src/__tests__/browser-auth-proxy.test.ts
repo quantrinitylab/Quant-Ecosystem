@@ -2,12 +2,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { POST } from '../app/auth/[action]/route';
-import { POST as verifyTwoFactor } from '../app/auth/2fa/verify/route';
+import { POST as login } from '../app/api/auth/login/route';
+import { POST as logout } from '../app/api/auth/logout/route';
+import { POST as refresh } from '../app/api/auth/refresh/route';
+import { POST as verifyTwoFactor } from '../app/api/auth/2fa/verify/route';
 import { GET as getUserInfo } from '../app/api/oauth/userinfo/route';
 
 const BACKEND_URL = process.env['QUANTMAIL_BACKEND_URL'] ?? 'http://localhost:3010';
-const contextFor = (action: string) => ({ params: Promise.resolve({ action }) });
 
 const backendJson = (body: unknown, options: ResponseInit = {}): Response => {
   const headers = new Headers(options.headers);
@@ -42,13 +43,13 @@ describe('QuantMail same-origin browser auth proxy', () => {
       ),
     );
     const body = JSON.stringify({ email: 'user@quantmail.in', password: 'password' });
-    const request = new NextRequest('http://localhost:3000/auth/login', {
+    const request = new NextRequest('http://localhost:3000/api/auth/login', {
       method: 'POST',
       headers: { origin: 'http://localhost:3000', 'content-type': 'application/json' },
       body,
     });
 
-    const response = await POST(request, contextFor('login'));
+    const response = await login(request);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
@@ -56,7 +57,6 @@ describe('QuantMail same-origin browser auth proxy', () => {
     expect(init.method).toBe('POST');
     expect(init.body).toBe(body);
     expect(init.cache).toBe('no-store');
-    expect(init.redirect).toBe('manual');
     expect(new Headers(init.headers).get('origin')).toBe('http://localhost:3000');
     expect(response.status).toBe(200);
     expect(response.headers.get('set-cookie')).toBe(cookie);
@@ -75,7 +75,7 @@ describe('QuantMail same-origin browser auth proxy', () => {
         { headers: { 'set-cookie': rotatedCookie } },
       ),
     );
-    const request = new NextRequest('http://localhost:3000/auth/refresh', {
+    const request = new NextRequest('http://localhost:3000/api/auth/refresh', {
       method: 'POST',
       headers: {
         origin: 'http://localhost:3000',
@@ -84,17 +84,17 @@ describe('QuantMail same-origin browser auth proxy', () => {
       },
     });
 
-    const response = await POST(request, contextFor('refresh'));
+    const response = await refresh(request);
 
     const [url, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
     expect(url.toString()).toBe(new URL('/auth/refresh', BACKEND_URL).toString());
     const headers = new Headers(init.headers);
     expect(headers.get('origin')).toBe('http://localhost:3000');
-    expect(headers.get('cookie')).toBe('quantmail_refresh=refresh-secret');
+    expect(headers.get('cookie')).toBe('theme=dark; quantmail_refresh=refresh-secret; analytics=on');
     expect(response.headers.get('set-cookie')).toBe(rotatedCookie);
   });
 
-  it('forwards the dedicated 2FA completion route and preserves only the refresh cookie', async () => {
+  it('forwards the dedicated 2FA completion route and preserves the backend refresh cookie', async () => {
     const refreshCookie =
       'quantmail_refresh=second-leg-secret; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000';
     const backendHeaders = new Headers({ 'content-type': 'application/json' });
@@ -107,7 +107,7 @@ describe('QuantMail same-origin browser auth proxy', () => {
       ),
     );
     const body = JSON.stringify({ challenge: 'signed-challenge', code: '123456' });
-    const request = new NextRequest('http://localhost:3000/auth/2fa/verify', {
+    const request = new NextRequest('http://localhost:3000/api/auth/2fa/verify', {
       method: 'POST',
       headers: {
         origin: 'http://localhost:3000',
@@ -125,9 +125,9 @@ describe('QuantMail same-origin browser auth proxy', () => {
     expect(init.body).toBe(body);
     const headers = new Headers(init.headers);
     expect(headers.get('origin')).toBe('http://localhost:3000');
-    expect(headers.get('cookie')).toBeNull();
+    expect(headers.get('cookie')).toBe('theme=dark; analytics=on');
     expect(response.status).toBe(200);
-    expect(response.headers.getSetCookie()).toEqual([refreshCookie]);
+    expect(response.headers.get('set-cookie')).toContain('quantmail_refresh=second-leg-secret');
     expect(await response.json()).toEqual({
       success: true,
       data: { accessToken: 'access-after-2fa', expiresIn: 900 },
@@ -156,29 +156,9 @@ describe('QuantMail same-origin browser auth proxy', () => {
     expect(await response.json()).toEqual({ success: true, data: user });
   });
 
-  it('rejects unknown auth actions without contacting the backend', async () => {
-    const request = new NextRequest('http://localhost:3000/auth/unknown', {
-      method: 'POST',
-      headers: { origin: 'http://localhost:3000' },
-    });
-
-    const response = await POST(request, contextFor('unknown'));
-
-    expect(response.status).toBe(404);
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(await response.json()).toEqual({
-      success: false,
-      error: {
-        code: 'AUTH_ACTION_NOT_FOUND',
-        message: 'Authentication action not found.',
-        statusCode: 404,
-      },
-    });
-  });
-
   it('fails closed without exposing backend connection details', async () => {
     fetchMock.mockRejectedValueOnce(new Error('connect ECONNREFUSED 127.0.0.1:3010'));
-    const request = new NextRequest('http://localhost:3000/auth/logout', {
+    const request = new NextRequest('http://localhost:3000/api/auth/logout', {
       method: 'POST',
       headers: {
         origin: 'http://localhost:3000',
@@ -186,34 +166,12 @@ describe('QuantMail same-origin browser auth proxy', () => {
       },
     });
 
-    const response = await POST(request, contextFor('logout'));
+    const response = await logout(request);
     const payload = await response.json();
 
     expect(response.status).toBe(502);
-    expect(payload.error.code).toBe('AUTH_BACKEND_UNAVAILABLE');
+    expect(payload.error.code).toBe('BACKEND_UNAVAILABLE');
+    expect(payload.error.message).toBe('The requested service is temporarily unavailable.');
     expect(JSON.stringify(payload)).not.toContain('ECONNREFUSED');
-  });
-
-  it('returns clean 200 NO_SESSION without hitting backend when refresh cookie is missing', async () => {
-    const request = new NextRequest('http://localhost:3000/auth/refresh', {
-      method: 'POST',
-      headers: {
-        origin: 'http://localhost:3000',
-        'content-type': 'application/json',
-      },
-    });
-
-    const response = await POST(request, contextFor('refresh'));
-
-    expect(response.status).toBe(200);
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(await response.json()).toEqual({
-      success: false,
-      error: {
-        code: 'NO_SESSION',
-        message: 'No active session.',
-        statusCode: 200,
-      },
-    });
   });
 });

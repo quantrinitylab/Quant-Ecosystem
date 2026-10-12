@@ -276,4 +276,20 @@ describe('browserAuthSession', () => {
     expect(calledUrl).toBe('/api/auth/login');
     expect(calledUrl).not.toMatch(/^\/auth\//);
   });
+
+  it('routes the 2FA second leg through /api/auth/2fa/verify (P0 regression lock)', async () => {
+    // CODEX-REVIEW P0 on PR #1032: completeTwoFactor posted to /auth/2fa/verify
+    // while the client base moved to /api, so the second leg would 404.
+    // The contract is: the client ALWAYS hits the /api/auth proxy path, and a
+    // route file MUST exist there (asserted by the proxy test importing it).
+    fetchMock.mockResolvedValueOnce(
+      authResponse({ accessToken: 'access-after-2fa', expiresIn: 900, tokenType: 'Bearer' }),
+    );
+
+    await browserAuthSession.completeTwoFactor('signed-challenge', '123456');
+
+    const calledUrl = String(fetchMock.mock.calls[0]?.[0] ?? '');
+    expect(calledUrl).toBe('/api/auth/2fa/verify');
+    expect(calledUrl).not.toMatch(/^\/auth\//);
+  });
 });
