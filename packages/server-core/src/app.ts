@@ -121,6 +121,9 @@ export async function createApp(config: AppConfig) {
     jwtSecret: config.jwtSecret,
     jwtIssuer: config.jwtIssuer,
     jwtAudience: config.jwtAudience,
+    // QC-F-041: opt-in account-status gate (undefined = legacy stateless
+    // behaviour for every app that does not supply a resolver).
+    accountStatus: config.accountStatus,
   });
 
   // Register cross-cutting engine plugins (Category A — wired once, inherited by
