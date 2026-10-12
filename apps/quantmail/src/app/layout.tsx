@@ -24,12 +24,11 @@ export const metadata: Metadata = {
   description: quantMailBrandMetadata.description,
   applicationName: quantMailBrandMetadata.applicationName,
   icons: {
-    icon: [
-      { url: '/quanty-ghost.png', type: 'image/png' },
-      { url: '/favicon.svg', type: 'image/svg+xml' },
-    ],
-    shortcut: '/quanty-ghost.png',
-    apple: '/quanty-ghost-apple.png',
+    // The QuantMail "M" mark as vector, first. The Quanty ghost is the mascot,
+    // not the app icon — it stays as a mascot asset, never as favicon.
+    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
+    shortcut: '/favicon.svg',
+    apple: '/apple-touch-icon.png',
   },
   manifest: '/manifest.json',
   themeColor: 'var(--quant-surface-subtle)',
