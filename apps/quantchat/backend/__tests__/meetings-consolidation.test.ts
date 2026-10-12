@@ -675,8 +675,18 @@ describe('LiveKitWebhookService', () => {
 describe('Fastify /meetings route integration', () => {
   let app: FastifyInstance;
   let authUserId: string;
+  let savedLiveKitEnv: Record<string, string | undefined>;
 
   beforeEach(async () => {
+    // QC-F-076: meetings join now fails closed without LiveKit config, so
+    // this harness sets explicit test fixtures before registering routes.
+    savedLiveKitEnv = {};
+    for (const key of ['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'LIVEKIT_WS_URL']) {
+      savedLiveKitEnv[key] = process.env[key];
+    }
+    process.env['LIVEKIT_API_KEY'] = 'test-livekit-key';
+    process.env['LIVEKIT_API_SECRET'] = 'test-livekit-secret';
+    process.env['LIVEKIT_WS_URL'] = 'ws://livekit.test:7880';
     authUserId = 'host';
     const { prisma } = createMockPrisma();
     app = Fastify();
@@ -690,6 +700,13 @@ describe('Fastify /meetings route integration', () => {
 
   afterEach(async () => {
     await app.close();
+    for (const key of ['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'LIVEKIT_WS_URL']) {
+      if (savedLiveKitEnv[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = savedLiveKitEnv[key];
+      }
+    }
   });
 
   it('serves the consolidated room, chat, reaction, AI, leave, and close endpoints', async () => {
