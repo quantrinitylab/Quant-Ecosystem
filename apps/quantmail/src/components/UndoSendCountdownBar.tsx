@@ -114,6 +114,22 @@ export class UndoSendManager {
   }
 
   public queueSend = (options: QueueSendOptions): void => {
+    // Duplicate-send guard: if the recall window is still open for the exact
+    // same content (same to/subject/body), a second Send press (double-click,
+    // Cmd+Enter x2, or restore-badge -> Send) is a no-op. Returning here keeps
+    // the existing countdown untouched — no flush, no requeue, no double
+    // delivery.
+    if (this.state.pendingItem && this.state.status === 'counting') {
+      const pending = this.state.pendingItem;
+      if (
+        options.to === pending.to &&
+        options.subject === pending.subject &&
+        options.body === pending.body
+      ) {
+        return;
+      }
+    }
+
     // If a previous email was already in queue, flush it immediately before replacing.
     // Synchronous invocation, like before; the returned promise is only
     // observed so a rejection never goes unhandled. The bar is being replaced,
