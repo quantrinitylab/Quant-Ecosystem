@@ -45,8 +45,11 @@ export interface IssueTrackItem {
   id: string;
   issueNumber: number;
   title: string;
-  priority: 'P0 Critical' | 'P1 High' | 'P2 Medium' | 'P3 Low';
-  priorityColor: string;
+  // QM-SCREEN-013 R3 P1: priority is genuinely unknown for backend-fetched
+  // issues — the Issue model has no priority field, so it stays optional and
+  // no badge is rendered rather than fabricating one.
+  priority?: 'P0 Critical' | 'P1 High' | 'P2 Medium' | 'P3 Low';
+  priorityColor?: string;
   labels: string[];
   state: 'open' | 'closed';
   author: string;
@@ -65,7 +68,7 @@ export interface WorkflowRun {
   id: string;
   name: string;
   branch: string;
-  status: 'success' | 'running' | 'failed';
+  status: 'success' | 'running' | 'failed' | 'queued';
   duration: string;
   commitSha: string;
   author: string;
@@ -514,7 +517,10 @@ export function QuantGitReposSubView({
                       <span>{b.name}</span>
                       {b.isProtected && (
                         <span
-                          title="Protected branch (enforces CI gates and signed PR reviews)"
+                          // QM-SCREEN-013 R3 P2: describe the actual protection
+                          // semantics (required approvals + status checks) —
+                          // "signed PR reviews" was invented.
+                          title="Protected branch (requires pull-request reviews and status checks before merging)"
                           data-testid="protected-branch-badge"
                           className="ml-1 inline-flex items-center gap-0.5 text-[var(--q-type-xs)] font-bold text-[#8B5CF6] bg-[#8B5CF6]/10 px-1 py-px rounded border border-[#8B5CF6]/30"
                         >
@@ -878,17 +884,20 @@ export function QuantGitIssuesSubView({
             >
               <div className="space-y-2 flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* Priority Badge */}
-                  <span
-                    className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold tracking-wide uppercase border"
-                    style={{
-                      backgroundColor: `${issue.priorityColor}15`,
-                      borderColor: `${issue.priorityColor}40`,
-                      color: issue.priorityColor,
-                    }}
-                  >
-                    {issue.priority}
-                  </span>
+                  {/* Priority Badge — only rendered when the issue genuinely
+                      carries priority data (never fabricated). */}
+                  {issue.priority && issue.priorityColor && (
+                    <span
+                      className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold tracking-wide uppercase border"
+                      style={{
+                        backgroundColor: `${issue.priorityColor}15`,
+                        borderColor: `${issue.priorityColor}40`,
+                        color: issue.priorityColor,
+                      }}
+                    >
+                      {issue.priority}
+                    </span>
+                  )}
 
                   {/* Title */}
                   <button
@@ -934,6 +943,37 @@ export function QuantGitIssuesSubView({
 // Sub-View 4: CI/CD Pipeline Streaming View (`actions`)
 // ============================================================================
 
+// QM-SCREEN-013 R3 P1: status badges must reflect the real run/job status —
+// never a hardcoded "Passed"/"ALL GATES PASSING" when failed or running
+// runs are wired through.
+function workflowRunBadge(status: WorkflowRun['status']): {
+  label: string;
+  classes: string;
+} {
+  switch (status) {
+    case 'success':
+      return {
+        label: 'ALL GATES PASSING',
+        classes: 'bg-[#10B981]/15 text-[#10B981] border-[#10B981]/30',
+      };
+    case 'failed':
+      return {
+        label: 'GATES FAILING',
+        classes: 'bg-[#F85149]/15 text-[#F85149] border-[#F85149]/30',
+      };
+    case 'running':
+      return {
+        label: 'RUN IN PROGRESS',
+        classes: 'bg-[#D29922]/15 text-[#D29922] border-[#D29922]/30',
+      };
+    case 'queued':
+      return {
+        label: 'RUN QUEUED',
+        classes: 'bg-[#8B949E]/15 text-[#8B949E] border-[#8B949E]/30',
+      };
+  }
+}
+
 export interface QuantGitActionsSubViewProps {
   workflows?: WorkflowRun[];
   onTriggerWorkflow?: () => void;
@@ -961,11 +1001,14 @@ export function QuantGitActionsSubView({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">CI/CD Pipeline Streaming View</h1>
-                {workflows.length > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30">
-                    ALL GATES PASSING
-                  </span>
-                )}
+                {masterRun && (() => {
+                  const badge = workflowRunBadge(masterRun.status);
+                  return (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${badge.classes}`}>
+                      {badge.label}
+                    </span>
+                  );
+                })()}
               </div>
               <p className="text-xs text-[#8B949E] mt-0.5">
                 Real-time job execution telemetry, typecheck gates & vitest test runners
@@ -1002,8 +1045,22 @@ export function QuantGitActionsSubView({
           >
             <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#232938]">
               <div className="flex items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded-xl bg-[#10B981]/15 border border-[#10B981]/30 text-[#10B981]">
-                  <SvgCheckIcon className="size-5" />
+                <div
+                  className={`flex size-9 items-center justify-center rounded-xl border ${
+                    masterRun.status === 'success'
+                      ? 'bg-[#10B981]/15 border-[#10B981]/30 text-[#10B981]'
+                      : masterRun.status === 'failed'
+                        ? 'bg-[#F85149]/15 border-[#F85149]/30 text-[#F85149]'
+                        : masterRun.status === 'running'
+                          ? 'bg-[#D29922]/15 border-[#D29922]/30 text-[#D29922]'
+                          : 'bg-[#8B949E]/15 border-[#8B949E]/30 text-[#8B949E]'
+                  }`}
+                >
+                  {masterRun.status === 'success' ? (
+                    <SvgCheckIcon className="size-5" />
+                  ) : (
+                    <SvgClockIcon className="size-5" />
+                  )}
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-white tracking-tight">
@@ -1025,9 +1082,32 @@ export function QuantGitActionsSubView({
                 </div>
               </div>
 
-              <span className="px-3 py-1 rounded-xl text-xs font-bold bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 flex items-center gap-1.5">
-                <SvgCheckIcon className="size-3.5" />
-                <span>Passed</span>
+              <span className={`px-3 py-1 rounded-xl text-xs font-bold border flex items-center gap-1.5 ${(() => {
+                switch (masterRun.status) {
+                  case 'success':
+                    return 'bg-[#10B981]/15 text-[#10B981] border-[#10B981]/30';
+                  case 'failed':
+                    return 'bg-[#F85149]/15 text-[#F85149] border-[#F85149]/30';
+                  case 'running':
+                    return 'bg-[#D29922]/15 text-[#D29922] border-[#D29922]/30';
+                  case 'queued':
+                    return 'bg-[#8B949E]/15 text-[#8B949E] border-[#8B949E]/30';
+                }
+              })()}`}>
+                {masterRun.status === 'success' ? (
+                  <SvgCheckIcon className="size-3.5" />
+                ) : (
+                  <SvgClockIcon className="size-3.5" />
+                )}
+                <span>
+                  {masterRun.status === 'success'
+                    ? 'Passed'
+                    : masterRun.status === 'failed'
+                      ? 'Failed'
+                      : masterRun.status === 'running'
+                        ? 'Running'
+                        : 'Queued'}
+                </span>
               </span>
             </div>
 
@@ -1044,8 +1124,23 @@ export function QuantGitActionsSubView({
                     className="p-3.5 rounded-xl border border-[#232938] bg-[#181C28] flex items-center justify-between gap-2"
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className="flex size-6 items-center justify-center rounded-lg bg-[#10B981]/20 text-[#10B981]">
-                        <SvgCheckIcon className="size-3.5" />
+                      <div
+                        className={`flex size-6 items-center justify-center rounded-lg ${
+                          job.status === 'pass'
+                            ? 'bg-[#10B981]/20 text-[#10B981]'
+                            : job.status === 'fail'
+                              ? 'bg-[#F85149]/20 text-[#F85149]'
+                              : job.status === 'running'
+                                ? 'bg-[#D29922]/20 text-[#D29922]'
+                                : 'bg-[#8B949E]/20 text-[#8B949E]'
+                        }`}
+                        title={`Job ${job.status}`}
+                      >
+                        {job.status === 'pass' ? (
+                          <SvgCheckIcon className="size-3.5" />
+                        ) : (
+                          <SvgClockIcon className="size-3.5" />
+                        )}
                       </div>
                       <span className="text-xs font-bold text-white">{job.name}</span>
                     </div>
@@ -1068,8 +1163,22 @@ export function QuantGitActionsSubView({
               className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-4.5 flex flex-wrap items-center justify-between gap-4"
             >
               <div className="flex items-center gap-3">
-                <div className="flex size-7 items-center justify-center rounded-lg bg-[#10B981]/15 text-[#10B981]">
-                  <SvgCheckIcon className="size-4" />
+                <div
+                  className={`flex size-7 items-center justify-center rounded-lg ${
+                    run.status === 'success'
+                      ? 'bg-[#10B981]/15 text-[#10B981]'
+                      : run.status === 'failed'
+                        ? 'bg-[#F85149]/15 text-[#F85149]'
+                        : run.status === 'running'
+                          ? 'bg-[#D29922]/15 text-[#D29922]'
+                          : 'bg-[#8B949E]/15 text-[#8B949E]'
+                  }`}
+                >
+                  {run.status === 'success' ? (
+                    <SvgCheckIcon className="size-4" />
+                  ) : (
+                    <SvgClockIcon className="size-4" />
+                  )}
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-white">{run.name}</h4>
@@ -1320,6 +1429,16 @@ export interface QuantGitSubViewsProps {
   onSearchChange?: (val: string) => void;
   /** BB-P1-9: forwarded to the repos sub-view (see QuantGitReposSubViewProps). */
   hideSearchField?: boolean;
+  /**
+   * QM-SCREEN-013 R3 P1: real fetched data wired through from the page so
+   * signed-in users see their actual repos/PRs/issues/pipeline runs on the
+   * landing tabs instead of permanent empty states. Each sub-view keeps its
+   * honest empty state when its array is genuinely empty.
+   */
+  repos?: RepositoryItem[];
+  prs?: PullRequestItem[];
+  issues?: IssueTrackItem[];
+  workflows?: WorkflowRun[];
 }
 
 export function QuantGitSubViews({
@@ -1335,6 +1454,10 @@ export function QuantGitSubViews({
   searchQuery,
   onSearchChange,
   hideSearchField = false,
+  repos = [],
+  prs = [],
+  issues = [],
+  workflows = [],
 }: QuantGitSubViewsProps) {
   return (
     <div data-testid="quantgit-subviews-container" className="flex-1 w-full min-h-0 flex flex-col">
@@ -1344,6 +1467,7 @@ export function QuantGitSubViews({
 
       {activeTab === 'repos' && (
         <QuantGitReposSubView
+          repos={repos}
           onSelectRepo={onSelectRepo}
           onNewRepo={onNewRepo}
           searchQuery={searchQuery}
@@ -1354,6 +1478,7 @@ export function QuantGitSubViews({
 
       {activeTab === 'prs' && (
         <QuantGitPrsSubView
+          prs={prs}
           onMergePR={onMergePR}
           onOpenPR={onOpenPR}
           showToast={showToast}
@@ -1362,13 +1487,14 @@ export function QuantGitSubViews({
 
       {activeTab === 'issues' && (
         <QuantGitIssuesSubView
+          issues={issues}
           onSelectIssue={onSelectIssue}
           onNewIssue={onNewIssue}
         />
       )}
 
       {activeTab === 'actions' && (
-        <QuantGitActionsSubView />
+        <QuantGitActionsSubView workflows={workflows} />
       )}
 
       {activeTab === 'copilot' && (

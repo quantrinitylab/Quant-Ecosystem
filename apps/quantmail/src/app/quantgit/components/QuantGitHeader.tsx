@@ -85,7 +85,9 @@ export function QuantGitHeader({
               >
                 <span className="max-w-[180px] sm:max-w-xs truncate">
                   {chatSessions.find((s) => s.id === activeSessionId)?.title ||
-                    'Urgent GitHub parity & Notion AI overhaul'}
+                    // QM-SCREEN-013 R3 P1: no fabricated session title here —
+                    // the list starts empty until the user actually chats.
+                    'No chats yet'}
                 </span>
                 <span className="text-[#7D8590] text-[10px]">▾</span>
               </button>
@@ -526,6 +528,13 @@ export function QuantGitHeader({
                 <div className="text-[10px] font-bold uppercase tracking-wider text-[#7D8590] px-2">
                   Recent
                 </div>
+                {/* QM-SCREEN-013 R3 P1: honest empty state — sessions only
+                    appear after the user actually chats, never fabricated. */}
+                {chatSessions.length === 0 && (
+                  <p className="px-2 py-4 text-xs text-[#7D8590] text-center">
+                    No conversations yet — start a new chat to see it here.
+                  </p>
+                )}
                 <div className="space-y-0.5">
                   {chatSessions
                     .filter((s) => !pinnedSessionIds.includes(s.id))

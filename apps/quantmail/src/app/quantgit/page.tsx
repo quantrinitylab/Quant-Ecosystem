@@ -78,6 +78,10 @@ import { formatCommitToast } from './components/formatCommitToast';
 import {
   QuantGitSubViews,
   type ContextSubViewTab,
+  type RepositoryItem,
+  type PullRequestItem,
+  type IssueTrackItem,
+  type WorkflowRun,
 } from './components/QuantGitSubViews';
 
 function QuantGitContent() {  const router = useRouter();
@@ -171,33 +175,12 @@ function QuantGitContent() {  const router = useRouter();
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({
     'msg-1': true,
   });
-  const [activeSessionId, setActiveSessionId] = useState('sess-1');
-  const [chatSessions, setChatSessions] = useState<ChatSession[]>([
-    {
-      id: 'sess-1',
-      title: 'Urgent GitHub parity & Notion AI overhaul',
-      date: 'Just now',
-      count: 4,
-    },
-    {
-      id: 'sess-2',
-      title: 'Wave A Drive consolidation & 5 AI services',
-      date: 'Yesterday',
-      count: 12,
-    },
-    {
-      id: 'sess-3',
-      title: 'LiveKit WebRTC gateway & proactive call alerts',
-      date: '2 days ago',
-      count: 8,
-    },
-    {
-      id: 'sess-4',
-      title: 'Yjs CRDT merge & real-time collaboration',
-      date: '3 days ago',
-      count: 15,
-    },
-  ]);
+  const [activeSessionId, setActiveSessionId] = useState('');
+  // QM-SCREEN-013 R3 P1: the copilot session list starts EMPTY — the four
+  // fabricated sessions below were invented theater, rendered as if they were
+  // the user's real history. Sessions only ever appear here after the user
+  // actually chats. Honest empty copy lives in QuantGitHeader.
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
 
   // Notion AI Submenus & Personalization States
   const [activeSettingsSubmenu, setActiveSettingsSubmenu] = useState<SettingsSubmenu>('none');
@@ -232,14 +215,18 @@ function QuantGitContent() {  const router = useRouter();
   const [mentionSearch, setMentionSearch] = useState('');
   const [repoFileSearch, setRepoFileSearch] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<string[]>([]);
-  const [pinnedSessionIds, setPinnedSessionIds] = useState<string[]>(['sess-1']);
+  // QM-SCREEN-013 R3 P1: no fabricated sessions pinned — pinned list starts
+  // empty like the session list itself.
+  const [pinnedSessionIds, setPinnedSessionIds] = useState<string[]>([]);
+  // QM-SCREEN-013 R3 P2: skills are a not-yet-available roadmap — toggles
+  // default OFF, never ON for capabilities that are not wired up.
   const [activeSkills, setActiveSkills] = useState<Record<string, boolean>>({
-    'Git Smart HTTP Engine': true,
-    'Monorepo AST Parser': true,
-    'Vitest QA Sentinel': true,
-    'LiveKit WebRTC Gateway': true,
-    'Redis 3-Layer Memory': true,
-    'Prisma Schema Auditor': true,
+    'Git Smart HTTP Engine': false,
+    'Monorepo AST Parser': false,
+    'Vitest QA Sentinel': false,
+    'LiveKit WebRTC Gateway': false,
+    'Redis 3-Layer Memory': false,
+    'Prisma Schema Auditor': false,
   });
 
   // Data Collections
@@ -250,6 +237,7 @@ function QuantGitContent() {  const router = useRouter();
       fullName: `${currentUsername}/${r.name}`,
     }));
   }, [baseRepos, currentUsername]);
+
   const [files, setFiles] = useState<FileNode[]>([]);
   const [issues, setIssues] = useState<IssueItem[]>([]);
   const [pulls, setPulls] = useState<PRItem[]>([]);
@@ -258,6 +246,149 @@ function QuantGitContent() {  const router = useRouter();
   const [projects, setProjects] = useState<ProjectCard[]>([]);
   const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
   const [agents, setAgents] = useState<DeployedAgent[]>([]);
+
+  // QM-SCREEN-013 R3 P1: wire the REAL fetched data into the landing
+  // sub-views (repos / prs / issues / actions tabs). These states are the
+  // backend's truth — the sub-views keep their honest empty states whenever
+  // an array is genuinely empty.
+  const LANGUAGE_COLORS: Record<string, string> = {
+    TypeScript: '#3178C6',
+    JavaScript: '#F1E05A',
+    Python: '#3572A5',
+    Java: '#B07219',
+    Go: '#00ADD8',
+    Rust: '#DEA584',
+    'C++': '#F34B7D',
+    C: '#555555',
+    'C#': '#178600',
+    Ruby: '#701516',
+    PHP: '#4F5D95',
+    Swift: '#F05138',
+    Kotlin: '#A97BFF',
+    Dart: '#00B4AB',
+    HTML: '#E34C26',
+    CSS: '#563D7C',
+    Shell: '#89E051',
+    Dockerfile: '#384D54',
+    Vue: '#41B883',
+    Prisma: '#0C344B',
+  };
+
+  const landingRepos: RepositoryItem[] = useMemo(() => {
+    return repos.map((r) => ({
+      id: r.id,
+      name: r.name,
+      fullName: r.fullName,
+      description: r.description || '',
+      language: r.language || '',
+      languageColor: LANGUAGE_COLORS[r.language] ?? '#8B949E',
+      stars: r.stars,
+      forks: r.forks,
+      // Per-branch protection is not fetched for the landing list, so we
+      // never claim a branch is protected here.
+      branches: (r.branches && r.branches.length > 0 ? r.branches : [r.defaultBranch]).map(
+        (name) => ({ name, isProtected: false }),
+      ),
+      defaultBranch: r.defaultBranch,
+      isPrivate: r.visibility === 'private',
+      updatedAt: r.latestCommitTime || '',
+    }));
+  }, [repos]);
+
+  const landingPrs: PullRequestItem[] = useMemo(() => {
+    return pulls.map((p) => {
+      const status: PullRequestItem['status'] =
+        p.state === 'merged'
+          ? 'merged'
+          : p.state === 'closed'
+            ? 'closed'
+            : p.checksStatus === 'passing'
+              ? 'ci_passing'
+              : 'review_in_progress';
+      const statusText =
+        p.state === 'merged'
+          ? 'Merged'
+          : p.state === 'closed'
+            ? 'Closed'
+            : p.checksStatus === 'passing'
+              ? 'CI passing'
+              : p.checksStatus === 'failing'
+                ? 'Checks failing'
+                : p.checksStatus === 'pending'
+                  ? 'Checks pending'
+                  : 'Open';
+      return {
+        id: String(p.id),
+        prNumber: p.id,
+        title: p.title,
+        author: p.author,
+        sourceBranch: p.branchSource,
+        targetBranch: p.branchTarget,
+        status,
+        statusText,
+        diffStats: {
+          additions: p.additions ?? 0,
+          deletions: p.deletions ?? 0,
+          filesChanged: p.changedFiles ?? 0,
+        },
+        labels: [] as string[],
+        createdAt: p.createdAt,
+      };
+    });
+  }, [pulls]);
+
+  const landingIssues: IssueTrackItem[] = useMemo(() => {
+    return issues.map((i) => ({
+      id: String(i.id),
+      issueNumber: i.id,
+      title: i.title,
+      // The Issue model has no priority field — leave unset rather than
+      // invent a priority badge.
+      labels: i.labels.map((l) => l.name),
+      state: i.state,
+      author: i.author,
+      createdAt: i.createdAt,
+      commentsCount: i.commentsCount,
+    }));
+  }, [issues]);
+
+  const landingWorkflows: WorkflowRun[] = useMemo(() => {
+    return actions.map((a) => {
+      const status: WorkflowRun['status'] =
+        a.status === 'success' || (a.status === 'completed' && a.conclusion === 'success')
+          ? 'success'
+          : a.status === 'failed' || (a.status === 'completed' && a.conclusion === 'failure')
+            ? 'failed'
+            : a.status === 'queued'
+              ? 'queued'
+              : 'running';
+      return {
+        id: String(a.id),
+        name: a.name,
+        branch: a.branch,
+        status,
+        duration: a.duration,
+        commitSha: a.commitSha,
+        author: a.actor ?? '',
+        triggerEvent: a.event,
+        jobs: a.jobs.map((j, idx) => ({
+          id: `${a.id}-job-${idx}`,
+          name: j.name,
+          status: (
+            j.status === 'success'
+              ? 'pass'
+              : j.status === 'failed'
+                ? 'fail'
+                : j.status === 'in_progress'
+                  ? 'running'
+                  : 'queued'
+          ) as 'pass' | 'fail' | 'running' | 'queued',
+          duration: j.duration,
+        })),
+        createdAt: a.createdAt ?? '',
+      };
+    });
+  }, [actions]);
 
   // Modals & Drawers
   const [modalState, setModalState] = useState<ModalState>('none');
@@ -974,6 +1105,13 @@ function QuantGitContent() {  const router = useRouter();
       setSettingsDesc(selectedRepo.description || '');
       setSettingsBranch(selectedRepo.defaultBranch || 'main');
       setSettingsVisibility(selectedRepo.visibility || 'public');
+    } else {
+      // QM-SCREEN-013 R3 P1: pulls/issues/actions are fetched per selected
+      // repo — clear them on deselect so the landing tabs never show a
+      // previous repo's data as if it were global.
+      setIssues([]);
+      setPulls([]);
+      setActions([]);
     }
   }, [
     selectedRepo,
@@ -1121,7 +1259,7 @@ function QuantGitContent() {  const router = useRouter();
         setNewIssueTitle('');
         setNewIssueBody('');
         setModalState('none');
-        showToast(`Issue #${created.id} created in PostgreSQL!`);
+        showToast(`Issue #${created.id} created`);
         return;
       }
     } catch {
@@ -1247,7 +1385,7 @@ function QuantGitContent() {  const router = useRouter();
         setNewPrTitle('');
         setNewPrBody('');
         setModalState('none');
-        showToast(`Pull Request #${created.id} opened in PostgreSQL!`);
+        showToast(`Pull Request #${created.id} opened`);
         emitQuantGitMascotEvent('pull');
         return;
       }
@@ -1506,7 +1644,7 @@ function QuantGitContent() {  const router = useRouter();
               r.id === selectedRepo.id || r.name === selectedRepo.name ? { ...r, ...updated } : r,
             ),
           );
-          showToast('Settings saved successfully to PostgreSQL!');
+          showToast('Settings saved successfully');
         }
       } else {
         const errJson = await res.json().catch(() => ({}));
@@ -2122,6 +2260,11 @@ function QuantGitContent() {  const router = useRouter();
             // BB-P1-9: the AppShell header (desktop) / pillar top bar (mobile)
             // already renders this same search field — hide the in-view copy.
             hideSearchField
+            // QM-SCREEN-013 R3 P1: real fetched data for the landing tabs.
+            repos={landingRepos}
+            prs={landingPrs}
+            issues={landingIssues}
+            workflows={landingWorkflows}
             onSelectTab={(tab) => {
               setActiveContextSubTab(tab);
               router.push(`/quantgit?tab=${tab}`);
