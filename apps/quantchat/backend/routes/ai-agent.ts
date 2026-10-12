@@ -55,7 +55,12 @@ function requireUserId(request: unknown): string {
 
 // Structural Prisma surface (declared locally so this route typechecks
 // independently of the generated client version — see routes/avatar.ts).
-interface ScheduledMessagePrisma {
+export interface ScheduledMessagePrisma {
+  conversationMember: {
+    findFirst: (args: {
+      where: { conversationId: string; userId: string; leftAt: null };
+    }) => Promise<{ id: string } | null>;
+  };
   scheduledMessage: {
     create: (args: {
       data: {
@@ -186,12 +191,35 @@ export default async function aiAgentRoutes(
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
 
+    // QC-F-095: membership gate — the same check MessageService.sendMessage
+    // applies on the real send path (message.service.ts). Without it, any
+    // logged-in user could persist a scheduled message into ANY conversation
+    // (including ones they were never a member of) and the delivery worker
+    // would inject it as a real Message. A nonexistent conversation yields
+    // the same 403 as a non-member (no existence oracle), exactly like
+    // sendMessage. Order is pinned: zod 400 → auth 401 → membership 403 →
+    // past-check 400.
+    const membership = await prisma.conversationMember.findFirst({
+      where: { conversationId: parsed.data.conversationId, userId, leftAt: null },
+    });
+    if (!membership) {
+      throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
+    }
+
+    // The frontend's own scheduler rejects past times ("Scheduled time must
+    // be in the future"); enforce the same rule server-side so already-due
+    // rows are not created. No minimum delay and no horizon cap.
+    const scheduledFor = new Date(parsed.data.scheduledFor);
+    if (scheduledFor.getTime() <= Date.now()) {
+      throw createAppError('scheduledFor must be in the future', 400, 'VALIDATION_ERROR');
+    }
+
     const scheduled = await prisma.scheduledMessage.create({
       data: {
         userId,
         conversationId: parsed.data.conversationId,
         content: parsed.data.content,
-        scheduledFor: new Date(parsed.data.scheduledFor),
+        scheduledFor,
         status: 'PENDING',
       },
     });
