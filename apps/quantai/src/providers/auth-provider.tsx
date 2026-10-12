@@ -5,6 +5,7 @@ import {
   clearAccessToken,
   isTwoFactorChallenge,
   ingestSSOToken,
+  SESSION_EXPIRED_REASON,
 } from '../services/auth-session';
 import { getAuthToken } from '../lib/auth';
 
@@ -109,6 +110,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Rotate the access token before its ~15-minute lifetime ends. The rotated
   // refresh token stays inside the HttpOnly cookie and never reaches this provider.
+  // When the server refuses rotation (expired/revoked session), sign the user
+  // out AND tell them why: land on /login with a session-expired notice
+  // instead of a bare gate redirect that looks like a random log-out.
   const authedRef = useRef(isAuthenticated);
   authedRef.current = isAuthenticated;
   useEffect(() => {
@@ -116,7 +120,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const timer = window.setInterval(
       async () => {
         const session = await authSession.refresh();
-        if (!session.success || !session.data?.accessToken) clearSession();
+        if (!session.success || !session.data?.accessToken) {
+          clearSession();
+          if (typeof window !== 'undefined') {
+            const returnTo = encodeURIComponent(window.location.pathname || '/');
+            window.location.href = `/login?returnTo=${returnTo}&reason=${SESSION_EXPIRED_REASON}`;
+          }
+        }
       },
       12 * 60 * 1000,
     );

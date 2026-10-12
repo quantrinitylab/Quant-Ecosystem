@@ -91,15 +91,22 @@ describe('QuantAI SSO Token Handoff & Session Ingestion', () => {
     expect(localStorage.getItem('quant_access_token')).toBe('jwt-ai-sso-token-555');
   });
 
-  it('authSession.refresh falls back to stored SSO token when /auth/refresh returns 401/network', async () => {
+  it('authSession.refresh NEVER resurrects a stored token when /auth/refresh fails (F-203)', async () => {
     localStorage.setItem('quant_access_token', 'jwt-cached-sso-666');
 
     // Stub global fetch with a rejection
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
 
     const result = await authSession.refresh();
-    expect(result.success).toBe(true);
-    expect(result.data?.accessToken).toBe('jwt-cached-sso-666');
-    expect(getAccessToken()).toBe('jwt-cached-sso-666');
+    // Genuine failure: no fake success, and every scrap of local token
+    // material is cleared so a server-revoked session actually clears.
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('NETWORK');
+    expect(getAccessToken()).toBeNull();
+    expect(getAuthToken()).toBeNull();
+    expect(localStorage.getItem('quant_access_token')).toBeNull();
+    expect(localStorage.getItem('quant_auth_token')).toBeNull();
+
+    vi.unstubAllGlobals();
   });
 });
