@@ -31,11 +31,13 @@ describe('Chatter Live Social Audio Rooms Service', () => {
       { title: 'Open Mic' },
     );
 
-    const { room: updatedRoom, participant } = AudioRoomService.joinAudioRoom(
-      room.id,
-      { userId: 'user_listener', username: 'listener1', displayName: 'Listener One' },
-      'listener',
-    );
+    // QC-F-107: joinAudioRoom no longer accepts a role — every new
+    // participant joins as 'listener'.
+    const { room: updatedRoom, participant } = AudioRoomService.joinAudioRoom(room.id, {
+      userId: 'user_listener',
+      username: 'listener1',
+      displayName: 'Listener One',
+    });
 
     expect(updatedRoom.participants).toHaveLength(2);
     expect(participant.userId).toBe('user_listener');
@@ -111,11 +113,14 @@ describe('Chatter Live Social Audio Rooms Service', () => {
       { username: 'hostuser', displayName: 'Host User' },
       { title: 'Discussion' },
     );
-    AudioRoomService.joinAudioRoom(
-      room.id,
-      { userId: 'user_speaker', username: 'speaker1', displayName: 'Speaker One' },
-      'speaker',
-    );
+    // QC-F-107: a speaker is made through the host-authorised promote
+    // path (join always lands as listener now).
+    AudioRoomService.joinAudioRoom(room.id, {
+      userId: 'user_speaker',
+      username: 'speaker1',
+      displayName: 'Speaker One',
+    });
+    AudioRoomService.promoteToSpeaker(room.id, 'user_host', 'user_speaker');
 
     const muted = AudioRoomService.muteSpeaker(room.id, 'user_host', 'user_speaker');
     expect(muted.isMuted).toBe(true);
@@ -127,16 +132,18 @@ describe('Chatter Live Social Audio Rooms Service', () => {
       { username: 'hostuser', displayName: 'Host User' },
       { title: 'Discussion' },
     );
-    AudioRoomService.joinAudioRoom(
-      room.id,
-      { userId: 'user_speaker', username: 'speaker1', displayName: 'Speaker One' },
-      'speaker',
-    );
-    AudioRoomService.joinAudioRoom(
-      room.id,
-      { userId: 'user_listener', username: 'listener1', displayName: 'Listener One' },
-      'listener',
-    );
+    // QC-F-107: speaker via host promote (join is listener-only now).
+    AudioRoomService.joinAudioRoom(room.id, {
+      userId: 'user_speaker',
+      username: 'speaker1',
+      displayName: 'Speaker One',
+    });
+    AudioRoomService.promoteToSpeaker(room.id, 'user_host', 'user_speaker');
+    AudioRoomService.joinAudioRoom(room.id, {
+      userId: 'user_listener',
+      username: 'listener1',
+      displayName: 'Listener One',
+    });
 
     // Host leaves
     const result = AudioRoomService.leaveAudioRoom(room.id, 'user_host');
