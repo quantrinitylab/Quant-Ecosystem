@@ -10,9 +10,13 @@
 //
 // PRIVACY CONTRACT: getFriendsOnMap only ever returns rows for users the caller
 // has added as a CLOSE FRIEND (`CloseFriend` where userId = caller), and only
-// those friends who currently have a `FriendLocation` row (actively sharing).
-// Users who are not the caller's close friends are never exposed, and a close
-// friend who has stopped sharing (no row) is silently omitted.
+// those friends who currently have a FRESH `FriendLocation` row (actively
+// sharing — see FRIEND_LOCATION_MAX_AGE_MS). Users who are not the caller's
+// close friends are never exposed, and a close friend who has stopped sharing
+// (no row, or a row older than the freshness window) is silently omitted.
+// QC-F-056: before this freshness window existed, a row written once stayed
+// "currently sharing" forever — even after the owner enabled Ghost Mode in a
+// client whose hide signal never reached the server.
 //
 // The service is decoupled from the generated Prisma client types via the
 // `LocationPrismaClient` structural interface — mirroring the casting pattern
@@ -20,6 +24,15 @@
 // regardless of whether `prisma generate` has been run for these delegates.
 // ============================================================================
 import { createAppError } from '@quant/server-core';
+
+/**
+ * How long a published location counts as "currently sharing" (QC-F-056).
+ * The map client re-publishes every 30s while sharing, so a row older than
+ * this window belongs to a client that stopped publishing — closed, crashed,
+ * or ghosted without its clear reaching the server — and must no longer be
+ * shown to close friends as a live position.
+ */
+export const FRIEND_LOCATION_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
 
 /** Latitude/longitude bounds for WGS84 coordinates. */
 export const LATITUDE_MIN = -90;
@@ -150,10 +163,17 @@ export class LocationService {
    * sharing, shaped for the map. Privacy invariants:
    *   - only `CloseFriend` edges where `userId` = caller are considered;
    *   - only friends with a live `FriendLocation` row are included;
+   *   - only FRESH rows count: a row older than FRIEND_LOCATION_MAX_AGE_MS is
+   *     not "currently sharing" (QC-F-056) — the cutoff is applied in the
+   *     query AND re-checked on the returned rows, so the invariant holds
+   *     regardless of the store underneath;
    *   - non-close-friends are never returned.
    * Results are ordered most-recently-updated first.
+   *
+   * `now` is injectable for deterministic tests; production callers omit it.
    */
-  async getFriendsOnMap(userId: string): Promise<FriendOnMap[]> {
+  async getFriendsOnMap(userId: string, now: Date = new Date()): Promise<FriendOnMap[]> {
+    const freshAfter = new Date(now.getTime() - FRIEND_LOCATION_MAX_AGE_MS);
     // 1. The caller's close-friend edges → the set of friend ids.
     const edges = await this.prisma.closeFriend.findMany({
       where: { userId },
@@ -164,10 +184,16 @@ export class LocationService {
       return [];
     }
 
-    // 2. Of those friends, the ones actively sharing a location.
-    const locations = await this.prisma.friendLocation.findMany({
-      where: { userId: { in: friendIds } },
+    // 2. Of those friends, the ones actively sharing a location — fresh rows
+    //    only. The JS re-check keeps the invariant even if a store/mock
+    //    ignores the `updatedAt` condition.
+    const rows = await this.prisma.friendLocation.findMany({
+      where: { userId: { in: friendIds }, updatedAt: { gte: freshAfter } },
       orderBy: { updatedAt: 'desc' },
+    });
+    const locations = rows.filter((loc) => {
+      const updatedAt = loc.updatedAt instanceof Date ? loc.updatedAt : new Date(loc.updatedAt);
+      return updatedAt.getTime() >= freshAfter.getTime();
     });
     if (locations.length === 0) {
       return [];
