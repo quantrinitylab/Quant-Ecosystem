@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { showToast } from '../../../components/InboxToast';
-import { IconLink, IconX, IconCalendar, IconClock, IconClipboard, IconCheck } from '../../../components/icons';
+import { IconLink, IconX, IconCalendar, IconClock, IconClipboard, IconCheck, IconTrash } from '../../../components/icons';
 import { apiFetchRaw } from '@quant/api-client';
 
 export interface BookingLinkItem {
@@ -21,6 +21,12 @@ export interface BookingLinkItem {
   availableDays: number[]; // 0 = Sun, 1 = Mon ... 6 = Sat
   isActive: boolean;
   createdAt: string;
+  /**
+   * Honest sync marker: true when this link lives only on this device because
+   * the server never accepted it. Rendered as a "This device only" badge —
+   * never silently presented as shareable.
+   */
+  pendingSync?: boolean;
 }
 
 export interface BookingLinksModalProps {
@@ -86,9 +92,8 @@ export function parseStoredBookingLinks(raw: string | null | undefined): Booking
 /**
  * Best-effort server sync for a newly created booking link.
  * Returns true only when the backend accepted the link (HTTP 2xx).
- * There is currently no /api/booking/links route, so this resolves
- * false until the backend endpoint is wired — the caller must surface
- * that honestly instead of silently pretending the save succeeded.
+ * The caller must surface a false result honestly instead of silently
+ * pretending the save succeeded.
  */
 export async function persistBookingLinkToServer(link: BookingLinkItem): Promise<boolean> {
   try {
@@ -109,6 +114,106 @@ export async function persistBookingLinkToServer(link: BookingLinkItem): Promise
   } catch {
     return false;
   }
+}
+
+/**
+ * Map one backend booking-link record into the modal's BookingLinkItem.
+ * Returns null for malformed records — the list render must never crash on
+ * an unexpected server payload.
+ */
+export function mapServerBookingLink(raw: unknown): BookingLinkItem | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r['id'] !== 'string' || typeof r['slug'] !== 'string' || typeof r['title'] !== 'string') {
+    return null;
+  }
+  const days = Array.isArray(r['availableDays'])
+    ? (r['availableDays'] as unknown[])
+        .map((d) => Number(d))
+        .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6)
+    : [1, 2, 3, 4, 5];
+  const rawCreatedAt = r['createdAt'];
+  let createdAt: string;
+  if (typeof rawCreatedAt === 'string' && rawCreatedAt) {
+    createdAt = rawCreatedAt;
+  } else {
+    const d = new Date(rawCreatedAt as string | number | Date);
+    createdAt = Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  }
+  const num = (v: unknown, fallback: number): number =>
+    typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+  return {
+    id: r['id'] as string,
+    slug: r['slug'] as string,
+    title: r['title'] as string,
+    description: typeof r['description'] === 'string' ? (r['description'] as string) : '',
+    duration: num(r['duration'], 30),
+    startHour: num(r['startHour'], 9),
+    endHour: num(r['endHour'], 17),
+    availableDays: days,
+    isActive: typeof r['isActive'] === 'boolean' ? (r['isActive'] as boolean) : true,
+    createdAt,
+  };
+}
+
+/**
+ * Read the host's booking links from the backend (GET /api/booking/links).
+ * Returns null on ANY failure — network error, non-2xx, or a malformed
+ * envelope — so the caller can fall back to this device's local copy and say
+ * so honestly instead of rendering a fake empty list.
+ */
+export async function fetchBookingLinksFromServer(): Promise<BookingLinkItem[] | null> {
+  try {
+    const res = await apiFetchRaw('/api/booking/links', { method: 'GET' });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { success?: unknown; data?: unknown };
+    if (!body || body.success !== true || !Array.isArray(body.data)) return null;
+    return body.data
+      .map((raw) => mapServerBookingLink(raw))
+      .filter((l): l is BookingLinkItem => l !== null);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Delete one booking link on the backend (DELETE /api/booking/links/:id).
+ * Returns true only when the backend accepted the delete (HTTP 2xx).
+ */
+export async function deleteBookingLinkOnServer(id: string): Promise<boolean> {
+  try {
+    const res = await apiFetchRaw(`/api/booking/links/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Merge the server list (source of truth) with local-only links that the
+ * server never accepted. A local link whose slug already exists on the server
+ * is dropped — it was synced; the local id is dead weight.
+ */
+export function mergeServerAndLocalLinks(
+  serverLinks: BookingLinkItem[],
+  localLinks: BookingLinkItem[],
+): BookingLinkItem[] {
+  const serverSlugs = new Set(serverLinks.map((l) => l.slug));
+  const localOnly = localLinks
+    .filter((l) => !serverSlugs.has(l.slug))
+    .map((l) => ({ ...l, pendingSync: true }));
+  return [...serverLinks, ...localOnly];
+}
+
+/**
+ * A link that exists only on this device — never confirmed by the backend —
+ * so there is nothing server-side to DELETE. Locally-created ids use the
+ * `link-` prefix; the explicit `pendingSync` flag is the authoritative mark.
+ */
+export function isLocalOnlyBookingLink(link: BookingLinkItem): boolean {
+  return link.pendingSync === true || link.id.startsWith('link-');
 }
 
 const WEEKDAY_NAMES = [
@@ -152,12 +257,43 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
 
-  // Sync to localStorage
+  // Server read state. `serverSyncError` is the honest offline flag: when the
+  // backend list can't be loaded we keep this device's local copy and say so.
+  const [isLoadingLinks, setIsLoadingLinks] = useState(false);
+  const [serverSyncError, setServerSyncError] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Sync to localStorage (offline cache only — the server is the source of truth)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('quant_calendar_booking_links', JSON.stringify(links));
     }
   }, [links]);
+
+  // Load the host's links from the backend every time the modal opens.
+  // Without this, backend-created links (and links made on other devices)
+  // never appeared — the write/read split-brain this fix closes.
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    (async () => {
+      setIsLoadingLinks(true);
+      const serverLinks = await fetchBookingLinksFromServer();
+      if (cancelled) return;
+      if (serverLinks === null) {
+        // Honest fallback: server unreachable — keep the localStorage copy
+        // loaded above and say so; never render a fake empty list.
+        setServerSyncError(true);
+      } else {
+        setServerSyncError(false);
+        setLinks((prev) => mergeServerAndLocalLinks(serverLinks, prev));
+      }
+      setIsLoadingLinks(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   // Handle title changes & auto-slugification
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -246,17 +382,28 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    // Sync the link to the backend when the endpoint is available. The save
-    // is local-first: the link always lands in local state, but we are
-    // honest about whether the server actually accepted it — a failed sync
-    // surfaces an error toast instead of a fake success.
+    // Sync the link to the backend. The save is local-first: the link always
+    // lands in local state, but we are honest about whether the server
+    // actually accepted it — a failed sync surfaces an error toast instead
+    // of a fake success. On success we re-read the list so the canonical
+    // server record (server-assigned id) is what renders — that is what
+    // DELETE needs later.
     const serverSynced = await persistBookingLinkToServer(newLink);
 
-    setLinks((prev) => [newLink, ...prev]);
-    setIsSubmitting(false);
     if (serverSynced) {
+      const refreshed = await fetchBookingLinksFromServer();
+      if (refreshed !== null) {
+        setLinks((prev) => mergeServerAndLocalLinks(refreshed, [newLink]));
+      } else {
+        // Server accepted the POST but the list read failed — keep the local
+        // copy so it is not silently lost.
+        setLinks((prev) => [{ ...newLink, pendingSync: true }, ...prev]);
+      }
+      setIsSubmitting(false);
       showToast({ text: 'Booking link created successfully!', type: 'success' });
     } else {
+      setIsSubmitting(false);
+      setLinks((prev) => [{ ...newLink, pendingSync: true }, ...prev]);
       showToast({
         text: 'Booking link saved on this device only — server sync failed. The link is not yet shareable from other devices.',
         type: 'error',
@@ -273,6 +420,35 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
     setFormAvailableDays([1, 2, 3, 4, 5]);
     setSlugManuallyEdited(false);
     setActiveTab('list');
+  };
+
+  /**
+   * Delete a booking link. Server-owned links are deleted on the backend
+   * (DELETE /api/booking/links/:id); local-only links that the server never
+   * accepted are removed from this device only. A failed server delete keeps
+   * the row and says so honestly — it never pretends the link is gone.
+   */
+  const handleDeleteLink = async (link: BookingLinkItem) => {
+    if (isLocalOnlyBookingLink(link)) {
+      setLinks((prev) => prev.filter((l) => l.id !== link.id));
+      showToast({
+        text: 'Booking link removed from this device (it was never synced to the server).',
+        type: 'success',
+      });
+      return;
+    }
+    setDeletingId(link.id);
+    const deleted = await deleteBookingLinkOnServer(link.id);
+    setDeletingId(null);
+    if (deleted) {
+      setLinks((prev) => prev.filter((l) => l.id !== link.id));
+      showToast({ text: 'Booking link deleted', type: 'success' });
+    } else {
+      showToast({
+        text: 'Could not delete the link on the server — it is still live. Check your connection and try again.',
+        type: 'error',
+      });
+    }
   };
 
   const formatHour = (hour: number) => {
@@ -389,7 +565,27 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
         {/* Modal Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {activeTab === 'list' ? (
-            links.length === 0 ? (
+            isLoadingLinks ? (
+              <div className="text-center py-12 px-4">
+                <p className="text-xs text-[var(--quant-muted-foreground)]">
+                  Loading your booking links…
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Honest offline fallback: the server list couldn't be read, so
+                    these are this device's links only — links made on other
+                    devices are not shown. */}
+                {serverSyncError && (
+                  <div
+                    role="alert"
+                    className="px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-200"
+                  >
+                    Couldn&apos;t reach the booking server — showing links saved on this
+                    device. Links created on other devices aren&apos;t shown here.
+                  </div>
+                )}
+                {links.length === 0 ? (
               <div className="text-center py-12 px-4 space-y-3">
                 <div className="flex justify-center"><IconCalendar size={36} className="text-[var(--app-accent)]" /></div>
                 <h3 className="text-sm font-semibold text-white">No booking links created yet</h3>
@@ -425,6 +621,13 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                           <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-[var(--quant-surface-elevated)] text-[#7EE787] border border-[#7EE787]/20">
                             Active
                           </span>
+                          {/* Honest sync marker: this link never reached the
+                              server — it only exists on this device. */}
+                          {link.pendingSync && (
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                              This device only
+                            </span>
+                          )}
                         </div>
 
                         {link.description && (
@@ -487,11 +690,24 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                         >
                           ↗ View Page
                         </a>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteLink(link)}
+                          disabled={deletingId === link.id}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--quant-surface-elevated)] hover:bg-red-500/20 text-[#F85149] border border-[#F85149]/30 transition-all flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                          title="Delete booking link"
+                        >
+                          <IconTrash size={13} />
+                          <span>{deletingId === link.id ? 'Deleting…' : 'Delete'}</span>
+                        </button>
                       </div>
                     </div>
                   );
                 })}
               </div>
+                )}
+              </>
             )
           ) : (
             /* Create New Link Sub-Form */

@@ -306,10 +306,13 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       const invalidInviteRoute = resolveRoute('booking/links/my-slug/book');
       expect(invalidInviteRoute).toBeUndefined();
 
-      // Only link creation is authenticated
+      // Host-owned link management (fix/qm-bookinglinks-read-write): the
+      // signed-in host lists their links (GET) and creates (POST) through the
+      // authenticated /booking/links prefix. Deletes live on the id-addressed
+      // /booking/links/:id row (DELETE-only) — never on the collection path.
       const linkCreateRoute = resolveRoute('booking/links');
       expect(linkCreateRoute).toBeDefined();
-      expect(linkCreateRoute?.methods).toEqual(['POST']);
+      expect(linkCreateRoute?.methods).toEqual(['GET', 'POST']);
     });
 
     it('R-V1 Pattern: search/emails resolves GET in route table; search/parse is no longer proxied (QM-UIUX-070)', () => {
