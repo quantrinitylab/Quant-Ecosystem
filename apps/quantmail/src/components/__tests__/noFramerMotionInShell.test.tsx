@@ -61,8 +61,12 @@ describe('root-layout shell: zero framer-motion', () => {
   });
 
   it('both components are still rendered by the root layout', () => {
-    expect(layoutSrc).toContain('<OfflineBar />');
-    expect(layoutSrc).toContain('<InboxToastContainer />');
+    // fix/qm-auth-no-framer code-splits both behind LazyChrome (next/dynamic,
+    // ssr:false); the layout wires the lazy hosts, which render the real
+    // components on the client. Accept either the direct or the lazy tag so
+    // the check stays non-vacuous without pinning the loading strategy.
+    expect(layoutSrc).toMatch(/<OfflineBar \/>|<LazyOfflineBar \/>/);
+    expect(layoutSrc).toMatch(/<InboxToastContainer \/>|<LazyInboxToasts \/>/);
   });
 
   it('OfflineBar initial SSR markup is empty and framer-motion-free', () => {
