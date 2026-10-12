@@ -313,7 +313,7 @@ export function FileVersionHistoryModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-[var(--quant-surface-elevated)] flex items-center justify-between gap-3 bg-[var(--quant-surface-elevated)]">
+        <div className="px-5 py-4 flex items-center justify-between gap-3 bg-[var(--quant-surface-elevated)]">
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-[var(--quant-foreground)] flex items-center gap-2">
               <span>Version History</span>
@@ -477,7 +477,7 @@ export function FileVersionHistoryModal({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-[var(--quant-surface-elevated)] flex items-center justify-between text-xs text-[#9E9E9E] bg-[var(--quant-surface-elevated)]">
+        <div className="px-5 py-3 flex items-center justify-between text-xs text-[#9E9E9E] bg-[var(--quant-surface-elevated)]">
           <span>
             {sortedVersions.length} {sortedVersions.length === 1 ? 'version' : 'versions'}
           </span>

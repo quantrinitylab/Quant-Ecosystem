@@ -720,7 +720,7 @@ export function QuantyFileWorkspace({
         data-testid="quanty-file-workspace"
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 border-b border-white/[0.08] px-5 py-4">
+        <div className="flex items-start justify-between gap-3 px-5 py-4">
           <div>
             <h2 className="text-base font-semibold text-[var(--quant-foreground)]">Quanty file workspace</h2>
             <p className="mt-1 text-xs leading-relaxed text-[#8A8D96]">
@@ -845,7 +845,7 @@ export function QuantyFileWorkspace({
                   </button>
                 )}
                 {task.resultSummary && (
-                  <p className="mt-2 border-t border-white/[0.06] pt-2 text-xs leading-relaxed text-[#D6D8DD]">
+                  <p className="mt-3 text-xs leading-relaxed text-[#D6D8DD]">
                     {task.resultSummary}
                   </p>
                 )}

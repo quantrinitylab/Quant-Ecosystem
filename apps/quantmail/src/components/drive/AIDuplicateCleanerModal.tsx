@@ -496,7 +496,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
       >
         {/* Modal Header */}
         <div
-          className="flex items-center justify-between px-6 py-4 border-b shrink-0"
+          className="flex items-center justify-between px-6 py-4 shrink-0"
           style={{
             backgroundColor: 'var(--quant-surface-elevated)',
             borderColor: 'var(--quant-surface-elevated)',
@@ -728,10 +728,9 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
               >
                 {/* Group Sub-Header */}
                 <div
-                  className="px-4 py-2.5 border-b flex items-center justify-between text-xs"
+                  className="px-4 py-2.5 flex items-center justify-between text-xs"
                   style={{
                     backgroundColor: 'var(--quant-surface-elevated)',
-                    borderColor: 'var(--quant-surface-elevated)',
                   }}
                 >
                   <div className="flex items-center gap-2">
@@ -747,7 +746,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                 </div>
 
                 {/* Group Files */}
-                <div className="divide-y" style={{ borderColor: 'var(--quant-surface-elevated)' }}>
+                <div className="flex flex-col gap-0.5 py-1">
                   {group.files.map((file) => (
                     <div
                       key={file.id}
@@ -857,7 +856,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
 
         {/* Modal Footer */}
         <div
-          className="flex items-center justify-between px-6 py-4 border-t shrink-0"
+          className="flex items-center justify-between px-6 py-4 shrink-0"
           style={{
             backgroundColor: 'var(--quant-surface-elevated)',
             borderColor: 'var(--quant-surface-elevated)',
