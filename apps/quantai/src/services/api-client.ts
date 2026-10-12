@@ -120,9 +120,6 @@ class QuantAIApiClient {
   async toggleAppAI(appId: string): Promise<ApiResponse<EcosystemApp>> {
     return this.request('POST', `/ecosystem/apps/${appId}/toggle-ai`);
   }
-  async updateAppConfig(appId: string, config: any): Promise<ApiResponse<EcosystemApp>> {
-    return this.request('PUT', `/ecosystem/apps/${appId}/config`, config);
-  }
 
   // Analytics
   async getAnalytics(): Promise<ApiResponse<AnalyticsData>> {
