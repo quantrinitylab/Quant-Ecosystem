@@ -221,7 +221,9 @@ describe('QuantMailSuperAppHeader — Amazon/Flipkart-Class Super-App Command He
       expect(html).toContain('Drive Quota');
       expect(html).toContain('25 / 100 GB');
       expect(html).toContain('25% capacity used');
-      expect(html).toContain('FastCDC dedup');
+      // R4-NEW-3 intentionally removed the FastCDC dedup badge from the header —
+      // the quota tile must render WITHOUT it.
+      expect(html).not.toContain('FastCDC dedup');
     });
 
     it('renders Executive Quick Actions tile with 4 rapid action buttons', () => {
