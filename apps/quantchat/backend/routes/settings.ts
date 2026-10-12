@@ -21,6 +21,8 @@ import { z } from 'zod';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import { DEFAULT_PRIVACY, getPrivacyService } from '../services/privacy.service';
+import type { AccountStatusGate } from '../lib/account-status';
+import { closeLiveSocketsForUser } from './websocket';
 
 const privacySchema = z.object({
   whoCanMessage: z.enum(['everyone', 'friends', 'nobody']).optional(),
@@ -236,8 +238,15 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
   });
 
   // DELETE /settings/account — soft-delete the account (deletedAt timestamp).
-  // Sessions/tokens issued before deletion are rejected by the auth layer's
-  // deletedAt check on subsequent requests.
+  // Sessions/tokens issued before deletion are rejected on subsequent
+  // requests by the QC-F-041 account-status gate: the server-core auth
+  // plugin (REST) and the realtime verifier (WS) both consult the shared
+  // resolver in lib/account-status.ts, which reads deletedAt/status from
+  // the user row. This handler additionally (a) invalidates this process's
+  // cached verdict for the user, so the deleter's own tokens die here
+  // immediately instead of within the cache TTL, and (b) closes the
+  // user's already-open WebSocket connections on this instance — the
+  // connect-time gate cannot reach sockets opened before the delete.
   fastify.delete('/account', async (request, reply) => {
     const userId = getAuthUserId(request);
     const prisma = getPrisma(fastify);
@@ -245,6 +254,10 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
       where: { id: userId },
       data: { deletedAt: new Date() },
     });
+    const gate = (fastify as unknown as { accountStatusGate?: AccountStatusGate })
+      .accountStatusGate;
+    gate?.invalidate(userId);
+    closeLiveSocketsForUser(userId, 'ACCOUNT_DELETED');
     return reply.send({ success: true, data: { deleted: true } });
   });
 }

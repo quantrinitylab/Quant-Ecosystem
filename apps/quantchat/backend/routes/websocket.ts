@@ -15,6 +15,7 @@ import {
 } from '../services/chat-event-envelope';
 import { DeliveryReceiptService } from '../services/delivery-receipt.service';
 import { getPrivacyService, type PrivacyService } from '../services/privacy.service';
+import type { AccountStatusGate } from '../lib/account-status';
 
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
@@ -44,13 +45,74 @@ function getJwtSecret(): string {
  */
 const RESUME_BUFFER_SIZE = 100;
 
+/**
+ * QC-F-041 — live-socket registry for account-status enforcement.
+ *
+ * The connect-time gate (ConnectionAuth accountStatus resolver) stops NEW
+ * sockets for deleted/suspended users, but a socket opened BEFORE the
+ * delete would otherwise live forever (sockets have no TTL). This
+ * module-level registry tracks every live socket by userId so the delete
+ * handler (routes/settings.ts) can close the deleter's already-open
+ * sockets on THIS instance. Other instances pick the account up via the
+ * connect-time gate + the REST gate; already-open sockets on other
+ * instances are the documented residual (see build-QC-F-041 report).
+ */
+const liveSocketsByUser = new Map<string, Set<WebSocket>>();
+
+export function registerLiveSocket(userId: string, socket: WebSocket): void {
+  let set = liveSocketsByUser.get(userId);
+  if (!set) {
+    set = new Set();
+    liveSocketsByUser.set(userId, set);
+  }
+  set.add(socket);
+}
+
+export function unregisterLiveSocket(userId: string, socket: WebSocket): void {
+  const set = liveSocketsByUser.get(userId);
+  if (!set) return;
+  set.delete(socket);
+  if (set.size === 0) liveSocketsByUser.delete(userId);
+}
+
+/**
+ * Close every live socket belonging to `userId` on this instance: an
+ * error frame carrying the machine-readable `code`, then close 4001
+ * (the same code the connect-time gate uses). Returns how many sockets
+ * were closed.
+ */
+export function closeLiveSocketsForUser(userId: string, code: string): number {
+  const set = liveSocketsByUser.get(userId);
+  if (!set || set.size === 0) return 0;
+  let closed = 0;
+  for (const socket of [...set]) {
+    try {
+      if (socket.readyState === socket.OPEN) {
+        socket.send(JSON.stringify({ type: 'error', code, message: 'Authentication required' }));
+      }
+      socket.close(4001, code);
+      closed++;
+    } catch {
+      // A half-dead socket must not stop the others from closing.
+    }
+    unregisterLiveSocket(userId, socket);
+  }
+  return closed;
+}
+
 export async function websocketRoutes(fastify: FastifyInstance) {
   await fastify.register(websocketPlugin);
+
+  // QC-F-041: the shared account-status gate decorated in buildApp — the
+  // WS verifier applies the same deny-list verdicts as the REST gate.
+  const statusGate = (fastify as unknown as { accountStatusGate?: AccountStatusGate })
+    .accountStatusGate;
 
   const auth = new ConnectionAuth({
     jwtSecret: getJwtSecret(),
     jwtIssuer: process.env.JWT_ISSUER || 'quantchat',
     jwtAudience: process.env.JWT_AUDIENCE || 'quant-ecosystem',
+    accountStatus: statusGate?.resolver,
   });
 
   const rooms = new Map<string, Set<WebSocket>>();
@@ -725,12 +787,26 @@ export async function websocketRoutes(fastify: FastifyInstance) {
         userId = payload.userId;
       } catch (error) {
         const code = error instanceof AuthError ? error.code : 4001;
-        socket.send(JSON.stringify({ type: 'error', message: 'Authentication required' }));
+        // QC-F-041: carry the machine-readable reason (ACCOUNT_DELETED /
+        // ACCOUNT_SUSPENDED / UPSTREAM_UNAVAILABLE) when the gate supplied
+        // one, so the client can tell a dead account from an expired token
+        // instead of refresh-looping. Plain auth failures keep the exact
+        // pre-existing frame shape — no `code` field at all (pinned by
+        // QC-F-037 case 8).
+        const authCode = error instanceof AuthError ? error.authCode : undefined;
+        socket.send(
+          JSON.stringify(
+            authCode
+              ? { type: 'error', code: authCode, message: 'Authentication required' }
+              : { type: 'error', message: 'Authentication required' },
+          ),
+        );
         socket.close(code, 'Authentication required');
         return;
       }
 
       socketUsers.set(socket, userId);
+      registerLiveSocket(userId, socket);
       // Record presence in the shared ZSET (score = now). When this is the
       // first live device for the user, publish the online transition across
       // the cluster (Requirement 5.1, 5.3).
@@ -883,6 +959,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
       socket.on('close', () => {
         leaveAllRooms(socket);
         socketUsers.delete(socket);
+        unregisterLiveSocket(userId, socket);
         // When the last live device disconnects, publish the offline transition
         // across the cluster (Requirement 5.3).
         if (presence.setOffline(userId)) {
