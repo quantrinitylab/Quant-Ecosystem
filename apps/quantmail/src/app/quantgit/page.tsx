@@ -1243,52 +1243,76 @@ function QuantGitContent() {  const router = useRouter();
   }, [files, fileSearchQuery]);
 
   // Handlers
+
+  // Shared core for creating an issue via POST /api/repos/:repo/issues.
+  // Used by the new-issue modal AND the IssuesTab inline composer — one real
+  // code path, no alert stubs, no fake fallbacks. On failure the caller's
+  // input is never cleared: the result carries the honest error instead.
+  const createIssueViaApi = useCallback(
+    async (
+      title: string,
+      body: string,
+      labels: string[],
+    ): Promise<{ ok: boolean; issue?: IssueItem; error?: string }> => {
+      const cleanTitle = title.trim();
+      if (!cleanTitle) return { ok: false, error: 'Issue title is required.' };
+      const repoTarget = selectedRepo?.id || selectedRepo?.name || 'Quant-Ecosystem';
+      try {
+        const res = await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/issues`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: cleanTitle,
+            body: body.trim() || 'No description provided.',
+            labels,
+          }),
+        });
+        const json = await res.json().catch(() => null);
+        if (res.ok && json?.success) {
+          const item = json.data;
+          const fallbackLabel = labels[0] ?? 'bug';
+          const created: IssueItem = {
+            id: item.number || item.id,
+            title: item.title,
+            body: item.body || body.trim() || 'No description provided.',
+            state: 'open',
+            author: currentUsername,
+            labels: Array.isArray(item.labels)
+              ? item.labels
+              : [
+                  {
+                    name: fallbackLabel,
+                    color: fallbackLabel === 'bug' ? '#D73A4A' : '#1D76DB',
+                  },
+                ],
+            commentsCount: 0,
+            createdAt: 'just now',
+          };
+          setIssues((prev) => [created, ...prev]);
+          return { ok: true, issue: created };
+        }
+        return { ok: false, error: json?.error?.message || 'Failed to create issue.' };
+      } catch {
+        return { ok: false, error: 'Failed to create issue — network error.' };
+      }
+    },
+    [apiFetch, selectedRepo, currentUsername],
+  );
+
   const handleCreateIssue = async (e: FormEvent) => {
     e.preventDefault();
     if (!newIssueTitle.trim()) return;
-    const title = newIssueTitle.trim();
-    const body = newIssueBody.trim() || 'No description provided.';
-    const label = newIssueLabel;
-    const repoTarget = selectedRepo?.id || selectedRepo?.name || 'Quant-Ecosystem';
-
-    try {
-      const res = await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/issues`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          body,
-          labels: [label],
-        }),
-      });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        const item = json.data;
-        const created: IssueItem = {
-          id: item.number || item.id,
-          title: item.title,
-          body: item.body || body,
-          state: 'open',
-          author: currentUsername,
-          labels: Array.isArray(item.labels)
-            ? item.labels
-            : [{ name: label, color: label === 'bug' ? '#D73A4A' : '#1D76DB' }],
-          commentsCount: 0,
-          createdAt: 'just now',
-        };
-        setIssues((prev) => [created, ...prev]);
-        setNewIssueTitle('');
-        setNewIssueBody('');
-        setModalState('none');
-        showToast(`Issue #${created.id} created`);
-        return;
-      }
-    } catch {
-      // Fallback
+    const result = await createIssueViaApi(newIssueTitle, newIssueBody, [newIssueLabel]);
+    if (result.ok && result.issue) {
+      setNewIssueTitle('');
+      setNewIssueBody('');
+      setModalState('none');
+      showToast(`Issue #${result.issue.id} created`);
+      return;
     }
 
     // No fake fallback — never create phantom issues or lie about success.
-    showToast('Failed to create issue. Please try again.');
+    showToast(result.error || 'Failed to create issue. Please try again.');
   };
 
   const handleToggleIssue = async (issueNumber: number) => {
@@ -1320,6 +1344,52 @@ function QuantGitContent() {  const router = useRouter();
     }
   };
 
+  // Shared core for posting an issue comment via
+  // POST /api/repos/:repo/issues/:number/comments.
+  // Used by the issue-detail modal AND the IssuesTab inline composer.
+  // Never throws: failure comes back as { ok: false, error } so the caller
+  // can keep the user's text instead of wiping it.
+  const postIssueCommentViaApi = useCallback(
+    async (issueId: number, body: string): Promise<{ ok: boolean; error?: string }> => {
+      const cleanBody = body.trim();
+      if (!cleanBody) return { ok: false, error: 'Comment cannot be empty.' };
+      if (!selectedRepo) return { ok: false, error: 'Select a repository first.' };
+      try {
+        const repoTarget = selectedRepo.id || selectedRepo.name;
+        const res = await apiFetch(
+          `/api/repos/${encodeURIComponent(repoTarget)}/issues/${issueId}/comments`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ body: cleanBody }),
+          },
+        );
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.success) {
+          return { ok: false, error: json?.error?.message || 'Failed to post comment.' };
+        }
+        const created = json.data as IssueCommentItem;
+        setIssueComments((current) => [...current, created]);
+        setIssues((current) =>
+          current.map((issue) =>
+            issue.id === issueId
+              ? { ...issue, commentsCount: issue.commentsCount + 1 }
+              : issue,
+          ),
+        );
+        setSelectedIssue((current) =>
+          current && current.id === issueId
+            ? { ...current, commentsCount: current.commentsCount + 1 }
+            : current,
+        );
+        return { ok: true };
+      } catch {
+        return { ok: false, error: 'Failed to post comment — network error.' };
+      }
+    },
+    [apiFetch, selectedRepo],
+  );
+
   const handleSubmitIssueComment = async (e: FormEvent) => {
     e.preventDefault();
     if (!selectedRepo || !selectedIssue || isSubmittingComment) return;
@@ -1329,39 +1399,32 @@ function QuantGitContent() {  const router = useRouter();
     setIsSubmittingComment(true);
     setCommentError(null);
     try {
-      const repoTarget = selectedRepo.id || selectedRepo.name;
-      const res = await apiFetch(
-        `/api/repos/${encodeURIComponent(repoTarget)}/issues/${selectedIssue.id}/comments`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ body }),
-        },
-      );
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.error?.message || 'Failed to post comment');
+      const result = await postIssueCommentViaApi(selectedIssue.id, body);
+      if (!result.ok) {
+        // Draft is preserved — the user can retry instead of retyping.
+        setCommentError(result.error || 'Failed to post comment');
+      } else {
+        setCommentDraft('');
+        showToast('Comment posted');
       }
-      const created = json.data as IssueCommentItem;
-      setIssueComments((current) => [...current, created]);
-      setCommentDraft('');
-      setIssues((current) =>
-        current.map((issue) =>
-          issue.id === selectedIssue.id
-            ? { ...issue, commentsCount: issue.commentsCount + 1 }
-            : issue,
-        ),
-      );
-      setSelectedIssue((current) =>
-        current ? { ...current, commentsCount: current.commentsCount + 1 } : current,
-      );
-      showToast('Comment posted');
-    } catch (error) {
-      setCommentError(error instanceof Error ? error.message : 'Failed to post comment');
     } finally {
       setIsSubmittingComment(false);
     }
   };
+
+  // Adapters wiring the IssuesTab inline composers to the real backend.
+  // Same endpoints as the modal flows above; the tab keeps its own drafts and
+  // shows honest inline errors on failure (never wipes user input).
+  // The tab composer has no label picker, so it uses the same 'bug' default as
+  // the new-issue modal's newIssueLabel initial value.
+  const handleCreateIssueFromTab = useCallback(
+    (title: string, body: string) => createIssueViaApi(title, body, ['bug']),
+    [createIssueViaApi],
+  );
+  const handlePostIssueCommentFromTab = useCallback(
+    (issueId: number, body: string) => postIssueCommentViaApi(issueId, body),
+    [postIssueCommentViaApi],
+  );
 
   const handleCreatePR = async (e: FormEvent) => {
     e.preventDefault();
@@ -2429,6 +2492,8 @@ function QuantGitContent() {  const router = useRouter();
                   setModalState={setModalState}
                   openIssueDetail={openIssueDetail}
                   handleToggleIssue={handleToggleIssue}
+                  onCreateIssue={handleCreateIssueFromTab}
+                  onPostIssueComment={handlePostIssueCommentFromTab}
                 />
               )}
 
