@@ -10,7 +10,6 @@ import type {
   Automation,
   AutomationRun,
   AIModel,
-  TrainingJob,
   EcosystemApp,
   AnalyticsData,
   Plugin,
@@ -115,17 +114,6 @@ class QuantAIApiClient {
   }
   async compareModels(ids: string[]): Promise<ApiResponse<any>> {
     return this.request('POST', '/models/compare', { modelIds: ids });
-  }
-
-  // Training
-  async startTraining(data: any): Promise<ApiResponse<TrainingJob>> {
-    return this.request('POST', '/training', data);
-  }
-  async listTrainingJobs(): Promise<ApiResponse<TrainingJob[]>> {
-    return this.request('GET', '/training');
-  }
-  async cancelTraining(id: string): Promise<ApiResponse<void>> {
-    return this.request('DELETE', `/training/${id}`);
   }
 
   // Ecosystem

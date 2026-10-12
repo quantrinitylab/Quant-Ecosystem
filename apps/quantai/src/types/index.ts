@@ -9,7 +9,6 @@ export type ModelCapability = 'text' | 'vision' | 'audio' | 'code' | 'reasoning'
 export type DeviceType = 'phone' | 'laptop' | 'tablet' | 'desktop' | 'wearable';
 export type AutomationTrigger = 'schedule' | 'event' | 'condition' | 'webhook' | 'manual';
 export type PluginStatus = 'installed' | 'available' | 'deprecated' | 'disabled';
-export type TrainingStatus = 'preparing' | 'training' | 'evaluating' | 'completed' | 'failed';
 
 export interface Assistant {
   id: string;
@@ -233,21 +232,6 @@ export interface Plugin {
   webhookUrl?: string;
   installCount: number;
   rating: number;
-}
-
-export interface TrainingJob {
-  id: string;
-  userId: string;
-  modelId: string;
-  name: string;
-  status: TrainingStatus;
-  dataset: { name: string; size: number; format: string; samples: number };
-  hyperparams: { epochs: number; learningRate: number; batchSize: number; warmupSteps: number };
-  metrics: { loss: number; accuracy: number; evalLoss: number };
-  progress: number;
-  startedAt: string;
-  completedAt?: string;
-  outputModelId?: string;
 }
 
 export interface EcosystemApp {
