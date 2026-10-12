@@ -68,10 +68,10 @@ describe('AuthGateCore', () => {
     container.remove();
   });
 
-  function renderGate(pathname: string, suffix?: string | null) {
+  function renderGate(pathname: string, suffix?: string | null, suffixReady?: boolean) {
     act(() => {
       root.render(
-        <AuthGateCore pathname={pathname} suffix={suffix} onRedirect={onRedirect}>
+        <AuthGateCore pathname={pathname} suffix={suffix} suffixReady={suffixReady} onRedirect={onRedirect}>
           <div>protected content</div>
         </AuthGateCore>,
       );
@@ -104,6 +104,32 @@ describe('AuthGateCore', () => {
   it('adds no returnTo for the app root — it is already the post-login default', () => {
     renderGate('/');
     expect(onRedirect).toHaveBeenCalledWith('/login');
+  });
+
+  it('preserves a root-route suffix across the bounce (PR #961 review)', () => {
+    renderGate('/', '?view=inbox&lens=snoozed');
+    expect(onRedirect).toHaveBeenCalledTimes(1);
+    expect(onRedirect).toHaveBeenCalledWith(
+      '/login?returnTo=%2F%3Fview%3Dinbox%26lens%3Dsnoozed',
+    );
+    expect(container.textContent).not.toContain('protected content');
+  });
+
+  it('waits for suffix readiness before redirecting, then redirects once with the suffix (PR #961 review)', () => {
+    // The shell has not captured the suffix for this pathname yet: the
+    // redirect must NOT fire with a null suffix (that was the race —
+    // the first navigation to /login is the only one that happens).
+    renderGate('/meet/room-9', null, false);
+    expect(onRedirect).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain('protected content');
+    expect(container.textContent).toContain('Redirecting to sign in...');
+
+    // The capture lands: exactly one redirect, with the full suffix.
+    renderGate('/meet/room-9', '?code=4821#join', true);
+    expect(onRedirect).toHaveBeenCalledTimes(1);
+    expect(onRedirect).toHaveBeenCalledWith(
+      '/login?returnTo=%2Fmeet%2Froom-9%3Fcode%3D4821%23join',
+    );
   });
 
   it('renders children for an authenticated visitor on an app route', () => {
