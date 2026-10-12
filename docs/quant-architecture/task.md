@@ -884,6 +884,12 @@ VERIFIED CLEAN: zero ?token= in production drive flows (share token is server-si
 - [ ] R4-NEW-7 P3 (note): user-facing "FastCDC tags" placeholder + "FastCDC Clean" label overstate | evidence: QuantPillarTopBar.tsx:343,395
 FIX AGENTS (PR-only to main, never merge; reconcile on return — diff their branch before flipping findings): lane1-fix-010-011r4-dedup-badge-honesty (R4-NEW-1 P1) → PR #1041 OPEN (diff vs origin/main VERIFIED CLEAN — exactly 2 in-scope files: DriveFilesSubView.tsx (both "FastCDC Deduped" badges + "CAS: 64KB" label removed, explanatory comments) + drive-subviews.test.tsx (2 new absence regression tests); no unrelated edits, no arch-branch touch; tsc clean on touched files, 36/36 + 117/117 drive tests green). Backend has NO per-file dedup field (fileDto, drive.ts:372 — only save-attachment one-off) → frontend-only honest removal; per-file badges need backend fileDto work first. R4-NEW-1 stays [ ] until #1041 merged + deployed + live-verified (merge pipeline owns); lane1-fix-010-011r4-accent-cleanup (R4-NEW-2/3/4/5) → PR #1040 OPEN (commit 709c55f4; diff vs origin/main VERIFIED CLEAN — exactly 9 in-scope TS/TSX files, 39+/17-, no unrelated edits, no arch-branch touch; tsc clean, drive-green-accents 100/100, 129/129 related drive tests green). R4-NEW-2/3/4/5 stay [ ] until #1040 merged + deployed + live-verified (merge pipeline owns). Agent follow-ups (out of scope, candidates for R5): header "+ New Email" icon still text-sky-400 (QuantMailSuperAppHeader.tsx:1065); broader var(--quant-primary) in components/drive/* (FileActivityModal timeline/restore/badges, FileAISummaryDrawer orange theme, DriveAISearchBar, AIDuplicateCleanerModal) — bigger strict-lock follow-up round if the user wants it. Rotation → QM-SCREEN-012 R4.
 
+Lane-1 R5 REGRESSION — [~] IN PROGRESS (2026-10-13 ~04:35 IST, lane-1 deep audit loop)
+Owner: LANE-1
+Branch: lane-1/audit-qm-screen-010-011-drive-r5
+Audit scope: origin/main @ 37f9db9d vs R4 base 4fc384a6 — drive screens QM-SCREEN-010 + QM-SCREEN-011 combined (rotation queues them together).
+Method: git diff/grep on origin/main only (working tree ignored per stale-tree lesson) + live logged-out desktop 1440x900 + mobile 390x844 via local Chrome + proxy 127.0.0.1:8888; signed-in flows needs-auth.
+
 Lane-1 R3 REGRESSION — [x] DONE (2026-10-12 ~07:40-08:00 IST, lane-1 deep audit loop)
 Owner: LANE-1
 Branch: lane-1/audit-qm-screen-010-011-drive-r3
