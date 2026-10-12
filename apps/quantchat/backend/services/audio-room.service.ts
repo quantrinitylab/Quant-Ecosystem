@@ -94,10 +94,20 @@ export class AudioRoomService {
     });
   }
 
+  // QC-F-107 — role self-assignment fix.
+  // A joiner NEVER supplies their own role: previously the caller-passed
+  // `role` was stored verbatim on the new participant row, and the
+  // promote/mute/demote gates (plus host succession) trust that stored
+  // role — so any logged-in user could join with { role: 'co_host' } and
+  // mute the real host or promote anyone. The parameter is removed
+  // entirely (root cause, not a route-side ignore a future caller could
+  // bypass): every NEW participant joins as 'listener'. Role changes
+  // happen only through the host/co-host-authorised promote path (or
+  // host succession on leave). Re-joining an existing participant keeps
+  // their current role untouched (see branch below).
   public static joinAudioRoom(
     roomId: string,
     user: { userId: string; username: string; displayName: string; avatarUrl?: string },
-    role: AudioRoomRole = 'listener',
   ): { room: AudioRoom; participant: AudioRoomParticipant } {
     const room = AudioRoomService.rooms.get(roomId);
     if (!room || !room.isActive) {
@@ -117,8 +127,8 @@ export class AudioRoomService {
         username: user.username,
         displayName: user.displayName,
         avatarUrl: user.avatarUrl,
-        role,
-        isMuted: role === 'listener' || role === 'speaker',
+        role: 'listener',
+        isMuted: true,
         handRaised: false,
         joinedAt: now,
       };
