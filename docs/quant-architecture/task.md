@@ -560,7 +560,7 @@ Live evidence: /tmp/lane1-007r2/desktop-search.png + mobile-search.png (both sig
 Status: [x] DONE (R2 audit complete 2026-10-11 ~17:55 IST; merges confirmed in main; fixes tracked via their PRs)
 
 ## QM-SCREEN-007 R3 — Search regression (ROUND 3)
-Status: [~] IN PROGRESS
+Status: [x] DONE (header corrected 2026-10-12 ~16:45 IST by LANE-1 R4 run; section body already declared DONE at line below)
 Owner: LANE-1
 Branch: lane1-audit-007r3
 Audit started: 2026-10-12 ~05:40 IST (lane-1 deep audit loop, ROUND 3)
@@ -577,6 +577,29 @@ R3 RE-VERIFIED OPEN FINDINGS (unchanged since R2, byte-level confirmed):
 R3 NEW FINDINGS: none (0 P0, 0 P1, 0 P2, 0 P3). No regressions found. No fix agents dispatched.
 LIVE (2026-10-12 ~05:50 IST, logged-out): /search?q=test → honest sign-in page on desktop (1440x900) + mobile (390x844) — auth gate intact, unchanged from R2. Signed-in search UI remains needs-auth (no test account session in this run). Evidence: /tmp/lane1-007r3/desktop-search.png + mobile-search.png. NOT VERIFIED (needs live/auth, unchanged): staging DB GIN indexes; live 401 E2E; overlapping-fetch flicker; Hinglish stemming; scope-chip behavior on live data; search latency tuning.
 Status: [x] DONE (R3 regression audit complete 2026-10-12 ~05:55 IST; no regressions; 6 opens carried forward; fixes tracked via their PRs)
+
+
+## QM-SCREEN-007 R4 — Search regression (ROUND 4)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-007r4
+Audit started: 2026-10-12 ~16:35 IST (lane-1 deep audit loop, ROUND 4)
+Base: R3 @ e3c64ed7 -> origin/main 8380373a. Regression diff over all audited search paths (code read-only via git show/grep on origin/main; no working-tree changes made):
+- ONLY 1 search-adjacent file changed since R3: apps/quantmail/src/components/drive/DriveAISearchBar.tsx (commit 5b62994a "fix(qm-screen-010/011): drive pillar accents, blue leaks, divider cleanup, dead StorageQuotaBar import") — 7-line cosmetic diff: hardcoded #60A5FA blue -> var(--app-accent) (Drive green per per-app accents), divider border lines removed (no-divider-lines rule). VERIFIED BENIGN, no search-logic change.
+- All "Add files via upload" commits since R3 are QuantChat OTP/calls/conversation tests + routes (bc26e81a, 19254301, e0d727fe, 548b89f0, 2e7ea327, ea23767e, eefd3cc7, bf108b08, 16ebef55) — unrelated to QuantMail search.
+- ZERO diff on: search-query.service.ts, routes/search.ts, ai-search-content.service.ts, email.service.ts, useSearchEmails.ts, useUniversalSearch.ts, app/search/page.tsx, app/api/search/**, routes-config.ts, api-client.ts, UniversalSearchResults.tsx.
+R4 RE-VERIFIED STILL OPEN (all 6 carried forward, byte-level confirmed, none regressed):
+- [ ] FINDING P2: parser unreachable/orphaned — SearchQueryService refs on origin/main: only the service itself, backend/routes/search.ts (test-pinned, no live callers), its unit test. -> BLOCKER: wire UI to parser or drop it (user design decision).
+- [ ] FINDING P2: spam/trash unfindable via server search — email.service.ts:1464-1465 isTrash:false/isSpam:false ("not of exhuming mail you threw away"). Client-side #899 mitigation (local spam matches via inbox search) covers local corpus only. -> BLOCKER: deliberate or add scope (user design decision).
+- [ ] FINDING P3: no abort of in-flight search requests — zero `signal` refs in useSearchEmails.ts/useUniversalSearch.ts; api-client accepts signal but no search queryFn wires it.
+- [ ] FINDING P3: universal search mail leg 20 vs 8 — useUniversalSearch.ts:69 searchEmails({query} as never) still passes no pageSize vs PER_SOURCE_LIMIT=8 for other legs.
+- [ ] FINDING P3: main search input no Esc-to-clear — app/search/page.tsx:328 onKeyDown handles Enter only (Escape only inside filter-value editor).
+- [ ] FINDING P3: document search under-covers vs access policy — searchDocuments userId-only (search-query.service.ts:336,604,617) vs Gate N-G5 (backend/app.ts:342-362) shared/public access never surfaced. -> BLOCKER: product decision.
+R4 RE-VERIFIED FIXED-IN-MAIN (spot-checked, still present): folderTypeCondition() (PR #816) intact in search-query.service.ts (3 refs); SearchBar.tsx + SearchResults.tsx still deleted — not resurrected (#817 holds).
+R4 NEW FINDINGS: none (0 P0, 0 P1, 0 P2, 0 P3). No regressions found. No fix agents dispatched (no new P0/P1).
+LIVE (2026-10-12 ~16:40 IST, logged-out): /search?q=test -> honest "Sign in to QuantMail" page on desktop (1440x900) + mobile (390x844) — auth gate intact, unchanged from R2/R3. Signed-in search UI remains needs-auth (no test session in this run). Evidence: /tmp/lane1-007r4/desktop-search.png + mobile-search.png. Proxy forwarder 127.0.0.1:8888 healthy (307 via proxy); /tmp orphan chrome dirs cleaned.
+NOT VERIFIED (needs live/auth, unchanged): staging DB GIN indexes existence; live 401 E2E; overlapping-fetch flicker; plainto_tsquery stemming for Hinglish; scope-chip behavior on live data; search latency tuning.
+Status: [x] DONE (R4 regression audit complete 2026-10-12 ~16:50 IST; no regressions; 6 opens carried forward; fixes tracked via their PRs)
 
 ## QM-SCREEN-008/009 R3 — Calendar regression (ROUND 3)
 Status: [~] IN PROGRESS
