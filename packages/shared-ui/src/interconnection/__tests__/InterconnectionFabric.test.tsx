@@ -137,9 +137,24 @@ describe('Quant Ecosystem Interconnection Fabric Suite', () => {
 
       const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
 
-      // Server accepts the wrapped token and returns the verified identity
-      const fetchMock = vi.fn().mockResolvedValue(
-        new Response(
+      // Server accepts the wrapped token and returns the verified identity;
+      // the exchange endpoint then trades the foreign candidate for this
+      // app's native token pair (QC-F-085).
+      const fetchMock = vi.fn(async (input: unknown) => {
+        if (String(input) === '/api/auth/sso/exchange') {
+          return new Response(
+            JSON.stringify({
+              success: true,
+              data: {
+                accessToken: 'qc_native_access_token_456',
+                refreshToken: 'qc_native_refresh_token_789',
+                expiresIn: 3600,
+              },
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(
           JSON.stringify({
             success: true,
             data: {
@@ -151,8 +166,8 @@ describe('Quant Ecosystem Interconnection Fabric Suite', () => {
             },
           }),
           { status: 200 },
-        ),
-      );
+        );
+      });
       vi.stubGlobal('fetch', fetchMock);
 
       const consumed = await bridge.consumeHandoffTicket(inboundUrl);
@@ -161,11 +176,37 @@ describe('Quant Ecosystem Interconnection Fabric Suite', () => {
       // Identity comes from the SERVER, not the ticket claims
       expect(consumed?.session?.userId).toBe('user-001');
       expect(consumed?.session?.email).toBe('kundan@quantmail.in');
-      expect(consumed?.session?.token).toBe('mock_jwt_access_token_123');
+      // QC-F-085: the session token is the EXCHANGED native token, never
+      // the foreign candidate that arrived in the ticket.
+      expect(consumed?.session?.token).toBe('qc_native_access_token_456');
       expect(consumed?.returnPath).toBe('https://quantmail.in/inbox');
 
-      // Verified token was stored under ecosystem keys
-      expect(localStorage.getItem('quant_access_token')).toBe('mock_jwt_access_token_123');
+      // Only the exchanged native pair was stored under ecosystem keys
+      expect(localStorage.getItem('quant_access_token')).toBe('qc_native_access_token_456');
+      expect(localStorage.getItem('quant_refresh_token')).toBe('qc_native_refresh_token_789');
+      for (const key of ['quant_auth_token', 'token', 'quant_token', 'quantchat_access_token']) {
+        expect(localStorage.getItem(key)).toBe('qc_native_access_token_456');
+      }
+      // The foreign candidate appears NOWHERE in storage
+      for (const key of [
+        'quant_access_token',
+        'quant_auth_token',
+        'token',
+        'quant_token',
+        'quantchat_access_token',
+        'quant_refresh_token',
+      ]) {
+        expect(localStorage.getItem(key)).not.toBe('mock_jwt_access_token_123');
+      }
+
+      // The exchange request carried the verified candidate as ssoToken
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/auth/sso/exchange',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ ssoToken: 'mock_jwt_access_token_123' }),
+        }),
+      );
 
       // The userinfo request carried the wrapped token as a Bearer credential
       expect(fetchMock).toHaveBeenCalledWith(
@@ -289,8 +330,17 @@ describe('Quant Ecosystem Interconnection Fabric Suite', () => {
     });
 
     it('IGNORES tampered ticket claims and uses only the server-verified identity', async () => {
-      vi.mocked(fetch).mockResolvedValue(
-        new Response(
+      vi.mocked(fetch).mockImplementation(async (input: unknown) => {
+        if (String(input) === '/api/auth/sso/exchange') {
+          return new Response(
+            JSON.stringify({
+              success: true,
+              data: { accessToken: 'qc_native_for_real_user_7', refreshToken: 'qc_refresh_7' },
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(
           JSON.stringify({
             success: true,
             data: {
@@ -301,8 +351,8 @@ describe('Quant Ecosystem Interconnection Fabric Suite', () => {
             },
           }),
           { status: 200 },
-        ),
-      );
+        );
+      });
 
       const bridge = UniversalSSOTokenBridge.getInstance();
       // Ticket claims an attacker identity; the wrapped token is the real one.
@@ -320,9 +370,12 @@ describe('Quant Ecosystem Interconnection Fabric Suite', () => {
       expect(consumed?.session?.userId).toBe('real-user-7');
       expect(consumed?.session?.email).toBe('real@quantmail.in');
       expect(consumed?.session?.displayName).toBe('Real User');
-      expect(consumed?.session?.token).toBe('real-server-token');
+      // QC-F-085: session/storage carry the EXCHANGED native token — the
+      // wrapped candidate ('real-server-token') is never stored either.
+      expect(consumed?.session?.token).toBe('qc_native_for_real_user_7');
       // Attacker claims never leak into the session or storage
-      expect(localStorage.getItem('quant_access_token')).toBe('real-server-token');
+      expect(localStorage.getItem('quant_access_token')).toBe('qc_native_for_real_user_7');
+      expect(localStorage.getItem('token')).not.toBe('real-server-token');
       expect(bridge.getCurrentSession()?.userId).toBe('real-user-7');
     });
 
@@ -340,6 +393,171 @@ describe('Quant Ecosystem Interconnection Fabric Suite', () => {
       const consumed = await bridge.consumeHandoffTicket('https://quantube.quantrinity.in/watch');
       expect(consumed).toBeNull();
       expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('UniversalSSOTokenBridge - QC-F-085 exchange-first handoff (foreign token never stored)', () => {
+    // A QuantMail-shaped JWT: foreign issuer/audience. It verifies at
+    // userinfo (identity) but must NEVER become this app's session token.
+    const FOREIGN_JWT =
+      'eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJxdWFudG1haWwiLCJhdWQiOiJxdWFudC1lY29zeXN0ZW0iLCJzdWIiOiJmb3JlaWduLXVzZXItMSJ9.foreignsig';
+    const NATIVE_ACCESS = 'qc_native_access_after_exchange';
+    const NATIVE_REFRESH = 'qc_native_refresh_after_exchange';
+    const ALL_KEYS = [
+      'quant_access_token',
+      'quant_auth_token',
+      'token',
+      'quant_token',
+      'quantchat_access_token',
+      'quant_refresh_token',
+    ];
+
+    const makeTicket = (token: string): string =>
+      Buffer.from(
+        JSON.stringify({
+          uid: 'foreign-user-1',
+          email: 'foreign@quantmail.in',
+          name: 'Foreign User',
+          tier: 'free',
+          app: 'quantchat',
+          token,
+          iat: Date.now(),
+          exp: Date.now() + 5 * 60 * 1000,
+          nonce: 'qc-f-085-nonce',
+        }),
+      ).toString('base64url');
+
+    const inbound = (ticket: string): string =>
+      `https://quantchat.quantrinity.in/?__quant_sso_ticket=${ticket}`;
+
+    const userinfoOk = (): Response =>
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: { id: 'foreign-user-1', email: 'foreign@quantmail.in', displayName: 'Foreign User' },
+        }),
+        { status: 200 },
+      );
+
+    const mockServer = (exchangeImpl: () => Promise<Response> | Response): void => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: unknown) => {
+          if (String(input) === '/api/auth/sso/exchange') return exchangeImpl();
+          return userinfoOk();
+        }),
+      );
+    };
+
+    const expectNothingStored = (): void => {
+      for (const key of ALL_KEYS) {
+        expect(localStorage.getItem(key), key).toBeNull();
+      }
+    };
+
+    beforeEach(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('stores ONLY the exchanged native pair — the foreign JWT lands in no key and no cookie', async () => {
+      mockServer(
+        () =>
+          new Response(
+            JSON.stringify({
+              success: true,
+              data: { accessToken: NATIVE_ACCESS, refreshToken: NATIVE_REFRESH, expiresIn: 3600 },
+            }),
+            { status: 200 },
+          ),
+      );
+
+      const bridge = UniversalSSOTokenBridge.getInstance();
+      const consumed = await bridge.consumeHandoffTicket(inbound(makeTicket(FOREIGN_JWT)));
+
+      expect(consumed).not.toBeNull();
+      expect(consumed?.session?.token).toBe(NATIVE_ACCESS);
+      expect(localStorage.getItem('quant_access_token')).toBe(NATIVE_ACCESS);
+      expect(localStorage.getItem('quant_refresh_token')).toBe(NATIVE_REFRESH);
+      for (const key of ALL_KEYS) {
+        expect(localStorage.getItem(key), key).not.toBe(FOREIGN_JWT);
+      }
+      expect(document.cookie).not.toContain(FOREIGN_JWT);
+    });
+
+    it('fails closed when the exchange rejects the verified candidate (401)', async () => {
+      mockServer(
+        () =>
+          new Response(JSON.stringify({ success: false, error: { code: 'UNAUTHORIZED' } }), {
+            status: 401,
+          }),
+      );
+
+      const bridge = UniversalSSOTokenBridge.getInstance();
+      const events: unknown[] = [];
+      const unsub = bridge.on('SESSION_INITIALIZED', (e) => events.push(e));
+
+      const consumed = await bridge.consumeHandoffTicket(inbound(makeTicket(FOREIGN_JWT)));
+
+      expect(consumed).toBeNull();
+      expectNothingStored();
+      expect(events.length).toBe(0);
+      unsub();
+    });
+
+    it('rejects an "exchange" that echoes the candidate back (not an exchange)', async () => {
+      mockServer(
+        () =>
+          new Response(
+            JSON.stringify({ success: true, data: { accessToken: FOREIGN_JWT } }),
+            { status: 200 },
+          ),
+      );
+
+      const bridge = UniversalSSOTokenBridge.getInstance();
+      const consumed = await bridge.consumeHandoffTicket(inbound(makeTicket(FOREIGN_JWT)));
+
+      expect(consumed).toBeNull();
+      expectNothingStored();
+    });
+
+    it('fails closed when the exchange returns 200 without a native access token', async () => {
+      mockServer(
+        () => new Response(JSON.stringify({ success: true, data: { user: { id: 'x' } } }), { status: 200 }),
+      );
+
+      const bridge = UniversalSSOTokenBridge.getInstance();
+      const consumed = await bridge.consumeHandoffTicket(inbound(makeTicket(FOREIGN_JWT)));
+
+      expect(consumed).toBeNull();
+      expectNothingStored();
+    });
+
+    it('fails closed when the exchange endpoint is unreachable (network error)', async () => {
+      mockServer(() => Promise.reject(new Error('exchange down')));
+
+      const bridge = UniversalSSOTokenBridge.getInstance();
+      const consumed = await bridge.consumeHandoffTicket(inbound(makeTicket(FOREIGN_JWT)));
+
+      expect(consumed).toBeNull();
+      expectNothingStored();
+    });
+
+    it('performGlobalLogout clears EVERY session alias key (no resurrection via fallback chains)', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response(JSON.stringify({ success: true }), { status: 200 })),
+      );
+      for (const key of ALL_KEYS) localStorage.setItem(key, 'some-token-value');
+
+      const bridge = UniversalSSOTokenBridge.getInstance();
+      await bridge.performGlobalLogout('quantchat');
+
+      expectNothingStored();
     });
   });
 
