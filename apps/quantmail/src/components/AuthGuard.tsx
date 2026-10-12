@@ -4,28 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { LoadingState } from '@quant/shared-ui';
 import { useAuth } from '../providers/auth-provider';
-
-/** Exact signed-out product surface. Keep this short and auditable. */
-const PUBLIC_PATHS = [
-  '/login',
-  '/register',
-  '/forgot-password',
-  '/reset-password',
-  '/help',
-  '/terms',
-  '/privacy',
-  '/sso',
-  '/oauth',
-  '/quantgit',
-  // Per-app public marketing landing (apps/quantmail/src/app/marketing). It is
-  // the product's own "marketing" surface from the restructure and must be
-  // readable signed-out, so it stays out of the login redirect.
-  '/marketing',
-];
-
-function isInternalLabPath(pathname: string): boolean {
-  return pathname === '/lab' || pathname.startsWith('/lab/');
-}
+import { isPublicPath } from '../lib/edge-public-paths';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
@@ -36,26 +15,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     setMounted(true);
   }, []);
 
-  const isPublicPath =
-    PUBLIC_PATHS.includes(pathname ?? '') ||
-    pathname?.startsWith('/sso') ||
-    pathname?.startsWith('/oauth') ||
-    pathname?.startsWith('/quantgit') ||
-    // Invite / group-join previews for logged-out invitees (QM-SCREEN-018):
-    // the join page renders a public preview before the visitor signs in,
-    // so the AuthGuard must not hard-bounce them to /login.
-    pathname?.startsWith('/invite/') ||
-    pathname?.startsWith('/groups/join/') ||
-    // Public calendar booking links (fix/qm-booking-guest-bounce): the
-    // booking page is a fully public, signed-out booking flow (the backend
-    // GET/POST booking endpoints are public), so guests opening a host's
-    // booking link must see the flow — or the honest dead-link state for a
-    // bad slug — instead of being hard-bounced to /login.
-    pathname?.startsWith('/calendar/booking/') ||
-    isInternalLabPath(pathname ?? '');
+  // Single source of truth: src/lib/edge-public-paths.ts (shared with the
+  // edge middleware so server-side and client-side guards can never drift).
+  const isPublic = isPublicPath(pathname ?? '');
 
   useEffect(() => {
-    if (mounted && !isLoading && !isAuthenticated && !isPublicPath) {
+    if (mounted && !isLoading && !isAuthenticated && !isPublic) {
       const search = typeof window !== 'undefined' ? window.location.search : '';
       const full = pathname ? `${pathname}${search}` : '';
       const returnTo = full && full !== '/' ? `?returnTo=${encodeURIComponent(full)}` : '';
@@ -63,9 +28,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         window.location.replace(`/login${returnTo}`);
       }
     }
-  }, [mounted, isLoading, isAuthenticated, isPublicPath, pathname]);
+  }, [mounted, isLoading, isAuthenticated, isPublic, pathname]);
 
-  if (isLoading && !isPublicPath) {
+  if (isLoading && !isPublic) {
     return (
       <div
         className="flex h-screen w-full items-center justify-center"
@@ -77,7 +42,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!isAuthenticated && !isPublicPath) return null;
+  if (!isAuthenticated && !isPublic) return null;
 
   return <>{children}</>;
 }
