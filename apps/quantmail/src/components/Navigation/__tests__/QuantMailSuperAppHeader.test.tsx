@@ -115,7 +115,7 @@ describe('QuantMailSuperAppHeader — Amazon/Flipkart-Class Super-App Command He
       ]);
     });
 
-    it('renders all 5 pillars with labels and live count badges', () => {
+    it('renders all 5 pillars with labels and NO phantom badges by default', () => {
       const html = renderToStaticMarkup(<QuantMailSuperAppHeader activePillar="mail" />);
 
       // Pillars
@@ -125,17 +125,50 @@ describe('QuantMailSuperAppHeader — Amazon/Flipkart-Class Super-App Command He
       expect(html).toContain('Contacts');
       expect(html).toContain('QuantGit');
 
-      // Live badges
-      expect(html).toContain('12'); // Mail unread
-      expect(html).toContain('2'); // Calendar events
+      // No fabricated counts: no pillar badge when the host supplies none.
       expect(html).not.toContain('E2EE'); // Drive E2EE badge removed — no client-side E2EE exists yet
-      expect(html).toContain('8'); // Contacts VIPs
-      expect(html).toContain('1'); // QuantGit PRs
+      expect(html).not.toContain(' Pillar (');
+      for (const label of ['Mail', 'Calendar', 'Drive', 'Contacts', 'QuantGit']) {
+        expect(html).toContain(`aria-label="${label} Pillar"`);
+      }
+    });
+
+    it('SUPER_APP_PILLARS carries no hardcoded badge constants', () => {
+      // Phantom-badge regression guard: the pillar config must never contain
+      // invented counts presented as live numbers.
+      expect(SUPER_APP_PILLARS.every((p) => p.badge === undefined)).toBe(true);
+    });
+
+    it('renders host-supplied REAL pillar counts as badges via pillarBadges', () => {
+      const html = renderToStaticMarkup(
+        <QuantMailSuperAppHeader
+          activePillar="mail"
+          pillarBadges={{ mail: 12, calendar: 2, contacts: 8, quantgit: 1 }}
+        />
+      );
+
+      // Real host counts render as badges with count-suffixed aria-labels.
+      expect(html).toContain('aria-label="Mail Pillar (12)"');
+      expect(html).toContain('aria-label="Calendar Pillar (2)"');
+      expect(html).toContain('aria-label="Contacts Pillar (8)"');
+      expect(html).toContain('aria-label="QuantGit Pillar (1)"');
+      // Drive has no known count → still no badge, no count suffix.
+      expect(html).toContain('aria-label="Drive Pillar"');
+    });
+
+    it('renders only the pillars that have real counts (partial pillarBadges)', () => {
+      const html = renderToStaticMarkup(
+        <QuantMailSuperAppHeader pillarBadges={{ mail: 3 }} />
+      );
+
+      expect(html).toContain('aria-label="Mail Pillar (3)"');
+      expect(html).toContain('aria-label="Calendar Pillar"');
+      expect(html).toContain('aria-label="Contacts Pillar"');
     });
 
     it('marks active pillar with aria-selected and active indicator bar', () => {
       const mailHtml = renderToStaticMarkup(<QuantMailSuperAppHeader activePillar="mail" />);
-      expect(mailHtml).toContain('aria-selected="true" aria-label="Mail Pillar (12)"');
+      expect(mailHtml).toContain('aria-selected="true" aria-label="Mail Pillar"');
 
       const driveHtml = renderToStaticMarkup(<QuantMailSuperAppHeader activePillar="drive" />);
       expect(driveHtml).toContain('aria-selected="true" aria-label="Drive Pillar"');

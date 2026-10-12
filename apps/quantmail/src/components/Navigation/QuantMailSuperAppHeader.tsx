@@ -22,8 +22,12 @@ export interface SuperAppPillar {
   id: SuperAppPillarId;
   label: string;
   path: string;
+  /**
+   * Real, host-supplied count badge only (e.g. live inbox unread count).
+   * MUST be omitted when the count is unknown — never a hardcoded mock
+   * constant. The render shows NO badge when this is undefined.
+   */
   badge?: string | number;
-  badgeTone?: 'primary' | 'amber' | 'cyan' | 'emerald' | 'purple' | 'slate';
   accentColor: string;
   glowColor: string;
   icon: (props: { className?: string; active?: boolean }) => React.ReactNode;
@@ -81,6 +85,12 @@ export interface QuantMailSuperAppHeaderProps {
   storageTotalGB?: number;
   /** Quick action callback */
   onQuickAction?: (action: 'compose' | 'event' | 'upload' | 'repo') => void;
+  /**
+   * Real per-pillar badge counts supplied by the host (e.g. inbox unread
+   * count for 'mail', today's event count for 'calendar'). Omitted pillars
+   * render NO badge — a missing count is never replaced with a mock number.
+   */
+  pillarBadges?: Partial<Record<SuperAppPillarId, number | string>>;
   /** Custom wrapper className */
   className?: string;
 }
@@ -407,6 +417,10 @@ export function CrossSvg({ className = 'size-3.5' }: { className?: string }) {
 
 // ============================================================================
 // 5 Pillar Configurations (Flipkart & Amazon Super-App Paradigm)
+//
+// BADGE HONESTY: pillar badges carry NO hardcoded constants. A pillar renders
+// a badge ONLY when the host passes a real count via the `pillarBadges` prop
+// (inbox unread, calendar events, contacts, open PRs). No data → no badge.
 // ============================================================================
 
 export const SUPER_APP_PILLARS: SuperAppPillar[] = [
@@ -414,8 +428,6 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
     id: 'mail',
     label: 'Mail',
     path: '/',
-    badge: 12,
-    badgeTone: 'amber',
     accentColor: PILLAR_ACCENTS.mail,
     glowColor: 'rgba(255, 107, 53, 0.25)',
     icon: MailPillarSvg,
@@ -424,8 +436,6 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
     id: 'calendar',
     label: 'Calendar',
     path: '/calendar',
-    badge: 2,
-    badgeTone: 'amber',
     accentColor: PILLAR_ACCENTS.calendar,
     glowColor: 'rgba(66, 133, 244, 0.25)',
     icon: CalendarPillarSvg,
@@ -444,8 +454,6 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
     id: 'contacts',
     label: 'Contacts',
     path: '/contacts',
-    badge: 8,
-    badgeTone: 'emerald',
     accentColor: PILLAR_ACCENTS.contacts,
     glowColor: 'rgba(138, 180, 248, 0.25)',
     icon: ContactsPillarSvg,
@@ -454,8 +462,6 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
     id: 'quantgit',
     label: 'QuantGit',
     path: '/quantgit',
-    badge: 1,
-    badgeTone: 'purple',
     accentColor: PILLAR_ACCENTS.quantgit,
     glowColor: 'rgba(168, 85, 247, 0.25)',
     icon: QuantGitPillarSvg,
@@ -495,6 +501,7 @@ export function QuantMailSuperAppHeader({
   storageUsedGB,
   storageTotalGB,
   onQuickAction,
+  pillarBadges,
   className = '',
 }: QuantMailSuperAppHeaderProps) {
   const router = useRouter();
@@ -855,6 +862,9 @@ export function QuantMailSuperAppHeader({
             {SUPER_APP_PILLARS.map((pillar) => {
               const isActive = currentPillar === pillar.id;
               const IconComponent = pillar.icon;
+              // Real count only: host-supplied via `pillarBadges` (or a real
+              // per-pillar badge on the pillar object). Unknown → NO badge.
+              const badge = pillarBadges?.[pillar.id] ?? pillar.badge;
 
               return (
                 <button
@@ -862,7 +872,7 @@ export function QuantMailSuperAppHeader({
                   type="button"
                   role="tab"
                   aria-selected={isActive}
-                  aria-label={`${pillar.label} Pillar${pillar.badge ? ` (${pillar.badge})` : ''}`}
+                  aria-label={`${pillar.label} Pillar${badge != null ? ` (${badge})` : ''}`}
                   onClick={() => handlePillarClick(pillar)}
                   className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                     isActive
@@ -883,8 +893,9 @@ export function QuantMailSuperAppHeader({
                   {/* Pillar Label */}
                   <span className="tracking-tight">{pillar.label}</span>
 
-                  {/* Live Badge */}
-                  {pillar.badge !== undefined && (
+                  {/* Pillar Badge — rendered ONLY from a real host-supplied
+                      count; never a fabricated number. Hidden when unknown. */}
+                  {badge != null && (
                     <span
                       className={`ml-1 px-1.5 py-px rounded-full text-[10px] font-bold ${
                         isActive
@@ -892,7 +903,7 @@ export function QuantMailSuperAppHeader({
                           : 'bg-[var(--quant-surface-elevated)] text-[#94A3B8] group-hover:text-slate-200'
                       }`}
                     >
-                      {pillar.badge}
+                      {badge}
                     </span>
                   )}
 
