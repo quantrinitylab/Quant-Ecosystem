@@ -31,6 +31,17 @@ export async function POST(req: Request) {
 
       if (response.ok) {
         const data = await response.json();
+        // Defense-in-depth (QC-F-062): the backend must never return the OTP
+        // itself, but strip `demoCode` at this layer too so a stale/older
+        // backend behind this proxy cannot leak the code to the browser.
+        // This strip is a second wall, not a substitute for the backend fix.
+        if (data && typeof data === 'object') {
+          delete (data as Record<string, unknown>).demoCode;
+          const inner = (data as Record<string, unknown>).data;
+          if (inner && typeof inner === 'object') {
+            delete (inner as Record<string, unknown>).demoCode;
+          }
+        }
         return NextResponse.json(data, { status: response.status });
       }
       throw new Error(`Backend error: ${response.status}`);
