@@ -27,6 +27,12 @@ import {
   prioritizeNotifications,
 } from '../lib/ai-agent';
 import { AutoReplyManager } from '../lib/auto-reply-manager';
+import {
+  AutoReplyService,
+  createMessageServiceDeliver,
+  getAutoReplyService,
+  type AutoReplyPrisma,
+} from '../services/auto-reply.service';
 
 const toggleSchema = z.object({
   conversationId: z.string().min(1),
@@ -92,20 +98,40 @@ export interface AIAgentRouteOptions {
   autoReplyManager?: AutoReplyManager;
   /** Inject an AIEngine (tests). Falls back to a new engine, then templates. */
   agent?: QuantAIAgent;
+  /** Inject the whole auto-reply service (tests). */
+  autoReplyService?: AutoReplyService;
 }
+
+const stateQuerySchema = z.object({
+  conversationId: z.string().min(1),
+});
 
 export default async function aiAgentRoutes(
   fastify: FastifyInstance,
   opts: AIAgentRouteOptions = {},
 ) {
-  const manager =
-    opts.autoReplyManager ??
-    (fastify as unknown as { autoReplyManager?: AutoReplyManager }).autoReplyManager ??
-    new AutoReplyManager();
-
   // Construct an AIEngine; if no provider key is configured the agent transparently
   // falls back to deterministic templates (see QuantAIAgent.tryInfer).
   const agent = opts.agent ?? new QuantAIAgent(new AIEngine());
+
+  // QC-F-067: auto-reply state is per-user + persisted (AutoReplyService).
+  // Resolved lazily per request so the decorated prisma/manager are read at
+  // call time, not at plugin registration time.
+  const resolveAutoReplyService = (): AutoReplyService => {
+    if (opts.autoReplyService) return opts.autoReplyService;
+    if (opts.agent || opts.autoReplyManager) {
+      const prisma = getPrisma(fastify) as unknown as AutoReplyPrisma;
+      return new AutoReplyService(
+        prisma,
+        opts.autoReplyManager ??
+          (fastify as unknown as { autoReplyManager?: AutoReplyManager }).autoReplyManager ??
+          new AutoReplyManager(),
+        agent,
+        createMessageServiceDeliver(prisma),
+      );
+    }
+    return getAutoReplyService(fastify);
+  };
 
   // --- 12.1 Auto-reply ------------------------------------------------------
   fastify.post('/auto-reply', async (request, reply) => {
@@ -114,28 +140,13 @@ export default async function aiAgentRoutes(
       throw createAppError('Invalid request body', 400, 'VALIDATION_ERROR');
     }
     const userId = requireUserId(request);
-    const { conversationId } = parsed.data;
 
-    // 12.9: do not generate when auto-reply is disabled for this conversation.
-    if (!manager.isEnabled(conversationId)) {
-      return reply.send({
-        success: true,
-        data: { generated: false, cancelled: true, reason: 'auto-reply disabled' },
-      });
-    }
-
-    const ticket = manager.enqueue(conversationId);
-    const result = await agent.autoReply(parsed.data, userId);
-
-    // 12.9: if auto-reply was disabled while we were generating, drop the response.
-    if (!manager.markSent(ticket.ticketId)) {
-      return reply.send({
-        success: true,
-        data: { generated: false, cancelled: true, reason: 'cancelled during generation' },
-      });
-    }
-
-    return reply.send({ success: true, data: { ...result, generated: true } });
+    // 12.9 + QC-F-067: do not generate when auto-reply is disabled FOR THIS
+    // USER in this conversation (persisted gate — pre-fix a global
+    // per-conversation Set let anyone generate once anyone had toggled on).
+    // A disable during generation cancels delivery of the result.
+    const outcome = await resolveAutoReplyService().generateFor(userId, parsed.data);
+    return reply.send({ success: true, data: outcome });
   });
 
   // --- 12.9 Auto-reply enable/disable --------------------------------------
@@ -144,19 +155,30 @@ export default async function aiAgentRoutes(
     if (!parsed.success) {
       throw createAppError('Invalid request body', 400, 'VALIDATION_ERROR');
     }
-    requireUserId(request);
+    const userId = requireUserId(request);
     const { conversationId, enabled } = parsed.data;
 
-    let cancelledCount = 0;
-    if (enabled) {
-      manager.enable(conversationId);
-    } else {
-      cancelledCount = manager.disable(conversationId);
-    }
+    // QC-F-067: membership-gated (403 NOT_A_MEMBER) and persisted per user;
+    // disabling cancels only THIS user's queued unsent responses.
+    const data = await resolveAutoReplyService().setEnabled(userId, conversationId, enabled);
+    return reply.send({ success: true, data });
+  });
 
+  // --- QC-F-067: read back the caller's own auto-reply state ---------------
+  fastify.get('/auto-reply/state', async (request, reply) => {
+    const parsed = stateQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      throw createAppError('Invalid request query', 400, 'VALIDATION_ERROR');
+    }
+    const userId = requireUserId(request);
+    const service = resolveAutoReplyService();
+    // Membership-gated like every other auto-reply surface: a non-member
+    // learns nothing about the conversation (same 403, no oracle).
+    await service.assertMember(userId, parsed.data.conversationId);
+    const enabled = await service.getEnabled(userId, parsed.data.conversationId);
     return reply.send({
       success: true,
-      data: { conversationId, enabled, cancelledCount },
+      data: { conversationId: parsed.data.conversationId, enabled },
     });
   });
 
