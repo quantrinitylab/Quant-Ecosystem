@@ -32,11 +32,19 @@ const mocks = vi.hoisted(() => {
     codes: [] as any[],
   };
 
+  const matchId = (row: any, id: any): boolean => {
+    if (id === undefined) return true;
+    // The resend burn is compare-and-set on the request's own snapshot:
+    // { id: { in: [...] }, usedAt: null }.
+    if (typeof id === 'object' && id !== null && 'in' in id) return id.in.includes(row.id);
+    return row.id === id;
+  };
+
   const matchCodes = (where: any) =>
     db.codes.filter(
       (r) =>
         (where.userId === undefined || r.userId === where.userId) &&
-        (where.id === undefined || r.id === where.id) &&
+        matchId(r, where.id) &&
         (where.usedAt === undefined || (where.usedAt === null ? r.usedAt === null : r.usedAt !== null)),
     );
 
@@ -56,6 +64,14 @@ const mocks = vi.hoisted(() => {
       const matches = matchCodes(args?.where ?? {});
       matches.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       return matches[0] ?? null;
+    }),
+    // The resend handler snapshots pending rows inside its transaction before
+    // burning exactly that snapshot (compare-and-set). The mock mirrors the
+    // real semantics: pending rows are those with usedAt null.
+    findMany: vi.fn(async (args: any) => {
+      const matches = matchCodes(args?.where ?? {});
+      matches.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      return matches;
     }),
     update: vi.fn(async (args: any) => {
       const row = db.codes.find((r) => r.id === args.where.id);
@@ -362,12 +378,37 @@ describe('POST /auth/resend-verification — the first mail may not arrive', () 
     seedLiveCode();
     const reply = await request({ email: USER.email });
     expect(reply.statusCode).toBe(200);
-    expect(mocks.prisma.emailVerificationCode.updateMany).toHaveBeenCalledWith({
+    // The burn is compare-and-set on the request's own pending snapshot
+    // ({ id, usedAt: null }), never a blanket userId burn — that is what
+    // stops a concurrent resend from killing the code this request emails.
+    expect(mocks.prisma.emailVerificationCode.findMany).toHaveBeenCalledWith({
       where: { userId: USER.id, usedAt: null },
+      select: { id: true },
+    });
+    expect(mocks.prisma.emailVerificationCode.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['evc-1'] }, usedAt: null },
       data: { usedAt: expect.any(Date) },
     });
     expect(mocks.db.codes[0].usedAt).not.toBeNull();
     expect(sendVerificationEmail).toHaveBeenCalledTimes(1);
     expect(reply.body.data.emailSent).toBe(true);
+    // The emailed code is the live one.
+    const sent = (sendVerificationEmail as any).mock.calls[0][0];
+    const live = mocks.db.codes.find((r: any) => r.usedAt === null);
+    expect(live.codeHash).toBe(hashVerificationCode(sent.code));
+  });
+
+  it('keeps USER_NOT_FOUND non-enumeration and alreadyVerified early-return', async () => {
+    const missing = await request({ email: 'nobody@quantmail.in' });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.body.error.code).toBe('USER_NOT_FOUND');
+
+    mocks.db.users[USER.email] = { ...USER, emailVerified: true };
+    const verified = await request({ email: USER.email });
+    expect(verified.statusCode).toBe(200);
+    expect(verified.body.data.alreadyVerified).toBe(true);
+    // No burn, no create, no email for an already-proven address.
+    expect(mocks.prisma.emailVerificationCode.updateMany).not.toHaveBeenCalled();
+    expect(mocks.prisma.emailVerificationCode.create).not.toHaveBeenCalled();
   });
 });
