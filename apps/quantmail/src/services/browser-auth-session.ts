@@ -2,10 +2,14 @@
 // Refresh credentials never enter JavaScript; only the short-lived access token
 // returned by /auth/login, /auth/register, or /auth/refresh is held in module memory.
 
-// Auth routes stay on /auth/* so the browser sends the HttpOnly refresh cookie
-// (Path=/auth). A Next route handler proxies them at runtime using the server-only
+// Auth calls go through the Next.js /api/auth/* proxy routes (edge middleware
+// never intercepts /api/*). Call sites pass '/auth/<action>' paths; the
+// default base '/api' makes those resolve to the proxy routes. The refresh
+// cookie uses Path=/ so the browser sends it to those proxy routes and the
+// edge middleware can also read it as the signed-in signal on page routes.
+// A Next route handler proxies each call at runtime using the server-only
 // QUANTMAIL_BACKEND_URL and always fails closed with a JSON response.
-const AUTH_BASE_URL = (process.env.NEXT_PUBLIC_AUTH_URL ?? '').replace(/\/$/, '');
+const AUTH_BASE_URL = (process.env.NEXT_PUBLIC_AUTH_URL || '/api').replace(/\/$/, '');
 
 /**
  * Global ceiling for any single authenticated request (including one 401

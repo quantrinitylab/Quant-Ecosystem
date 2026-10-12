@@ -161,7 +161,7 @@ describe('QuantMail browser refresh-token boundary', () => {
         httpOnly: true,
         secure: true,
         sameSite: 'strict',
-        path: '/auth',
+        path: '/',
         maxAge: 2_592_000,
       }),
     });
@@ -291,7 +291,7 @@ describe('QuantMail browser refresh-token boundary', () => {
     });
     expect(reply.clearedCookie).toEqual({
       name: 'quantmail_refresh',
-      options: expect.objectContaining({ path: '/auth', httpOnly: true, secure: true }),
+      options: expect.objectContaining({ path: '/', httpOnly: true, secure: true }),
     });
   });
 });

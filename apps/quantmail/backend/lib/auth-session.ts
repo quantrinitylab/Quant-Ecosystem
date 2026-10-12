@@ -14,7 +14,12 @@ import { TokenService, type SessionMetadata } from '@quant/auth/services/token-s
 import { getJwtSecret, getJwtRefreshSecret } from '@quant/auth/lib/secrets';
 
 export const REFRESH_COOKIE_NAME = 'quantmail_refresh';
-export const REFRESH_COOKIE_PATH = '/auth';
+// Path=/ : the browser must send this cookie to the /api/auth/* Next.js proxy
+// routes (refresh, logout) AND the edge middleware must see it on page routes
+// (/, /login, ...) as the signed-in signal. A narrower path (e.g. /auth)
+// silently breaks both: the browser withholds the cookie from /api/*, so
+// refresh stops working and every signed-in page load bounces to /login.
+export const REFRESH_COOKIE_PATH = '/';
 export const REFRESH_TOKEN_TTL_SECONDS = 2_592_000;
 
 export const refreshCookieOptions = () => ({
