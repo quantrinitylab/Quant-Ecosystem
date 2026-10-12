@@ -51,8 +51,16 @@ export function getAuthToken(): string | null {
 }
 
 /**
- * Persists auth token and user in memory session, localStorage, and cookie.
- * Clears guest exploration flag upon successful login.
+ * WR-SEC-001: access tokens are NEVER written to JS-readable persistence.
+ *
+ * The access token lives in the in-memory session cache only. localStorage /
+ * cookies are readable by any script on the page (XSS exfiltration risk), so
+ * QuantAI no longer duplicates the token into them. Session restore across
+ * reloads goes through the HttpOnly-cookie /auth/refresh flow (see
+ * services/auth-session.ts); the bridge-owned localStorage keys remain
+ * readable via getAuthToken() until the SSO lane migrates the bridge itself.
+ *
+ * Persists the (non-secret) user profile and clears the guest flag.
  */
 export function setAuthToken(token: string, user?: AuthUser | null): void {
   if (token) {
@@ -63,15 +71,6 @@ export function setAuthToken(token: string, user?: AuthUser | null): void {
   }
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
   try {
-    if (token) {
-      localStorage.setItem('quant_access_token', token);
-      localStorage.setItem('quant_auth_token', token);
-      localStorage.setItem('token', token);
-      localStorage.setItem('quant_token', token);
-      try {
-        document.cookie = `quant_access_token=${encodeURIComponent(token)}; path=/; SameSite=Lax`;
-      } catch {}
-    }
     if (user) {
       localStorage.setItem(USER_KEY, JSON.stringify(user));
     }
@@ -105,6 +104,14 @@ export function getAuthUser(): AuthUser | null {
 
 /**
  * Clears all authentication state from memory session and localStorage.
+ *
+ * WR-SEC-001: clears every known token alias, including the JS-readable
+ * keys/cookies the legacy bridge writes (bridge-owned; the SSO lane is
+ * migrating the bridge itself, but logout must already be complete):
+ * localStorage quant_access_token / quant_auth_token / token / quant_token /
+ * quantchat_access_token / quant_auth_tokens / quant_refresh_token /
+ * quant_sso_sync_event, and cookies quant_access_token / quant_auth_token /
+ * token. HttpOnly cookies can only be cleared server-side via /auth/logout.
  */
 export function clearAuthSession(): void {
   memoryToken = null;
@@ -116,9 +123,15 @@ export function clearAuthSession(): void {
     localStorage.removeItem('token');
     localStorage.removeItem('quant_token');
     localStorage.removeItem('quantchat_access_token');
+    localStorage.removeItem('quant_auth_tokens');
+    localStorage.removeItem('quant_refresh_token');
+    localStorage.removeItem('quant_sso_sync_event');
     localStorage.removeItem(USER_KEY);
     try {
-      document.cookie = 'quant_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      const expire = 'path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      document.cookie = `quant_access_token=; ${expire}`;
+      document.cookie = `quant_auth_token=; ${expire}`;
+      document.cookie = `token=; ${expire}`;
     } catch {}
   } catch {}
 }

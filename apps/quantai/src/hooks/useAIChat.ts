@@ -8,11 +8,10 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   getAuthToken,
-  clearAuthSession,
   savePreservedChatState,
   loadPreservedChatState,
 } from '../lib/auth';
-import { authSession } from '../services/auth-session';
+import { authSession, clearAccessToken } from '../services/auth-session';
 import type { ToolCall } from '../types/tool-calls';
 import { apiFetchRaw } from '@quant/api-client';
 
@@ -138,7 +137,9 @@ async function refreshOrReLogin(): Promise<boolean> {
     // Refresh endpoint unreachable — fall through to re-login.
   }
   try {
-    clearAuthSession();
+    // WR-SEC-001: full clear — clearAuthSession() alone leaves the
+    // auth-session module token in memory.
+    clearAccessToken();
   } catch {}
   if (typeof window !== 'undefined') {
     window.location.href = `/login?returnTo=${encodeURIComponent('/')}`;
@@ -152,7 +153,8 @@ async function refreshOrReLogin(): Promise<boolean> {
  */
 function forceReLogin(): void {
   try {
-    clearAuthSession();
+    // WR-SEC-001: full clear — see refreshOrReLogin.
+    clearAccessToken();
   } catch {}
   if (typeof window !== 'undefined') {
     window.location.href = `/login?returnTo=${encodeURIComponent('/')}`;
