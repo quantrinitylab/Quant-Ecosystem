@@ -1,3 +1,6 @@
+// @vitest-environment node
+// (node env: the real auth plugin verifies HS256 via jose/WebCrypto, which the
+// default jsdom environment breaks. No DOM APIs are used in this file.)
 // ============================================================================
 // QuantAI — F-046: POST /voice/tts must honor voiceId (persona -> real server voice)
 //
@@ -6,10 +9,16 @@
 // Covers: persona->voice mapping, unknown/missing/invalid voiceId fallback,
 // malformed bodies, and provider failure — plus a guard that the mapping only
 // ever points at REAL provider voices (no invented ids).
+//
+// Consolidation note: /voice/tts is auth-gated (F-043's paidGuard), so these
+// route tests register the real authPlugin and send a Bearer token — mirroring
+// voice-paid-endpoints-auth.test.ts.
 // ============================================================================
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Fastify from 'fastify';
+import { createHmac } from 'node:crypto';
+import { authPlugin } from '@quant/server-core';
 import voiceRoutes from '../routes/voice';
 import {
   resolveServerTtsVoice,
@@ -100,6 +109,25 @@ describe('resolveServerTtsVoice (persona -> provider voice)', () => {
   });
 });
 
+// Test JWT minting (real HS256 — verified by the real auth plugin via jose).
+const JWT_SECRET = 'test-jwt-secret-f046-consolidation';
+
+function b64url(input: string): string {
+  return Buffer.from(input).toString('base64url');
+}
+
+function validToken(sub = 'user-1'): string {
+  const now = Math.floor(Date.now() / 1000);
+  const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const payload = b64url(
+    JSON.stringify({ sub, iss: 'quantai', aud: 'quant-ecosystem', iat: now, exp: now + 3600 }),
+  );
+  const sig = createHmac('sha256', JWT_SECRET).update(`${header}.${payload}`).digest('base64url');
+  return `${header}.${payload}.${sig}`;
+}
+
+const authHeaders = () => ({ authorization: `Bearer ${validToken()}` });
+
 describe('POST /voice/tts — voiceId reaches the provider', () => {
   let app: ReturnType<typeof Fastify>;
 
@@ -107,6 +135,11 @@ describe('POST /voice/tts — voiceId reaches the provider', () => {
     mockedAgentic.__ttsCalls.length = 0;
     mockedAgentic.__ttsState.fail = false;
     app = Fastify();
+    await app.register(authPlugin, {
+      jwtSecret: JWT_SECRET,
+      jwtIssuer: 'quantai',
+      jwtAudience: 'quant-ecosystem',
+    });
     await app.register(voiceRoutes, { prefix: '/voice' });
     await app.ready();
   });
@@ -126,6 +159,7 @@ describe('POST /voice/tts — voiceId reaches the provider', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/voice/tts',
+        headers: authHeaders(),
         payload: { text: `Hello from ${persona}`, voiceId: persona },
       });
       expect(res.statusCode).toBe(200);
@@ -142,6 +176,7 @@ describe('POST /voice/tts — voiceId reaches the provider', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/voice/tts',
+      headers: authHeaders(),
       payload: { text: 'Hello', voiceId: 'jarvis' },
     });
     expect(res.statusCode).toBe(200);
@@ -150,7 +185,7 @@ describe('POST /voice/tts — voiceId reaches the provider', () => {
 
   it('falls back to the default voice when voiceId is missing or not a string', async () => {
     for (const payload of [{ text: 'Hello' }, { text: 'Hello', voiceId: 42 }]) {
-      const res = await app.inject({ method: 'POST', url: '/voice/tts', payload });
+      const res = await app.inject({ method: 'POST', url: '/voice/tts', headers: authHeaders(), payload });
       expect(res.statusCode).toBe(200);
       expect(mockedAgentic.__ttsCalls.at(-1)!.voice).toBe('alloy');
     }
@@ -159,7 +194,7 @@ describe('POST /voice/tts — voiceId reaches the provider', () => {
   it('returns 400 when text is missing, empty, whitespace, or not a string', async () => {
     const payloads = [{}, { text: '' }, { text: '   ' }, { text: 42 }, { voiceId: 'aura' }];
     for (const payload of payloads) {
-      const res = await app.inject({ method: 'POST', url: '/voice/tts', payload });
+      const res = await app.inject({ method: 'POST', url: '/voice/tts', headers: authHeaders(), payload });
       expect(res.statusCode).toBe(400);
       expect(res.json().error).toMatch(/text is required/);
     }
@@ -170,7 +205,7 @@ describe('POST /voice/tts — voiceId reaches the provider', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/voice/tts',
-      headers: { 'content-type': 'application/json' },
+      headers: { ...authHeaders(), 'content-type': 'application/json' },
       payload: '{not valid json',
     });
     expect(res.statusCode).toBe(400);
@@ -181,6 +216,7 @@ describe('POST /voice/tts — voiceId reaches the provider', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/voice/tts',
+      headers: authHeaders(),
       payload: { text: 'Hello', voiceId: 'aura' },
     });
     expect(res.statusCode).toBe(200);

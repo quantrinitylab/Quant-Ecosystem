@@ -25,7 +25,14 @@ import { transcribeAudio, formatTurnLatency, SttEmptyAudioError } from './stt-re
 interface FailedVoiceTurn {
   itemId: string;
   audio: Blob;
+  /** Safe user-facing copy (F-009: describeSttFailure — never raw internals). */
   message: string;
+  /**
+   * The server-provided error detail (F-052: transcribeAudio's own
+   * user-safe message, e.g. "Transcription failed: engine timeout").
+   * Shown as secondary detail — never a stack trace or provider internal.
+   */
+  detail?: string;
 }
 
 /** Format whole seconds as mm:ss for the recording-elapsed display. */
@@ -384,13 +391,16 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
       // internals into the transcript — failures are system/status rows with
       // safe copy (describeSttFailure pattern-matches; the raw text is never
       // rendered). F-052: the WAV blob is kept in memory (never re-captured)
-      // so the user can retry transcription without re-recording.
+      // so the user can retry transcription without re-recording. The
+      // transcribeAudio message itself is user-safe (constructed, never a
+      // stack trace) and is kept as secondary detail next to the safe copy.
       const failure = describeSttFailure(err);
       if (typeof console !== 'undefined') {
         console.warn('[VoiceModeModal] STT failed:', failure.kind, err);
       }
       const itemId = `err-${Date.now()}`;
-      setFailedTurn({ itemId, audio: wav, message: failure.userMessage });
+      const detail = err instanceof Error ? err.message : '';
+      setFailedTurn({ itemId, audio: wav, message: failure.userMessage, detail });
       const statusMsg: TranscriptItem = {
         id: itemId,
         speaker: 'system',
@@ -418,12 +428,14 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
     } catch (err) {
       if (!mountedRef.current) return;
       // Still failing: keep the blob (retryable again) and show what happened —
-      // with the same safe-copy rule as the first failure (F-009).
+      // with the same safe-copy rule as the first failure (F-009), plus the
+      // user-safe server detail (F-052).
       const failure = describeSttFailure(err);
       if (typeof console !== 'undefined') {
         console.warn('[VoiceModeModal] STT retry failed:', failure.kind, err);
       }
-      setFailedTurn({ ...turn, message: failure.userMessage });
+      const detail = err instanceof Error ? err.message : '';
+      setFailedTurn({ ...turn, message: failure.userMessage, detail });
       setTranscripts((prev) =>
         prev.map((t) => (t.id === turn.itemId ? { ...t, text: failure.userMessage } : t)),
       );
@@ -885,6 +897,15 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
                     </span>
                     <span className="flex-1 text-center leading-relaxed">
                       {t.text}
+                      {/* F-052: server-provided detail for a failed voice turn
+                          (transcribeAudio's user-safe message — never a stack
+                          trace or provider internal). Shown next to the safe
+                          copy (F-009). */}
+                      {failedTurn?.itemId === t.id && failedTurn.detail && (
+                        <span className="block text-[11px] text-amber-200/70">
+                          {failedTurn.detail}
+                        </span>
+                      )}
                       {/* F-052: the failed turn's audio is kept in memory — no
                           need to record again. */}
                       {failedTurn?.itemId === t.id && (
@@ -893,22 +914,33 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
                         </span>
                       )}
                     </span>
-                    {/* F-052: retry re-POSTs the SAME kept audio — no
-                        re-recording. Shown only while the failed turn's audio
-                        is retained in memory. */}
-                    {failedTurn?.itemId === t.id && (
-                      <button
-                        ref={retryButtonRef}
-                        type="button"
-                        onClick={handleRetryTranscription}
-                        disabled={retryingStt}
-                        data-testid="stt-retry-button"
-                        aria-label="Retry transcription without re-recording"
-                        className="shrink-0 cursor-pointer rounded-lg bg-amber-500/20 px-2.5 py-1 text-[11px] font-semibold text-amber-100 transition-colors hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-60"
-                      >
-                        {retryingStt ? 'Retrying…' : '↻ Retry'}
-                      </button>
-                    )}
+                    {/* Retry affordance (F-009 contract: every failure row has
+                        one). When the failed turn's audio is retained (F-052)
+                        the button re-POSTs the SAME recording — no
+                        re-recording. Otherwise it starts a fresh voice turn. */}
+                    <button
+                      ref={failedTurn?.itemId === t.id ? retryButtonRef : undefined}
+                      type="button"
+                      onClick={
+                        failedTurn?.itemId === t.id
+                          ? handleRetryTranscription
+                          : () => void handleVoiceTurn()
+                      }
+                      disabled={retryingStt}
+                      data-testid="stt-retry-button"
+                      aria-label={
+                        failedTurn?.itemId === t.id
+                          ? 'Retry transcription without re-recording'
+                          : 'Retry voice transcription'
+                      }
+                      className="shrink-0 cursor-pointer rounded-lg bg-amber-500/20 px-2.5 py-1 text-[11px] font-semibold text-amber-100 transition-colors hover:bg-amber-500/30 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      {retryingStt
+                        ? 'Retrying…'
+                        : failedTurn?.itemId === t.id
+                          ? '↻ Retry transcription'
+                          : '↻ Retry'}
+                    </button>
                     <span className="shrink-0 text-[10px] text-zinc-500">{t.timestamp}</span>
                   </div>
                 ) : (
