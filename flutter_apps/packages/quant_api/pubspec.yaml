@@ -1,5 +1,5 @@
 name: quant_api
-description: HTTP/2 network client and API repository connecting to Quant Ecosystem Fastify backend microservices.
+description: Legacy fail-closed stub with NO network transport — every call throws QuantApiNotConnectedException (QC-F-027). Use package:quant_core's Dio QuantApiClient for real backend access.
 version: 1.0.0
 homepage: https://quantrinity.in
 publish_to: 'none'
