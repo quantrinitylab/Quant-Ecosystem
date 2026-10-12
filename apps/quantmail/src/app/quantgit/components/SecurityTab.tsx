@@ -204,15 +204,48 @@ export function SecurityTab({
     });
   }, [dependabotAlerts, selectedSeverity, dependabotStateFilter, dependabotSearch]);
 
-  const handleCreateFixPR = (alert: SecurityAlert) => {
-    const nextPrId = 260 + Math.floor(Math.random() * 50) + 1;
-    setGeneratedFixPrs((prev) => ({ ...prev, [alert.id]: nextPrId }));
+  const handleCreateFixPR = async (alert: SecurityAlert) => {
+    const targetRepo = repoId || selectedRepo?.id;
+    if (!targetRepo) {
+      showToast('Select a repository before creating a fix PR.');
+      return;
+    }
+    // HONESTY: ask the backend for a REAL fix PR. The endpoint refuses to
+    // invent one (501 FIX_PR_NOT_SUPPORTED) until generation is wired up —
+    // never fabricate a PR number client-side and never toast a "generated"
+    // claim for a PR that does not exist.
+    try {
+      const res = await apiFetchRaw(
+        `/api/repos/${encodeURIComponent(targetRepo)}/security/dependabot/${encodeURIComponent(alert.id)}/fix-pr`,
+        { method: 'POST' },
+      );
+      const json = (await res.json().catch(() => null)) as {
+        success?: boolean;
+        data?: { prId?: number; message?: string };
+        error?: { message?: string };
+      } | null;
+      if (!res.ok || !json?.success) {
+        showToast(
+          json?.error?.message ||
+            'Fix PR generation is not available for this repository yet — no PR was created.',
+        );
+        return;
+      }
+      const prId = json?.data?.prId;
+      if (typeof prId === 'number') {
+        setGeneratedFixPrs((prev) => ({ ...prev, [alert.id]: prId }));
+        showToast(
+          `Fix PR #${prId} opened: bump ${alert.package} to ${alert.patchedVersion || 'patched'}.`,
+        );
+      } else {
+        showToast(json?.data?.message || 'Fix PR request completed with no PR created.');
+      }
+    } catch {
+      showToast('Fix PR generation is not available for this repository yet — no PR was created.');
+    }
     if (onCreateFixPR) {
       onCreateFixPR(alert.package, alert.cve, alert.patchedVersion || 'latest');
     }
-    showToast(
-      `Dependabot fix PR #${nextPrId} generated: bump ${alert.package} to ${alert.patchedVersion || 'patched'}`,
-    );
   };
 
   const handleDismissDependabot = (alertId: string, reason = 'Risk accepted') => {
