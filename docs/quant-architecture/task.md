@@ -681,6 +681,14 @@ R4 NEW FINDINGS (0 P0, 0 P1, 0 P2, 1 P3): no fix agents dispatched (protocol: P0
 LIVE (2026-10-12 ~17:55 IST, logged-out): /calendar → honest sign-in page on desktop (1440x900) + mobile (390x844) — auth gate intact, unchanged from R2/R3. /api/calendar/events → 401, /api/calendar/events/:id → 401 (auth airtight). Signed-in calendar UI remains needs-auth (no test session in this run). Evidence: /tmp/lane1-008r4/desktop-calendar.png + mobile-calendar.png. Proxy forwarder 127.0.0.1:8888 healthy. NOT VERIFIED (needs live/auth, unchanged): create/edit/detail/RSVP E2E on real data, occurrence edit/delete, tz rendering live, reminder firing, infinite-scroll live, 5-min staleTime UX, mobile gestures live, guest-read DTO live, 'Find a time' panel live, guest-tz booking slot math live.
 Status: [x] DONE (R4 regression audit complete 2026-10-12 ~18:05 IST; no regressions; 12 opens + 1 new P3 carried forward; fixes tracked via their PRs)
 
+## QM-SCREEN-008/009 R5 — Calendar regression (ROUND 5)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-008r5
+Audit started: 2026-10-13 ~03:37 IST (lane-1 deep audit loop, ROUND 5)
+Base: R4 @ 57170917 (origin/main 2026-10-12 17:25 IST) → origin/main da6d3975 (fresh fetch, 2026-10-13 02:47 IST).
+(diff review + live results appended as the audit completes)
+
 ## QM-SCREEN-008 — Calendar home / agenda / day / week / month
 Status: [x] DONE (audit complete 2026-10-11 ~02:10 IST; fixes tracked via their PRs)
 Owner: LANE-1
