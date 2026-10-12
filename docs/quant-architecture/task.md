@@ -1159,7 +1159,7 @@ R3 REGRESSION DIFF (origin/main 6757f022..01b700aee over admin paths): EMPTY —
 VERDICT-LIVE: /admin logged-out → 307 bounce to sign-in; GET /api/admin/accounts/count, /api/audit-logs, /api/retention/policies → honest 401; POST /api/retention/policies logged-out → 401 UNAUTHORIZED (curl via proxy). Signed-in staff/non-staff flows needs-auth — not verified (same as R1/R2).
 R3 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 0 P2. 1 fix agent spawned then stood down (false alarm, no PR).
 Rotation → QM-SCREEN-018 (help) R3, queued.
-Status: [x] DONE (R3 regression audit complete 2026-10-12; #855 fixes verified intact on origin/main 01b700aee; 0 new findings; 1 false-alarm P0 withdrawn with correction)
+Status: [~] IN_PROGRESS (R4 regression audit — Owner: LANE-1, Branch: lane1-audit-017r4, started 2026-10-13 ~00:40 IST; prev [x] DONE R3 2026-10-12; #855 fixes verified intact on origin/main 01b700aee)
 
 ## QM-SCREEN-018 — Help / privacy / terms / invite / groups / SSO / legacy route disposition
 Status: [x] DONE (ROUND 3 regression audit complete 2026-10-12 ~16:10 IST; 1 fix agent dispatched lane1-fix-018r3-privacy-copy; #959 closed as superseded)
