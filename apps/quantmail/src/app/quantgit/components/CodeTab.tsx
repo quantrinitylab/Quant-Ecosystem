@@ -2138,7 +2138,6 @@ pnpm install && pnpm dev
                       setCommitMessage('Create new-file.ts');
                       setDeleteCommitMessage('');
                       setEditorMode('edit');
-
                       setIsRawActive(false);
                       setIsSearchOpen(false);
                       setIsDeleteModalOpen(false);
@@ -2407,7 +2406,6 @@ pnpm install && pnpm dev
                     setCommitMessage(`Update ${file.path}`);
                     setDeleteCommitMessage(`Delete ${file.name}`);
                     setEditorMode('edit');
-
                     setIsRawActive(false);
                     setIsSearchOpen(false);
                     setIsDeleteModalOpen(false);
