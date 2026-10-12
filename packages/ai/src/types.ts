@@ -146,6 +146,18 @@ export interface AIInferenceRequest {
   /** Maximum sequential tool-calling rounds (default 5). Each round executes
    * returned tool calls and feeds results back to the model. */
   maxToolRounds?: number;
+  /** Hooks that close the tool-calling loop (permission check + execution).
+   * When provided (and maxToolRounds > 0), the engine runs the full
+   * propose → check → execute → feed-back loop internally instead of
+   * returning `finishReason: 'tool_calls'`. */
+  toolHooks?: import('./core/tool-calling').ToolLoopHooks;
+  /** Total wall-clock budget for the whole tool loop, in ms (default 60000).
+   * Prevents runaway loops when the model keeps requesting tool calls. */
+  toolLoopTimeoutMs?: number;
+  /** Caller-assessed permission tier for tool-loop gating
+   * (0=Auto, 1=Notify, 2=Confirm, 3=Admin). Default 1.
+   * (Distinct from CostAwareRequest's billing `UserTier`.) */
+  permissionTier?: number;
 }
 
 /** Conversation message for context */
@@ -160,13 +172,28 @@ export interface AIInferenceResponse {
   id: string;
   content: string;
   model: string;
-  finishReason: 'stop' | 'length' | 'content_filter' | 'error' | 'tool_calls';
+  finishReason:
+    | 'stop'
+    | 'length'
+    | 'content_filter'
+    | 'error'
+    | 'tool_calls'
+    | 'confirmation_required';
   usage: TokenUsage;
   latencyMs: number;
   cached: boolean;
   metadata?: Record<string, unknown>;
   /** Tool calls requested by the model (when tools were provided) */
   toolCalls?: import('./core/tool-calling').ToolCall[];
+  /** Present when finishReason is 'confirmation_required': the held tool
+   * calls and the opaque token the host's approval flow uses to resume. */
+  pendingConfirmation?: {
+    holdToken: string;
+    reason: string;
+    calls: import('./core/tool-calling').ToolCall[];
+  };
+  /** True when the model still wanted tool calls but the round cap was hit. */
+  toolLoopTruncated?: boolean;
 }
 
 /** Token usage tracking */

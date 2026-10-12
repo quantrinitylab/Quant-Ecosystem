@@ -1,4 +1,11 @@
-import type { AuditEntry, ToolExecutionContext, ToolPlan, ToolResult } from '../types.js';
+import type {
+  AuditEntry,
+  PermissionTier,
+  ToolExecutionContext,
+  ToolPlan,
+  ToolResult,
+} from '../types.js';
+import type { PermissionEngine } from '../permissions/permission-engine.js';
 
 /**
  * A tool handler receives the resolved params plus the full execution context.
@@ -14,9 +21,29 @@ export type ToolHandler = (
 export class ToolExecutor {
   private auditEntries: AuditEntry[] = [];
   private handlers: Map<string, ToolHandler> = new Map();
+  /**
+   * Opt-in Sentinel enforcement (defense in depth). When set, EVERY
+   * executeSingle call is permission-checked here — even callers that
+   * forgot the route-level checkPermissions gate fail closed.
+   * Unset = legacy behavior (no enforcement).
+   */
+  private permissionEngine: PermissionEngine | null = null;
+  private defaultUserTier: PermissionTier = 1;
 
   registerHandler(toolId: string, handler: ToolHandler): void {
     this.handlers.set(toolId, handler);
+  }
+
+  /**
+   * Enable executor-level Sentinel enforcement. Tier-2+ tools are refused
+   * unless their tool id appears in `context.confirmedToolIds`; tools the
+   * user tier cannot reach are refused with TOOL_FORBIDDEN.
+   */
+  setPermissionEngine(engine: PermissionEngine, opts?: { defaultUserTier?: PermissionTier }): void {
+    this.permissionEngine = engine;
+    if (opts?.defaultUserTier !== undefined) {
+      this.defaultUserTier = opts.defaultUserTier;
+    }
   }
 
   /** True when a live handler is registered — used by the MCP gateway to
@@ -69,6 +96,52 @@ export class ToolExecutor {
       action: 'invoke',
       details: { params, dryRun: context.dryRun },
     });
+
+    // Sentinel enforcement (defense in depth): fail closed BEFORE dry-run
+    // simulation or handler dispatch, so no caller can bypass the gate.
+    if (this.permissionEngine) {
+      const userTier = context.permissions ?? this.defaultUserTier;
+      const verdict = this.permissionEngine.evaluate(toolId, userTier);
+      if (!verdict.allowed) {
+        const latencyMs = performance.now() - start;
+        this.logAudit({
+          executionId,
+          toolId,
+          userId: context.userId,
+          timestamp: Date.now(),
+          action: 'failure',
+          details: { error: `TOOL_FORBIDDEN: ${verdict.reason}` },
+        });
+        return {
+          success: false,
+          data: null,
+          error: `TOOL_FORBIDDEN: ${verdict.reason}`,
+          executionId,
+          toolId,
+          latencyMs,
+        };
+      }
+      const confirmed = context.confirmedToolIds ?? [];
+      if (verdict.confirmationRequired && !confirmed.includes(toolId)) {
+        const latencyMs = performance.now() - start;
+        this.logAudit({
+          executionId,
+          toolId,
+          userId: context.userId,
+          timestamp: Date.now(),
+          action: 'failure',
+          details: { error: 'CONFIRMATION_REQUIRED: tier-2+ tool without Sentinel approval' },
+        });
+        return {
+          success: false,
+          data: null,
+          error: `CONFIRMATION_REQUIRED: '${toolId}' requires Sentinel approval before execution`,
+          executionId,
+          toolId,
+          latencyMs,
+        };
+      }
+    }
 
     // Dry run mode - return simulated success
     if (context.dryRun) {

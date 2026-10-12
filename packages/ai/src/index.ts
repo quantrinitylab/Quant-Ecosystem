@@ -341,3 +341,18 @@ export type {
   VoiceBridgeListener,
 } from './voice/voice-intent-bridge';
 export type { VoiceConfig, TranscriptionResult, TTSRequest, TTSResponse } from './voice/types';
+
+// Tool calling loop (function calling)
+export type {
+  ToolParametersSchema,
+  ToolParameterProperty,
+  ToolDefinition,
+  ToolCall,
+  ToolResult,
+  ToolChoice,
+  ToolCallVerdict,
+  ToolLoopContext,
+  ToolLoopHooks,
+  HeldToolCalls,
+} from './core/tool-calling';
+export { toVercelTools, validateToolDefinitions, parseToolCall } from './core/tool-calling';

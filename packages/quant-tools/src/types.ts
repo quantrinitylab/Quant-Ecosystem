@@ -41,6 +41,12 @@ export interface ToolExecutionContext {
   permissions: PermissionTier;
   dryRun: boolean;
   metadata?: Record<string, string>;
+  /**
+   * Tool ids the user has already approved via a Sentinel confirmation
+   * flow (e.g. a held plan). The executor's permission enforcement honors
+   * these for tier-2+ tools; anything else is refused fail-closed.
+   */
+  confirmedToolIds?: string[];
 }
 
 export interface ToolResult {

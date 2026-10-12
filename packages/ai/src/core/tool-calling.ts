@@ -65,6 +65,55 @@ export interface ToolResult {
   error?: string;
 }
 
+/**
+ * Fail-closed verdict for a single LLM-proposed tool call.
+ *
+ * - `allow`: execute immediately.
+ * - `deny`: do NOT execute; the denial reason is fed back to the model as a
+ *   tool error so it can answer without the tool (or stop).
+ * - `hold`: the call needs Sentinel confirmation. The engine stops the loop
+ *   and returns `finishReason: 'confirmation_required'` with the hold token;
+ *   the host app resumes via its own approval flow (e.g. held plans).
+ */
+export type ToolCallVerdict =
+  | { decision: 'allow' }
+  | { decision: 'deny'; reason: string }
+  | { decision: 'hold'; holdToken: string; reason: string };
+
+/** Context passed to tool-loop hooks for a single inference. */
+export interface ToolLoopContext {
+  userId: string;
+  /** Caller-assessed permission tier (0=Auto, 1=Notify, 2=Confirm, 3=Admin). */
+  permissionTier: number;
+}
+
+/**
+ * Hooks that close the LLM tool-calling loop. Injected by the host
+ * application (e.g. the QuantAI backend) so `@quant/ai` stays decoupled
+ * from permission stores, executors, and approval UX.
+ */
+export interface ToolLoopHooks {
+  /**
+   * Fail-closed permission check for a proposed tool call.
+   * When absent, the engine treats every proposed call as `allow` — hosts
+   * MUST provide this when executing consequential tools.
+   */
+  checkToolCall?: (call: ToolCall, ctx: ToolLoopContext) => Promise<ToolCallVerdict>;
+  /** Execute a single approved tool call and return its serializable result. */
+  executeToolCall?: (
+    call: ToolCall,
+    ctx: ToolLoopContext,
+  ) => Promise<ToolResult>;
+}
+
+/** A set of tool calls held for Sentinel confirmation. */
+export interface HeldToolCalls {
+  /** Opaque token the host's approval flow uses to resume (e.g. planId). */
+  holdToken: string;
+  reason: string;
+  calls: ToolCall[];
+}
+
 /** Tool choice strategy */
 export type ToolChoice = 'auto' | 'none' | 'required' | { toolName: string };
 
