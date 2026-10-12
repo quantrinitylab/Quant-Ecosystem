@@ -5,12 +5,19 @@ import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
 import { AuthShell } from '../../components/auth/AuthShell';
 import { PageTransition } from '@quant/shared-ui';
 
-const TOPICS = [
+type Topic = {
+  title: string;
+  body: string;
+  href?: string;
+  linkLabel?: string;
+};
+
+const TOPICS: Topic[] = [
   {
+    // Email address recovery is not available yet (per the locked auth design,
+    // phone-based recovery was removed): no link, honest body only.
     title: 'Signing in',
-    body: 'Use the QuantMail address you created, for example you@quantmail.in. If you forgot which address you used, try Find your email address with the mobile number linked to your account.',
-    href: '/forgot-email',
-    linkLabel: 'Find your email address',
+    body: 'Use the QuantMail address you created, for example you@quantmail.in. Email address recovery is not available yet — if you cannot remember which address you used, contact support.',
   },
   {
     title: 'Resetting your password',
@@ -60,12 +67,14 @@ export default function HelpPage() {
                 <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
                   {topic.body}
                 </p>
-                <Link
-                  href={topic.href}
-                  className="mt-3 inline-flex min-h-[44px] items-center text-sm font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-                >
-                  {topic.linkLabel}
-                </Link>
+                {topic.href && topic.linkLabel ? (
+                  <Link
+                    href={topic.href}
+                    className="mt-3 inline-flex min-h-[44px] items-center text-sm font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                  >
+                    {topic.linkLabel}
+                  </Link>
+                ) : null}
               </section>
             ))}
           </div>
