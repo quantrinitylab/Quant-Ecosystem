@@ -359,9 +359,23 @@ describe('GET /events/:id — recurring occurrence ids and viewerIsAttendee', ()
   it('404s an occurrence id whose parent belongs to another user', async () => {
     const app = await buildApp();
     withUserDelegate();
+    // The viewer must NOT be in the parent's attendee list for this to 404:
+    // attendee access is a real read grant (see the attendee describe below).
     prisma.event.findUnique.mockImplementation(
       ({ where: { id } }: { where: { id: string } }) =>
-        Promise.resolve(id === OCC_ID ? null : id === 'e1' ? { ...PARENT, userId: 'user-2' } : null),
+        Promise.resolve(
+          id === OCC_ID
+            ? null
+            : id === 'e1'
+              ? {
+                  ...PARENT,
+                  userId: 'user-2',
+                  attendees: JSON.stringify([
+                    { email: 'someone-else@example.com', name: 'Else', status: 'pending' },
+                  ]),
+                }
+              : null,
+        ),
     );
     const res = await app.inject({ method: 'GET', url: `/events/${OCC_ID}` });
     expect(res.statusCode).toBe(404);
@@ -398,6 +412,105 @@ describe('GET /events/:id — recurring occurrence ids and viewerIsAttendee', ()
     const res = await app.inject({ method: 'GET', url: '/events/e1' });
     expect(res.statusCode).toBe(200);
     expect(res.json().data.viewerIsAttendee).toBe(true);
+  });
+});
+
+describe('GET /events/:id — attendee read access (read-only for non-owners)', () => {
+  // The hard-404 bug: an invited guest could never load /calendar/event/[id]
+  // because the detail fetch required event.userId === userId, while
+  // POST /events/:id/rsvp already let the same guest respond. The read gate
+  // now mirrors the RSVP matcher exactly: attendee row's userId, or the
+  // viewer's account email against the attendee's email (case-insensitive).
+  function withUserDelegate() {
+    (prisma as unknown as { user: unknown }).user = {
+      findUnique: vi.fn().mockResolvedValue({ email: 'me@quantmail.in' }),
+    };
+  }
+
+  it('lets a non-owner attendee read the event (email match, case-insensitive)', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    prisma.event.findUnique.mockResolvedValue({
+      ...ROW,
+      userId: 'user-2',
+      attendees: JSON.stringify([{ email: 'Me@QuantMail.in', name: 'Me', status: 'pending' }]),
+    });
+    const res = await app.inject({ method: 'GET', url: '/events/e1' });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json().data;
+    expect(body.title).toBe(ROW.title);
+    expect(body.viewerIsAttendee).toBe(true);
+    // Read-only: the page hides Edit/Delete on this flag; writes stay
+    // owner-only at the route level (PUT/PATCH/DELETE).
+    expect(body.viewerIsOwner).toBe(false);
+  });
+
+  it('lets a non-owner attendee read the event (attendee userId match, email differs)', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    prisma.event.findUnique.mockResolvedValue({
+      ...ROW,
+      userId: 'user-2',
+      attendees: JSON.stringify([
+        { userId: 'user-1', email: 'work@company.com', name: 'Me', status: 'pending' },
+      ]),
+    });
+    const res = await app.inject({ method: 'GET', url: '/events/e1' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.viewerIsAttendee).toBe(true);
+    expect(res.json().data.viewerIsOwner).toBe(false);
+  });
+
+  it('marks the organizer as owner on their own event', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    const res = await app.inject({ method: 'GET', url: '/events/e1' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.viewerIsOwner).toBe(true);
+    expect(res.json().data.viewerIsAttendee).toBe(false);
+  });
+
+  it('still 404s a non-owner who is not an attendee, even with a user row present', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    prisma.event.findUnique.mockResolvedValue({
+      ...ROW,
+      userId: 'user-2',
+      attendees: JSON.stringify([
+        { email: 'someone-else@example.com', name: 'Else', status: 'pending' },
+      ]),
+    });
+    const res = await app.inject({ method: 'GET', url: '/events/e1' });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error.code).toBe('EVENT_NOT_FOUND');
+  });
+
+  it('lets an attendee of the parent read a recurring occurrence id', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    const OCC_ID = 'e1_2026-10-13T09:00:00.000Z';
+    const PARENT = {
+      ...ROW,
+      userId: 'user-2',
+      recurrenceRule: 'FREQ=DAILY',
+      startTime: new Date('2026-10-12T09:00:00.000Z'),
+      endTime: new Date('2026-10-12T10:00:00.000Z'),
+      attendees: JSON.stringify([{ email: 'me@quantmail.in', name: 'Me', status: 'pending' }]),
+    };
+    prisma.event.findUnique.mockImplementation(({ where: { id } }: { where: { id: string } }) =>
+      Promise.resolve(id === OCC_ID ? null : id === 'e1' ? PARENT : null),
+    );
+    const res = await app.inject({ method: 'GET', url: `/events/${OCC_ID}` });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json().data;
+    expect(body.id).toBe(OCC_ID);
+    expect(body.startTime).toBe('2026-10-13T09:00:00.000Z');
+    expect(body.viewerIsAttendee).toBe(true);
+    expect(body.viewerIsOwner).toBe(false);
   });
 });
 

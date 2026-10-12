@@ -1368,7 +1368,21 @@ export default async function calendarRoutes(
       data: callAlertService.getScheduledAlerts(requireUserId(request)),
     });
   });
-  const getEventForIcs = async (prisma: any, id: string, userId: string): Promise<EventRow> => {
+  // `allowAttendees` opens the read gate to the event's attendee list —
+  // exactly the matcher POST /events/:id/rsvp uses (attendee row's userId,
+  // or the viewer's account email against the attendee's email,
+  // case-insensitive). Callers that stay owner-only (ICS downloads) pass
+  // nothing. Only read paths may opt in; writes stay owner-only.
+  const getEventForIcs = async (
+    prisma: any,
+    id: string,
+    userId: string,
+    options?: { allowAttendees?: boolean },
+  ): Promise<EventRow> => {
+    const canRead = async (row: EventRow): Promise<boolean> => {
+      if (row.userId === userId) return true;
+      return options?.allowAttendees === true && (await isViewerAttendee(prisma, row, userId));
+    };
     let event = (await prisma.event.findUnique({
       where: { id },
     })) as EventRow | null;
@@ -1378,7 +1392,7 @@ export default async function calendarRoutes(
       const parent = (await prisma.event.findUnique({
         where: { id: parentId },
       })) as EventRow | null;
-      if (parent && parent.userId === userId) {
+      if (parent && (await canRead(parent))) {
         const occStart = new Date(occIso);
         // An occurrence id whose suffix is not a real ISO instant is not a
         // real event — 404 rather than synthesizing an Invalid-Date row.
@@ -1395,7 +1409,7 @@ export default async function calendarRoutes(
         };
       }
     }
-    if (!event || event.userId !== userId) {
+    if (!event || !(await canRead(event))) {
       throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
     }
     return event;
@@ -1424,12 +1438,20 @@ export default async function calendarRoutes(
     // Resolves recurring occurrence ids (<parentId>_<iso>) the same way the
     // ICS endpoints do, so a detail link from search/list never 404s on a
     // real occurrence.
-    const event = await getEventForIcs(prisma, request.params.id, userId);
+    //
+    // The organizer AND the event's attendees may read the detail —
+    // mirroring the POST /events/:id/rsvp attendee matcher — so an invitee
+    // sees the event and the "Your response" widget instead of a hard 404.
+    // Attendees get a read-only view: writes (PUT/PATCH/DELETE) stay
+    // owner-only, and the page hides the Edit/Delete controls for them via
+    // viewerIsOwner below.
+    const event = await getEventForIcs(prisma, request.params.id, userId, { allowAttendees: true });
     return reply.send({
       success: true,
       data: {
         ...toEventDto(event as EventRow),
         viewerIsAttendee: await isViewerAttendee(prisma, event, userId),
+        viewerIsOwner: event.userId === userId,
       },
     });
   });
