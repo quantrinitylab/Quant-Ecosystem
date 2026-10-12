@@ -758,10 +758,17 @@ STILL BROKEN on main (R1 findings never landed — PR #826 OPEN + CONFLICTING, c
 NEW R2 finding:
 - [ ] R2-P1-4: Drive home files grid uses BLUE (#38BDF8 ×48) tints instead of locked drive-green accent — document cards hover:border-[#38BDF8]/50, bg-[#38BDF8]/10 etc. | expected: green via var(--app-accent)/PILLAR_ACCENTS | evidence: DriveSubViews.tsx (48 hits, e.g. :1124)
 NOT VERIFIED (needs live/auth): signed-in E2E of trash/restore/purge/accept/decline/move, desktop tab reachability, Recent Items ordering, accent visual after fix.
-FIX AGENTS (PR-only, tracked separately): lane1-fix-010r2-fake-purge (revive/port #826 onto current main, all STILL-BROKEN items above), lane1-fix-010r2-drive-accent (R2-P1-4 blue→green). Rotation → QM-SCREEN-011 R2.
+FIX AGENTS (PR-only, tracked separately): lane1-fix-010r2-fake-purge (revive/port #826 onto current main, all STILL-BROKEN items above) → MERGED #923 (2026-10-11/12); lane1-fix-010r2-drive-accent (R2-P1-4 blue→green) → MERGED #921. Rotation → QM-SCREEN-011 R2.
+
+Lane-1 R3 REGRESSION — [~] IN PROGRESS (2026-10-12 ~07:40 IST, lane-1 deep audit loop)
+Owner: LANE-1
+Branch: lane-1/audit-qm-screen-010-011-drive-r3
+Audit scope: origin/main @ 1b3f30fb — drive screens QM-SCREEN-010 + QM-SCREEN-011 combined (rotation queues them together).
+PR context since R2: #921 (drive accent blue→green) MERGED; #923 (fake-purge revive) MERGED; #929 (quarantine-public P0) MERGED; #930 (preview blob-URL race + trash quarantine visibility + empty-file honesty) MERGED; #937 (vault E2EE honesty) MERGED; #938 (dead share links → canonical /drive/share/<token>) MERGED; #953 (GET /api/drive/folders) MERGED; #958 (orange accent leak on shared-by-me) OPEN.
+Method: code audit vs origin/main + live Chrome (logged-out; signed-in flows needs-auth).
 
 ## QM-SCREEN-011 — Drive upload / file preview / editor handoff
-Status: [x] DONE — LANE-1, branch lane-1/audit-qm-screen-011-upload-r2. R2 REGRESSION AUDIT COMPLETE (2026-10-11 ~21:40-22:15 IST): all 3 R1 fixes verified CLOSED on origin/main @ 2ffc1ec3 (#827 merged 2026-10-11 ~05:06 IST, #829 ~05:16 IST); 1 new P0 + 3 new P2 found; zero regressions on main. FIX AGENTS (PR-only, tracked separately): lane1-fix-011r2-quarantine-public (P0 quarantine bypass via public share link), lane1-fix-011r2-preview-trash (P2 blob-URL race + P2 trash scan state + P2 empty-file fallback). Rotation → QM-SCREEN-012 R2.
+Status: [x] DONE — LANE-1, branch lane-1/audit-qm-screen-011-upload-r2. R2 REGRESSION AUDIT COMPLETE (2026-10-11 ~21:40-22:15 IST): all 3 R1 fixes verified CLOSED on origin/main @ 2ffc1ec3 (#827 merged 2026-10-11 ~05:06 IST, #829 ~05:16 IST); 1 new P0 + 3 new P2 found; zero regressions on main. FIX AGENTS (PR-only, tracked separately): lane1-fix-011r2-quarantine-public (P0 quarantine bypass via public share link), lane1-fix-011r2-preview-trash (P2 blob-URL race + P2 trash scan state + P2 empty-file fallback). Rotation → QM-SCREEN-012 R2. FIX AGENTS #929 + #930 BOTH MERGED. R3 REGRESSION [~] IN PROGRESS (2026-10-12 ~07:40 IST, LANE-1, branch lane-1/audit-qm-screen-010-011-drive-r3) — see R3 block under QM-SCREEN-010.
 Required: resumable uploads, malware/security scan state, signed delivery, preview capability matrix, versioning, share links, editor/Docs handoff, Quanty save/summarize actions.
 Dependencies: QM-SCREEN-010.
 
