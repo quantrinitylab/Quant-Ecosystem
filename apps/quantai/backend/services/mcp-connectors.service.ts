@@ -131,6 +131,101 @@ export interface McpHttpProbe {
   kind: McpProbeKind;
 }
 
+/**
+ * SSRF guard for connector probe URLs (CodeQL js/request-forgery).
+ *
+ * Probe URLs come from connector config (`endpointUrl`), which is
+ * administrator-supplied but still remote input reaching a server-side
+ * `fetch()`. This validator is the security boundary: a probe only runs
+ * against a URL that is unambiguously a public http(s) endpoint.
+ *
+ * Blocked: non-http(s) schemes, loopback/private/link-local/reserved IP
+ * literals (IPv4 + IPv6), cloud metadata hosts, unparseable ports.
+ * Public hostnames (including unresolved test domains) are allowed — DNS
+ * rebinding is out of scope for a reachability probe with an 8s timeout.
+ */
+export function isProbeUrlAllowed(rawUrl: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return false;
+  }
+  const host = parsed.hostname.toLowerCase();
+  if (
+    host === '169.254.169.254' ||
+    host === 'metadata.google.internal' ||
+    host === 'metadata.google' ||
+    host === 'instance-data' ||
+    host.endsWith('.metadata.google.internal')
+  ) {
+    return false;
+  }
+  if (isBlockedProbeIpLiteral(host)) {
+    return false;
+  }
+  if (parsed.port !== '' && !/^\d+$/.test(parsed.port)) {
+    return false;
+  }
+  return true;
+}
+
+/** True when the hostname is an IP literal in a non-public range. */
+function isBlockedProbeIpLiteral(host: string): boolean {
+  const h =
+    host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
+  const low = h.toLowerCase();
+  // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1): judge the trailing quad.
+  const v4 = low.includes('.') ? low.slice(low.lastIndexOf(':') + 1) : null;
+  const quad = v4 ?? (/^\d{1,3}(\.\d{1,3}){3}$/.test(low) ? low : null);
+  if (quad) {
+    const octets = quad.split('.').map(Number);
+    if (octets.some((n) => !Number.isInteger(n) || n > 255)) {
+      return false; // Not a real literal; treat as hostname.
+    }
+    const [a, b] = octets;
+    return (
+      a === 0 || // 0.0.0.0/8
+      a === 10 || // 10/8
+      a === 127 || // 127/8 loopback
+      (a === 172 && b >= 16 && b <= 31) || // 172.16/12
+      (a === 192 && b === 168) || // 192.168/16
+      (a === 169 && b === 254) // 169.254/16 link-local + metadata
+    );
+  }
+  if (low.includes(':')) {
+    if (low === '::1') return true; // IPv6 loopback
+    // IPv4-mapped IPv6 (::ffff:a.b.c.d): Node normalizes the tail to hex,
+    // so reconstruct the embedded IPv4 and judge it by the IPv4 ranges.
+    if (low.startsWith('::ffff:')) {
+      const tail = low.slice('::ffff:'.length).split(':');
+      const last32 = tail.slice(-2);
+      if (last32.length === 2 && last32.every((p) => /^[0-9a-f]{1,4}$/.test(p))) {
+        const n =
+          (parseInt(last32[0], 16) << 16) | parseInt(last32[1], 16);
+        const a = (n >>> 24) & 0xff;
+        const b = (n >>> 16) & 0xff;
+        return (
+          a === 0 ||
+          a === 10 ||
+          a === 127 ||
+          (a === 172 && b >= 16 && b <= 31) ||
+          (a === 192 && b === 168) ||
+          (a === 169 && b === 254)
+        );
+      }
+      return false;
+    }
+    const first = low.split(':')[0];
+    if (/^fe[89ab][0-9a-f]$/.test(first)) return true; // fe80::/10 link-local
+    if (/^f[cd][0-9a-f]{2}$/.test(first)) return true; // fc00::/7 unique-local
+  }
+  return false;
+}
+
 export type CustomProberFn = (
   connectorId: string,
   config: Record<string, unknown>,
@@ -1239,6 +1334,21 @@ export class McpConnectorsService {
         outcome: 'invalid',
         latencyMs: elapsed(),
         message: `Cannot probe ${connectorName}: misconfigured probe URL.`,
+      };
+    }
+
+    // SSRF boundary (CodeQL js/request-forgery): probe URLs come from
+    // connector config. Never fetch a non-public target — fail closed and
+    // say so honestly instead of attempting the request.
+    if (!isProbeUrlAllowed(probe.url)) {
+      return {
+        success: false,
+        verified: true,
+        outcome: 'failed',
+        latencyMs: elapsed(),
+        message:
+          `Cannot probe ${connectorName}: the configured probe URL is not ` +
+          `allowed (only public http/https endpoints may be probed).`,
       };
     }
 
