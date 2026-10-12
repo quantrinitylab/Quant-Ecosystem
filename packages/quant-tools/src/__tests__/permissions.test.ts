@@ -27,9 +27,40 @@ describe('PermissionEngine', () => {
   });
 
   it('should not require confirmation for tier 0 and 1 tools', () => {
-    const result = engine.evaluate('quantmail.send', 1);
+    // quantcalendar.create-event is tier 1 (F-190: quantmail.send/archive/label/
+    // draft and quantdrive.upload/share/organize moved to tier 2 = Confirm).
+    const result = engine.evaluate('quantcalendar.create-event', 1);
     expect(result.allowed).toBe(true);
     expect(result.confirmationRequired).toBe(false);
+  });
+
+  // ------------------------------------------------------------------
+  // F-190: write tools require per-call Sentinel confirmation (tier 2).
+  // ------------------------------------------------------------------
+  it.each([
+    'quantmail.send',
+    'quantmail.archive',
+    'quantmail.label',
+    'quantmail.draft',
+    'quantdrive.upload',
+    'quantdrive.share',
+    'quantdrive.organize',
+  ])('write tool %s is tier 2: denied at tier 1, allowed-with-confirmation at tier 2', (toolId) => {
+    const denied = engine.evaluate(toolId, 1);
+    expect(denied.allowed).toBe(false);
+    expect(denied.reason).toContain('Insufficient permissions');
+
+    const confirmed = engine.evaluate(toolId, 2);
+    expect(confirmed.allowed).toBe(true);
+    expect(confirmed.confirmationRequired).toBe(true);
+  });
+
+  it('read tools stay confirmation-free after the F-190 tier changes', () => {
+    for (const toolId of ['quantmail.search', 'quantmail.listUnread', 'quantmail.getMessage']) {
+      const result = engine.evaluate(toolId, 1);
+      expect(result.allowed).toBe(true);
+      expect(result.confirmationRequired).toBe(false);
+    }
   });
 
   it('should return error for non-existent tool', () => {

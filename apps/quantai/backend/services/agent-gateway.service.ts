@@ -18,6 +18,7 @@ import {
   PermissionEngine,
   ToolExecutor,
   allTools,
+  registerMailReadHandlers,
   type PermissionTier,
   type ToolExecutionContext,
   type ToolPlan,
@@ -28,6 +29,7 @@ import { getEndpoint, getToolRoute } from './app-endpoints';
 import {
   createHttpToolHandler,
   mapQuantCalendarCreate,
+  mapQuantMailArchive,
   mapQuantMailSend,
 } from './http-tool-handler';
 
@@ -53,8 +55,12 @@ const HELD_PLAN_TTL_MS = 10 * 60 * 1000; // 10 minutes
 /** Param mappers per toolId (agent schema -> target API shape). */
 const PARAM_MAPPERS: Record<string, (p: Record<string, unknown>) => Record<string, unknown>> = {
   'quantmail.send': mapQuantMailSend,
+  'quantmail.archive': mapQuantMailArchive,
   'quantcalendar.create-event': mapQuantCalendarCreate,
 };
+
+/** Tool id -> human-facing name, shown on the Sentinel approval card. */
+const TOOL_DISPLAY_NAMES = new Map(allTools.map((t) => [t.id, t.name]));
 
 class AgentGateway {
   private readonly orchestrator: CrossAppOrchestrator;
@@ -66,6 +72,14 @@ class AgentGateway {
     this.executor = new ToolExecutor();
     this.orchestrator = new CrossAppOrchestrator(allTools, undefined, this.executor);
     this.permissions = new PermissionEngine(allTools);
+    // Real read handlers first (quantmail.search/listUnread/getMessage call the
+    // QuantMail backend directly with the caller's JWT — F-190). HTTP
+    // registration below is non-clobbering, so these genuine, validated
+    // executors keep precedence over the generic HTTP route for the same
+    // tool (e.g. quantmail.search); tools with no direct handler yet
+    // (quantmail.send/archive/draft) get a real HTTP executor instead of
+    // "No handler registered" failures.
+    registerMailReadHandlers(this.executor);
     this.registerHttpHandlers();
   }
 
@@ -73,6 +87,10 @@ class AgentGateway {
   private registerHttpHandlers(): void {
     let registered = 0;
     for (const tool of allTools) {
+      // F-190: never clobber a real handler registered above — the dedicated
+      // executor (validated input, honest errors) wins over the generic HTTP
+      // pass-through for the same toolId.
+      if (this.executor.hasHandler(tool.id)) continue;
       const endpoint = getEndpoint(tool.appId);
       if (!endpoint) continue;
       const route = getToolRoute(tool.appId, tool.id);
@@ -108,10 +126,14 @@ class AgentGateway {
   /**
    * Permission gate for a plan. Returns a held planId when any step needs
    * Sentinel confirmation (tier >= 2) or the user tier is insufficient.
+   *
+   * Default userTier is 2 (Confirm): every caller here is authenticated (the
+   * route 401s otherwise), so write tools engage per-call approval instead of
+   * 403ing. Tier-3 (Admin) tools still 403 for non-admin callers. F-190.
    */
   checkPermissions(
     plan: ToolPlan,
-    userTier: PermissionTier = 1,
+    userTier: PermissionTier = 2,
   ): { held: false } | { held: true; planId: string; reason: string; steps: unknown[] } {
     for (const step of plan.steps) {
       const verdict = this.permissions.evaluate(step.toolId, userTier);
@@ -131,7 +153,15 @@ class AgentGateway {
           held: true,
           planId,
           reason: verdict.reason,
-          steps: plan.steps.map((s) => ({ stepId: s.stepId, toolId: s.toolId, params: s.params })),
+          // F-190 improvement: the Sentinel approval card shows the tool's
+          // human-facing name ("Archive Email") instead of a raw toolId
+          // ("quantmail.archive") next to the params the user must approve.
+          steps: plan.steps.map((s) => ({
+            stepId: s.stepId,
+            toolId: s.toolId,
+            toolName: TOOL_DISPLAY_NAMES.get(s.toolId) ?? s.toolId,
+            params: s.params,
+          })),
         };
       }
     }

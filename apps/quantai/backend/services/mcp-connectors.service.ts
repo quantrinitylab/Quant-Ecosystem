@@ -148,8 +148,8 @@ export const MCP_CONNECTOR_CATALOG: McpConnectorCatalogItem[] = [
     category: 'Productivity',
     icon: 'mail',
     description:
-      'Unified enterprise email: search threads, list unread, fetch messages, send mail, manage drafts, labels, and archive — wired to the lane\'s real QuantMail tool executors.',
-    toolCount: 7,
+      'Unified enterprise email: search threads, list unread, fetch messages, send mail, manage drafts, and archive — wired to the lane\'s real QuantMail tool executors. Labeling is planned (backend endpoint exists; tool schema needs name→id resolution + a wired executor first).',
+    toolCount: 6,
     requiredAuth: 'SESSION_COOKIE',
     author: 'Official',
     availability: 'live',
@@ -162,9 +162,14 @@ export const MCP_CONNECTOR_CATALOG: McpConnectorCatalogItem[] = [
       'quantmail.getMessage',
       'quantmail.archive',
       'quantmail.draft',
-      'quantmail.label',
       'quantmail.send',
     ],
+    // F-190: 'quantmail.label' has a real tool definition but no executor is
+    // registered for it yet — the QuantMail backend's POST /labels/apply
+    // exists (emailId + labelId) but the tool schema takes a label NAME, so
+    // it needs name->id resolution + a real handler before it can be a live
+    // skill. Roadmap preview until then.
+    plannedTools: ['quantmail.label'],
     configFields: [
       {
         key: 'sessionCookie',
@@ -191,8 +196,8 @@ export const MCP_CONNECTOR_CATALOG: McpConnectorCatalogItem[] = [
     category: 'Productivity',
     icon: 'folder',
     description:
-      'Sovereign cloud storage: upload, download, share, organize, and search files — wired to the lane\'s real QuantDrive tool executors.',
-    toolCount: 5,
+      'Sovereign cloud storage: upload files — wired to a real gateway handler (backend deploy pending; live probe reports reachability honestly). Download, share, organize, and search are planned (no executors yet).',
+    toolCount: 1,
     requiredAuth: 'SESSION_COOKIE',
     author: 'Official',
     availability: 'live',
@@ -201,6 +206,10 @@ export const MCP_CONNECTOR_CATALOG: McpConnectorCatalogItem[] = [
     homepage: 'https://drive.quantrinity.in',
     supportedTools: [
       'quantdrive.upload',
+    ],
+    // F-190: download/share/organize/search have real tool definitions but no
+    // executors and no deployed backend — roadmap preview, not live skills.
+    plannedTools: [
       'quantdrive.download',
       'quantdrive.share',
       'quantdrive.organize',

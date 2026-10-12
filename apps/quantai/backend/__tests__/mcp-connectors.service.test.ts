@@ -96,7 +96,10 @@ describe('McpConnectorsService', () => {
     it('QuantMail wires the real lane executors (dotted names), not snake_case theater', () => {
       const mail = service.getConnector('quantmail', 'test-user');
       expect(mail.availability).toBe('live');
-      expect(mail.toolCount).toBe(7);
+      // F-190: 6 runnable tools; 'quantmail.label' demoted to planned — it has
+      // a tool definition but no registered executor (backend POST /labels/apply
+      // takes labelId while the tool schema takes a label name).
+      expect(mail.toolCount).toBe(6);
       expect(mail.requiredAuth).toBe('SESSION_COOKIE');
       for (const tool of [
         'quantmail.search',
@@ -104,11 +107,12 @@ describe('McpConnectorsService', () => {
         'quantmail.getMessage',
         'quantmail.archive',
         'quantmail.draft',
-        'quantmail.label',
         'quantmail.send',
       ]) {
         expect(mail.supportedTools).toContain(tool);
       }
+      expect(mail.supportedTools).not.toContain('quantmail.label');
+      expect(mail.plannedTools).toContain('quantmail.label');
       // The old fabricated snake_case names must be gone.
       expect(mail.supportedTools).not.toContain('quantmail_search_threads');
       expect(mail.supportedTools).not.toContain('quantmail_send_email');
@@ -117,16 +121,19 @@ describe('McpConnectorsService', () => {
     it('QuantDrive wires the real lane executors', () => {
       const drive = service.getConnector('quantdrive', 'test-user');
       expect(drive.availability).toBe('live');
-      expect(drive.toolCount).toBe(5);
-      expect(drive.supportedTools).toEqual(
-        expect.arrayContaining([
-          'quantdrive.upload',
-          'quantdrive.download',
-          'quantdrive.share',
-          'quantdrive.organize',
-          'quantdrive.search',
-        ]),
-      );
+      // F-190: only quantdrive.upload has a gateway handler (drive backend not
+      // deployed yet); download/share/organize/search are planned, honestly.
+      expect(drive.toolCount).toBe(1);
+      expect(drive.supportedTools).toEqual(['quantdrive.upload']);
+      for (const tool of [
+        'quantdrive.download',
+        'quantdrive.share',
+        'quantdrive.organize',
+        'quantdrive.search',
+      ]) {
+        expect(drive.plannedTools).toContain(tool);
+        expect(drive.supportedTools).not.toContain(tool);
+      }
       expect(drive.supportedTools).not.toContain('quantdrive_list_files');
     });
 

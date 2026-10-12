@@ -30,7 +30,9 @@ export const mailTools: ToolDefinition[] = [
         timestamp: { type: 'number', description: 'Send timestamp' },
       },
     },
-    permissionTier: 1,
+    // F-190: sending mail is a write — tier 2 (Confirm) so every call goes
+    // through per-call approval (agent gateway held-plan + MCP risk gate).
+    permissionTier: 2,
     costEstimate: 'free',
     undoRecipe: {
       toolId: 'quantmail.archive',
@@ -86,7 +88,8 @@ export const mailTools: ToolDefinition[] = [
         archivedAt: { type: 'number', description: 'Timestamp of archive action' },
       },
     },
-    permissionTier: 0,
+    // F-190: archiving mutates mailbox state — tier 2 (Confirm).
+    permissionTier: 2,
     costEstimate: 'free',
     undoRecipe: {
       toolId: 'quantmail.send',
@@ -113,7 +116,8 @@ export const mailTools: ToolDefinition[] = [
         labels: { type: 'array', description: 'Current labels on the email' },
       },
     },
-    permissionTier: 0,
+    // F-190: labeling mutates the message — tier 2 (Confirm).
+    permissionTier: 2,
     costEstimate: 'free',
     undoRecipe: null,
     tags: ['email', 'organize', 'label'],
@@ -136,7 +140,8 @@ export const mailTools: ToolDefinition[] = [
         createdAt: { type: 'number', description: 'Creation timestamp' },
       },
     },
-    permissionTier: 0,
+    // F-190: creating a draft writes server-side state — tier 2 (Confirm).
+    permissionTier: 2,
     costEstimate: 'free',
     undoRecipe: null,
     tags: ['email', 'draft', 'compose'],

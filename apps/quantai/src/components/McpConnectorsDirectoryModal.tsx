@@ -79,8 +79,8 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
     category: 'Productivity',
     icon: 'mail',
     description:
-      'Unified enterprise email: search threads, list unread, fetch messages, send mail, manage drafts, labels, and archive — wired to the lane\'s real QuantMail tool executors.',
-    toolCount: 7,
+      'Unified enterprise email: search threads, list unread, fetch messages, send mail, manage drafts, and archive — wired to the lane\'s real QuantMail tool executors. Labeling is planned (no backend endpoint yet).',
+    toolCount: 6,
     requiredAuth: 'SESSION_COOKIE',
     author: 'Official',
     availability: 'live',
@@ -93,9 +93,11 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
       'quantmail.getMessage',
       'quantmail.archive',
       'quantmail.draft',
-      'quantmail.label',
       'quantmail.send',
     ],
+    // F-190: 'quantmail.label' has a real tool definition but no executor and
+    // no QuantMail backend endpoint — roadmap preview, not a live skill.
+    plannedTools: ['quantmail.label'],
     configFields: [
       {
         key: 'sessionCookie',
@@ -129,8 +131,8 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
     category: 'Productivity',
     icon: 'folder',
     description:
-      'Sovereign cloud storage: upload, download, share, organize, and search files — wired to the lane\'s real QuantDrive tool executors.',
-    toolCount: 5,
+      'Sovereign cloud storage: upload files — wired to a real gateway handler (backend deploy pending; live probe reports reachability honestly). Download, share, organize, and search are planned (no executors yet).',
+    toolCount: 1,
     requiredAuth: 'SESSION_COOKIE',
     author: 'Official',
     availability: 'live',
@@ -139,6 +141,10 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
     homepage: 'https://drive.quantrinity.in',
     supportedTools: [
       'quantdrive.upload',
+    ],
+    // F-190: download/share/organize/search have real tool definitions but no
+    // executors and no deployed backend — roadmap preview, not live skills.
+    plannedTools: [
       'quantdrive.download',
       'quantdrive.share',
       'quantdrive.organize',

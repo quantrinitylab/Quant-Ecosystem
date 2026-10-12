@@ -264,7 +264,9 @@ describe('gateway capability-token seam', () => {
     expect(error.data['grantedScopes']).toEqual(['mail.read']);
   });
 
-  it('allows the write tool when the write scope is granted', async () => {
+  it('holds the write tool for per-call confirmation even when the write scope is granted', async () => {
+    // F-190: quantmail.send is tier 2 (Confirm). The write scope authorizes the
+    // *capability*; each individual call still needs explicit approval.
     const { server } = makeGatewayServer();
     const res = await rpcCall(
       server,
@@ -274,7 +276,45 @@ describe('gateway capability-token seam', () => {
     );
     expect(res.ok).toBe(true);
     const result = res.body as { content: Array<{ text: string }> };
-    expect(result.content[0]?.text).toContain('msg-1');
+    const text = result.content[0]?.text ?? '';
+    expect(text).toContain('CONFIRMATION REQUIRED');
+    expect(text).toContain('quantmail.send');
+    // Nothing executed yet — no message id in the confirmation text.
+    expect(text).not.toContain('msg-1');
+  });
+
+  it('executes the write tool after the confirmation envelope approves it', async () => {
+    // F-190: the full per-call approval round-trip on the MCP gateway.
+    const { server } = makeGatewayServer();
+    const bearer = bearerJwt(['mail.read', 'mail.write']);
+    const first = await rpcCall(
+      server,
+      'quantmail.send',
+      { to: 'a@b.c', subject: 's', body: 'b' },
+      bearer,
+    );
+    expect(first.ok).toBe(true);
+    const firstText =
+      (first.body as { content: Array<{ text: string }> }).content[0]?.text ?? '';
+    const match = firstText.match(/"approvalId":"(apr-[^"]+)"/);
+    expect(match, 'confirmation text must carry an approvalId').not.toBeNull();
+    const approvalId = match![1];
+
+    const second = await rpcCall(
+      server,
+      'quantmail.send',
+      {
+        to: 'a@b.c',
+        subject: 's',
+        body: 'b',
+        _confirmation: { approvalId, approved: true },
+      },
+      bearer,
+    );
+    expect(second.ok).toBe(true);
+    const secondText =
+      (second.body as { content: Array<{ text: string }> }).content[0]?.text ?? '';
+    expect(secondText).toContain('msg-1');
   });
 
   it('rejects tampered JWTs (resolver -> null -> legacy miss -> unauthenticated)', async () => {

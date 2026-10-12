@@ -25,7 +25,8 @@ export const driveTools: ToolDefinition[] = [
         url: { type: 'string', description: 'File access URL' },
       },
     },
-    permissionTier: 1,
+    // F-190: uploading writes storage — tier 2 (Confirm).
+    permissionTier: 2,
     costEstimate: 'low',
     undoRecipe: null,
     tags: ['drive', 'upload', 'storage'],
@@ -75,7 +76,8 @@ export const driveTools: ToolDefinition[] = [
         shareLink: { type: 'string', description: 'Generated share link' },
       },
     },
-    permissionTier: 1,
+    // F-190: sharing exposes data externally — tier 2 (Confirm).
+    permissionTier: 2,
     costEstimate: 'free',
     undoRecipe: null,
     tags: ['drive', 'share', 'collaborate'],
@@ -97,7 +99,8 @@ export const driveTools: ToolDefinition[] = [
         failed: { type: 'number', description: 'Number of failures' },
       },
     },
-    permissionTier: 1,
+    // F-190: organizing mutates file layout — tier 2 (Confirm).
+    permissionTier: 2,
     costEstimate: 'free',
     undoRecipe: null,
     tags: ['drive', 'organize', 'move'],

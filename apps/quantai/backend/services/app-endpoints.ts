@@ -48,7 +48,10 @@ export const APP_ENDPOINTS: AppEndpoint[] = [
       // POST /emails with { toAddresses, subject, bodyPlain/bodyHtml, send: true }
       'quantmail.send': { method: 'POST', path: '/emails' },
       'quantmail.search': { method: 'GET', path: '/emails/search' },
-      'quantmail.archive': { method: 'POST', path: '/emails/archive' },
+      // F-190: the real QuantMail endpoint is POST /emails/:id/archive
+      // (see apps/quantmail/backend/routes/emails.ts); '/emails/archive'
+      // never existed. The handler interpolates :id from the mapped params.
+      'quantmail.archive': { method: 'POST', path: '/emails/:id/archive' },
       'quantmail.draft': { method: 'POST', path: '/emails' },
     },
   },

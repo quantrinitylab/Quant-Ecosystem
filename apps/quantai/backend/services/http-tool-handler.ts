@@ -37,6 +37,31 @@ function toQueryString(params: Record<string, unknown>): string {
 }
 
 /**
+ * Substitute `:param` path segments from the mapped body. Consumed params are
+ * removed from the body so they don't also ride along as payload fields;
+ * values are percent-encoded, so a hostile param cannot smuggle `/` or `..`
+ * into the path. Unmatched segments keep the handler honest: fail closed
+ * instead of calling a URL with a literal ':id' in it.
+ */
+function substitutePathParams(
+  path: string,
+  body: Record<string, unknown>,
+  toolId: string,
+): { path: string; body: Record<string, unknown> } {
+  if (!path.includes(':')) return { path, body };
+  const rest = { ...body };
+  const resolved = path.replace(/:([A-Za-z_][A-Za-z0-9_]*)/g, (match, name: string) => {
+    const value = rest[name];
+    if (value === undefined || value === null || value === '') {
+      throw new Error(`Tool '${toolId}' failed: missing path parameter '${name}' for route '${path}'`);
+    }
+    delete rest[name];
+    return encodeURIComponent(String(value));
+  });
+  return { path: resolved, body: rest };
+}
+
+/**
  * Build a ToolHandler that executes a cross-app tool over HTTP.
  * Throws when the caller's JWT is missing (fail closed) or the app errors.
  */
@@ -54,10 +79,11 @@ export function createHttpToolHandler(opts: HttpHandlerOptions): ToolHandler {
       );
     }
 
-    const body = mapParams ? mapParams(params) : params;
+    const mapped = mapParams ? mapParams(params) : params;
+    const { path, body } = substitutePathParams(route.path, mapped, toolId);
     const url =
       endpoint.baseUrl +
-      route.path +
+      path +
       (route.method === 'GET' ? toQueryString(body) : '');
 
     const headers: Record<string, string> = {
@@ -126,6 +152,21 @@ export function mapQuantMailSend(params: Record<string, unknown>): Record<string
     bodyHtml: body ? `<p>${body.replace(/\n/g, '<br/>')}</p>` : undefined,
     send: true,
   };
+}
+
+/**
+ * quantmail.archive { messageId } -> POST /emails/:id/archive contract.
+ * Rejects id shapes that could smuggle path tricks before interpolation
+ * (same belt-and-braces rule as the read handlers in @quant/quant-tools).
+ */
+export function mapQuantMailArchive(params: Record<string, unknown>): Record<string, unknown> {
+  const messageId = String(params['messageId'] ?? '').trim();
+  if (!/^[\w-]+$/.test(messageId)) {
+    throw new Error(
+      `Tool 'quantmail.archive' failed: 'messageId' has an unexpected shape`,
+    );
+  }
+  return { id: messageId };
 }
 
 /** quantcalendar.create-event -> POST /events contract (stub shape, documented) */
