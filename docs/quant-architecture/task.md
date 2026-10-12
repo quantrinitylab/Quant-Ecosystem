@@ -601,6 +601,31 @@ LIVE (2026-10-12 ~16:40 IST, logged-out): /search?q=test -> honest "Sign in to Q
 NOT VERIFIED (needs live/auth, unchanged): staging DB GIN indexes existence; live 401 E2E; overlapping-fetch flicker; plainto_tsquery stemming for Hinglish; scope-chip behavior on live data; search latency tuning.
 Status: [x] DONE (R4 regression audit complete 2026-10-12 ~16:50 IST; no regressions; 6 opens carried forward; fixes tracked via their PRs)
 
+## QM-SCREEN-007 R5 — Search regression (ROUND 5)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-007r5
+Audit started: 2026-10-13 ~02:40 IST (lane-1 deep audit loop, ROUND 5)
+Base: R4 @ 8380373a -> origin/main 617337af. Regression diff over all audited search paths (git show/grep on origin/main; no working-tree changes made):
+- ONLY 1 search-path change since R4: PR #1034 (merge 72036510; commit d2af9e6c "fix(qm-search): route operator queries through GET /search/emails with literal fallback", merged 2026-10-12). FULL DIFF REVIEWED: api-client.searchEmails detects operator syntax via hasSearchOperatorSyntax() — vocabulary from|to|subject|label|in|folder|has|is|before|after|newer_than|older_than|"phrase" has EXACT parity with backend parse() switch; routes operator queries to GET /search/emails (Next /api -> catch-all [...path] proxy -> backend; routes-config ^search\/emails$ allow-listed for GET), falls back to literal /emails/search on success:false/throw; chip-filtered queries stay literal (documented, label-name-vs-id semantic reason); backend envelope unified to /emails/search shape (data/page/pageSize/totalPages/totalCount/hasNext/hasPrev) with formatEmailRecord on rows; raw-SQL SELECT gains attachments+labels so clip icons/label chips stay honest; 26+4 new tests, 74 existing green. VERIFIED SOUND: no SQL injection (inFolderTypes gated by KNOWN_FOLDER_TYPES; folder: values parameterized); auth intact (401 on missing userId, tested); undefined page/pageSize filtered from query string (api-client.ts:1984-1988); operator-only queries (no free terms) skip the FTS branch via parsed.terms.length>0 guard (no empty-tsquery zero-result bug). Commit-message imprecision only: "existing Next proxy /api/search/emails" is the catch-all proxy, not a dedicated route file — functionally identical.
+- ZERO diff on: email.service.ts (/emails/search literal path), useSearchEmails.ts, useUniversalSearch.ts, app/search/page.tsx, UniversalSearchResults.tsx, SearchClearButton.tsx, ai-search-content.service.ts, routes-config.ts search entries.
+R5 CLOSED (fixed since R4):
+- [x] FINDING P2: parser unreachable/orphaned — CLOSED by PR #1034: UI now wires operator queries to SearchQueryService via GET /search/emails ("wire UI to parser" chosen over dropping it). Zero callers -> now has a live caller.
+- [x] FINDING P2: spam/trash unfindable via server search — CLOSED by PR #1034: is:spam/in:spam/in:trash now route to the operator path, which honors them server-side (buildEmailWhere has NO default spam/trash exclusion). Residual discoverability -> new P3 below.
+R5 RE-VERIFIED STILL OPEN (unchanged, byte-level confirmed):
+- [ ] FINDING P3: no abort of in-flight search requests — 0 `signal` refs in useSearchEmails.ts/useUniversalSearch.ts.
+- [ ] FINDING P3: universal mail leg 20 vs 8 — searchEmails({query} as never), no pageSize.
+- [ ] FINDING P3: main search input no Esc-to-clear — page.tsx onKeyDown Enter-only.
+- [ ] FINDING P3: document search under-covers vs access policy — searchDocuments userId-only (:608,:621 raw-SQL) vs Gate N-G5 shared/public. -> BLOCKER: product decision.
+R5 NEW FINDINGS:
+- [ ] FINDING P2: unsupported operator values silently dropped, scope widens without notice | expected: unknown is:/has: values and invalid before:/after: dates treated as literal terms (or rejected) | actual: parse() switch drops them — `is:trash` (is: has no trash branch, unlike in:trash which works), `has:drive`, `before:yesterday` vanish; "is:trash invoice" returns invoice hits from ALL mail | evidence: search-query.service.ts parse():150-205 (is: handles unread/read/starred/important/spam only; has: only attachment(s); invalid dates -> no constraint, token not re-added to terms).
+- [ ] FINDING P3: operator syntax has zero UI discoverability | expected: placeholder/examples hint from:/is:/has:/in:/"phrase" now that #1034 made them live | actual: placeholder "Search mail — sender, subject, words…", EXAMPLE_SEARCHES all plain strings | evidence: app/search/page.tsx:20,331-335.
+- [ ] FINDING P3: branch semantic divergence — same query, different results per execution path | expected: one search semantic | actual: quoted "exact phrase" = exact substring on Prisma path (contains) but stemmed token-AND on raw-SQL FTS path (plainto_tsquery); label:/to: = exact array element (array_contains) on Prisma vs ILIKE substring on raw-SQL | evidence: search-query.service.ts buildEmailWhere (:242-246,:249-251) vs raw-SQL (:338,:350-357).
+R5: no fix agents dispatched (0 new P0/P1; P2 filed for a future fix loop).
+LIVE (2026-10-13 ~02:45 IST, logged-out): /search?q=test -> honest "Sign in to QuantMail" page desktop (1440x900) + mobile (390x844) — auth gate intact, unchanged R2-R4. Signed-in search UI needs-auth (no test session). Evidence: /tmp/lane1-007r5-desktop-search.png + mobile-search.png. Proxy 127.0.0.1:8888 healthy (307 via proxy); /tmp 8% used.
+NOT VERIFIED (needs live/auth, unchanged): staging DB GIN indexes; live 401 E2E; operator routing live on real data; overlapping-fetch flicker; Hinglish stemming; scope-chip live; search latency.
+Status: [x] DONE (R5 regression audit complete 2026-10-13 ~02:55 IST; 2 P2s closed by #1034, 1 new P2 + 2 new P3s filed, 4 opens carried; fixes tracked via their PRs)
+
 ## QM-SCREEN-008/009 R3 — Calendar regression (ROUND 3)
 Status: [~] IN PROGRESS
 Owner: LANE-1
