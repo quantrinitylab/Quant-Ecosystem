@@ -32,6 +32,12 @@ export interface HttpAppConnectorsOptions {
   urls?: HttpConnectorUrls;
   /** Injectable fetch (defaults to global fetch) for testability. */
   fetchImpl?: FetchImpl;
+  /**
+   * Per-request timeout in ms for cross-app calls. A sibling backend that
+   * never responds fails closed with UPSTREAM_TIMEOUT instead of hanging
+   * the QuantAI request forever. Defaults to 15000.
+   */
+  timeoutMs?: number;
 }
 
 function envUrls(): HttpConnectorUrls {
@@ -57,11 +63,13 @@ export class HttpAppConnectors implements AppConnectors {
   private readonly token: string;
   private readonly urls: HttpConnectorUrls;
   private readonly fetchImpl: FetchImpl;
+  private readonly timeoutMs: number;
 
   constructor(options: HttpAppConnectorsOptions) {
     this.token = options.token;
     this.urls = { ...envUrls(), ...options.urls };
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.timeoutMs = options.timeoutMs ?? 15000;
   }
 
   private baseUrl(app: keyof HttpConnectorUrls): string {
@@ -87,21 +95,83 @@ export class HttpAppConnectors implements AppConnectors {
     };
     if (this.token) headers['authorization'] = `Bearer ${this.token}`;
 
-    const res = await this.fetchImpl(`${this.baseUrl(app)}${path}`, { ...init, headers });
-    if (!res.ok) {
+    // Bounded per-request timeout: a hung sibling backend must fail closed
+    // with UPSTREAM_TIMEOUT rather than hang the QuantAI request forever.
+    // The timeout races the fetch so a non-abortable mock/impl cannot stall us.
+    const url = `${this.baseUrl(app)}${path}`;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutRace = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(
+          createAppError(
+            `${app} backend request timed out after ${this.timeoutMs}ms (${path})`,
+            502,
+            'UPSTREAM_TIMEOUT',
+            { app, path, timeoutMs: this.timeoutMs },
+          ),
+        );
+      }, this.timeoutMs);
+    });
+
+    try {
+      const res = await Promise.race([
+        this.fetchImpl(url, { ...init, headers, signal: controller.signal }),
+        timeoutRace,
+      ]);
+      if (!res.ok) {
+        throw createAppError(
+          `${app} backend request failed (${res.status})`,
+          502,
+          'UPSTREAM_REQUEST_FAILED',
+        );
+      }
+
+      const body = (await res.json()) as unknown;
+      // Tolerate both `{ success, data }` envelopes and raw payloads.
+      if (body && typeof body === 'object' && 'data' in (body as Record<string, unknown>)) {
+        return (body as { data: T }).data;
+      }
+      return body as T;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Interconnection Plan v1 law — receipt-before-success.
+   *
+   * A mutating cross-app call is NOT successful merely because the sibling
+   * backend returned HTTP 2xx (request accepted / URL navigated). It is
+   * successful only when the owner backend acknowledges the action with a
+   * real, non-empty receipt: an owner-issued identifier (draftId/id/docId/
+   * eventId/messageId) or the produced artifact (e.g. a summary). A 2xx
+   * response without a receipt fails closed with UPSTREAM_RECEIPT_MISSING —
+   * it is never reported as success.
+   */
+  private async callWithReceipt(
+    app: keyof HttpConnectorUrls,
+    path: string,
+    receiptKeys: string[],
+    init: RequestInit = {},
+  ): Promise<Record<string, unknown>> {
+    const data = await this.call<unknown>(app, path, init);
+    const obj =
+      data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+    const receipt = this.str(obj, ...receiptKeys);
+    // Whitespace-only strings are not real receipts (a produced summary that
+    // is only whitespace proves nothing was actually produced).
+    if (!receipt.trim()) {
       throw createAppError(
-        `${app} backend request failed (${res.status})`,
+        `${app} backend accepted the request (${path}) but returned no owner receipt ` +
+          `(expected one of: ${receiptKeys.join(', ')}) — not counted as success`,
         502,
-        'UPSTREAM_REQUEST_FAILED',
+        'UPSTREAM_RECEIPT_MISSING',
+        { app, path, expectedReceiptKeys: receiptKeys },
       );
     }
-
-    const body = (await res.json()) as unknown;
-    // Tolerate both `{ success, data }` envelopes and raw payloads.
-    if (body && typeof body === 'object' && 'data' in (body as Record<string, unknown>)) {
-      return (body as { data: T }).data;
-    }
-    return body as T;
+    return obj;
   }
 
   private asArray(value: unknown): Array<Record<string, unknown>> {
@@ -135,7 +205,8 @@ export class HttpAppConnectors implements AppConnectors {
       }));
     },
     draft: async (to: string, subject: string, body: string): Promise<DraftResult> => {
-      const data = await this.call<Record<string, unknown>>('mail', '/emails/draft', {
+      // Receipt-required: a draft only exists if the mail owner issued a draft id.
+      const data = await this.callWithReceipt('mail', '/emails/draft', ['draftId', 'id'], {
         method: 'POST',
         body: JSON.stringify({ to, subject, body }),
       });
@@ -160,7 +231,8 @@ export class HttpAppConnectors implements AppConnectors {
 
   docs = {
     create: async (title: string, content: string): Promise<DocResult> => {
-      const data = await this.call<Record<string, unknown>>('docs', '/documents', {
+      // Receipt-required: a document only exists if the docs owner issued a doc id.
+      const data = await this.callWithReceipt('docs', '/documents', ['docId', 'id'], {
         method: 'POST',
         body: JSON.stringify({ title, content }),
       });
@@ -201,7 +273,7 @@ export class HttpAppConnectors implements AppConnectors {
       if (reminders && reminders.length > 0) {
         payload.reminders = reminders;
       }
-      const data = await this.call<Record<string, unknown>>('calendar', '/events', {
+      const data = await this.callWithReceipt('calendar', '/events', ['id'], {
         method: 'POST',
         body: JSON.stringify(payload),
       });
@@ -227,9 +299,12 @@ export class HttpAppConnectors implements AppConnectors {
       }));
     },
     summarize: async (fileId: string): Promise<FileSummary> => {
-      const data = await this.call<Record<string, unknown>>(
+      // Receipt-required: the produced summary IS the owner receipt. A 2xx
+      // with no summary means the summarize action produced nothing.
+      const data = await this.callWithReceipt(
         'drive',
         `/files/${encodeURIComponent(fileId)}/summarize`,
+        ['summary'],
         { method: 'POST' },
       );
       return { fileId, summary: this.str(data, 'summary') };
@@ -269,9 +344,12 @@ export class HttpAppConnectors implements AppConnectors {
       name: string,
       number: number,
     ): Promise<AiReviewResult> => {
-      const data = await this.call<Record<string, unknown>>(
+      // Receipt-required: an AI review that produced no summary text is not
+      // a completed review, even on HTTP 2xx.
+      const data = await this.callWithReceipt(
         'code',
         `/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/pulls/${number}/ai-review`,
+        ['summary'],
         { method: 'POST' },
       );
       const suggestionsRaw = data['suggestions'];

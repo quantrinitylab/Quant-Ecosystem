@@ -76,6 +76,14 @@ export interface AiReviewResult {
 }
 
 export interface AppConnectors {
+  /**
+   * Receipt-before-success contract (Interconnection Plan v1): mutating
+   * methods (draft/create/createEvent/summarize/reviewPullRequest) resolve
+   * ONLY when the owner backend acknowledges the action with a real,
+   * non-empty receipt (owner-issued id or produced artifact). HTTP 2xx
+   * without a receipt rejects with UPSTREAM_RECEIPT_MISSING. Read methods
+   * may resolve on empty 2xx results.
+   */
   mail: {
     search(query: string): Promise<EmailResult[]>;
     draft(to: string, subject: string, body: string): Promise<DraftResult>;
