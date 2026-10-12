@@ -8,6 +8,7 @@ import type {
   Device,
   DeviceCommand,
   Automation,
+  AutomationRun,
   AIModel,
   TrainingJob,
   EcosystemApp,
@@ -89,14 +90,23 @@ class QuantAIApiClient {
   async listAutomations(): Promise<ApiResponse<Automation[]>> {
     return this.request('GET', '/automations');
   }
+  async getAutomation(id: string): Promise<ApiResponse<Automation>> {
+    return this.request('GET', `/automations/${id}`);
+  }
+  async updateAutomation(id: string, data: any): Promise<ApiResponse<Automation>> {
+    return this.request('PUT', `/automations/${id}`, data);
+  }
   async toggleAutomation(id: string): Promise<ApiResponse<any>> {
     return this.request('POST', `/automations/${id}/toggle`);
   }
-  async executeAutomation(id: string): Promise<ApiResponse<any>> {
+  async executeAutomation(id: string): Promise<ApiResponse<AutomationRun>> {
     return this.request('POST', `/automations/${id}/execute`);
   }
   async deleteAutomation(id: string): Promise<ApiResponse<void>> {
     return this.request('DELETE', `/automations/${id}`);
+  }
+  async listAutomationRuns(id: string): Promise<ApiResponse<AutomationRun[]>> {
+    return this.request('GET', `/automations/${id}/runs`);
   }
 
   // Models

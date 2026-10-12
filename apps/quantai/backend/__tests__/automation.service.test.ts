@@ -112,6 +112,18 @@ function createFakePrisma(): AutomationPrismaClient & {
         runs.set(run.id, updated);
         return updated;
       },
+      async findMany(args: Record<string, unknown>) {
+        const where = (args['where'] as { automationId?: string; userId?: string }) ?? {};
+        const take = args['take'] as number | undefined;
+        const ordered = [...runs.values()]
+          .filter(
+            (r) =>
+              (!where.automationId || r.automationId === where.automationId) &&
+              (!where.userId || r.userId === where.userId),
+          )
+          .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
+        return take === undefined ? ordered : ordered.slice(0, take);
+      },
     },
   };
 }
@@ -302,5 +314,76 @@ describe('AutomationService.execute (durable runs)', () => {
     const run = await service.execute(created.id, 'user-1');
     expect(calls).toBe(2);
     expect(run.status).toBe('completed');
+  });
+});
+
+describe('AutomationService.listRuns', () => {
+  let prisma: ReturnType<typeof createFakePrisma>;
+  let service: AutomationService;
+
+  beforeEach(() => {
+    prisma = createFakePrisma();
+    service = new AutomationService(prisma);
+  });
+
+  function seedRun(automationId: string, userId: string, startedAt: string, status = 'completed') {
+    const id = `run-${prisma._runs.size + 1}`;
+    prisma._runs.set(id, {
+      id,
+      automationId,
+      userId,
+      status,
+      currentStep: 2,
+      checkpoints: [
+        { stepIndex: 0, actionId: 'a1', type: 'mail.send', status: 'completed', at: startedAt },
+      ],
+      error: null,
+      startedAt: new Date(startedAt),
+      finishedAt: new Date(startedAt),
+    });
+    return id;
+  }
+
+  it('lists runs newest-first for the owning user', async () => {
+    const created = await service.create('user-1', { name: 'A', trigger: manualTrigger });
+    seedRun(created.id, 'user-1', '2026-01-01T00:00:00Z');
+    seedRun(created.id, 'user-1', '2026-01-03T00:00:00Z');
+    seedRun(created.id, 'user-1', '2026-01-02T00:00:00Z');
+
+    const runs = await service.listRuns(created.id, 'user-1');
+    expect(runs).toHaveLength(3);
+    expect(runs.map((r) => r.startedAt)).toEqual([
+      '2026-01-03T00:00:00.000Z',
+      '2026-01-02T00:00:00.000Z',
+      '2026-01-01T00:00:00.000Z',
+    ]);
+    expect(runs[0]!.checkpoints).toHaveLength(1);
+  });
+
+  it('isolates runs by automation and by user', async () => {
+    const a1 = await service.create('user-1', { name: 'A1', trigger: manualTrigger });
+    const a2 = await service.create('user-1', { name: 'A2', trigger: manualTrigger });
+    seedRun(a1.id, 'user-1', '2026-01-01T00:00:00Z');
+    seedRun(a2.id, 'user-1', '2026-01-02T00:00:00Z');
+
+    const runs = await service.listRuns(a1.id, 'user-1');
+    expect(runs).toHaveLength(1);
+    expect(runs[0]!.automationId).toBe(a1.id);
+  });
+
+  it('returns an empty list when nothing has run yet', async () => {
+    const created = await service.create('user-1', { name: 'Never run', trigger: manualTrigger });
+    await expect(service.listRuns(created.id, 'user-1')).resolves.toEqual([]);
+  });
+
+  it('rejects a missing automation with 404', async () => {
+    await expect(service.listRuns('nope', 'user-1')).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('rejects a foreign automation with 403', async () => {
+    const created = await service.create('owner', { name: 'Mine', trigger: manualTrigger });
+    await expect(service.listRuns(created.id, 'intruder')).rejects.toMatchObject({
+      statusCode: 403,
+    });
   });
 });

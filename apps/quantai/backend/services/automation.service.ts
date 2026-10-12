@@ -174,6 +174,7 @@ export interface AutomationPrismaClient {
       where: { id: string };
       data: Record<string, unknown>;
     }) => Promise<AutomationRunRow>;
+    findMany: (args: Record<string, unknown>) => Promise<AutomationRunRow[]>;
   };
 }
 
@@ -285,6 +286,20 @@ export class AutomationService {
 
   async get(id: string, userId: string): Promise<Automation> {
     return this.rowToAutomation(await this.getOwnedRow(id, userId));
+  }
+
+  /**
+   * List durable execution runs for one automation, newest first.
+   * Ownership is verified first so one user can never read another's runs.
+   */
+  async listRuns(id: string, userId: string): Promise<AutomationRun[]> {
+    await this.getOwnedRow(id, userId);
+    const rows = await this.prisma.aiAutomationRun.findMany({
+      where: { automationId: id, userId },
+      orderBy: [{ startedAt: 'desc' }],
+      take: 50,
+    });
+    return rows.map((r) => this.rowToRun(r));
   }
 
   async create(userId: string, input: CreateAutomationInput): Promise<Automation> {

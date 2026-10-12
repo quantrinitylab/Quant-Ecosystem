@@ -181,6 +181,28 @@ export interface AutomationCondition {
   value: unknown;
 }
 
+export interface AutomationRunCheckpoint {
+  stepIndex: number;
+  actionId?: string;
+  type: string;
+  status: 'completed' | 'failed';
+  output?: unknown;
+  error?: string;
+  at: string;
+}
+
+export interface AutomationRun {
+  id: string;
+  automationId: string;
+  userId: string;
+  status: 'running' | 'completed' | 'failed';
+  currentStep: number;
+  checkpoints: AutomationRunCheckpoint[];
+  error?: string;
+  startedAt: string;
+  finishedAt?: string;
+}
+
 export interface AIModel {
   id: string;
   name: string;

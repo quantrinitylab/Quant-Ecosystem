@@ -109,6 +109,13 @@ export default async function automationRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data });
   });
 
+  // GET /automations/:id/runs - durable execution history, newest first
+  fastify.get<{ Params: { id: string } }>('/:id/runs', async (request, reply) => {
+    const userId = getUserId(request);
+    const data = await getService().listRuns(request.params.id, userId);
+    return reply.send({ success: true, data });
+  });
+
   // POST /automations - create a new automation
   fastify.post('/', async (request, reply) => {
     const parsed = createSchema.safeParse(request.body);
