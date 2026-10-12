@@ -51,7 +51,11 @@ describe('POST /api/auth/sso/ticket (Next.js)', () => {
     const res = await POST(postTicket({ ticket: 'tick-1' }));
     expect(res.status).toBe(200);
 
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    // vi.fn(async () => …) declares no parameters, so the mock's recorded-call
+    // type is the empty tuple [] and a direct assertion to [string,
+    // RequestInit] is a TS2352 error. The route does call fetch(url, init) at
+    // runtime, so convert through `unknown` to read the pair back out.
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toContain('/auth/sso/ticket');
     expect(JSON.parse(init.body as string)).toEqual({ ticket: 'tick-1' });
 
