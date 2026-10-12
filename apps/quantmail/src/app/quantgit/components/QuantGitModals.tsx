@@ -842,13 +842,14 @@ export function QuantGitModals({
               <div>
                 <span className="text-[10px] text-[#7D8590]">Changes</span>
                 <p className="font-bold text-white">
-                  <span className="text-[#3FB950]">+{selectedPr.additions ?? 24}</span>{' '}
-                  <span className="text-[#F85149]">-{selectedPr.deletions ?? 5}</span>
+                  {/* Honest diff stats: '—' when unknown, never invented. */}
+                  <span className="text-[#3FB950]">+{selectedPr.additions ?? '—'}</span>{' '}
+                  <span className="text-[#F85149]">-{selectedPr.deletions ?? '—'}</span>
                 </p>
               </div>
               <div>
                 <span className="text-[10px] text-[#7D8590]">Files Changed</span>
-                <p className="font-bold text-white">{selectedPr.changedFiles ?? 3} files</p>
+                <p className="font-bold text-white">{selectedPr.changedFiles ?? '—'} files</p>
               </div>
               <div>
                 <span className="text-[10px] text-[#7D8590]">Created</span>

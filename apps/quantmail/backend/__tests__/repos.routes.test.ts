@@ -2140,7 +2140,7 @@ describe('QuantGit Database-Backed Repos Routes', () => {
       expect(body.data.watching).toBe(0);
     });
 
-    it('V22: PR endpoints return 0 for additions/deletions/changedFiles and checksStatus none', async () => {
+    it('V22: PR list/create endpoints return null (unknown) for additions/deletions/changedFiles and checksStatus none', async () => {
       const app = await buildApp('user-1');
       const res = await app.inject({
         method: 'GET',
@@ -2149,10 +2149,28 @@ describe('QuantGit Database-Backed Repos Routes', () => {
 
       expect(res.statusCode).toBe(200);
       const pr = res.json().data[0];
-      expect(pr.additions).toBe(0);
-      expect(pr.deletions).toBe(0);
-      expect(pr.changedFiles).toBe(0);
+      // List responses never compute diff stats — null (unknown), never
+      // invented zeros. Frontend renders '—'.
+      expect(pr.additions).toBeNull();
+      expect(pr.deletions).toBeNull();
+      expect(pr.changedFiles).toBeNull();
       expect(pr.checksStatus).toBe('none');
+    });
+
+    it('V22b: GET /repos/:id/pulls/:number returns null diff stats when the git diff cannot be computed', async () => {
+      const app = await buildApp('user-1');
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/pulls/1',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const pr = res.json().data;
+      // No local git checkout exists for the fixture repo, so the diff cannot
+      // be measured — report unknown (null), never a fabricated 0.
+      expect(pr.additions).toBeNull();
+      expect(pr.deletions).toBeNull();
+      expect(pr.changedFiles).toBeNull();
     });
 
     it('V22: Issue endpoints return assignee null instead of hardcoded Developer 6', async () => {

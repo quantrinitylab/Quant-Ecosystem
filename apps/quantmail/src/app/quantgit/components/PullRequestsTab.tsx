@@ -267,6 +267,55 @@ export function PullRequestsTab({
     };
   }, [selectedPR, repoId, currentUsername]);
 
+  // Load REAL diff stats from GET /:id/pulls/:number (computed server-side via
+  // git numstat) whenever the selected PR changes. The list endpoint never
+  // computes stats, so without this the header above would stay '—'. On any
+  // failure the stats stay unknown — never invented.
+  const statsFetchedFor = React.useRef<Set<string>>(new Set());
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedPR) return;
+    const prNumber = (selectedPR as any).number || selectedPR.id;
+    const fetchKey = `${repoId}:${prNumber}`;
+    if (statsFetchedFor.current.has(fetchKey)) return;
+    statsFetchedFor.current.add(fetchKey);
+    if (
+      selectedPR.additions != null &&
+      selectedPR.deletions != null &&
+      selectedPR.changedFiles != null
+    ) {
+      return;
+    }
+    (async () => {
+      try {
+        const res = await apiFetchRaw(
+          `/api/repos/${encodeURIComponent(repoId)}/pulls/${prNumber}`,
+        );
+        const json = await res.json().catch(() => null);
+        if (cancelled) return;
+        if (res.ok && json?.success && json?.data) {
+          const d = json.data;
+          setSelectedPR((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  additions: typeof d.additions === 'number' ? d.additions : prev.additions,
+                  deletions: typeof d.deletions === 'number' ? d.deletions : prev.deletions,
+                  changedFiles:
+                    typeof d.changedFiles === 'number' ? d.changedFiles : prev.changedFiles,
+                }
+              : prev,
+          );
+        }
+      } catch {
+        // Stats stay unknown — the header renders '—'.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPR, repoId]);
+
   // Inline diff comments — empty until real data arrives. Never invent
   // comments or reviewers.
   const [activeCommentLineId, setActiveCommentLineId] = useState<string | null>(null);
@@ -465,8 +514,10 @@ export function PullRequestsTab({
 
               <div className="flex items-center gap-3">
                 <span className="text-[11px] text-[#8D96A0]">
-                  <strong className="text-emerald-400">+{selectedPR.additions ?? 24}</strong> /{' '}
-                  <strong className="text-red-400">-{selectedPR.deletions ?? 5}</strong> lines
+                  {/* Honest diff stats: real numbers from the detail endpoint,
+                      '—' when unknown — never invented +24/-5 counts. */}
+                  <strong className="text-emerald-400">+{selectedPR.additions ?? '—'}</strong> /{' '}
+                  <strong className="text-red-400">-{selectedPR.deletions ?? '—'}</strong> lines
                 </span>
 
                 {/* Review changes button */}
@@ -981,7 +1032,7 @@ export function PullRequestsTab({
           <div className="space-y-4" data-testid="diff-viewer">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-xs text-[#E6EDF3]">
-                Files changed ({selectedPR?.changedFiles ?? 0})
+                Files changed ({selectedPR?.changedFiles ?? '—'})
               </span>
 
               <div className="flex items-center gap-1 bg-[var(--quant-surface-elevated)] p-0.5 rounded border border-[#30363D]">
@@ -1008,7 +1059,16 @@ export function PullRequestsTab({
               </div>
             </div>
 
-            {(selectedPR?.changedFiles ?? 0) > 0 ? (
+            {/* Only a real measured zero means "no files changed". Unknown
+                (null/undefined) shows the honest not-available state. */}
+            {selectedPR?.changedFiles === 0 ? (
+              <div
+                data-testid="diff-empty"
+                className="rounded-xl bg-[#0D1117] border border-dashed border-[#30363D] p-8 text-center"
+              >
+                <p className="text-xs text-[#8D96A0]">No files changed in this pull request.</p>
+              </div>
+            ) : (
               <div
                 data-testid="diff-unavailable"
                 className="rounded-xl bg-[#0D1117] border border-dashed border-[#30363D] p-8 text-center"
@@ -1019,13 +1079,6 @@ export function PullRequestsTab({
                 <p className="mt-1 text-[11px] text-[#6E7681]">
                   Browse the repository code tab to review the changes.
                 </p>              </div>
-            ) : (
-              <div
-                data-testid="diff-empty"
-                className="rounded-xl bg-[#0D1117] border border-dashed border-[#30363D] p-8 text-center"
-              >
-                <p className="text-xs text-[#8D96A0]">No files changed in this pull request.</p>
-              </div>
             )}
           </div>
         </div>
@@ -1145,8 +1198,13 @@ export function PullRequestsTab({
                         </span>
                       </div>
                       <p className="text-xs text-[#8D96A0]">
-                        #{pr.id} by {pr.author} was {pr.state} {pr.createdAt} · +
-                        {pr.additions ?? 24} -{pr.deletions ?? 5}
+                        #{pr.id} by {pr.author} was {pr.state} {pr.createdAt}
+                        {/* Diff stats only when actually known — never invented. */}
+                        {(pr.additions != null || pr.deletions != null) && (
+                          <>
+                            {' '}· +{pr.additions ?? '—'} -{pr.deletions ?? '—'}
+                          </>
+                        )}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 text-[#8D96A0] shrink-0">
