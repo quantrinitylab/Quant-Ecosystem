@@ -71,6 +71,7 @@ import {
 import { IconCheck, IconFilter, IconSpam, IconX } from '../components/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateMailLists } from '../lib/offline/folders';
+import { reconcileStarredFilterParam } from '../lib/starredDeepLink';
 import { AddFolderModal, type FolderDraft } from '../components/AddFolderModal';
 import { PeopleHome } from '../components/PeopleHome';
 import { MailboxViewToggle } from '../components/MailboxViewToggle';
@@ -1267,6 +1268,14 @@ function InboxPageContent() {
   });
 
   const tabParam = searchParams?.get('tab');
+  /**
+   * Tracks whether the current Pinned (starred) filter chip was applied by the
+   * ?filter=starred deep link (see the effect below). The chip is also user-
+   * toggleable, so the "clear" branch below must only fire when the deep link
+   * was the one that set it — a blanket clear would wipe a hand-picked filter
+   * on any param change (e.g. switching lens tabs).
+   */
+  const deepLinkedStarredFilterRef = useRef(false);
   const [activeTab, setActiveTab] = useState<'inbox' | 'archive'>(() => {
     if (typeof window !== 'undefined') {
       const t = new URLSearchParams(window.location.search).get('tab');
@@ -1285,10 +1294,20 @@ function InboxPageContent() {
       setActiveTab('inbox');
       setShowArchivedView(false);
     }
-    // Deep-link support: ?filter=starred applies the Pinned filter chip.
-    const f = searchParams?.get('filter');
-    if (f === 'starred') {
+    // Deep-link support: ?filter=starred applies the Pinned filter chip. Clear
+    // it again only when the deep link was the one that applied it (see
+    // deepLinkedStarredFilterRef) — navigating from /?view=inbox&filter=starred
+    // back to a plain /?view=inbox must not leave the Pinned filter stuck on.
+    const decision = reconcileStarredFilterParam(
+      searchParams?.get('filter'),
+      deepLinkedStarredFilterRef.current,
+    );
+    if (decision === 'apply') {
       setActiveFilters(new Set(['starred' as InboxFilter]));
+      deepLinkedStarredFilterRef.current = true;
+    } else if (decision === 'clear') {
+      setActiveFilters(new Set());
+      deepLinkedStarredFilterRef.current = false;
     }
   }, [searchParams]);
 
