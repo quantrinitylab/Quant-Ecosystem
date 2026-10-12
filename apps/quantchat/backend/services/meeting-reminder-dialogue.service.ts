@@ -22,6 +22,20 @@ export interface DialogueTurnResult {
     | 'SNOOZE_ALERT'
     | 'CANCEL_ATTENDANCE'
     | 'NONE';
+  /**
+   * QC-F-070: whether any code actually executed `actionRequired`.
+   *
+   * This dialogue service only *requests* an action — nothing in the
+   * backend executes SEND_LATE_NOTICE (no organizer notification path),
+   * CANCEL_ATTENDANCE (no calendar write path), SNOOZE_ALERT (no re-queue
+   * producer) or CONNECT_MEETING (no client consumes the request), and the
+   * sole consumer of `actionRequired` (routes/voice-bot.ts) echoes it in
+   * the HTTP response. This flag is therefore always `false` here, and the
+   * speech text says so honestly. A future executor must perform the real
+   * action first and only then produce a result with `actionExecuted:
+   * true` — never claim completion in speech for an unexecuted action.
+   */
+  actionExecuted: boolean;
   actionPayload?: Record<string, unknown>;
   shouldEndCall: boolean;
   state: 'INITIAL' | 'AWAITING_ACTION' | 'RESOLVED';
@@ -38,7 +52,7 @@ export class MeetingReminderDialogueService {
 
     if (locale === 'hinglish') {
       const salutation = name ? `Namaste ${name}!` : 'Namaste!';
-      return `${salutation} Aapki agle ${mins} minute mein '${context.title}' meeting shuru hone wali hai with ${context.organizer}. Kya main aapko meeting room mein connect karu, ya Raj aur team ko inform karu ki aap thoda late honge?`;
+      return `${salutation} Aapki agle ${mins} minute mein '${context.title}' meeting shuru hone wali hai with ${context.organizer}. Kya main aapko meeting room mein connect karu, ya ${context.organizer} aur team ko inform karu ki aap thoda late honge?`;
     }
 
     if (locale === 'hi') {
@@ -100,14 +114,19 @@ export class MeetingReminderDialogueService {
 
     switch (intent) {
       case 'JOIN_NOW': {
+        // QC-F-070: nothing performs the redirect/connect — the request is
+        // handed to the caller via actionRequired/actionPayload. Speech
+        // must not claim the connect already happened; the join link in
+        // the payload is the real, usable artefact.
         const speechText =
           locale === 'hinglish'
-            ? `Bilkul! Main aapko meeting room mein redirect kar raha hoon. Have a great meeting!`
-            : `Connecting you to '${context.title}' now. Have a productive meeting!`;
+            ? `Bilkul! Meeting room mein judne ke liye join link taiyaar hai. Have a great meeting!`
+            : `Sure! Your join link for '${context.title}' is ready — use it to enter the meeting room. Have a productive meeting!`;
         return {
           speechText,
           intent,
           actionRequired: 'CONNECT_MEETING',
+          actionExecuted: false,
           actionPayload: {
             meetingId: context.meetingId,
             joinUrl: context.joinUrl || `/meetings/join/${context.meetingId}`,
@@ -119,14 +138,18 @@ export class MeetingReminderDialogueService {
 
       case 'RUNNING_LATE': {
         const lateMinutes = this.extractLateMinutes(userUtterance) || 5;
+        // QC-F-070: no code sends this notice (no executor exists), so the
+        // bot must not say it was sent. State the real situation and tell
+        // the user what they need to do themselves.
         const speechText =
           locale === 'hinglish'
-            ? `Maine ${context.organizer} ko note bhej diya hai ki aap lagbhag ${lateMinutes} minute late honge. Tension mat lijiye!`
-            : `Understood! I have notified ${context.organizer} that you will be joining approximately ${lateMinutes} minutes late.`;
+            ? `Samajh gaya, aap lagbhag ${lateMinutes} minute late honge. Sach ye hai ki main is call se ${context.organizer} ko notice nahi bhej sakta — kripya khud ek message karke inform kar dein.`
+            : `Got it — you will be about ${lateMinutes} minutes late. To be clear, I cannot send a notice to ${context.organizer} from this call — please message them directly so they know.`;
         return {
           speechText,
           intent,
           actionRequired: 'SEND_LATE_NOTICE',
+          actionExecuted: false,
           actionPayload: {
             meetingId: context.meetingId,
             organizer: context.organizer,
@@ -139,14 +162,18 @@ export class MeetingReminderDialogueService {
       }
 
       case 'SNOOZE': {
+        // QC-F-070: nothing re-queues a follow-up alert (the proactive-jobs
+        // producer is not in this repo), so the bot must not promise to
+        // ring again. Say plainly that no follow-up alert will come.
         const speechText =
           locale === 'hinglish'
-            ? `Thik hai, main 2 minute baad aapko dobara alert karunga. Bye!`
-            : `No problem, I will ring you again in 2 minutes. Goodbye!`;
+            ? `Samajh gaya. Sach ye hai ki dobara alert ki suvidha is call se uplabdh nahi hai — main aapko dobara call nahi karunga. Bye!`
+            : `Got it. To be clear, I cannot schedule a follow-up alert from this call, so I will not ring you again. Goodbye!`;
         return {
           speechText,
           intent,
           actionRequired: 'SNOOZE_ALERT',
+          actionExecuted: false,
           actionPayload: {
             meetingId: context.meetingId,
             snoozeSeconds: 120,
@@ -157,14 +184,18 @@ export class MeetingReminderDialogueService {
       }
 
       case 'DECLINE': {
+        // QC-F-070: there is no calendar write path in this backend, so
+        // nothing was marked declined. Say so, and tell the user the step
+        // they still need to take themselves.
         const speechText =
           locale === 'hinglish'
-            ? `Got it. Maine aapke calendar par status decline mark kar diya hai.`
-            : `Understood. I have updated your calendar status to declined for this meeting.`;
+            ? `Samajh gaya. Sach ye hai ki main is call se aapke calendar par decline mark nahi kar sakta — kripya calendar mein khud decline kar dein, taaki ${context.organizer} ko pata chal jaye.`
+            : `Got it. To be clear, I cannot update your calendar from this call — please decline the meeting in your calendar so ${context.organizer} knows.`;
         return {
           speechText,
           intent,
           actionRequired: 'CANCEL_ATTENDANCE',
+          actionExecuted: false,
           actionPayload: {
             meetingId: context.meetingId,
           },
@@ -183,6 +214,7 @@ export class MeetingReminderDialogueService {
           speechText,
           intent,
           actionRequired: 'NONE',
+          actionExecuted: false,
           shouldEndCall: false,
           state: 'AWAITING_ACTION',
         };

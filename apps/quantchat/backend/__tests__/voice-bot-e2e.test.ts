@@ -172,13 +172,18 @@ describe('Sprint 4 End-to-End Voice Bot & Call Alert Flow (Task VC-04)', () => {
     expect(turnRes.statusCode).toBe(200);
     const turnData = turnRes.json().data;
 
-    // 7. Dialogue engine classifies intent, sends late notice action, generates speech
+    // 7. Dialogue engine classifies intent and REQUESTS a late-notice
+    // action. QC-F-070: no executor sends the notice, so the response and
+    // the speech must say so honestly instead of claiming it was sent
+    // (this assertion previously pinned the false completion claim).
     expect(turnData.intent).toBe('RUNNING_LATE');
     expect(turnData.actionRequired).toBe('SEND_LATE_NOTICE');
+    expect(turnData.actionExecuted).toBe(false);
     expect(turnData.actionPayload.lateMinutes).toBe(15);
     expect(turnData.actionPayload.organizer).toBe('Vikram');
     expect(turnData.actionPayload.message).toContain('15 minutes late');
-    expect(turnData.speechText).toContain('Maine Vikram ko note bhej diya hai');
+    expect(turnData.speechText).toContain('notice nahi bhej sakta');
+    expect(turnData.speechText).not.toContain('bhej diya hai');
     expect(turnData.audioBase64).toBeTruthy();
     expect(turnData.shouldEndCall).toBe(true);
 
