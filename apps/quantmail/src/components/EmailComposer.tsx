@@ -306,7 +306,14 @@ const TEXT_ALIGNMENTS: Array<{
   },
 ];
 
-const SMART_PREDICTIONS: Array<{ regex: RegExp; suggestion: string }> = [
+/**
+ * Quick completions: a STATIC phrase lookup — not machine learning, not a
+ * language model. When the typed body ends with a common opener, the matching
+ * snippet is offered as a one-key Tab completion. Kept as a small built-in
+ * list on purpose; no model runs behind this feature. Naming this "Smart
+ * Compose" or "AI suggestion" would be dishonest — hence the plain name.
+ */
+const QUICK_COMPLETIONS: Array<{ regex: RegExp; suggestion: string }> = [
   { regex: /\bhow\s*$/i, suggestion: ' are you doing?' },
   { regex: /\bhow are\s*$/i, suggestion: ' you doing today?' },
   { regex: /\bhope this\s*$/i, suggestion: ' email finds you well.' },
@@ -456,11 +463,11 @@ export function EmailComposer({
     }
   }, [isOpen]);
 
-  // Smart Compose Prediction Logic
-  const activePrediction = useMemo(() => {
+  // Quick completions logic (static phrase lookup, not ML — see comment above)
+  const activeCompletion = useMemo(() => {
     if (!body || body.length < 2) return '';
     const trimmed = body.trimEnd();
-    for (const item of SMART_PREDICTIONS) {
+    for (const item of QUICK_COMPLETIONS) {
       if (item.regex.test(trimmed)) {
         return item.suggestion;
       }
@@ -468,15 +475,15 @@ export function EmailComposer({
     return '';
   }, [body]);
 
-  const acceptPrediction = useCallback(() => {
-    if (!activePrediction) return;
-    setBody((prev) => prev.trimEnd() + activePrediction + ' ');
-  }, [activePrediction]);
+  const acceptCompletion = useCallback(() => {
+    if (!activeCompletion) return;
+    setBody((prev) => prev.trimEnd() + activeCompletion + ' ');
+  }, [activeCompletion]);
 
   const handleBodyKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Tab' && activePrediction) {
+    if (e.key === 'Tab' && activeCompletion) {
       e.preventDefault();
-      acceptPrediction();
+      acceptCompletion();
     }
   };
 
@@ -1782,18 +1789,18 @@ export function EmailComposer({
                 className={`flex-1 w-full max-w-full box-border bg-[var(--quant-background)]/40 border border-[var(--quant-surface-elevated)]/80 rounded-2xl p-4 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]/50 resize-none leading-relaxed shadow-inner min-h-[200px]`}
               />
 
-              {/* Smart Compose Predictive Autocomplete Chip */}
-              {activePrediction && (
+              {/* Quick completions chip (static phrase lookup, not ML) */}
+              {activeCompletion && (
                 <div
-                  onClick={acceptPrediction}
+                  onClick={acceptCompletion}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--quant-primary)]/10 border border-[var(--quant-primary)]/30 text-[var(--brand-accent)] text-xs shadow-md cursor-pointer hover:bg-[var(--quant-primary)]/20 transition-all select-none"
                 >
                   <span className="text-[10px] font-black uppercase text-[var(--quant-primary)] bg-[var(--quant-primary)]/20 border border-[var(--quant-primary)]/40 px-1.5 py-0.5 rounded-md">
                     Tab ⇥
                   </span>
                   <span className="text-[var(--quant-muted-foreground)] text-xs">
-                    Next word suggestion:{' '}
-                    <strong className="text-[var(--brand-accent)] font-semibold">{activePrediction}</strong>
+                    Quick completion:{' '}
+                    <strong className="text-[var(--brand-accent)] font-semibold">{activeCompletion}</strong>
                   </span>
                   <span className="ml-auto text-[10px] text-[var(--quant-primary)] font-medium underline">
                     Tap to apply
