@@ -559,6 +559,25 @@ NOT VERIFIED (needs live/auth, unchanged from R1): staging DB GIN indexes existe
 Live evidence: /tmp/lane1-007r2/desktop-search.png + mobile-search.png (both sign-in redirect, auth gate intact).
 Status: [x] DONE (R2 audit complete 2026-10-11 ~17:55 IST; merges confirmed in main; fixes tracked via their PRs)
 
+## QM-SCREEN-007 R3 — Search regression (ROUND 3)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-007r3
+Audit started: 2026-10-12 ~05:40 IST (lane-1 deep audit loop, ROUND 3)
+Base: R2 @ 1d02f59b → origin/main e3c64ed7. Regression diff over all audited search paths (code read-only via git show/grep; no working-tree changes made):
+- ONLY 2 commits touched search-adjacent files since R2: 72bb127c (email verification via SES — routes-config.ts +6, auth.ts, email-verification lib; api-client verifyEmail → POST code flow) and 969122ca (email templates in composers — routes-config.ts +10, composers, globals.css). VERIFIED SEARCH-UNRELATED: routes-config.ts diff carries no search hunks; `^search/emails$` (routes-config.ts:136) and operator-search comment (QM-UIUX-070, now explicitly documents /search/parse as unused — no web caller) intact; api-client.ts diff (146 lines) carries zero search mentions (OAuth-grant interfaces + verifyEmail rework only).
+- ZERO diff on: search-query.service.ts, routes/search.ts, ai-search-content.service.ts, useSearchEmails.ts, useUniversalSearch.ts, app/search/page.tsx, api/search/all/route.ts, SearchClearButton.tsx.
+R3 RE-VERIFIED OPEN FINDINGS (unchanged since R2, byte-level confirmed):
+- [ ] FINDING P2: parser unreachable/orphaned — SearchQueryService (from:/subject:/in:/has:/before:) zero callers in apps/ + packages/ (only backend/routes/search.ts self-reference; routes-config comment now says /search/parse unused). BLOCKER: wire UI to parser or drop it (user design decision).
+- [ ] FINDING P2: spam/trash unfindable via server search — email.service.ts:1464-1465 isTrash:false/isSpam:false, comment "not of exhuming mail you threw away". Client-side #899 mitigation (local spam matches via inbox search) covers local corpus only. BLOCKER: deliberate or add scope (user design decision).
+- [ ] FINDING P3: no abort of in-flight search requests — zero `signal` refs in useSearchEmails.ts/useUniversalSearch.ts; api-client.ts accepts signal but no search queryFn wires it.
+- [ ] FINDING P3: universal search mail leg 20 vs 8 — useUniversalSearch.ts:69 searchEmails({query} as never) still passes no pageSize vs PER_SOURCE_LIMIT=8 for other legs.
+- [ ] FINDING P3: main search input no Esc-to-clear — app/search/page.tsx:328 onKeyDown handles Enter only (Escape binding only inside filter-value editor:444-454).
+- [ ] FINDING P3: document search under-covers vs access policy — searchDocuments still userId-only vs Gate N-G5 (backend/app.ts:342-362) shared/public access never surfaced. BLOCKER: product decision.
+R3 NEW FINDINGS: none (0 P0, 0 P1, 0 P2, 0 P3). No regressions found. No fix agents dispatched.
+LIVE (2026-10-12 ~05:50 IST, logged-out): /search?q=test → honest sign-in page on desktop (1440x900) + mobile (390x844) — auth gate intact, unchanged from R2. Signed-in search UI remains needs-auth (no test account session in this run). Evidence: /tmp/lane1-007r3/desktop-search.png + mobile-search.png. NOT VERIFIED (needs live/auth, unchanged): staging DB GIN indexes; live 401 E2E; overlapping-fetch flicker; Hinglish stemming; scope-chip behavior on live data; search latency tuning.
+Status: [x] DONE (R3 regression audit complete 2026-10-12 ~05:55 IST; no regressions; 6 opens carried forward; fixes tracked via their PRs)
+
 ## QM-SCREEN-008 — Calendar home / agenda / day / week / month
 Status: [x] DONE (audit complete 2026-10-11 ~02:10 IST; fixes tracked via their PRs)
 Owner: LANE-1
