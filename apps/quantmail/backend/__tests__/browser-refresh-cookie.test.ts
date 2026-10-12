@@ -1,31 +1,43 @@
 import { createHash } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({
-  prisma: {
-    user: {
-      findUnique: vi.fn(),
-      findFirst: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
+const mocks = vi.hoisted(() => {
+  const user = {
+    findUnique: vi.fn(),
+    findFirst: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  };
+  const emailVerificationCode = {
+    findFirst: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    updateMany: vi.fn(),
+  };
+  return {
+    prisma: {
+      user,
+      refreshToken: {
+        findFirst: vi.fn(),
+        updateMany: vi.fn(),
+      },
+      // The real-email-verification change (register creates a verification-code
+      // row via prisma.emailVerificationCode) needs this model on the mock or
+      // the registration path throws "Cannot read properties of undefined".
+      emailVerificationCode,
+      // Registration is atomic: user + folders + verification row commit in
+      // one interactive transaction. The tx reuses the same model doubles so
+      // the existing call-recording assertions keep working unchanged.
+      $transaction: vi.fn(async (arg: any) =>
+        typeof arg === 'function'
+          ? arg({ user, emailFolder: { createMany: vi.fn() }, emailVerificationCode })
+          : Promise.all(arg),
+      ),
     },
-    refreshToken: {
-      findFirst: vi.fn(),
-      updateMany: vi.fn(),
-    },
-    // The real-email-verification change (register creates a verification-code
-    // row via prisma.emailVerificationCode) needs this model on the mock or
-    // the registration path throws "Cannot read properties of undefined".
-    emailVerificationCode: {
-      findFirst: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-      updateMany: vi.fn(),
-    },
-  },
-  generateTokenPair: vi.fn(),
-  refreshToken: vi.fn(),
-}));
+    generateTokenPair: vi.fn(),
+    refreshToken: vi.fn(),
+  };
+});
 
 vi.mock('@quant/auth/lib/prisma', () => ({
   default: mocks.prisma,
