@@ -102,12 +102,12 @@ describe('McpConnectorsDirectoryModal (Task W39-A07 Component Suite)', () => {
         }),
       );
 
-      // QuantMail has 14 tools, Session Cookie
-      expect(html).toContain('14 tools');
+      // QuantMail wires 7 real executors, Session Cookie
+      expect(html).toContain('7 tools');
       expect(html).toContain('Session Cookie');
 
-      // GitHub has 28 tools, API Key
-      expect(html).toContain('28 tools');
+      // GitHub is a planned preview: 0 runnable tools, API Key
+      expect(html).toContain('0 tools');
       expect(html).toContain('API Key');
 
       // Google Workspace has OAuth 2.0
@@ -117,7 +117,7 @@ describe('McpConnectorsDirectoryModal (Task W39-A07 Component Suite)', () => {
       expect(html).toContain('Verified Official Connector');
     });
 
-    it('distinguishes between Installed status and Connect buttons', () => {
+    it('shows honest not-connected state by default — nothing is pre-installed', () => {
       const html = renderToStaticMarkup(
         React.createElement(McpConnectorsDirectoryModal, {
           isOpen: true,
@@ -125,15 +125,15 @@ describe('McpConnectorsDirectoryModal (Task W39-A07 Component Suite)', () => {
         }),
       );
 
-      // QuantMail & QuantDrive default installed in catalog
-      expect(html).toContain('Installed');
-      expect(html).toContain('Configure');
-      expect(html).toContain('aria-label="Disconnect QuantMail"');
-
-      // GitHub default not connected
+      // F-183: the default catalog must not fake an installed QuantMail/QuantDrive.
+      expect(html).not.toContain('>Installed<');
       expect(html).toContain('Not connected');
+      expect(html).toContain('aria-label="Connect QuantMail"');
       expect(html).toContain('aria-label="Connect GitHub"');
       expect(html).toContain('aria-label="Connect Stripe"');
+      // Honest availability badges and untested state are shown.
+      expect(html).toContain('Planned');
+      expect(html).toContain('Not yet tested');
     });
   });
 

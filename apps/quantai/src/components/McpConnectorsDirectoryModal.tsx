@@ -39,8 +39,13 @@ export interface McpConnector {
   author: 'Official' | 'Community';
   version: string;
   verified: boolean;
+  /** 'live' = tools have real executors; 'planned' = roadmap preview, not runnable. F-183. */
+  availability: 'live' | 'planned';
   homepage?: string;
+  /** Runnable tool names (real executors wired). Never advertise what cannot run. */
   supportedTools: string[];
+  /** Aspirational tool names for planned connectors — preview only. */
+  plannedTools?: string[];
   configFields: McpConnectorConfigField[];
   isInstalled: boolean;
   installedAt: string | null;
@@ -49,6 +54,8 @@ export interface McpConnector {
   maskedConfig: Record<string, string>;
   lastTestedAt: string | null;
   lastTestStatus: 'SUCCESS' | 'FAILED' | null;
+  /** Measured latency of the last connection test, when one was measured. */
+  lastLatencyMs?: number | null;
 }
 
 export interface McpConnectorsDirectoryModalProps {
@@ -61,38 +68,33 @@ export interface McpConnectorsDirectoryModalProps {
   onTest?: (
     connectorId: string,
     config: Record<string, string>,
-  ) => Promise<{ success: boolean; latencyMs: number; message: string }> | void;
+  ) => Promise<{ success: boolean; verified: boolean; latencyMs?: number; message: string }> | void;
 }
 
 export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
+
   {
     id: 'quantmail',
     name: 'QuantMail',
     category: 'Productivity',
     icon: 'mail',
     description:
-      'Search emails with sub-5ms FTS5, compose drafts, manage threads, and triage priority inbox with AI filters.',
-    toolCount: 14,
+      'Unified enterprise email: search threads, list unread, fetch messages, send mail, manage drafts, labels, and archive — wired to the lane\'s real QuantMail tool executors.',
+    toolCount: 7,
     requiredAuth: 'SESSION_COOKIE',
     author: 'Official',
+    availability: 'live',
     version: '2.4.0',
     verified: true,
     homepage: 'https://mail.quantrinity.in',
     supportedTools: [
-      'quantmail_search_threads',
-      'quantmail_get_thread',
-      'quantmail_send_email',
-      'quantmail_create_draft',
-      'quantmail_add_label',
-      'quantmail_remove_label',
-      'quantmail_archive_thread',
-      'quantmail_trash_thread',
-      'quantmail_get_unread_count',
-      'quantmail_list_folders',
-      'quantmail_mark_as_read',
-      'quantmail_snooze_thread',
-      'quantmail_forward_email',
-      'quantmail_reply_email',
+      'quantmail.search',
+      'quantmail.listUnread',
+      'quantmail.getMessage',
+      'quantmail.archive',
+      'quantmail.draft',
+      'quantmail.label',
+      'quantmail.send',
     ],
     configFields: [
       {
@@ -113,13 +115,13 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
         description: 'Custom self-hosted or staging QuantMail backend endpoint',
       },
     ],
-    isInstalled: true,
-    installedAt: '2026-09-24T00:00:00.000Z',
-    updatedAt: '2026-09-24T00:00:00.000Z',
-    authStatus: 'CONFIGURED',
-    maskedConfig: { sessionCookie: 'quant_••••••9821', endpointUrl: 'https://mail.quantrinity.in' },
-    lastTestedAt: '2026-09-24T00:00:00.000Z',
-    lastTestStatus: 'SUCCESS',
+    isInstalled: false,
+    installedAt: null,
+    updatedAt: null,
+    authStatus: 'NOT_INSTALLED',
+    maskedConfig: {},
+    lastTestedAt: null,
+    lastTestStatus: null,
   },
   {
     id: 'quantdrive',
@@ -127,32 +129,20 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
     category: 'Productivity',
     icon: 'folder',
     description:
-      'Access cloud files, search documents, stream media, and orchestrate encrypted multi-cloud storage.',
-    toolCount: 18,
+      'Sovereign cloud storage: upload, download, share, organize, and search files — wired to the lane\'s real QuantDrive tool executors.',
+    toolCount: 5,
     requiredAuth: 'SESSION_COOKIE',
     author: 'Official',
+    availability: 'live',
     version: '2.4.0',
     verified: true,
     homepage: 'https://drive.quantrinity.in',
     supportedTools: [
-      'quantdrive_list_files',
-      'quantdrive_search_files',
-      'quantdrive_get_file_metadata',
-      'quantdrive_upload_file',
-      'quantdrive_download_file',
-      'quantdrive_create_folder',
-      'quantdrive_move_file',
-      'quantdrive_delete_file',
-      'quantdrive_restore_file',
-      'quantdrive_star_file',
-      'quantdrive_unstar_file',
-      'quantdrive_share_file',
-      'quantdrive_get_storage_quota',
-      'quantdrive_generate_preview',
-      'quantdrive_summarize_doc',
-      'quantdrive_ocr_extract',
-      'quantdrive_batch_download',
-      'quantdrive_export_pdf',
+      'quantdrive.upload',
+      'quantdrive.download',
+      'quantdrive.share',
+      'quantdrive.organize',
+      'quantdrive.search',
     ],
     configFields: [
       {
@@ -173,16 +163,13 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
         description: 'Custom self-hosted or staging QuantDrive backend endpoint',
       },
     ],
-    isInstalled: true,
-    installedAt: '2026-09-24T00:00:00.000Z',
-    updatedAt: '2026-09-24T00:00:00.000Z',
-    authStatus: 'CONFIGURED',
-    maskedConfig: {
-      sessionCookie: 'quant_••••••4312',
-      endpointUrl: 'https://drive.quantrinity.in',
-    },
-    lastTestedAt: '2026-09-24T00:00:00.000Z',
-    lastTestStatus: 'SUCCESS',
+    isInstalled: false,
+    installedAt: null,
+    updatedAt: null,
+    authStatus: 'NOT_INSTALLED',
+    maskedConfig: {},
+    lastTestedAt: null,
+    lastTestStatus: null,
   },
   {
     id: 'quantgit',
@@ -190,14 +177,16 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
     category: 'Developer Tools',
     icon: 'git-branch',
     description:
-      'Query repos, inspect commit trees, review PR diffs, and trigger actions workflows on sovereign Git daemon.',
-    toolCount: 22,
+      'Query repos, inspect commit trees, review PR diffs, and trigger actions workflows on sovereign Git daemon. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'API_KEY',
     author: 'Official',
     version: '2.4.0',
     verified: true,
+    availability: 'planned',
     homepage: 'https://git.quantrinity.in',
-    supportedTools: [
+    supportedTools: [],
+    plannedTools: [
       'quantgit_list_repos',
       'quantgit_get_tree',
       'quantgit_create_branch',
@@ -237,14 +226,16 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
     category: 'Developer Tools',
     icon: 'github',
     description:
-      'Manage issues, pull requests, repository contents, releases, and CI/CD status checks on GitHub.',
-    toolCount: 28,
+      'Manage issues, pull requests, repository contents, releases, and CI/CD status checks on GitHub. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'API_KEY',
     author: 'Official',
     version: '3.1.2',
     verified: true,
+    availability: 'planned',
     homepage: 'https://github.com',
-    supportedTools: [
+    supportedTools: [],
+    plannedTools: [
       'github_search_repos',
       'github_list_issues',
       'github_create_pr',
@@ -281,14 +272,16 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
     category: 'Productivity',
     icon: 'google',
     description:
-      'Integrate Gmail, Google Docs, Drive, and Google Calendar into unified autonomous agent workflows.',
-    toolCount: 24,
+      'Integrate Gmail, Google Docs, Drive, and Google Calendar into unified autonomous agent workflows. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'OAUTH2',
     author: 'Official',
     version: '2.0.5',
     verified: true,
+    availability: 'planned',
     homepage: 'https://workspace.google.com',
-    supportedTools: [
+    supportedTools: [],
+    plannedTools: [
       'gmail_send_message',
       'gdrive_upload_file',
       'gdocs_insert_text',
@@ -324,14 +317,16 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
     category: 'Productivity',
     icon: 'slack',
     description:
-      'Read channels, post rich Block Kit messages, react with emojis, and stream agent canvas summaries to teams.',
-    toolCount: 16,
+      'Read channels, post rich Block Kit messages, react with emojis, and stream agent canvas summaries to teams. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'API_KEY',
     author: 'Official',
     version: '1.8.0',
     verified: true,
+    availability: 'planned',
     homepage: 'https://slack.com',
-    supportedTools: ['slack_post_message', 'slack_read_channel_history', 'slack_upload_file'],
+    supportedTools: [],
+    plannedTools: ['slack_post_message', 'slack_read_channel_history', 'slack_upload_file'],
     configFields: [
       {
         key: 'botToken',
@@ -355,14 +350,16 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
     category: 'Databases',
     icon: 'database',
     description:
-      'Query PostgreSQL tables, run migrations, execute RPC database functions, and listen to Realtime updates.',
-    toolCount: 12,
+      'Query PostgreSQL tables, run migrations, execute RPC database functions, and listen to Realtime updates. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'API_KEY',
     author: 'Official',
     version: '2.1.0',
     verified: true,
+    availability: 'planned',
     homepage: 'https://supabase.com',
-    supportedTools: ['supabase_query_table', 'supabase_insert_row', 'supabase_call_rpc'],
+    supportedTools: [],
+    plannedTools: ['supabase_query_table', 'supabase_insert_row', 'supabase_call_rpc'],
     configFields: [
       {
         key: 'projectUrl',
@@ -393,14 +390,16 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
     category: 'Developer Tools',
     icon: 'credit-card',
     description:
-      'Inspect customers, charges, subscriptions, invoices, and trigger webhook event simulation in sandbox mode.',
-    toolCount: 15,
+      'Inspect customers, charges, subscriptions, invoices, and trigger webhook event simulation in sandbox mode. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'API_KEY',
     author: 'Official',
     version: '2.5.0',
     verified: true,
+    availability: 'planned',
     homepage: 'https://stripe.com',
-    supportedTools: [
+    supportedTools: [],
+    plannedTools: [
       'stripe_list_customers',
       'stripe_create_payment_intent',
       'stripe_list_invoices',
@@ -428,14 +427,16 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
     category: 'Media',
     icon: 'music',
     description:
-      'Search audio tracks, artist albums, playlists, playback control, queue management, and audio features.',
-    toolCount: 10,
+      'Search audio tracks, artist albums, playlists, playback control, queue management, and audio features. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'OAUTH2',
     author: 'Official',
     version: '1.4.0',
     verified: true,
+    availability: 'planned',
     homepage: 'https://spotify.com',
-    supportedTools: ['spotify_search_tracks', 'spotify_play_pause', 'spotify_add_to_queue'],
+    supportedTools: [],
+    plannedTools: ['spotify_search_tracks', 'spotify_play_pause', 'spotify_add_to_queue'],
     configFields: [
       {
         key: 'clientId',
@@ -466,14 +467,16 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
     category: 'Design',
     icon: 'figma',
     description:
-      'Inspect design components, extract canvas vectors, read design tokens, and export SVG/PNG assets.',
-    toolCount: 11,
+      'Inspect design components, extract canvas vectors, read design tokens, and export SVG/PNG assets. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'API_KEY',
     author: 'Official',
     version: '1.6.0',
     verified: true,
+    availability: 'planned',
     homepage: 'https://figma.com',
-    supportedTools: ['figma_get_file', 'figma_get_file_nodes', 'figma_export_svg'],
+    supportedTools: [],
+    plannedTools: ['figma_get_file', 'figma_get_file_nodes', 'figma_export_svg'],
     configFields: [
       {
         key: 'personalAccessToken',
@@ -497,14 +500,16 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
     category: 'Databases',
     icon: 'database',
     description:
-      'Execute read-only SQL queries, inspect information schema, table columns, and explain execution plans.',
-    toolCount: 8,
+      'Execute read-only SQL queries, inspect information schema, table columns, and explain execution plans. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'API_KEY',
     author: 'Official',
     version: '1.9.0',
     verified: true,
+    availability: 'planned',
     homepage: 'https://postgresql.org',
-    supportedTools: ['pg_execute_query', 'pg_explain_query', 'pg_list_tables'],
+    supportedTools: [],
+    plannedTools: ['pg_execute_query', 'pg_explain_query', 'pg_list_tables'],
     configFields: [
       {
         key: 'connectionString',
@@ -528,14 +533,16 @@ export const DEFAULT_CONNECTORS_CATALOG: McpConnector[] = [
     category: 'Productivity',
     icon: 'check-square',
     description:
-      'Query project roadmaps, create issues, update cycle milestones, and sync branch states with Linear.',
-    toolCount: 14,
+      'Query project roadmaps, create issues, update cycle milestones, and sync branch states with Linear. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'API_KEY',
     author: 'Official',
     version: '2.0.0',
     verified: true,
+    availability: 'planned',
     homepage: 'https://linear.app',
-    supportedTools: ['linear_list_issues', 'linear_create_issue', 'linear_list_cycles'],
+    supportedTools: [],
+    plannedTools: ['linear_list_issues', 'linear_create_issue', 'linear_list_cycles'],
     configFields: [
       {
         key: 'apiKey',
@@ -757,6 +764,8 @@ export function McpConnectorsDirectoryModal({
   const [testStatus, setTestStatus] = useState<{
     loading: boolean;
     success?: boolean;
+    /** False = "unknown, not verified" — distinct from a failed check. F-183. */
+    verified?: boolean;
     latencyMs?: number;
     message?: string;
   } | null>(null);
@@ -779,7 +788,8 @@ export function McpConnectorsDirectoryModal({
         connector.name.toLowerCase().includes(q) ||
         connector.description.toLowerCase().includes(q) ||
         connector.category.toLowerCase().includes(q) ||
-        connector.supportedTools.some((t) => t.toLowerCase().includes(q));
+        connector.supportedTools.some((t) => t.toLowerCase().includes(q)) ||
+        (connector.plannedTools ?? []).some((t) => t.toLowerCase().includes(q));
       return matchesCategory && matchesSearch;
     });
   }, [connectors, activeCategory, searchQuery]);
@@ -828,13 +838,43 @@ export function McpConnectorsDirectoryModal({
     if (!selectedConnector) return;
     setTestStatus({ loading: true });
 
+    // F-183: record the outcome of every test on the connector card —
+    // last-checked timestamp plus the measured latency (when one was measured).
+    // Nothing here is simulated: unknown stays unknown.
+    const recordTestOutcome = (outcome: {
+      success: boolean;
+      verified?: boolean;
+      latencyMs?: number;
+      message?: string;
+    }) => {
+      const checkedAt = new Date().toISOString();
+      setTestStatus({ loading: false, ...outcome });
+      setConnectors((prev) =>
+        prev.map((c) =>
+          c.id === selectedConnector.id
+            ? {
+                ...c,
+                lastTestedAt: checkedAt,
+                // Unknown (ran, but not verified) is neither SUCCESS nor FAILED.
+                lastTestStatus: outcome.success
+                  ? 'SUCCESS'
+                  : outcome.verified
+                    ? 'FAILED'
+                    : null,
+                lastLatencyMs: outcome.latencyMs ?? null,
+              }
+            : c,
+        ),
+      );
+    };
+
     try {
       if (onTest) {
         const res = await onTest(selectedConnector.id, configForm);
         if (res) {
-          setTestStatus({
-            loading: false,
+          recordTestOutcome({
             success: res.success,
+            verified: res.verified,
             latencyMs: res.latencyMs,
             message: res.message,
           });
@@ -842,7 +882,7 @@ export function McpConnectorsDirectoryModal({
         }
       }
 
-      // Default network call or simulated validation
+      // Default: real network call to the backend test endpoint.
       const url = `${apiBaseUrl}/connectors/${selectedConnector.id}/test`;
       const resp = await fetch(url, {
         method: 'POST',
@@ -851,38 +891,40 @@ export function McpConnectorsDirectoryModal({
       });
       const data = await resp.json();
       if (data.success && data.data) {
-        setTestStatus({
-          loading: false,
+        recordTestOutcome({
           success: true,
-          latencyMs: data.data.latencyMs ?? 35,
+          verified: data.data.verified,
+          // No fallback number: when the backend measured nothing, show that.
+          latencyMs: typeof data.data.latencyMs === 'number' ? data.data.latencyMs : undefined,
           message: data.data.message ?? 'Connection verified successfully.',
         });
       } else {
-        setTestStatus({
-          loading: false,
+        recordTestOutcome({
           success: false,
-          latencyMs: data.data?.latencyMs ?? 10,
+          verified: data.data?.verified,
+          latencyMs:
+            typeof data.data?.latencyMs === 'number' ? data.data.latencyMs : undefined,
           message: data.data?.message ?? 'Connection test failed. Check credentials.',
         });
       }
     } catch (err: any) {
-      // Local fallback simulation if endpoint offline in browser test
+      // Honest failure: the test request never reached the backend, so no
+      // connection state was verified. Never simulate a success here (F-183).
       const missingRequired = selectedConnector.configFields.some(
         (f) => f.required && (!configForm[f.key] || configForm[f.key].trim() === ''),
       );
       if (missingRequired) {
-        setTestStatus({
-          loading: false,
+        recordTestOutcome({
           success: false,
-          latencyMs: 5,
+          verified: false,
           message: 'Missing required configuration credentials.',
         });
       } else {
-        setTestStatus({
-          loading: false,
-          success: true,
-          latencyMs: 42,
-          message: `Connection to ${selectedConnector.name} verified successfully.`,
+        recordTestOutcome({
+          success: false,
+          verified: false,
+          message:
+            'Test request failed before reaching the backend (network error). No connection state was verified.',
         });
       }
     }
@@ -918,8 +960,11 @@ export function McpConnectorsDirectoryModal({
               installedAt: new Date().toISOString(),
               authStatus: 'CONFIGURED',
               maskedConfig: masked,
-              lastTestedAt: new Date().toISOString(),
-              lastTestStatus: 'SUCCESS',
+              // F-183: saving config is not a connection test — the check
+              // state stays empty until the user actually runs a test.
+              lastTestedAt: null,
+              lastTestStatus: null,
+              lastLatencyMs: null,
             };
           }
           return c;
@@ -1271,6 +1316,41 @@ export function McpConnectorsDirectoryModal({
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-950/40 text-emerald-400 text-[10px] font-medium border border-emerald-500/20">
                           {connector.author}
                         </span>
+
+                        {connector.availability === 'planned' ? (
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-950/40 text-amber-400 text-[10px] font-medium border border-amber-500/20"
+                            title="Roadmap preview — tool execution is not wired yet"
+                          >
+                            Planned
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-950/40 text-emerald-400 text-[10px] font-medium border border-emerald-500/20">
+                            Live
+                          </span>
+                        )}
+
+                        {connector.lastTestedAt ? (
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-900 text-gray-400 border border-gray-700/50"
+                            title={`Last connection check: ${connector.lastTestedAt}`}
+                          >
+                            Checked{' '}
+                            {new Date(connector.lastTestedAt).toLocaleString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                            {connector.lastLatencyMs != null
+                              ? ` · ${connector.lastLatencyMs}ms`
+                              : ' · not measured'}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-900 text-gray-500 border border-gray-700/50">
+                            Not yet tested
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -1357,7 +1437,10 @@ export function McpConnectorsDirectoryModal({
         <div className="px-6 py-3.5 border-t border-gray-800 bg-gray-950/80 flex items-center justify-between text-xs text-gray-400 flex-shrink-0">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span>All connectors implement the official Model Context Protocol (v2024-11-05).</span>
+            <span>
+              Live connectors run real tool executors. Planned entries are roadmap previews — this
+              directory never shows fabricated health data.
+            </span>
           </div>
           <button
             type="button"
@@ -1398,6 +1481,13 @@ export function McpConnectorsDirectoryModal({
                       Provide authentication credentials to authorize {selectedConnector.name} tools
                       for agent invocation.
                     </p>
+                    {selectedConnector.availability === 'planned' && (
+                      <p className="text-xs text-amber-300/90 mt-2 rounded-lg border border-amber-500/30 bg-amber-950/40 px-3 py-2">
+                        {selectedConnector.name} is a roadmap preview — tool execution is not
+                        wired yet. Saving configuration only stores it for future use; the
+                        connection test will report an honest “not verified” state.
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -1496,7 +1586,9 @@ export function McpConnectorsDirectoryModal({
                       ? 'bg-gray-900 border-gray-700 text-gray-300'
                       : testStatus.success
                         ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300'
-                        : 'bg-red-950/50 border-red-500/40 text-red-300'
+                        : testStatus.verified === false
+                          ? 'bg-amber-950/50 border-amber-500/40 text-amber-300'
+                          : 'bg-red-950/50 border-red-500/40 text-red-300'
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -1514,6 +1606,21 @@ export function McpConnectorsDirectoryModal({
                           clipRule="evenodd"
                         />
                       </svg>
+                    ) : testStatus.verified === false ? (
+                      <svg
+                        className="w-4 h-4 text-amber-400"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        aria-label="Not verified"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
                     ) : (
                       <svg className="w-4 h-4 text-red-400" fill="currentColor" viewBox="0 0 20 20">
                         <path
@@ -1529,9 +1636,11 @@ export function McpConnectorsDirectoryModal({
                         : testStatus.message}
                     </span>
                   </div>
-                  {testStatus.latencyMs !== undefined && (
+                  {!testStatus.loading && (
                     <span className="font-mono text-[11px] text-gray-400">
-                      {testStatus.latencyMs}ms
+                      {testStatus.latencyMs !== undefined
+                        ? `${testStatus.latencyMs}ms`
+                        : 'not measured'}
                     </span>
                   )}
                 </div>

@@ -1,11 +1,18 @@
 // ============================================================================
 // QuantAI — Ecosystem Plugins & MCP Connectors Directory Service
 //
-// Manages the verified ecosystem and third-party Model Context Protocol (MCP)
-// connector directory: QuantMail, QuantDrive, QuantGit, GitHub, Google Workspace,
-// Slack, Supabase, Stripe, Spotify, Figma, PostgreSQL, Linear.
+// Manages the ecosystem and third-party connector directory: QuantMail,
+// QuantDrive, QuantGit, GitHub, Google Workspace, Slack, Supabase, Stripe,
+// Spotify, Figma, PostgreSQL, Linear.
 // Handles configuration validation, credential masking, per-user installations,
-// and real connection healthchecks with latency measurement.
+// and connection checks.
+//
+// Honesty contract (F-183): this service NEVER fabricates health data. A
+// connection result is only marked verified when an actual network probe ran
+// (measured latency, observed facts only). Connectors without a configured
+// probe report an explicit not-verified state — never a hardcoded success.
+// `supportedTools` lists only tools with real executors wired in this lane;
+// anything else is `plannedTools` (roadmap preview, clearly marked).
 // ============================================================================
 
 import { createAppError } from '@quant/server-core';
@@ -22,6 +29,13 @@ export type McpRequiredAuth = 'API_KEY' | 'OAUTH2' | 'SESSION_COOKIE';
 export type McpAuthor = 'Official' | 'Community';
 
 export type McpAuthStatus = 'CONFIGURED' | 'PENDING' | 'NOT_INSTALLED';
+
+/**
+ * Whether a connector's tools can actually execute in this build.
+ * - 'live': at least one advertised tool has a real executor wired in the lane.
+ * - 'planned': roadmap preview — no tool executors are wired yet.
+ */
+export type McpConnectorAvailability = 'live' | 'planned';
 
 export interface McpConnectorConfigField {
   key: string;
@@ -42,10 +56,21 @@ export interface McpConnectorCatalogItem {
   toolCount: number;
   requiredAuth: McpRequiredAuth;
   author: McpAuthor;
+  availability: McpConnectorAvailability;
   version: string;
   verified: boolean;
   homepage?: string;
+  /**
+   * Tools with real executors wired in this lane (dot-namespaced, e.g.
+   * 'quantmail.search'). The directory must never advertise a tool here that
+   * cannot run — see F-183.
+   */
   supportedTools: string[];
+  /**
+   * Aspirational tool names for 'planned' connectors. Roadmap preview only —
+   * never presented as runnable.
+   */
+  plannedTools?: string[];
   configFields: McpConnectorConfigField[];
 }
 
@@ -72,45 +97,73 @@ export interface McpUserInstallation {
 
 export interface McpTestResult {
   success: boolean;
+  /**
+   * True only when an actual network probe ran. False means the result rests
+   * on local config-format checks alone (or on no check at all) — the
+   * connection state is unknown, never assume it works. F-183.
+   */
+  verified: boolean;
+  /**
+   * Machine-readable outcome for HTTP mapping and UI branching:
+   * - 'ok': verified working
+   * - 'failed': a live check ran and the connector failed it
+   * - 'invalid': the request/config itself was invalid (client error)
+   * - 'unknown': valid config, but no live verification was possible
+   */
+  outcome: 'ok' | 'failed' | 'invalid' | 'unknown';
+  /** Measured round-trip / validation time in ms. 0 when nothing was measured. */
   latencyMs: number;
   message: string;
+  /** Observed facts only (HTTP status, host). Never invented metadata. */
   serverInfo?: Record<string, unknown>;
+}
+
+/** What a live probe actually establishes. */
+export type McpProbeKind = 'reachability' | 'auth';
+
+export interface McpHttpProbe {
+  /** Absolute URL to probe. */
+  url: string;
+  method: 'GET' | 'HEAD';
+  headers?: Record<string, string>;
+  /** Abort the probe after this many ms; a timeout is reported honestly. */
+  timeoutMs: number;
+  kind: McpProbeKind;
 }
 
 export type CustomProberFn = (
   connectorId: string,
   config: Record<string, unknown>,
-) => Promise<McpTestResult>;
+  // Probers only need to report success/message; verified/outcome/latencyMs
+  // are normalized by testConnection when omitted.
+) => Promise<
+  Pick<McpTestResult, 'success' | 'message'> & Partial<Omit<McpTestResult, 'success' | 'message'>>
+>;
 
 export const MCP_CONNECTOR_CATALOG: McpConnectorCatalogItem[] = [
+
   {
     id: 'quantmail',
     name: 'QuantMail',
     category: 'Productivity',
     icon: 'mail',
     description:
-      'Unified enterprise email: search threads with sub-5ms FTS5, compose drafts, manage folders, and triage priority inbox.',
-    toolCount: 14,
+      'Unified enterprise email: search threads, list unread, fetch messages, send mail, manage drafts, labels, and archive — wired to the lane\'s real QuantMail tool executors.',
+    toolCount: 7,
     requiredAuth: 'SESSION_COOKIE',
     author: 'Official',
+    availability: 'live',
     version: '2.4.0',
     verified: true,
     homepage: 'https://mail.quantrinity.in',
     supportedTools: [
-      'quantmail_search_threads',
-      'quantmail_get_thread',
-      'quantmail_send_email',
-      'quantmail_create_draft',
-      'quantmail_add_label',
-      'quantmail_remove_label',
-      'quantmail_archive_thread',
-      'quantmail_trash_thread',
-      'quantmail_get_unread_count',
-      'quantmail_list_folders',
-      'quantmail_mark_as_read',
-      'quantmail_snooze_thread',
-      'quantmail_forward_email',
-      'quantmail_reply_email',
+      'quantmail.search',
+      'quantmail.listUnread',
+      'quantmail.getMessage',
+      'quantmail.archive',
+      'quantmail.draft',
+      'quantmail.label',
+      'quantmail.send',
     ],
     configFields: [
       {
@@ -138,32 +191,20 @@ export const MCP_CONNECTOR_CATALOG: McpConnectorCatalogItem[] = [
     category: 'Productivity',
     icon: 'folder',
     description:
-      'Sovereign cloud storage: chunked multipart file upload, deduplicated FastCDC storage, document OCR, and presigned R2/S3 streaming.',
-    toolCount: 18,
+      'Sovereign cloud storage: upload, download, share, organize, and search files — wired to the lane\'s real QuantDrive tool executors.',
+    toolCount: 5,
     requiredAuth: 'SESSION_COOKIE',
     author: 'Official',
+    availability: 'live',
     version: '2.4.0',
     verified: true,
     homepage: 'https://drive.quantrinity.in',
     supportedTools: [
-      'quantdrive_list_files',
-      'quantdrive_search_files',
-      'quantdrive_get_file_metadata',
-      'quantdrive_upload_file',
-      'quantdrive_download_file',
-      'quantdrive_create_folder',
-      'quantdrive_move_file',
-      'quantdrive_delete_file',
-      'quantdrive_restore_file',
-      'quantdrive_star_file',
-      'quantdrive_unstar_file',
-      'quantdrive_share_file',
-      'quantdrive_get_storage_quota',
-      'quantdrive_generate_preview',
-      'quantdrive_summarize_doc',
-      'quantdrive_ocr_extract',
-      'quantdrive_batch_download',
-      'quantdrive_export_pdf',
+      'quantdrive.upload',
+      'quantdrive.download',
+      'quantdrive.share',
+      'quantdrive.organize',
+      'quantdrive.search',
     ],
     configFields: [
       {
@@ -191,14 +232,16 @@ export const MCP_CONNECTOR_CATALOG: McpConnectorCatalogItem[] = [
     category: 'Developer Tools',
     icon: 'git-branch',
     description:
-      'Sovereign GitHub alternative: smart HTTP git tree exploration, 3-way PR merge conflict resolution, CI actions streamer, and issue tracker.',
-    toolCount: 22,
+      'Sovereign GitHub alternative: smart HTTP git tree exploration, 3-way PR merge conflict resolution, CI actions streamer, and issue tracker. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'API_KEY',
     author: 'Official',
     version: '2.4.0',
     verified: true,
+    availability: 'planned',
     homepage: 'https://git.quantrinity.in',
-    supportedTools: [
+    supportedTools: [],
+    plannedTools: [
       'quantgit_list_repos',
       'quantgit_get_repo',
       'quantgit_get_tree',
@@ -248,14 +291,16 @@ export const MCP_CONNECTOR_CATALOG: McpConnectorCatalogItem[] = [
     category: 'Developer Tools',
     icon: 'github',
     description:
-      'Connect GitHub repositories to manage issues, pull requests, commit trees, release packages, and trigger GitHub Actions workflows.',
-    toolCount: 28,
+      'Connect GitHub repositories to manage issues, pull requests, commit trees, release packages, and trigger GitHub Actions workflows. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'API_KEY',
     author: 'Official',
     version: '3.1.2',
     verified: true,
+    availability: 'planned',
     homepage: 'https://github.com',
-    supportedTools: [
+    supportedTools: [],
+    plannedTools: [
       'github_search_repos',
       'github_get_repo',
       'github_list_issues',
@@ -310,14 +355,16 @@ export const MCP_CONNECTOR_CATALOG: McpConnectorCatalogItem[] = [
     category: 'Productivity',
     icon: 'google',
     description:
-      'Automate Google Drive files, Gmail messages, Google Docs collaborative editing, and Google Calendar event schedules.',
-    toolCount: 24,
+      'Automate Google Drive files, Gmail messages, Google Docs collaborative editing, and Google Calendar event schedules. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'OAUTH2',
     author: 'Official',
     version: '2.0.5',
     verified: true,
+    availability: 'planned',
     homepage: 'https://workspace.google.com',
-    supportedTools: [
+    supportedTools: [],
+    plannedTools: [
       'gmail_search_messages',
       'gmail_get_message',
       'gmail_send_message',
@@ -376,14 +423,16 @@ export const MCP_CONNECTOR_CATALOG: McpConnectorCatalogItem[] = [
     category: 'Productivity',
     icon: 'slack',
     description:
-      'Interact with team channels, send formatted Block Kit messages, react with emojis, upload agent canvas summaries, and read thread discussions.',
-    toolCount: 16,
+      'Interact with team channels, send formatted Block Kit messages, react with emojis, upload agent canvas summaries, and read thread discussions. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'API_KEY',
     author: 'Official',
     version: '1.8.0',
     verified: true,
+    availability: 'planned',
     homepage: 'https://slack.com',
-    supportedTools: [
+    supportedTools: [],
+    plannedTools: [
       'slack_post_message',
       'slack_post_ephemeral',
       'slack_read_channel_history',
@@ -427,14 +476,16 @@ export const MCP_CONNECTOR_CATALOG: McpConnectorCatalogItem[] = [
     category: 'Databases',
     icon: 'database',
     description:
-      'Direct integration with Supabase hosted Postgres: query tables, invoke Database Functions (RPC), inspect schema migrations, and sync realtime subscriptions.',
-    toolCount: 12,
+      'Direct integration with Supabase hosted Postgres: query tables, invoke Database Functions (RPC), inspect schema migrations, and sync realtime subscriptions. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'API_KEY',
     author: 'Official',
     version: '2.1.0',
     verified: true,
+    availability: 'planned',
     homepage: 'https://supabase.com',
-    supportedTools: [
+    supportedTools: [],
+    plannedTools: [
       'supabase_query_table',
       'supabase_insert_row',
       'supabase_update_row',
@@ -473,14 +524,16 @@ export const MCP_CONNECTOR_CATALOG: McpConnectorCatalogItem[] = [
     category: 'Developer Tools',
     icon: 'credit-card',
     description:
-      'Manage payments, subscriptions, customer balances, invoices, payment intents, refund workflows, and simulate billing webhook events.',
-    toolCount: 15,
+      'Manage payments, subscriptions, customer balances, invoices, payment intents, refund workflows, and simulate billing webhook events. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'API_KEY',
     author: 'Official',
     version: '2.5.0',
     verified: true,
+    availability: 'planned',
     homepage: 'https://stripe.com',
-    supportedTools: [
+    supportedTools: [],
+    plannedTools: [
       'stripe_list_customers',
       'stripe_get_customer',
       'stripe_create_customer',
@@ -522,14 +575,16 @@ export const MCP_CONNECTOR_CATALOG: McpConnectorCatalogItem[] = [
     category: 'Media',
     icon: 'music',
     description:
-      'Search music tracks, artist albums, curated playlists, control active playback queue, and retrieve acoustic audio features.',
-    toolCount: 10,
+      'Search music tracks, artist albums, curated playlists, control active playback queue, and retrieve acoustic audio features. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'OAUTH2',
     author: 'Official',
     version: '1.4.0',
     verified: true,
+    availability: 'planned',
     homepage: 'https://spotify.com',
-    supportedTools: [
+    supportedTools: [],
+    plannedTools: [
       'spotify_search_tracks',
       'spotify_get_track_details',
       'spotify_get_album',
@@ -574,14 +629,16 @@ export const MCP_CONNECTOR_CATALOG: McpConnectorCatalogItem[] = [
     category: 'Design',
     icon: 'figma',
     description:
-      'Inspect design files, extract component frames, read style tokens, download high-res vector SVG and PNG assets, and post design review comments.',
-    toolCount: 11,
+      'Inspect design files, extract component frames, read style tokens, download high-res vector SVG and PNG assets, and post design review comments. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'API_KEY',
     author: 'Official',
     version: '1.6.0',
     verified: true,
+    availability: 'planned',
     homepage: 'https://figma.com',
-    supportedTools: [
+    supportedTools: [],
+    plannedTools: [
       'figma_get_file',
       'figma_get_file_nodes',
       'figma_get_image_exports',
@@ -611,14 +668,16 @@ export const MCP_CONNECTOR_CATALOG: McpConnectorCatalogItem[] = [
     category: 'Databases',
     icon: 'database',
     description:
-      'Direct connection to relational Postgres databases: inspect schemas, examine table columns, run parameterized read-only queries, and explain plans.',
-    toolCount: 8,
+      'Direct connection to relational Postgres databases: inspect schemas, examine table columns, run parameterized read-only queries, and explain plans. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'API_KEY',
     author: 'Official',
     version: '1.9.0',
     verified: true,
+    availability: 'planned',
     homepage: 'https://postgresql.org',
-    supportedTools: [
+    supportedTools: [],
+    plannedTools: [
       'pg_execute_query',
       'pg_explain_query',
       'pg_list_tables',
@@ -655,14 +714,16 @@ export const MCP_CONNECTOR_CATALOG: McpConnectorCatalogItem[] = [
     category: 'Productivity',
     icon: 'check-square',
     description:
-      'Manage product issues, sprint cycles, roadmap milestones, project documents, and sync git branch references via Linear GraphQL API.',
-    toolCount: 14,
+      'Manage product issues, sprint cycles, roadmap milestones, project documents, and sync git branch references via Linear GraphQL API. Note: tool execution is not wired yet — this entry is a roadmap preview, not a working integration.',
+    toolCount: 0,
     requiredAuth: 'API_KEY',
     author: 'Official',
     version: '2.0.0',
     verified: true,
+    availability: 'planned',
     homepage: 'https://linear.app',
-    supportedTools: [
+    supportedTools: [],
+    plannedTools: [
       'linear_list_issues',
       'linear_get_issue',
       'linear_create_issue',
@@ -743,6 +804,11 @@ export interface McpConnectorsServiceOptions {
   customProber?: CustomProberFn;
 }
 
+export interface McpListOptions {
+  /** When set, only connectors with this availability are returned. */
+  availability?: McpConnectorAvailability;
+}
+
 export class McpConnectorsService {
   private readonly catalog = new Map<string, McpConnectorCatalogItem>();
   // Store installations keyed by `${userId}:${connectorId}`
@@ -758,11 +824,16 @@ export class McpConnectorsService {
 
   /**
    * Return all catalog connectors enriched with the user's installation state.
+   * Pass `{ availability: 'live' }` to list only connectors whose tools can
+   * actually execute.
    */
-  listConnectors(userId: string): McpConnector[] {
+  listConnectors(userId: string, options: McpListOptions = {}): McpConnector[] {
     // P0 fix: userId is required — no default identity. Callers must pass a
     // verified authenticated user id; the route layer now fails closed (401).
-    return Array.from(this.catalog.values()).map((item) => {
+    const items = Array.from(this.catalog.values()).filter(
+      (item) => !options.availability || item.availability === options.availability,
+    );
+    return items.map((item) => {
       const key = `${userId}:${item.id}`;
       const install = this.installations.get(key);
       if (install) {
@@ -834,8 +905,15 @@ export class McpConnectorsService {
 
   /**
    * Return all connectors installed for a given user.
+   *
+   * P0 fix (F-183 recovery): no default identity — a caller must pass the
+   * verified authenticated user id. A fabricated 'user-default' identity would
+   * silently mix or leak per-user installation state.
    */
-  getInstalledConnectors(userId: string = 'user-default'): McpConnector[] {
+  getInstalledConnectors(userId: string): McpConnector[] {
+    if (!userId) {
+      throw createAppError('userId is required', 400, 'USER_ID_REQUIRED');
+    }
     return this.listConnectors(userId).filter((c) => c.isInstalled);
   }
 
@@ -873,8 +951,10 @@ export class McpConnectorsService {
       installedAt: existing ? existing.installedAt : now,
       updatedAt: now,
       authStatus: 'CONFIGURED',
-      lastTestedAt: now,
-      lastTestStatus: 'SUCCESS',
+      // F-183: installing only stores configuration — no connection has been
+      // tested at this point. Claiming SUCCESS here was fabricated health data.
+      lastTestedAt: null,
+      lastTestStatus: null,
     };
 
     this.installations.set(key, installation);
@@ -918,7 +998,15 @@ export class McpConnectorsService {
   }
 
   /**
-   * Perform real configuration and connection validation with latency measurement.
+   * Validate configuration and, where a real probe is defined, verify the
+   * connector against its live endpoint with measured latency.
+   *
+   * Honesty contract (F-183): this method NEVER fabricates latency, versions,
+   * quotas, rate limits, or server metadata. Credential format checks are real
+   * local checks. A result is only marked `verified: true` when an actual
+   * network call was made; `serverInfo` then carries observed facts only
+   * (HTTP status, host). Connectors without a configured probe return an
+   * explicit not-verified result — never a hardcoded success.
    */
   async testConnection(
     connectorId: string,
@@ -928,326 +1016,319 @@ export class McpConnectorsService {
     if (!item) {
       return {
         success: false,
+        verified: false,
+        outcome: 'invalid',
         latencyMs: 0,
         message: `Connector '${connectorId}' does not exist in catalog`,
       };
     }
 
     if (this.customProber) {
-      return this.customProber(connectorId, config);
+      const probed = await this.customProber(connectorId, config);
+      // A custom prober is, by definition, a real probe implementation, unless
+      // it explicitly reports otherwise.
+      return {
+        verified: true,
+        outcome: probed.success ? 'ok' : 'failed',
+        latencyMs: 0,
+        ...probed,
+      };
     }
 
     const startTime = Date.now();
+    const elapsed = () => Math.max(0, Date.now() - startTime);
 
-    // Verify presence of required fields first
+    // 1) Real local checks: required fields must be present.
     for (const field of item.configFields) {
       if (field.required) {
         const val = config[field.key];
         if (val === undefined || val === null || String(val).trim() === '') {
           return {
             success: false,
-            latencyMs: Math.max(1, Date.now() - startTime),
+            verified: false,
+            outcome: 'invalid',
+            latencyMs: elapsed(),
             message: `Missing required configuration field: '${field.label}'`,
           };
         }
       }
     }
 
-    // Connector-specific protocol & format verification
+    // 2) Real local checks: connector-specific credential FORMAT validation.
+    //    Format validity is NOT a connection guarantee.
+    const formatError = McpConnectorsService.validateCredentialFormat(connectorId, config);
+    if (formatError) {
+      return {
+        success: false,
+        verified: false,
+        outcome: 'invalid',
+        latencyMs: elapsed(),
+        message: formatError,
+      };
+    }
+
+    // 3) Live probe where one is defined; otherwise fail closed with an
+    //    honest not-verified state (never a fabricated success).
+    const probe = McpConnectorsService.resolveProbe(item, config);
+    if (!probe) {
+      return {
+        success: false,
+        verified: false,
+        outcome: 'unknown',
+        latencyMs: elapsed(),
+        message:
+          `Configuration format is valid for ${item.name}, but no live health probe ` +
+          `is configured — connection state is unknown, not verified.`,
+      };
+    }
+
+    return this.runHttpProbe(item.name, probe, startTime);
+  }
+
+  /**
+   * Pure credential-format validation (no network). Returns an error message
+   * when the supplied config is malformed, or null when the format is valid.
+   */
+  private static validateCredentialFormat(
+    connectorId: string,
+    config: Record<string, unknown>,
+  ): string | null {
+    const str = (key: string): string => String(config[key] ?? '');
+    const isValidUrl = (key: string): boolean => {
+      try {
+        const parsed = new URL(str(key));
+        return parsed.protocol.startsWith('http');
+      } catch {
+        return false;
+      }
+    };
+
     switch (connectorId) {
-      case 'quantmail': {
-        const cookie = String(config['sessionCookie'] ?? '');
-        if (cookie.length < 10) {
-          return {
-            success: false,
-            latencyMs: Math.max(2, Date.now() - startTime),
-            message: 'Invalid session token: must be at least 10 characters',
-          };
-        }
-        if (config['endpointUrl']) {
-          try {
-            new URL(String(config['endpointUrl']));
-          } catch {
-            return {
-              success: false,
-              latencyMs: Math.max(3, Date.now() - startTime),
-              message: 'Invalid endpoint URL format',
-            };
-          }
-        }
-        return {
-          success: true,
-          latencyMs: 18,
-          message: 'Connected to QuantMail cluster. Sub-5ms FTS5 index operational.',
-          serverInfo: {
-            version: '2.4.0',
-            status: 'healthy',
-            quotaRemainingMb: 51200,
-            activeSockets: 1,
-          },
-        };
-      }
-
+      case 'quantmail':
       case 'quantdrive': {
-        const cookie = String(config['sessionCookie'] ?? '');
-        if (cookie.length < 10) {
-          return {
-            success: false,
-            latencyMs: Math.max(2, Date.now() - startTime),
-            message: 'Invalid session token: must be at least 10 characters',
-          };
+        if (str('sessionCookie').length < 10) {
+          return 'Invalid session token: must be at least 10 characters';
         }
-        if (config['endpointUrl']) {
-          try {
-            new URL(String(config['endpointUrl']));
-          } catch {
-            return {
-              success: false,
-              latencyMs: Math.max(3, Date.now() - startTime),
-              message: 'Invalid endpoint URL format',
-            };
-          }
+        if (config['endpointUrl'] && !isValidUrl('endpointUrl')) {
+          return 'Invalid endpoint URL format';
         }
-        return {
-          success: true,
-          latencyMs: 24,
-          message: 'Connected to QuantDrive storage mesh. S3/R2 presigned engine ready.',
-          serverInfo: {
-            version: '2.4.0',
-            status: 'healthy',
-            storageUsedGb: 12.4,
-            maxUploadChunkMb: 64,
-          },
-        };
+        return null;
       }
-
-      case 'quantgit': {
-        const token = String(config['apiKey'] ?? '');
-        if (token.length < 10) {
-          return {
-            success: false,
-            latencyMs: Math.max(2, Date.now() - startTime),
-            message: 'Invalid QuantGit token: must be at least 10 characters',
-          };
-        }
-        return {
-          success: true,
-          latencyMs: 22,
-          message: 'Connected to QuantGit Smart HTTP server.',
-          serverInfo: {
-            version: '2.4.0',
-            status: 'healthy',
-            gitProtocol: 'v2',
-            capabilities: ['smart-http', 'pr-diff-engine', 'actions-streamer'],
-          },
-        };
-      }
-
+      case 'quantgit':
+        return str('apiKey').length < 10
+          ? 'Invalid QuantGit token: must be at least 10 characters'
+          : null;
       case 'github': {
-        const pat = String(config['personalAccessToken'] ?? '');
-        if (!pat.startsWith('ghp_') && !pat.startsWith('github_pat_')) {
-          return {
-            success: false,
-            latencyMs: 35,
-            message: 'Invalid GitHub token format: must start with ghp_ or github_pat_',
-          };
-        }
-        return {
-          success: true,
-          latencyMs: 62,
-          message: 'Connected to GitHub REST API v3 and GraphQL endpoint.',
-          serverInfo: {
-            rateLimitRemaining: 4980,
-            rateLimitReset: Math.floor(Date.now() / 1000) + 3600,
-            scopes: ['repo', 'workflow', 'read:org'],
-          },
-        };
+        const pat = str('personalAccessToken');
+        return !pat.startsWith('ghp_') && !pat.startsWith('github_pat_')
+          ? 'Invalid GitHub token format: must start with ghp_ or github_pat_'
+          : null;
       }
-
-      case 'google-workspace': {
-        const clientId = String(config['clientId'] ?? '');
-        const clientSecret = String(config['clientSecret'] ?? '');
-        if (clientId.length < 8 || clientSecret.length < 8) {
-          return {
-            success: false,
-            latencyMs: 28,
-            message: 'Invalid Google OAuth credentials: client ID and secret must be valid',
-          };
+      case 'google-workspace':
+        return str('clientId').length < 8 || str('clientSecret').length < 8
+          ? 'Invalid Google OAuth credentials: client ID and secret must be valid'
+          : null;
+      case 'slack':
+        return !str('botToken').startsWith('xoxb-')
+          ? 'Invalid Slack Bot Token: must begin with xoxb-'
+          : null;
+      case 'supabase':
+        if (!isValidUrl('projectUrl')) {
+          return 'Invalid Supabase Project URL: must be a valid HTTP/HTTPS URL';
         }
-        return {
-          success: true,
-          latencyMs: 74,
-          message: 'OAuth2 client credentials validated with Google Identity services.',
-          serverInfo: {
-            authMode: 'OAuth2',
-            apis: ['gmail', 'drive', 'docs', 'calendar'],
-          },
-        };
-      }
-
-      case 'slack': {
-        const token = String(config['botToken'] ?? '');
-        if (!token.startsWith('xoxb-')) {
-          return {
-            success: false,
-            latencyMs: 31,
-            message: 'Invalid Slack Bot Token: must begin with xoxb-',
-          };
-        }
-        return {
-          success: true,
-          latencyMs: 53,
-          message: 'Slack WebClient auth.test confirmed: bot user authenticated.',
-          serverInfo: {
-            ok: true,
-            team: 'Quant Workspace',
-            user: 'QuantAI-Agent',
-          },
-        };
-      }
-
-      case 'supabase': {
-        const urlStr = String(config['projectUrl'] ?? '');
-        const key = String(config['serviceRoleKey'] ?? '');
-        try {
-          const parsed = new URL(urlStr);
-          if (!parsed.protocol.startsWith('http')) {
-            throw new Error('Must use http or https protocol');
-          }
-        } catch {
-          return {
-            success: false,
-            latencyMs: 15,
-            message: 'Invalid Supabase Project URL: must be a valid HTTP/HTTPS URL',
-          };
-        }
-        if (key.length < 16) {
-          return {
-            success: false,
-            latencyMs: 19,
-            message: 'Invalid Supabase API key: must be at least 16 characters',
-          };
-        }
-        return {
-          success: true,
-          latencyMs: 65,
-          message: 'Supabase PostgREST connection established and schema introspected.',
-          serverInfo: {
-            postgrestVersion: '12.2.0',
-            tablesDiscovered: 42,
-          },
-        };
-      }
-
+        return str('serviceRoleKey').length < 16
+          ? 'Invalid Supabase API key: must be at least 16 characters'
+          : null;
       case 'stripe': {
-        const secretKey = String(config['secretKey'] ?? '');
-        if (!secretKey.startsWith('sk_test_') && !secretKey.startsWith('sk_live_')) {
-          return {
-            success: false,
-            latencyMs: 25,
-            message: 'Invalid Stripe Secret Key: must begin with sk_test_ or sk_live_',
-          };
-        }
-        return {
-          success: true,
-          latencyMs: 78,
-          message: 'Stripe API key validated with stripe-node engine.',
-          serverInfo: {
-            apiVersion: '2024-06-20',
-            livemode: secretKey.startsWith('sk_live_'),
-          },
-        };
+        const secretKey = str('secretKey');
+        return !secretKey.startsWith('sk_test_') && !secretKey.startsWith('sk_live_')
+          ? 'Invalid Stripe Secret Key: must begin with sk_test_ or sk_live_'
+          : null;
       }
-
-      case 'spotify': {
-        const clientId = String(config['clientId'] ?? '');
-        const clientSecret = String(config['clientSecret'] ?? '');
-        if (clientId.length < 8 || clientSecret.length < 8) {
-          return {
-            success: false,
-            latencyMs: 22,
-            message: 'Invalid Spotify credentials: Client ID and Secret required',
-          };
-        }
-        return {
-          success: true,
-          latencyMs: 56,
-          message: 'Spotify Web API client credentials grant verified.',
-          serverInfo: {
-            tokenType: 'Bearer',
-            scope: 'user-read-playback-state user-modify-playback-state',
-          },
-        };
-      }
-
-      case 'figma': {
-        const token = String(config['personalAccessToken'] ?? '');
-        if (!token.startsWith('figd_')) {
-          return {
-            success: false,
-            latencyMs: 29,
-            message: 'Invalid Figma Access Token: must start with figd_',
-          };
-        }
-        return {
-          success: true,
-          latencyMs: 81,
-          message: 'Figma REST API v1 connected and authenticated.',
-          serverInfo: {
-            status: 200,
-            version: 'v1',
-          },
-        };
-      }
-
+      case 'spotify':
+        return str('clientId').length < 8 || str('clientSecret').length < 8
+          ? 'Invalid Spotify credentials: Client ID and Secret required'
+          : null;
+      case 'figma':
+        return !str('personalAccessToken').startsWith('figd_')
+          ? 'Invalid Figma Access Token: must start with figd_'
+          : null;
       case 'postgresql': {
-        const connStr = String(config['connectionString'] ?? '');
-        if (!connStr.startsWith('postgresql://') && !connStr.startsWith('postgres://')) {
-          return {
-            success: false,
-            latencyMs: 14,
-            message:
-              'Invalid PostgreSQL connection URI: must begin with postgresql:// or postgres://',
-          };
-        }
-        return {
-          success: true,
-          latencyMs: 38,
-          message: 'PostgreSQL connection string verified and pool socket initialized.',
-          serverInfo: {
-            serverVersion: '16.2',
-            poolMin: 2,
-            poolMax: 10,
-          },
-        };
+        const connStr = str('connectionString');
+        return !connStr.startsWith('postgresql://') && !connStr.startsWith('postgres://')
+          ? 'Invalid PostgreSQL connection URI: must begin with postgresql:// or postgres://'
+          : null;
       }
-
-      case 'linear': {
-        const key = String(config['apiKey'] ?? '');
-        if (!key.startsWith('lin_api_')) {
-          return {
-            success: false,
-            latencyMs: 20,
-            message: 'Invalid Linear API Key: must begin with lin_api_',
-          };
-        }
-        return {
-          success: true,
-          latencyMs: 59,
-          message: 'Linear GraphQL API connection authenticated.',
-          serverInfo: {
-            client: 'Linear GraphQL',
-            status: 'connected',
-          },
-        };
-      }
-
+      case 'linear':
+        return !str('apiKey').startsWith('lin_api_')
+          ? 'Invalid Linear API Key: must begin with lin_api_'
+          : null;
       default:
+        return null;
+    }
+  }
+
+  /**
+   * Return the real network probe for a connector, or null when none is
+   * configured (the caller then reports an honest not-verified state).
+   */
+  private static resolveProbe(
+    item: McpConnectorCatalogItem,
+    config: Record<string, unknown>,
+  ): McpHttpProbe | null {
+    switch (item.id) {
+      case 'quantmail':
+      case 'quantdrive':
+      case 'quantgit': {
+        const raw = String(
+          config['endpointUrl'] ??
+            item.configFields.find((f) => f.key === 'endpointUrl')?.defaultValue ??
+            '',
+        ).trim();
+        if (!raw) return null;
+        return { url: raw, method: 'HEAD', timeoutMs: 8000, kind: 'reachability' };
+      }
+      case 'github': {
+        const token = String(config['personalAccessToken'] ?? '').trim();
+        if (!token) return null;
         return {
-          success: true,
-          latencyMs: 30,
-          message: `Connector '${item.name}' configuration verified.`,
+          url: 'https://api.github.com/rate_limit',
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github+json',
+            'User-Agent': 'QuantAI-Connector-Probe',
+          },
+          timeoutMs: 8000,
+          kind: 'auth',
         };
+      }
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Perform the actual HTTP probe with measured latency. Only observed facts
+   * (HTTP status, host, measured round-trip) are reported — nothing is
+   * inferred about versions, quotas, or account state.
+   */
+  private async runHttpProbe(
+    connectorName: string,
+    probe: McpHttpProbe,
+    startTime: number,
+  ): Promise<McpTestResult> {
+    const elapsed = () => Math.max(0, Date.now() - startTime);
+
+    let host = probe.url;
+    try {
+      host = new URL(probe.url).host;
+    } catch {
+      return {
+        success: false,
+        verified: false,
+        outcome: 'invalid',
+        latencyMs: elapsed(),
+        message: `Cannot probe ${connectorName}: misconfigured probe URL.`,
+      };
+    }
+
+    if (typeof fetch !== 'function') {
+      return {
+        success: false,
+        verified: false,
+        outcome: 'unknown',
+        latencyMs: elapsed(),
+        message:
+          `Configuration format is valid for ${connectorName}, but this runtime ` +
+          `cannot make outbound HTTP calls — connection state is unknown, not verified.`,
+      };
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), probe.timeoutMs);
+    try {
+      const res = await fetch(probe.url, {
+        method: probe.method,
+        headers: probe.headers,
+        signal: controller.signal,
+      });
+      const latencyMs = elapsed();
+      // Defensive: a stubbed or non-standard fetch may resolve garbage.
+      const status =
+        res && typeof (res as { status?: unknown }).status === 'number'
+          ? (res as { status: number }).status
+          : NaN;
+      const serverInfo: Record<string, unknown> = {
+        httpStatus: Number.isNaN(status) ? 'unknown' : status,
+        host,
+      };
+      if (Number.isNaN(status)) {
+        return {
+          success: false,
+          verified: true,
+          outcome: 'failed',
+          latencyMs,
+          message: `${connectorName} probe returned an unreadable response — connection state is unknown.`,
+          serverInfo,
+        };
+      }
+      if (probe.kind === 'auth') {
+        if (status === 401 || status === 403) {
+          return {
+            success: false,
+            verified: true,
+            outcome: 'failed',
+            latencyMs,
+            message: `${connectorName} rejected the supplied credentials (HTTP ${status}).`,
+            serverInfo,
+          };
+        }
+        if (status >= 200 && status < 300) {
+          return {
+            success: true,
+            verified: true,
+            outcome: 'ok',
+            latencyMs,
+            message: `${connectorName} credentials verified against the live API (HTTP ${status}) in ${latencyMs} ms.`,
+            serverInfo,
+          };
+        }
+        return {
+          success: false,
+          verified: true,
+          outcome: 'failed',
+          latencyMs,
+          message: `${connectorName} probe returned HTTP ${status} — credentials could not be verified.`,
+          serverInfo,
+        };
+      }
+      return {
+        success: true,
+        verified: true,
+        outcome: 'ok',
+        latencyMs,
+        message:
+          `${connectorName} endpoint reachable (HTTP ${status}) in ${latencyMs} ms. ` +
+          `Reachability only — credentials were not verified by this probe.`,
+        serverInfo,
+      };
+    } catch (err) {
+      const latencyMs = elapsed();
+      const reason =
+        err && (err as { name?: string }).name === 'AbortError'
+          ? `timed out after ${probe.timeoutMs} ms`
+          : `unreachable (${err instanceof Error ? err.message : 'network error'})`;
+      return {
+        success: false,
+        verified: true,
+        outcome: 'failed',
+        latencyMs,
+        message: `${connectorName} endpoint ${reason}.`,
+        serverInfo: { host },
+      };
+    } finally {
+      clearTimeout(timer);
     }
   }
 

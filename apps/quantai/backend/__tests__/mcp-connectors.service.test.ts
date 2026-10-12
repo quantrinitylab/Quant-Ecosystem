@@ -1,6 +1,9 @@
 // ============================================================================
 // QuantAI — McpConnectorsService & Fastify Routes Test Suite
-// Task W39-A07 Parity Suite
+//
+// F-183 honesty suite: no test may assert fabricated health data. Latency is
+// only asserted as "measured" (>= 0, a real number); serverInfo is only
+// asserted for observed facts (httpStatus/host from a stubbed probe).
 // ============================================================================
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -23,7 +26,19 @@ vi.mock('@quant/server-core', () => ({
   },
 }));
 
-describe('McpConnectorsService (Task W39-A07 Core Service)', () => {
+// Synthetic, obviously-not-real credential fixtures for tests.
+const GH_TOKEN = 'ghp_12345678';
+const SLACK_TOKEN = 'xoxb-abcdefgh';
+const STRIPE_KEY = 'sk_test_synthetic0000';
+const LINEAR_KEY = 'lin_api_1234567890';
+
+function stubFetchWith(impl: (...args: unknown[]) => unknown) {
+  const mock = vi.fn(impl);
+  vi.stubGlobal('fetch', mock);
+  return mock;
+}
+
+describe('McpConnectorsService', () => {
   let service: McpConnectorsService;
   const testUserId = 'usr-test-developer-01';
 
@@ -31,8 +46,12 @@ describe('McpConnectorsService (Task W39-A07 Core Service)', () => {
     service = new McpConnectorsService();
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   describe('1. Catalog Integrity & Metadata Invariants', () => {
-    it('contains all 12 required ecosystem and MCP connectors', () => {
+    it('contains all 12 required ecosystem and third-party connectors', () => {
       const requiredConnectors = [
         'quantmail',
         'quantdrive',
@@ -57,56 +76,74 @@ describe('McpConnectorsService (Task W39-A07 Core Service)', () => {
       }
     });
 
-    it('each connector has valid metadata, category, and supported tools', () => {
+    it('never advertises tools that cannot run (F-183)', () => {
       const connectors = service.listConnectors('test-user');
-      const validCategories = new Set([
-        'Productivity',
-        'Developer Tools',
-        'Databases',
-        'Design',
-        'Media',
-      ]);
-
       for (const connector of connectors) {
-        expect(connector.id).toBeDefined();
-        expect(connector.name).toBeTruthy();
-        expect(validCategories.has(connector.category)).toBe(true);
-        expect(connector.icon).toBeTruthy();
-        expect(connector.description.length).toBeGreaterThan(15);
-        expect(connector.toolCount).toBeGreaterThan(0);
-        expect(connector.supportedTools.length).toBeGreaterThan(0);
-        expect(connector.configFields.length).toBeGreaterThan(0);
-        expect(['Official', 'Community']).toContain(connector.author);
-        expect(['API_KEY', 'OAUTH2', 'SESSION_COOKIE']).toContain(connector.requiredAuth);
+        expect(['live', 'planned']).toContain(connector.availability);
+        // toolCount must equal the number of actually-runnable tools.
+        expect(connector.toolCount).toBe(connector.supportedTools.length);
+        if (connector.availability === 'live') {
+          expect(connector.supportedTools.length).toBeGreaterThan(0);
+        } else {
+          // Planned connectors: honest stub — no runnable tools advertised.
+          expect(connector.supportedTools).toEqual([]);
+          expect(connector.plannedTools!.length).toBeGreaterThan(0);
+          expect(connector.description).toContain('not wired yet');
+        }
       }
     });
 
-    it('QuantMail has 14 tools and SESSION_COOKIE requiredAuth', () => {
+    it('QuantMail wires the real lane executors (dotted names), not snake_case theater', () => {
       const mail = service.getConnector('quantmail', 'test-user');
-      expect(mail.name).toBe('QuantMail');
-      expect(mail.category).toBe('Productivity');
-      expect(mail.toolCount).toBe(14);
+      expect(mail.availability).toBe('live');
+      expect(mail.toolCount).toBe(7);
       expect(mail.requiredAuth).toBe('SESSION_COOKIE');
-      expect(mail.supportedTools).toContain('quantmail_search_threads');
+      for (const tool of [
+        'quantmail.search',
+        'quantmail.listUnread',
+        'quantmail.getMessage',
+        'quantmail.archive',
+        'quantmail.draft',
+        'quantmail.label',
+        'quantmail.send',
+      ]) {
+        expect(mail.supportedTools).toContain(tool);
+      }
+      // The old fabricated snake_case names must be gone.
+      expect(mail.supportedTools).not.toContain('quantmail_search_threads');
+      expect(mail.supportedTools).not.toContain('quantmail_send_email');
     });
 
-    it('GitHub has 28 tools and API_KEY requiredAuth', () => {
+    it('QuantDrive wires the real lane executors', () => {
+      const drive = service.getConnector('quantdrive', 'test-user');
+      expect(drive.availability).toBe('live');
+      expect(drive.toolCount).toBe(5);
+      expect(drive.supportedTools).toEqual(
+        expect.arrayContaining([
+          'quantdrive.upload',
+          'quantdrive.download',
+          'quantdrive.share',
+          'quantdrive.organize',
+          'quantdrive.search',
+        ]),
+      );
+      expect(drive.supportedTools).not.toContain('quantdrive_list_files');
+    });
+
+    it('GitHub is an honest planned preview — zero runnable tools advertised', () => {
       const gh = service.getConnector('github', 'test-user');
-      expect(gh.name).toBe('GitHub');
-      expect(gh.category).toBe('Developer Tools');
-      expect(gh.toolCount).toBe(28);
-      expect(gh.requiredAuth).toBe('API_KEY');
-      expect(gh.supportedTools).toContain('github_search_repos');
+      expect(gh.availability).toBe('planned');
+      expect(gh.toolCount).toBe(0);
+      expect(gh.supportedTools).toEqual([]);
+      expect(gh.plannedTools).toContain('github_search_repos');
     });
   });
 
   describe('2. Credential Masking & Security Invariants', () => {
     it('masks secrets while preserving common prefixes and last 4 characters', () => {
-      const dummyStripe = ['sk', 'test', '1234567890abcdef'].join('_');
-      const expectedMasked = ['sk', 'test', '••••••cdef'].join('_');
-      expect(maskCredential(dummyStripe)).toBe(expectedMasked);
-      expect(maskCredential('ghp_9876543210zyxwv')).toBe('ghp_••••••yxwv');
-      expect(maskCredential('xoxb-123456789012-secret')).toBe('xoxb-••••••cret');
+      expect(maskCredential(GH_TOKEN)).toBe('ghp_••••••5678');
+      expect(maskCredential(SLACK_TOKEN)).toBe('xoxb-••••••efgh');
+      expect(maskCredential(LINEAR_KEY)).toBe('lin_api_••••••7890');
       expect(maskCredential('short')).toBe('••••••••');
       expect(maskCredential('')).toBe('');
       expect(maskCredential(undefined)).toBe('');
@@ -115,31 +152,36 @@ describe('McpConnectorsService (Task W39-A07 Core Service)', () => {
     it('maskConfig correctly masks password fields while preserving public config', () => {
       const ghCatalogItem = MCP_CONNECTOR_CATALOG.find((c) => c.id === 'github')!;
       const config = {
-        personalAccessToken: 'ghp_secrettokenvalue1234',
+        personalAccessToken: GH_TOKEN,
         organization: 'quantrinitylab',
       };
 
       const masked = maskConfig(config, ghCatalogItem.configFields);
-      expect(masked['personalAccessToken']).toBe('ghp_••••••1234');
+      expect(masked['personalAccessToken']).toBe('ghp_••••••5678');
       expect(masked['organization']).toBe('quantrinitylab');
     });
   });
 
   describe('3. Connector Installation & Uninstallation Lifecycle', () => {
-    it('installs a connector and stores masked config', () => {
+    it('installs a connector and stores masked config — without fabricating a test result', () => {
       const installed = service.installConnector(testUserId, 'github', {
-        personalAccessToken: 'ghp_abcdef1234567890',
+        personalAccessToken: GH_TOKEN,
         organization: 'quantrinitylab',
       });
 
       expect(installed.isInstalled).toBe(true);
       expect(installed.authStatus).toBe('CONFIGURED');
-      expect(installed.maskedConfig['personalAccessToken']).toBe('ghp_••••••7890');
+      expect(installed.maskedConfig['personalAccessToken']).toBe('ghp_••••••5678');
       expect(installed.maskedConfig['organization']).toBe('quantrinitylab');
       expect(installed.installedAt).toBeTruthy();
+      // F-183: installing stores config; no connection was tested.
+      expect(installed.lastTestedAt).toBeNull();
+      expect(installed.lastTestStatus).toBeNull();
 
       const single = service.getConnector('github', testUserId);
       expect(single.isInstalled).toBe(true);
+      expect(single.lastTestedAt).toBeNull();
+      expect(single.lastTestStatus).toBeNull();
     });
 
     it('fails installation if required config fields are missing', () => {
@@ -158,7 +200,7 @@ describe('McpConnectorsService (Task W39-A07 Core Service)', () => {
 
     it('isolates installed state between different users', () => {
       service.installConnector('user-A', 'stripe', {
-        secretKey: 'sk_test_userAtoken123456',
+        secretKey: STRIPE_KEY,
       });
 
       const userA = service.getConnector('stripe', 'user-A');
@@ -170,10 +212,21 @@ describe('McpConnectorsService (Task W39-A07 Core Service)', () => {
       expect(service.getInstalledConnectors('user-B').map((c) => c.id)).not.toContain('stripe');
     });
 
+    it('returns an empty list for a user with zero installed connectors', () => {
+      expect(service.getInstalledConnectors('brand-new-user')).toEqual([]);
+    });
+
+    it('fails closed when no userId is supplied (no default identity)', () => {
+      expect(() =>
+        service.getInstalledConnectors(undefined as unknown as string),
+      ).toThrowError(/userId is required/);
+      expect(() => service.getInstalledConnectors('')).toThrowError(/userId is required/);
+    });
+
     it('uninstalls connector and clears user credentials', () => {
       service.installConnector(testUserId, 'supabase', {
         projectUrl: 'https://testproj.supabase.co',
-        serviceRoleKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.validkeyhere123',
+        serviceRoleKey: 'synthetic-supabase-service-key-0000',
       });
 
       expect(service.getConnector('supabase', testUserId).isInstalled).toBe(true);
@@ -189,81 +242,73 @@ describe('McpConnectorsService (Task W39-A07 Core Service)', () => {
     });
   });
 
-  describe('4. Real Connection Validation & Healthchecks (Zero-Mock)', () => {
-    it('validates QuantMail sessionCookie and returns cluster health', async () => {
-      const res = await service.testConnection('quantmail', {
-        sessionCookie: 'quant_sess_active_token_99182',
-        endpointUrl: 'https://mail.quantrinity.in',
-      });
-
-      expect(res.success).toBe(true);
-      expect(res.latencyMs).toBeGreaterThan(0);
-      expect(res.message).toContain('QuantMail cluster');
-      expect(res.serverInfo?.['status']).toBe('healthy');
+  describe('4. Honest Connection Validation (F-183 — no fabricated health data)', () => {
+    it('reports unknown connector ids as not-verified, never as success', async () => {
+      const res = await service.testConnection('nope-not-real', {});
+      expect(res.success).toBe(false);
+      expect(res.verified).toBe(false);
+      expect(res.outcome).toBe('invalid');
+      expect(res.latencyMs).toBe(0);
+      expect(res.message).toContain('does not exist in catalog');
     });
 
-    it('rejects QuantMail if sessionCookie is too short', async () => {
-      const res = await service.testConnection('quantmail', {
+    it('rejects missing required fields before any probe', async () => {
+      const res = await service.testConnection('quantmail', {});
+      expect(res.success).toBe(false);
+      expect(res.verified).toBe(false);
+      expect(res.outcome).toBe('invalid');
+      expect(res.message).toContain('Missing required configuration field');
+      expect(typeof res.latencyMs).toBe('number');
+    });
+
+    it('rejects malformed credentials with honest format messages (no fake latency)', async () => {
+      const shortCookie = await service.testConnection('quantmail', {
         sessionCookie: 'short',
       });
+      expect(shortCookie.success).toBe(false);
+      expect(shortCookie.verified).toBe(false);
+      expect(shortCookie.message).toContain('must be at least 10 characters');
 
-      expect(res.success).toBe(false);
-      expect(res.message).toContain('must be at least 10 characters');
-    });
-
-    it('validates GitHub token format', async () => {
-      const validRes = await service.testConnection('github', {
-        personalAccessToken: 'ghp_validTokenString123456',
+      const badUrl = await service.testConnection('quantmail', {
+        sessionCookie: 'synthetic-session-token-0000',
+        endpointUrl: 'not a url at all',
       });
-      expect(validRes.success).toBe(true);
-      expect(validRes.serverInfo?.['rateLimitRemaining']).toBeGreaterThan(0);
+      expect(badUrl.success).toBe(false);
+      expect(badUrl.verified).toBe(false);
+      expect(badUrl.message).toContain('Invalid endpoint URL format');
 
-      const invalidRes = await service.testConnection('github', {
+      const badGithub = await service.testConnection('github', {
         personalAccessToken: 'invalid_token_no_prefix',
       });
-      expect(invalidRes.success).toBe(false);
-      expect(invalidRes.message).toContain('Invalid GitHub token format');
-    });
+      expect(badGithub.success).toBe(false);
+      expect(badGithub.verified).toBe(false);
+      expect(badGithub.message).toContain('Invalid GitHub token format');
 
-    it('validates Stripe secret key format (sk_test_ or sk_live_)', async () => {
-      const validStripe = await service.testConnection('stripe', {
-        secretKey: ['sk', 'test', 'mockDummyKeyForTestingOnly'].join('_'),
-      });
-      expect(validStripe.success).toBe(true);
-      expect(validStripe.serverInfo?.['livemode']).toBe(false);
-
-      const invalidStripe = await service.testConnection('stripe', {
-        secretKey: 'not_a_stripe_key_123',
-      });
-      expect(invalidStripe.success).toBe(false);
-      expect(invalidStripe.message).toContain('Invalid Stripe Secret Key');
-    });
-
-    it('validates PostgreSQL connection URI format', async () => {
-      const validPg = await service.testConnection('postgresql', {
-        connectionString: 'postgresql://postgres:secret@localhost:5432/quantdb',
-      });
-      expect(validPg.success).toBe(true);
-      expect(validPg.serverInfo?.['serverVersion']).toBe('16.2');
-
-      const invalidPg = await service.testConnection('postgresql', {
-        connectionString: 'mysql://user:pass@localhost:3306/db',
-      });
-      expect(invalidPg.success).toBe(false);
-      expect(invalidPg.message).toContain('Invalid PostgreSQL connection URI');
-    });
-
-    it('validates Slack Bot Token format (xoxb-)', async () => {
-      const validSlack = await service.testConnection('slack', {
-        botToken: 'xoxb-123456789-abcdef',
-      });
-      expect(validSlack.success).toBe(true);
-
-      const invalidSlack = await service.testConnection('slack', {
+      const badSlack = await service.testConnection('slack', {
         botToken: 'xoxp-user-token',
       });
-      expect(invalidSlack.success).toBe(false);
-      expect(invalidSlack.message).toContain('Invalid Slack Bot Token');
+      expect(badSlack.success).toBe(false);
+      expect(badSlack.verified).toBe(false);
+      expect(badSlack.message).toContain('Invalid Slack Bot Token');
+
+      const badPg = await service.testConnection('postgresql', {
+        connectionString: 'mysql://user:pass@localhost:3306/db',
+      });
+      expect(badPg.success).toBe(false);
+      expect(badPg.verified).toBe(false);
+      expect(badPg.message).toContain('Invalid PostgreSQL connection URI');
+    });
+
+    it('returns honest NOT-VERIFIED for valid config when no live probe is configured', async () => {
+      // slack has valid format but no probe endpoint: must not claim success.
+      const res = await service.testConnection('slack', { botToken: SLACK_TOKEN });
+      expect(res.success).toBe(false);
+      expect(res.verified).toBe(false);
+      expect(res.outcome).toBe('unknown');
+      expect(res.message).toContain('not verified');
+      expect(res.serverInfo).toBeUndefined();
+      expect(typeof res.latencyMs).toBe('number');
+      expect(res.latencyMs).toBeGreaterThanOrEqual(0);
     });
 
     it('supports custom prober injection for network fault simulation', async () => {
@@ -276,16 +321,164 @@ describe('McpConnectorsService (Task W39-A07 Core Service)', () => {
       });
 
       const res = await customService.testConnection('linear', {
-        apiKey: 'lin_api_valid_key_12345',
+        apiKey: LINEAR_KEY,
       });
       expect(res.success).toBe(false);
+      expect(res.verified).toBe(true);
+      expect(res.outcome).toBe('failed');
       expect(res.latencyMs).toBe(999);
       expect(res.message).toBe('Network timeout connecting to linear');
+    });
+
+    it('performs a REAL auth-verifying probe for GitHub (stubbed fetch)', async () => {
+      const fetchMock = stubFetchWith(async () => ({ status: 200, ok: true }));
+
+      const res = await service.testConnection('github', {
+        personalAccessToken: GH_TOKEN,
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.github.com/rate_limit',
+        expect.objectContaining({
+          method: 'GET',
+          headers: expect.objectContaining({
+            Authorization: `Bearer ${GH_TOKEN}`,
+          }),
+        }),
+      );
+      expect(res.success).toBe(true);
+      expect(res.verified).toBe(true);
+      expect(res.outcome).toBe('ok');
+      expect(typeof res.latencyMs).toBe('number');
+      expect(res.latencyMs).toBeGreaterThanOrEqual(0);
+      expect(res.message).toContain('verified against the live API');
+      // Only observed facts — no invented rate limits, scopes, or versions.
+      expect(res.serverInfo).toEqual({ httpStatus: 200, host: 'api.github.com' });
+    });
+
+    it('treats GitHub 401 as a real credential rejection (not a fabricated success)', async () => {
+      stubFetchWith(async () => ({ status: 401, ok: false }));
+
+      const res = await service.testConnection('github', {
+        personalAccessToken: GH_TOKEN,
+      });
+
+      expect(res.success).toBe(false);
+      expect(res.verified).toBe(true);
+      expect(res.outcome).toBe('failed');
+      expect(res.message).toContain('rejected the supplied credentials');
+      expect(res.message).toContain('401');
+    });
+
+    it('maps a dead GitHub endpoint to honest unreachable (connector unreachable edge case)', async () => {
+      stubFetchWith(async () => {
+        throw new Error('socket hang up');
+      });
+
+      const res = await service.testConnection('github', {
+        personalAccessToken: GH_TOKEN,
+      });
+
+      expect(res.success).toBe(false);
+      expect(res.verified).toBe(true);
+      expect(res.message).toContain('unreachable');
+      expect(res.serverInfo).toEqual({ host: 'api.github.com' });
+    });
+
+    it('maps an aborted probe to an honest timeout', async () => {
+      stubFetchWith(async () => {
+        const err = new Error('The operation was aborted') as Error & { name: string };
+        err.name = 'AbortError';
+        throw err;
+      });
+
+      const res = await service.testConnection('github', {
+        personalAccessToken: GH_TOKEN,
+      });
+
+      expect(res.success).toBe(false);
+      expect(res.verified).toBe(true);
+      expect(res.message).toContain('timed out');
+    });
+
+    it('handles a malformed probe payload without inventing a result', async () => {
+      stubFetchWith(async () => undefined);
+
+      const res = await service.testConnection('github', {
+        personalAccessToken: GH_TOKEN,
+      });
+
+      expect(res.success).toBe(false);
+      expect(res.verified).toBe(true);
+      expect(res.message).toContain('unreadable response');
+    });
+
+    it('probes QuantMail endpoint reachability with measured latency (stubbed fetch)', async () => {
+      const fetchMock = stubFetchWith(async () => ({ status: 200, ok: true }));
+
+      const res = await service.testConnection('quantmail', {
+        sessionCookie: 'synthetic-session-token-0000',
+        endpointUrl: 'https://mail.example.test',
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://mail.example.test',
+        expect.objectContaining({ method: 'HEAD' }),
+      );
+      expect(res.success).toBe(true);
+      expect(res.verified).toBe(true);
+      expect(typeof res.latencyMs).toBe('number');
+      expect(res.message).toContain('reachable');
+      // Honest scope: reachability only — credentials not verified by the probe.
+      expect(res.message).toContain('not verified by this probe');
+      expect(res.serverInfo).toEqual({ httpStatus: 200, host: 'mail.example.test' });
+    });
+
+    it('falls back to the catalog default endpoint when none is configured', async () => {
+      const fetchMock = stubFetchWith(async () => ({ status: 200, ok: true }));
+
+      const res = await service.testConnection('quantdrive', {
+        sessionCookie: 'synthetic-session-token-0000',
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://drive.quantrinity.in',
+        expect.objectContaining({ method: 'HEAD' }),
+      );
+      expect(res.verified).toBe(true);
+    });
+
+    it('maps an unreachable QuantMail endpoint honestly', async () => {
+      stubFetchWith(async () => {
+        throw new Error('getaddrinfo ENOTFOUND mail.example.test');
+      });
+
+      const res = await service.testConnection('quantmail', {
+        sessionCookie: 'synthetic-session-token-0000',
+        endpointUrl: 'https://mail.example.test',
+      });
+
+      expect(res.success).toBe(false);
+      expect(res.verified).toBe(true);
+      expect(res.message).toContain('unreachable');
+    });
+  });
+
+  describe('5. Availability filtering', () => {
+    it('lists only live connectors when asked', () => {
+      const live = service.listConnectors('test-user', { availability: 'live' });
+      expect(live.map((c) => c.id).sort()).toEqual(['quantdrive', 'quantmail']);
+    });
+
+    it('lists planned connectors separately', () => {
+      const planned = service.listConnectors('test-user', { availability: 'planned' });
+      expect(planned).toHaveLength(10);
+      expect(planned.every((c) => c.supportedTools.length === 0)).toBe(true);
     });
   });
 });
 
-describe('Fastify Routes: /connectors (Task W39-A07 Endpoints)', () => {
+describe('Fastify Routes: /connectors', () => {
   let app: ReturnType<typeof Fastify>;
   let mcpConnectorsService: McpConnectorsService;
   const testUserId = 'user-test-api';
@@ -319,6 +512,18 @@ describe('Fastify Routes: /connectors (Task W39-A07 Endpoints)', () => {
     const body = JSON.parse(response.body);
     expect(body.success).toBe(true);
     expect(body.data.length).toBe(12);
+  });
+
+  it('GET /connectors?availability=live — lists only runnable connectors', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/connectors?availability=live',
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+    expect(body.success).toBe(true);
+    expect(body.data.map((c: any) => c.id).sort()).toEqual(['quantdrive', 'quantmail']);
   });
 
   it('GET /connectors?category=Databases — filters by category', async () => {
@@ -360,6 +565,7 @@ describe('Fastify Routes: /connectors (Task W39-A07 Endpoints)', () => {
     expect(body.success).toBe(true);
     expect(body.data.id).toBe('figma');
     expect(body.data.category).toBe('Design');
+    expect(body.data.availability).toBe('planned');
   });
 
   it('POST /connectors/:id/install — installs connector and returns masked config', async () => {
@@ -368,7 +574,7 @@ describe('Fastify Routes: /connectors (Task W39-A07 Endpoints)', () => {
       url: '/connectors/github/install',
       payload: {
         config: {
-          personalAccessToken: 'ghp_secretTokenGithub12345',
+          personalAccessToken: GH_TOKEN,
           organization: 'quantrinitylab',
         },
       },
@@ -378,8 +584,11 @@ describe('Fastify Routes: /connectors (Task W39-A07 Endpoints)', () => {
     const body = JSON.parse(response.body);
     expect(body.success).toBe(true);
     expect(body.data.isInstalled).toBe(true);
-    expect(body.data.maskedConfig.personalAccessToken).toBe('ghp_••••••2345');
+    expect(body.data.maskedConfig.personalAccessToken).toBe('ghp_••••••5678');
     expect(body.data.maskedConfig.organization).toBe('quantrinitylab');
+    // F-183: no fabricated test result at install time.
+    expect(body.data.lastTestedAt).toBeNull();
+    expect(body.data.lastTestStatus).toBeNull();
   });
 
   it('DELETE /connectors/:id — uninstalls connector', async () => {
@@ -388,7 +597,7 @@ describe('Fastify Routes: /connectors (Task W39-A07 Endpoints)', () => {
       method: 'POST',
       url: '/connectors/linear/install',
       payload: {
-        config: { apiKey: 'lin_api_validKey123456789' },
+        config: { apiKey: LINEAR_KEY },
       },
     });
 
@@ -404,22 +613,24 @@ describe('Fastify Routes: /connectors (Task W39-A07 Endpoints)', () => {
     expect(body.data.wasInstalled).toBe(true);
   });
 
-  it('POST /connectors/:id/test — performs connection healthcheck', async () => {
+  it('POST /connectors/:id/test — honest unknown is HTTP 200 with success:false (not a failure)', async () => {
     const response = await app.inject({
       method: 'POST',
-      url: '/connectors/quantdrive/test',
+      url: '/connectors/slack/test',
       payload: {
         config: {
-          sessionCookie: 'quant_sess_valid_drive_token_456',
+          botToken: SLACK_TOKEN,
         },
       },
     });
 
+    // slack has valid format but no live probe: unknown, not failed.
     expect(response.statusCode).toBe(200);
     const body = JSON.parse(response.body);
-    expect(body.success).toBe(true);
-    expect(body.data.latencyMs).toBeGreaterThan(0);
-    expect(body.data.message).toContain('QuantDrive storage mesh');
+    expect(body.success).toBe(false);
+    expect(body.data.verified).toBe(false);
+    expect(body.data.outcome).toBe('unknown');
+    expect(body.data.message).toContain('not verified');
   });
 
   it('POST /connectors/:id/test — returns 400 on invalid credentials', async () => {

@@ -1,8 +1,13 @@
 // ============================================================================
 // QuantAI — Fastify Routes: Ecosystem Plugins & MCP Connectors Directory
 //
-// Endpoints for listing verified MCP connectors, installing user configurations,
-// uninstalling connectors, and performing live connection test healthchecks.
+// Endpoints for listing connectors, installing user configurations,
+// uninstalling connectors, and running connection checks.
+//
+// Honesty note (F-183): the test endpoint never fabricates health data.
+// HTTP 400 means the request/config itself was invalid. A completed check —
+// verified working, failed, or honestly unknown — is HTTP 200 with the
+// success/verified/outcome detail in the body.
 // ============================================================================
 
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -24,6 +29,7 @@ const testConnectorSchema = z.object({
 const queryConnectorsSchema = z.object({
   category: z.enum(['Productivity', 'Developer Tools', 'Databases', 'Design', 'Media']).optional(),
   installedOnly: z.enum(['true', 'false']).optional(),
+  availability: z.enum(['live', 'planned']).optional(),
   search: z.string().optional(),
 });
 
@@ -58,7 +64,9 @@ export default async function mcpConnectorsRoutes(fastify: FastifyInstance) {
       throw parsedQuery.error;
     }
 
-    let connectors = getService().listConnectors(userId);
+    let connectors = getService().listConnectors(userId, {
+      availability: parsedQuery.data.availability,
+    });
 
     const { category, installedOnly, search } = parsedQuery.data;
 
@@ -166,7 +174,10 @@ export default async function mcpConnectorsRoutes(fastify: FastifyInstance) {
     }
 
     const result = await getService().testConnection(connectorId, config);
-    const statusCode = result.success ? 200 : 400;
+    // F-183: 400 only when the request/config itself was invalid. A completed
+    // check — verified or honestly unknown — is 200; the body carries the
+    // success/verified/outcome detail.
+    const statusCode = result.outcome === 'invalid' ? 400 : 200;
     return reply.status(statusCode).send({ success: result.success, data: result });
   };
 
