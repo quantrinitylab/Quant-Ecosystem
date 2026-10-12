@@ -453,4 +453,74 @@ describe('ConversationService', () => {
       );
     });
   });
+
+  // QC-F-075: bulk gate behind POST /calls/create — every id in the set
+  // must be an active member, and the conversation must exist.
+  describe('assertAllMembers', () => {
+    it('resolves when the conversation exists and every user is an active member', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1' });
+      prisma.conversationMember.findMany.mockResolvedValue([
+        { userId: 'user-1' },
+        { userId: 'user-2' },
+      ]);
+
+      await expect(
+        service.assertAllMembers('conv-1', ['user-1', 'user-2']),
+      ).resolves.toBeUndefined();
+
+      // Active-only semantics are pinned in the query itself (leftAt: null),
+      // and the whole set is checked in ONE findMany.
+      expect(prisma.conversationMember.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.conversationMember.findMany).toHaveBeenCalledWith({
+        where: {
+          conversationId: 'conv-1',
+          userId: { in: ['user-1', 'user-2'] },
+          leftAt: null,
+        },
+        select: { userId: true },
+      });
+    });
+
+    it('throws 404 CONVERSATION_NOT_FOUND when the conversation does not exist', async () => {
+      prisma.conversation.findUnique.mockResolvedValue(null);
+
+      await expect(service.assertAllMembers('nope', ['user-1'])).rejects.toMatchObject({
+        statusCode: 404,
+        code: 'CONVERSATION_NOT_FOUND',
+      });
+      expect(prisma.conversationMember.findMany).not.toHaveBeenCalled();
+    });
+
+    it('throws 403 NOT_A_MEMBER when the requesting user is not a member', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1' });
+      prisma.conversationMember.findMany.mockResolvedValue([{ userId: 'user-2' }]);
+
+      await expect(
+        service.assertAllMembers('conv-1', ['user-1', 'user-2']),
+      ).rejects.toMatchObject({ statusCode: 403, code: 'NOT_A_MEMBER' });
+    });
+
+    it('throws 403 NOT_A_MEMBER when exactly one participant is not a member', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1' });
+      prisma.conversationMember.findMany.mockResolvedValue([{ userId: 'user-1' }]);
+
+      await expect(
+        service.assertAllMembers('conv-1', ['user-1', 'user-2']),
+      ).rejects.toMatchObject({ statusCode: 403, code: 'NOT_A_MEMBER' });
+    });
+
+    it('de-duplicates repeated ids before checking membership', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1' });
+      prisma.conversationMember.findMany.mockResolvedValue([{ userId: 'user-1' }]);
+
+      await expect(
+        service.assertAllMembers('conv-1', ['user-1', 'user-1']),
+      ).resolves.toBeUndefined();
+      expect(prisma.conversationMember.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ userId: { in: ['user-1'] } }),
+        }),
+      );
+    });
+  });
 });
