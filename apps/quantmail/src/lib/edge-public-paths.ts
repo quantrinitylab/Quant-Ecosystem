@@ -56,3 +56,40 @@ export function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith('/documents/public/')) return true;
   return false;
 }
+
+// ============================================================================
+// Minimal auth shell — single source of truth (fix/qm-auth-providers-minimal).
+//
+// These are the public sign-in/up form pages. The edge middleware tags them
+// with AUTH_SHELL_HEADER so the root layout renders the lean auth provider
+// stack (brand + auth session only) instead of the full authenticated shell —
+// /login was measured at 792KB raw / 256KB gzip across 25 chunks because the
+// root layout mounted QueryClientProvider, the API-client layer, the keyboard
+// system, toasts and the offline bar on every route.
+//
+// This file must stay dependency-free and free of client-only APIs (imported
+// by the edge middleware AND the root layout's server component).
+// ============================================================================
+
+/**
+ * Request header the middleware sets on auth-shell routes. The root layout
+ * reads it via `headers()` and branches the provider tree. Absent (or any
+ * other value) ⇒ full authenticated shell — the safe default, so a missed tag
+ * can only cost bytes, never break a page.
+ */
+export const AUTH_SHELL_HEADER = 'x-quant-shell';
+
+/** Public auth-form routes that render the minimal auth shell. */
+export const AUTH_SHELL_PATHS = [
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+] as const;
+
+/** Exact match on the four auth-form routes (tolerates a trailing slash). */
+export function isAuthShellPath(pathname: string): boolean {
+  const normalized =
+    pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  return (AUTH_SHELL_PATHS as readonly string[]).includes(normalized);
+}

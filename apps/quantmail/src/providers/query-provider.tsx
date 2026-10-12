@@ -1,8 +1,9 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { queryRetryDelay, shouldRetryQuery } from '../lib/query-retry';
+import { registerQueryClient } from '../lib/query-client-registry';
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -25,5 +26,14 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
         },
       }),
   );
+  // The public auth shell renders AuthProvider with no QueryClientProvider
+  // above it (lean auth shell), and on the app shell AuthProvider is hoisted
+  // above this provider — so AuthProvider reaches the client through the
+  // module registry instead of `useQueryClient()`. See
+  // `lib/query-client-registry.ts`.
+  useEffect(() => {
+    registerQueryClient(queryClient);
+    return () => registerQueryClient(undefined);
+  }, [queryClient]);
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }

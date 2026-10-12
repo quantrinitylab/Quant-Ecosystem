@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isPublicPath } from './lib/edge-public-paths';
+import { AUTH_SHELL_HEADER, isAuthShellPath, isPublicPath } from './lib/edge-public-paths';
 
 // ============================================================================
 // QuantMail edge middleware — kill the logged-out double-boot on `/`.
@@ -21,7 +21,7 @@ import { isPublicPath } from './lib/edge-public-paths';
 export const REFRESH_COOKIE_NAME = 'quantmail_refresh';
 
 // Re-exported for tests and for parity assertions against AuthGuard.
-export { isPublicPath };
+export { AUTH_SHELL_HEADER, isAuthShellPath, isPublicPath };
 
 /**
  * Build the /login redirect for a signed-out request, mirroring AuthGuard's
@@ -41,6 +41,14 @@ export function buildLoginRedirect(request: NextRequest): NextResponse {
 export function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
   if (isPublicPath(pathname)) {
+    // Public auth-form pages render the minimal auth shell (brand + auth
+    // session only). Tag the request so the root layout can branch its
+    // provider tree server-side, before any JavaScript ships.
+    if (isAuthShellPath(pathname)) {
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set(AUTH_SHELL_HEADER, 'auth');
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    }
     return NextResponse.next();
   }
   // No refresh cookie ⇒ provably signed out ⇒ redirect server-side.
