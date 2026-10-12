@@ -49,6 +49,7 @@ const WorkCanvasPanel = dynamic(
 const VoiceModeModal = dynamic(() => import('../components/voice').then((m) => m.VoiceModeModal), {
   ssr: false,
 });
+import { AppSwitcher } from '../components/AppSwitcher';
 import { HeroPromptBento } from '../components/chat/HeroPromptBento';
 
 export default function AIPage() {
@@ -460,9 +461,44 @@ export default function AIPage() {
   // ---- Sidebar (Chats / Side chats views) ---------------------------------
   // Shared header/footer are extracted so both the date-grouped "Chats" list
   // and the topic-grouped "Side chats" section reuse the same chrome.
+  // F-187: cross-app switcher sits beside the brand in the sidebar header.
+  // (Bounded improvement: the Chats/Side-chats tab glyphs are real SVGs now —
+  // the standing UI standard bans emojis in product UI.)
+  const CHAT_BUBBLE_SVG = (
+    <svg
+      className="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      viewBox="0 0 24 24"
+      aria-hidden
+    >
+      <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+    </svg>
+  );
+  const TAG_SVG = (
+    <svg
+      className="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      viewBox="0 0 24 24"
+      aria-hidden
+    >
+      <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+      <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+    </svg>
+  );
   const sidebarHeader = (
     <div className="space-y-2">
-      <h2 className="text-lg font-semibold">{brandName}</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">{brandName}</h2>
+        <AppSwitcher currentApp="quantai" />
+      </div>
       <div className="relative">
         <svg
           className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--foreground-secondary)]"
@@ -493,8 +529,8 @@ export default function AIPage() {
       >
         {(
           [
-            { id: 'chats', label: 'Chats', icon: '💬' },
-            { id: 'side-chats', label: 'Side chats', icon: '🏷️' },
+            { id: 'chats', label: 'Chats', icon: CHAT_BUBBLE_SVG },
+            { id: 'side-chats', label: 'Side chats', icon: TAG_SVG },
           ] as const
         ).map((tab) => (
           <button
