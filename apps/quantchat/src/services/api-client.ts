@@ -19,7 +19,8 @@ import type {
   FriendLocation,
   Place,
   GeoFilter,
-  SmartReply,
+  SmartReplyRequest,
+  SmartReplyResult,
   TranslationResult,
   ModerationResult,
   Notification,
@@ -605,8 +606,17 @@ export class QuantChatApiClient {
   // AI
   // --------------------------------------------------------------------------
 
-  async getSmartReplies(message: string): Promise<ApiResponse<SmartReply[]>> {
-    return this.post('/ai/smart-replies', { message });
+  /**
+   * QC-F-068: real contract for the memory-backed smart-replies endpoint
+   * (backend POST /ai/smart-replies — style/contact memory learned in
+   * QuantMail, applied here). The old signature sent `{ message }`, which
+   * the backend Zod schema rejects, and declared a fabricated
+   * `SmartReply[]` result the backend never returns.
+   */
+  async getSmartReplies(
+    input: SmartReplyRequest,
+  ): Promise<ApiResponse<SmartReplyResult>> {
+    return this.post('/ai/smart-replies', input);
   }
 
   async translateMessage(
@@ -616,9 +626,9 @@ export class QuantChatApiClient {
     return this.post('/ai/translate', { text, targetLanguage });
   }
 
-  async chatWithAI(message: string): Promise<ApiResponse<{ response: string }>> {
-    return this.post('/ai/chat', { message });
-  }
+  // QC-F-068: `chatWithAI` (POST /ai/chat) was removed — no such backend
+  // route or Next proxy exists, so every call was a guaranteed 404 dressed
+  // up as an AI chat. Do not re-add a client method without a real route.
 
   // --------------------------------------------------------------------------
   // Bitmoji
