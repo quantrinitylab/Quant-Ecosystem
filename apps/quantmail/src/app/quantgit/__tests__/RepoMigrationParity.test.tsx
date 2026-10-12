@@ -10,7 +10,7 @@ import {
   convertGitLabCiToQuantWorkflow,
   extractEnvironmentVariables,
 } from '../../../../backend/services/repo-migration.service';
-import { RepoImportModal, MIGRATION_STEPS } from '../components/RepoImportModal';
+import { RepoImportModal, MIGRATION_STEPS, MigrationCompleteSummary, formatImportStat } from '../components/RepoImportModal';
 
 describe('QuantGit Repository Migration & Pipeline Converter Suite', () => {
   describe('1. Git URL Validation & Parsing', () => {
@@ -257,6 +257,79 @@ env:
       );
 
       expect(html).toBe('');
+    });
+
+    it('reaches the final step on import success so the completion summary can render', () => {
+      // Regression: the summary used to gate on `activeStep === 5`, which the
+      // success path (setActiveStep(2)) never reaches — the summary, the
+      // "Go to imported repository" button and onImportSuccess were dead code.
+      expect(MIGRATION_STEPS.length).toBe(2);
+      expect(MIGRATION_STEPS[MIGRATION_STEPS.length - 1].title).toBe('Import complete!');
+    });
+  });
+
+  describe('6. MigrationCompleteSummary honest counts (no invented stats)', () => {
+    it('formatImportStat returns real numbers, never invented fallbacks', () => {
+      expect(formatImportStat(42)).toBe('42');
+      expect(formatImportStat(0)).toBe('0'); // 0 is a real result, not "unknown"
+      expect(formatImportStat([{ a: 1 }, { b: 2 }])).toBe('2');
+      expect(formatImportStat([])).toBe('0');
+      expect(formatImportStat(undefined)).toBe('—');
+      expect(formatImportStat(null)).toBe('—');
+      expect(formatImportStat(NaN)).toBe('—');
+      expect(formatImportStat(-1)).toBe('—');
+      expect(formatImportStat('not-a-number')).toBe('—');
+    });
+
+    it('renders real backend counts when the response includes them', () => {
+      const html = renderToStaticMarkup(
+        <MigrationCompleteSummary
+          result={{
+            importedCommits: 137,
+            convertedPipelines: [{ sourceType: 'github-actions' }, { sourceType: 'gitlab-ci' }],
+            importedEnvVars: [],
+          }}
+          onFinish={vi.fn()}
+        />,
+      );
+
+      expect(html).toContain('137');
+      expect(html).toContain('2 Converted');
+      expect(html).toContain('0 Vars');
+      expect(html).toContain('Repository Migration Succeeded');
+      // No invented precision claims
+      expect(html).not.toContain('100%');
+    });
+
+    it('renders em-dashes — never 42 / 1 / 4 inventions — when the response omits counts', () => {
+      const html = renderToStaticMarkup(
+        <MigrationCompleteSummary result={{ repo: { name: 'demo' } }} onFinish={vi.fn()} />,
+      );
+
+      // Every stat cell must show "unknown", not a plausible-looking number.
+      // (Assertions are scoped to the stat spans: the checkmark SVG path data
+      // contains "42" as a substring, so whole-HTML checks would false-positive.)
+      expect(html).toContain('data-testid="migration-stat-commits">—<');
+      expect(html).toContain('data-testid="migration-stat-workflows">— Converted<');
+      expect(html).toContain('data-testid="migration-stat-secrets">— Vars<');
+      expect(html).not.toContain('>42<');
+      // The old inventions ("1 Converted", "4 Vars") must be gone entirely
+      expect(html).not.toContain('1 Converted');
+      expect(html).not.toContain('4 Vars');
+      expect(html).toContain('Go to imported repository');
+    });
+
+    it('renders honest zero counts when the backend reports empty arrays', () => {
+      const html = renderToStaticMarkup(
+        <MigrationCompleteSummary
+          result={{ importedCommits: 0, convertedPipelines: [], importedEnvVars: [] }}
+          onFinish={vi.fn()}
+        />,
+      );
+
+      expect(html).toContain('>0<');
+      expect(html).toContain('0 Converted');
+      expect(html).toContain('0 Vars');
     });
   });
 });
