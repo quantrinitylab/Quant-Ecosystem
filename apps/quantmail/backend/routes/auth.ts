@@ -29,6 +29,18 @@ import {
 // compare-and-set burn loses a race — caught below, never escapes as a 500.
 const VERIFICATION_CODE_ALREADY_USED = Symbol('verification-code-already-used');
 
+// Sentinel thrown inside the resend-verification transaction when a
+// concurrent resend (or verify) burned one of this request's snapshot rows
+// between the snapshot read and the burn — caught below, never escapes as a
+// 500. The loser must fail BEFORE any email goes out, so no inbox ever
+// receives a code that is already dead.
+const RESEND_CODE_SUPERSEDED = Symbol('resend-code-superseded');
+
+// Sentinel thrown inside the resend-verification transaction when the
+// in-transaction re-check finds the address already proven — the outer
+// handler answers alreadyVerified instead of issuing a code.
+const RESEND_ALREADY_VERIFIED = Symbol('resend-already-verified');
+
 export async function authRoutes(fastify: FastifyInstance) {
   const tokenService = createTokenService();
 
@@ -310,20 +322,79 @@ export async function authRoutes(fastify: FastifyInstance) {
         return reply.send({ success: true, data: { emailVerified: true, alreadyVerified: true } });
       }
 
-      await prisma.emailVerificationCode.updateMany({
-        where: { userId: user.id, usedAt: null },
-        data: { usedAt: new Date() },
-      });
-
+      // Burn-then-create must be atomic. As sequential awaits, two concurrent
+      // resends interleave (A burns, A creates A1, B burns A1, B creates B1)
+      // and the code in A's just-sent email is already dead — the user gets
+      // INVALID_OR_EXPIRED_CODE for a code they received seconds ago.
+      //
+      // Linearization, same style as the verify-email fix: inside one
+      // transaction, snapshot the codes pending when THIS request began, then
+      // burn exactly that snapshot with a compare-and-set
+      // (updateMany on { id, usedAt: null }) and require the affected-count
+      // to match the snapshot size. A sibling resend still in flight has its
+      // create uncommitted, so it is invisible to our snapshot — we can never
+      // burn a code whose email is still being sent. If a sibling (or a
+      // verify) burned one of our snapshot rows between our snapshot read
+      // and our burn, the count comes up short and this request loses
+      // cleanly BEFORE any email goes out: exactly one winner, one live
+      // code, one email — a just-received code never arrives dead.
       const verificationCode = generateVerificationCode();
-      await prisma.emailVerificationCode.create({
-        data: {
-          userId: user.id,
-          codeHash: hashVerificationCode(verificationCode),
-          expiresAt: verificationCodeExpiry(),
-          requestedIp: typeof request.ip === 'string' ? request.ip : null,
-        },
-      });
+      try {
+        await prisma.$transaction(async (tx: any) => {
+          // Re-check inside the transaction: the address may have been
+          // proven between the read above and now. Never issue a code for a
+          // proven address.
+          const fresh = await tx.user.findUnique({
+            where: { id: user.id },
+            select: { emailVerified: true },
+          });
+          if (fresh?.emailVerified) {
+            throw RESEND_ALREADY_VERIFIED;
+          }
+
+          const pending = await tx.emailVerificationCode.findMany({
+            where: { userId: user.id, usedAt: null },
+            select: { id: true },
+          });
+          const burned = await tx.emailVerificationCode.updateMany({
+            where: { id: { in: pending.map((row: any) => row.id) }, usedAt: null },
+            data: { usedAt: new Date() },
+          });
+          if (burned.count !== pending.length) {
+            throw RESEND_CODE_SUPERSEDED;
+          }
+
+          await tx.emailVerificationCode.create({
+            data: {
+              userId: user.id,
+              codeHash: hashVerificationCode(verificationCode),
+              expiresAt: verificationCodeExpiry(),
+              requestedIp: typeof request.ip === 'string' ? request.ip : null,
+            },
+          });
+        });
+      } catch (err) {
+        if (err === RESEND_ALREADY_VERIFIED) {
+          return reply.send({ success: true, data: { emailVerified: true, alreadyVerified: true } });
+        }
+        if (err === RESEND_CODE_SUPERSEDED) {
+          // The address may have been proven by the winning sibling (a
+          // verify racing this resend) — answer that honestly instead of
+          // telling the user to check their inbox for a code they no longer
+          // need.
+          const latest = await prisma.user.findUnique({ where: { id: user.id } });
+          if (latest?.emailVerified) {
+            return reply.send({ success: true, data: { emailVerified: true, alreadyVerified: true } });
+          }
+          return fail(
+            reply,
+            409,
+            'RESEND_SUPERSEDED',
+            'A newer verification code was just issued. Please use the code from your latest email.',
+          );
+        }
+        throw err;
+      }
       const emailSent = await sendVerificationEmail({
         to: email,
         code: verificationCode,
