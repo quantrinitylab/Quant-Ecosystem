@@ -36,6 +36,7 @@
 
 import type { OutboxEvent, OutboxService } from './outbox.service';
 import type { RealtimeBackplane, RoomEvent } from './realtime-backplane';
+import type { NotificationCategory } from '../lib/notification-dispatch';
 
 /** Maximum number of outbox events claimed per drain tick (Requirement 8.1). */
 export const DELIVERY_BATCH_LIMIT = 100;
@@ -80,7 +81,28 @@ export function computeBackoffMs(
 export interface PushNotification {
   title: string;
   body: string;
+  /**
+   * Canonical push vocabulary (QC-F-142): the service worker reads
+   * `category` / `contentId` / `deepLink` — the same fields the
+   * POST /notifications/send path already speaks. The offline path used to
+   * send ONLY `conversationId`, which the worker never reads, so every
+   * offline push fell back to category 'SYSTEM' and a dead '/notifications'
+   * target. The worker only ever produces MESSAGES notifications.
+   */
+  category: NotificationCategory;
+  /** The content the notification refers to — the conversation id for MESSAGES. */
+  contentId: string;
+  /**
+   * @deprecated Alias of {@link PushNotification.contentId} on the offline
+   * path, kept for ONE release (QC-F-142 §3.2) so anything still reading the
+   * old field keeps working; remove after the alias release.
+   */
   conversationId: string;
+  /**
+   * Unread count. On the wire this travels as `badgeCount`, NEVER as
+   * `badge` — the service-worker `badge` notification option is a badge
+   * ICON URL, not a number (QC-F-142 §3.2).
+   */
   badge?: number;
 }
 
@@ -161,6 +183,8 @@ export function genericNotification(conversationId: string): PushNotification {
   return {
     title: 'QuantChat',
     body: 'New message',
+    category: 'MESSAGES',
+    contentId: conversationId,
     conversationId,
   };
 }

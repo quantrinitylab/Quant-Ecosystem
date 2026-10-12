@@ -22,23 +22,29 @@ self.addEventListener('activate', (event) => {
 
 // Map a notification category + content id to an in-app route.
 // Mirror of resolveDeepLink() in src/lib/notification-deeplink.ts.
+// QC-F-142: every target below is a route that actually exists. The old
+// map sent CALLS/SYSTEM/unknown to a non-existent '/notifications',
+// STORIES/REELS with an id to non-existent '/stories/<id>' / '/reels/<id>',
+// and MESSAGES/STREAKS without an id to a non-existent '/chat' — all 404s.
+// Parity with the TS copies is enforced by the shared test vectors in
+// test-fixtures/notification-deeplink-vectors.json.
 function resolveDeepLink(category, contentId) {
+  const id = String(contentId || '').trim();
   switch (String(category || '').toUpperCase()) {
     case 'MESSAGES':
-      return contentId ? '/chat/' + contentId : '/chat';
+      return id ? '/chat/' + id : '/';
     case 'CALLS':
-      // No call UI exists (simulated /call route removed) — land in the
-      // real notification center. Mirrors src/lib/notification-deeplink.ts.
-      return '/notifications';
+      // The real call-history page; it takes no call id in the URL.
+      return '/calls';
     case 'STORIES':
-      return contentId ? '/stories/' + contentId : '/stories';
+      return '/stories';
     case 'REELS':
-      return contentId ? '/reels/' + contentId : '/reels';
+      return '/reels';
     case 'STREAKS':
-      return contentId ? '/chat/' + contentId : '/chat';
+      return id ? '/chat/' + id : '/';
     case 'SYSTEM':
     default:
-      return '/notifications';
+      return '/';
   }
 }
 
@@ -52,8 +58,11 @@ self.addEventListener('push', (event) => {
   }
 
   const title = data.title || 'QuantChat';
-  const category = data.category || 'SYSTEM';
-  const contentId = data.contentId || data.deepLinkId || '';
+  // QC-F-142 legacy alias (one release): payloads from before the contract
+  // fix carried ONLY `conversationId` — treat one as a MESSAGES push for
+  // that conversation instead of falling back to the SYSTEM home.
+  const category = data.category || (data.conversationId ? 'MESSAGES' : 'SYSTEM');
+  const contentId = data.contentId || data.deepLinkId || data.conversationId || '';
   const deepLink = data.deepLink || resolveDeepLink(category, contentId);
 
   const options = {
@@ -85,10 +94,26 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If an app window is already open, focus it and tell it to navigate.
+      // If an app window is already open, NAVIGATE it to the target and
+      // focus it. QC-F-142: this used to only postMessage + focus — but no
+      // client listener for NOTIFICATION_CLICK exists, so a tap on an
+      // already-open app merely focused the stale screen and the
+      // conversation never opened. The postMessage stays for any future
+      // listener; navigate() is what actually moves the user. If navigate
+      // is unavailable or fails, fall back to the old focus-only behaviour.
       for (const client of clientList) {
         if ('focus' in client) {
           client.postMessage({ type: 'NOTIFICATION_CLICK', deepLink: targetPath });
+          if ('navigate' in client) {
+            return client
+              .navigate(targetPath)
+              .then((navigatedClient) =>
+                navigatedClient && 'focus' in navigatedClient
+                  ? navigatedClient.focus()
+                  : client.focus(),
+              )
+              .catch(() => client.focus());
+          }
           return client.focus();
         }
       }

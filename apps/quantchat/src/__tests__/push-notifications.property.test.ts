@@ -17,6 +17,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { classifyPath } from '../lib/route-access';
 
 import {
   shouldWarnStreakExpiry,
@@ -248,39 +252,46 @@ describe('Push notifications — Property 21 (category independence)', () => {
 // ===========================================================================
 
 describe('Push notifications — Property 22 (deep-link resolution)', () => {
-  // Documented mapping (mirrors resolveDeepLink + public/sw.js).
-  function expectedRoute(category: NotificationCategory, id: string): string {
-    switch (category) {
-      case 'MESSAGES':
-        return id ? `/chat/${id}` : '/chat';
-      case 'CALLS':
-        return '/notifications';
-      case 'STORIES':
-        return id ? `/stories/${id}` : '/stories';
-      case 'REELS':
-        return id ? `/reels/${id}` : '/reels';
-      case 'STREAKS':
-        return id ? `/chat/${id}` : '/chat';
-      case 'SYSTEM':
-        return '/notifications';
-    }
+  // QC-F-142: the expected routes come from the SHARED vectors fixture —
+  // the same file the sw.js copy and the backend resolver are tested
+  // against — NOT from a fourth hand-written copy of the map inside this
+  // test (that copy is exactly how the old dead map — '/notifications',
+  // '/chat', '/stories/<id>' — stayed pinned as "correct" while every one
+  // of those routes 404'd).
+  interface DeepLinkVector {
+    category: string;
+    contentId: string | null;
+    expected: string;
   }
+  const vectors = JSON.parse(
+    readFileSync(
+      join(
+        resolve(dirname(fileURLToPath(import.meta.url)), '..', '..'),
+        'test-fixtures',
+        'notification-deeplink-vectors.json',
+      ),
+      'utf8',
+    ),
+  ) as DeepLinkVector[];
 
   // Feature: quantchat-mega-upgrade, Property 22: for any category + content id, the resolver produces the correct route.
-  it('resolveDeepLink produces the documented route for any category + content id', () => {
+  it('resolveDeepLink produces the shared-vector route for any category + content id', () => {
     const rng = mulberry32(0x4_0000);
     for (let n = 0; n < CASES; n++) {
-      const category = pick(rng, NOTIFICATION_CATEGORIES);
-      // Sometimes no id, sometimes a random id (with surrounding whitespace to
-      // exercise trimming).
-      const hasId = rng() < 0.8;
-      const rawId = hasId ? `id-${randInt(rng, 1, 1_000_000)}` : '';
-      const arg = rng() < 0.3 ? `  ${rawId}  ` : rawId;
+      const vector = vectors[Math.floor(rng() * vectors.length)]!;
+      // Random presentation variations that must not change the result:
+      // category casing, and whitespace around the content id (trimming).
+      const category = rng() < 0.3 ? vector.category.toLowerCase() : vector.category;
+      let contentId: string | null | undefined = vector.contentId;
+      if (contentId === null && rng() < 0.5) contentId = undefined;
+      if (typeof contentId === 'string' && rng() < 0.3) contentId = `  ${contentId}  `;
 
-      const route = resolveDeepLink(category, arg);
-      expect(route).toBe(expectedRoute(category, rawId));
-      // Routes are always absolute.
+      const route = resolveDeepLink(category, contentId);
+      expect(route).toBe(vector.expected);
+      // Routes are always absolute…
       expect(route.startsWith('/')).toBe(true);
+      // …and always REAL routes — the QC-F-142 route-existence guard.
+      expect(classifyPath(route)).toBe('app');
     }
   });
 });
@@ -326,7 +337,11 @@ describe('Push notifications — Property 23 (batching)', () => {
       const summary = send.mock.calls[0]![0] as BatchableNotification;
       expect(summary.title).toContain('6 new');
       expect(summary.priority).toBe('normal');
-      expect(summary.deepLink).toBe('/notifications');
+      // QC-F-142: the summary lands on its category's real home route —
+      // never the old hardcoded '/notifications' (a page that does not
+      // exist).
+      expect(summary.deepLink).toBe(resolveDeepLink(category));
+      expect(summary.deepLink).not.toBe('/notifications');
       expect(batcher.openWindowCount).toBe(0);
     }
   });

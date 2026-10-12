@@ -248,14 +248,38 @@ describe('WebPushDispatcher — generic E2EE body carries no plaintext (Requirem
 
     // Generic body — the worker never has plaintext to leak.
     expect(parsed['body']).toBe('New message');
-    // Payload exposes ONLY routing/display fields, never message content. The
-    // optional `badge` is omitted when unset (JSON.stringify drops undefined),
-    // so every present key must be one of the safe, plaintext-free fields.
-    const allowedFields = ['title', 'body', 'conversationId', 'badge'];
+    // Payload exposes ONLY routing/display fields, never message content.
+    // Optional fields are omitted when unset (JSON.stringify drops
+    // undefined), so every present key must be one of the safe,
+    // plaintext-free fields. QC-F-142 deliberately moved this pin to the
+    // canonical contract set: the worker now speaks category / contentId /
+    // deepLink (what the service worker reads), keeps conversationId as a
+    // one-release alias, and sends the unread count as badgeCount — never
+    // as `badge` (that key is the worker's badge-ICON url field).
+    const allowedFields = [
+      'title',
+      'body',
+      'category',
+      'contentId',
+      'deepLink',
+      'conversationId',
+      'badgeCount',
+    ];
     for (const key of Object.keys(parsed)) {
       expect(allowedFields).toContain(key);
     }
     expect(parsed['conversationId']).toBe('conv-secret');
+    // QC-F-142 case 1: the full canonical contract for an offline message.
+    expect(parsed['category']).toBe('MESSAGES');
+    expect(parsed['contentId']).toBe('conv-secret');
+    expect(parsed['deepLink']).toBe('/chat/conv-secret');
+  });
+
+  it('sends an unread count as badgeCount, never on the badge icon field (QC-F-142)', () => {
+    const payload = buildPushPayload({ ...genericNotification('conv-1'), badge: 3 });
+    const parsed = JSON.parse(payload) as Record<string, unknown>;
+    expect(parsed['badge']).toBeUndefined();
+    expect(parsed['badgeCount']).toBe(3);
   });
 
   it('transmits the generic payload to the transport without any plaintext', async () => {

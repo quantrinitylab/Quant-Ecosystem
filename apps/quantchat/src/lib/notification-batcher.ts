@@ -13,7 +13,7 @@
 // Validates: Requirements 9.9, 9.10 (Property 23 - batching)
 // ============================================================================
 
-import type { NotificationCategory } from './notification-deeplink';
+import { resolveDeepLink, type NotificationCategory } from './notification-deeplink';
 
 export type NotificationPriority = 'high' | 'normal';
 
@@ -168,7 +168,10 @@ export class NotificationBatcher {
       category: first.category,
       title: `${count} new ${categoryLabel}`,
       body: count > 3 ? `${preview}…` : preview,
-      deepLink: '/notifications',
+      // QC-F-142: a summary spans many items of one category, so it lands
+      // on that category's real home route — never the old hardcoded
+      // '/notifications', a page that does not exist.
+      deepLink: resolveDeepLink(first.category),
       priority: 'normal',
       tag: `summary:${first.category}`,
     };
