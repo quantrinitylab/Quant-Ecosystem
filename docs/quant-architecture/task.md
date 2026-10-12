@@ -578,6 +578,32 @@ R3 NEW FINDINGS: none (0 P0, 0 P1, 0 P2, 0 P3). No regressions found. No fix age
 LIVE (2026-10-12 ~05:50 IST, logged-out): /search?q=test → honest sign-in page on desktop (1440x900) + mobile (390x844) — auth gate intact, unchanged from R2. Signed-in search UI remains needs-auth (no test account session in this run). Evidence: /tmp/lane1-007r3/desktop-search.png + mobile-search.png. NOT VERIFIED (needs live/auth, unchanged): staging DB GIN indexes; live 401 E2E; overlapping-fetch flicker; Hinglish stemming; scope-chip behavior on live data; search latency tuning.
 Status: [x] DONE (R3 regression audit complete 2026-10-12 ~05:55 IST; no regressions; 6 opens carried forward; fixes tracked via their PRs)
 
+## QM-SCREEN-008/009 R3 — Calendar regression (ROUND 3)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-008r3
+Audit started: 2026-10-12 ~06:40 IST (lane-1 deep audit loop, ROUND 3)
+Base: R2 008 @ 2026-10-11 ~18:50 IST / R2 009 @ 1d02f59b ~19:35 IST → origin/main 3ce1a602. Regression diff over all audited calendar paths:
+- ONLY 2 calendar-adjacent commits since R2: 56b77ec3 (honest empty-slot state on public booking page — resolveSlotsResponse() authority rule; empty array no longer falls through to client-side invented slot generation; fake-removal wave) and 3ce1a602 (calendar-week-view.test date-boundary fix, test-only). BOTH VERIFIED BENIGN: booking-utils diff reviewed (pure function + mapped slots, no behavioral change to event create/edit paths); test file only.
+- ZERO diff on: backend/routes/calendar.ts, services/recurring.service.ts, calendar.service.ts, app/calendar/page.tsx, CalendarSubViews.tsx, CalendarEventForm.tsx, event/[id]/page.tsx, lib/recurrence.ts, lib/calendar-geometry.ts, hooks/useCalendar*.ts.
+R3 RE-VERIFIED FIXED-IN-MAIN (spot-checked, all still present): agendaEventWindow in query key (page.tsx:306); setMetaDriveLink on all create/update paths (calendar.ts:325,1547); driveLink in toEventDto (:433); detail Files section + openEditSheet restore; viewerIsAttendee gate (page.tsx:480); detail-edit timezone selector; occurrence-id resolution in GET (calendar.ts:1424-1426).
+R3 RE-VERIFIED STILL OPEN (all carried forward, byte-level confirmed, none new):
+- 008: [ ] FINDING P3: offline edits / conflict resolution absent (useCalendar.ts: no offline queue) -> BLOCKERS.md #10 (product decision).
+- 008: [ ] FINDING P3: divider-line density vs no-divider rule (273 border usages in calendar subviews) -> BLOCKERS.md #9 (user design decision).
+- 008/009: [ ] FINDING P3: `as never` casts on save payloads (page.tsx:1027-1028, event/[id]/page.tsx:176) — TS check disabled on PUT/POST bodies.
+- 008: [ ] FINDING P3: detached infinite-scroll dead code (BLOCKERS.md #8) — agenda scroll path detached from rendered CalendarFeedSubView; reattach-or-remove = user design decision.
+- 009: [ ] FINDING P1: no attendee invitations dispatched on create/edit (POST /events:1543 zero mail dispatch; attendees never see event) -> BLOCKER: user design decision (invite semantics).
+- 009: [ ] FINDING P1: RSVP changes + cancellations silent (rsvp handler :2252+, DELETE :2188 — no notify/mail/push) -> BLOCKER: user design decision (notification semantics).
+- 009: [ ] FINDING P2: detail page orphaned from calendar home (onSelectEvent={setSelectedEvent} :1279-1331 still opens edit sheet; only UniversalSearchResults links to detail) -> BLOCKER: user design decision (nav pattern).
+- 009: [ ] FINDING P2: DTO defaults missing timezone to 'UTC' (calendar.ts:260,423 `timeZone || timezone || 'UTC'`) — tz-less events render shifted for IST users.
+- 009: [ ] FINDING P2: no QuantMeet/conferencing link generation in event form -> BLOCKER: user design decision (conferencing backend).
+- 009: [ ] FINDING P2: attendee input has no email validation (CalendarEventForm handleAddAttendee accepts any string; backend attendeeInput z.string().max(320) :24-25).
+- 009: [ ] FINDING P3: no cancellation semantics (no route sets status 'cancelled'; DELETE hard-deletes).
+- 009: [ ] FINDING P3: detail page shows no related mail/files.
+R3 NEW FINDINGS: none (0 P0, 0 P1, 0 P2, 0 P3). No regressions found. No fix agents dispatched.
+LIVE (2026-10-12 ~06:50 IST, logged-out): /calendar → honest sign-in page on desktop (1440x900) + mobile (390x844) — auth gate intact, unchanged from R2. Signed-in calendar UI remains needs-auth (no test account session in this run). Evidence: /tmp/lane1-008r3/desktop-calendar.png + mobile-calendar.png. NOT VERIFIED (needs live/auth, unchanged): create/edit/detail/RSVP E2E on real data, occurrence edit/delete, tz rendering live, reminder firing, infinite-scroll live, 5-min staleTime UX, mobile gestures live.
+Status: [x] DONE (R3 regression audit complete 2026-10-12 ~06:55 IST; no regressions; 12 opens carried forward; fixes tracked via their PRs)
+
 ## QM-SCREEN-008 — Calendar home / agenda / day / week / month
 Status: [x] DONE (audit complete 2026-10-11 ~02:10 IST; fixes tracked via their PRs)
 Owner: LANE-1
