@@ -126,6 +126,12 @@ export interface SendMessageInput {
   replyToId?: string;
   metadata?: Record<string, unknown>;
   disappearMode?: 'off' | 'after_view' | '24h' | '7d' | '30d';
+  // QC-F-067: server-side generated replies (auto-reply service) are stored
+  // with the AI flag set so clients can label them and the auto-reply
+  // trigger itself can refuse to reply to them (loop prevention). The REST
+  // route schema does not accept this from clients — only trusted
+  // server-side callers set it.
+  isAIGenerated?: boolean;
   // QC-F-022: deliberately NO `encryption` / `recipientPublicKeys` fields.
   // See the block comment above — E2EE is client-side only.
 }
@@ -189,8 +195,17 @@ export class MessageService {
     // caller still asks this server-side service to do "e2e" encryption.
     assertNoServerSideE2eeRequest(input);
 
-    const { conversationId, senderId, content, type, mediaUrl, replyToId, metadata, disappearMode } =
-      input;
+    const {
+      conversationId,
+      senderId,
+      content,
+      type,
+      mediaUrl,
+      replyToId,
+      metadata,
+      disappearMode,
+      isAIGenerated,
+    } = input;
 
     // Verify user is a member of the conversation
     const membership = await this.prisma.conversationMember.findFirst({
@@ -257,6 +272,7 @@ export class MessageService {
           type: toMessageType(type),
           mediaUrl: mediaUrl ?? null,
           replyToId: replyToId ?? null,
+          isAIGenerated: isAIGenerated ?? false,
           metadata: storedMetadata as Prisma.InputJsonValue,
         },
       });
