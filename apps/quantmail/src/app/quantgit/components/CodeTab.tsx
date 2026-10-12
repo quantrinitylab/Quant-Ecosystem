@@ -545,6 +545,28 @@ export function resolveBranchSelectorLists(input: {
   };
 }
 
+// QM-SCREEN-013 R4 honesty fix: decides what the README preview's Edit button
+// does. When the repo has no README.md, opening the blob editor with a
+// synthesized README.md FileNode hits the backend 404 path, which loads an
+// .md template — the new file is then created via the real onCommitBlob flow.
+// Never fire a success-sounding toast for an action that did nothing.
+export function resolveReadmeEditAction(input: {
+  readmeFile: FileNode | undefined;
+  openBlobEditor: (file: FileNode) => Promise<void> | void;
+  showToast: (msg: string) => void;
+}): void {
+  if (input.readmeFile) {
+    void input.openBlobEditor(input.readmeFile);
+    return;
+  }
+  input.showToast('README.md not found — opening editor to create it.');
+  void input.openBlobEditor({
+    name: 'README.md',
+    path: 'README.md',
+    type: 'file',
+  });
+}
+
 export interface CodeTabProps {
   selectedRepo: Repo;
   currentBranch: string;
@@ -2544,13 +2566,9 @@ pnpm install && pnpm dev
           content={defaultReadmeContent}
           repoName={selectedRepo.name}
           defaultBranch={selectedRepo.defaultBranch || 'main'}
-          onEdit={() => {
-            if (readmeFile) {
-              void openBlobEditor(readmeFile);
-            } else {
-              showToast('Opening README.md in editor...');
-            }
-          }}
+          onEdit={() =>
+            resolveReadmeEditAction({ readmeFile, openBlobEditor, showToast })
+          }
         />
       </div>
 
