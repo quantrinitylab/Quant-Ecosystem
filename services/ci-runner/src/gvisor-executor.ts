@@ -1,8 +1,20 @@
 import * as fs from 'node:fs';
 import * as child_process from 'node:child_process';
+import * as os from 'node:os';
 import { performance } from 'node:perf_hooks';
 import type { CIJobConfig } from './parser.js';
 import { CIExecutorUnavailableError, type ExecutionResult } from './executor.js';
+
+/**
+ * Exit code for a child terminated by a signal: 128 + signal number (the shell
+ * convention, e.g. 137 for SIGKILL), or 1 when the signal is unknown. A sandbox
+ * killed by the OOM killer or an external SIGTERM must never read as success.
+ */
+function signalExitCode(signal: NodeJS.Signals | null): number {
+  const signals = os.constants.signals as Record<string, number | undefined>;
+  const signalNumber = signal ? signals[signal] : undefined;
+  return typeof signalNumber === 'number' ? 128 + signalNumber : 1;
+}
 
 export interface GVisorCgroupLimits {
   memoryLimit?: string; // e.g. "2G"
@@ -268,7 +280,7 @@ export class GVisorContainerExecutor {
         reject(new CIExecutorUnavailableError());
       });
 
-      child.on('close', (code) => {
+      child.on('close', (code, signal) => {
         clearTimeout(timer);
         if (!sandboxReady) {
           startupTimeMs = Math.round(performance.now() - sandboxStart);
@@ -286,9 +298,12 @@ export class GVisorContainerExecutor {
         }
 
         resolve({
-          exitCode: code ?? 0,
+          exitCode: code ?? signalExitCode(signal),
           stdout,
-          stderr,
+          stderr:
+            code === null
+              ? `${stderr}\nSandbox process terminated by signal ${signal ?? 'unknown'}.`
+              : stderr,
           startupTimeMs: Math.min(startupTimeMs, 38), // systrap container startup target <= 38ms
         });
       });
