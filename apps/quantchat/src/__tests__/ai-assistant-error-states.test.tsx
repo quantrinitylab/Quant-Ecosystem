@@ -9,6 +9,13 @@
 // place. These tests FAIL on the original component and PASS on the fix:
 // each surface shows the sanitized real failure with a working Retry, and
 // the honest empty state only appears when the call actually succeeded.
+//
+// QC-F-068 update: POST /ai/chat never existed on the backend, so the Chat
+// tab no longer calls a phantom route at all — it states plainly that AI
+// chat is unavailable and fabricates no assistant reply. Smart replies now
+// use the real backend contract ({conversationId, recentMessages} ->
+// {suggestions: string[]}); without a conversationId the tab says why it
+// cannot call, and makes no request.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React, { act } from 'react';
@@ -17,20 +24,18 @@ import { createRoot, type Root } from 'react-dom/client';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const apiMocks = vi.hoisted(() => ({
-  chatWithAI: vi.fn(),
   translateMessage: vi.fn(),
   getSmartReplies: vi.fn(),
 }));
 
 vi.mock('../services/api-client', () => ({
   apiClient: {
-    chatWithAI: apiMocks.chatWithAI,
     translateMessage: apiMocks.translateMessage,
     getSmartReplies: apiMocks.getSmartReplies,
   },
 }));
 
-import { AIAssistant } from '../components/AIAssistant';
+import { AIAssistant, AI_CHAT_UNAVAILABLE_MESSAGE } from '../components/AIAssistant';
 
 function flushPromises(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
@@ -78,8 +83,7 @@ describe('AIAssistant error honesty (QM-UIUX-088)', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     vi.clearAllMocks();
-    apiMocks.getSmartReplies.mockResolvedValue({ success: true, data: [] });
-    apiMocks.chatWithAI.mockResolvedValue({ success: true, data: { response: 'hi there' } });
+    apiMocks.getSmartReplies.mockResolvedValue({ success: true, data: { suggestions: [] } });
     apiMocks.translateMessage.mockResolvedValue({
       success: true,
       data: { translatedText: 'hola' },
@@ -97,13 +101,7 @@ describe('AIAssistant error honesty (QM-UIUX-088)', () => {
     });
   }
 
-  it('shows the real chat failure with a Retry that resends the failed prompt', async () => {
-    apiMocks.chatWithAI
-      .mockResolvedValueOnce({
-        success: false,
-        error: { code: 'TIMEOUT', message: 'Request timed out. Please try again.', statusCode: 0 },
-      })
-      .mockResolvedValueOnce({ success: true, data: { response: 'recovered answer' } });
+  it('chat tab states plainly that AI chat is unavailable and fabricates no reply (QC-F-068)', async () => {
     render();
 
     const input = container.querySelector<HTMLInputElement>('.ai-input input')!;
@@ -111,38 +109,31 @@ describe('AIAssistant error honesty (QM-UIUX-088)', () => {
     click(buttonByText(container, 'Send'));
     await flush();
 
-    const alert = container.querySelector('[role="alert"]');
+    const alert = container.querySelector('.ai-chat [role="alert"]');
     expect(alert).not.toBeNull();
-    expect(alert!.textContent).toContain('timed out');
-    // The failed exchange must not fabricate an assistant reply.
-    expect(container.textContent).not.toContain('recovered answer');
-
-    click(buttonByText(alert!.parentElement ?? container, 'Retry'));
-    await flush();
-
-    expect(apiMocks.chatWithAI).toHaveBeenCalledTimes(2);
-    expect(apiMocks.chatWithAI.mock.calls[1]![0]).toBe('hello ai');
-    expect(container.querySelector('[role="alert"]')).toBeNull();
-    expect(container.textContent).toContain('recovered answer');
+    expect(alert!.textContent).toContain(AI_CHAT_UNAVAILABLE_MESSAGE);
+    // The user's own message is shown; no assistant reply is invented.
+    expect(container.querySelectorAll('.ai-message.user').length).toBe(1);
+    expect(container.querySelectorAll('.ai-message.assistant').length).toBe(0);
+    // No network call of any kind was attempted for the chat prompt.
+    expect(apiMocks.getSmartReplies).not.toHaveBeenCalled();
+    expect(apiMocks.translateMessage).not.toHaveBeenCalled();
   });
 
-  it('never leaks URLs/IPs from a failed chat error into the UI', async () => {
-    apiMocks.chatWithAI.mockResolvedValue({
+  it('never leaks URLs/IPs from a failed smart-replies error into the UI', async () => {
+    apiMocks.getSmartReplies.mockResolvedValue({
       success: false,
       error: {
         code: 'NETWORK_ERROR',
-        message: 'POST http://10.1.2.3:9000/ai failed: Bearer abcdef1234567890XYZ',
+        message: 'POST http://10.1.2.3:9000/ai failed: Bearer <redacted>',
         statusCode: 0,
       },
     });
-    render();
-
-    const input = container.querySelector<HTMLInputElement>('.ai-input input')!;
-    setValue(input, 'hello ai');
-    click(buttonByText(container, 'Send'));
+    render({ contextMessage: 'lunch tomorrow?', conversationId: 'conv-1' });
     await flush();
 
-    const alert = container.querySelector('[role="alert"]');
+    click(buttonByText(container, 'Replies'));
+    const alert = container.querySelector('.ai-replies [role="alert"]');
     expect(alert).not.toBeNull();
     expect(alert!.textContent).not.toContain('10.1.2.3');
     expect(alert!.textContent).not.toContain('http://');
@@ -180,8 +171,14 @@ describe('AIAssistant error honesty (QM-UIUX-088)', () => {
       success: false,
       error: { code: 'TIMEOUT', message: 'Request timed out. Please try again.', statusCode: 0 },
     });
-    render({ contextMessage: 'lunch tomorrow?' });
+    render({ contextMessage: 'lunch tomorrow?', conversationId: 'conv-1' });
     await flush();
+
+    // The real backend contract was used — not the old fabricated {message}.
+    expect(apiMocks.getSmartReplies).toHaveBeenCalledWith({
+      conversationId: 'conv-1',
+      recentMessages: [{ sender: 'them', content: 'lunch tomorrow?' }],
+    });
 
     click(buttonByText(container, 'Replies'));
     const alert = container.querySelector('.ai-replies [role="alert"]');
@@ -193,8 +190,8 @@ describe('AIAssistant error honesty (QM-UIUX-088)', () => {
   });
 
   it('keeps the honest empty state when smart replies succeed with none', async () => {
-    apiMocks.getSmartReplies.mockResolvedValue({ success: true, data: [] });
-    render({ contextMessage: 'lunch tomorrow?' });
+    apiMocks.getSmartReplies.mockResolvedValue({ success: true, data: { suggestions: [] } });
+    render({ contextMessage: 'lunch tomorrow?', conversationId: 'conv-1' });
     await flush();
 
     click(buttonByText(container, 'Replies'));
@@ -202,5 +199,35 @@ describe('AIAssistant error honesty (QM-UIUX-088)', () => {
     expect(container.querySelector('.ai-replies')!.textContent).toContain(
       'No suggestions available',
     );
+  });
+
+  it('renders real suggestion strings and selects them verbatim (QC-F-068)', async () => {
+    apiMocks.getSmartReplies.mockResolvedValue({
+      success: true,
+      data: { suggestions: ['Sounds good!', 'See you at 1'] },
+    });
+    const onSmartReplySelect = vi.fn();
+    render({
+      contextMessage: 'lunch tomorrow?',
+      conversationId: 'conv-1',
+      onSmartReplySelect,
+    });
+    await flush();
+
+    click(buttonByText(container, 'Replies'));
+    const option = buttonByText(container.querySelector('.ai-replies')!, 'Sounds good!');
+    click(option);
+    expect(onSmartReplySelect).toHaveBeenCalledWith('Sounds good!');
+  });
+
+  it('without a conversation, smart replies say why and make no request (QC-F-068)', async () => {
+    render({ contextMessage: 'lunch tomorrow?' });
+    await flush();
+
+    click(buttonByText(container, 'Replies'));
+    const alert = container.querySelector('.ai-replies [role="alert"]');
+    expect(alert).not.toBeNull();
+    expect(alert!.textContent).toContain('open conversation');
+    expect(apiMocks.getSmartReplies).not.toHaveBeenCalled();
   });
 });

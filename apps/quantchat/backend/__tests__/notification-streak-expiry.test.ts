@@ -67,4 +67,14 @@ describe('streak-expiry warning (Task 10.3)', () => {
     expect(n.category).toBe('STREAKS');
     expect(n.title).toContain('streak');
   });
+
+  it('leaves contentId empty when the conversation is unknown — never a user id (QC-F-142)', () => {
+    // streak() without conversationId: the old code fell back to the other
+    // participant's USER id as contentId, which the resolver turned into
+    // /chat/<userId> — a conversation that does not exist. The honest
+    // contentId is empty, so the tap lands on the chat list instead.
+    const n = buildStreakExpiryNotification(streak({}), 'a', NOW);
+    expect(n.contentId).toBeUndefined();
+    expect(n.contentId).not.toBe('b');
+  });
 });

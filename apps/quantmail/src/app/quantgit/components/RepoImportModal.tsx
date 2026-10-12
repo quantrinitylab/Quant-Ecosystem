@@ -26,6 +26,86 @@ export const MIGRATION_STEPS: MigrationStepInfo[] = [
   },
 ];
 
+// Honest count formatting for the migration summary — the /api/repos/import
+// response may omit any of these fields. Show the real number when the backend
+// reported one (0 is a real result too), otherwise an em-dash. Never invent a
+// number (the old code rendered 42 commits / 1 workflow / 4 vars as fallbacks).
+export function formatImportStat(value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+    return String(Math.trunc(value));
+  }
+  if (Array.isArray(value)) {
+    return String(value.length);
+  }
+  return '—';
+}
+
+export interface MigrationCompleteSummaryProps {
+  result: {
+    importedCommits?: unknown;
+    convertedPipelines?: unknown;
+    importedEnvVars?: unknown;
+  };
+  onFinish: () => void;
+}
+
+export function MigrationCompleteSummary({ result, onFinish }: MigrationCompleteSummaryProps) {
+  return (
+    <div
+      className="p-4 rounded-xl bg-[#238636]/10 border border-[#238636]/40 space-y-3 animate-in fade-in"
+      data-testid="migration-complete-summary"
+    >
+      <div className="flex items-center gap-2.5 text-[#3FB950]">
+        <svg height="20" viewBox="0 0 16 16" width="20" fill="currentColor">
+          <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
+        </svg>
+        <span className="font-bold text-sm">Repository Migration Succeeded</span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+        <div className="p-2 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
+          <span className="text-[10px] text-[#7D8590] block">Commits</span>
+          <span
+            className="text-xs font-bold text-white font-mono"
+            data-testid="migration-stat-commits"
+          >
+            {formatImportStat(result.importedCommits)}
+          </span>
+        </div>
+        <div className="p-2 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
+          <span className="text-[10px] text-[#7D8590] block">Workflows</span>
+          <span
+            className="text-xs font-bold text-[#58A6FF] font-mono"
+            data-testid="migration-stat-workflows"
+          >
+            {formatImportStat(result.convertedPipelines)} Converted
+          </span>
+        </div>
+        <div className="p-2 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
+          <span className="text-[10px] text-[#7D8590] block">Secrets Extracted</span>
+          <span
+            className="text-xs font-bold text-[var(--app-accent)] font-mono"
+            data-testid="migration-stat-secrets"
+          >
+            {formatImportStat(result.importedEnvVars)} Vars
+          </span>
+        </div>
+      </div>
+
+      <div className="flex justify-end pt-2">
+        <button
+          type="button"
+          data-testid="go-to-imported-btn"
+          onClick={onFinish}
+          className="px-5 py-2 rounded-lg bg-[#238636] hover:bg-[#2EA043] text-xs font-bold text-white transition-colors shadow-md flex items-center gap-2"
+        >
+          <span>Go to imported repository →</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export interface RepoImportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -530,51 +610,13 @@ export function RepoImportModal({
                 })}
               </div>
 
-              {/* Completion State Summary */}
-              {activeStep === 5 && migrationResult && (
-                <div
-                  className="p-4 rounded-xl bg-[#238636]/10 border border-[#238636]/40 space-y-3 animate-in fade-in"
-                  data-testid="migration-complete-summary"
-                >
-                  <div className="flex items-center gap-2.5 text-[#3FB950]">
-                    <svg height="20" viewBox="0 0 16 16" width="20" fill="currentColor">
-                      <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
-                    </svg>
-                    <span className="font-bold text-sm">Repository Migration Succeeded 100%</span>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 pt-1 text-center">
-                    <div className="p-2 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
-                      <span className="text-[10px] text-[#7D8590] block">Commits</span>
-                      <span className="text-xs font-bold text-white font-mono">
-                        {migrationResult.importedCommits || 42}
-                      </span>
-                    </div>
-                    <div className="p-2 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
-                      <span className="text-[10px] text-[#7D8590] block">Workflows</span>
-                      <span className="text-xs font-bold text-[#58A6FF] font-mono">
-                        {migrationResult.convertedPipelines?.length || 1} Converted
-                      </span>
-                    </div>
-                    <div className="p-2 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
-                      <span className="text-[10px] text-[#7D8590] block">Secrets Extracted</span>
-                      <span className="text-xs font-bold text-[var(--app-accent)] font-mono">
-                        {migrationResult.importedEnvVars?.length || 4} Vars
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end pt-2">
-                    <button
-                      type="button"
-                      data-testid="go-to-imported-btn"
-                      onClick={handleFinishMigration}
-                      className="px-5 py-2 rounded-lg bg-[#238636] hover:bg-[#2EA043] text-xs font-bold text-white transition-colors shadow-md flex items-center gap-2"
-                    >
-                      <span>Go to imported repository →</span>
-                    </button>
-                  </div>
-                </div>
+              {/* Completion State Summary — shown when the final step completes and
+                  the import result is available. */}
+              {activeStep === MIGRATION_STEPS.length && migrationResult && (
+                <MigrationCompleteSummary
+                  result={migrationResult}
+                  onFinish={handleFinishMigration}
+                />
               )}
             </div>
           )}

@@ -21,6 +21,7 @@ import {
   type NotificationPayload,
   type PushSubscriptionRecord,
 } from '../lib/notification-dispatch';
+import { resolveNotificationDeepLink } from '../lib/notification-deeplink';
 
 const CATEGORIES: readonly NotificationCategory[] = [
   'MESSAGES',
@@ -249,7 +250,13 @@ export default async function notificationsRoutes(fastify: FastifyInstance) {
       title: parsed.data.title,
       body: parsed.data.body,
       contentId: parsed.data.contentId,
-      deepLink: parsed.data.deepLink,
+      // QC-F-142 §3.4: the deep link is computed HERE, server-side, from
+      // category + contentId. A caller-supplied `deepLink` is accepted by
+      // the schema for compatibility but NEVER trusted: the service
+      // worker opens it verbatim, so honouring it would let any caller
+      // land the user on a dead route (the old '/notifications' 404) or an
+      // arbitrary path. The resolver only ever returns real routes.
+      deepLink: resolveNotificationDeepLink(parsed.data.category, parsed.data.contentId),
       priority: parsed.data.priority,
       tag: parsed.data.tag,
     };

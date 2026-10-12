@@ -172,10 +172,6 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       keys: 'g *',
       icon: 'star',
       keywords: ['pinned', 'important', 'flagged', 'starred'],
-      // The classic inbox lives at /?view=inbox — the ?filter=starred consumer
-      // exists only there (InboxPageContent). The People home at bare /
-      // never reads `filter`, so carry ?view=inbox along (2026-10-12 bug
-      // class: the /starred redirect shim dropped the view param the same way).
       run: go('/?view=inbox&filter=starred'),
     },
     {

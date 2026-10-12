@@ -36,6 +36,7 @@ import type {
   PushSubscriptionResult,
 } from './delivery-worker';
 import { NoopPushDispatcher } from './delivery-worker';
+import { resolveNotificationDeepLink } from '../lib/notification-deeplink';
 
 /** First retry waits 1 second; the delay doubles per retry (Requirement 9.3). */
 export const PUSH_BACKOFF_BASE_MS = 1_000;
@@ -167,8 +168,19 @@ export function buildPushPayload(notification: PushNotification): string {
   return JSON.stringify({
     title: notification.title,
     body: notification.body,
+    // QC-F-142: speak the canonical vocabulary the service worker actually
+    // reads (category / contentId / deepLink — the same shape
+    // buildPushBody produces for POST /notifications/send). The deep link
+    // is computed HERE, server-side, so the worker never has to guess the
+    // target; its own resolver stays as a fallback for other payloads.
+    category: notification.category,
+    contentId: notification.contentId,
+    deepLink: resolveNotificationDeepLink(notification.category, notification.contentId),
+    // Deprecated alias of contentId, kept for one release (QC-F-142 §3.2).
     conversationId: notification.conversationId,
-    badge: notification.badge,
+    // The count travels as `badgeCount`: the worker's `badge` option is a
+    // badge-icon URL, so a number must never ride on that key.
+    badgeCount: notification.badge,
   });
 }
 

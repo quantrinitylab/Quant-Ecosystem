@@ -176,6 +176,12 @@ describe('Integration: offline recipient push path + delivery-on-ack (Task 25.3,
     expect(dispatches).toHaveLength(1);
     expect(dispatches[0].notification.conversationId).toBe(CONVERSATION_ID);
     expect(dispatches[0].notification.body).toBe('New message'); // no plaintext
+    // QC-F-142 case 2: the dispatched notification also carries the
+    // canonical fields the service worker reads — category + contentId —
+    // not conversationId alone (which the worker never parsed, sending
+    // every offline push to the dead '/notifications' target).
+    expect(dispatches[0].notification.category).toBe('MESSAGES');
+    expect(dispatches[0].notification.contentId).toBe(CONVERSATION_ID);
 
     // Offline path must NOT publish to the realtime backplane.
     expect(harness.backplane.publishesFor(CONVERSATION_ID)).toHaveLength(0);

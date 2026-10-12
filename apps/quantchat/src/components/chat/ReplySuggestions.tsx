@@ -8,16 +8,24 @@ import { apiFetchRaw } from '@quant/api-client';
 // Task 12.3 (Requirement 11.3): Reply suggestions.
 //
 // Displays a horizontal row of up to 3 contextual reply chips directly above
-// the keyboard / message input. Suggestions refresh as the draft changes
-// (debounced). The backend ALWAYS returns ≤ 3 suggestions (Property 31); this
-// component additionally hard-caps the rendered chips at 3 as a UI safety net.
+// the keyboard / message input. Suggestions refresh as the context changes
+// (debounced). The backend returns ≤ the requested count; this component
+// additionally hard-caps the rendered chips at 3 as a UI safety net.
+//
+// QC-F-068: the default fetcher now calls the memory-backed smart-replies
+// endpoint (POST /api/ai/smart-replies -> backend AISmartRepliesService),
+// which applies the style + relationship memory learned in QuantMail. The
+// old target (POST /ai/suggestions, the ai-agent service) never reads that
+// cross-app memory, so the ecosystem personalization could never reach the
+// live thread. The smart-replies contract has no draft input — suggestions
+// are generated from the settled conversation context only.
 // ============================================================================
 
 const MAX_SUGGESTIONS = 3;
 
 export interface ReplySuggestionsResponse {
   success: boolean;
-  data?: { suggestions: string[]; isAIGenerated: boolean };
+  data?: { suggestions: string[] };
 }
 
 export interface ReplySuggestionsProps {
@@ -29,8 +37,8 @@ export interface ReplySuggestionsProps {
   /** Called when the user taps a suggestion chip. */
   onSelect: (suggestion: string) => void;
   /**
-   * Fetcher override (defaults to POST /api/ai/suggestions). Injectable for
-   * tests / storybook.
+   * Fetcher override (defaults to POST /api/ai/smart-replies, the
+   * memory-backed endpoint). Injectable for tests / storybook.
    */
   fetchSuggestions?: (args: {
     conversationId: string;
@@ -41,19 +49,27 @@ export interface ReplySuggestionsProps {
   className?: string;
 }
 
-async function defaultFetchSuggestions(args: {
+export async function defaultFetchSuggestions(args: {
   conversationId: string;
   messages: Array<{ sender: string; content: string; isSelf?: boolean }>;
   draft?: string;
   signal: AbortSignal;
 }): Promise<string[]> {
-  const res = await apiFetchRaw('/api/ai/suggestions', {
+  // Smart replies are generated from conversation context; with no settled
+  // messages there is nothing truthful to base a suggestion on.
+  if (args.messages.length === 0) return [];
+  const res = await apiFetchRaw('/api/ai/smart-replies', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       conversationId: args.conversationId,
-      messages: args.messages,
-      draft: args.draft,
+      // Backend contract (SmartReplyInputSchema): only {sender, content};
+      // the UI-only `isSelf` flag is not part of it.
+      recentMessages: args.messages.map((m) => ({
+        sender: m.sender,
+        content: m.content,
+      })),
+      count: MAX_SUGGESTIONS,
     }),
     signal: args.signal,
   });

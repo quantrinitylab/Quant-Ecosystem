@@ -50,6 +50,31 @@ describe('NotificationBatcher (Task 10.7)', () => {
     expect(batcher.openWindowCount).toBe(0);
   });
 
+  it('summary deep link is the category home route, never the dead /notifications (QC-F-142)', async () => {
+    const noop = (() => 0) as unknown as typeof setTimeout;
+    const cases: Array<{ category: string; expected: string }> = [
+      { category: 'MESSAGES', expected: '/' },
+      { category: 'REELS', expected: '/reels' },
+      { category: 'STORIES', expected: '/stories' },
+      { category: 'CALLS', expected: '/calls' },
+      { category: 'SYSTEM', expected: '/' },
+    ];
+    for (const { category, expected } of cases) {
+      const send = vi.fn();
+      const batcher = new NotificationBatcher(send, {
+        setTimeoutFn: noop,
+        clearTimeoutFn: () => undefined,
+      });
+      for (let i = 0; i < 6; i += 1) {
+        await batcher.enqueue(makeNotification({ category, body: `event ${i}` }));
+      }
+      expect(send).toHaveBeenCalledTimes(1);
+      const summary = send.mock.calls[0]![0] as BatchableNotification;
+      expect(summary.deepLink).toBe(expected);
+      expect(summary.deepLink).not.toBe('/notifications');
+    }
+  });
+
   it('flushes a single buffered notification as-is when the timer fires', async () => {
     const send = vi.fn();
     let captured: (() => void) | null = null;

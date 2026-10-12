@@ -4,19 +4,29 @@
 // ============================================================================
 
 import React, { useState, useEffect, useRef } from 'react';
-import type { AIChatMessage, SmartReply } from '../types';
+import type { AIChatMessage } from '../types';
 import { apiClient } from '../services/api-client';
 import { describeAiError } from '../lib/sanitize-error';
+
+/**
+ * QC-F-068: there is NO backend AI-chat endpoint (POST /ai/chat never
+ * existed) — the Chat tab used to send every prompt into a guaranteed 404.
+ * It now states that plainly instead of calling a phantom route.
+ */
+export const AI_CHAT_UNAVAILABLE_MESSAGE =
+  'AI chat is not available in this build yet. Smart Replies and Translate still work.';
 
 interface AIAssistantProps {
   isOpen: boolean;
   onClose: () => void;
   onSmartReplySelect?: (reply: string) => void;
   contextMessage?: string;
+  /** Required for smart replies — the backend contract is conversation-scoped. */
+  conversationId?: string;
 }
 
 export const AIAssistant: React.FC<AIAssistantProps> = ({
-  isOpen, onClose, onSmartReplySelect, contextMessage,
+  isOpen, onClose, onSmartReplySelect, contextMessage, conversationId,
 }) => {
   const [messages, setMessages] = useState<AIChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -25,11 +35,10 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   const [translateText, setTranslateText] = useState(contextMessage || '');
   const [targetLang, setTargetLang] = useState('es');
   const [translatedText, setTranslatedText] = useState('');
-  const [smartReplies, setSmartReplies] = useState<SmartReply[]>([]);
+  const [smartReplies, setSmartReplies] = useState<string[]>([]);
   const [chatError, setChatError] = useState<string | null>(null);
   const [translateError, setTranslateError] = useState<string | null>(null);
   const [repliesError, setRepliesError] = useState<string | null>(null);
-  const lastFailedPromptRef = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,10 +52,21 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   }, [messages]);
 
   const loadSmartReplies = async (message: string) => {
+    // QC-F-068: the real backend contract is conversation-scoped
+    // ({conversationId, recentMessages}). Without an open conversation
+    // there is no truthful call to make — say so instead of inventing one.
+    if (!conversationId) {
+      setSmartReplies([]);
+      setRepliesError('Smart replies need an open conversation.');
+      return;
+    }
     try {
-      const response = await apiClient.getSmartReplies(message);
+      const response = await apiClient.getSmartReplies({
+        conversationId,
+        recentMessages: [{ sender: 'them', content: message }],
+      });
       if (response.success && response.data) {
-        setSmartReplies(response.data);
+        setSmartReplies(response.data.suggestions);
         setRepliesError(null);
       } else {
         // Surface the real failure — the old code silently left the
@@ -58,37 +78,16 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     }
   };
 
-  const handleSendMessage = async (retryText?: string) => {
-    const isRetry = typeof retryText === 'string' && retryText.trim().length > 0;
-    const text = isRetry ? retryText.trim() : input.trim();
-    if (!text || loading) return;
+  const handleSendMessage = () => {
+    const text = input.trim();
+    if (!text) return;
 
-    if (!isRetry) {
-      const userMessage: AIChatMessage = { role: 'user', content: text, timestamp: new Date() };
-      setMessages(prev => [...prev, userMessage]);
-      setInput('');
-    }
-    setChatError(null);
-    setLoading(true);
-
-    try {
-      const response = await apiClient.chatWithAI(text);
-      if (response.success && response.data) {
-        const aiMessage: AIChatMessage = { role: 'assistant', content: response.data.response, timestamp: new Date() };
-        setMessages(prev => [...prev, aiMessage]);
-        lastFailedPromptRef.current = null;
-      } else {
-        // Honest error state: show the sanitized real failure (never silence,
-        // never a bare generic) and keep the prompt for one-tap retry.
-        lastFailedPromptRef.current = text;
-        setChatError(describeAiError(response.error));
-      }
-    } catch (error) {
-      lastFailedPromptRef.current = text;
-      setChatError(describeAiError(error));
-    } finally {
-      setLoading(false);
-    }
+    const userMessage: AIChatMessage = { role: 'user', content: text, timestamp: new Date() };
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    // QC-F-068: no AI-chat backend exists, so no request is made and no
+    // assistant reply is fabricated — the tab states the honest outcome.
+    setChatError(AI_CHAT_UNAVAILABLE_MESSAGE);
   };
 
   const handleTranslate = async () => {
@@ -173,17 +172,6 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
             {chatError && (
               <div className="ai-error" role="alert">
                 <span>{chatError}</span>
-                {lastFailedPromptRef.current && (
-                  <button
-                    onClick={() => {
-                      const failed = lastFailedPromptRef.current;
-                      if (failed) void handleSendMessage(failed);
-                    }}
-                    disabled={loading}
-                  >
-                    Retry
-                  </button>
-                )}
               </div>
             )}
             <div className="ai-input">
@@ -246,15 +234,13 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
               {contextMessage ? `Suggested replies for: "${contextMessage.substring(0, 50)}..."` : 'Send a message to get smart reply suggestions'}
             </p>
             <div className="replies-list">
-              {smartReplies.map(reply => (
+              {smartReplies.map((reply, index) => (
                 <button
-                  key={reply.id}
+                  key={`${index}-${reply}`}
                   className="reply-option"
-                  onClick={() => { if (onSmartReplySelect) onSmartReplySelect(reply.text); }}
+                  onClick={() => { if (onSmartReplySelect) onSmartReplySelect(reply); }}
                 >
-                  <span className="reply-text">{reply.text}</span>
-                  <span className="reply-tone">{reply.tone}</span>
-                  <span className="reply-confidence">{Math.round(reply.confidence * 100)}%</span>
+                  <span className="reply-text">{reply}</span>
                 </button>
               ))}
               {smartReplies.length === 0 && repliesError && (

@@ -280,6 +280,10 @@ export default async function voiceBotRoutes(
         intent: result.dialogueResult.intent,
         speechText: result.botSpeech,
         actionRequired: result.dialogueResult.actionRequired,
+        // QC-F-070: consumers must not read the echoed actionRequired as
+        // proof anything happened — no executor runs these actions today,
+        // so this is honestly false until a real executor exists.
+        actionExecuted: result.dialogueResult.actionExecuted,
         actionPayload: result.dialogueResult.actionPayload,
         shouldEndCall: result.dialogueResult.shouldEndCall,
         audioDurationMs: result.botAudio.durationMs,
