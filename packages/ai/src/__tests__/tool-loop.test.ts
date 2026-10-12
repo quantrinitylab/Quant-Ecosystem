@@ -84,11 +84,6 @@ describe('AIEngine tool-calling loop', () => {
   });
 
   it('closes the loop: tool_calls -> check -> execute -> feed back -> final answer', async () => {
-    const call: ToolCall = {
-      id: 'call-1',
-      name: 'quantmail.search',
-      arguments: { query: 'unread' },
-    };
     vi.mocked(generateText)
       .mockResolvedValueOnce(
         toolCallResult('', [{ toolCallId: 'call-1', toolName: 'quantmail.search', input: { query: 'unread' } }]),
