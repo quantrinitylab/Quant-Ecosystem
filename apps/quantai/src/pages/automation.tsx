@@ -7,8 +7,9 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { apiClient } from '../services/api-client';
-import type { Automation } from '../types';
+import { apiFetchRaw } from '@quant/api-client';
+import { getAuthToken } from '../lib/auth';
+import type { Automation, AutomationRun } from '../types';
 import {
   workflowNodesToPayload,
   automationToCanvas,
@@ -54,6 +55,56 @@ function apiErrorMessage(res: { error?: { message?: string } } | null, fallback:
   return msg ? `${fallback}: ${msg}` : fallback;
 }
 
+interface AutomationsEnvelope<T> {
+  success: boolean;
+  data?: T;
+  error?: { code: string; message: string };
+}
+
+/**
+ * Consolidation note: F-162 removed the QuantAIApiClient route methods (dead —
+ * the app standardized on apiFetchRaw at the call site). This page calls the
+ * /api/automations/* Next routes directly with the same envelope contract and
+ * fail-closed error mapping the old client had.
+ */
+async function callAutomationsApi<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<AutomationsEnvelope<T>> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const token = getAuthToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await apiFetchRaw(`/api${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    // Fail-closed: a non-2xx (HTML error page, empty body, gateway error) maps
+    // to the standard envelope instead of throwing a raw SyntaxError.
+    let message = res.statusText || 'Request failed';
+    try {
+      const parsed = (await res.json()) as {
+        message?: unknown;
+        error?: { message?: unknown } | unknown;
+      };
+      const nested =
+        typeof parsed?.error === 'object' && parsed.error !== null
+          ? (parsed.error as { message?: unknown }).message
+          : undefined;
+      const candidate = parsed?.message ?? nested;
+      if (typeof candidate === 'string' && candidate) {
+        message = candidate;
+      }
+    } catch {
+      // Non-JSON error body — keep the status text.
+    }
+    return { success: false, error: { code: `HTTP_${res.status}`, message } };
+  }
+  return (await res.json()) as AutomationsEnvelope<T>;
+}
+
 export default function AutomationPage(): JSX.Element {
   // ---- canvas draft (local until saved) ----
   const [nodes, setNodes] = useState<WorkflowNode[]>([]);
@@ -88,7 +139,7 @@ export default function AutomationPage(): JSX.Element {
     setLoadingAutomations(true);
     setAutomationsError(null);
     try {
-      const res = await apiClient.listAutomations();
+      const res = await callAutomationsApi<Automation[]>('GET', '/automations');
       if (res.success && Array.isArray(res.data)) {
         setAutomations(res.data);
       } else {
@@ -105,7 +156,7 @@ export default function AutomationPage(): JSX.Element {
     setHistoryLoading(true);
     setHistoryError(null);
     try {
-      const res = await apiClient.listAutomationRuns(id);
+      const res = await callAutomationsApi<AutomationRun[]>('GET', `/automations/${id}/runs`);
       if (res.success && Array.isArray(res.data)) {
         setExecutionLog(res.data.map((run) => runToExecutionLog(run, name)));
       } else {
@@ -140,7 +191,7 @@ export default function AutomationPage(): JSX.Element {
   const selectAutomation = useCallback(async (id: string) => {
     setPageError(null);
     try {
-      const res = await apiClient.getAutomation(id);
+      const res = await callAutomationsApi<Automation>('GET', `/automations/${id}`);
       if (!res.success || !res.data) {
         setPageError(apiErrorMessage(res, "Couldn't open that automation"));
         return;
@@ -256,8 +307,8 @@ export default function AutomationPage(): JSX.Element {
     try {
       const payload = workflowNodesToPayload(nodes, workflowName, isEnabled);
       const res = savedId
-        ? await apiClient.updateAutomation(savedId, payload)
-        : await apiClient.createAutomation(payload);
+        ? await callAutomationsApi<Automation>('PUT', `/automations/${savedId}`, payload)
+        : await callAutomationsApi<Automation>('POST', '/automations', payload);
       if (!res.success || !res.data) {
         setPageError(apiErrorMessage(res, 'Save failed'));
         return;
@@ -294,7 +345,7 @@ export default function AutomationPage(): JSX.Element {
       n.type === 'trigger' ? n : { ...n, status: 'running' as const }
     ));
     try {
-      const res = await apiClient.executeAutomation(savedId);
+      const res = await callAutomationsApi<AutomationRun>('POST', `/automations/${savedId}/execute`);
       if (!res.success || !res.data) {
         setPageError(apiErrorMessage(res, 'Run failed'));
         setNodes(prev => prev.map(n => ({ ...n, status: 'idle' as const })));
@@ -334,7 +385,7 @@ export default function AutomationPage(): JSX.Element {
     }
     setPageError(null);
     try {
-      const res = await apiClient.toggleAutomation(savedId);
+      const res = await callAutomationsApi<Automation>('POST', `/automations/${savedId}/toggle`);
       if (!res.success || !res.data) {
         setPageError(apiErrorMessage(res, "Couldn't change the enabled state"));
         return;
@@ -356,7 +407,7 @@ export default function AutomationPage(): JSX.Element {
     if (!window.confirm(`Delete "${workflowName}"? This cannot be undone.`)) return;
     setPageError(null);
     try {
-      const res = await apiClient.deleteAutomation(savedId);
+      const res = await callAutomationsApi<void>('DELETE', `/automations/${savedId}`);
       if (!res.success) {
         setPageError(apiErrorMessage(res, "Couldn't delete the automation"));
         return;
