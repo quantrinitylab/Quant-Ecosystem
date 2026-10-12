@@ -712,10 +712,6 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
       });
 
       const slot = new Date(Date.now() + 48 * 60 * 60 * 1000);
-      // Deterministic slot: 10:00 local, 2 days out — safely inside the
-      // 0:00-23:00 window no matter what hour the suite runs at. (setMinutes
-      // alone kept the wall-clock hour, so a 23:xx run built a 23:00 slot
-      // whose 30-min meeting ended at 23:30, outside endHour 23.)
       slot.setHours(10, 0, 0, 0);
       const result = await service.confirmBooking('confirm-real-host', slot, {
         name: 'Clara Client',
@@ -739,8 +735,6 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
       });
 
       const slot = new Date(Date.now() + 72 * 60 * 60 * 1000);
-      // Deterministic slot: 10:00 local, 3 days out — safely inside the
-      // 0:00-23:00 window no matter what hour the suite runs at (see above).
       slot.setHours(10, 0, 0, 0);
       const result = await service.confirmBooking('confirm-unknown-host', slot, {
         name: 'Clara Client',

@@ -920,19 +920,26 @@ export default function SettingsPage() {
 
                 A false green badge is worse than an amber honest one, so the card now states the
                 two protections separately and says plainly where the boundary is.
+
+                2026-10-12 copy-honesty fix: the title and badge also dropped the "at rest"
+                half ("AES-256 at rest", "encrypted on disk once it arrives"). Terraform sets
+                storage_encrypted=true (infra/terraform/modules/rds/main.tf:122) but the live
+                staging RDS instance quant-staging-postgres reports StorageEncrypted=False
+                (boto3 describe-db-instances), so at-rest encryption is not a provable truth
+                today and must not appear in user-facing copy.
               */}
               <SettingsSection
-                title="Encrypted in transit and at rest"
+                title="Encrypted in transit"
                 action={
                   <span className="rounded-md border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-2.5 py-0.5 text-[10px] text-[var(--quant-muted-foreground)]">
-                    TLS 1.2+ · AES-256 at rest
+                    TLS 1.2+
                   </span>
                 }
               >
                 <p className="text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
-                  Mail is encrypted on the wire to and from our servers and encrypted on disk once
-                  it arrives. Your session can read it, and so can the delivery pipeline that has to
-                  hand it to the recipient&apos;s provider.
+                  Mail is encrypted on the wire to and from our servers. Your session can read
+                  it, and so can the delivery pipeline that has to hand it to the
+                  recipient&apos;s provider.
                 </p>
                 <p className="border-t border-[var(--quant-border)] pt-3 text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
                   It is{' '}
