@@ -5,14 +5,13 @@ import './shell.css';
 import './overrides.css';
 import { quantMailBrandMetadata } from '../brand/identity';
 import { AuthGuard } from '../components/AuthGuard';
-import { InboxToastContainer } from '../components/InboxToast';
 import { KeyboardProvider } from '../components/KeyboardProvider';
 import { KeyboardSurfaces } from '../components/KeyboardSurfaces';
-import { OfflineBar } from '../components/OfflineBar';
 import { AppProviders } from '../providers/app-providers';
 import { AuthProvider } from '../providers/auth-provider';
 import { BrandProvider } from '../providers/brand-provider';
 import { QueryProvider } from '../providers/query-provider';
+import { LazyInboxToasts, LazyOfflineBar } from '../components/LazyChrome';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -85,7 +84,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a href="#main-content" className="skip-to-content">
           Skip to content
         </a>
-        <OfflineBar />
+        <LazyOfflineBar />
         <QueryProvider>
           <BrandProvider>
             <AuthProvider>
@@ -115,7 +114,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     {children}
                     <KeyboardSurfaces />
                   </KeyboardProvider>
-                  <InboxToastContainer />
+                  <LazyInboxToasts />
                 </AuthGuard>
               </AppProviders>
             </AuthProvider>
