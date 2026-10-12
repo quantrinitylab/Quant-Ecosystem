@@ -155,6 +155,34 @@ describe('RSVP widget gating', () => {
   });
 });
 
+describe('edit/delete gating for invited guests', () => {
+  // The backend now lets a non-owner attendee read the detail (read-only).
+  // The page must not offer them Edit/Delete: PUT/DELETE stay owner-only, so
+  // the buttons would only 404.
+  it('hides Edit and Delete when the viewer is not the owner', async () => {
+    mockEvent = baseEvent({ viewerIsAttendee: true, viewerIsOwner: false });
+    const el = renderPage();
+    expect(el.querySelector('[aria-label="Edit event"]')).toBeNull();
+    expect(el.querySelector('[aria-label="Delete event"]')).toBeNull();
+    // The guest still sees the event and their RSVP widget.
+    expect(el.textContent).toContain('Your response');
+  });
+
+  it('shows Edit and Delete when the viewer is the owner', async () => {
+    mockEvent = baseEvent({ viewerIsAttendee: false, viewerIsOwner: true });
+    const el = renderPage();
+    expect(el.querySelector('[aria-label="Edit event"]')).not.toBeNull();
+    expect(el.querySelector('[aria-label="Delete event"]')).not.toBeNull();
+  });
+
+  it('shows Edit and Delete when the DTO carries no owner flag', async () => {
+    // Back-compat: an older/partial DTO keeps the pre-existing behaviour.
+    mockEvent = baseEvent({ viewerIsAttendee: false });
+    const el = renderPage();
+    expect(el.querySelector('[aria-label="Edit event"]')).not.toBeNull();
+  });
+});
+
 describe('edit form timezone', () => {
   it('seeds wall-clock inputs and the selector in the event timezone', async () => {
     mockEvent = baseEvent({ viewerIsAttendee: false });

@@ -91,6 +91,8 @@ export interface EventDetailDto {
   timeZone?: string;
   /** Server-computed: is the signed-in viewer in this event's attendee list. */
   viewerIsAttendee?: boolean;
+  /** Server-computed: is the signed-in viewer the event's organizer/owner. */
+  viewerIsOwner?: boolean;
   attendees?: Array<{ email: string; name?: string; status?: string }>;
   reminders?: string[];
   recurrence?: string | null;

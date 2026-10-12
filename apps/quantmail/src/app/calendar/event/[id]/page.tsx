@@ -223,7 +223,8 @@ export default function CalendarEventDetailPage() {
           <h1 className="min-w-0 flex-1 truncate text-base font-semibold sm:text-lg">
             {isLoading ? 'Loading event…' : event?.title || 'Event'}
           </h1>
-          {!isLoading && !error && event && !editing && (
+          {/* Read-only for invited guests: only the organizer edits or deletes. */}
+          {!isLoading && !error && event && !editing && event.viewerIsOwner !== false && (
             <>
               <Button variant="secondary" onClick={openEdit} aria-label="Edit event">
                 <Icon name="pencil" className="mr-1.5 h-4 w-4" />

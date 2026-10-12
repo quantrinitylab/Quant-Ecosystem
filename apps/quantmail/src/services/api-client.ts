@@ -1193,7 +1193,9 @@ export class QuantMailApiClient {
 
   /**
    * One event by id — backs the in-app event-detail screen (M09/K10).
-   * The backend answers 404 EVENT_NOT_FOUND for somebody else's event.
+   * The backend answers 404 EVENT_NOT_FOUND for an event the viewer can
+   * neither organize nor attend; attendees read it read-only (viewerIsOwner
+   * false) with viewerIsAttendee true.
    */
   async getEvent(id: string): Promise<ApiResponse<CalendarEvent>> {
     return this.get(`/events/${encodeURIComponent(id)}`);
