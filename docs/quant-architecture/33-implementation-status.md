@@ -175,17 +175,17 @@ working new-call → QuantMeet, SSO first-attempt bounce (#757/#758).
 
 | ID | Module | Status | Evidence | Gaps vs spec |
 |---|---|---|---|---|
-| A01 | Chat | BUILT | `app/page.tsx` (1,474 lines): `ModelSelector`, streaming, voice toggle, artifacts | `/ask` is a duplicate chat surface (extra) |
+| A01 | Chat | BUILT | `app/page.tsx` (1,483 lines): `ModelSelector`, streaming, voice toggle, artifacts | Former duplicate `/ask` surface removed (no `app/ask/page.tsx`, no `pages/ask.tsx`) |
 | A02 | Model Picker | BUILT | `components/ModelSelector.tsx` | — |
-| A03 | Artifacts | BUILT | `app/artifacts/page.tsx` (426 lines) | — |
+| A03 | Artifacts | BUILT | `app/artifacts/page.tsx` (427 lines) | — |
 | A04 | Agent Builder | PARTIAL | `WorkflowBuilder.tsx`, `AgentCodeTerminal.tsx`, `ToolCallCard.tsx` as components | No dedicated builder screen route |
 | A05 | Agent Run | PARTIAL | `WorkflowDashboard.tsx`, `AgentDashboard.tsx`, `WorkflowProgressCard.tsx` | Run UX wiring as a screen unverified |
 | A06 | Approval Queue | MISSING | No approval-queue screen | Whole module missing |
-| A07 | Automations | PARTIAL | Workflow components exist | No `/automations` screen |
-| A08 | Memory | PARTIAL | `MemoryDashboard.tsx`, `ProjectMemoryManager.tsx` as components | No dedicated memory screen route |
+| A07 | Automations | PARTIAL | Workflow components exist; `/automation` exists as legacy page `src/pages/automation.tsx` (428 lines) | No App Router automations screen; legacy page only |
+| A08 | Memory | PARTIAL | `MemoryDashboard.tsx`, `ProjectMemoryManager.tsx` as components; `/memory` exists as legacy page `src/pages/memory.tsx` (519 lines) | No App Router memory screen; legacy page only |
 | A09 | Model Playground | MISSING | No playground screen | Whole module missing |
 | A10 | Usage | PARTIAL | `UsageAnalyticsChart.tsx` + `/plan` page backed by `/api/quanty/plan`; honest "coming soon" when no checkout URL | Upgrade flow incomplete |
-| A11 | Device Control | PARTIAL | `DeviceCard.tsx`, `DevicePreview.tsx`, `plan/DevicesSection.tsx` | No full device-control screen |
+| A11 | Device Control | PARTIAL | `DeviceCard.tsx`, `DevicePreview.tsx`, `plan/DevicesSection.tsx`; `/device` exists as legacy page `src/pages/device.tsx` (378 lines) | No full App Router device-control screen; legacy page only |
 | A12 | Settings | BUILT | `app/settings/page.tsx` (248 lines) | — |
 | A13 | Admin | MISSING | No admin route | Whole module missing |
 
