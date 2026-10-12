@@ -12,7 +12,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { POST, buildForwardedCookieHeader } from '../app/auth/[action]/route';
+import { POST } from '../app/auth/[action]/route';
+import { buildForwardedCookieHeader } from '../lib/auth-cookie-filter';
 
 const REFRESH = 'r3fr3sh-t0k3n';
 const ACCESS = 'js-set-access-token';
