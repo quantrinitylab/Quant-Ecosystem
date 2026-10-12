@@ -185,7 +185,7 @@ working new-call → QuantMeet, SSO first-attempt bounce (#757/#758).
 | A08 | Memory | PARTIAL | `MemoryDashboard.tsx`, `ProjectMemoryManager.tsx` as components; `/memory` exists as legacy page `src/pages/memory.tsx` (519 lines) | No App Router memory screen; legacy page only |
 | A09 | Model Playground | MISSING | No playground screen | Whole module missing |
 | A10 | Usage | PARTIAL | `UsageAnalyticsChart.tsx` + `/plan` page backed by `/api/quanty/plan`; honest "coming soon" when no checkout URL | Upgrade flow incomplete |
-| A11 | Device Control | PARTIAL | `DeviceCard.tsx`, `DevicePreview.tsx`, `plan/DevicesSection.tsx`; `/device` exists as legacy page `src/pages/device.tsx` (378 lines) | No full App Router device-control screen; legacy page only |
+| A11 | Device Control | PARTIAL | `DeviceCard.tsx`, `DevicePreview.tsx`, `components/plan/DevicesSection.tsx`; `/device` exists as legacy page `src/pages/device.tsx` (378 lines) | No full App Router device-control screen; legacy page only |
 | A12 | Settings | BUILT | `app/settings/page.tsx` (248 lines) | — |
 | A13 | Admin | MISSING | No admin route | Whole module missing |
 

@@ -12,7 +12,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.backend.json",
     "test": "vitest run",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "docs:check": "vitest run src/__tests__/implementation-status-scoreboard.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
