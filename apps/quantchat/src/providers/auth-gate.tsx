@@ -57,6 +57,19 @@ interface AuthGateCoreProps {
    * meet join code) is part of the destination, not decoration.
    */
   suffix?: string | null;
+  /**
+   * Whether `suffix` is the captured suffix FOR THE CURRENT pathname.
+   * Shells that read the suffix asynchronously (the App Router adapter
+   * reads window.location in an effect) pass false until the capture for
+   * this pathname has landed, and the redirect below waits: React runs
+   * child effects before parent effects, so without an explicit
+   * readiness signal this core would redirect with a stale/null suffix
+   * on an initially settled logged-out session and the deep link's
+   * query/hash would be lost (PR #961 review). Shells that know the
+   * suffix synchronously (Pages Router, from router.asPath) omit this —
+   * undefined means ready.
+   */
+  suffixReady?: boolean;
   /** Navigate away (router.replace semantics) — supplied by each shell. */
   onRedirect: (path: string) => void;
   children: React.ReactNode;
@@ -67,7 +80,7 @@ interface AuthGateCoreProps {
  * redirect plumbing; everything else — session bootstrap, timeout, fail-
  * closed rendering — is identical for every route in the app.
  */
-export function AuthGateCore({ pathname, suffix, onRedirect, children }: AuthGateCoreProps) {
+export function AuthGateCore({ pathname, suffix, suffixReady, onRedirect, children }: AuthGateCoreProps) {
   const { isAuthenticated, isLoading } = useAuth();
   const [sessionTimedOut, setSessionTimedOut] = useState(false);
 
@@ -95,11 +108,17 @@ export function AuthGateCore({ pathname, suffix, onRedirect, children }: AuthGat
   // carried along as a validated returnTo (QC-F-049): without it, every
   // deep link — notification clicks, cross-app handoffs, shared chat
   // links — landed on the chat list after login instead of its target.
+  // The redirect also waits for suffix readiness when the shell signals
+  // it (suffixReady === false): firing earlier would bake a missing
+  // query/hash into the one navigation that actually happens, because
+  // once the router lands on /login (a public path) no second redirect
+  // corrects it. While waiting, the render below keeps showing the
+  // "Redirecting to sign in..." state — no protected content flashes.
   useEffect(() => {
-    if (isGated && !isLoading && !isAuthenticated) {
+    if (isGated && !isLoading && !isAuthenticated && suffixReady !== false) {
       onRedirect(buildLoginRedirect(pathname, suffix));
     }
-  }, [isGated, isLoading, isAuthenticated, onRedirect, pathname, suffix]);
+  }, [isGated, isLoading, isAuthenticated, suffixReady, onRedirect, pathname, suffix]);
 
   if (!isGated) return <>{children}</>;
   if (isLoading) {
@@ -119,15 +138,27 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   // The query/hash part of the current URL. usePathname() strips it, and
   // reading it from window.location in an effect (rather than
   // useSearchParams in the root layout) avoids opting every route into
-  // client-side rendering. The gate only redirects after the session
-  // check settles, by which time this has synced.
-  const [suffix, setSuffix] = useState<string | null>(null);
+  // client-side rendering. The capture is keyed to the pathname it was
+  // read for, and the core is told explicitly whether the suffix for
+  // the CURRENT pathname is ready: React runs the child's effects
+  // before this parent's, so on an initially settled logged-out session
+  // the core's redirect effect would otherwise fire first with a null
+  // suffix and the deep link's query/hash would never reach /login
+  // (PR #961 review). With the readiness signal the first — and only —
+  // redirect carries the full destination.
+  const [capture, setCapture] = useState<{ forPath: string | null; suffix: string } | null>(null);
   useEffect(() => {
-    setSuffix(`${window.location.search}${window.location.hash}`);
+    setCapture({
+      forPath: pathname,
+      suffix: `${window.location.search}${window.location.hash}`,
+    });
   }, [pathname]);
 
+  const suffixReady = capture !== null && capture.forPath === pathname;
+  const suffix = suffixReady ? capture.suffix : null;
+
   return (
-    <AuthGateCore pathname={pathname} suffix={suffix} onRedirect={onRedirect}>
+    <AuthGateCore pathname={pathname} suffix={suffix} suffixReady={suffixReady} onRedirect={onRedirect}>
       {children}
     </AuthGateCore>
   );
