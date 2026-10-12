@@ -966,6 +966,8 @@ VERDICT-LIVE: /notifications logged-out → honest sign-in page desktop 1440x900
 STILL-UNVERIFIED: VAPID keys provisioned in staging; live E2E push delivery; thread-realtime message.new SSE feeding the notification UI.
 R2 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 1 P2. No fix agents spawned (no P0/P1).
 
+R3 REGRESSION AUDIT STARTED: [~] IN_PROGRESS — LANE-1, branch lane1-audit-015r3 (2026-10-12 ~12:35 IST). Plan: (a) verify R1 fixes (#840/#841) + R2 checks still intact on origin/main HEAD; (b) check R2-NEW-1 dead-CSS orphan status; (c) fresh code hunt for regressions on notifications surfaces; (d) live logged-out /notifications desktop+mobile + /api/notifications* 401s; (e) signed-in = needs-auth.
+
 ## QM-SCREEN-016 — Settings / profile / identity / devices / sessions / security
 Status: [x] DONE (audit complete: code vs origin/main + live logged-out desktop+mobile; findings logged; fixes tracked via their PRs separately).
 Required: account identity, linked devices, sessions, 2FA, recovery, privacy, Quanty grants, memory/personalization, connected apps, data export/deletion, step-up auth.
