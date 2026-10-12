@@ -14,9 +14,11 @@ type Topic = {
 const TOPICS: Topic[] = [
   {
     // Email address recovery is not available yet (per the locked auth design,
-    // phone-based recovery was removed): no link, honest body only.
+    // phone-based recovery was removed): honest body + support mailto only.
     title: 'Signing in',
-    body: 'Use the QuantMail address you created, for example you@quantmail.in. Email address recovery is not available yet — if you cannot remember which address you used, contact support.',
+    body: 'Use the QuantMail address you created, for example you@quantmail.in. Email address recovery is not available yet — if you cannot remember which address you used, contact support at support@quantrinity.in.',
+    href: 'mailto:support@quantrinity.in',
+    linkLabel: 'Email support',
   },
   {
     title: 'Resetting your password',
@@ -38,7 +40,7 @@ export default function HelpPage() {
       <AuthShell
         brand={
           <AuthBrandPanel
-            eyebrow="Support"
+            eyebrow="Help"
             title="How can we help?"
             subtitle="Answers to the questions we hear most about signing in and managing your QuantMail account."
           />
