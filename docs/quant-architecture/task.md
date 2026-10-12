@@ -1035,9 +1035,29 @@ Rotation → QM-SCREEN-018 (help) R3, queued.
 Status: [x] DONE (R3 regression audit complete 2026-10-12; #855 fixes verified intact on origin/main 01b700aee; 0 new findings; 1 false-alarm P0 withdrawn with correction)
 
 ## QM-SCREEN-018 — Help / privacy / terms / invite / groups / SSO / legacy route disposition
-Status: [~] IN_PROGRESS — ROUND 3 regression audit, 2026-10-12 ~15:40 IST
+Status: [x] DONE (ROUND 3 regression audit complete 2026-10-12 ~16:10 IST; 1 fix agent dispatched lane1-fix-018r3-privacy-copy; #959 closed as superseded)
 Owner: LANE-1
 Branch: lane1-audit-018r3
+R3-AUDIT (2026-10-12 ~15:40-16:10 IST): origin/main tree 226c5025 + live desktop Chrome 1440x900 + mobile 390x844 (shots /tmp/lane1-018r3/) + live curl. Audit scope: all six R1 findings re-checked, all three R2-NEW findings re-checked, new-finding hunt.
+R3 RE-CHECKS vs R2 state:
+- R1 P0 #1 invite bounce → FIXED live: /invite/badtoken123 logged-out renders honest "Invitation not valid / This invitation link is not valid." (desktop shot). Public paths now in edge-public-paths.ts single source of truth (also covers /drive/share/, /calendar/booking/).
+- R1 P0 #2 group-invite preview 401 → FIXED in code (backend/app.ts:152-156 publicPaths entry, route ordering, POST /contact-groups/join takes token in body — no token-in-URL) but STILL NOT LIVE: GET /api/contact-groups/invite/badtoken → 401 UNAUTHORIZED (curl 16:00 IST). Newest backend ECR image de4fd773 pushed 2026-10-11 04:49 UTC (~59h old); no quantmail-backend deploy since. → R2-NEW-1 P0 still OPEN, orchestrator owns.
+- R1 P0 #3 Play badge → FIXED, gone from privacy page.
+- R1 P1 phone-based recovery → RESOLVED by commit 6d16fe65 ("remove phone-based /forgot-email flow per locked phone-removal design"): /forgot-email route DELETED on origin/main (only a pinning regression test remains), live /forgot-email now renders the sign-in page; /help "Signing in" copy: "Email address recovery is not available yet — if you cannot remember which address you used, contact support." BLOCKERS.md phone-recovery item marked resolved this run.
+- R2-NEW-2 P1 (purge badge) → FIXED via a0f12376: badge now "Account Deletion / Contact Support" (mailto privacy@quantmail.in) + honest "Deletion is handled manually by our privacy team — there is currently no self-service deletion flow in the app." Verified live desktop+mobile.
+- R2-NEW-3 P2 (privacy hairline) → FIXED via a0f12376/aa56d1f3 rewrite: zero border-t/b/l/r/divide-* classes in privacy/page.tsx; /privacy is now a standalone AuthShell public page (no AppShell) — also closes the old R1 P2 shell-inconsistency finding.
+- R2-NEW-4 P2 (sso hairline) → STILL PRESENT: SsoChooserContent.tsx:760 `border-t border-white/[0.06]` on the Telemetry Bar block. → fix agent lane1-fix-018r3-privacy-copy dispatched.
+R3-NEW FINDINGS (this run; all filed to hidden_files/continuous-qa/findings.md):
+- [ ] FINDING R3-NEW-1 P1: /privacy contradicts itself on log retention — "App Performance & Logs" table row "scrubbed within 7 days" vs §5 "Telemetry & Audit Logs" "scrubbed and permanently destroyed within 30 days" | expected: one evidenced retention figure | actual: two figures on the same legal page | evidence: privacy/page.tsx ~138 vs ~210 on origin/main 226c5025 | fix agent dispatched.
+- [ ] FINDING R3-NEW-2 P2: unprovable "cryptographic shredding" claim — §5 "Encrypted Rolling Backups": "immutable 30-day rotation schedule, after which cryptographic shredding occurs" | expected: backup claims backed by code | actual: zero backup/shred references in backend; single-AZ RDS | evidence: origin/main grep | fix agent dispatched.
+- [ ] FINDING R3-NEW-3 P2: intra-page encryption inconsistency — at-a-glance "TLS 1.3 & AES-GCM" vs Personal Info row "TLS 1.3 in transit · AES-256 at rest" vs Messages/Contacts rows "AES-256-GCM" | fix agent dispatched.
+- [ ] FINDING R3-NEW-4 P2: /help "Signing in" says "contact support" with no named channel | expected: named channel | actual: bare "contact support" | evidence: error.tsx:142 already uses mailto:support@quantrinity.in | fix agent dispatched.
+- [ ] FINDING R3-NEW-5 P2: eyebrow inconsistency — /help brand-panel "Support" vs in-page "Help"; /terms + /privacy consistently "Legal" both spots | evidence: live desktop-help.png | fix agent dispatched.
+PR #959 (lane1-fix-018r2-purge-dividers, R2 fix PR): CLOSED 2026-10-12 as SUPERSEDED — privacy hunks no longer apply to origin/main (a0f12376+aa56d1f3 resolved differently, would conflict on merge; merging the "Data Export" rewording would fight the live honest "Contact Support" copy). Only the SSO-hairline hunk was still valid → folded into the new fix agent's PR. Comment: #959#issuecomment-6122132430.
+PASSING (R3): /help, /privacy, /terms, /sso, /invite/* all honest logged-out; no token-in-URL (sso-ticket-handoff.ts mints ticket via POST + strips legacy token params, pinned by tests); /forgot-password still exists and public; group-join redirects signed-out to /login?returnTo=…; terms copy honest as-is; eyebrows consistent on terms/privacy.
+STILL-UNVERIFIED: signed-in flows on all these surfaces (needs-auth); whether backend deploy of #863/#951/#855 actually lands (orchestrator).
+R3 NEW-FINDINGS COUNT: 0 P0 + 1 P1 + 4 P2. Fix agents: 1 dispatched (lane1-fix-018r3-privacy-copy). No fix agent for backend-deploy P0 (orchestrator-owned, out of lane scope).
+Rotation → QM-SCREEN-007 (search) ROUND 4, queued.
 PRIOR: [x] DONE (ROUND 2 regression complete 2026-10-12 ~05:20 IST; fixes tracked via PRs; R2-NEW-1 P0 backend-deploy gap filed as systemic)
 Owner: LANE-1
 Branch: lane1-audit-018r2
