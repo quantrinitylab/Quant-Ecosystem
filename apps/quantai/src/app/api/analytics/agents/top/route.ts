@@ -10,10 +10,9 @@ const BACKEND_URL = process.env.QUANTAI_BACKEND_URL || 'http://localhost:3020';
  * `analyticsRoutes` registered with prefix `/analytics`), which returns the
  * top agents by recorded run count from @quant/agentic's AgentAnalytics.
  *
- * This sub-path previously had no Next.js handler, so the AgentPerformance
- * component's fetch 404'd on every render. Uses the shared proxyToBackend
- * utility so auth forwarding, the 30s timeout, and backend-outage handling
- * behave exactly like the other API seams.
+ * This sub-path previously had no Next.js handler and 404'd on every call.
+ * Uses the shared proxyToBackend utility so auth forwarding, the 30s timeout,
+ * and backend-outage handling behave exactly like the other API seams.
  */
 export async function GET(request: NextRequest) {
   return proxyToBackend(request, {

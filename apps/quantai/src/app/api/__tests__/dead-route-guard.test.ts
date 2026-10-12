@@ -89,6 +89,22 @@ const LEGACY_ZERO_CALLER: Array<{ url: string; reason: string }> = [
     url: '/api/sessions/topics',
     reason: 'Backend proxy; topics are derived client-side from session data.',
   },
+  {
+    url: '/api/models/compare',
+    reason:
+      'Legacy backend proxy superseded by POST /api/agents/owned/models/compare; ' +
+      'sole caller apiClient.compareModels removed by F-162 (dead). F-159 deletes ' +
+      'it on quantai/loop-f159 (unmerged, verified no callers) — remove this entry ' +
+      'in the same change that deletes the file.',
+  },
+  {
+    url: '/api/analytics/agents/top',
+    reason:
+      'Real proxy to live backend GET /analytics/agents/top (F-168 recordRun writes ' +
+      'real agent-run data; successRate derived). Only in-repo consumer was the deleted ' +
+      'AgentPerformance component (F-168). Kept deliberately as public API surface; ' +
+      'delete if no UI consumes it after the analytics dashboard lands.',
+  },
 ];
 
 // ---------------------------------------------------------------------------

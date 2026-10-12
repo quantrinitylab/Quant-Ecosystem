@@ -3,11 +3,10 @@
 // ============================================================================
 //
 // Verifies the Next App Router proxy handler for GET /api/analytics/agents/top
-// (the sub-path AgentPerformance fetches, which previously had no handler and
-// 404'd). The route must forward to the QuantAI backend GET
-// /analytics/agents/top via the shared `proxyToBackend` utility, propagate the
-// Bearer <redacted> relay the backend status, and fail honestly when the backend
-// is down or returns garbage.
+// (which previously had no handler and 404'd). The route must forward to the
+// QuantAI backend GET /analytics/agents/top via the shared `proxyToBackend`
+// utility, propagate the Bearer <redacted> relay the backend status, and fail
+// honestly when the backend is down or returns garbage.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
