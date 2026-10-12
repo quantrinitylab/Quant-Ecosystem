@@ -26,6 +26,8 @@
       "@quant/ai-memory/*": ["../../packages/ai-memory/src/*"],
       "@quant/ab-testing": ["../../packages/ab-testing/src/index.ts"],
       "@quant/ab-testing/*": ["../../packages/ab-testing/src/*"],
+      "@quant/app-registry": ["../../packages/app-registry/src/index.ts"],
+      "@quant/app-registry/*": ["../../packages/app-registry/src/*"],
       "@quant/agentic": ["../../packages/agentic/src/index.ts"],
       "@quant/agentic/*": ["../../packages/agentic/src/*"],
       "@quant/cache": ["../../packages/cache/src/index.ts"],

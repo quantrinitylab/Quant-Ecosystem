@@ -27,6 +27,7 @@
     "@quant/auth": "workspace:*",
     "@quant/ai": "workspace:*",
     "@quant/api-client": "workspace:*",
+    "@quant/app-registry": "workspace:*",
     "@quant/brand": "workspace:*",
     "@quant/common": "workspace:*",
     "@quant/database": "workspace:*",
