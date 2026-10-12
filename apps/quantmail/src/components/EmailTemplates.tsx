@@ -13,7 +13,9 @@ export interface EmailTemplate {
   body: string;
   category: 'custom';
   createdAt: string;
-  // A real shortcut the user can type (e.g. ":intro") to recall this template.
+  // Display-only identifier (e.g. ":intro") shown next to the template name.
+  // Nothing in any composer recalls a template by typing — a template is
+  // inserted by selecting it in this picker. Never promise typing-recall.
   shortcut: string | null;
 }
 
@@ -88,7 +90,7 @@ export function EmailTemplates({ isOpen, onClose, onSelectTemplate, variant = 'd
       {loading && <p className="templates-empty">Loading templates…</p>}
       {error && <div role="alert"><p className="templates-empty">{error}</p><button type="button" className="template-item" onClick={() => void loadTemplates()}>Retry</button></div>}
       {!loading && !error && filteredTemplates.length === 0 && <p className="templates-empty">{templates.length === 0 ? 'No saved templates yet' : 'No templates match your search'}</p>}
-      {!loading && !error && filteredTemplates.map((template) => <button key={template.id} type="button" className="template-item" onClick={() => handleSelect(template)}><div className="template-item-header"><span className="template-icon"><IconSparkle size={14} /></span><span className="template-name">{template.name}</span>{template.shortcut && <span className="template-shortcut">{template.shortcut}</span>}</div><p className="template-subject">{template.subject}</p><p className="template-preview">{template.body.slice(0, 80)}{template.body.length > 80 ? '…' : ''}</p></button>)}
+      {!loading && !error && filteredTemplates.map((template) => <button key={template.id} type="button" className="template-item" onClick={() => handleSelect(template)}><div className="template-item-header"><span className="template-icon"><IconSparkle size={14} /></span><span className="template-name">{template.name}</span>{template.shortcut && <span className="template-shortcut" title="Display-only shortcut — typing it in the composer does nothing; select the template to insert it">{template.shortcut}</span>}</div><p className="template-subject">{template.subject}</p><p className="template-preview">{template.body.slice(0, 80)}{template.body.length > 80 ? '…' : ''}</p></button>)}
     </div>
   </motion.div>}</AnimatePresence>;
 }
