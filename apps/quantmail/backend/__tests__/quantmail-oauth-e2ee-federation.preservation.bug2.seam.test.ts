@@ -97,6 +97,13 @@ vi.mock('@quant/auth/lib/prisma', () => {
     authorizationCode: { findUnique: vi.fn(), create: vi.fn(), delete: vi.fn() },
     user: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
     emailVerificationCode: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+    // Interactive-transaction passthrough: the register route runs the
+    // user + folders + verification writes inside prisma.$transaction(cb).
+    // This in-memory baseline has no real transaction, so hand the callback
+    // the same mock client — tx.user.create / tx.emailVerificationCode.create
+    // stay the configured vi.fn()s above (emailFolder is absent on purpose;
+    // the route skips it via tx.emailFolder?.createMany).
+    $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(p)),
   };
   return { default: p, prisma: p };
 });
