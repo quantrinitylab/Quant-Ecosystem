@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import {
   MAX_VISIBLE_TOASTS,
   forgetUndo,
@@ -22,6 +21,16 @@ import {
  */
 export { hasPendingUndo, runPendingUndo, showToast } from '../lib/toast-bus';
 export type { ToastMessage } from '../lib/toast-bus';
+
+/**
+ * Must match the CSS keyframe duration (`inbox-toast-enter` / `inbox-toast-exit`
+ * in globals.css). Animations are pure CSS: this component renders from the root
+ * layout on EVERY route — including public /login — so it must not import
+ * framer-motion; any JS animation runtime here lands in the shared layout chunk
+ * for all routes. Exit motion is preserved by keeping a dismissed toast mounted
+ * with the `.inbox-toast--leaving` class for EXIT_MS before removing it.
+ */
+const EXIT_MS = 200;
 
 function ToastIcon({ type }: { type: ToastMessage['type'] }) {
   switch (type) {
@@ -62,7 +71,7 @@ function ToastIcon({ type }: { type: ToastMessage['type'] }) {
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
+          strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
         >
@@ -93,9 +102,11 @@ function ToastIcon({ type }: { type: ToastMessage['type'] }) {
 
 function InboxToastItem({
   toast,
+  leaving,
   onDismiss,
 }: {
   toast: ToastMessage;
+  leaving: boolean;
   onDismiss: (id: string) => void;
 }) {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(toast.countdown ?? null);
@@ -116,13 +127,8 @@ function InboxToastItem({
   }, [toast.countdown]);
 
   return (
-    <motion.div
-      key={toast.id}
-      className={`inbox-toast inbox-toast--${toast.type} ${toast.countdown ? 'undo-send-toast' : ''}`}
-      initial={{ opacity: 0, y: 16, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -8, scale: 0.95 }}
-      transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+    <div
+      className={`inbox-toast inbox-toast--${toast.type}${toast.countdown ? ' undo-send-toast' : ''}${leaving ? ' inbox-toast--leaving' : ''}`}
       role="status"
     >
       <span className="inbox-toast-icon flex items-center justify-center" aria-hidden="true">
@@ -166,12 +172,14 @@ function InboxToastItem({
           <line x1="6" y1="6" x2="18" y2="18" />
         </svg>
       </button>
-    </motion.div>
+    </div>
   );
 }
 
 export function InboxToastContainer() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  /** Toast ids currently playing their CSS exit animation (removed after EXIT_MS). */
+  const [leavingIds, setLeavingIds] = useState<string[]>([]);
 
   /**
    * Mirror of `toasts` so the subscriber can read the live stack without being
@@ -184,25 +192,64 @@ export function InboxToastContainer() {
    * are now two separate steps.
    */
   const toastsRef = useRef<ToastMessage[]>([]);
+  const exitTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const commit = useCallback((next: ToastMessage[]) => {
     toastsRef.current = next;
     setToasts(next);
   }, []);
 
+  const removeToast = useCallback(
+    (id: string) => {
+      commit(toastsRef.current.filter((t) => t.id !== id));
+      setLeavingIds((prev) => prev.filter((x) => x !== id));
+    },
+    [commit],
+  );
+
+  /** Play the exit animation, then remove the toast from the stack. */
+  const startExit = useCallback(
+    (id: string) => {
+      // The auto-dismiss timer, the dismiss button, and the Undo button can all
+      // fire for the same toast — schedule the exit exactly once.
+      if (exitTimers.current.has(id)) return;
+      setLeavingIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+      exitTimers.current.set(
+        id,
+        setTimeout(() => {
+          exitTimers.current.delete(id);
+          removeToast(id);
+        }, EXIT_MS),
+      );
+    },
+    [removeToast],
+  );
+
   const dismiss = useCallback(
     (id: string) => {
       forgetUndo(id);
-      commit(toastsRef.current.filter((t) => t.id !== id));
+      startExit(id);
     },
-    [commit],
+    [startExit],
   );
 
   useEffect(() => {
     const handler = (msg: ToastMessage) => {
       const { next, evicted } = reduceToasts(toastsRef.current, msg, MAX_VISIBLE_TOASTS);
-      evicted.forEach(forgetUndo);
-      commit(next);
+      // Evicted toasts play their exit animation like any dismissed toast, and
+      // stay in their original stack position while doing so (the previous
+      // implementation kept exiting items in place; appending them at the end
+      // would visibly reorder the stack for the 200ms exit).
+      const evictedIds = new Set(evicted);
+      const keptIds = new Set(next.map((t) => t.id));
+      evicted.forEach((id) => forgetUndo(id));
+      const ordered: ToastMessage[] = [];
+      for (const t of toastsRef.current) {
+        if (evictedIds.has(t.id) || keptIds.has(t.id)) ordered.push(t);
+      }
+      ordered.push(msg); // incoming is always the last element of `next`
+      commit(ordered);
+      evicted.forEach((id) => startExit(id));
 
       setTimeout(() => dismiss(msg.id), msg.duration ?? 3200);
     };
@@ -212,15 +259,27 @@ export function InboxToastContainer() {
       unsubscribeToasts();
       unsubscribeDismissals();
     };
-  }, [commit, dismiss]);
+  }, [commit, dismiss, startExit]);
+
+  // Never leak exit timers on unmount.
+  useEffect(() => {
+    const timers = exitTimers.current;
+    return () => {
+      timers.forEach((t) => clearTimeout(t));
+      timers.clear();
+    };
+  }, []);
 
   return (
     <div className="inbox-toast-container" aria-live="polite" aria-atomic="false">
-      <AnimatePresence>
-        {toasts.map((toast) => (
-          <InboxToastItem key={toast.id} toast={toast} onDismiss={dismiss} />
-        ))}
-      </AnimatePresence>
+      {toasts.map((toast) => (
+        <InboxToastItem
+          key={toast.id}
+          toast={toast}
+          leaving={leavingIds.includes(toast.id)}
+          onDismiss={dismiss}
+        />
+      ))}
     </div>
   );
 }
