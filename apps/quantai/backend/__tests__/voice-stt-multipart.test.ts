@@ -132,6 +132,12 @@ describe('POST /voice/stt — multipart upload (F-055)', () => {
     app = Fastify();
     // Same registration as backend/app.ts — the actual fix under test.
     await app.register(multipart, { limits: VOICE_UPLOAD_LIMITS });
+    // Consolidation note: /voice/stt is auth-gated (F-043's paidGuard calls
+    // fastify.requireAuth() at registration). This file mocks
+    // @quant/server-core, so the real auth plugin is unavailable here — stub a
+    // no-op guard. Auth gating itself is covered with the real plugin in
+    // voice-paid-endpoints-auth.test.ts; this file's focus is multipart parsing.
+    app.decorate('requireAuth', () => async () => {});
     await app.register(voiceRoutes, { prefix: '/voice' });
     await app.ready();
   });
