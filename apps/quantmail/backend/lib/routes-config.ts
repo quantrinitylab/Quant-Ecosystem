@@ -29,8 +29,11 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   // `revoke-others` is the destructive one; the backend step-up-guards it.
   { pattern: /^auth\/sessions$/, methods: ['GET'] },
   { pattern: /^auth\/sessions\/revoke-others$/, methods: ['POST'] },
-  { pattern: /^auth\/phone$/, methods: ['GET', 'DELETE'] },
-  { pattern: /^auth\/phone\/(?:send-otp|verify)$/, methods: ['POST'] },
+  // Phone login/OTP REMOVED per the locked 2026-10-05 / 2026-10-11 SSO design
+  // (OTP is email-based only: POST /auth/verify-email + /auth/resend-verification).
+  // `backend/routes/phone.ts` (POST /auth/phone/send-otp, POST /auth/phone/verify,
+  // GET/DELETE /auth/phone) was deleted and unmounted — there is intentionally NO
+  // `auth/phone` entry here, so the catch-all proxy answers 404 API_ROUTE_NOT_FOUND.
   { pattern: /^email-signatures$/, methods: ['GET', 'POST'] },
   { pattern: /^email-signatures\/default$/, methods: ['GET'] },
   { pattern: /^email-signatures\/[^/]+$/, methods: ['PUT', 'DELETE'] },
