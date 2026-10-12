@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import './shell.css';
 import './overrides.css';
 import { quantMailBrandMetadata } from '../brand/identity';
+import { AUTH_SHELL_HEADER } from '../lib/edge-public-paths';
 import { AuthGuard } from '../components/AuthGuard';
 import { KeyboardProvider } from '../components/KeyboardProvider';
 import { KeyboardSurfaces } from '../components/KeyboardSurfaces';
@@ -73,7 +75,22 @@ const themeBootstrap = `
 })();
 `;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // fix/qm-auth-providers-minimal: the edge middleware tags the public
+  // auth-form pages (/login, /register, /forgot-password, /reset-password)
+  // with `x-quant-shell: auth`; they render the lean auth shell (brand +
+  // auth session only) instead of the full authenticated provider stack.
+  // /login was measured at 792KB raw / 256KB gzip across 25 chunks because
+  // this layout used to mount QueryClientProvider, the API-client layer, the
+  // keyboard system, toasts and the offline bar on EVERY route. An absent tag
+  // renders the full shell — the safe default, so a missed tag can only cost
+  // bytes, never break a page.
+  //
+  // NOTE: reading `headers()` opts the root layout — and therefore every
+  // route — into dynamic rendering. /marketing was the only intentionally
+  // static page; the trade buys every signed-out visitor a leaner /login.
+  const isAuthShell = (await headers()).get(AUTH_SHELL_HEADER) === 'auth';
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -83,42 +100,59 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a href="#main-content" className="skip-to-content">
           Skip to content
         </a>
-        <LazyOfflineBar />
-        <QueryProvider>
-          <BrandProvider>
-            <AuthProvider>
-              <AppProviders>
-                <AuthGuard>
-                  {/* The palette and the shortcuts sheet read their open state
-                      from this provider, so both must live inside it. Both sit at
-                      the layout root rather than inside `AppShell`: `mod+k` is
-                      registered globally, and the palette used to render only on
-                      routes that happened to mount a shell — so on the others the
-                      shortcut set state nothing was listening to.
+        {/* Hoisted above the shell branch on purpose: the same provider
+            instance — and the session state — survives the /login → /
+            transition, so sign-in never flashes "Authenticating..." while a
+            fresh provider re-hydrates. It reaches the query client through the
+            module registry (`lib/query-client-registry.ts`) instead of
+            `useQueryClient()`, which is what lets the auth shell omit
+            QueryClientProvider entirely. */}
+        <AuthProvider>
+          {isAuthShell ? (
+            /* Lean auth shell: brand CSS + auth session only. No
+               QueryClientProvider, no theme/sidekick providers, no AuthGuard
+               (the middleware already guards server-side), no keyboard system,
+               no toasts, no offline bar. */
+            <BrandProvider>{children}</BrandProvider>
+          ) : (
+            <>
+              <LazyOfflineBar />
+              <QueryProvider>
+                <BrandProvider>
+                  <AppProviders>
+                    <AuthGuard>
+                      {/* The palette and the shortcuts sheet read their open state
+                          from this provider, so both must live inside it. Both sit at
+                          the layout root rather than inside `AppShell`: `mod+k` is
+                          registered globally, and the palette used to render only on
+                          routes that happened to mount a shell — so on the others the
+                          shortcut set state nothing was listening to.
 
-                      `KeyboardSurfaces` is a client host that code-splits both of
-                      them out of the root chunk; it cannot be inlined here because
-                      this layout is a Server Component. */}
-                  {/* `children` is deliberately not wrapped in a landmark here.
-                      Every route already renders its own `<main>` — `AppShell` for
-                      the twenty-eight shell routes, `AuthShell` for the four auth
-                      screens, and its own for `/invite/[token]` and `/lab/marks` —
-                      so a wrapper here made two `<main>` elements on every page and
-                      handed `#main-content` to the outer one. The skip link then
-                      landed above the header, the drawer and the search field:
-                      four more tabbables to cross on `/`, three on `/drive`. The id
-                      lives on the innermost landmark instead, next to the content it
-                      names. */}
-                  <KeyboardProvider>
-                    {children}
-                    <KeyboardSurfaces />
-                  </KeyboardProvider>
-                  <LazyInboxToasts />
-                </AuthGuard>
-              </AppProviders>
-            </AuthProvider>
-          </BrandProvider>
-        </QueryProvider>
+                          `KeyboardSurfaces` is a client host that code-splits both of
+                          them out of the root chunk; it cannot be inlined here because
+                          this layout is a Server Component. */}
+                      {/* `children` is deliberately not wrapped in a landmark here.
+                          Every route already renders its own `<main>` — `AppShell` for
+                          the twenty-eight shell routes, `AuthShell` for the four auth
+                          screens, and its own for `/invite/[token]` and `/lab/marks` —
+                          so a wrapper here made two `<main>` elements on every page and
+                          handed `#main-content` to the outer one. The skip link then
+                          landed above the header, the drawer and the search field:
+                          four more tabbables to cross on `/`, three on `/drive`. The id
+                          lives on the innermost landmark instead, next to the content it
+                          names. */}
+                      <KeyboardProvider>
+                        {children}
+                        <KeyboardSurfaces />
+                      </KeyboardProvider>
+                      <LazyInboxToasts />
+                    </AuthGuard>
+                  </AppProviders>
+                </BrandProvider>
+              </QueryProvider>
+            </>
+          )}
+        </AuthProvider>
       </body>
     </html>
   );
