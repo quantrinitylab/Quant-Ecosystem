@@ -66,9 +66,9 @@ const ERROR_ANIMATION_CSS = `
 // ungated here — faithful to the shipped behavior.
 const TRY_AGAIN_BUTTON_CLASS =
   'inline-flex items-center justify-center font-medium rounded-lg transition-colors duration-150 ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]/50 ' +
-  'focus-visible:ring-offset-1 focus-visible:ring-offset-[#090A0C] active:scale-[0.98] select-none ' +
-  'bg-[#FF8C42] text-[#111111] font-semibold hover:bg-[#FF9B5A] active:bg-[#E8752F] shadow-sm ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]/50 ' +
+  'focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--quant-background)] active:scale-[0.98] select-none ' +
+  'bg-[var(--quant-primary)] text-[#111111] font-semibold hover:bg-[var(--quant-primary-hover)] active:bg-[var(--brand-primary-pressed)] shadow-sm ' +
   'h-9 px-3.5 text-sm gap-2 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0';
 
 export default function Error({
