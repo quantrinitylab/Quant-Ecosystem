@@ -33,6 +33,20 @@ const confirmSchema = z.object({
 export default async function agenticRoutes(fastify: FastifyInstance) {
   const workflowEngine = new WorkflowEngine(orchestrator);
 
+  // ------------------------------------------------------------------
+  // Auth model for these routes (mirrors the sibling agent seams in
+  // agent-runtime.ts / agent-swarm.ts / browser-agent.ts / code-agent.ts /
+  // quant-tools.ts):
+  //  * the global onRequest requireAuth hook installed by createApp()
+  //    protects every non-public path (verified token -> request.auth);
+  //  * tool-executing mutations additionally declare the `agents:execute`
+  //    scope via a preHandler, so a least-privilege / scope-restricted token
+  //    that passes the global hook still cannot run agent tool plans.
+  // ------------------------------------------------------------------
+  const agentExecuteAuth = {
+    preHandler: fastify.requireAuth({ scopes: ['agents:execute'] }),
+  };
+
   // Run a specific agent
   fastify.post('/agents/run', async (request, reply) => {
     const parseResult = runAgentSchema.safeParse(request.body);
@@ -144,7 +158,7 @@ export default async function agenticRoutes(fastify: FastifyInstance) {
    * Tier-2+ steps are NOT executed; the client must render a Sentinel
    * approval card and call POST /agentic/confirm/:planId.
    */
-  fastify.post('/chat', async (request, reply) => {
+  fastify.post('/chat', agentExecuteAuth, async (request, reply) => {
     const userId = requireUserId(request);
     const jwt = getUserJwt(request);
     const parsed = agenticChatSchema.safeParse(request.body);
@@ -249,7 +263,7 @@ export default async function agenticRoutes(fastify: FastifyInstance) {
    * POST /agentic/confirm/:planId — Sentinel approval resume.
    * Body: { approved: boolean }. Returns the execution results (or [] when denied).
    */
-  fastify.post<{ Params: { planId: string } }>('/confirm/:planId', async (request, reply) => {
+  fastify.post<{ Params: { planId: string } }>('/confirm/:planId', agentExecuteAuth, async (request, reply) => {
     const userId = requireUserId(request);
     const jwt = getUserJwt(request);
     const parsed = confirmSchema.safeParse(request.body);
