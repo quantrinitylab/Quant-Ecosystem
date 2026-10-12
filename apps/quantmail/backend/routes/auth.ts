@@ -120,47 +120,58 @@ export async function authRoutes(fastify: FastifyInstance) {
       }
 
       const passwordHash = await argon2.hash(password);
-      const user = await prisma.user.create({
-        data: {
-          email,
-          username,
-          displayName: displayName || username,
-          passwordHash,
-          status: 'ACTIVE',
-          // The address is NOT proven at this point. Creating users with
-          // emailVerified: true here was how any address could be claimed
-          // with no proof of ownership — /auth/verify-email flips it.
-          emailVerified: false,
-        },
-      });
 
-      // Provision standard mail folders at signup (M10: eliminates per-request upsert overhead)
-      if (prisma.emailFolder?.createMany) {
-        await prisma.emailFolder.createMany({
-          data: [
-            { userId: user.id, name: 'Inbox', type: 'INBOX' },
-            { userId: user.id, name: 'Sent', type: 'SENT' },
-            { userId: user.id, name: 'Drafts', type: 'DRAFTS' },
-            { userId: user.id, name: 'Archive', type: 'ARCHIVE' },
-            { userId: user.id, name: 'Trash', type: 'TRASH' },
-            { userId: user.id, name: 'Spam', type: 'SPAM' },
-          ],
-          skipDuplicates: true,
-        });
-      }
-
-      // Prove-it-later: the new account is not yet entitled to claim this
-      // address. A real 6-digit code goes out over SES (no phone/SMS — that
-      // channel was removed by user order), and only its hash is stored.
+      // Registration is atomic: the user row, the default folders and the
+      // verification row commit together inside one transaction. Creating
+      // the user first and the verification row later left an ACTIVE orphan
+      // behind whenever the row insert failed — and the retry then 409'd
+      // USER_EXISTS with no way to ever verify that account.
       const verificationCode = generateVerificationCode();
-      await prisma.emailVerificationCode.create({
-        data: {
-          userId: user.id,
-          codeHash: hashVerificationCode(verificationCode),
-          expiresAt: verificationCodeExpiry(),
-          requestedIp: typeof request.ip === 'string' ? request.ip : null,
-        },
+      const user = await prisma.$transaction(async (tx: any) => {
+        const created = await tx.user.create({
+          data: {
+            email,
+            username,
+            displayName: displayName || username,
+            passwordHash,
+            status: 'ACTIVE',
+            // The address is NOT proven at this point. Creating users with
+            // emailVerified: true here was how any address could be claimed
+            // with no proof of ownership — /auth/verify-email flips it.
+            emailVerified: false,
+          },
+        });
+
+        // Provision standard mail folders at signup (M10: eliminates per-request upsert overhead)
+        if (tx.emailFolder?.createMany) {
+          await tx.emailFolder.createMany({
+            data: [
+              { userId: created.id, name: 'Inbox', type: 'INBOX' },
+              { userId: created.id, name: 'Sent', type: 'SENT' },
+              { userId: created.id, name: 'Drafts', type: 'DRAFTS' },
+              { userId: created.id, name: 'Archive', type: 'ARCHIVE' },
+              { userId: created.id, name: 'Trash', type: 'TRASH' },
+              { userId: created.id, name: 'Spam', type: 'SPAM' },
+            ],
+            skipDuplicates: true,
+          });
+        }
+
+        // Prove-it-later: the new account is not yet entitled to claim this
+        // address. A real 6-digit code goes out over SES (no phone/SMS — that
+        // channel was removed by user order), and only its hash is stored.
+        await tx.emailVerificationCode.create({
+          data: {
+            userId: created.id,
+            codeHash: hashVerificationCode(verificationCode),
+            expiresAt: verificationCodeExpiry(),
+            requestedIp: typeof request.ip === 'string' ? request.ip : null,
+          },
+        });
+
+        return created;
       });
+
       const verificationEmailSent = await sendVerificationEmail({
         to: email,
         code: verificationCode,
