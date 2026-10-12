@@ -6,7 +6,9 @@
 //   DELETE /stories/:storyId        - delete your own story
 //   POST   /stories/:storyId/view   - mark a story viewed (idempotent)
 //   GET    /stories/:storyId/viewers - list viewers (story owner only)
-//   POST   /stories/:storyId/reply  - accept a reply to a story
+//   POST   /stories/:storyId/reply  - deliver a reply to the story author
+//                                       as a direct-conversation message
+//                                       (QC-F-078)
 //
 // The feed response shape matches what the web client's useStories hook
 // expects: { groups: [{ userId, userName, userAvatar, stories, hasUnviewed }] }.
@@ -15,6 +17,9 @@ import type { FastifyInstance } from 'fastify';
 import type { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
+import { ConversationService } from '../services/conversation.service';
+import { MessageService } from '../services/message.service';
+import { publishConversationEvent } from '../services/realtime-publisher';
 
 const STORY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -219,6 +224,58 @@ function serializeStory(story: StoryWithAuthor, isViewed: boolean) {
   };
 }
 
+// --- Story reply delivery (QC-F-078) --------------------------------------
+//
+// A story reply is an ordinary direct message to the story author. Delivery
+// reuses the real messaging paths — never a parallel store:
+//   * an EXISTING active DIRECT conversation between replier and author is
+//     reused (the same lookup shape loadFriendContext uses for its
+//     direct-chat friend test);
+//   * otherwise a new direct conversation is bootstrapped through
+//     ConversationService.createConversation, which enforces the author's
+//     whoCanMessage privacy gate (QC-F-042) — a viewer who may SEE an
+//     'everyone' story but may not message the author gets that gate's
+//     honest 403/503, never a fake "Reply sent";
+//   * the message itself is sent through MessageService.sendMessage, whose
+//     membership gate is the authority inside the conversation, and which
+//     persists the message + delivery outbox row atomically.
+// The delivered message carries `metadata.storyReply = { storyId }` so the
+// author client can attribute it to the story without inventing a second
+// reply store. It is a plain permanent DM — NOT view-once/disappearing:
+// the replier's own words are theirs to keep in the conversation.
+
+async function findDirectConversationId(
+  prisma: PrismaClient,
+  userAId: string,
+  userBId: string,
+): Promise<string | null> {
+  const aMemberships = await prisma.conversationMember.findMany({
+    where: { userId: userAId, leftAt: null },
+    select: { conversationId: true },
+  });
+  const aConversationIds = aMemberships.map((m) => m.conversationId);
+  if (aConversationIds.length === 0) return null;
+
+  const bMemberships = await prisma.conversationMember.findMany({
+    where: {
+      conversationId: { in: aConversationIds },
+      userId: userBId,
+      leftAt: null,
+    },
+    select: { conversationId: true },
+  });
+  if (bMemberships.length === 0) return null;
+
+  const direct = await prisma.conversation.findMany({
+    where: {
+      id: { in: [...new Set(bMemberships.map((m) => m.conversationId))] },
+      type: 'DIRECT',
+    },
+    select: { id: true },
+  });
+  return direct[0]?.id ?? null;
+}
+
 export default async function storiesRoutes(fastify: FastifyInstance) {
   // GET /stories/feed - story groups from non-expired stories, own group first
   fastify.get('/feed', async (request, reply) => {
@@ -413,7 +470,10 @@ export default async function storiesRoutes(fastify: FastifyInstance) {
     });
   });
 
-  // POST /stories/:storyId/reply - accept a reply to a story
+  // POST /stories/:storyId/reply - deliver a reply to the story author as
+  // a direct message (QC-F-078). Success is returned ONLY after the message
+  // is persisted through the membership-gated send path; every failure
+  // (audience gate, privacy gate, membership) surfaces as its real error.
   fastify.post('/:storyId/reply', async (request, reply) => {
     const userId = getUserId(request);
     const prisma = getPrisma(fastify);
@@ -440,13 +500,44 @@ export default async function storiesRoutes(fastify: FastifyInstance) {
       throw createAppError('You cannot reply to your own story', 400, 'BAD_REQUEST');
     }
 
-    // TODO: deliver the reply as a DM to the story author once the messaging
-    // conversation bootstrap is wired here. Accepted for now so the client
-    // flow (toast "Reply sent") works end to end.
-    fastify.log.info(
-      { storyId, replierId: userId, authorId: story.userId },
-      'Story reply received',
-    );
-    return reply.send({ success: true });
+    // QC-F-078: deliver — do not just log. Find the pair's existing direct
+    // conversation, or bootstrap one through the privacy-gated create path,
+    // then send through the membership-gated MessageService (which also
+    // writes the delivery outbox row in the same transaction).
+    const authorId = story.userId;
+    let conversationId = await findDirectConversationId(prisma, userId, authorId);
+    if (!conversationId) {
+      const conversations = new ConversationService(prisma);
+      const created = await conversations.createConversation({
+        creatorId: userId,
+        participantIds: [authorId],
+        type: 'direct',
+      });
+      conversationId = created.id;
+    }
+
+    const messages = new MessageService(prisma);
+    const message = await messages.sendMessage({
+      conversationId,
+      senderId: userId,
+      content: parsed.data.message,
+      type: 'text',
+      metadata: { storyReply: { storyId } },
+    });
+
+    // Realtime fan-out, same as the REST message send path: the durable
+    // message above is the source of truth; this only accelerates live
+    // delivery and never fails the response (the publisher logs and
+    // no-ops when no backplane is decorated).
+    const sentMessage = message as unknown as { id: string; version?: number };
+    void publishConversationEvent(fastify, conversationId, {
+      eventType: 'chat.message.created.v1',
+      resourceRef: sentMessage.id,
+      aggregateVersion:
+        typeof sentMessage.version === 'number' ? sentMessage.version : 1,
+      data: message,
+    });
+
+    return reply.send({ success: true, conversationId, messageId: sentMessage.id });
   });
 }
