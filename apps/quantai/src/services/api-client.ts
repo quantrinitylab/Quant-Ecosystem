@@ -78,9 +78,6 @@ class QuantAIApiClient {
   ): Promise<ApiResponse<DeviceCommand>> {
     return this.request('POST', `/devices/${deviceId}/command`, { type, params });
   }
-  async readScreen(deviceId: string): Promise<ApiResponse<any>> {
-    return this.request('GET', `/devices/${deviceId}/screen`);
-  }
 
   // Automation
   async createAutomation(data: any): Promise<ApiResponse<Automation>> {
