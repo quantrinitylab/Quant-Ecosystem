@@ -11,8 +11,25 @@ interface Row extends ScheduledMessageRecord {
 }
 
 // Minimal in-memory Prisma double covering only what the worker touches.
+// QC-F-095: the worker now re-checks conversation membership before
+// delivering, so the fake also serves `conversationMember.findFirst` and a
+// top-level `scheduledMessage.update` (the gate's CANCELLED flip). By
+// default every row's (userId, conversationId) pair counts as an active
+// member, preserving these tests' original claims.
 function makeFakePrisma(rows: Row[]) {
   const created: Array<{ conversationId: string; senderId: string; content: string }> = [];
+  const members = new Set(rows.map((r) => `${r.userId}::${r.conversationId}`));
+  const scheduledUpdate = async ({
+    where,
+    data,
+  }: {
+    where: { id: string };
+    data: { status: Row['status'] };
+  }) => {
+    const row = rows.find((r) => r.id === where.id);
+    if (row) row.status = data.status;
+    return row;
+  };
   const tx = {
     message: {
       create: async ({
@@ -25,24 +42,23 @@ function makeFakePrisma(rows: Row[]) {
       },
     },
     conversation: { update: async () => ({}) },
-    scheduledMessage: {
-      update: async ({
-        where,
-        data,
-      }: {
-        where: { id: string };
-        data: { status: Row['status'] };
-      }) => {
-        const row = rows.find((r) => r.id === where.id);
-        if (row) row.status = data.status;
-        return row;
-      },
-    },
+    scheduledMessage: { update: scheduledUpdate },
   };
   const prisma = {
+    conversationMember: {
+      findFirst: async ({
+        where,
+      }: {
+        where: { conversationId: string; userId: string; leftAt: null };
+      }) =>
+        members.has(`${where.userId}::${where.conversationId}`)
+          ? { id: `mem_${where.userId}_${where.conversationId}` }
+          : null,
+    },
     scheduledMessage: {
       findMany: async ({ where }: { where: { status: string; scheduledFor: { lte: Date } } }) =>
         rows.filter((r) => r.status === where.status && r.scheduledFor <= where.scheduledFor.lte),
+      update: scheduledUpdate,
     },
     $transaction: async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),
   };
