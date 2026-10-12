@@ -3493,6 +3493,29 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       }
       const plaintext = await checkedPlaintext(source);
       await quotaService.checkQuota(userId, plaintext.length);
+      // QM-AUTO — an explicitly requested destination must resolve to a real
+      // folder the user owns. Previously a bogus or unresolvable folder id
+      // silently fell through to the source folder (?? source.folderId),
+      // duplicating in place while the caller reported a successful copy to
+      // the requested destination. Mirrors the /drive/move contract: 404 on an
+      // unknown target. A missing/empty target keeps the documented default —
+      // duplicate in the source folder.
+      const requestedFolderId =
+        typeof request.body?.targetFolderId === 'string' &&
+        request.body.targetFolderId.length > 0
+          ? request.body.targetFolderId
+          : null;
+      if (requestedFolderId) {
+        const targetFolder = await prisma.folder.findFirst({
+          where: { id: requestedFolderId, userId, isDeleted: false },
+          select: { id: true },
+        });
+        if (!targetFolder) {
+          throw createAppError('Target folder not found', 404, 'FOLDER_NOT_FOUND', {
+            targetFolderId: requestedFolderId,
+          });
+        }
+      }
       const envelope = encryptForDrive(plaintext);
       const file = await prisma.file.create({
         data: {
@@ -3500,7 +3523,7 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
           name: safeFileName(`${source.name} (copy)`),
           mimeType: source.mimeType,
           size: plaintext.length,
-          folderId: request.body?.targetFolderId ?? source.folderId ?? null,
+          folderId: requestedFolderId ?? source.folderId ?? null,
           encryptedContent: '',
           encryptionIV: envelope.iv,
           encryptionAuthTag: envelope.authTag,

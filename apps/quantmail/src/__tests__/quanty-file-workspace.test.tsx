@@ -157,6 +157,159 @@ describe('QuantyFileWorkspaceManager', () => {
     manager.dispose();
   });
 
+  it('refuses to copy when the suggested folder does not exist — honest error, no false success', async () => {
+    const onFilesChanged = vi.fn();
+    const apiFetch = makeFetch({
+      '/api/drive/ai/organize': {
+        fileId: 'file-1',
+        suggestedFolder: '/Reports',
+        category: 'Reports',
+        confidence: 0.9,
+        folderId: null,
+        applied: false,
+      },
+      '/api/drive/folders': { folders: [{ id: 'folder-docs', name: 'Documents' }] },
+      '/api/drive/files/file-1/copy': { id: 'file-2', name: 'notes.txt (copy)' },
+    });
+    const manager = new QuantyFileWorkspaceManager({ apiFetch: apiFetch as any, onFilesChanged });
+    manager.setCurrentFile(FILE);
+    await manager.suggestDestination();
+    const notified: string[] = [];
+    manager.subscribe((s) => notified.push(s.organize.status));
+    await manager.copyToSuggestedFolder();
+    const { organize } = manager.getState();
+    expect(organize.status).toBe('error');
+    expect(organize.error).toContain("doesn't exist");
+    expect(organize.missingFolderName).toBe('Reports');
+    // Subscribers are told — the drawer re-renders the honest error + the
+    // "create folder" offer.
+    expect(notified).toContain('error');
+    // The false claim is gone: no success result...
+    expect(organize.appliedResult).toBeNull();
+    // ...and no copy was ever attempted — nothing duplicated in place.
+    expect(apiFetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('/copy'),
+      expect.anything(),
+    );
+    expect(onFilesChanged).not.toHaveBeenCalled();
+    manager.dispose();
+  });
+
+  it('copies into the resolved folder and reports the real destination', async () => {
+    const onFilesChanged = vi.fn();
+    const apiFetch = makeFetch({
+      '/api/drive/ai/organize': {
+        fileId: 'file-1',
+        suggestedFolder: '/Reports',
+        category: 'Reports',
+        confidence: 0.9,
+        folderId: null,
+        applied: false,
+      },
+      '/api/drive/folders': { folders: [{ id: 'folder-reports', name: 'Reports' }] },
+      '/api/drive/files/file-1/copy': { id: 'file-2', name: 'notes.txt (copy)' },
+    });
+    const manager = new QuantyFileWorkspaceManager({ apiFetch: apiFetch as any, onFilesChanged });
+    manager.setCurrentFile(FILE);
+    await manager.suggestDestination();
+    await manager.copyToSuggestedFolder();
+    const { organize } = manager.getState();
+    expect(organize.appliedResult).toEqual({ action: 'copied', folder: '/Reports' });
+    expect(organize.missingFolderName).toBeNull();
+    expect(apiFetch).toHaveBeenCalledWith(
+      '/api/drive/files/file-1/copy',
+      expect.objectContaining({ body: JSON.stringify({ targetFolderId: 'folder-reports' }) }),
+    );
+    expect(onFilesChanged).toHaveBeenCalled();
+    manager.dispose();
+  });
+
+  it('creates the missing folder and copies into it when asked', async () => {
+    const onFilesChanged = vi.fn();
+    const posted: Array<{ url: string; method?: string; body?: string }> = [];
+    const apiFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      posted.push({
+        url,
+        method: init?.method,
+        body: typeof init?.body === 'string' ? init.body : undefined,
+      });
+      if (url === '/api/drive/ai/organize') {
+        return jsonResponse({
+          fileId: 'file-1',
+          suggestedFolder: '/Reports',
+          category: 'Reports',
+          confidence: 0.9,
+          folderId: null,
+          applied: false,
+        });
+      }
+      if (url === '/api/drive/folders' && init?.method === 'GET') {
+        return jsonResponse({ folders: [] });
+      }
+      if (url === '/api/drive/folders' && init?.method === 'POST') {
+        return jsonResponse({ id: 'folder-new', name: 'Reports' });
+      }
+      if (url.endsWith('/copy')) return jsonResponse({ id: 'file-2' });
+      return jsonResponse({ error: 'not mocked' }, false);
+    });
+    const manager = new QuantyFileWorkspaceManager({ apiFetch: apiFetch as any, onFilesChanged });
+    manager.setCurrentFile(FILE);
+    await manager.suggestDestination();
+    await manager.copyToSuggestedFolder();
+    expect(manager.getState().organize.missingFolderName).toBe('Reports');
+    await manager.createFolderAndCopy();
+    const { organize } = manager.getState();
+    expect(organize.appliedResult).toEqual({ action: 'copied', folder: '/Reports' });
+    expect(organize.missingFolderName).toBeNull();
+    expect(organize.error).toBeNull();
+    // The folder was really created first, then the copy targeted the new id.
+    const createCall = posted.find((p) => p.url === '/api/drive/folders' && p.method === 'POST');
+    expect(createCall).toBeDefined();
+    expect(JSON.parse(createCall!.body!)).toEqual({ name: 'Reports' });
+    expect(apiFetch).toHaveBeenCalledWith(
+      '/api/drive/files/file-1/copy',
+      expect.objectContaining({ body: JSON.stringify({ targetFolderId: 'folder-new' }) }),
+    );
+    expect(onFilesChanged).toHaveBeenCalled();
+    manager.dispose();
+  });
+
+  it("surfaces the backend's real copy error instead of the generic fallback", async () => {
+    const apiFetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === '/api/drive/ai/organize') {
+        return jsonResponse({
+          fileId: 'file-1',
+          suggestedFolder: '/Reports',
+          category: 'Reports',
+          confidence: 0.9,
+          folderId: null,
+          applied: false,
+        });
+      }
+      if (url === '/api/drive/folders') {
+        return jsonResponse({ folders: [{ id: 'f-r', name: 'Reports' }] });
+      }
+      if (url.endsWith('/copy')) {
+        return jsonResponse(
+          { error: { code: 'FOLDER_NOT_FOUND', message: 'Target folder not found' } },
+          false,
+        );
+      }
+      return jsonResponse({ error: 'not mocked' }, false);
+    });
+    const manager = new QuantyFileWorkspaceManager({ apiFetch: apiFetch as any });
+    manager.setCurrentFile(FILE);
+    await manager.suggestDestination();
+    await manager.copyToSuggestedFolder();
+    const { organize } = manager.getState();
+    expect(organize.status).toBe('error');
+    expect(organize.error).toBe('Target folder not found');
+    expect(organize.appliedResult).toBeNull();
+    manager.dispose();
+  });
+
   it('summarizes the current file with the real summary', async () => {
     const apiFetch = makeFetch({
       '/api/drive/ai/summarize': {
