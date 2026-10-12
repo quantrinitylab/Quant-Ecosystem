@@ -3,7 +3,12 @@ import { analytics } from '@quant/agentic';
 
 export default async function analyticsRoutes(fastify: FastifyInstance) {
   fastify.get('/agents/top', async (request, reply) => {
-    const top = analytics.getTopAgents(5);
+    // F-168 improvement: include the derived successRate on every entry so
+    // consumers never divide by zero / read undefined (the F-153 crash class).
+    const top = analytics.getTopAgents(5).map((entry) => ({
+      ...entry,
+      successRate: analytics.getSuccessRate(entry.agentId),
+    }));
     return reply.send(top);
   });
 

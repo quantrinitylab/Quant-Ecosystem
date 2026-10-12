@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
-import { orchestrator, WorkflowEngine } from '@quant/agentic';
+import { orchestrator, WorkflowEngine, analytics } from '@quant/agentic';
 import { getAgentGateway } from '../services/agent-gateway.service';
 import { APP_ENDPOINTS, checkAppHealth } from '../services/app-endpoints';
 
@@ -45,14 +45,21 @@ export default async function agenticRoutes(fastify: FastifyInstance) {
 
     const { agentId, input, context } = parseResult.data;
 
+    const startedAt = Date.now();
     try {
       const result = await orchestrator.runAgent(agentId, input, {
         ...context,
         userId,
       });
 
+      // F-168: record the completed agent run so GET /analytics/agents/top
+      // reflects real runs. Real data only: the actual agentId, the actual
+      // outcome, and the measured wall-clock duration — never synthesized.
+      analytics.recordRun(agentId, true, Date.now() - startedAt);
+
       return reply.send({ success: true, result });
     } catch (error: any) {
+      analytics.recordRun(agentId, false, Date.now() - startedAt);
       throw createAppError(error.message, 500, 'AGENT_ERROR');
     }
   });
