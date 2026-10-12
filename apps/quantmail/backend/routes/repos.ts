@@ -2101,6 +2101,127 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     },
   );
 
+  // GET /:id/pulls/:number/mergeable - real, read-only merge-conflict pre-check.
+  // Runs the same dry-run `git merge-tree <baseSha> <headSha>` the merge POST
+  // uses, but never writes anything: no commit-tree, no update-ref. The
+  // QuantGit merge box must never claim "no conflicts" without this backend
+  // verdict. mergeable === null means UNKNOWN (neither claim is made).
+  fastify.get<{ Params: { id: string; number: string } }>(
+    '/:id/pulls/:number/mergeable',
+    async (request, reply) => {
+      const repo = await loadReadableRepo(request, request.params.id);
+      const num = parseInt(request.params.number, 10);
+      if (isNaN(num)) throw createAppError('Invalid PR number', 400, 'INVALID_NUMBER');
+      const prisma = getPrisma(fastify);
+
+      const pr = await prisma.pullRequest.findFirst({
+        where: { repoId: repo.id, number: num },
+      });
+      if (!pr) throw createAppError('Pull request not found', 404, 'PR_NOT_FOUND');
+      if (pr.status === 'MERGED') {
+        return reply.send({
+          success: true,
+          data: {
+            mergeable: false,
+            reason: 'ALREADY_MERGED',
+            conflicts: [],
+            baseSha: null,
+            headSha: null,
+          },
+        });
+      }
+
+      // Resolve commit SHAs exactly like the merge POST (prisma rows first,
+      // authoritative git refs when the bare repo is present).
+      const targetBranchRow = await prisma.branch?.findUnique({
+        where: { repoId_name: { repoId: repo.id, name: pr.targetBranch } },
+      });
+      const sourceBranchRow = await prisma.branch?.findUnique({
+        where: { repoId_name: { repoId: repo.id, name: pr.sourceBranch } },
+      });
+
+      const repoPath = await resolveRepoPath(repo);
+      const isBareRepoPresent = repoPath ? await pathExists(repoPath) : false;
+
+      let baseSha = targetBranchRow?.commitSha ?? null;
+      let headSha = sourceBranchRow?.commitSha ?? null;
+
+      if (isBareRepoPresent && repoPath) {
+        const gitBaseSha = await resolveGitRefSha(repoPath, pr.targetBranch);
+        if (gitBaseSha) baseSha = gitBaseSha;
+        const gitHeadSha = await resolveGitRefSha(repoPath, pr.sourceBranch);
+        if (gitHeadSha) headSha = gitHeadSha;
+      }
+
+      // No local repo (or unresolvable SHAs): be honest — the check cannot run,
+      // so the UI must render "unknown", never "no conflicts".
+      if (!isBareRepoPresent || !repoPath || !baseSha || !headSha) {
+        return reply.send({
+          success: true,
+          data: {
+            mergeable: null,
+            reason: 'CHECK_UNAVAILABLE',
+            conflicts: [],
+            baseSha,
+            headSha,
+          },
+        });
+      }
+
+      // Dry-run only. `git merge-tree` writes a tree for the hypothetical merge
+      // without touching refs. NOTE: it exits non-zero when conflicts exist —
+      // the CONFLICT markers are still on stdout, so parse them anyway. Only a
+      // failure with no usable output is an honest unknown.
+      let mergeTreeStdout = '';
+      try {
+        const res = await execFileAsync('git', ['merge-tree', baseSha, headSha], {
+          cwd: repoPath,
+          env: GIT_CHILD_ENV,
+        });
+        mergeTreeStdout = res.stdout;
+      } catch (err: any) {
+        mergeTreeStdout = typeof err?.stdout === 'string' ? err.stdout : '';
+        if (!mergeTreeStdout.trim()) {
+          return reply.send({
+            success: true,
+            data: {
+              mergeable: null,
+              reason: 'CHECK_FAILED',
+              conflicts: [],
+              baseSha,
+              headSha,
+            },
+          });
+        }
+      }
+
+      const conflictPaths: string[] = [];
+      const conflictRe = /CONFLICT \([a-zA-Z0-9_./ -]+\): Merge conflict in ([^\n\r]+)/g;
+      let match: RegExpExecArray | null;
+      while ((match = conflictRe.exec(mergeTreeStdout)) !== null) {
+        const filePath = match[1].trim();
+        if (filePath && !conflictPaths.includes(filePath)) conflictPaths.push(filePath);
+      }
+      const treeSha = mergeTreeStdout.trim().split('\n')[0].trim();
+      const hasConflict =
+        conflictPaths.length > 0 ||
+        mergeTreeStdout.includes('CONFLICT') ||
+        mergeTreeStdout.includes('<<<<<<<') ||
+        !/^[0-9a-f]{40}$/i.test(treeSha);
+
+      return reply.send({
+        success: true,
+        data: {
+          mergeable: !hasConflict,
+          reason: hasConflict ? 'CONFLICTS' : 'CLEAN',
+          conflicts: conflictPaths,
+          baseSha,
+          headSha,
+        },
+      });
+    },
+  );
+
   fastify.post<{ Params: { id: string; number: string } }>(
     '/:id/pulls/:number/merge',
     async (request, reply) => {

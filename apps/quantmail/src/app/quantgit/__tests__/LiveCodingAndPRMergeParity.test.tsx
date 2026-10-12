@@ -272,7 +272,11 @@ describe('QuantGit Live Coding In-Editor PR Creation & 3-Way Merge Security Gate
       expect(html).toContain('All checks have passed');
       expect(html).not.toContain('55/56');
       expect(html).toContain('data-testid="merge-enabled-box"');
-      expect(html).toContain('This branch has no conflicts with the base branch.');
+      // Honest conflict detection: before the backend pre-check completes the
+      // merge box shows "Checking for merge conflicts…" — it must never render
+      // the unverified "no conflicts" claim (regression: qm-merge-box-conflict-claim).
+      expect(html).toContain('Checking for merge conflicts…');
+      expect(html).not.toContain('This branch has no conflicts with the base branch.');
       expect(html).toContain('data-testid="merge-method-select"');
       expect(html).toContain('Merge pull request (create merge commit)');
       expect(html).toContain('Squash and merge (1 commit)');

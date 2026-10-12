@@ -237,7 +237,11 @@ describe('QuantGit GitHub Sovereign Parity: PR 3-Way Merge & Actions Streaming L
         />,
       );
 
-      expect(html).toContain('This branch has no conflicts with the base branch.');
+      // Honest conflict detection: before the backend pre-check completes the
+      // merge box shows "Checking for merge conflicts…" — it must never render
+      // the unverified "no conflicts" claim (regression: qm-merge-box-conflict-claim).
+      expect(html).toContain('Checking for merge conflicts…');
+      expect(html).not.toContain('This branch has no conflicts with the base branch.');
       expect(html).toContain('data-testid="merge-method-select"');
       expect(html).toContain('Merge pull request (create merge commit)');
       expect(html).toContain('Squash and merge (1 commit)');
