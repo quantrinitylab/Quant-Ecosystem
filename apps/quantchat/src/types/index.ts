@@ -626,11 +626,24 @@ export type AIFeature =
   | 'sticker_gen'
   | 'caption';
 
-export interface SmartReply {
-  id: string;
-  text: string;
-  confidence: number;
-  tone: 'casual' | 'friendly' | 'professional' | 'funny';
+/**
+ * QC-F-068: the REAL backend smart-replies contract
+ * (backend/services/ai-smart-replies.service.ts — SmartReplyInputSchema /
+ * SmartReplyResultSchema). The old `SmartReply` interface ({id, text,
+ * confidence, tone}) described fields the backend never returns; the client
+ * also sent `{message}`, which the backend schema rejects with a 400.
+ */
+export interface SmartReplyRequest {
+  conversationId: string;
+  recentMessages: Array<{ sender: string; content: string }>;
+  /** 1–10, backend default 3. */
+  count?: number;
+  /** Optional: enables relationship-aware replies from cross-app contact memory. */
+  participantEmail?: string;
+}
+
+export interface SmartReplyResult {
+  suggestions: string[];
 }
 
 export interface TranslationRequest {
