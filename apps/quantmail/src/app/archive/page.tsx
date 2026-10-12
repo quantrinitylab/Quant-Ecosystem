@@ -7,9 +7,12 @@ export default function ArchivePage() {
   const router = useRouter();
 
   useEffect(() => {
-    // The archived view lives on the main inbox page (?tab=archive).
-    // A bare /archive used to drop the tab param and land on the plain inbox.
-    router.replace('/?tab=archive');
+    // The classic inbox lives at /?view=inbox — the archive tab's consumer
+    // (activeTab / setShowArchivedView) exists only in the classic inbox
+    // (InboxPageContent). A bare /?tab=archive renders the unified People
+    // home instead, which never reads `tab`, so keep ?view=inbox: dropping
+    // it silently lands on the People home rather than the archived shelf.
+    router.replace('/?view=inbox&tab=archive');
   }, [router]);
 
   return null;
