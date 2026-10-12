@@ -196,13 +196,23 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
       expect(html).toContain('GOLD');
     });
 
-    it('renders FastCDC deduplication badges on files', () => {
+    it('does NOT render unconditional FastCDC deduplication badges on files (R4-NEW-1)', () => {
       const html = renderToStaticMarkup(
         <DriveFilesSubView files={sampleFiles} folders={sampleFolders} />,
       );
 
-      expect(html).toContain('FastCDC Deduped');
-      expect(html).toContain('CAS: 64KB');
+      expect(html).not.toContain('FastCDC Deduped');
+      // Unprovable per-file storage-internals claims are gone too.
+      expect(html).not.toContain('CAS: 64KB');
+    });
+
+    it('does NOT render unconditional FastCDC deduplication badges in grid view (R4-NEW-1)', () => {
+      const html = renderToStaticMarkup(
+        <DriveFilesSubView files={sampleFiles} folders={sampleFolders} viewMode="grid" />,
+      );
+
+      expect(html).not.toContain('FastCDC Deduped');
+      expect(html).not.toContain('CAS: 64KB');
     });
 
     it('renders folders and regular files in grid view', () => {

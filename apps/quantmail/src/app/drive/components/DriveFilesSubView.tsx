@@ -419,10 +419,10 @@ export function DriveFilesSubView({
                         <HardDriveIcon className="size-4" />
                       </div>
                       <div className="flex items-center gap-1">
-                        {/* FastCDC Deduplication Badge */}
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[var(--q-type-xs)] font-mono font-semibold bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)]">
-                          FastCDC Deduped
-                        </span>
+                        {/* R4-NEW-1: no per-file dedup status is exposed by the
+                            backend (fileDto has no deduplicated/chunk field), so
+                            an unconditional "FastCDC Deduped" badge would be an
+                            unprovable claim. Removed entirely. */}
                         <button
                           type="button"
                           aria-label={file.isStarred ? 'Unstar file' : 'Star file'}
@@ -450,8 +450,9 @@ export function DriveFilesSubView({
                     </div>
                   </div>
 
-                  <div className="mt-3 pt-1 flex items-center justify-between text-[11px]">
-                    <span className="text-[#64748B] font-mono text-[10px]">CAS: 64KB</span>
+                  <div className="mt-3 pt-1 flex items-center justify-end text-[11px]">
+                    {/* R4-NEW-1 companion: per-file "CAS: 64KB" storage-internals
+                        claim removed — same unprovable class as the badge. */}
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
@@ -511,9 +512,9 @@ export function DriveFilesSubView({
                         <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[var(--app-accent)] transition-colors">
                           {file.name}
                         </p>
-                        <span className="inline-flex items-center px-1.5 py-px rounded text-[var(--q-type-xs)] font-mono font-semibold bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)]">
-                          FastCDC Deduped
-                        </span>
+                        {/* R4-NEW-1: no per-file dedup status is exposed by the
+                            backend, so an unconditional "FastCDC Deduped" badge
+                            would be an unprovable claim. Removed entirely. */}
                         {/* QM-M39-009: security scan state — 'unknown' renders as "Not scanned", never as safe */}
                         <FileScanBadge status={file.scanStatus} reason={file.scanReason} />
                       </div>
