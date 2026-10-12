@@ -186,10 +186,13 @@ interface Row extends ScheduledMessageRecord {
 }
 
 // Minimal in-memory Prisma double covering only what the worker touches.
-// QC-F-095: the worker now re-checks conversation membership before
-// delivering, so the fake also serves `conversationMember.findFirst` and a
-// top-level `scheduledMessage.update`. The property's rows (u1 in c1) count
-// as an active membership, preserving the property's original claims.
+// QC-F-095: the worker re-checks conversation membership before delivering.
+// QC-F-095 AMEND: claim + membership + delivery happen inside ONE
+// transaction, so the fake's tx serves `conversationMember.findFirst` and a
+// compare-and-swap `scheduledMessage.updateMany` (synchronous check-and-set
+// in the body, so it is atomic under JS interleaving the way the row lock
+// makes it atomic in Postgres). The property's rows (u1 in c1) count as an
+// active membership, preserving the property's original claims.
 function makeFakePrisma(rows: Row[]) {
   const scheduledUpdate = async ({
     where,
@@ -202,24 +205,36 @@ function makeFakePrisma(rows: Row[]) {
     if (row) row.status = data.status;
     return row;
   };
+  const scheduledUpdateMany = ({
+    where,
+    data,
+  }: {
+    where: { id: string; status: Row['status'] };
+    data: { status: Row['status'] };
+  }) => {
+    const row = rows.find((r) => r.id === where.id);
+    if (!row || row.status !== where.status) return Promise.resolve({ count: 0 });
+    row.status = data.status;
+    return Promise.resolve({ count: 1 });
+  };
+  const findFirstMember = async ({
+    where,
+  }: {
+    where: { conversationId: string; userId: string; leftAt: null };
+  }) =>
+    rows.some((r) => r.userId === where.userId && r.conversationId === where.conversationId)
+      ? { id: `mem_${where.userId}_${where.conversationId}` }
+      : null;
   const tx = {
+    conversationMember: { findFirst: findFirstMember },
     message: {
       create: async (args: { data: unknown }) => ({ id: 'm', ...(args.data as object) }),
     },
     conversation: { update: async () => ({}) },
-    scheduledMessage: { update: scheduledUpdate },
+    scheduledMessage: { updateMany: scheduledUpdateMany, update: scheduledUpdate },
   };
   return {
-    conversationMember: {
-      findFirst: async ({
-        where,
-      }: {
-        where: { conversationId: string; userId: string; leftAt: null };
-      }) =>
-        rows.some((r) => r.userId === where.userId && r.conversationId === where.conversationId)
-          ? { id: `mem_${where.userId}_${where.conversationId}` }
-          : null,
-    },
+    conversationMember: { findFirst: findFirstMember },
     scheduledMessage: {
       findMany: async ({ where }: { where: { status: string; scheduledFor: { lte: Date } } }) =>
         rows.filter((r) => r.status === where.status && r.scheduledFor <= where.scheduledFor.lte),

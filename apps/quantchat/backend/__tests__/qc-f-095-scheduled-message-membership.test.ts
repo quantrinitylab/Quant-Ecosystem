@@ -16,9 +16,18 @@
 //    same 403 (no existence oracle). Past scheduledFor → 400 VALIDATION_ERROR
 //    AFTER the membership gate. Pinned order: zod 400 → auth 401 → 403 → 400.
 //  - Delivery gate in services/scheduled-message-worker.ts: membership is
-//    re-checked OUTSIDE the delivery transaction; a deterministic null flips
-//    the row to CANCELLED (terminal — no Message, no onDelivered, no
-//    onError); a transient lookup throw leaves the row PENDING for retry.
+//    re-checked before delivery; a deterministic null flips the row to
+//    CANCELLED (terminal — no Message, no onDelivered, no onError); a
+//    transient lookup throw leaves the row PENDING for retry.
+//
+// AMEND (worker races, CODEX-REVIEW on PR #966): the delivery gate now runs
+// as a single atomic authorization/claim operation INSIDE one transaction —
+// a conditional updateMany claims the row (PENDING → SENT) and membership
+// is re-checked after the claim, in the same transaction. The observable
+// behaviour pinned by cases 8-16 is unchanged (cancel on deterministic gate
+// failure, retry on transient throw); the race-specific pins (revocation
+// between poll and transaction, two concurrent workers, cancellation
+// racing delivery) live in qc-f-095-amend-concurrency.test.ts.
 //
 // The membership fakes model rows with a leftAt timestamp and honour the
 // query's leftAt filter the way the real delegate does — so a gate that
@@ -319,42 +328,75 @@ function makeWorkerFake(
     return row;
   };
 
+  // QC-F-095 AMEND: the atomic claim. The check-and-set runs synchronously
+  // in the body, so it is atomic under JS interleaving the way the row lock
+  // makes the real updateMany atomic in Postgres: only a caller whose
+  // `where.status` still matches mutates the row, and it sees count 1.
+  const scheduledUpdateMany = (args: unknown) => {
+    const { where, data } = args as {
+      where: { id: string; status: SchedRow['status'] };
+      data: { status: SchedRow['status'] };
+    };
+    const row = rows.find((r) => r.id === where.id);
+    if (!row || row.status !== where.status) return Promise.resolve({ count: 0 });
+    row.status = data.status;
+    return Promise.resolve({ count: 1 });
+  };
+
+  const findFirst = async (args: unknown) => {
+    const { where } = args as {
+      where: { conversationId: string; userId: string; leftAt: null };
+    };
+    findFirstCalls += 1;
+    if (opts.findFirstImpl) return opts.findFirstImpl(where, findFirstCalls);
+    return lookupMembership(opts.memberships, where);
+  };
+
   const prisma: SchedulerPrisma = {
-    conversationMember: {
-      findFirst: async ({ where }) => {
-        findFirstCalls += 1;
-        if (opts.findFirstImpl) return opts.findFirstImpl(where, findFirstCalls);
-        return lookupMembership(opts.memberships, where);
-      },
-    },
     scheduledMessage: {
       findMany: async ({ where }) =>
         rows
           .filter((r) => r.status === where.status && r.scheduledFor <= where.scheduledFor.lte)
           .sort((a, b) => a.scheduledFor.getTime() - b.scheduledFor.getTime()),
-      update: scheduledUpdate,
     },
-    $transaction: async (fn) =>
-      fn({
-        message: {
-          create: async (args: unknown) => {
-            const { data } = args as { data: CreatedMessage };
-            created.push(data);
-            return { id: `m_${created.length}`, ...data };
+    // $transaction models rollback: a throw inside restores row statuses
+    // and drops messages/conversation updates made inside the transaction,
+    // exactly what the real interactive transaction guarantees.
+    $transaction: async (fn) => {
+      const statusSnapshot = rows.map((r) => r.status);
+      const createdSnapshot = created.length;
+      const updatesSnapshot = conversationUpdates.length;
+      try {
+        return await fn({
+          conversationMember: { findFirst },
+          message: {
+            create: async (args: unknown) => {
+              const { data } = args as { data: CreatedMessage };
+              created.push(data);
+              return { id: `m_${created.length}`, ...data };
+            },
           },
-        },
-        conversation: {
-          update: async (args: unknown) => {
-            const { where } = args as { where: { id: string } };
-            if (!existing.has(where.id)) {
-              throw new Error(`Conversation ${where.id} not found`);
-            }
-            conversationUpdates.push(where);
-            return {};
+          conversation: {
+            update: async (args: unknown) => {
+              const { where } = args as { where: { id: string } };
+              if (!existing.has(where.id)) {
+                throw new Error(`Conversation ${where.id} not found`);
+              }
+              conversationUpdates.push(where);
+              return {};
+            },
           },
-        },
-        scheduledMessage: { update: scheduledUpdate },
-      }),
+          scheduledMessage: { updateMany: scheduledUpdateMany, update: scheduledUpdate },
+        });
+      } catch (error) {
+        rows.forEach((r, i) => {
+          r.status = statusSnapshot[i]!;
+        });
+        created.length = createdSnapshot;
+        conversationUpdates.length = updatesSnapshot;
+        throw error;
+      }
+    },
   };
   return { prisma, created, conversationUpdates };
 }
