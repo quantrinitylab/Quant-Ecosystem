@@ -32,6 +32,11 @@ export interface ConversationEventInput {
   data: unknown;
   /** Optional trace correlation (§18). */
   traceId?: string;
+  /**
+   * QC-F-042 amend (gap 3) — user ids the websocket layer must not deliver
+   * this event to (see RoomEvent.excludeUserIds).
+   */
+  excludeUserIds?: string[];
 }
 
 function getBackplane(fastify: FastifyInstance): RealtimeBackplane | null {
@@ -77,6 +82,9 @@ export async function publishConversationEvent(
       originInstanceId: backplane.instanceId,
       payload: envelope,
       envelope,
+      ...(input.excludeUserIds && input.excludeUserIds.length > 0
+        ? { excludeUserIds: [...input.excludeUserIds] }
+        : {}),
     };
     await backplane.publish(conversationId, event);
     return envelope;

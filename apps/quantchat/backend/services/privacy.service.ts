@@ -146,11 +146,45 @@ function pickBool(value: unknown, fallback: boolean): boolean {
 }
 
 /**
+ * Per-field pickers for a PRESENT privacy block (QC-F-042 amend, PR #956
+ * review gap 4). A field that is ABSENT (`undefined`) keeps the declared
+ * default — stored prefs are merged over DEFAULT_PRIVACY, so a user who
+ * only ever set one toggle must not have the other seven silently flipped.
+ * A field that is PRESENT but malformed (wrong type / unknown enum) is a
+ * different signal: the stored value cannot be trusted, so it resolves to
+ * the MOST_RESTRICTIVE value for that field — never the permissive
+ * default. The earlier behaviour (malformed → default) failed OPEN:
+ * `showOnlineStatus: "false"` (a string) resolved to `true` and exposed
+ * the user's presence.
+ */
+function pickEnumStored<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  defaultValue: T,
+  restrictiveValue: T,
+): T {
+  if (value === undefined) return defaultValue;
+  return pickEnum(value, allowed, restrictiveValue);
+}
+
+function pickBoolStored(
+  value: unknown,
+  defaultValue: boolean,
+  restrictiveValue: boolean,
+): boolean {
+  if (value === undefined) return defaultValue;
+  return pickBool(value, restrictiveValue);
+}
+
+/**
  * Extract effective privacy prefs from a raw `User.preferences` value.
  * Pure and exported so read paths that already hold the user row (e.g.
  * LocationService.getFriendsOnMap) can apply the same semantics without an
  * extra query. A present-but-malformed privacy block is an 'error'
- * (most-restrictive); an absent block is 'default'.
+ * (most-restrictive); an absent block is 'default'. Within a well-formed
+ * block, an individually malformed FIELD resolves to that field's
+ * most-restrictive value while the source stays 'stored' (amend gap 4);
+ * only a genuinely absent field falls back to the declared default.
  */
 export function extractPrivacyPrefs(preferences: unknown): ResolvedPrivacy {
   if (!isPlainObject(preferences)) {
@@ -171,14 +205,14 @@ export function extractPrivacyPrefs(preferences: unknown): ResolvedPrivacy {
   return {
     source: 'stored',
     prefs: {
-      whoCanMessage: pickEnum(privacy['whoCanMessage'], WHO_CAN_MESSAGE, DEFAULT_PRIVACY.whoCanMessage),
-      whoCanSeeStory: pickEnum(privacy['whoCanSeeStory'], WHO_CAN_SEE_STORY, DEFAULT_PRIVACY.whoCanSeeStory),
-      whoCanSeeLocation: pickEnum(privacy['whoCanSeeLocation'], WHO_CAN_SEE_LOCATION, DEFAULT_PRIVACY.whoCanSeeLocation),
-      showOnlineStatus: pickBool(privacy['showOnlineStatus'], DEFAULT_PRIVACY.showOnlineStatus),
-      showReadReceipts: pickBool(privacy['showReadReceipts'], DEFAULT_PRIVACY.showReadReceipts),
-      showTypingIndicator: pickBool(privacy['showTypingIndicator'], DEFAULT_PRIVACY.showTypingIndicator),
-      allowScreenshots: pickBool(privacy['allowScreenshots'], DEFAULT_PRIVACY.allowScreenshots),
-      hideFromSearch: pickBool(privacy['hideFromSearch'], DEFAULT_PRIVACY.hideFromSearch),
+      whoCanMessage: pickEnumStored(privacy['whoCanMessage'], WHO_CAN_MESSAGE, DEFAULT_PRIVACY.whoCanMessage, MOST_RESTRICTIVE_PRIVACY.whoCanMessage),
+      whoCanSeeStory: pickEnumStored(privacy['whoCanSeeStory'], WHO_CAN_SEE_STORY, DEFAULT_PRIVACY.whoCanSeeStory, MOST_RESTRICTIVE_PRIVACY.whoCanSeeStory),
+      whoCanSeeLocation: pickEnumStored(privacy['whoCanSeeLocation'], WHO_CAN_SEE_LOCATION, DEFAULT_PRIVACY.whoCanSeeLocation, MOST_RESTRICTIVE_PRIVACY.whoCanSeeLocation),
+      showOnlineStatus: pickBoolStored(privacy['showOnlineStatus'], DEFAULT_PRIVACY.showOnlineStatus, MOST_RESTRICTIVE_PRIVACY.showOnlineStatus),
+      showReadReceipts: pickBoolStored(privacy['showReadReceipts'], DEFAULT_PRIVACY.showReadReceipts, MOST_RESTRICTIVE_PRIVACY.showReadReceipts),
+      showTypingIndicator: pickBoolStored(privacy['showTypingIndicator'], DEFAULT_PRIVACY.showTypingIndicator, MOST_RESTRICTIVE_PRIVACY.showTypingIndicator),
+      allowScreenshots: pickBoolStored(privacy['allowScreenshots'], DEFAULT_PRIVACY.allowScreenshots, MOST_RESTRICTIVE_PRIVACY.allowScreenshots),
+      hideFromSearch: pickBoolStored(privacy['hideFromSearch'], DEFAULT_PRIVACY.hideFromSearch, MOST_RESTRICTIVE_PRIVACY.hideFromSearch),
     },
   };
 }
