@@ -34,7 +34,7 @@ describe('QuantMail same-origin browser auth proxy', () => {
 
   it('forwards login origin/body and preserves the hardened refresh cookie', async () => {
     const cookie =
-      'quantmail_refresh=refresh-secret; Path=/auth; HttpOnly; SameSite=Strict; Max-Age=2592000';
+      'quantmail_refresh=refresh-secret; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000';
     fetchMock.mockResolvedValueOnce(
       backendJson(
         { success: true, data: { accessToken: 'access-token', expiresIn: 900 } },
@@ -68,7 +68,7 @@ describe('QuantMail same-origin browser auth proxy', () => {
 
   it('forwards the path-scoped cookie during refresh and returns its rotation', async () => {
     const rotatedCookie =
-      'quantmail_refresh=rotated-secret; Path=/auth; HttpOnly; SameSite=Strict; Max-Age=2592000';
+      'quantmail_refresh=rotated-secret; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000';
     fetchMock.mockResolvedValueOnce(
       backendJson(
         { success: true, data: { accessToken: 'rotated-access', expiresIn: 900 } },
@@ -96,7 +96,7 @@ describe('QuantMail same-origin browser auth proxy', () => {
 
   it('forwards the dedicated 2FA completion route and preserves only the refresh cookie', async () => {
     const refreshCookie =
-      'quantmail_refresh=second-leg-secret; Path=/auth; HttpOnly; SameSite=Strict; Max-Age=2592000';
+      'quantmail_refresh=second-leg-secret; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000';
     const backendHeaders = new Headers({ 'content-type': 'application/json' });
     backendHeaders.append('set-cookie', refreshCookie);
     backendHeaders.append('set-cookie', 'unrelated_cookie=must-not-cross; Path=/');

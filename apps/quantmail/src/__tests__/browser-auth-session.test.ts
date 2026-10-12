@@ -64,7 +64,7 @@ describe('browserAuthSession', () => {
     expect(result.success).toBe(true);
     expect(browserAuthSession.getAccessToken()).toBe('access-login');
     expect(fetchMock).toHaveBeenCalledWith(
-      '/auth/login',
+      '/api/auth/login',
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
@@ -100,7 +100,7 @@ describe('browserAuthSession', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
-      '/auth/refresh',
+      '/api/auth/refresh',
       expect.objectContaining({ method: 'POST', credentials: 'include' }),
     );
 
@@ -126,7 +126,7 @@ describe('browserAuthSession', () => {
 
     expect(response.status).toBe(401);
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[1]?.[0]).toBe('/auth/refresh');
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/auth/refresh');
 
     const firstRequest = fetchMock.mock.calls[0]?.[1] as RequestInit;
     const retryRequest = fetchMock.mock.calls[2]?.[1] as RequestInit;
@@ -163,7 +163,7 @@ describe('browserAuthSession', () => {
 
     expect(browserAuthSession.getAccessToken()).toBeNull();
     expect(fetchMock).toHaveBeenCalledWith(
-      '/auth/logout',
+      '/api/auth/logout',
       expect.objectContaining({ method: 'POST', credentials: 'include' }),
     );
   });
@@ -249,8 +249,31 @@ describe('browserAuthSession', () => {
 
     expect(result.success).toBe(true);
     expect(fetchMock).toHaveBeenCalledWith(
-      '/auth/login',
+      '/api/auth/login',
       expect.objectContaining({ method: 'POST', signal: expect.any(AbortSignal) }),
     );
+  });
+
+  it('routes browser auth through the /api/auth proxy by default, never bare /auth/*', async () => {
+    // Regression lock for the 2026-10-12 login outage: with NEXT_PUBLIC_AUTH_URL
+    // unset, the client used to POST to /auth/login, which the edge middleware
+    // 307-redirects to the login HTML page (not a public path, no session
+    // cookie) — the JSON check then failed with "invalid response" and nobody
+    // could sign in from a browser. /api/* is matcher-excluded from the
+    // middleware, so the proxy routes are the only safe default. Re-import the
+    // module with a clean env so the default (not a leaked test value) is
+    // what the assertion exercises.
+    vi.resetModules();
+    delete process.env.NEXT_PUBLIC_AUTH_URL;
+    const fresh = await import('../services/browser-auth-session');
+    fetchMock.mockResolvedValueOnce(
+      authResponse({ accessToken: 'access-login', expiresIn: 900, tokenType: 'Bearer' }),
+    );
+
+    await fresh.browserAuthSession.login('user@example.com', 'password');
+
+    const calledUrl = String(fetchMock.mock.calls[0]?.[0] ?? '');
+    expect(calledUrl).toBe('/api/auth/login');
+    expect(calledUrl).not.toMatch(/^\/auth\//);
   });
 });
