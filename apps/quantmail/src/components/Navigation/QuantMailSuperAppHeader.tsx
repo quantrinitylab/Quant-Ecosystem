@@ -1010,7 +1010,7 @@ export function QuantMailSuperAppHeader({
             >
               <div className="flex items-center justify-between text-xs mb-1.5">
                 <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
-                  <HardDriveQuotaSvg className="size-3.5 text-sky-400" />
+                  <HardDriveQuotaSvg className="size-3.5 text-[#34A853]" />
                   <span>Drive Quota</span>
                 </div>
                 <span className="text-[11px] font-mono text-[#94A3B8]">
@@ -1019,13 +1019,12 @@ export function QuantMailSuperAppHeader({
               </div>
               <div className="w-full bg-[var(--quant-surface-elevated)] rounded-full h-1.5 overflow-hidden">
                 <div
-                  className="bg-gradient-to-r from-sky-500 to-indigo-500 h-1.5 rounded-full transition-all duration-300"
+                  className="bg-[#34A853] h-1.5 rounded-full transition-all duration-300"
                   style={{ width: `${storagePercentage}%` }}
                 />
               </div>
-              <div className="flex items-center justify-between text-[10px] text-[#64748B] mt-1">
+              <div className="flex items-center text-[10px] text-[#64748B] mt-1">
                 <span>{storagePercentage}% capacity used</span>
-                <span className="text-sky-400 font-medium">FastCDC dedup</span>
               </div>
             </div>
             )}

@@ -346,7 +346,7 @@ export function FileActivityModal({
               data-testid="activity-loading"
               className="py-12 flex flex-col items-center justify-center text-center gap-2 text-[#9E9E9E]"
             >
-              <div className="w-6 h-6 border-2 border-[var(--quant-primary)] border-t-transparent rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-[var(--app-accent)] border-t-transparent rounded-full animate-spin" />
               <span className="text-xs">Loading activity...</span>
             </div>
           ) : events.length === 0 ? (

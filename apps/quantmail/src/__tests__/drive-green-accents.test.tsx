@@ -217,3 +217,26 @@ describe('qm-drive-orange-accent: DriveSharedByMeSubView folder icon uses the gr
     expect(html).not.toContain('var(--quant-primary)');
   });
 });
+
+describe('qm-drive-orange-accent: no Mail-orange spinners in components/drive lib', () => {
+  // R4-NEW-2: the loading spinners in these drive-lib files leaked the
+  // Mail-orange var(--quant-primary) token; they now resolve through
+  // var(--app-accent) (drive green on /drive routes).
+  const SPINNER_FILES = [
+    'FileActivityModal.tsx',
+    'FileVersionHistoryModal.tsx',
+    'QuantyFileWorkspace.tsx',
+  ];
+  for (const file of SPINNER_FILES) {
+    const src = readDriveLib(file);
+    it(`${file}: no var(--quant-primary) adjacent to an animate-spin`, () => {
+      expect(src).not.toMatch(/var\(--quant-primary\)[^"'\n]*animate-spin/);
+      expect(src).not.toMatch(/animate-spin[^"'\n]*var\(--quant-primary\)/);
+    });
+    it(`${file}: spinner resolves through var(--app-accent)`, () => {
+      expect(src).toMatch(
+        /var\(--app-accent\)[^"'\n]*animate-spin|animate-spin[^"'\n]*var\(--app-accent\)/,
+      );
+    });
+  }
+});
