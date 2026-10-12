@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 const rawArgs = process.argv.slice(2);
@@ -27,13 +28,26 @@ function normalizeArgs(args) {
 const isWindows = process.platform === 'win32';
 const vitestCmd = isWindows ? 'npx.cmd' : 'npx';
 
+// A child killed by a signal exits with `code === null`. Map it to the shell
+// convention (128 + signal number, e.g. 137 for SIGKILL) so an OOM-killed or
+// cancelled Vitest run can never be counted as a pass.
+function signalExitCode(signal) {
+  const signalNumber = signal ? os.constants.signals[signal] : undefined;
+  return typeof signalNumber === 'number' ? 128 + signalNumber : 1;
+}
+
 function runVitest(args) {
   return new Promise((resolve) => {
     const child = spawn(vitestCmd, ['vitest', 'run', ...args], {
       stdio: 'inherit',
       shell: isWindows,
     });
-    child.on('exit', (code) => resolve(code ?? 0));
+    child.on('exit', (code, signal) => {
+      if (signal) {
+        console.error(`\n[test-runner] vitest terminated by ${signal}; treating as failure\n`);
+      }
+      resolve(code ?? signalExitCode(signal));
+    });
     child.on('error', () => resolve(1));
   });
 }
