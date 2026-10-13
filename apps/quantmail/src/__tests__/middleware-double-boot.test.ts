@@ -66,7 +66,11 @@ describe('isPublicPath mirrors AuthGuard', () => {
 
   const guardedPaths = [
     'http://x.test/',
-    'http://x.test/inbox',
+    // NOTE (fix/qm-unknown-route-404): /inbox is not a real app route (root /
+    // is the inbox) — it is unknown and must 404, never bounce. It lives in
+    // the unknown-paths block below now.
+    'http://x.test/thread/abc123',
+    'http://x.test/settings/account',
     'http://x.test/people',
     'http://x.test/calendar',
     'http://x.test/drive',
@@ -80,6 +84,20 @@ describe('isPublicPath mirrors AuthGuard', () => {
       const loc = locationOf(url, false);
       expect(loc).not.toBeNull();
       expect(loc).toContain('/login');
+    });
+  }
+
+  // Unknown URLs must reach the branded 404, never bounce to /login
+  // (fix/qm-unknown-route-404).
+  const unknownPaths = [
+    'http://x.test/no-such-page-xyz',
+    'http://x.test/inbox',
+    'http://x.test/invitations',
+  ];
+  for (const url of unknownPaths) {
+    it(`does not redirect unknown ${new URL(url).pathname} when signed out`, () => {
+      expect(isPublicPath(new URL(url).pathname)).toBe(false);
+      expect(locationOf(url, false)).toBeNull();
     });
   }
 

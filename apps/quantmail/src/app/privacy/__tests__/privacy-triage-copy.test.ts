@@ -103,10 +103,11 @@ describe('privacy ↔ auth-brand triage copy consistency', () => {
 
   it('auth brand panel keeps the provable triage promise (not watered down)', () => {
     // Triage + thread summarization are wired and user-facing, so the card's
-    // promise is a provable truth. AI reply drafting is NOT user-facing
-    // (backend route exists, no UI calls it) — the panel must not claim
-    // "drafts the reply" (removed by #1083); assert that too so it cannot
-    // creep back in as an unprovable claim.
+    // promise (honest wording set in PR #1083) is a provable truth. AI reply
+    // drafting is deliberately NOT claimed: the backend route exists but no UI
+    // surface calls it, so "drafts the reply" is not a provable user-facing
+    // truth — assert its absence so it cannot creep back in as an unprovable
+    // claim.
     expect(brandSource).toMatch(/title="AI triage"/);
     expect(brandSource).toMatch(/surfaces what'?s urgent/);
     expect(brandSource).toMatch(/sums up long threads/);
