@@ -94,6 +94,11 @@ export interface BookingLinkDetails {
   startHour: number;
   endHour: number;
   availableDays: number[];
+  // IANA timezone anchoring the host's availability window
+  // (fix/qm-booking-tz-availability-2). startHour/endHour/availableDays are
+  // wall-clock values in this zone; slot labels render in the guest's zone.
+  // 'UTC' when the backend record predates the field.
+  timezone: string;
   // Real host identity from the backend booking-link record.
   // Empty string = unknown host (rendered honestly as "unknown host").
   hostName: string;
@@ -125,6 +130,12 @@ export function applyBookingLinkResponse(
     startHour: data.startHour ?? prev.startHour,
     endHour: data.endHour ?? prev.endHour,
     availableDays: data.availableDays || prev.availableDays,
+    // The backend normalizes the stored value; default 'UTC' for records
+    // created before the field existed (fix/qm-booking-tz-availability-2).
+    timezone:
+      typeof data.timezone === 'string' && data.timezone.trim()
+        ? data.timezone
+        : prev.timezone || 'UTC',
     hostName: data.hostName || '',
     hostEmail: data.hostEmail || '',
     isActive: data.isActive ?? prev.isActive ?? true,

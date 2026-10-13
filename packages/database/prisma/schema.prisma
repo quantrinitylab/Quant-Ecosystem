@@ -4332,6 +4332,10 @@ model BookingLink {
   availableDays String   @default("[1,2,3,4,5]")
   startHour     Int      @default(9)
   endHour       Int      @default(17)
+  // fix/qm-booking-tz-availability-2: the host's IANA timezone anchoring the
+  // availability window. startHour/endHour/availableDays are wall-clock values
+  // in this zone — never server-local. Legacy rows normalize to 'UTC'.
+  timezone      String   @default("UTC")
   isActive      Boolean  @default(true)
   createdAt     DateTime
   updatedAt     DateTime
