@@ -24,6 +24,26 @@ describe('OIDC Discovery & OAuth Authorize', () => {
       expect(data.token_endpoint).toBe('https://quantmail.in/api/oauth/token');
       expect(data.scopes_supported).toContain('openid');
     });
+
+    it('advertises exactly the backend SSO provider contract (no phone, code-only, RS256)', async () => {
+      process.env.QUANTMAIL_ISSUER = 'https://quantmail.in';
+      const data = await (await getOidc()).json();
+
+      // Phone login/OTP was removed from the product: no phone scopes or claims.
+      expect(data.scopes_supported).toEqual(['openid', 'profile', 'email']);
+      expect(data.scopes_supported).not.toContain('phone');
+      expect(data.scopes_supported).not.toContain('offline_access');
+      expect(data.claims_supported).not.toContain('phone_number');
+      expect(data.claims_supported).not.toContain('phone_number_verified');
+      for (const claim of ['sub', 'iss', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'email', 'email_verified', 'name', 'preferred_username']) {
+        expect(data.claims_supported).toContain(claim);
+      }
+
+      // Backend issues RS256 code-only flow (see backend/routes/oauth.ts discovery).
+      expect(data.response_types_supported).toEqual(['code']);
+      expect(data.grant_types_supported).toEqual(['authorization_code', 'refresh_token']);
+      expect(data.id_token_signing_alg_values_supported).toEqual(['RS256']);
+    });
   });
 
   describe('GET /oauth/authorize', () => {
