@@ -631,7 +631,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [toAddresses, subject]
+              required: [toAddresses]
               properties:
                 toAddresses:
                   type: array
@@ -651,6 +651,10 @@ paths:
                 subject:
                   type: string
                   maxLength: 500
+                  description: >-
+                    Optional. May be an empty string — the draft is saved and
+                    the message sent without a subject (Gmail-style; the
+                    client confirms before sending subjectless).
                 bodyHtml:
                   type: string
                 bodyPlain:
