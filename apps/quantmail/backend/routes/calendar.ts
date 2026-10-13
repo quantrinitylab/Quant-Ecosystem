@@ -2290,7 +2290,10 @@ export default async function calendarRoutes(
     if (!parsed.success) throw parsed.error;
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
-    const event = await prisma.event.findUnique({ where: { id: request.params.id } });
+    // Occurrence ids are <parentId>_<iso>: occurrences are virtual rows, so the
+    // RSVP lands on the parent's attendee list (same as DELETE /events/:id).
+    const eventId = parentEventId(request.params.id);
+    const event = await prisma.event.findUnique({ where: { id: eventId } });
     if (!event) throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
     const email = String(user?.email ?? '').toLowerCase();
@@ -2305,7 +2308,7 @@ export default async function calendarRoutes(
     if (!matched)
       throw createAppError('The authenticated user is not an attendee', 403, 'NOT_EVENT_ATTENDEE');
     const updated = await prisma.event.update({
-      where: { id: request.params.id },
+      where: { id: eventId },
       data: { attendees: JSON.stringify(attendees), updatedAt: new Date() },
     });
     return reply.send({ success: true, data: { ...toEventDto(updated), attendees } });
