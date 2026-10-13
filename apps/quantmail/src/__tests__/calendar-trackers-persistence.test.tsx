@@ -14,10 +14,14 @@
  *  1. the storage module: round-trips, per-user keys, daily water reset,
  *     corrupt-data degradation, and false-on-write-failure (the honesty contract)
  *  2. the component renders persisted values on mount (no more always-zero)
- *  3. the handlers: success toast + storage write when storage works, honest
- *     error toast + NO success toast when storage throws
+ *  3. the handlers' honesty: the persist-then-toast action helpers the
+ *     component delegates to (applyWaterLog / applyCreateTracker) yield the
+ *     success toast only when the write landed, and an honest error toast —
+ *     with no state advance — when storage throws. DOM-free by design:
+ *     neither jsdom nor @testing-library/react is a dependency of this
+ *     package, so importing them fails CI's frozen-lockfile gate.
  */
-import { describe, it, expect, beforeEach, afterEach, beforeAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import React from 'react';
 
@@ -30,9 +34,12 @@ import {
   saveWaterMl,
   loadLifeTrackers,
   saveLifeTrackers,
+  applyWaterLog,
+  applyCreateTracker,
   type StorageLike,
   type StoredLifeTracker,
 } from '../lib/calendar-trackers-storage';
+import * as toastBus from '../lib/toast-bus';
 import { CalendarTrackersSubView } from '../components/CalendarSubViews';
 
 // ---------------------------------------------------------------------------
@@ -226,39 +233,18 @@ describe('CalendarTrackersSubView loads persisted state', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3. Handler honesty under a real-ish DOM (jsdom + testing-library)
+// 3. Handler honesty: the persist-then-toast action helpers
+//
+// These are the EXACT functions the component's handleAddWater /
+// handleCreateTracker delegate to — the write-first-then-toast decision lives
+// here, so the "success toast ONLY after the write landed" contract is pinned
+// without jsdom or @testing-library/react (neither is installed in this
+// package; CI's frozen-lockfile gate cannot resolve them).
 // ---------------------------------------------------------------------------
-describe('CalendarTrackersSubView handler honesty', () => {
-  let rtl: typeof import('@testing-library/react');
-  let toastBus: typeof import('../lib/toast-bus');
+describe('CalendarTrackersSubView handler honesty (action helpers)', () => {
   let storage: FakeStorage;
   let toasts: Array<{ text: string; type: string }>;
   let unsubscribe: () => void;
-
-  beforeAll(async () => {
-    const { JSDOM } = await import('jsdom');
-    const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/' });
-    const w = dom.window as unknown as Record<string, unknown>;
-    // Node 22 exposes navigator as a getter-only global; defineProperty works.
-    const setGlobal = (name: string, value: unknown): void => {
-      Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
-    };
-    setGlobal('window', w);
-    setGlobal('document', w.document);
-    setGlobal('navigator', w.navigator);
-    setGlobal('HTMLElement', w.HTMLElement);
-    setGlobal('HTMLInputElement', w.HTMLInputElement);
-    setGlobal('HTMLSelectElement', w.HTMLSelectElement);
-    setGlobal('Node', w.Node);
-    setGlobal('Event', w.Event);
-    setGlobal('MouseEvent', w.MouseEvent);
-    setGlobal('getComputedStyle', (w.getComputedStyle as () => unknown).bind(w));
-    setGlobal('requestAnimationFrame', (cb: () => void) => setTimeout(cb, 0));
-    setGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-
-    rtl = await import('@testing-library/react');
-    toastBus = await import('../lib/toast-bus');
-  });
 
   beforeEach(() => {
     storage = new FakeStorage();
@@ -271,28 +257,30 @@ describe('CalendarTrackersSubView handler honesty', () => {
 
   afterEach(() => {
     unsubscribe();
-    rtl.cleanup();
     storage.clear();
     withGlobalStorage(null);
   });
 
-  it('water: persists the log AND toasts success when storage works', () => {
-    rtl.render(<CalendarTrackersSubView userId="u1" />);
-    rtl.fireEvent.click(rtl.screen.getByText('Quick Log +250ml Water'));
+  it('water: persists the log AND yields the success toast when storage works', () => {
+    // Exactly what handleAddWater does: write first, then toast whatever the
+    // action reports.
+    const result = applyWaterLog(storage, waterLogKey('u1'), todayKey(), 0);
+    expect(result.persisted).toBe(true);
+    toastBus.showToast(result.toast);
 
-    const stored = loadWaterMl(storage, waterLogKey('u1'), todayKey());
-    expect(stored).toBe(250);
+    expect(loadWaterMl(storage, waterLogKey('u1'), todayKey())).toBe(250);
     const success = toasts.find((t) => t.type === 'success' && t.text.includes('Logged +250ml water'));
     expect(success).toBeDefined();
     expect(success!.text).toContain('(250ml / 2500ml)');
-    // And a refresh would show it — the value is in storage, not just state.
-    expect(rtl.screen.getByText(/250 \/ 2500 ml/)).toBeTruthy();
+    // The total the UI would render next comes from the action, not thin air.
+    expect(result.nextMl).toBe(250);
   });
 
   it('water: honest error toast and NO success toast when storage throws', () => {
     storage.failWrites = true;
-    rtl.render(<CalendarTrackersSubView userId="u1" />);
-    rtl.fireEvent.click(rtl.screen.getByText('Quick Log +250ml Water'));
+    const result = applyWaterLog(storage, waterLogKey('u1'), todayKey(), 0);
+    expect(result.persisted).toBe(false);
+    toastBus.showToast(result.toast);
 
     const success = toasts.find((t) => t.type === 'success' && t.text.includes('Logged'));
     expect(success).toBeUndefined();
@@ -300,47 +288,48 @@ describe('CalendarTrackersSubView handler honesty', () => {
     expect(error).toBeDefined();
     expect(error!.text).toMatch(/could not save/i);
     expect(loadWaterMl(storage, waterLogKey('u1'), todayKey())).toBe(0);
+    // The UI must keep showing the old total, never the failed increment.
+    expect(result.nextMl).toBe(0);
   });
 
-  it('tracker: persists the tracker AND toasts success when storage works', () => {
-    rtl.render(<CalendarTrackersSubView userId="u1" />);
-    rtl.fireEvent.click(rtl.screen.getByText('+ Add Tracker'));
-
-    const titleInput = rtl.screen.getByPlaceholderText(/Car Insurance Renewal/);
-    rtl.fireEvent.change(titleInput, { target: { value: 'Dentist visit' } });
-    rtl.fireEvent.change(rtl.screen.getByLabelText('Target Date'), {
-      target: { value: '2026-11-20' },
+  it('tracker: persists the tracker AND yields the success toast when storage works', () => {
+    const result = applyCreateTracker(storage, lifeTrackersKey('u1'), [], {
+      title: 'Dentist visit',
+      category: 'Medical / Health',
+      targetDate: '2026-11-20',
+      notes: '',
+      tone: 'rose',
     });
-    rtl.fireEvent.click(rtl.screen.getByText('Save Tracker'));
+    expect(result.persisted).toBe(true);
+    toastBus.showToast(result.toast);
 
     const stored = loadLifeTrackers(storage, lifeTrackersKey('u1'));
     expect(stored).toHaveLength(1);
     expect(stored[0].title).toBe('Dentist visit');
     const success = toasts.find((t) => t.type === 'success' && t.text.includes('Tracker added'));
     expect(success).toBeDefined();
-    // The list renders the new tracker (state updated because persist succeeded).
-    expect(rtl.screen.getByText('Dentist visit')).toBeTruthy();
+    expect(success!.text).toContain('Dentist visit');
   });
 
   it('tracker: honest error toast and NO success toast when storage throws', () => {
     storage.failWrites = true;
-    rtl.render(<CalendarTrackersSubView userId="u1" />);
-    rtl.fireEvent.click(rtl.screen.getByText('+ Add Tracker'));
-
-    const titleInput = rtl.screen.getByPlaceholderText(/Car Insurance Renewal/);
-    rtl.fireEvent.change(titleInput, { target: { value: 'Dentist visit' } });
-    rtl.fireEvent.change(rtl.screen.getByLabelText('Target Date'), {
-      target: { value: '2026-11-20' },
+    const result = applyCreateTracker(storage, lifeTrackersKey('u1'), [], {
+      title: 'Dentist visit',
+      category: 'Medical / Health',
+      targetDate: '2026-11-20',
+      notes: '',
+      tone: 'rose',
     });
-    rtl.fireEvent.click(rtl.screen.getByText('Save Tracker'));
+    expect(result.persisted).toBe(false);
+    toastBus.showToast(result.toast);
 
     const success = toasts.find((t) => t.type === 'success' && t.text.includes('Tracker added'));
     expect(success).toBeUndefined();
     const error = toasts.find((t) => t.type === 'error');
     expect(error).toBeDefined();
     expect(error!.text).toMatch(/could not save/i);
-    // Nothing persisted and nothing shown as added — no fake success state.
+    // Nothing persisted and nothing claimed as added — no fake success state.
     expect(loadLifeTrackers(storage, lifeTrackersKey('u1'))).toHaveLength(0);
-    expect(rtl.screen.queryByText('Dentist visit')).toBeNull();
+    expect(result.next).toHaveLength(0);
   });
 });

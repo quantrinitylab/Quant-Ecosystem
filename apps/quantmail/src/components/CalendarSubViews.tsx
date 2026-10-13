@@ -13,9 +13,10 @@ import {
   waterLogKey,
   lifeTrackersKey,
   loadWaterMl,
-  saveWaterMl,
   loadLifeTrackers,
   saveLifeTrackers,
+  applyWaterLog,
+  applyCreateTracker,
   type StoredLifeTracker,
 } from '../lib/calendar-trackers-storage';
 import {
@@ -1165,14 +1166,13 @@ export function CalendarTrackersSubView({
     // Write to storage FIRST; the success toast may only fire when the write
     // actually landed. (Also: never toast inside the setState updater — React
     // may invoke updaters twice, which double-fired this toast.)
-    const next = waterMl + 250;
-    const persisted = saveWaterMl(safeStorage(), waterKey, today, next);
-    if (persisted) {
-      setWaterMl(next);
-      showToast({ text: `Logged +250ml water (${next}ml / ${waterTarget}ml)`, type: 'success' });
-    } else {
-      showToast({ text: 'Could not save water log — storage unavailable', type: 'error' });
+    // The persist/toast decision lives in applyWaterLog so the honesty
+    // contract is unit-testable without a DOM.
+    const result = applyWaterLog(safeStorage(), waterKey, today, waterMl);
+    if (result.persisted) {
+      setWaterMl(result.nextMl);
     }
+    showToast(result.toast);
   };
 
   const handleCreateTracker = (e: React.FormEvent) => {
@@ -1182,31 +1182,34 @@ export function CalendarTrackersSubView({
       return;
     }
 
-    const item: CustomLifeTracker = {
-      id: `lt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    // Persist before celebrating: only claim "added" when the list is stored.
+    const result = applyCreateTracker(safeStorage(), trackersKey, lifeTrackers as StoredLifeTracker[], {
       title: newTrackerTitle.trim(),
       category: newTrackerCategory,
       targetDate: newTrackerDate,
       notes: newTrackerNotes.trim(),
-      tone: newTrackerCategory === 'Recurring Cycle' ? 'emerald' : newTrackerCategory === 'Medical / Health' ? 'rose' : 'sky',
-    };
-
-    // Persist before celebrating: only claim "added" when the list is stored.
-    const next: CustomLifeTracker[] = [item, ...lifeTrackers];
-    const persisted = saveLifeTrackers(
-      safeStorage(),
-      trackersKey,
-      next as StoredLifeTracker[],
-    );
-    if (!persisted) {
-      showToast({ text: 'Could not save tracker — storage unavailable', type: 'error' });
+      tone:
+        newTrackerCategory === 'Recurring Cycle'
+          ? 'emerald'
+          : newTrackerCategory === 'Medical / Health'
+            ? 'rose'
+            : 'sky',
+    });
+    if (!result.persisted) {
+      showToast(result.toast);
       return;
     }
-    setLifeTrackers(next);
+    setLifeTrackers(
+      result.next.map((t) => ({
+        ...t,
+        category: t.category as CustomLifeTracker['category'],
+        tone: t.tone as CustomLifeTracker['tone'],
+      })),
+    );
     setIsAddTrackerOpen(false);
     setNewTrackerTitle('');
     setNewTrackerNotes('');
-    showToast({ text: `Tracker added: "${item.title}"`, type: 'success' });
+    showToast(result.toast);
   };
 
   const handleDeleteTracker = (id: string) => {
