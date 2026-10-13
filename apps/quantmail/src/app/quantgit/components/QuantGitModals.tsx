@@ -137,6 +137,29 @@ export function mergeBlockedByConflict(check: MergeConflictCheckState): boolean 
   return check.status === 'conflict';
 }
 
+/**
+ * PR-detail meta-grid CI cell honesty (fix/qm-modal-ci-checks).
+ *
+ * The cell used to hard-code `<p ...>✓ Passed</p>` for every PR — a fabricated
+ * claim, since no check data was ever consulted. The backend PR endpoints
+ * report `checksStatus: 'none'` (check results not computed, V22 contract) and
+ * the frontend normalizes that to 'unknown', so this cell MUST render the
+ * honest unknown state unless the PR model carries a real verdict.
+ */
+export function PRDetailChecksStatus({ checksStatus }: { checksStatus: PRItem['checksStatus'] }) {
+  if (checksStatus === 'passing') {
+    return <p className="font-bold text-[#3FB950]">✓ Passed</p>;
+  }
+  if (checksStatus === 'failing') {
+    return <p className="font-bold text-[#F85149]">✗ Failing</p>;
+  }
+  if (checksStatus === 'pending') {
+    return <p className="font-bold text-[#D29922]">● Pending</p>;
+  }
+  // 'unknown' (or any unrecognized value): honest unknown — never claim passed.
+  return <p className="font-bold text-[#7D8590]">Checks status unknown</p>;
+}
+
 interface PRDetailMergeActionBoxProps {
   repoId?: string;
   pr: PRItem;
@@ -966,7 +989,8 @@ export function QuantGitModals({
               </div>
               <div>
                 <span className="text-[10px] text-[#7D8590]">CI Checks</span>
-                <p className="font-bold text-[#3FB950]">✓ Passed</p>
+                {/* Honest CI cell: real verdict from PRItem.checksStatus, unknown otherwise — never invented. */}
+                <PRDetailChecksStatus checksStatus={selectedPr.checksStatus} />
               </div>
             </div>
 
