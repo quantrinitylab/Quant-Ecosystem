@@ -138,3 +138,73 @@ describe('Settings security section copy honesty', () => {
     expect(userFacing).toMatch(/not[\s\S]{0,80}end-to-end encrypted/i);
   });
 });
+
+// ============================================================================
+// "AI triage" card copy honesty (2026-10-13, P1 customer-qa finding).
+//
+// The login/register brand panel's "AI triage" card claimed "Quant AI
+// surfaces what's urgent and drafts the reply." The triage half is provably
+// shipped (ai-triage.service.ts passes the real From/Subject/Body into the
+// server-side AIEngine — verified in PR #1080), but "drafts the reply" had
+// no backing: POST /api/v1/ai/reply (AIReplyService) exists in the backend
+// with a Next proxy route, yet NO UI surface calls it — the composer's
+// onAIAssist prop is declared but never rendered by EmailComposer (dead
+// plumbing). Per the provable-truth rule, the drafting claim was replaced
+// with thread summarization, which IS shipped and user-facing
+// (ThreadSummaryCard in ConversationalThreadView → POST /api/ai/summarize-thread).
+//
+// These tests pin the fixed copy so the drafting claim cannot come back.
+// ============================================================================
+
+describe('AuthBrandPanel "AI triage" card copy honesty', () => {
+  // Locate AuthBrandPanel.tsx from wherever vitest was invoked (same
+  // walk-up convention as the settings source above).
+  const panelSource = readFileSync(
+    (function findPanelSource(): string {
+      const rels = [
+        'src/components/auth/AuthBrandPanel.tsx',
+        'apps/quantmail/src/components/auth/AuthBrandPanel.tsx',
+      ];
+      let dir = process.cwd();
+      for (let depth = 0; depth < 8; depth++) {
+        for (const rel of rels) {
+          const candidate = join(dir, rel);
+          if (existsSync(candidate)) return candidate;
+        }
+        const parent = join(dir, '..');
+        if (parent === dir) break;
+        dir = parent;
+      }
+      throw new Error(
+        `auth-copy-honesty: could not locate AuthBrandPanel.tsx from ${process.cwd()}`,
+      );
+    })(),
+    'utf8',
+  );
+
+  // Strip JSX block comments and line comments; audit notes may name the
+  // removed claim to explain why it was removed — only user-facing copy
+  // is subject to the provable-truth rule.
+  const userFacing = panelSource
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/(^|\s)\/\/[^\n]*/g, '');
+
+  it('never claims AI reply drafting in user-facing copy', () => {
+    expect(userFacing).not.toMatch(/drafts the reply/i);
+  });
+
+  it('keeps the provable triage promise', () => {
+    expect(userFacing).toMatch(/surfaces what's urgent/i);
+  });
+
+  it('pairs triage with a provable thread-summary claim', () => {
+    expect(userFacing).toMatch(/sums up long threads/i);
+  });
+
+  it('renders the honest copy in the panel DOM', () => {
+    const el = renderPanel();
+    expect(el.textContent).not.toMatch(/drafts the reply/i);
+    expect(el.textContent).toMatch(/surfaces what's urgent/i);
+    expect(el.textContent).toMatch(/sums up long threads/i);
+  });
+});
