@@ -33,6 +33,11 @@ export async function proxyToBackend(
   // Forward cookies for refresh token
   const cookieHeader = request.headers.get('Cookie');
   if (cookieHeader) headers['Cookie'] = cookieHeader;
+  // WR-MAIL-104: forward the client's idempotency key. Active mail commands
+  // REQUIRE a valid Idempotency-Key server-side; without this hop the proxy
+  // would strip the key the web client minted and every mutation would 400.
+  const idempotencyKey = request.headers.get('Idempotency-Key');
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
 
   const url = new URL(backendPath, base);
   // Forward search params for GET requests

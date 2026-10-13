@@ -16,6 +16,15 @@ import type { Redis } from 'ioredis';
  *  - Opt-in per route: a route file calls `fastify.idempotency()` once and every
  *    mutating route (POST/PUT/PATCH/DELETE) registered afterwards honours the
  *    `Idempotency-Key` request header. Routes that never call it are untouched.
+ *  - Required-key mode (WR-MAIL-104): a route file calls
+ *    `fastify.idempotencyRequired()` — or sets per-route
+ *    `config: { idempotencyRequired: true }` — and every mutating route
+ *    registered afterwards REQUIRES a valid `Idempotency-Key`. A request with
+ *    a missing key is rejected with 400 `IDEMPOTENCY_KEY_REQUIRED`, a
+ *    malformed key with 400 `IDEMPOTENCY_KEY_INVALID`, both BEFORE the handler
+ *    executes (zero mutation). This is what the canonical capability catalog
+ *    (packages/app-registry/src/capabilities.ts: kind:'command' defaults
+ *    idempotency.required=true) mandates for active commands.
  *  - First request with a key executes the handler; the response (status code,
  *    content-type and body) is stored for 24h under a key scoped to
  *    `<prefix>:<userId>:<method>:<routePath>:<key>`.
@@ -119,6 +128,14 @@ declare module 'fastify' {
      * per route.
      */
     idempotency?: boolean;
+    /**
+     * Required-key mode (WR-MAIL-104): when true, the route rejects requests
+     * with a missing or malformed `Idempotency-Key` with 4xx BEFORE the
+     * handler executes. Implies `idempotency: true`. Set per route via
+     * `config: { idempotencyRequired: true }`, or file-wide via
+     * `fastify.idempotencyRequired()`.
+     */
+    idempotencyRequired?: boolean;
   }
 
   interface FastifyInstance {
@@ -128,6 +145,12 @@ declare module 'fastify' {
      * the route plugin, before defining routes.
      */
     idempotency(): void;
+    /**
+     * One-line required-key opt-in for a route file: marks every mutating
+     * route registered in this encapsulated context as requiring a valid
+     * `Idempotency-Key` (missing/malformed → 4xx, zero mutation).
+     */
+    idempotencyRequired(): void;
   }
 
   interface FastifyRequest {
@@ -329,6 +352,33 @@ function storeUnavailable(reply: FastifyReply): FastifyReply {
   });
 }
 
+function keyRequiredError(reply: FastifyReply): FastifyReply {
+  // WR-MAIL-104: required-key routes fail BEFORE handler execution — the
+  // caller must supply a client-generated key for every mutating call.
+  return reply.code(400).send({
+    success: false,
+    error: {
+      code: 'IDEMPOTENCY_KEY_REQUIRED',
+      message:
+        'This operation requires an Idempotency-Key request header. ' +
+        'Generate a unique key per operation (e.g. a UUID) and send it with ' +
+        'every mutating request.',
+    },
+  });
+}
+
+function keyInvalidError(reply: FastifyReply): FastifyReply {
+  return reply.code(400).send({
+    success: false,
+    error: {
+      code: 'IDEMPOTENCY_KEY_INVALID',
+      message:
+        'The Idempotency-Key header is malformed. Keys must be 1-128 ' +
+        'characters: letters, digits, `_` or `-`.',
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Plugin
 // ---------------------------------------------------------------------------
@@ -347,16 +397,44 @@ async function idempotencyPlugin(fastify: FastifyInstance, opts: IdempotencyPlug
       routeOptions.config = { ...(routeOptions.config as object | undefined), idempotency: true };
     });
   });
+  // One-line required-key opt-in for route files. Implies idempotency.
+  fastify.decorate('idempotencyRequired', function (this: FastifyInstance) {
+    this.addHook('onRoute', (routeOptions) => {
+      routeOptions.config = {
+        ...(routeOptions.config as object | undefined),
+        idempotency: true,
+        idempotencyRequired: true,
+      };
+    });
+  });
   fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
-    const config = request.routeOptions?.config as { idempotency?: boolean } | undefined;
-    if (config?.idempotency !== true) return;
+    const config = request.routeOptions?.config as
+      | { idempotency?: boolean; idempotencyRequired?: boolean }
+      | undefined;
+    // `idempotencyRequired: true` implies enabled, so per-route config works
+    // even in files that never called fastify.idempotency().
+    if (config?.idempotency !== true && config?.idempotencyRequired !== true) return;
     if (!MUTATING_METHODS.has(request.method)) return;
 
     const rawKey = request.headers[IDEMPOTENCY_KEY_HEADER];
     const key = typeof rawKey === 'string' ? rawKey : undefined;
-    // No (or malformed) key → plain execution; idempotency is strictly opt-in
-    // per request as well as per route.
-    if (!key || !SAFE_KEY_PATTERN.test(key)) return;
+
+    if (config?.idempotencyRequired === true) {
+      // WR-MAIL-104 required-key semantics: missing or malformed key fails
+      // BEFORE the handler executes — zero mutation, honest 4xx.
+      if (!key) {
+        keyRequiredError(reply);
+        return;
+      }
+      if (!SAFE_KEY_PATTERN.test(key)) {
+        keyInvalidError(reply);
+        return;
+      }
+    } else if (!key || !SAFE_KEY_PATTERN.test(key)) {
+      // No (or malformed) key → plain execution; idempotency is strictly
+      // opt-in per request as well as per route in honor-key-if-present mode.
+      return;
+    }
 
     const fingerprint = stableFingerprint(request);
     const sKey = storeKeyFor(prefix, request, key);
@@ -455,7 +533,7 @@ export default fp(idempotencyPlugin, {
 /**
  * One-line opt-in for route files: `enableIdempotency(fastify);` at the top of
  * the route plugin. Marks every mutating route registered afterwards in that
- * encapsulated context as idempotency-aware.
+ * encapsulated context as idempotency-aware (honor-key-if-present).
  *
  * Safe to call when the plugin is not registered (e.g. isolated route unit
  * tests that build a bare Fastify instance): it no-ops instead of throwing.
@@ -463,5 +541,23 @@ export default fp(idempotencyPlugin, {
 export function enableIdempotency(fastify: FastifyInstance): void {
   if (typeof fastify.idempotency === 'function') {
     fastify.idempotency();
+  }
+}
+
+/**
+ * One-line REQUIRED-key opt-in for route files: `requireIdempotency(fastify);`
+ * at the top of the route plugin. Marks every mutating route registered
+ * afterwards in that encapsulated context as requiring a valid
+ * `Idempotency-Key` — missing/malformed keys are rejected with 4xx BEFORE the
+ * handler executes (WR-MAIL-104). Use for route files whose routes are all
+ * active catalog commands; otherwise prefer per-route
+ * `config: { idempotencyRequired: true }`.
+ *
+ * Safe to call when the plugin is not registered: it no-ops instead of
+ * throwing.
+ */
+export function requireIdempotency(fastify: FastifyInstance): void {
+  if (typeof fastify.idempotencyRequired === 'function') {
+    fastify.idempotencyRequired();
   }
 }
