@@ -26,10 +26,17 @@
 // The accessible name keeps the old contract: `${title} — ${state words}`,
 // because `role="img"` is the only channel a non-sighted user has for the
 // state a sighted user reads off the face.
+//
+// Quant Workplace: the user now *chooses* who Quanty is (Ember, Moss, Bloop,
+// Specs, Spike, Nova or the Classic ghost — `lib/quanty/avatar-choice.ts`).
+// Classic still renders the live ghost; the portraits render as one image
+// whose `data-mood` carries the same meaning the ghost shows with its face
+// (busy while working, a pop on success, a shake on trouble).
 
 import { BubbleAvatar } from '@quant/shared-ui';
 import type { BubbleState } from '@quant/shared-ui';
 import type { QuantyExpression } from '../lib/quanty/faces';
+import { useQuantyAvatar } from '../lib/quanty/avatar-choice';
 
 export type { QuantyExpression };
 
@@ -131,6 +138,37 @@ const FACE_TO_BUBBLE: Record<QuantyExpression, BubbleState> = {
   goodbye: 'goodbye',
 };
 
+type PortraitMood = 'busy' | 'pop' | 'alert';
+
+/** The bubble state's meaning, as the one motion a still portrait can make. */
+const MOOD_FOR_BUBBLE: Partial<Record<BubbleState, PortraitMood>> = {
+  thinking: 'busy',
+  thinkingDeep: 'busy',
+  understanding: 'busy',
+  reading: 'busy',
+  analyzing: 'busy',
+  planning: 'busy',
+  coding: 'busy',
+  refactoring: 'busy',
+  debugging: 'busy',
+  fixing: 'busy',
+  improving: 'busy',
+  working: 'busy',
+  almostDone: 'busy',
+  searching: 'busy',
+  syncing: 'busy',
+  typing: 'busy',
+  ideaSpark: 'pop',
+  creating: 'pop',
+  suggesting: 'pop',
+  completed: 'pop',
+  success: 'pop',
+  celebration: 'pop',
+  error: 'alert',
+  rethinking: 'alert',
+  needInfo: 'alert',
+};
+
 export function Quanty({
   expression = 'idle',
   size = 48,
@@ -145,15 +183,28 @@ export function Quanty({
   void bob;
   void figure;
 
+  const avatar = useQuantyAvatar();
   const bubble = FACE_TO_BUBBLE[expression] ?? 'idle';
+  const label = title + ' — ' + bubble.replace(/([A-Z])/g, ' $1').toLowerCase();
+
+  if (!avatar.src) {
+    return <BubbleAvatar state={bubble} size={size} label={label} title={title} className={className} />;
+  }
 
   return (
-    <BubbleAvatar
-      state={bubble}
-      size={size}
-      label={title + ' — ' + bubble.replace(/([A-Z])/g, ' $1').toLowerCase()}
+    // A 384px local portrait: a plain <img> (next/image would add a loader round-trip for no gain).
+    <img
+      src={avatar.src}
+      width={size}
+      height={size}
+      alt={label}
       title={title}
-      className={className}
+      draggable={false}
+      decoding="async"
+      data-avatar={avatar.id}
+      data-mood={MOOD_FOR_BUBBLE[bubble]}
+      className={`qw-quanty-img ${className}`.trim()}
+      style={{ width: size, height: size }}
     />
   );
 }

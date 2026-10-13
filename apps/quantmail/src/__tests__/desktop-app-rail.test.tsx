@@ -157,8 +157,9 @@ describe('DesktopAppRail (slim 5-app switcher)', () => {
       </AppShell>,
     );
 
-    // All 5 pillar tiles + the "More apps" tile must carry the 44px
-    // (size-11) touch target class — 40px (size-10) fails the minimum.
+    // All 5 pillar tiles fill a 60x65px liquid-rail cell and are floored at
+    // 44px (min-h-11 / min-w-11); the "More apps" tile carries size-11 —
+    // 40px (size-10) fails the minimum.
     for (const tile of DESKTOP_PILLAR_TILES) {
       const marker = `data-testid="desktop-app-rail-tile-${tile.id}"`;
       const idx = html.indexOf(marker);
@@ -166,9 +167,12 @@ describe('DesktopAppRail (slim 5-app switcher)', () => {
       const btnStart = html.lastIndexOf('<button', idx);
       const btnEnd = html.indexOf('>', idx);
       const btnTag = html.slice(btnStart, btnEnd);
-      expect(btnTag).toContain('size-11');
+      expect(btnTag).toContain('min-h-11');
+      expect(btnTag).toContain('min-w-11');
       expect(btnTag).not.toContain('size-10');
     }
+    // The rail column itself is 60px wide (the liquid track's thickness).
+    expect(html).toContain('width:60px');
 
     const moreIdx = html.indexOf('data-testid="desktop-app-rail-tile-more"');
     expect(moreIdx).toBeGreaterThan(-1);

@@ -36,6 +36,7 @@ import { QuantGitLogo } from './QuantGitLogo';
 import { BrandWordmark, appDisplayName } from './BrandWordmark';
 import { AccountBadge } from './AccountBadge';
 import { Quanty } from './Quanty';
+import { openQuantyAvatarPicker, useQuantyAvatar } from '../lib/quanty/avatar-choice';
 import { SidebarStorage } from './AppSidebar';
 import { SearchClearButton } from './SearchClearButton';
 import type { LogoAppType } from './Interactive3DLogo';
@@ -138,6 +139,7 @@ export function DesktopContextSidebar({
   const searchParams = useSearchParams();
   const app = appForPathname(pathname);
   const [activeTabState, setActiveTabState] = useState<string | null>(null);
+  const quantyAvatar = useQuantyAvatar();
 
   const config = PILLAR_SUB_CONFIGS[pillar];
 
@@ -319,9 +321,28 @@ export function DesktopContextSidebar({
 
         {extra}
 
-        {/* 4 — the empty area: big Quanty avatar + Ask Quanty */}
+        {/* 4 — the empty area: big Quanty avatar + Ask Quanty. The avatar
+            itself opens "Choose your Quanty"; the button asks Quanty. */}
         <section aria-label="Ask Quanty" className="sidebar-quanty">
-          <Quanty expression="greeting" size={76} />
+          <button
+            type="button"
+            onClick={openQuantyAvatarPicker}
+            className="sidebar-quanty-avatar"
+            aria-label={`Choose your Quanty (now ${quantyAvatar.name})`}
+            title="Choose your Quanty"
+            data-testid="sidebar-quanty-avatar"
+          >
+            <span className="qw-quanty-ring">
+              <Quanty expression="greeting" size={76} />
+            </span>
+            <span className="sidebar-quanty-edit" aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+              </svg>
+            </span>
+          </button>
+          <span className="sidebar-quanty-name">{quantyAvatar.name} · your AI teammate</span>
           <button
             type="button"
             onClick={() => onQuantyOpen?.()}

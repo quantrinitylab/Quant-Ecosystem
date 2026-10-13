@@ -25,6 +25,32 @@ type Engine = typeof import('../../lib/living-logos/engine');
 /** `localStorage.setItem('quant_living_logos', 'off')` pins the classic marks. */
 export const LIVING_LOGOS_OPT_OUT_KEY = 'quant_living_logos';
 
+/**
+ * Quant Workplace logo style (user-approved 2026-10-13): **clean** is the
+ * default — glossy bead eyes without the neon cores, calm professional motion
+ * (rarer blinks, small slow glances), eyes balanced per mark. Anyone who
+ * prefers the original neon-eyed living logos keeps them with
+ * `localStorage.setItem('quant_logo_style', 'original')`.
+ */
+export const LOGO_STYLE_KEY = 'quant_logo_style';
+
+/** Clean-eye size per mark, measured against each mark's face (1 = reference art). */
+const CLEAN_EYE_SCALE: Record<LivingLogoApp, number> = {
+  mail: 0.72,
+  calendar: 1,
+  drive: 0.8,
+  contacts: 1,
+  git: 1,
+};
+
+function cleanLogoStyle(): boolean {
+  try {
+    return window.localStorage.getItem(LOGO_STYLE_KEY) !== 'original';
+  } catch {
+    return true; // storage is blocked, so nobody could have opted out
+  }
+}
+
 let engine: Engine | null = null;
 let loading: Promise<Engine> | null = null;
 let disabled = false;
@@ -142,7 +168,16 @@ export function LivingLogoCanvas({
     if (!canvas || !engine) return;
     let handle: LivingLogoHandle;
     try {
-      handle = engine.mountLivingLogo(canvas, { app, face: faceRef.current, zoom, interactive });
+      const clean = cleanLogoStyle();
+      handle = engine.mountLivingLogo(canvas, {
+        app,
+        face: faceRef.current,
+        zoom,
+        interactive,
+        calm: clean,
+        clean,
+        eyeScale: clean ? CLEAN_EYE_SCALE[app] : 1,
+      });
     } catch {
       disable();
       return;

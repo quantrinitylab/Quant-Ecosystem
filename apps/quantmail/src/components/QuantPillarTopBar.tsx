@@ -8,7 +8,7 @@
 // strictly ZERO generic glyphs and ZERO raw Unicode emojis.
 // ============================================================================
 
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { QuantMailLogo } from './QuantMailLogo';
 import { QuantCalendarLogo } from './QuantCalendarLogo';
@@ -19,6 +19,7 @@ import { QuantGitUserIdModal } from './QuantGitUserIdModal';
 import { Quanty } from './Quanty';
 import { AccountBadge } from './AccountBadge';
 import { MoreAppsMenu } from './MoreAppsMenu';
+import { LiquidTrack } from './workplace/LiquidTrack';
 
 export type PillarId = 'mail' | 'calendar' | 'drive' | 'contacts' | 'quantgit';
 
@@ -255,32 +256,34 @@ export function ChevronRightIcon({ className }: { className?: string }) {
 // logo PR #696, Drive green folder mascot PR #697, Contacts, QuantGit purple
 // voxel frog PR #698): they mount here exactly as approved.
 // The marks are canvas-painted and supersampled from a 100-unit buffer, so
-// they stay crisp at the 28px tile size; each tile button already carries an
+// they stay crisp at any size; each tile button already carries an
 // aria-label, so the marks mount decoratively (QuantMailLogo interactive=false).
+// Sizes are optically balanced per mark (measured alpha area: the frog and the
+// contacts card read small at equal box size), 38–43px in the Workplace bar.
 // ============================================================================
 
 function MailLogoIcon() {
-  return <QuantMailLogo size={32} interactive={false} showBadge={false} />;
+  return <QuantMailLogo size={38} interactive={false} showBadge={false} />;
 }
 
 function CalendarLogoIcon() {
-  return <QuantCalendarLogo size={32} />;
+  return <QuantCalendarLogo size={39} />;
 }
 
 // QuantDrive's official green cloud-folder mascot (approved 2026-10-09,
 // PR #697) — canvas-painted live mark with genuine blink animation.
 function DriveLogoIcon() {
-  return <QuantDriveLogo size={32} />;
+  return <QuantDriveLogo size={39} />;
 }
 
 function ContactsLogoIcon() {
-  return <QuantContactsLogo size={32} />;
+  return <QuantContactsLogo size={43} />;
 }
 
 // QuantGit's official purple voxel-frog mascot (approved 2026-10-09,
 // PR #698) — genuine 3D voxel data on the canvas live-mark pipeline.
 function QuantGitLogoIcon() {
-  return <QuantGitLogo size={32} />;
+  return <QuantGitLogo size={43} />;
 }
 
 /**
@@ -614,10 +617,24 @@ export function QuantPillarTopBar({
     setInternalSearch(effectiveQuery);
   }, [effectiveQuery]);
 
+  // Optimistic selection: the liquid tab starts its slide on the tap itself,
+  // not when the target route commits. Cleared as soon as the pathname moves
+  // (or after a fallback, if the navigation never lands).
+  const [pendingPillar, setPendingPillar] = useState<PillarId | null>(null);
+  useEffect(() => {
+    setPendingPillar(null);
+  }, [pathname]);
+  useEffect(() => {
+    if (!pendingPillar) return;
+    const t = window.setTimeout(() => setPendingPillar(null), 2500);
+    return () => window.clearTimeout(t);
+  }, [pendingPillar]);
+
   // Active pillar detection: controlled props take precedence over pathname
   const currentPillar: PillarId =
     activePillarOverride ??
     activePillar ??
+    pendingPillar ??
     (pathname.startsWith('/calendar')
       ? 'calendar'
       : pathname.startsWith('/drive')
@@ -629,6 +646,7 @@ export function QuantPillarTopBar({
             : 'mail');
 
   const activeTile = PILLAR_TILES.find((t) => t.id === currentPillar) || PILLAR_TILES[0];
+  const activeIndex = Math.max(0, PILLAR_TILES.findIndex((t) => t.id === currentPillar));
   const activeLenses = PILLAR_LENSES[currentPillar] || [];
 
   // Clear stale search text when switching pillars (app tabs). This bar lives
@@ -904,11 +922,6 @@ export function QuantPillarTopBar({
   useEffect(() => {
     setHeaderHidden(false);
   }, [currentPillar]);
-  // Sliding SWOOSH indicator: the glowing ribbon wraps the active bay and
-  // slides between slots (300ms ease-out). Bounds are measured from the
-  // active tab so the swoosh tracks it exactly.
-  const [lineLeft, setLineLeft] = useState(0);
-  const [lineWidth, setLineWidth] = useState(0);
   const [spinningPillar, setSpinningPillar] = useState<PillarId | null>(null);
   const [tooltipPillar, setTooltipPillar] = useState<PillarId | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -927,36 +940,6 @@ export function QuantPillarTopBar({
   const tooltipTimer = useRef<number | null>(null);
   const toastTimer = useRef<number | null>(null);
   const spinTimer = useRef<number | null>(null);
-
-  // Measure the active tab's bounds for the sliding swoosh indicator.
-  // The swoosh wraps the active bay, expanding from center on change.
-  const measureLine = useCallback(() => {
-    const idx = PILLAR_TILES.findIndex((t) => t.id === currentPillar);
-    const tab = tabRefs.current[idx];
-    const dock = dockRef.current;
-    if (tab && dock) {
-      const dockRect = dock.getBoundingClientRect();
-      const tabRect = tab.getBoundingClientRect();
-      if (tabRect.width > 0) {
-        setLineLeft(tabRect.left - dockRect.left);
-        setLineWidth(tabRect.width);
-      }
-    }
-  }, [currentPillar]);
-
-  useLayoutEffect(() => {
-    measureLine();
-  }, [measureLine]);
-
-  useEffect(() => {
-    window.addEventListener('resize', measureLine);
-    // Re-measure after layout settles (canvas-painted marks load async).
-    const t = window.setTimeout(measureLine, 300);
-    return () => {
-      window.removeEventListener('resize', measureLine);
-      window.clearTimeout(t);
-    };
-  }, [measureLine]);
 
   // Hide-on-scroll: the switcher section collapses with a grid-rows
   // animation (0fr <-> 1fr) so it takes ZERO space when hidden — no blank
@@ -1104,6 +1087,7 @@ export function QuantPillarTopBar({
       handleActivePillarRetap(tile);
       return;
     }
+    setPendingPillar(tile.id);
     handleTileClick(tile);
   };
 
@@ -1153,64 +1137,39 @@ export function QuantPillarTopBar({
           className="relative flex items-center w-full max-w-5xl"
           style={{ height: 56 }}
         >
+        {/*
+          Quant Workplace switcher (approved 2026-10-13): a glass bar whose
+          active app rises out of it as ONE connected liquid tab in the app's
+          accent, sliding on springs between the five marks. No tiles behind
+          the logos: each mark sits on the glass, lifts into the tab when
+          active and rests slightly smaller otherwise. The bar is drawn by
+          <LiquidTrack> (lib/liquid-bar) behind an equal-cell button grid, so
+          every tab keeps its own real button, role and label.
+        */}
         <div
           ref={dockRef}
           role="tablist"
           aria-label="Application Suites"
-          className="relative flex items-center flex-1 h-14 rounded-full px-1"
-          style={{
-            background: 'rgba(15,17,23,0.72)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255,255,255,0.09)',
-            // Rim-light on the top edge + deep shadow below: the premium
-            // dark-glass capsule from the reference.
-            boxShadow:
-              'inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -1px 0 rgba(0,0,0,0.45), 0 10px 30px rgba(0,0,0,0.5)',
-          }}
+          data-testid="pillar-switcher"
+          data-active-pillar={currentPillar}
+          className="qw-bar qw-bar-h flex-1 min-w-0"
+          // The liquid tab's accent follows the tapped app immediately (the
+          // colour glides with the slide; see app/workplace.css).
+          style={{ height: 56, ['--lq-accent' as string]: activeTile.accentColor }}
         >
-          {/*
-            Raised TAB — the active bay's tab, physically connected from below
-            to the active screen (user reference 2026-10-09: the selected slot
-            rises above the bar like a folder tab). A single element that
-            SLIDES between slots (left/width measured from the active tab,
-            300ms ease-out) while the inner tab RISES (quantTabRise, keyed on
-            currentPillar) — one smooth slide+rise motion per switch.
-            The tab protrudes 18px above the capsule and its base extends
-            12px INTO the bar with no bottom edge, so it reads as growing out
-            of the dock — the "neeche se connected" feel. Carries the active
-            pillar's OWN accent color as a clean 1.5px edge (Mail #FF6B35,
-            Calendar #4285F4, Drive #34A853, Contacts amber #F59E0B, QuantGit
-            purple #8B5CF6). Restrained by user rule: NO glow, NO bloom, NO
-            neon — just the colored edge on near-black.
-          */}
-          <span
-            aria-hidden="true"
-            className="absolute pointer-events-none"
-            style={{
-              left: lineLeft,
-              width: lineWidth,
-              top: -18,
-              bottom: 12,
-              transition:
-                'left 0.3s ease-out, width 0.3s ease-out',
-            }}
-          >
-            <span
-              key={currentPillar}
-              className="block w-full h-full animate-[quantTabRise_0.3s_ease-out]"
-              style={{
-                borderRadius: '18px 18px 0 0',
-                borderTop: `1.5px solid ${activeTile.accentColor}`,
-                borderLeft: `1.5px solid ${activeTile.accentColor}`,
-                borderRight: `1.5px solid ${activeTile.accentColor}`,
-                // No bottom border — the tab base merges into the bar.
-                background: `linear-gradient(180deg, ${activeTile.accentColor}1F 0%, rgba(9,10,13,0.98) 55%)`,
-              }}
-            />
-          </span>
-          {/* Logos: 5 bays with the ORIGINAL app marks, untouched */}
-          <div className="relative flex items-center justify-between flex-1 px-1">
+          <LiquidTrack
+            orient="h"
+            count={PILLAR_TILES.length}
+            index={activeIndex}
+            thickness={56}
+            radius={20}
+            lift={5}
+            pad={6}
+            top={0.38}
+            flare={0.3}
+            testId="pillar-switcher-liquid"
+          />
+          <div className="qw-segs">
           {PILLAR_TILES.map((tile, idx) => {
             const isActive = tile.id === currentPillar;
             const IconComp = tile.icon;
@@ -1235,32 +1194,19 @@ export function QuantPillarTopBar({
                 onPointerLeave={cancelLongPress}
                 onPointerCancel={cancelLongPress}
                 onContextMenu={(e) => e.preventDefault()}
-                className={`relative flex flex-col items-center justify-center w-12 h-12 min-[400px]:w-14 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35] shrink-0 transition-transform duration-150 ease-out active:scale-110 ${isActive ? '-translate-y-0.5' : ''}`}
-                style={{
-                  animation: `quantStaggerIn 0.4s cubic-bezier(0.22,1,0.36,1) ${idx * 0.05}s both`,
-                  transition: 'transform 200ms ease-out, background-color 0.2s ease-out',
-                  // Per-app accent tint behind the logo (restored 2026-10-09:
-                  // the calendar's blue background must not disappear).
-                  backgroundColor: `${tile.accentColor}${isActive ? '2E' : '14'}`,
-                }}
+                className="qw-seg h-full"
+                style={{ animation: `quantStaggerIn 0.4s cubic-bezier(0.22,1,0.36,1) ${idx * 0.05}s both` }}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <span
-                  className={isSpinning ? 'animate-[quantLogoSpin_0.6s_ease-in-out]' : undefined}
-                  style={{
-                    display: 'block',
-                    // No glow on the marks (user rule: logo on dark, no light
-                    // effects) — active state reads through opacity only.
-                    transition: 'transform 200ms ease-out',
-                    opacity: isActive ? 1 : 0.75,
-                  }}
-                >
-                  <IconComp active={isActive} />
+                <span className="qw-seg-mark">
+                  <span className={isSpinning ? 'block animate-[quantLogoSpin_0.6s_ease-in-out]' : 'block'}>
+                    <IconComp active={isActive} />
+                  </span>
                 </span>
 
                 {badgeCount !== undefined && badgeCount > 0 && (
                   <span
-                    className="absolute top-0.5 right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full text-[var(--q-type-xs)] font-bold leading-none text-black shadow"
+                    className="absolute top-1 right-0.5 z-[3] min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full text-[var(--q-type-xs)] font-bold leading-none text-black shadow"
                     style={{ backgroundColor: tile.accentColor }}
                   >
                     {badgeCount > 99 ? '99+' : badgeCount}
@@ -1271,7 +1217,7 @@ export function QuantPillarTopBar({
                 {tooltipPillar === tile.id && (
                   <span
                     role="tooltip"
-                    className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 rounded-lg text-[11px] font-medium text-white whitespace-nowrap pointer-events-none animate-[quantTooltipIn_0.2s_ease-out]"
+                    className="absolute -top-8 left-1/2 -translate-x-1/2 z-[4] px-2 py-1 rounded-lg text-[11px] font-medium text-white whitespace-nowrap pointer-events-none animate-[quantTooltipIn_0.2s_ease-out]"
                     style={{
                       background: 'rgba(26,29,36,0.95)',
                       border: '1px solid rgba(255,255,255,0.1)',
@@ -1285,10 +1231,6 @@ export function QuantPillarTopBar({
             );
           })}
           </div>
-
-          {/* Sliding LINE indicator — REMOVED 2026-10-09: replaced by the
-              swoosh ribbon above (user-approved reference design). */}
-
         </div>
 
           {/*
@@ -1318,10 +1260,6 @@ export function QuantPillarTopBar({
       </div>
 
       <style>{`
-        @keyframes quantTabRise {
-          0% { transform: translateY(14px); opacity: 0.4; }
-          100% { transform: translateY(0); opacity: 1; }
-        }
         @keyframes quantLogoSpin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
@@ -1440,18 +1378,23 @@ export function QuantPillarTopBar({
         </div>
 
         {/*
-          Quanty — the white ghost — sits next to the search bar on EVERY
-          screen, ALWAYS. Its visibility never changes on scroll (user
-          decision 2026-10-09): it is the permanent way into Quant AI.
+          Quanty — the user's chosen teammate (Ember by default, see
+          lib/quanty/avatar-choice) — sits next to the search bar on EVERY
+          screen, ALWAYS, in an accent ring. Its visibility never changes on
+          scroll (user decision 2026-10-09): it is the permanent way into
+          Quant AI.
         */}
         <button
           type="button"
           onClick={handleLiveCapsuleClick}
-          className="flex items-center justify-center rounded-xl shrink-0 size-10 outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] transition-transform duration-200 hover:scale-105 active:scale-95"
+          className="flex items-center justify-center rounded-full shrink-0 size-11 outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] transition-transform duration-200 hover:scale-105 active:scale-95"
           title="Ask Quanty"
           aria-label="Ask Quanty"
+          data-testid="topbar-quanty"
         >
-          <Quanty size={26} bob={false} />
+          <span className="qw-quanty-ring block">
+            <Quanty size={38} bob={false} />
+          </span>
         </button>
       </div>
     </div>

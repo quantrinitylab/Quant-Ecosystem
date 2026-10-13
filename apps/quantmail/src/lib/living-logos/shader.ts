@@ -260,9 +260,13 @@ vec3 EYE_SHADE(Eye e, vec2 q, vec3 n, float core, float wo){
   vec3 V = vec3(0.0, 0.0, 1.0);
   float rq = length(q);
   // dark amber glass: black pupil, deep orange-brown body, near-black rim
+  float CLEAN = uMisc[3].y;
   vec3 glass = mix(hexc(4.0, 0.5, 0.0), hexc(96.0, 15.0, 1.0), smoothstep(0.30, 0.82, rq)*wo);
   glass = mix(glass, hexc(22.0, 3.0, 1.0), smoothstep(0.90, 0.99, rq)*wo);
-  vec3 col = glass*(1.0 - 0.6*(1.0 - wo));
+  // clean: a deep warm-black glass bead (the classic dot eye, in 3D)
+  vec3 bead = mix(hexc(6.0, 3.0, 2.0), hexc(44.0, 20.0, 10.0), smoothstep(0.50, 1.0, rq));
+  glass = mix(glass, bead, CLEAN);
+  vec3 col = glass*(1.0 - 0.6*(1.0 - wo)*(1.0 - CLEAN));
   if (wo > 0.001 && rq < 1.0) {
     vec3 m = vec3(q, sqrt(max(1.0 - rq*rq, 0.0)));
     float yaw = e.GZ.x*0.42, pitch = e.GZ.y*0.36;
@@ -281,10 +285,10 @@ vec3 EYE_SHADE(Eye e, vec2 q, vec3 n, float core, float wo){
     float pulse = 0.93 + 0.07*sin(uTime*2.3 + e.side);
     vec3 emit = hexc(255.0, 120.0, 4.0)*ring*2.2 + hexc(255.0, 236.0, 70.0)*coreL*1.8 + hexc(200.0, 50.0, 0.0)*halo*0.9
               + hexc(255.0, 140.0, 10.0)*dashes*1.8 + hexc(255.0, 245.0, 210.0)*dcore*1.1;
-    col += emit*front*e.GZ.w*pulse*wo;
+    col += emit*front*e.GZ.w*pulse*wo*(1.0 - CLEAN);
   }
-  // expression glyphs: dark glossy tube with an orange neon core
-  float gw = 1.0 - wo;
+  // expression glyphs: dark glossy tube with an orange neon core (clean: plain glossy ink)
+  float gw = (1.0 - wo)*(1.0 - CLEAN);
   col += hexc(255.0, 110.0, 6.0)*smoothstep(0.25, 0.9, core)*gw*1.25*e.GZ.w;
   col += hexc(255.0, 230.0, 120.0)*smoothstep(0.78, 1.0, core)*gw*0.9*e.GZ.w;
   vec3 r = reflect(-V, n);
@@ -419,6 +423,7 @@ vec2 RP(vec2 p){ return vec2(29.5 + p.x*1432.0, -195.0 + (1.0 - p.y)*1432.0); }
 ${SHADE_BASE}
 vec3 EYE_SHADE(Eye e, vec2 q, vec3 n, float core, float wo){
   float rq = length(q);
+  float CLEAN = uMisc[3].y;
   // black glass bead with a deep-green outer rim
   vec3 col = mix(${hx(1, 3, 2)}, ${hx(9, 30, 16)}, smoothstep(0.66, 0.97, rq)*wo);
   col = mix(col, ${hx(3, 10, 5)}, smoothstep(0.975, 1.0, rq)*wo);
@@ -435,9 +440,9 @@ vec3 EYE_SHADE(Eye e, vec2 q, vec3 n, float core, float wo){
     float glowL = exp(-pow((rr - 0.74)/0.085, 2.0))*cres;
     float pulse = 0.94 + 0.06*sin(uTime*2.1 + e.side);
     vec3 emit = ${hx(26, 74, 38)}*ringAll*0.9 + ${hx(110, 235, 115)}*glowL*1.0 + ${hx(225, 255, 210)}*coreL*1.7;
-    col += emit*front*e.GZ.w*pulse*wo;
+    col += emit*front*e.GZ.w*pulse*wo*(1.0 - 0.9*CLEAN);
   }
-  float gw = 1.0 - wo;
+  float gw = (1.0 - wo)*(1.0 - CLEAN);
   col += ${hx(80, 230, 105)}*smoothstep(0.25, 0.9, core)*gw*1.1*e.GZ.w;
   col += ${hx(215, 255, 205)}*smoothstep(0.78, 1.0, core)*gw*0.8*e.GZ.w;
   vec3 r = reflect(vec3(0.0, 0.0, -1.0), n);
@@ -634,7 +639,26 @@ void compose(vec2 p, float px, inout vec4 acc){
   gPx = px;
   float H = layerD(p, vec4(1, 0, 0, 0));
   float C = layerD(p, vec4(0, 1, 0, 0));
-  if (H < 2.0*px) over(acc, mix(vec3(1.0), ${hx(90, 0, 210)}, cov(C, px)), cov(H, px));
+  if (H < 2.0*px) {
+    vec3 hexC = vec3(1.0), catC = ${hx(90, 0, 210)};
+    if (uMisc[3].y > 0.5) {
+      // clean: the same flat mark, given the family's soft glossy depth
+      vec2 Ld = normalize(vec2(-0.55, 0.85));
+      vec3 HG = layerDG(p, vec4(1, 0, 0, 0));
+      float rim = smoothstep(-0.05, 0.0, H);
+      float lit = dot(normalize(HG.yz + 1e-6), Ld);
+      hexC = mix(${hx(214, 205, 250)}, vec3(1.0), smoothstep(0.12, 0.88, p.y));
+      hexC = mix(hexC, vec3(1.0), rim*clamp(lit, 0.0, 1.0)*0.9);
+      hexC = mix(hexC, ${hx(168, 150, 232)}, rim*clamp(-lit, 0.0, 1.0)*0.5);
+      vec3 CG = layerDG(p, vec4(0, 1, 0, 0));
+      float crim = smoothstep(-0.035, 0.0, C);
+      float cl = dot(normalize(CG.yz + 1e-6), Ld);
+      catC = mix(${hx(72, 24, 165)}, ${hx(139, 92, 246)}, smoothstep(0.15, 0.78, p.y));
+      catC = mix(catC, ${hx(200, 178, 255)}, crim*clamp(cl, 0.0, 1.0)*0.55);
+      catC = mix(catC, ${hx(44, 10, 108)}, crim*clamp(-cl, 0.0, 1.0)*0.45);
+    }
+    over(acc, mix(hexC, catC, cov(C, px)), cov(H, px));
+  }
   vec2 pi = p + uTilt*0.003;
   vec4 L = renderEyeLine(pi, px); acc = L + acc*(1.0 - L.a);
   for (int i = 0; i < 2; i++) { vec4 ec = renderEye(i, pi, px, vec3(1.0)); acc = ec + acc*(1.0 - ec.a); }

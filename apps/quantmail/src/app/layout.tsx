@@ -4,6 +4,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import './shell.css';
 import './overrides.css';
+import './workplace.css';
 import { quantMailBrandMetadata } from '../brand/identity';
 import { AUTH_SHELL_HEADER, REFRESH_COOKIE_NAME } from '../lib/edge-public-paths';
 import { AuthGuard } from '../components/AuthGuard';
