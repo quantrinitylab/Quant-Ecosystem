@@ -6,8 +6,8 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { errorHandlerPlugin } from '@quant/server-core';
-import reposRoutes, { resetRepoStores, seedSecurityAlertsForTests } from '../routes/repos';
-import type { BackendSecurityAlert } from '../routes/repos';
+import reposRoutes, { resetRepoStores, seedSecurityAlertsForTests, seedCodeqlAlertsForTests } from '../routes/repos';
+import type { BackendSecurityAlert, BackendCodeqlAlert } from '../routes/repos';
 import { execFile } from 'node:child_process';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -3395,6 +3395,67 @@ describe('QuantGit Security Endpoints Honesty (no security-scan theater)', () =>
     const row = alerts.json().data.dependabot.find((a: { id: string }) => a.id === 'dep-1');
     expect(row).toBeDefined();
     expect(row.fixPrId).toBeUndefined();
+  });
+
+  it('POST codeql fix for an unknown alert returns 404 and invents nothing', async () => {
+    const app = await buildApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/security/codeql/does-not-exist/fix',
+    });
+    expect(res.statusCode).toBe(404);
+    const body = res.json();
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe('ALERT_NOT_FOUND');
+    const raw = JSON.stringify(body);
+    expect(raw.toLowerCase()).not.toContain('patch applied');
+    expect(raw.toLowerCase()).not.toContain('fixed');
+  });
+
+  it('POST codeql fix for a real alert honestly refuses with 501 instead of claiming a patch', async () => {
+    const app = await buildApp();
+    const alert: BackendCodeqlAlert = {
+      id: 'codeql-1',
+      ruleId: 'js/sql-injection',
+      ruleName: 'SQL Injection',
+      severity: 'high',
+      filePath: 'src/db.ts',
+      lineStart: 42,
+      lineEnd: 44,
+      description: 'Unescaped user input in SQL query',
+      codeSnippet: 'query(`SELECT * FROM users WHERE id = ${id}`)',
+      recommendedFix: 'Use parameterized queries',
+      state: 'open',
+    };
+    seedCodeqlAlertsForTests('repo-1', [alert]);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/security/codeql/codeql-1/fix',
+    });
+    expect(res.statusCode).toBe(501);
+    const body = res.json();
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe('CODEQL_FIX_NOT_SUPPORTED');
+    expect(body.error.message).toContain('not wired up yet');
+    expect(body.error.message).toContain('No code was changed');
+    expect(body.error.details).toMatchObject({
+      alertId: 'codeql-1',
+      ruleId: 'js/sql-injection',
+      ruleName: 'SQL Injection',
+      filePath: 'src/db.ts',
+    });
+
+    // No invented success claim anywhere in the response.
+    const raw = JSON.stringify(body);
+    expect(raw.toLowerCase()).not.toContain('patch applied');
+
+    // The refusal must not flip the alert row to 'fixed' — no false state.
+    const alerts = await app.inject({ method: 'GET', url: '/repos/repo-1/security/alerts' });
+    const row = alerts.json().data.codeql.find((a: { id: string }) => a.id === 'codeql-1');
+    expect(row).toBeDefined();
+    expect(row.state).toBe('open');
   });
 });
 
