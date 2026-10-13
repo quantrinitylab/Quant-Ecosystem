@@ -47,6 +47,8 @@ export interface ContextSubTab {
   icon: (props: { className?: string; active?: boolean }) => React.ReactNode;
   /** Logo-only tab (Quanty AI): renders the Quanty mark with no text label. */
   logoOnly?: boolean;
+  /** When true, tapping opens the Quanty AI cockpit instead of navigating. */
+  opensQuanty?: boolean;
   badgeCount?: number;
   badgeText?: string;
   targetPath?: string;
@@ -797,6 +799,26 @@ function CopilotQuantyIcon({ className }: { className?: string; active?: boolean
   );
 }
 
+// Fallback icon for the logo-only Quanty tab. The render path draws the real
+// Quanty ghost mark instead (tab.logoOnly), so this never paints — it only
+// satisfies the required `icon` field with an honest AI-spark glyph.
+function QuantyTabIcon({ className }: { className?: string; active?: boolean }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" />
+    </svg>
+  );
+}
+
 // ============================================================================
 // 5 Sovereign Pillar Sub-Navigation Configs
 // ============================================================================
@@ -815,6 +837,22 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         label: 'Inbox',
         icon: InboxIcon,
         targetPath: '/',
+      },
+      {
+        // QM-MOBILE-QUANTY-TAB (competitor-gap 2026-10-12): Gmail's 2026
+        // mobile bar gives its AI inbox a first-class tab; the logoOnly
+        // Quanty slot in this file had an interface + render path but no
+        // pillar config used it, so mobile had zero one-tap Quanty access.
+        // This wires the slot: the Quanty ghost mark renders alone (no
+        // text), and tapping opens the Quanty cockpit via `onQuantyOpen` —
+        // it never navigates (same `opensQuanty` pattern as the desktop
+        // quantgit tab in desktopContextTabs.tsx).
+        id: 'quanty',
+        label: 'Quanty',
+        ariaLabel: 'Open Quanty AI',
+        icon: QuantyTabIcon,
+        logoOnly: true,
+        opensQuanty: true,
       },
       {
         // QM-UIUX-082: Sent was missing from the mobile Mail tabs (only
@@ -992,6 +1030,8 @@ export interface ContextBottomNavBarProps {
   activePillarOverride?: ProductivityPillar;
   activeTabOverride?: string;
   onTabChange?: (tabId: string, pillar: ProductivityPillar) => void;
+  /** Opens the Quanty AI cockpit (AppShell's live-agent surface). */
+  onQuantyOpen?: () => void;
   /** Real badge counts keyed by tab id. Missing/zero/undefined = no badge. */
   badgeOverrides?: Record<string, number | undefined>;
 }
@@ -1070,12 +1110,25 @@ export function executeContextTabClick(
     pathname: string;
     router: { push: (path: string) => void };
     onTabChange?: (tabId: string, pillar: ProductivityPillar) => void;
+    /** Opens the Quanty AI cockpit (AppShell's live-agent surface). */
+    onQuantyOpen?: () => void;
   },
 ) {
   const canWindow = typeof window !== 'undefined' && typeof window.dispatchEvent === 'function';
 
   // Haptic on every tab tap (#541 behavior, preserved from the pillar nav).
   triggerHapticTap(10);
+
+  // Quanty AI tab (logo-only): opens the Quanty cockpit, never navigates.
+  // Mirrors desktopContextTabs.executeContextTabClick's `opensQuanty` arm.
+  if (tab.opensQuanty) {
+    options.onQuantyOpen?.();
+    if (canWindow) {
+      window.dispatchEvent(new CustomEvent('quant:quanty:open'));
+      window.dispatchEvent(new CustomEvent('quant:copilot:open'));
+    }
+    return;
+  }
 
   // Quanty AI logo tab: open the autonomous developer cockpit. The quantgit
   // page opens its copilot view on `quant:copilot:open`; navigating with
@@ -1138,6 +1191,7 @@ export function ContextBottomNavBar({
   activePillarOverride,
   activeTabOverride,
   onTabChange,
+  onQuantyOpen,
   badgeOverrides,
 }: ContextBottomNavBarProps) {
   const router = useRouter();
@@ -1199,11 +1253,15 @@ export function ContextBottomNavBar({
   }
 
   const handleTabClick = (tab: ContextSubTab) => {
-    setActiveTabState(tab.id);
+    // The Quanty tab opens a cockpit overlay, not a view: it must not steal
+    // the active slot, so the bar keeps telling the truth about where the
+    // user is while the drawer is open.
+    if (!tab.opensQuanty) setActiveTabState(tab.id);
     executeContextTabClick(tab, pillar, {
       pathname,
       router,
       onTabChange,
+      onQuantyOpen,
     });
   };
 
