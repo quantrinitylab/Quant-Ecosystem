@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { POST, loginRateLimiter } from '../route';
+import { POST } from '../route';
+import { loginRateLimiter } from '../../../../../lib/rate-limit';
 
 // F-213: the login proxy must rate-limit per client IP (credential-stuffing
 // defense). The limiter sits BEFORE body validation and the upstream proxy,
