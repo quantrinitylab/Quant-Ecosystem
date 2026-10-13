@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { resolveCanvasColor } from '../lib/canvas-color';
 import { useRouter } from 'next/navigation';
 import { useLiveMark, type MarkFrame } from './marks/useLiveMark';
+import { LivingLogoCanvas, useLivingLogo, type LivingLogoHandle } from './marks/LivingLogo';
 import {
   markSquirclePath,
   paintEmberPlate,
@@ -246,8 +247,11 @@ export function QuantMailLogo({
    */
   const unreadRef = useRef(unreadCount);
   const winkRef = useRef(false);
+  const livingRef = useRef<LivingLogoHandle | null>(null);
 
   useEffect(() => {
+    // New mail is the one moment the living mark asks for attention.
+    if (unreadCount > unreadRef.current) livingRef.current?.notify();
     unreadRef.current = unreadCount;
   }, [unreadCount]);
 
@@ -386,7 +390,8 @@ export function QuantMailLogo({
     [],
   );
 
-  const { canvasRef, pointerProps, repaint } = useLiveMark(paint, size);
+  const living = useLivingLogo('mail');
+  const { canvasRef, pointerProps, repaint } = useLiveMark(paint, size, !living);
   const { onPointerEnter, onPointerLeave } = pointerProps;
 
   // `useLiveMark` owns the canvas-side hover easing; `isHovered` drives the DOM-side
@@ -446,21 +451,28 @@ export function QuantMailLogo({
         * pulse. Keeps the 114KB framer-motion chunk out of every page bundle.
         */}
       <span
-        className={`relative flex items-center justify-center w-full h-full qm-logo-motion${isSpinning ? ' qm-logo-spinning' : isHovered ? ' qm-logo-hovered' : ''}`}
+        className={`relative flex items-center justify-center w-full h-full qm-logo-motion${isSpinning && !living ? ' qm-logo-spinning' : isHovered ? ' qm-logo-hovered' : ''}`}
       >
-        <canvas
-          ref={canvasRef}
-          style={{ width: size, height: size }}
-          /*
-           * A neutral shadow, not a coloured one. This was
-           * `drop-shadow(0 4px 16px rgba(255,85,0,0.45))` — a saturated orange at
-           * 45% that isn't in the palette and, on the near-black canvas, read as a
-           * halo around the mark rather than as elevation. The mark is drawn in
-           * brand orange already; ringing it in more orange is the exact look the
-           * product is defined against.
-           */
-          className="w-full h-full drop-shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
-        />
+        {living ? (
+          // The living mark answers a tap itself (excited eyes + bounce), so the
+          // spin is the classic mark's alone.
+          <LivingLogoCanvas key="living" app="mail" size={size} className="w-full h-full" handleRef={livingRef} />
+        ) : (
+          <canvas
+            key="classic"
+            ref={canvasRef}
+            style={{ width: size, height: size }}
+            /*
+             * A neutral shadow, not a coloured one. This was
+             * `drop-shadow(0 4px 16px rgba(255,85,0,0.45))` — a saturated orange at
+             * 45% that isn't in the palette and, on the near-black canvas, read as a
+             * halo around the mark rather than as elevation. The mark is drawn in
+             * brand orange already; ringing it in more orange is the exact look the
+             * product is defined against.
+             */
+            className="w-full h-full drop-shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
+          />
+        )}
       </span>
 
       {showBadge && unreadCount > 0 && (

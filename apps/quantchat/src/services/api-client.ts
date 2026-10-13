@@ -15,7 +15,8 @@ import type {
   DiscoverItem,
   Publisher,
   ARFilter,
-  Bitmoji,
+  BitmojiConfig,
+  BitmojiConfigData,
   FriendLocation,
   Place,
   GeoFilter,
@@ -638,16 +639,22 @@ export class QuantChatApiClient {
   // Bitmoji
   // --------------------------------------------------------------------------
 
-  async getBitmoji(): Promise<ApiResponse<Bitmoji>> {
+  // QC-F-089: these methods used to be phantoms — no backend /bitmoji route
+  // and no Next proxy existed, so every call 404'd, and they were typed
+  // against a `Bitmoji` shape no backend produced. They now ride the real
+  // routes (backend /bitmoji + /api/bitmoji proxies) and the persisted
+  // editor-config contract: the body is always `{ config }`, and the
+  // response data carries the saved config (null until the first save).
+  async getBitmoji(): Promise<ApiResponse<BitmojiConfigData>> {
     return this.get('/bitmoji/me');
   }
 
-  async createBitmoji(options: Partial<Bitmoji>): Promise<ApiResponse<Bitmoji>> {
-    return this.post('/bitmoji', options);
+  async createBitmoji(config: BitmojiConfig): Promise<ApiResponse<BitmojiConfigData>> {
+    return this.post('/bitmoji', { config });
   }
 
-  async updateBitmoji(options: Partial<Bitmoji>): Promise<ApiResponse<Bitmoji>> {
-    return this.put('/bitmoji', options);
+  async updateBitmoji(config: BitmojiConfig): Promise<ApiResponse<BitmojiConfigData>> {
+    return this.put('/bitmoji', { config });
   }
 
   // --------------------------------------------------------------------------

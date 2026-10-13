@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { QuantLogoProps } from './AppMark';
 import { useLiveMark, type MarkFrame } from './marks/useLiveMark';
+import { LivingLogoCanvas, useLivingLogo, type LivingLogoHandle } from './marks/LivingLogo';
 import { markSquirclePath } from '../lib/marks/canvas-mark';
 
 /**
@@ -273,10 +274,12 @@ export function QuantDriveLogo({
   title = 'QuantDrive',
 }: QuantLogoProps) {
   const blinkRef = useRef<BlinkState>({ nextBlinkAt: 2 + Math.random() * 3, blinkStart: -1, successAt: 0 });
+  const livingRef = useRef<LivingLogoHandle | null>(null);
 
   useEffect(() => {
     const onUploadComplete = () => {
       blinkRef.current.successAt = Date.now();
+      livingRef.current?.react('happy', 1.6);
     };
     window.addEventListener(DRIVE_UPLOAD_COMPLETE_EVENT, onUploadComplete);
     return () => window.removeEventListener(DRIVE_UPLOAD_COMPLETE_EVENT, onUploadComplete);
@@ -289,7 +292,8 @@ export function QuantDriveLogo({
     [],
   );
 
-  const { canvasRef, pointerProps } = useLiveMark(paint, size);
+  const living = useLivingLogo('drive');
+  const { canvasRef, pointerProps } = useLiveMark(paint, size, !living);
 
   return (
     <span
@@ -300,11 +304,16 @@ export function QuantDriveLogo({
       style={{ width: size, height: size }}
       {...pointerProps}
     >
-      <canvas
-        ref={canvasRef}
-        className="h-full w-full drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
-        style={{ width: size, height: size }}
-      />
+      {living ? (
+        <LivingLogoCanvas key="living" app="drive" size={size} className="h-full w-full" handleRef={livingRef} />
+      ) : (
+        <canvas
+          key="classic"
+          ref={canvasRef}
+          className="h-full w-full drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
+          style={{ width: size, height: size }}
+        />
+      )}
     </span>
   );
 }

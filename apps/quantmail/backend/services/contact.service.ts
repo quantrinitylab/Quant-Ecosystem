@@ -69,6 +69,28 @@ export interface PaginatedResult<T> {
   hasPrev: boolean;
 }
 
+/**
+ * One company card on the Companies tab: every member's contact row, grouped
+ * by the contacts' own `company` field. Aggregated server-side across ALL of
+ * the caller's contacts — the tab used to group on the client from the
+ * paginated list page, so companies whose members all sat on other pages
+ * never appeared and member counts undercounted while the header copy read
+ * as complete.
+ */
+export interface CompanyGroup {
+  /** The company name as written on the first member's record (trimmed). */
+  name: string;
+  /**
+   * Most common email domain among the members, `@`-prefixed — derived from
+   * the members' real addresses, never an invented HQ or domain.
+   */
+  subtitle?: string;
+  members: Contact[];
+}
+
+/** Filters the companies aggregation honours: the list's search + favorites. */
+export type CompanyGroupOptions = Pick<ContactListOptions, 'q' | 'favorites'>;
+
 export interface ImportResult {
   imported: number;
   duplicates: number;
@@ -188,6 +210,78 @@ export class ContactService {
       hasNext: page < totalPages,
       hasPrev: page > 1,
     };
+  }
+
+  /**
+   * Company groups for the Companies tab, aggregated across ALL of the
+   * caller's contacts.
+   *
+   * Deliberately UNPAGINATED: the tab used to group on the client from the
+   * loaded list page (`GET /contacts` is 20/page, capped at 100), which
+   * silently dropped companies whose members all sat on other pages and
+   * undercounted the members of companies that spanned pages. The list's
+   * filters (search `q`, `favorites`) still apply via the shared `listWhere`
+   * so the tab stays consistent with what the list tab shows under the same
+   * filters.
+   *
+   * Grouping mirrors the client code this replaces: one row per address (a
+   * duplicated import must not inflate a company's headcount), group key is
+   * the trimmed company name case-insensitively, members with no company are
+   * skipped, and the subtitle is the most common email domain among the
+   * group's own members — never an invented HQ or domain.
+   */
+  async getCompanyGroups(
+    userId: string,
+    options: CompanyGroupOptions = {},
+  ): Promise<CompanyGroup[]> {
+    const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
+    const contacts = await contactModel.findMany({
+      where: this.listWhere(userId, options),
+      orderBy: [{ name: 'asc' }],
+    });
+
+    const seenEmails = new Set<string>();
+    const unique: Contact[] = [];
+    for (const c of contacts) {
+      const email = (c.email || '').trim().toLowerCase();
+      if (email) {
+        if (seenEmails.has(email)) continue;
+        seenEmails.add(email);
+      }
+      unique.push(c);
+    }
+
+    const groups = new Map<string, { name: string; members: Contact[] }>();
+    for (const c of unique) {
+      const raw = (c.company || '').trim();
+      if (!raw) continue; // no company on the record — nothing honest to group by
+      const key = raw.toLowerCase();
+      const existing = groups.get(key);
+      if (existing) {
+        existing.members.push(c);
+      } else {
+        groups.set(key, { name: raw, members: [c] });
+      }
+    }
+
+    return [...groups.values()]
+      .map((g) => {
+        const domainCounts = new Map<string, number>();
+        for (const m of g.members) {
+          const email = (m.email || '').trim();
+          const at = email.lastIndexOf('@');
+          if (at > 0) {
+            const domain = email.slice(at + 1).toLowerCase();
+            if (domain) domainCounts.set(domain, (domainCounts.get(domain) || 0) + 1);
+          }
+        }
+        let commonDomain = '';
+        domainCounts.forEach((count, domain) => {
+          if (count > (domainCounts.get(commonDomain) || 0)) commonDomain = domain;
+        });
+        return { ...g, subtitle: commonDomain ? `@${commonDomain}` : undefined };
+      })
+      .sort((a, b) => b.members.length - a.members.length || a.name.localeCompare(b.name));
   }
 
   /**

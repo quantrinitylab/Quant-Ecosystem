@@ -10,6 +10,7 @@ import { ContactsPagination } from '../../components/ContactsPagination';
 import { getContactPageCorrection } from '../../lib/contacts-pagination';
 import {
   useContactsPage,
+  useCompanyGroups,
   useCreateContact,
   useUpdateContact,
   useDeleteContact,
@@ -156,6 +157,21 @@ export default function ContactsPage() {
   const pageCorrection = !isFetching && !error ? getContactPageCorrection(page, pagination) : null;
   const isLoading = pageLoading || pageCorrection !== null;
 
+  // Companies tab: groups are aggregated SERVER-SIDE across ALL contacts
+  // (GET /contacts/companies). Grouping from the paginated list page dropped
+  // companies whose members all sat on other pages and undercounted members
+  // while the header copy read as complete. Fetched only while the tab is
+  // open; the list's search box still narrows the tab via `q`.
+  const {
+    data: companyGroups,
+    isLoading: companyGroupsLoading,
+    error: companyGroupsError,
+    refetch: refetchCompanyGroups,
+  } = useCompanyGroups({
+    q: debouncedQuery || undefined,
+    enabled: activeTab === 'companies',
+  });
+
   useEffect(() => {
     if (pageCorrection !== null) {
       setPage(pageCorrection);
@@ -166,10 +182,11 @@ export default function ContactsPage() {
   useEffect(() => {
     const handleRefresh = () => {
       void refetch();
+      if (activeTab === 'companies') void refetchCompanyGroups();
     };
     window.addEventListener('quant:refresh', handleRefresh);
     return () => window.removeEventListener('quant:refresh', handleRefresh);
-  }, [refetch]);
+  }, [refetch, refetchCompanyGroups, activeTab]);
 
   const handleTabChange = useCallback((tab: 'all' | 'favorites' | 'groups' | 'companies' | 'dedup') => {
     setActiveTab(tab);
@@ -762,19 +779,45 @@ export default function ContactsPage() {
         {activeTab === 'companies' ? (
           <div className="flex-1 overflow-y-auto p-4 sm:p-8">
             <SubviewTabNav activeTab={activeTab} onTabChange={handleTabChange} />
-            <CompaniesSubView
-              contacts={displayedContacts}
-              onInspect={(c) => {
-                setSelectedContact(c);
-                setShowMobileSheet(true);
-              }}
-              onCall={(c) => {
-                if (c.phone) window.location.href = `tel:${c.phone}`;
-              }}
-              onEmail={(email) => {
-                router.push(`/compose?to=${encodeURIComponent(email)}`);
-              }}
-            />
+            {companyGroupsLoading ? (
+              <div
+                className="flex items-center justify-center py-16"
+                role="status"
+                aria-label="Loading companies"
+              >
+                <div className="size-8 animate-spin rounded-full border-2 border-[#262C3A] border-t-[var(--app-accent)]" />
+              </div>
+            ) : companyGroupsError ? (
+              <div className="rounded-2xl border border-[#262C3A] bg-[#0B0E14] p-8 text-center">
+                <p className="text-sm font-semibold text-[#E2E8F0]">Couldn&apos;t load companies</p>
+                <p className="mt-1 text-xs text-[#94A3B8]">
+                  {companyGroupsError instanceof Error
+                    ? companyGroupsError.message
+                    : 'Something went wrong while grouping your contacts.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void refetchCompanyGroups()}
+                  className="mt-4 rounded-lg border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] bg-[#3F1E0E] px-4 py-2 text-xs font-semibold text-[var(--app-accent)]"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <CompaniesSubView
+                groups={companyGroups ?? []}
+                onInspect={(c) => {
+                  setSelectedContact(c);
+                  setShowMobileSheet(true);
+                }}
+                onCall={(c) => {
+                  if (c.phone) window.location.href = `tel:${c.phone}`;
+                }}
+                onEmail={(email) => {
+                  router.push(`/compose?to=${encodeURIComponent(email)}`);
+                }}
+              />
+            )}
           </div>
         ) : activeTab === 'dedup' ? (
           <div className="flex-1 overflow-y-auto p-4 sm:p-8">

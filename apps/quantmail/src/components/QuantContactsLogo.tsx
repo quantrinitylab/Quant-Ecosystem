@@ -3,6 +3,7 @@
 import { useCallback } from 'react';
 import type { QuantLogoProps } from './AppMark';
 import { useLiveMark, type MarkFrame } from './marks/useLiveMark';
+import { LivingLogoCanvas, useLivingLogo } from './marks/LivingLogo';
 import { markSquirclePath } from '../lib/marks/canvas-mark';
 
 /**
@@ -122,7 +123,8 @@ export function QuantContactsLogo({
     [],
   );
 
-  const { canvasRef, pointerProps } = useLiveMark(paint, size);
+  const living = useLivingLogo('contacts');
+  const { canvasRef, pointerProps } = useLiveMark(paint, size, !living);
 
   return (
     <span
@@ -133,11 +135,16 @@ export function QuantContactsLogo({
       style={{ width: size, height: size }}
       {...pointerProps}
     >
-      <canvas
-        ref={canvasRef}
-        className="h-full w-full drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
-        style={{ width: size, height: size }}
-      />
+      {living ? (
+        <LivingLogoCanvas key="living" app="contacts" size={size} className="h-full w-full" />
+      ) : (
+        <canvas
+          key="classic"
+          ref={canvasRef}
+          className="h-full w-full drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
+          style={{ width: size, height: size }}
+        />
+      )}
     </span>
   );
 }

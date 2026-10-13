@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { QuantLogoProps } from './AppMark';
 import { useLiveMark, type MarkFrame } from './marks/useLiveMark';
+import { LivingLogoCanvas, useLivingLogo, type LivingLogoHandle } from './marks/LivingLogo';
 import {
   paintFrog,
   createBlinkState,
@@ -79,6 +80,7 @@ export function QuantGitLogo({ size = 32, className = '', title = 'QuantGit' }: 
   const blinkRef = useRef<BlinkState | null>(null);
   const ackRef = useRef<Ack | null>(null);
   const [canvas2d, setCanvas2d] = useState<boolean | null>(null);
+  const livingRef = useRef<LivingLogoHandle | null>(null);
 
   useEffect(() => {
     // Canvas 2D is the render path; without it the live mark cannot paint.
@@ -93,6 +95,7 @@ export function QuantGitLogo({ size = 32, className = '', title = 'QuantGit' }: 
         return;
       }
       ackRef.current = { kind, startedAt: performance.now() };
+      livingRef.current?.react('happy', 1.4);
     });
   }, []);
 
@@ -114,7 +117,8 @@ export function QuantGitLogo({ size = 32, className = '', title = 'QuantGit' }: 
     paintFrog(frame, blinkRef.current, ackT);
   }, []);
 
-  const { canvasRef, pointerProps } = useLiveMark(paint, size);
+  const living = useLivingLogo('git');
+  const { canvasRef, pointerProps } = useLiveMark(paint, size, !living);
 
   // No Canvas 2D (or still probing on the very first SSR frame): the static
   // twin. It is the same frog, simplified — not a different logo.
@@ -141,11 +145,16 @@ export function QuantGitLogo({ size = 32, className = '', title = 'QuantGit' }: 
       style={{ width: size, height: size }}
       {...pointerProps}
     >
-      <canvas
-        ref={canvasRef}
-        className="h-full w-full drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
-        style={{ width: size, height: size }}
-      />
+      {living ? (
+        <LivingLogoCanvas key="living" app="git" size={size} className="h-full w-full" handleRef={livingRef} />
+      ) : (
+        <canvas
+          key="classic"
+          ref={canvasRef}
+          className="h-full w-full drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
+          style={{ width: size, height: size }}
+        />
+      )}
     </span>
   );
 }

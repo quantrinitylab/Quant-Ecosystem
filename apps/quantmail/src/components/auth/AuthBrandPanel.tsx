@@ -45,13 +45,31 @@ export function AuthBrandPanel({ eyebrow, title, subtitle }: AuthBrandPanelProps
               title="Mail + chat threads"
               copy="Email and chat in one thread."
             />
+            {/*
+              Copy-honesty note (2026-10-13): keep this card in sync with the
+              privacy policy's §3A (src/app/privacy/page.tsx). AI triage reads
+              message contents server-side (backend/services/ai-triage.service.ts
+              → AIEngine.infer), so the policy qualifies its "does not
+              read/index/parse" wording instead of this card over-promising.
+            */}
             <FeatureCard
               icon={<QuantAiLogo size={34} />}
               title="AI triage"
-              copy="Quant AI surfaces what's urgent and drafts the reply."
+              copy="Quant AI surfaces what's urgent and sums up long threads."
             />
             {/*
               Copy-honesty note (2026-10-12): claim only what is provable.
+              - "Surfaces what's urgent": AI triage is shipped — ai-triage.service.ts
+                passes the real From/Subject/Body into the server-side AIEngine
+                (verified in PR #1080; provider default muse-spark-1.3).
+              - "Sums up long threads": thread summarization is shipped and
+                user-facing — ThreadSummaryCard (ConversationalThreadView.tsx)
+                calls POST /api/ai/summarize-thread → AISummarizeService.
+              - NOT claimed: AI reply drafting. POST /api/v1/ai/reply (AIReplyService)
+                exists in the backend and a Next proxy route exists, but NO UI
+                surface calls it — the composer's onAIAssist prop is never
+                rendered by EmailComposer (dead plumbing), so "drafts the reply"
+                is not a provable user-facing truth and was removed 2026-10-13.
               - In transit: nginx ingress forces TLS (ssl-redirect + force-ssl-redirect)
                 and HSTS (max-age 31536000) — infra/helm/quant-platform/values-production.yaml,
                 infra/k8s/ingress-quantmail.yaml; Cloudflare fronts the domain.

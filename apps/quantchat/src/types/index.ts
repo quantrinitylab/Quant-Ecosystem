@@ -759,6 +759,36 @@ export interface BitmojiCustomization {
   options: string[];
 }
 
+/**
+ * QC-F-089: the /bitmoji editor's configuration — the shape the backend
+ * /bitmoji routes persist verbatim (BitmojiConfig model). This is the real
+ * contract behind apiClient.getBitmoji/createBitmoji/updateBitmoji; the
+ * older `Bitmoji` interface above described a richer object no backend
+ * ever produced.
+ */
+export interface BitmojiConfig {
+  faceShape: string;
+  skinTone: string;
+  hairStyle: string;
+  hairColor: string;
+  eyeShape: string;
+  eyeColor: string;
+  noseShape: string;
+  mouthShape: string;
+  eyebrowShape: string;
+  facialHair: string;
+  outfit: string;
+  outfitColor: string;
+  accessories: string[];
+  background: string;
+}
+
+/** GET /bitmoji/me + save responses: config is null until the user saves. */
+export interface BitmojiConfigData {
+  config: BitmojiConfig | null;
+  updatedAt: string | null;
+}
+
 // ============================================================================
 // Map Types
 // ============================================================================

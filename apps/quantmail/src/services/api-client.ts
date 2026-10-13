@@ -36,6 +36,7 @@ import type {
   Calendar,
   Contact,
   ContactGroup,
+  CompanyGroup,
   GroupInviteLink,
   GroupInvitePreview,
   AIComposeRequest,
@@ -1387,6 +1388,30 @@ export class QuantMailApiClient {
     >
   > {
     return this.get('/contacts/duplicates');
+  }
+
+  /**
+   * Company groups aggregated server-side across ALL of the user's contacts.
+   * `getContacts` is paginated (20/page, capped at 100), so grouping from a
+   * list page silently dropped companies whose members all sat on other
+   * pages and undercounted members — this endpoint is the fix. The list's
+   * `q`/`favorites` filters are honoured so a search still narrows the
+   * Companies tab.
+   *
+   * Through the Next proxy this is `/api/contacts/companies` — a dedicated
+   * route file (app/api/contacts/companies/route.ts) forwards
+   * `/contacts/companies` to the backend verbatim. App Router static segments
+   * take precedence over the `[id]` dynamic route, so it never lands in `[id]`;
+   * the same is true of `/contacts/search`, `/contacts/frequent` and
+   * `/contacts/directory`.
+   */
+  async getCompanyGroups(options?: {
+    q?: string;
+    favorites?: boolean;
+  }): Promise<ApiResponse<CompanyGroup[]>> {
+    return this.get('/contacts/companies', {
+      params: options as Record<string, string | number | boolean | undefined>,
+    }) as Promise<ApiResponse<CompanyGroup[]>>;
   }
 
   async mergeContacts(primaryId: string, duplicateIds: string[]): Promise<ApiResponse<Contact>> {
