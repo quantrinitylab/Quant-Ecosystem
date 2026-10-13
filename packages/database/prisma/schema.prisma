@@ -127,6 +127,7 @@ model User {
   pushSubscriptions  PushSubscription[]
   scheduledMessages  ScheduledMessage[]
   quantAvatar        Avatar?           @relation()
+  bitmojiConfig      BitmojiConfig?    @relation()
   preKeyBundle       PreKeyBundle?
   snapViews          SnapView[]
 
@@ -2990,6 +2991,24 @@ model Avatar {
 
   @@index([userId])
   @@map("avatars")
+}
+
+// QC-F-089: the /bitmoji editor's own configuration (face shape, skin tone,
+// hair, outfit, …). This is a different shape from the alien Avatar above
+// (style/imageUrl), so it persists separately — one row per user, config
+// stored verbatim as the editor produced it. Until this model existed the
+// page's save/load endpoints were phantoms and nothing was ever stored.
+model BitmojiConfig {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  config    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("bitmoji_configs")
 }
 
 enum AlienStyle {
