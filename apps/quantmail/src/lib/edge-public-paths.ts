@@ -92,6 +92,7 @@ const KNOWN_PRIVATE_SEGMENTS = [
   'people',
   'pipelines',
   'postcards',
+  'scheduled',
   'search',
   'security',
   'sent',
