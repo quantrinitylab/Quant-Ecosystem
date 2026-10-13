@@ -16,6 +16,33 @@ export interface CallInfo {
   createdAt: number;
 }
 
+/**
+ * QC-F-287: the durable-row shape {@link CallRegistryLookup} returns — a
+ * structural subset of CallRecordService's `CallRow`, declared here so this
+ * service does not import the record service (the repo's narrow-DI pattern:
+ * dependency points from the live tier toward a minimal read interface,
+ * never the other way around).
+ */
+export interface CallRegistryRow {
+  roomId: string | null;
+  initiatorId: string;
+  participants: unknown;
+  status: string;
+  startedAt: Date | null;
+  endedAt: Date | null;
+  createdAt: Date;
+}
+
+/**
+ * QC-F-287: read-only durable lookup used to rehydrate the in-memory call
+ * registry after a restart / on a second replica. Optional by design:
+ * instances constructed without one (voice-bot services, older tests) keep
+ * the exact pre-QC-F-287 in-memory-only behaviour.
+ */
+export interface CallRegistryLookup {
+  findCallRowByRoomId(roomId: string): Promise<CallRegistryRow | null>;
+}
+
 const MAX_GROUP_PARTICIPANTS = 8;
 
 export class CallService {
@@ -23,16 +50,109 @@ export class CallService {
   private readonly apiKey: string;
   private readonly apiSecret: string;
   private readonly calls = new Map<string, CallInfo>();
+  private readonly lookup?: CallRegistryLookup;
 
-  constructor(config: CallServiceConfig) {
+  constructor(config: CallServiceConfig, lookup?: CallRegistryLookup) {
     this.apiKey = config.apiKey;
     this.apiSecret = config.apiSecret;
     this.roomClient = new RoomServiceClient(config.wsUrl, config.apiKey, config.apiSecret);
+    this.lookup = lookup;
+  }
+
+  /**
+   * The one place a LiveKit room name is derived from a callId. Initiation
+   * builds room names through here and QC-F-287 rehydration derives them
+   * through here, so the two can never drift apart: for every persisted row,
+   * `roomName === roomNameForCallId(row.roomId)` holds by construction (the
+   * routes layer persists roomId = callId).
+   */
+  private roomNameForCallId(callId: string): string {
+    return `chat-call:${callId}`;
+  }
+
+  /**
+   * QC-F-287: resolve a call for the gated operations (token / leave / end /
+   * internal end). The in-memory registry is a per-process CACHE, not the
+   * source of truth: on a cache miss, when a durable lookup was injected,
+   * the persisted `Call` row is consulted and an ACTIVE, unterminated row is
+   * rehydrated into the cache BEFORE the caller's participant check runs —
+   * so the authorization ordering (404 CALL_NOT_FOUND first, then 403
+   * CALL_NOT_PARTICIPANT) is byte-identical to the pre-restart behaviour.
+   *
+   * Failure semantics (fail closed, honestly labelled):
+   * - no lookup injected → the old 404 (voice-bot / legacy instances);
+   * - lookup throws (database unavailable) → 503 CALL_LOOKUP_UNAVAILABLE —
+   *   never a token, never a room operation, never a guessed 404;
+   * - no row, a terminal row, or a malformed row → the honest 404.
+   */
+  private async resolveCall(callId: string): Promise<CallInfo> {
+    const cached = this.calls.get(callId);
+    if (cached) {
+      return cached;
+    }
+
+    if (!this.lookup) {
+      throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
+    }
+
+    let row: CallRegistryRow | null;
+    try {
+      row = await this.lookup.findCallRowByRoomId(callId);
+    } catch {
+      throw createAppError('Call lookup unavailable', 503, 'CALL_LOOKUP_UNAVAILABLE');
+    }
+
+    const info = row ? this.callInfoFromRow(row, callId) : null;
+    if (!info) {
+      throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
+    }
+
+    this.calls.set(callId, info);
+    return info;
+  }
+
+  /**
+   * Build a CallInfo from a durable row, or return null when the row cannot
+   * honestly represent a live call: roomId must be present and equal to the
+   * requested callId (the row's cuid `id` is NEVER a callId), the row must
+   * be ACTIVE with no endedAt (a finished call must never be resurrected),
+   * and the Json participants column must coerce to a non-empty string list
+   * (the CallRecordService coercion rule) — a call with no knowable roster
+   * can never be authorized, so it is not rehydrated.
+   *
+   * `type` cannot come from the row: the persisted `type` is the Prisma
+   * media enum (AUDIO/VIDEO, in practice always the VIDEO default), while
+   * CallInfo.type is cardinality. It is therefore derived from the roster
+   * size (<= 2 → 'one-to-one', otherwise 'group'); a 2-participant group
+   * call rehydrates as 'one-to-one'. No gated operation reads `type` — it
+   * is informational (getCall / initiate responses) only.
+   */
+  private callInfoFromRow(row: CallRegistryRow, callId: string): CallInfo | null {
+    if (!row.roomId || row.roomId !== callId) {
+      return null;
+    }
+    if (row.status !== 'ACTIVE' || row.endedAt != null) {
+      return null;
+    }
+    const participantIds = Array.isArray(row.participants)
+      ? row.participants.filter((v): v is string => typeof v === 'string')
+      : [];
+    if (participantIds.length === 0) {
+      return null;
+    }
+    return {
+      callId: row.roomId,
+      roomName: this.roomNameForCallId(row.roomId),
+      type: participantIds.length <= 2 ? 'one-to-one' : 'group',
+      initiatorId: row.initiatorId,
+      participantIds,
+      createdAt: (row.startedAt ?? row.createdAt).getTime(),
+    };
   }
 
   async initiate1v1Call(callerId: string, calleeId: string): Promise<CallInfo> {
     const callId = this.generateCallId();
-    const roomName = `chat-call:${callId}`;
+    const roomName = this.roomNameForCallId(callId);
 
     try {
       await this.roomClient.createRoom({
@@ -81,7 +201,7 @@ export class CallService {
     }
 
     const callId = this.generateCallId();
-    const roomName = `chat-call:${callId}`;
+    const roomName = this.roomNameForCallId(callId);
 
     try {
       await this.roomClient.createRoom({
@@ -111,10 +231,7 @@ export class CallService {
   }
 
   async leaveCall(callId: string, userId: string): Promise<{ ended: boolean }> {
-    const call = this.calls.get(callId);
-    if (!call) {
-      throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
-    }
+    const call = await this.resolveCall(callId);
 
     if (!call.participantIds.includes(userId)) {
       throw createAppError('User is not a participant of this call', 403, 'CALL_NOT_PARTICIPANT');
@@ -152,10 +269,7 @@ export class CallService {
    * who already left is no longer in `participantIds` and cannot end the call.
    */
   async endCall(callId: string, userId: string): Promise<void> {
-    const call = this.calls.get(callId);
-    if (!call) {
-      throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
-    }
+    const call = await this.resolveCall(callId);
 
     if (!call.participantIds.includes(userId)) {
       throw createAppError('User is not a participant of this call', 403, 'CALL_NOT_PARTICIPANT');
@@ -176,10 +290,7 @@ export class CallService {
    * a future route forgot to pass it.
    */
   async endCallInternal(callId: string): Promise<void> {
-    const call = this.calls.get(callId);
-    if (!call) {
-      throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
-    }
+    const call = await this.resolveCall(callId);
 
     await this.destroyCall(call);
   }
@@ -202,10 +313,7 @@ export class CallService {
    * blast radius of a leaked token.
    */
   async generateCallToken(callId: string, userId: string): Promise<string> {
-    const call = this.calls.get(callId);
-    if (!call) {
-      throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
-    }
+    const call = await this.resolveCall(callId);
 
     if (!call.participantIds.includes(userId)) {
       throw createAppError('User is not a participant of this call', 403, 'CALL_NOT_PARTICIPANT');
@@ -228,6 +336,13 @@ export class CallService {
     return await token.toJwt();
   }
 
+  /**
+   * Synchronous cache peek ONLY: this reads this process's in-memory
+   * registry and never the durable store, so a miss does NOT mean the call
+   * does not exist (it may live on another replica / predate a restart).
+   * Callers that need the durable truth must use the async gated operations,
+   * which rehydrate via {@link CallService.resolveCall}.
+   */
   getCall(callId: string): CallInfo | undefined {
     return this.calls.get(callId);
   }

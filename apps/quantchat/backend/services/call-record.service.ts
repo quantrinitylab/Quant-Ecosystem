@@ -12,6 +12,12 @@
 // service (not a rewrite of CallService) so the live-signaling Map logic — and
 // its tests — remain untouched.
 //
+// QC-F-287: the live paths in CallService now also READ through this service
+// (findCallRowByRoomId) to rehydrate an active call whose in-memory registry
+// entry was lost to a restart/replica change. The write doctrine above is
+// unchanged — recordStarted/recordEnded remain the only writers, owned by the
+// routes layer; CallService itself never writes rows.
+//
 // The Prisma client is injected through a narrow interface covering only the
 // `call` delegate operations this service issues, mirroring the repo's
 // established DI pattern (see PrismaKeyStorage). This keeps the service unit
@@ -112,6 +118,23 @@ const MAX_PAGE_SIZE = 100;
 
 export class CallRecordService {
   constructor(private readonly prisma: CallRecordPrisma) {}
+
+  /**
+   * QC-F-287: read the durable row for a live call by its roomId (which the
+   * routes layer always persists as the call's callId). This is the lookup
+   * CallService uses to rehydrate its in-memory registry after a restart or
+   * on a second replica. Read-only: it never creates or mutates rows.
+   *
+   * Returns null for an unknown roomId and for a blank one (a blank key can
+   * never address a real call, and must not become a wildcard lookup).
+   */
+  async findCallRowByRoomId(roomId: string): Promise<CallRow | null> {
+    const id = roomId?.trim();
+    if (!id) {
+      return null;
+    }
+    return this.prisma.call.findFirst({ where: { roomId: id } });
+  }
 
   /**
    * Persist the start of a call. Creates a `Call` row in the ACTIVE state with
