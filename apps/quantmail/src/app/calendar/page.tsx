@@ -35,6 +35,7 @@ import {
   calendarSearchStatus,
 } from './lib/calendar-search';
 import { toRecurrenceRule } from './lib/recurrence';
+import { isEmailShaped, toAttendeeEmail } from './lib/attendee-validation';
 import { CalendarHeader } from './components/CalendarHeader';
 import { CalendarEventForm } from './components/CalendarEventForm';
 import { CalendarModals } from './components/CalendarModals';
@@ -813,10 +814,13 @@ function CalendarPageContent() {
     const endD = endOf(ev);
     const hasStart = !Number.isNaN(startD.getTime());
     const hasEnd = !Number.isNaN(endD.getTime());
+    // Legacy rows may hold non-email strings ("hello" was storable before
+    // attendee validation) — surface only email-shaped entries as chips so
+    // they can never be re-saved or invited.
     const attendeeList = Array.isArray(ev.attendees)
       ? (ev.attendees as unknown[])
-          .map((a) => (typeof a === 'string' ? a : ((a as { email?: string })?.email ?? '')))
-          .filter(Boolean)
+          .map((a) => toAttendeeEmail(a))
+          .filter((a): a is string => a !== null)
       : [];
     const reminderList = Array.isArray(ev.reminders)
       ? (ev.reminders as unknown[])
@@ -906,11 +910,18 @@ function CalendarPageContent() {
     const attendee = params.get('attendee');
     if (!attendee) return;
     openDedicatedSheet('event');
-    setFormState((prev) => ({
-      ...prev,
-      title: prev.title || `Meeting with ${attendee}`,
-      attendees: prev.attendees.includes(attendee) ? prev.attendees : [...prev.attendees, attendee],
-    }));
+    // The query value is raw user input — never add it as a guest (or bake
+    // it into the title) without an email-shape check.
+    const email = attendee.trim();
+    if (!isEmailShaped(email)) {
+      showToast({ text: `"${attendee}" is not a valid email address — not added as a guest`, type: 'error' });
+    } else {
+      setFormState((prev) => ({
+        ...prev,
+        title: prev.title || `Meeting with ${email}`,
+        attendees: prev.attendees.includes(email) ? prev.attendees : [...prev.attendees, email],
+      }));
+    }
     window.history.replaceState(null, '', window.location.pathname);
   }, []);
 
