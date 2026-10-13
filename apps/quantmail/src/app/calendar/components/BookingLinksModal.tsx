@@ -9,6 +9,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { showToast } from '../../../components/InboxToast';
 import { IconLink, IconX, IconCalendar, IconClock, IconClipboard, IconCheck, IconTrash } from '../../../components/icons';
 import { apiFetchRaw } from '@quant/api-client';
+import { TIMEZONES } from '../types';
 
 export interface BookingLinkItem {
   id: string;
@@ -19,6 +20,12 @@ export interface BookingLinkItem {
   startHour: number; // 0..23 (default 9)
   endHour: number; // 1..24 (default 17)
   availableDays: number[]; // 0 = Sun, 1 = Mon ... 6 = Sat
+  /**
+   * IANA timezone anchoring the availability window
+   * (fix/qm-booking-tz-availability-2). startHour/endHour/availableDays are
+   * wall-clock values in this zone — never server-local. 'UTC' when unset.
+   */
+  timezone: string;
   isActive: boolean;
   createdAt: string;
   /**
@@ -33,6 +40,29 @@ export interface BookingLinksModalProps {
   isOpen: boolean;
   onClose: () => void;
   userEmail?: string;
+}
+
+/**
+ * Host-timezone default for a new booking link
+ * (fix/qm-booking-tz-availability-2): the host's own IANA timezone when it
+ * is one of the curated options, else the detected zone as an honest
+ * explicit option, else 'UTC'.
+ */
+export function defaultHostTimezone(): string {
+  try {
+    const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (typeof detected === 'string' && detected.trim()) return detected.trim();
+  } catch {
+    // fall through to UTC
+  }
+  return 'UTC';
+}
+
+/** Curated timezone options plus the detected zone when it is not curated. */
+export function hostTimezoneOptions(): { label: string; value: string }[] {
+  const detected = defaultHostTimezone();
+  if (TIMEZONES.some((t) => t.value === detected)) return TIMEZONES;
+  return [{ label: `${detected} (detected)`, value: detected }, ...TIMEZONES];
 }
 
 export function slugify(text: string): string {
@@ -78,15 +108,23 @@ export function parseStoredBookingLinks(raw: string | null | undefined): Booking
     return [];
   }
   if (!Array.isArray(parsed)) return [];
-  return parsed.filter(
-    (l): l is BookingLinkItem =>
-      !!l &&
-      typeof l === 'object' &&
-      typeof (l as BookingLinkItem).slug === 'string' &&
-      !SEEDED_SAMPLE_LINK_KEYS.has(
-        `${(l as BookingLinkItem).id}|${(l as BookingLinkItem).slug}`,
-      ),
-  );
+  return parsed
+    .filter(
+      (l): l is BookingLinkItem =>
+        !!l &&
+        typeof l === 'object' &&
+        typeof (l as BookingLinkItem).slug === 'string' &&
+        !SEEDED_SAMPLE_LINK_KEYS.has(
+          `${(l as BookingLinkItem).id}|${(l as BookingLinkItem).slug}`,
+        ),
+    )
+    // Links cached before the timezone field existed carry no timezone —
+    // default them honestly to 'UTC' (fix/qm-booking-tz-availability-2).
+    .map((l) => ({
+      ...l,
+      timezone:
+        typeof l.timezone === 'string' && l.timezone.trim() ? l.timezone : 'UTC',
+    }));
 }
 
 /**
@@ -108,6 +146,9 @@ export async function persistBookingLinkToServer(link: BookingLinkItem): Promise
         startHour: link.startHour,
         endHour: link.endHour,
         availableDays: link.availableDays,
+        // fix/qm-booking-tz-availability-2: the host's IANA timezone anchoring
+        // the availability window (backend normalizes invalid values to UTC).
+        timezone: link.timezone,
       }),
     });
     return res.ok;
@@ -151,6 +192,12 @@ export function mapServerBookingLink(raw: unknown): BookingLinkItem | null {
     startHour: num(r['startHour'], 9),
     endHour: num(r['endHour'], 17),
     availableDays: days,
+    // The backend normalizes the stored value; default 'UTC' for records
+    // created before the field existed (fix/qm-booking-tz-availability-2).
+    timezone:
+      typeof r['timezone'] === 'string' && r['timezone'].trim()
+        ? (r['timezone'] as string)
+        : 'UTC',
     isActive: typeof r['isActive'] === 'boolean' ? (r['isActive'] as boolean) : true,
     createdAt,
   };
@@ -253,6 +300,9 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
   const [formStartHour, setFormStartHour] = useState<number>(9);
   const [formEndHour, setFormEndHour] = useState<number>(17);
   const [formAvailableDays, setFormAvailableDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  // fix/qm-booking-tz-availability-2: the host's IANA timezone anchoring the
+  // availability window — availability hours are interpreted in this zone.
+  const [formTimezone, setFormTimezone] = useState<string>(() => defaultHostTimezone());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
@@ -378,6 +428,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
       startHour: formStartHour,
       endHour: formEndHour,
       availableDays: formAvailableDays,
+      timezone: formTimezone,
       isActive: true,
       createdAt: new Date().toISOString(),
     };
@@ -418,6 +469,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
     setFormStartHour(9);
     setFormEndHour(17);
     setFormAvailableDays([1, 2, 3, 4, 5]);
+    setFormTimezone(defaultHostTimezone());
     setSlugManuallyEdited(false);
     setActiveTab('list');
   };
@@ -636,7 +688,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
 
                         <div className="flex items-center gap-3 text-xs text-[#8B949E] pt-1">
                           <span className="flex items-center gap-1">
-                            <IconClock size={12} className="text-[#8B949E]" /> {formatHour(link.startHour)} – {formatHour(link.endHour)}
+                            <IconClock size={12} className="text-[#8B949E]" /> {formatHour(link.startHour)} – {formatHour(link.endHour)} {link.timezone}
                           </span>
                           <span>•</span>
                           <span className="flex items-center gap-1">
@@ -814,6 +866,27 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* Availability timezone (fix/qm-booking-tz-availability-2):
+                  the hours above are interpreted as wall-clock times in this
+                  zone; guests see the same slots labeled in their own zone. */}
+              <div className="mt-4">
+                <label htmlFor="booking-timezone" className="block text-[var(--quant-muted-foreground)] font-semibold mb-1">Timezone</label>
+                <select
+                  id="booking-timezone" value={formTimezone}
+                  onChange={(e) => setFormTimezone(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white focus:outline-none focus:border-[var(--app-accent)] text-xs cursor-pointer"
+                >
+                  {hostTimezoneOptions().map((tz) => (
+                    <option key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-[var(--quant-muted-foreground)]">
+                  Availability hours are interpreted in this timezone.
+                </p>
               </div>
 
               {/* Available Days Checkboxes */}

@@ -97,6 +97,10 @@ const bookingLinkSchema = z.object({
   availableDays: z.array(z.number().int().min(0).max(6)).optional(),
   startHour: z.number().int().min(0).max(23).optional(),
   endHour: z.number().int().min(1).max(24).optional(),
+  // Host's IANA timezone anchoring the availability window
+  // (fix/qm-booking-tz-availability-2); invalid/missing values normalize to
+  // 'UTC' in the service.
+  timezone: z.string().max(64).optional(),
 });
 const lockSlotSchema = z.object({
   slot: z.string(),

@@ -108,6 +108,9 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
       startHour: 9,
       endHour: 17,
       availableDays: [1, 2, 3, 4, 5],
+      // fix/qm-booking-tz-availability-2: BookingLinkDetails now carries the
+      // host's IANA timezone anchoring the availability window.
+      timezone: 'UTC',
       hostName: '',
       hostEmail: '',
     };
@@ -458,6 +461,9 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
       startHour: 9,
       endHour: 17,
       availableDays: [1, 2, 3, 4, 5],
+      // fix/qm-booking-tz-availability-2: BookingLinkDetails now carries the
+      // host's IANA timezone anchoring the availability window.
+      timezone: 'UTC',
       hostName: '',
       hostEmail: '',
     };
@@ -470,6 +476,44 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
     it('defaults isActive to true when the backend omits it (older payloads)', () => {
       const merged = applyBookingLinkResponse(seed, { ...seed });
       expect(merged.isActive).toBe(true);
+    });
+  });
+
+  // fix/qm-booking-tz-availability-2: the host's IANA timezone rides the
+  // link-details merge so the public page and its fallback generator share
+  // the backend's availability-window anchor.
+  describe('applyBookingLinkResponse timezone merge', () => {
+    const seed = {
+      slug: 'strategy-session',
+      title: '30 Min Strategy Session',
+      description: 'One-on-one session.',
+      duration: 30,
+      startHour: 9,
+      endHour: 17,
+      availableDays: [1, 2, 3, 4, 5],
+      timezone: 'UTC',
+      hostName: '',
+      hostEmail: '',
+    };
+
+    it('carries the backend timezone through', () => {
+      const merged = applyBookingLinkResponse(seed, {
+        ...seed,
+        timezone: 'America/New_York',
+      });
+      expect(merged.timezone).toBe('America/New_York');
+    });
+
+    it('defaults timezone to the previous value when the backend omits it', () => {
+      const rest: Record<string, unknown> = { ...seed };
+      delete rest.timezone;
+      const merged = applyBookingLinkResponse(seed, rest);
+      expect(merged.timezone).toBe('UTC');
+    });
+
+    it('falls back to UTC for blank timezone values', () => {
+      const merged = applyBookingLinkResponse(seed, { ...seed, timezone: '  ' });
+      expect(merged.timezone).toBe('UTC');
     });
   });
 
@@ -601,6 +645,9 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
       startHour: 9,
       endHour: 17,
       availableDays: [1, 2, 3],
+      // fix/qm-booking-tz-availability-2: parseStoredBookingLinks must keep
+      // the stored timezone verbatim.
+      timezone: 'America/New_York',
       isActive: true,
       createdAt: '2026-10-11T00:00:00.000Z',
     };
@@ -647,6 +694,7 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
       startHour: 9,
       endHour: 17,
       availableDays: [1, 2, 3],
+      timezone: 'America/New_York',
       isActive: true,
       createdAt: '2026-10-11T00:00:00.000Z',
     };
@@ -662,6 +710,16 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
         '/api/booking/links',
         expect.objectContaining({ method: 'POST' }),
       );
+    });
+
+    // fix/qm-booking-tz-availability-2: the host's IANA timezone must ride
+    // along in the create payload so availability is anchored honestly.
+    it('sends the link timezone in the create payload', async () => {
+      vi.mocked(apiFetchRaw).mockResolvedValue({ ok: true } as Response);
+      await persistBookingLinkToServer(link);
+      const [, init] = vi.mocked(apiFetchRaw).mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(init.body as string);
+      expect(body.timezone).toBe('America/New_York');
     });
 
     it('returns false on non-2xx responses instead of silently pretending success', async () => {

@@ -82,6 +82,11 @@ export default function PublicBookingPage(props: PageProps) {
     startHour: 9,
     endHour: 17,
     availableDays: [1, 2, 3, 4, 5],
+    // Seeded placeholder shown while the link record loads (same family as
+    // the seeded title/description/host above); the real host timezone
+    // arrives from the backend record via applyBookingLinkResponse
+    // (fix/qm-booking-tz-availability-2).
+    timezone: 'UTC',
     hostName: '',
     hostEmail: '',
   });
@@ -224,15 +229,18 @@ export default function PublicBookingPage(props: PageProps) {
   }, [resolvedSlug, linkReloadNonce]);
 
   // Generate or fetch available slots for the selected date.
-  // Fallback path: wall-clock times are computed in the guest's selected
-  // timezone so the dropdown is honored even when the slots API is unreachable.
+  // Fallback path: wall-clock times are computed in the HOST's timezone
+  // (fix/qm-booking-tz-availability-2) and labeled in the guest's selected
+  // timezone — the same contract as the slots API — so the dropdown is
+  // honored even when the slots API is unreachable.
   const generateSlotsForDate = useCallback(
     (
       targetDate: Date,
       duration: number,
       startHour: number,
       endHour: number,
-      timeZone: string,
+      anchorTimeZone: string,
+      displayTimeZone: string,
     ): BookingSlotItem[] => {
       const slots: BookingSlotItem[] = [];
       const now = new Date();
@@ -253,7 +261,7 @@ export default function PublicBookingPage(props: PageProps) {
             day,
             Math.floor(wallMinutes / 60),
             wallMinutes % 60,
-            timeZone,
+            anchorTimeZone,
           ),
         );
         const slotEnd = new Date(slotStart.getTime() + stepMs);
@@ -264,7 +272,7 @@ export default function PublicBookingPage(props: PageProps) {
         slots.push({
           start: slotStart,
           end: slotEnd,
-          timeLabel: formatSlotTimeLabelInTz(slotStart, timeZone),
+          timeLabel: formatSlotTimeLabelInTz(slotStart, displayTimeZone),
           available: isFuture,
         });
       }
@@ -325,13 +333,16 @@ export default function PublicBookingPage(props: PageProps) {
         // Fallback
       }
 
-      // High-fidelity fallback slot generation (wall-times in the guest's timezone)
+      // High-fidelity fallback slot generation: wall-times in the host's
+      // timezone, labels in the guest's selected timezone
+      // (fix/qm-booking-tz-availability-2).
       if (isMounted) {
         const generated = generateSlotsForDate(
           selectedDate,
           meetingDetails.duration,
           meetingDetails.startHour,
           meetingDetails.endHour,
+          meetingDetails.timezone || 'UTC',
           selectedTimezone,
         );
         setAvailableSlots(generated);

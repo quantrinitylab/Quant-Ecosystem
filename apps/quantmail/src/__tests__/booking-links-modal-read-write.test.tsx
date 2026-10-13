@@ -17,6 +17,9 @@ import {
   mergeServerAndLocalLinks,
   isLocalOnlyBookingLink,
   mapServerBookingLink,
+  parseStoredBookingLinks,
+  defaultHostTimezone,
+  hostTimezoneOptions,
   type BookingLinkItem,
 } from '../app/calendar/components/BookingLinksModal';
 
@@ -32,6 +35,9 @@ const serverRecord = {
   startHour: 9,
   endHour: 17,
   isActive: true,
+  // fix/qm-booking-tz-availability-2: host IANA timezone anchoring the
+  // availability window.
+  timezone: 'America/New_York',
   createdAt: '2026-10-11T10:00:00.000Z',
   updatedAt: '2026-10-11T10:00:00.000Z',
   hostName: null,
@@ -71,6 +77,7 @@ describe('BookingLinksModal read/write split-brain fix (fix/qm-bookinglinks-read
           startHour: 9,
           endHour: 17,
           availableDays: [1, 2, 3, 4, 5],
+          timezone: 'America/New_York',
           isActive: true,
           createdAt: '2026-10-11T10:00:00.000Z',
         },
@@ -160,6 +167,7 @@ describe('BookingLinksModal read/write split-brain fix (fix/qm-bookinglinks-read
       startHour: 9,
       endHour: 17,
       availableDays: [1, 2, 3],
+      timezone: 'UTC',
       isActive: true,
       createdAt: '2026-10-11T00:00:00.000Z',
     };
@@ -242,6 +250,56 @@ describe('BookingLinksModal read/write split-brain fix (fix/qm-bookinglinks-read
         availableDays: [1, 'x', 9, -1, 3],
       });
       expect(mapped?.availableDays).toEqual([1, 3]);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Host timezone (fix/qm-booking-tz-availability-2): the modal captures the
+  // host's IANA timezone so availability is anchored honestly instead of in
+  // server-local time.
+  // ---------------------------------------------------------------------------
+  describe('booking-link host timezone', () => {
+    it('maps the server timezone verbatim when present', () => {
+      const mapped = mapServerBookingLink(serverRecord);
+      expect(mapped?.timezone).toBe('America/New_York');
+    });
+
+    it('defaults a missing or blank timezone to UTC', () => {
+      const noTz: Record<string, unknown> = { ...serverRecord };
+      delete noTz.timezone;
+      expect(mapServerBookingLink(noTz)?.timezone).toBe('UTC');
+      expect(mapServerBookingLink({ ...serverRecord, timezone: '  ' })?.timezone).toBe(
+        'UTC',
+      );
+    });
+
+    it('defaults legacy localStorage links without a timezone to UTC', () => {
+      const legacy = JSON.stringify([
+        {
+          id: 'link-old',
+          slug: 'old-link',
+          title: 'Old Link',
+          duration: 30,
+          startHour: 9,
+          endHour: 17,
+          availableDays: [1, 2, 3],
+          isActive: true,
+          createdAt: '2026-09-01T00:00:00.000Z',
+        },
+      ]);
+      const parsed = parseStoredBookingLinks(legacy);
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0].timezone).toBe('UTC');
+    });
+
+    it('defaultHostTimezone returns the detected IANA zone', () => {
+      const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      expect(defaultHostTimezone()).toBe(detected);
+    });
+
+    it('hostTimezoneOptions always offers the detected zone', () => {
+      const detected = defaultHostTimezone();
+      expect(hostTimezoneOptions().some((o) => o.value === detected)).toBe(true);
     });
   });
 
