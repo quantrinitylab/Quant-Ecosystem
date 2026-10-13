@@ -1359,7 +1359,13 @@ describe('POST /events/:id/rsvp — concurrent RSVPs are atomic (no lost respons
   //   2. a control with a pass-through fake transaction (the old unlocked
   //      code) shows the same workload losing one response — the defect
   //      the lock exists to kill.
-  type Row = typeof ROW & { attendees: string };
+  // The ROW fixture types recurrenceRule as the literal `null` (it is the
+  // non-recurring base row), so widen it here: the store needs real RRULE
+  // strings for the concurrency workload.
+  type Row = Omit<typeof ROW, 'recurrenceRule' | 'attendees'> & {
+    recurrenceRule: string | null;
+    attendees: string;
+  };
 
   function buildConcurrentApp(opts: { locking: boolean }) {
     const store = new Map<string, Row>();
