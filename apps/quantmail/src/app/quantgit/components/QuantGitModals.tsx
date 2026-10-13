@@ -1,10 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { BubbleAvatar } from '@quant/shared-ui';
 import { BlobEditor, type CommitBlobInput } from '../../../components/BlobEditor';
 import { BuildTerminal } from './BuildTerminal';
+import { apiFetch } from '@quant/api-client';
+import { MergeConflictStatus, type MergeConflictCheckState } from './PullRequestsTab';
 import type {
   ModalState,
   Repo,
@@ -88,6 +90,109 @@ export interface QuantGitModalsProps {
   quantyInstructions: string;
   setQuantyInstructions: (val: string) => void;
   showToast: (msg: string) => void;
+}
+
+/**
+ * Backend merge-conflict pre-check for the PR-detail modal (fix/qm-modal-no-conflicts).
+ * Same honest 4-state machine as the PullRequestsTab merge box (PR #967): the
+ * "no conflicts" sentence may ONLY appear in the `mergeable` state, which is
+ * produced by a real backend dry-run (GET /:id/pulls/:number/mergeable).
+ * Everything else — mergeable === null, non-ok response, malformed body,
+ * network failure — maps to `unknown`, which claims neither outcome.
+ *
+ * Uses the same-origin apiFetch (returns the { success, data } envelope;
+ * never throws on HTTP errors), not the non-existent apiFetchRaw.
+ */
+export async function fetchPRDetailMergeable(
+  repoId: string,
+  prNumber: number,
+): Promise<MergeConflictCheckState> {
+  try {
+    const res = await apiFetch<{
+      mergeable: boolean | null;
+      conflicts?: string[];
+    }>(`/api/repos/${encodeURIComponent(repoId)}/pulls/${prNumber}/mergeable`);
+    const data = res.success ? res.data : null;
+    if (data?.mergeable === true) return { status: 'mergeable' };
+    if (data?.mergeable === false) {
+      return {
+        status: 'conflict',
+        conflicts: Array.isArray(data.conflicts)
+          ? data.conflicts.map((f: unknown) => String(f))
+          : [],
+      };
+    }
+    return { status: 'unknown' };
+  } catch {
+    return { status: 'unknown' };
+  }
+}
+
+/**
+ * The merge button must be blocked by a REAL detected conflict only — an
+ * unknown pre-check never hard-blocks (the backend merge endpoint enforces
+ * its own branch-protection/409 rules).
+ */
+export function mergeBlockedByConflict(check: MergeConflictCheckState): boolean {
+  return check.status === 'conflict';
+}
+
+interface PRDetailMergeActionBoxProps {
+  repoId?: string;
+  pr: PRItem;
+  onMerge: (id: number) => void;
+}
+
+/**
+ * Merge action box for the PR-detail modal. The conflict status line is
+ * always backed by the backend pre-check — a detected conflict blocks the
+ * merge button here, exactly like in the PullRequestsTab merge box.
+ */
+export function PRDetailMergeActionBox({ repoId, pr, onMerge }: PRDetailMergeActionBoxProps) {
+  const [check, setCheck] = useState<MergeConflictCheckState>({ status: 'checking' });
+  // GitHub-style API identity: prefer the PR number, fall back to the row id.
+  const prNumber = (pr as { number?: number }).number ?? pr.id;
+  useEffect(() => {
+    let cancelled = false;
+    if (!repoId) {
+      setCheck({ status: 'unknown' });
+      return () => {
+        cancelled = true;
+      };
+    }
+    setCheck({ status: 'checking' });
+    fetchPRDetailMergeable(repoId, prNumber).then((next) => {
+      if (!cancelled) setCheck(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [repoId, prNumber]);
+
+  const blocked = mergeBlockedByConflict(check);
+
+  return (
+    <div
+      className="bg-[var(--quant-surface-elevated)] border border-[#238636]/50 rounded-lg p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-inner"
+      data-testid="pr-detail-merge-box"
+    >
+      <div className="space-y-0.5">
+        <MergeConflictStatus check={check} />
+        <p className="text-[11px] text-[#7D8590]">
+          Merging will record status to database and close this pull request.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => onMerge(pr.id)}
+        disabled={blocked}
+        title={blocked ? 'Resolve merge conflicts before merging' : undefined}
+        className="px-4 py-2 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold text-xs flex items-center gap-2 shadow transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <span>⑂</span> Merge pull request
+      </button>
+    </div>
+  );
 }
 
 export function QuantGitModals({
@@ -878,24 +983,11 @@ export function QuantGitModals({
             {/* Merge Action Box */}
             <div className="pt-2">
               {selectedPr.state === 'open' ? (
-                <div className="bg-[var(--quant-surface-elevated)] border border-[#238636]/50 rounded-lg p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-inner">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-1.5 text-[#3FB950] font-bold">
-                      <span>✓</span>
-                      <span>This branch has no conflicts with the base branch</span>
-                    </div>
-                    <p className="text-[11px] text-[#7D8590]">
-                      Merging will record status to database and close this pull request.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleMergePR(selectedPr.id)}
-                    className="px-4 py-2 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold text-xs flex items-center gap-2 shadow transition-colors"
-                  >
-                    <span>⑂</span> Merge pull request
-                  </button>
-                </div>
+                <PRDetailMergeActionBox
+                  repoId={selectedRepo?.id || selectedRepo?.name}
+                  pr={selectedPr}
+                  onMerge={handleMergePR}
+                />
               ) : selectedPr.state === 'merged' ? (
                 <div className="bg-[#8957E5]/10 border border-[#8957E5]/30 rounded-lg p-3.5 flex items-center gap-2.5 text-[#A371F7]">
                   <span className="font-bold text-base">✓</span>
