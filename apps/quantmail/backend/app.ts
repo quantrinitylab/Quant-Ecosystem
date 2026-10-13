@@ -29,7 +29,8 @@ import federationRoutes, { createFederationService } from './routes/federation';
 import { oauthRoutes } from './routes/oauth';
 import { ssoTicketRoutes } from './routes/sso-tickets';
 import { quantyMcpRoutes } from './routes/quanty-mcp';
-import phoneRoutes from './routes/phone';
+// Phone OTP login was REMOVED per the locked 2026-10-05 / 2026-10-11 SSO design:
+// `routes/phone.ts` (SMS send-otp/verify) was deleted; OTP is email-based only.
 import { authRoutes } from './routes/auth';
 import { twoFactorRoutes } from './routes/two-factor';
 import { passwordResetRoutes } from './routes/password-reset';
@@ -399,7 +400,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(oauthRoutes);
   await app.register(ssoTicketRoutes);
   await app.register(quantyMcpRoutes, { prefix: '/api/quanty/mcp' });
-  await app.register(phoneRoutes);
+  // No phoneRoutes: SMS OTP login/verify removed per locked design (see note above).
   await app.register(emailsRoutes, {
     prefix: '/emails',
     learnedCategory,
