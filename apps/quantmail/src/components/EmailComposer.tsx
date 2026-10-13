@@ -20,7 +20,11 @@ import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
 import { parseEmailString, dedupeRecipientPayload, type RecipientOption } from './RecipientChipInput';
-import { getInvalidRecipientReason } from '../lib/email-validation';
+import {
+  getSendBlockReason,
+  getSendBlockReaction,
+  needsEmptyBodyConfirm,
+} from './composeValidation';
 import { ContactAutocomplete, type ContactSuggestion } from './ContactAutocomplete';
 import { useContactSuggestions } from '../hooks/useContactSuggestions';
 import {
@@ -108,39 +112,16 @@ export interface ComposerMessageData {
 }
 
 /**
- * Send-readiness validation for the composer (QM-UIUX-024).
- *
- * SINGLE SOURCE OF TRUTH: both the Send button's `disabled` attribute and
- * `handleSend`'s error toasts derive from this, so the button can never look
- * tappable while tapping it would just toast an error.
- *
- * Returns the exact error message shown to the user, or `null` when the
- * composer is send-ready. Validation is intentionally strict — To, subject
- * AND body are all required, exactly as `handleSend` enforced before this
- * fix, and every recipient address must be well-formed (a malformed chip
- * blocks the send with a named reason instead of failing on a server
- * round-trip). Weakening validation is not allowed; if a field ever becomes
- * optional (e.g. subject behind a confirm dialog), that decision lives
- * here, in one place, and the disabled state follows it automatically.
- *
- * `recipients` carries the To/Cc/Bcc chips; the malformed-address block sits
- * right after the empty-To block and before subject/body, in the order a
- * user fixes the form top-down. Callers must pass the same recipient list
- * `to` was derived from, so the string check and the address check agree.
+ * Send-readiness validation lives in `./composeValidation` — the QM-UIUX-024
+ * single source of truth, shared by the full composer and the docked
+ * composer. Re-exported here so existing importers and tests keep working
+ * unchanged; the component body below imports the same names from there.
  */
-export function getSendBlockReason(
-  to: string,
-  subject: string,
-  body: string,
-  recipients: Array<{ email: string }> = [],
-): string | null {
-  if (!to.trim()) return 'Please specify at least one recipient (To:)';
-  const invalidReason = getInvalidRecipientReason(recipients);
-  if (invalidReason) return invalidReason;
-  if (!subject.trim()) return 'Please enter an email subject';
-  if (!body.trim()) return 'Please enter your message body';
-  return null;
-}
+export {
+  getSendBlockReason,
+  getSendBlockReaction,
+  needsEmptyBodyConfirm,
+} from './composeValidation';
 
 /**
  * Full-page compose detection (CUST-P0-3).
@@ -163,29 +144,10 @@ export function isFullPageComposePath(pathname: string | null | undefined): bool
 }
 
 /**
- * Which Quanty reaction a blocked send announces (QM-UIUX-025).
- *
- * Mirrors `getSendBlockReason` field-for-field and in the same order, so the
- * mascot, the error toast and the Send button's disabled state can never
- * disagree about what is missing. Before this, every block — missing subject
- * and missing body included — fired `mail:noRecipients`, a copy-paste bug
- * that made Quanty react "no recipients" to problems that had nothing to do
- * with recipients. Returns `null` exactly when `getSendBlockReason` does. A
- * malformed recipient address maps to `mail:noRecipients` — it is a
- * recipient problem, in the same position as in `getSendBlockReason`.
+ * Which Quanty reaction a blocked send announces (QM-UIUX-025) now lives in
+ * `./composeValidation` — see the re-export above. Kept here as a pointer so
+ * the QM-UIUX-025 history stays greppable next to `handleSend`'s usage.
  */
-export function getSendBlockReaction(
-  to: string,
-  subject: string,
-  body: string,
-  recipients: Array<{ email: string }> = [],
-): 'mail:noRecipients' | 'mail:noSubject' | 'mail:noBody' | null {
-  if (!to.trim()) return 'mail:noRecipients';
-  if (getInvalidRecipientReason(recipients)) return 'mail:noRecipients';
-  if (!subject.trim()) return 'mail:noSubject';
-  if (!body.trim()) return 'mail:noBody';
-  return null;
-}
 
 export interface EmailComposerProps {
   initialTo?: string | Array<{ email: string; name?: string }>;
@@ -914,10 +876,32 @@ export function EmailComposer({
   const handleSend = async (scheduledAt?: string) => {
     if (sendBlockReason) {
       // QM-UIUX-025: announce the field that is actually missing — subject
-      // and body blocks must not fire the recipients reaction.
+      // and recipient blocks must not fire each other's reaction.
       quantyReact(getSendBlockReaction(to, subject, body, allRecipients) ?? 'mail:noRecipients');
       showToast({ text: sendBlockReason, type: 'error' });
       return;
+    }
+
+    // Empty body is a confirm, not a hard block (QM-UIUX-024 as amended):
+    // Gmail-style "Send this message without text in the body?" with an
+    // explicit send-anyway override, so attached-only emails can be sent.
+    // Asked BEFORE anything is dismissed or queued, so the 10s undo-send
+    // countdown is never started — and never promised — for a send the
+    // user never confirmed.
+    if (needsEmptyBodyConfirm(to, subject, body, allRecipients)) {
+      const sendAnyway = await confirm({
+        title: 'Send this message without text in the body?',
+        message: 'Your recipients and subject are set — only the body is empty.',
+        confirmLabel: 'Send anyway',
+        cancelLabel: 'Keep writing',
+      });
+      if (!sendAnyway) {
+        // Unconfirmed: the draft stays exactly as it was. Announce the
+        // missing field to Quanty (an unfinished draft is worried, not
+        // error) exactly like a block would.
+        quantyReact(getSendBlockReaction(to, subject, body, allRecipients) ?? 'mail:noRecipients');
+        return;
+      }
     }
 
     const { bodyText, bodyHtml } = buildOutgoingBodies();

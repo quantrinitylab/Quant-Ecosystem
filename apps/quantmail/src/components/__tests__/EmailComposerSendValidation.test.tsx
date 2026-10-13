@@ -5,12 +5,19 @@
  * `handleSend`'s validation EXACTLY. The button must be disabled exactly
  * when tapping it would toast an error, and enabled exactly when the tap
  * would proceed. Both derive from the single source of truth
- * `getSendBlockReason`, so they cannot drift apart.
+ * `getSendBlockReason` (see ./composeValidation), so they cannot drift
+ * apart.
+ *
+ * Empty body is deliberately NOT part of this block contract: it is a
+ * Gmail-style confirm (`needsEmptyBodyConfirm`), not an error. The button
+ * is enabled when only the body is empty and tapping it opens the
+ * "Send this message without text in the body?" confirm instead of
+ * toasting an error.
  */
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { getSendBlockReason, EmailComposer } from '../EmailComposer';
+import { getSendBlockReason, needsEmptyBodyConfirm, EmailComposer } from '../EmailComposer';
 
 // ---- module mocks for a server-side render of the full composer ----
 
@@ -110,24 +117,42 @@ describe('getSendBlockReason (QM-UIUX-024 single source of truth)', () => {
     expect(getSendBlockReason('   ', 's', 'b')).toBe('Please specify at least one recipient (To:)');
   });
 
+  it('blocks a malformed recipient once To is present (#1120)', () => {
+    expect(getSendBlockReason('notanemail', 's', 'b', [{ email: 'notanemail' }])).toBe(
+      '"notanemail" is not a valid email address',
+    );
+    expect(getSendBlockReason('a@b.com', 's', 'b', [{ email: 'a@b.com' }])).toBeNull();
+  });
+
   it('blocks an empty subject once To is present', () => {
     expect(getSendBlockReason('a@b.com', '', 'b')).toBe('Please enter an email subject');
     expect(getSendBlockReason('a@b.com', '  \n ', 'b')).toBe('Please enter an email subject');
   });
 
-  it('blocks an empty body once To and subject are present', () => {
-    expect(getSendBlockReason('a@b.com', 's', '')).toBe('Please enter your message body');
-    expect(getSendBlockReason('a@b.com', 's', '   ')).toBe('Please enter your message body');
+  it('does NOT block an empty body once To and subject are present (Gmail-style confirm)', () => {
+    // Empty body is a confirm, not an error: no block reason, and
+    // needsEmptyBodyConfirm marks exactly this case.
+    expect(getSendBlockReason('a@b.com', 's', '')).toBeNull();
+    expect(getSendBlockReason('a@b.com', 's', '   ')).toBeNull();
+    expect(needsEmptyBodyConfirm('a@b.com', 's', '')).toBe(true);
+    expect(needsEmptyBodyConfirm('a@b.com', 's', '   ')).toBe(true);
+    expect(needsEmptyBodyConfirm('a@b.com', 's', 'b')).toBe(false);
+    expect(needsEmptyBodyConfirm('', '', '')).toBe(false);
   });
 
   it('returns null when To, subject and body are all present', () => {
     expect(getSendBlockReason('a@b.com', 'Hello', 'World')).toBeNull();
   });
 
-  it('checks in the same order handleSend toasts: To, then subject, then body', () => {
+  it('checks in the same order handleSend toasts: To, then recipients, then subject', () => {
     // To missing dominates even when everything else is missing too.
     expect(getSendBlockReason('', '', '')).toBe('Please specify at least one recipient (To:)');
-    // Subject missing dominates a missing body.
+    // Malformed recipient dominates a missing subject.
+    expect(getSendBlockReason('notanemail', '', 'b', [{ email: 'notanemail' }])).toBe(
+      '"notanemail" is not a valid email address',
+    );
+    // Subject missing dominates an empty body — and the empty body itself
+    // is a confirm, never a toast, so it never appears in the block order.
     expect(getSendBlockReason('a@b.com', '', '')).toBe('Please enter an email subject');
   });
 });
@@ -177,7 +202,7 @@ describe('Send button disabled state mirrors validation (QM-UIUX-024)', () => {
     expect(sendTitle(html)).toBe('Please enter an email subject');
   });
 
-  it('stays disabled with only To and subject filled', () => {
+  it('is enabled with only To and subject filled (empty body is a confirm, not a block)', () => {
     const html = renderToStaticMarkup(
       <EmailComposer
         isOpen={true}
@@ -186,8 +211,9 @@ describe('Send button disabled state mirrors validation (QM-UIUX-024)', () => {
         initialSubject="Hello"
       />
     );
-    expect(isSendDisabled(html)).toBe(true);
-    expect(sendTitle(html)).toBe('Please enter your message body');
+    expect(isSendDisabled(html)).toBe(false);
+    // No block reason → no error title; tapping opens the empty-body confirm.
+    expect(sendTitle(html)).toBeNull();
   });
 
   it('is enabled exactly when To, subject and body are all present', () => {

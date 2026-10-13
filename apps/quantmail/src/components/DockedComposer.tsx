@@ -831,9 +831,21 @@ export function DockedComposer({
       showToast({ text: 'Please enter an email subject', type: 'error' });
       return;
     }
+    // Empty body is a confirm, not a hard block — the same contract as
+    // EmailComposer's needsEmptyBodyConfirm (recipients and subject passed
+    // the hard-block guards above, so only the body is missing). Gmail-style
+    // "Send this message without text in the body?" with an explicit
+    // send-anyway override, so attached-only emails can be sent. Asked
+    // BEFORE the composer minimizes or the recall window is queued, so the
+    // 10s undo bar is never promised for an unconfirmed send.
     if (!body.trim()) {
-      showToast({ text: 'Please write your message body', type: 'error' });
-      return;
+      const sendAnyway = await confirm({
+        title: 'Send this message without text in the body?',
+        message: 'Your recipients and subject are set — only the body is empty.',
+        confirmLabel: 'Send anyway',
+        cancelLabel: 'Keep writing',
+      });
+      if (!sendAnyway) return;
     }
 
     // PR #908 past-time convention: the modal rejects past times and the
