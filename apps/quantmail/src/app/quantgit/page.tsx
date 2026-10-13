@@ -947,7 +947,15 @@ function QuantGitContent() {  const router = useRouter();
               author: item.author || 'user',
               branchSource: item.branchSource || 'main',
               branchTarget: item.branchTarget || 'main',
-              checksStatus: item.checksStatus || 'unknown',
+              // checksStatus honesty: the backend reports 'none' when check results
+              // are not computed (V22 contract) — outside the PRItem union.
+              // Normalize ANY unrecognized value to 'unknown' so an untyped
+              // leak never reaches the PR detail modal's CI cell.
+              checksStatus: (['passing', 'pending', 'failing', 'unknown'] as string[]).includes(
+                item.checksStatus,
+              )
+                ? item.checksStatus
+                : 'unknown',
               commentsCount: item.commentsCount || 0,
               createdAt: item.createdAt || 'recently',
               body: item.body || '',
