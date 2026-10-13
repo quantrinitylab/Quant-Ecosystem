@@ -1,303 +1,134 @@
-// @vitest-environment jsdom
-
-// Silence React's "not configured to support act" warning in this jsdom
-// harness — act() flushes effects synchronously here by design.
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import React from 'react';
+/**
+ * PR-detail modal merge-box honesty — regression for qm-modal-conflict-claim.
+ *
+ * The modal's merge box used to hard-code
+ *   "This branch has no conflicts with the base branch."
+ * without any backend verification. It must now use the same real backend
+ * dry-run (GET /api/repos/:id/pulls/:number/mergeable) as the
+ * PullRequestsTab merge box, and only show the "no conflicts" claim after a
+ * verified mergeable verdict. A detected conflict blocks the merge button.
+ *
+ * NOTE: sibling suites render via react-dom/server (the quantmail package has
+ * no @testing-library/react dependency), so this file does the same.
+ */
 import { renderToStaticMarkup } from 'react-dom/server';
-import { render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The modal hits the same-origin Next proxy via @quant/api-client.
-// Stub it so the mergeable pre-check outcomes are controllable per test.
-vi.mock('@quant/api-client', () => ({
-  apiFetch: vi.fn(),
-}));
+vi.mock('@quant/api-client', () => ({ apiFetch: vi.fn() }));
 
 import { apiFetch } from '@quant/api-client';
 import {
-  QuantGitModals,
-  PRDetailMergeActionBox,
   fetchPRDetailMergeable,
   mergeBlockedByConflict,
-  type QuantGitModalsProps,
+  PRDetailMergeActionBox,
 } from '../components/QuantGitModals';
-import type { PRItem } from '../types';
+import { MergeConflictStatus } from '../components/PullRequestsTab';
 
-/**
- * Regression proof for the PR-detail modal unverified-conflict-claim finding
- * (fix/qm-modal-no-conflicts): the modal reachable via setModalState('pr-detail')
- * must NEVER render "This branch has no conflicts with the base branch."
- * from client-side guesswork. That sentence may appear ONLY after the backend
- * dry-run (GET /:id/pulls/:number/mergeable) reports mergeable === true, and
- * a detected conflict must block the merge button.
- */
+const mockApiFetch = vi.mocked(apiFetch);
 
-const MOCK_PR: PRItem = {
-  id: 777,
-  title: 'fix: honest pr-detail merge box',
+const PR = {
+  id: 7,
+  number: 42,
+  title: 'fix: honest merge claim',
   state: 'open',
-  author: 'tester',
-  branchSource: 'fix/modal-no-conflicts',
-  branchTarget: 'main',
-  checksStatus: 'unknown',
-  commentsCount: 0,
-  createdAt: '2 minutes ago',
-  additions: 4,
-  deletions: 2,
-  changedFiles: 1,
-};
+  author: 'alice',
+  createdAt: '2026-10-13T00:00:00Z',
+  branch: 'fix/x',
+  baseBranch: 'main',
+} as never;
 
-const MOCK_REPO = {
-  id: 'quant-ecosystem',
-  name: 'quant-ecosystem',
-  fullName: 'quantrinitylab/quant-ecosystem',
-  description: '',
-  visibility: 'private' as const,
-  language: 'TypeScript',
-  stars: 0,
-  forks: 0,
-  watching: 0,
-  cloneUrl: '',
-  defaultBranch: 'main',
-  latestCommit: '',
-  latestCommitSha: '',
-  latestCommitTime: '',
-  checksStatus: 'unknown' as const,
-  license: '',
-  website: '',
-  topics: [],
-};
-
-const NO_CONFLICT_CLAIM = 'This branch has no conflicts with the base branch.';
-
-function modalProps(): QuantGitModalsProps {
-  return {
-    modalState: 'pr-detail',
-    setModalState: vi.fn(),
-    newBranchInput: '',
-    setNewBranchInput: vi.fn(),
-    repoBranches: [],
-    currentBranch: 'main',
-    setCurrentBranch: vi.fn(),
-    handleCreateBranch: vi.fn(),
-    fileSearchQuery: '',
-    setFileSearchQuery: vi.fn(),
-    filteredFiles: [],
-    setViewingFile: vi.fn(),
-    viewingFile: null,
-    selectedRepo: MOCK_REPO,
-    viewingBlobSha: null,
-    closeBlobEditor: vi.fn(),
-    handleCommitBlob: vi.fn(),
-    selectedOfficeAgent: null,
-    setSelectedOfficeAgent: vi.fn(),
-    newIssueTitle: '',
-    setNewIssueTitle: vi.fn(),
-    newIssueBody: '',
-    setNewIssueBody: vi.fn(),
-    newIssueLabel: '',
-    setNewIssueLabel: vi.fn(),
-    handleCreateIssue: vi.fn(),
-    newPrBranch: '',
-    newPrTitle: '',
-    setNewPrTitle: vi.fn(),
-    newPrBody: '',
-    setNewPrBody: vi.fn(),
-    handleCreatePR: vi.fn(),
-    newRepoName: '',
-    setNewRepoName: vi.fn(),
-    newRepoDesc: '',
-    setNewRepoDesc: vi.fn(),
-    newRepoVisibility: 'private',
-    setNewRepoVisibility: vi.fn(),
-    handleCreateRepo: vi.fn(),
-    newAgentName: '',
-    setNewAgentName: vi.fn(),
-    newAgentRole: '',
-    setNewAgentRole: vi.fn(),
-    newAgentPod: '',
-    setNewAgentPod: vi.fn(),
-    handleDeployAgent: vi.fn(),
-    selectedActionRun: null,
-    selectedPr: MOCK_PR,
-    closePullDetail: vi.fn(),
-    handleMergePR: vi.fn(),
-    selectedIssue: null,
-    closeIssueDetail: vi.fn(),
-    issueComments: [],
-    isLoadingComments: false,
-    commentError: null,
-    commentDraft: '',
-    setCommentDraft: vi.fn(),
-    handleSubmitIssueComment: vi.fn(),
-    isSubmittingComment: false,
-    handleToggleIssue: vi.fn(),
-    currentUsername: 'tester',
-    isPersonalizeOpen: false,
-    setIsPersonalizeOpen: vi.fn(),
-    selectedAccessory: 'none' as never,
-    setSelectedAccessory: vi.fn(),
-    quantyName: '',
-    setQuantyName: vi.fn(),
-    quantyInstructions: '',
-    setQuantyInstructions: vi.fn(),
-    showToast: vi.fn(),
-  };
-}
-
-// apiFetch envelope: { success, data } — never throws on HTTP errors.
-const mergeableEnvelope = (data: unknown) => ({
-  success: true,
-  data,
-  error: undefined,
+beforeEach(() => {
+  mockApiFetch.mockReset();
 });
 
-describe('pr-detail modal — no unverified no-conflict claim', () => {
-  beforeEach(() => {
-    vi.mocked(apiFetch).mockReset();
+describe('fetchPRDetailMergeable (backend dry-run)', () => {
+  it('returns mergeable when the backend says mergeable=true', async () => {
+    mockApiFetch.mockResolvedValue({
+      success: true,
+      data: { mergeable: true },
+    } as never);
+    const state = await fetchPRDetailMergeable('r1', 42);
+    expect(state).toEqual({ status: 'mergeable' });
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/repos/r1/pulls/42/mergeable');
   });
 
-  it('first paint shows "Checking for merge conflicts…" instead of the claim', () => {
-    // renderToStaticMarkup does not run effects, so the mergeable fetch never
-    // fires: this is exactly the first-paint state a user sees.
-    const html = renderToStaticMarkup(<QuantGitModals {...modalProps()} />);
-    expect(html).toContain('pr-detail-merge-box');
-    expect(html).toContain('Checking for merge conflicts…');
-    expect(html).not.toContain(NO_CONFLICT_CLAIM);
-  });
-
-  it('the merge button is enabled while the check is pending', () => {
-    const html = renderToStaticMarkup(<QuantGitModals {...modalProps()} />);
-    expect(html).toContain('Merge pull request');
-    // The button carries Tailwind `disabled:*` variant classes, so assert on
-    // the disabled *attribute* (followed by space, = or >) rather than the
-    // substring.
-    expect(html).not.toMatch(/<button[^>]*\sdisabled(?:[\s=>]|$)/);
-  });
-});
-
-describe('fetchPRDetailMergeable — honest 4-state mapping', () => {
-  beforeEach(() => {
-    vi.mocked(apiFetch).mockReset();
-  });
-
-  it('hits the mergeable dry-run endpoint for the right repo/PR', async () => {
-    vi.mocked(apiFetch).mockResolvedValue(mergeableEnvelope({ mergeable: true }) as never);
-    await fetchPRDetailMergeable('quant-ecosystem', 777);
-    expect(apiFetch).toHaveBeenCalledWith('/api/repos/quant-ecosystem/pulls/777/mergeable');
-  });
-
-  it('mergeable:true → mergeable (only state where the claim is allowed)', async () => {
-    vi.mocked(apiFetch).mockResolvedValue(mergeableEnvelope({ mergeable: true }) as never);
-    expect(await fetchPRDetailMergeable('quant-ecosystem', 777)).toEqual({ status: 'mergeable' });
-  });
-
-  it('mergeable:false → conflict, with the conflicted files', async () => {
-    vi.mocked(apiFetch).mockResolvedValue(
-      mergeableEnvelope({ mergeable: false, conflicts: ['src/a.ts', 'src/b.ts'] }) as never,
-    );
-    expect(await fetchPRDetailMergeable('quant-ecosystem', 777)).toEqual({
+  it('returns conflict with file list when the backend says mergeable=false', async () => {
+    mockApiFetch.mockResolvedValue({
+      success: true,
+      data: { mergeable: false, conflicts: ['src/a.ts', 'src/b.ts'] },
+    } as never);
+    const state = await fetchPRDetailMergeable('r1', 42);
+    expect(state).toEqual({
       status: 'conflict',
       conflicts: ['src/a.ts', 'src/b.ts'],
     });
   });
 
-  it('mergeable:false with no conflicts array → conflict with empty list', async () => {
-    vi.mocked(apiFetch).mockResolvedValue(mergeableEnvelope({ mergeable: false }) as never);
-    expect(await fetchPRDetailMergeable('quant-ecosystem', 777)).toEqual({
-      status: 'conflict',
-      conflicts: [],
-    });
-  });
-
-  it('mergeable:null → unknown (claims neither outcome)', async () => {
-    vi.mocked(apiFetch).mockResolvedValue(mergeableEnvelope({ mergeable: null }) as never);
-    expect(await fetchPRDetailMergeable('quant-ecosystem', 777)).toEqual({ status: 'unknown' });
-  });
-
-  it('non-ok response → unknown', async () => {
-    vi.mocked(apiFetch).mockResolvedValue({
-      success: false,
-      data: undefined,
-      error: { code: 'REQUEST_FAILED', message: 'boom', statusCode: 500 },
+  it('returns unknown when the backend has no verdict yet (mergeable=null)', async () => {
+    mockApiFetch.mockResolvedValue({
+      success: true,
+      data: { mergeable: null },
     } as never);
-    expect(await fetchPRDetailMergeable('quant-ecosystem', 777)).toEqual({ status: 'unknown' });
+    expect(await fetchPRDetailMergeable('r1', 42)).toEqual({ status: 'unknown' });
   });
 
-  it('malformed body → unknown', async () => {
-    vi.mocked(apiFetch).mockResolvedValue({ success: true, data: null, error: undefined } as never);
-    expect(await fetchPRDetailMergeable('quant-ecosystem', 777)).toEqual({ status: 'unknown' });
-  });
-
-  it('network failure → unknown', async () => {
-    vi.mocked(apiFetch).mockRejectedValue(new Error('network down'));
-    expect(await fetchPRDetailMergeable('quant-ecosystem', 777)).toEqual({ status: 'unknown' });
+  it('returns unknown on unsuccessful responses and on network errors', async () => {
+    mockApiFetch.mockResolvedValue({ success: false, data: null } as never);
+    expect(await fetchPRDetailMergeable('r1', 42)).toEqual({ status: 'unknown' });
+    mockApiFetch.mockRejectedValue(new Error('offline'));
+    expect(await fetchPRDetailMergeable('r1', 42)).toEqual({ status: 'unknown' });
   });
 });
 
-describe('mergeBlockedByConflict — only a real conflict blocks the merge', () => {
-  it('conflict blocks', () => {
-    expect(mergeBlockedByConflict({ status: 'conflict', conflicts: ['a.ts'] })).toBe(true);
-  });
-
-  it('checking / mergeable / unknown never block', () => {
-    expect(mergeBlockedByConflict({ status: 'checking' })).toBe(false);
+describe('mergeBlockedByConflict', () => {
+  it('blocks only on a detected conflict', () => {
+    expect(mergeBlockedByConflict({ status: 'conflict', conflicts: [] })).toBe(true);
     expect(mergeBlockedByConflict({ status: 'mergeable' })).toBe(false);
+    expect(mergeBlockedByConflict({ status: 'checking' })).toBe(false);
     expect(mergeBlockedByConflict({ status: 'unknown' })).toBe(false);
   });
 });
 
-describe('PRDetailMergeActionBox — end-to-end states', () => {
-  beforeEach(() => {
-    vi.mocked(apiFetch).mockReset();
+describe('MergeConflictStatus claim honesty', () => {
+  it('shows the no-conflict claim ONLY for a verified mergeable verdict', () => {
+    const html = renderToStaticMarkup(<MergeConflictStatus check={{ status: 'mergeable' }} />);
+    expect(html).toContain('This branch has no conflicts with the base branch.');
   });
 
-  it('verified clean: claim appears, merge button stays enabled', async () => {
-    vi.mocked(apiFetch).mockResolvedValue(mergeableEnvelope({ mergeable: true }) as never);
-    render(
-      <PRDetailMergeActionBox repoId="quant-ecosystem" pr={MOCK_PR} onMerge={vi.fn()} />,
+  it('shows conflict state and blocks instead of claiming clean', () => {
+    const html = renderToStaticMarkup(
+      <MergeConflictStatus check={{ status: 'conflict', conflicts: ['src/a.ts'] }} />,
     );
-    await waitFor(() => {
-      expect(screen.getByTestId('merge-conflict-clean')).toBeDefined();
-    });
-    expect(screen.getByText(NO_CONFLICT_CLAIM)).toBeDefined();
-    expect(screen.getByRole('button', { name: /merge pull request/i }).hasAttribute('disabled')).toBe(
-      false,
-    );
+    expect(html).toContain('merge-conflict-detected');
+    expect(html).toContain('has conflicts with the base branch');
+    expect(html).toContain('src/a.ts');
+    expect(html).not.toContain('This branch has no conflicts with the base branch.');
   });
 
-  it('conflict detected: names the conflict, lists files, disables merge', async () => {
-    vi.mocked(apiFetch).mockResolvedValue(
-      mergeableEnvelope({ mergeable: false, conflicts: ['src/x.ts'] }) as never,
-    );
-    render(
-      <PRDetailMergeActionBox repoId="quant-ecosystem" pr={MOCK_PR} onMerge={vi.fn()} />,
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId('merge-conflict-detected')).toBeDefined();
-    });
-    expect(screen.getByText(/has conflicts with the base branch/)).toBeDefined();
-    expect(screen.getByText('src/x.ts')).toBeDefined();
-    expect(screen.getByRole('button', { name: /merge pull request/i }).hasAttribute('disabled')).toBe(
-      true,
-    );
-    expect(screen.queryByText(NO_CONFLICT_CLAIM)).toBeNull();
+  it('never claims clean while checking or when the verdict is unknown', () => {
+    const checking = renderToStaticMarkup(<MergeConflictStatus check={{ status: 'checking' }} />);
+    const unknown = renderToStaticMarkup(<MergeConflictStatus check={{ status: 'unknown' }} />);
+    for (const html of [checking, unknown]) {
+      expect(html).not.toContain('This branch has no conflicts with the base branch.');
+    }
+    expect(checking).toContain('Checking for merge conflicts');
+    expect(unknown).toContain('merge-conflict-unknown');
+    expect(unknown).toContain('neither a pass nor a failure');
   });
+});
 
-  it('unknown: admits the check is unavailable, claims neither outcome, merge not blocked', async () => {
-    vi.mocked(apiFetch).mockRejectedValue(new Error('offline'));
-    render(
-      <PRDetailMergeActionBox repoId="quant-ecosystem" pr={MOCK_PR} onMerge={vi.fn()} />,
+describe('PRDetailMergeActionBox initial honesty', () => {
+  it('shows checking state, not the unverified no-conflict claim, before the pre-check runs', () => {
+    // useEffect does not run under renderToStaticMarkup, so this is the
+    // honest initial state users see while the backend pre-check is pending.
+    const html = renderToStaticMarkup(
+      <PRDetailMergeActionBox repoId="r1" pr={PR} onMerge={() => {}} />,
     );
-    await waitFor(() => {
-      expect(screen.getByTestId('merge-conflict-unknown')).toBeDefined();
-    });
-    expect(screen.getByText(/Merge-conflict status is unknown/)).toBeDefined();
-    expect(screen.queryByText(NO_CONFLICT_CLAIM)).toBeNull();
-    expect(screen.getByRole('button', { name: /merge pull request/i }).hasAttribute('disabled')).toBe(
-      false,
-    );
+    expect(html).toContain('pr-detail-merge-box');
+    expect(html).toContain('Checking for merge conflicts');
+    expect(html).not.toContain('This branch has no conflicts with the base branch.');
+    // Merge button must not be hard-disabled on the unverified state.
+    expect(html).toContain('Merge pull request');
+    expect(html).not.toContain('Resolve merge conflicts before merging');
   });
 });

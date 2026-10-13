@@ -105,13 +105,13 @@ export interface QuantGitModalsProps {
  */
 export async function fetchPRDetailMergeable(
   repoId: string,
-  prId: number,
+  prNumber: number,
 ): Promise<MergeConflictCheckState> {
   try {
     const res = await apiFetch<{
       mergeable: boolean | null;
       conflicts?: string[];
-    }>(`/api/repos/${encodeURIComponent(repoId)}/pulls/${prId}/mergeable`);
+    }>(`/api/repos/${encodeURIComponent(repoId)}/pulls/${prNumber}/mergeable`);
     const data = res.success ? res.data : null;
     if (data?.mergeable === true) return { status: 'mergeable' };
     if (data?.mergeable === false) {
@@ -150,6 +150,8 @@ interface PRDetailMergeActionBoxProps {
  */
 export function PRDetailMergeActionBox({ repoId, pr, onMerge }: PRDetailMergeActionBoxProps) {
   const [check, setCheck] = useState<MergeConflictCheckState>({ status: 'checking' });
+  // GitHub-style API identity: prefer the PR number, fall back to the row id.
+  const prNumber = (pr as { number?: number }).number ?? pr.id;
   useEffect(() => {
     let cancelled = false;
     if (!repoId) {
@@ -159,13 +161,13 @@ export function PRDetailMergeActionBox({ repoId, pr, onMerge }: PRDetailMergeAct
       };
     }
     setCheck({ status: 'checking' });
-    fetchPRDetailMergeable(repoId, pr.id).then((next) => {
+    fetchPRDetailMergeable(repoId, prNumber).then((next) => {
       if (!cancelled) setCheck(next);
     });
     return () => {
       cancelled = true;
     };
-  }, [repoId, pr.id]);
+  }, [repoId, prNumber]);
 
   const blocked = mergeBlockedByConflict(check);
 
