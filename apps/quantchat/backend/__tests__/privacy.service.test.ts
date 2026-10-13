@@ -373,6 +373,54 @@ describe('PrivacyService.checkCanMessage', () => {
   });
 });
 
+describe('PrivacyService.checkCanMessage — blocked verdict (QC-F-317)', () => {
+  function svcForBlocked(
+    privacy: Record<string, unknown>,
+    blockedUsers: unknown,
+    extra: FakeOptions = {},
+  ) {
+    return new PrivacyService(
+      makeFakePrisma({
+        users: new Map([
+          [OWNER, { preferences: { chatSettings: { privacy, blockedUsers } } }],
+        ]),
+        ...extra,
+      }),
+    );
+  }
+
+  it('14. a blocked creator is denied even when the target chose everyone (block beats permission)', async () => {
+    const svc = svcForBlocked({ whoCanMessage: 'everyone' }, [{ id: STRANGER }]);
+    await expect(svc.checkCanMessage(STRANGER, OWNER)).resolves.toBe('denied');
+  });
+
+  it('15. a blocked close friend is denied (friendship does not beat a block)', async () => {
+    const svc = svcForBlocked({ whoCanMessage: 'friends' }, [{ id: CLOSE_FRIEND }], {
+      closeFriendEdges: [{ userId: OWNER, friendId: CLOSE_FRIEND }],
+    });
+    await expect(svc.checkCanMessage(CLOSE_FRIEND, OWNER)).resolves.toBe('denied');
+  });
+
+  it('16. blocking someone else does not deny an unrelated creator', async () => {
+    const svc = svcForBlocked({ whoCanMessage: 'everyone' }, [{ id: 'user_other' }]);
+    await expect(svc.checkCanMessage(STRANGER, OWNER)).resolves.toBe('allowed');
+  });
+
+  it('17. a malformed blocked list fails closed as unavailable, never a silent allow', async () => {
+    const svc = svcForBlocked({ whoCanMessage: 'everyone' }, 'oops-string');
+    await expect(svc.checkCanMessage(STRANGER, OWNER)).resolves.toBe('unavailable');
+  });
+
+  it('18. ordering pins (R3): missing target stays missing-target and a read error stays unavailable', async () => {
+    const svc = new PrivacyService(makeFakePrisma());
+    await expect(svc.checkCanMessage(STRANGER, 'user_ghost')).resolves.toBe(
+      'missing-target',
+    );
+    const failing = new PrivacyService(makeFakePrisma({ throwOnUserRead: true }));
+    await expect(failing.checkCanMessage(STRANGER, OWNER)).resolves.toBe('unavailable');
+  });
+});
+
 describe('extractBlockedUserIds (QC-F-218)', () => {
   it('returns [] when nothing was ever stored', () => {
     expect(extractBlockedUserIds(null)).toEqual([]);
