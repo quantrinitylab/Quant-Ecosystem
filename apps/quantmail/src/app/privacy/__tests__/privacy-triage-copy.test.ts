@@ -11,16 +11,15 @@
 //     packages/ai/src/core/model-router.ts). NOT on-device, NOT client-local.
 //   - Triage and summarize routes are wired and user-facing:
 //     src/app/api/ai/{triage,summarize,summarize-thread}/route.ts +
-//     backend/routes/ai-services.ts.
-//   - Reply drafting is NOT user-facing: POST /api/v1/ai/reply exists in the
-//     backend, but NO UI surface calls it (dead plumbing) — so the auth brand
-//     panel's "AI triage" card no longer claims "drafts the reply" (removed
-//     by #1083, 2026-10-13). The card's promise is: surface what's urgent +
-//     sum up long threads — both provable truths.
-// So the honest resolution is: keep the provable triage promise and QUALIFY
-// the privacy wording. These tests pin both halves via source assertions
-// (same pattern as privacy-copy.test.ts); JSX block comments are stripped so
-// audit notes may reference the removed absolute claim.
+//     backend/routes/ai-services.ts. Reply drafting (POST /api/v1/ai/reply,
+//     AIReplyService) exists backend-only — NO UI surface calls it (the
+//     composer's onAIAssist prop is never rendered by EmailComposer: dead
+//     plumbing, verified 2026-10-13 in PR #1083) — so it is not a provable
+//     user-facing truth and the auth card no longer claims it.
+// So the honest resolution is: keep the triage promise (it is provable) and
+// QUALIFY the privacy wording. These tests pin both halves via source
+// assertions (same pattern as privacy-copy.test.ts); JSX block comments are
+// stripped so audit notes may reference the removed absolute claim.
 // ============================================================================
 
 import { describe, expect, it } from 'vitest';
@@ -102,12 +101,11 @@ describe('privacy ↔ auth-brand triage copy consistency', () => {
   });
 
   it('auth brand panel keeps the provable triage promise (not watered down)', () => {
-    // Triage + thread summarization are wired and user-facing, so the card's
-    // promise (honest wording set in PR #1083) is a provable truth. AI reply
-    // drafting is deliberately NOT claimed: the backend route exists but no UI
-    // surface calls it, so "drafts the reply" is not a provable user-facing
-    // truth — assert its absence so it cannot creep back in as an unprovable
-    // claim.
+    // The card's promise is the HONEST wording set in PR #1083: triage +
+    // summarize are shipped and user-facing, so both are provable truths.
+    // AI reply drafting is deliberately NOT claimed here — the backend route
+    // exists but no UI surface calls it, so "drafts the reply" is not a
+    // provable user-facing truth and was removed from the card.
     expect(brandSource).toMatch(/title="AI triage"/);
     expect(brandSource).toMatch(/surfaces what'?s urgent/);
     expect(brandSource).toMatch(/sums up long threads/);

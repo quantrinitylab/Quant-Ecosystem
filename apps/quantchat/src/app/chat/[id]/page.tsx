@@ -122,7 +122,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     setIsStartingCall(true);
     setCallError(null);
     try {
-      const res = await apiClient.initiate1v1Call(calleeId);
+      const res = await apiClient.initiate1v1Call(calleeId, id);
       if (!res.success || !res.data) {
         throw new Error(res.error?.message || 'Could not start the call.');
       }

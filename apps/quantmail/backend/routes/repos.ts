@@ -924,12 +924,14 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     const parsed = importRepoSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
 
-    let userId: string;
-    try {
-      userId = requireUserId(request);
-    } catch {
-      userId = parsed.data.targetOwner || 'user-default';
-    }
+    // SECURITY: auth is mandatory. requireUserId throws the honest 401
+    // UNAUTHORIZED error for callers without an authenticated identity — there
+    // is intentionally NO try/catch fallback here. A previous fallback silently
+    // attributed imports to the caller-supplied targetOwner (or the
+    // 'user-default' pseudo-user), letting unauthenticated callers POST
+    // /api/repos/import (also mounted at /repos/import) and mint repositories
+    // owned by arbitrary user IDs (P0 auth bypass, 2026-10-13).
+    const userId = requireUserId(request);
 
     const prisma = getPrisma(fastify);
     const service = prisma ? new RepoMigrationService(prisma) : repoMigrationService;
@@ -937,7 +939,11 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       sourceUrl: parsed.data.sourceUrl,
       provider: parsed.data.provider,
       token: parsed.data.token,
-      targetOwner: parsed.data.targetOwner || userId,
+      // Spoof-proof: the owner derives ONLY from the authenticated identity.
+      // The schema still accepts the optional targetOwner field for backwards
+      // compatibility, but it is never trusted — ignoring it matches the
+      // create-repo route, which uses ownerId: userId directly.
+      targetOwner: userId,
       targetRepoName: parsed.data.targetRepoName,
       isPrivate: parsed.data.isPrivate,
       importPipelines: parsed.data.importPipelines,
@@ -2360,9 +2366,28 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         if (gitHeadSha) headSha = gitHeadSha;
       }
 
-      let newCommitSha = '2222222222222222222222222222222222222222';
+      // Honest merge discipline: a merge MUST produce a real git commit.
+      // Never fabricate a SHA or mark the PR merged when the bare repo
+      // (or the base/head commits) cannot be reached — report the failure
+      // and leave the pull request open instead.
+      if (!isBareRepoPresent || !repoPath) {
+        throw createAppError(
+          'Repository storage unavailable for merge — the git repository is not on disk. No commit was created and the pull request remains open.',
+          501,
+          'REPO_STORAGE_UNAVAILABLE',
+        );
+      }
+      if (!baseSha || !headSha) {
+        throw createAppError(
+          'Cannot resolve the base and head commits for this pull request. No commit was created and the pull request remains open.',
+          409,
+          'MERGE_SHAS_UNRESOLVABLE',
+        );
+      }
 
-      if (isBareRepoPresent && repoPath && baseSha && headSha) {
+      let newCommitSha: string;
+
+      {
         // 1. git merge-tree <baseSha> <headSha>
         let mergeTreeStdout = '';
         try {
@@ -2392,6 +2417,15 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           { cwd: repoPath, env: GIT_CHILD_ENV },
         );
         newCommitSha = commitStdout.trim();
+        // Never let a malformed/fake SHA through — a real commit-tree
+        // always yields a 40-hex object id.
+        if (!/^[0-9a-f]{40}$/i.test(newCommitSha)) {
+          throw createAppError(
+            'Merge produced an invalid commit SHA. No merge was recorded and the pull request remains open.',
+            500,
+            'MERGE_INVALID_SHA',
+          );
+        }
 
         // 3. git update-ref refs/heads/${pr.targetBranch} <newCommitSha> <baseSha>
         await execFileAsync(

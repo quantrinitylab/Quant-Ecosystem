@@ -746,9 +746,11 @@ paths:
           application/json:
             schema:
               type: object
-              required: [calleeId]
+              required: [calleeId, conversationId]
               properties:
                 calleeId:
+                  type: string
+                conversationId:
                   type: string
       responses:
         '201':
@@ -769,6 +771,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '403':
+          description: Caller or callee is not an active member of the conversation, or the callee has blocked the caller
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Calls unavailable, or membership/block status cannot be verified (fail-closed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /calls/group:
     post:
@@ -780,7 +800,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [participantIds]
+              required: [participantIds, conversationId]
               properties:
                 participantIds:
                   type: array
@@ -788,6 +808,8 @@ paths:
                     type: string
                   minItems: 1
                   maxItems: 7
+                conversationId:
+                  type: string
       responses:
         '201':
           description: Group call initiated
@@ -803,6 +825,24 @@ paths:
                 $ref: '#/components/schemas/Error'
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Caller or a participant is not an active member of the conversation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Calls unavailable, or membership cannot be verified (fail-closed)
           content:
             application/json:
               schema:

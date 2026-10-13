@@ -151,7 +151,7 @@ describe('QuantGit GitHub Sovereign Parity: PR 3-Way Merge & Actions Streaming L
       expect(html).not.toContain('+export const TELEMETRY_SAMPLE_RATE = 1.0;');
     });
 
-    it('renders diff viewer shell with unified vs split view modes (honest, no fake hunks)', () => {
+    it('renders diff section with NO dead Unified/Split toggles (honest, no fake hunks)', () => {
       const html = renderToStaticMarkup(
         <PullRequestsTab
           pullSearchQuery=""
@@ -165,11 +165,17 @@ describe('QuantGit GitHub Sovereign Parity: PR 3-Way Merge & Actions Streaming L
 
       // No fabricated hunk headers
       expect(html).not.toContain('@@ -14,8 +14,21 @@');
-      expect(html).toContain('data-testid="diff-mode-unified"');
-      expect(html).toContain('data-testid="diff-mode-split"');
-      expect(html).toContain('Unified');
-      expect(html).toContain('Split');
+      // The dead mode toggles are gone: no per-file diff endpoint exists,
+      // so a Unified/Split switch would promise a working diff viewer.
+      expect(html).not.toContain('data-testid="diff-mode-unified"');
+      expect(html).not.toContain('data-testid="diff-mode-split"');
+      expect(html).not.toContain('Unified');
+      expect(html).not.toContain('Split');
+      // Honest states remain: real stats header + unavailable notice
+      expect(html).toContain('data-testid="diff-viewer"');
+      expect(html).toContain('Files changed (2)');
       expect(html).toContain('data-testid="diff-unavailable"');
+      expect(html).toContain('Diff preview is not available for this pull request yet.');
     });
 
     it('does not render fabricated inline review comments on fake diff lines', () => {

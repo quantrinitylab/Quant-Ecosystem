@@ -198,7 +198,9 @@ describe('calls routes fail closed without LiveKit configuration', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/calls/initiate',
-      payload: { calleeId: 'user-2' },
+      // QC-F-218: conversationId is now a required field (membership gate);
+      // the fail-closed assertion below is unchanged.
+      payload: { calleeId: 'user-2', conversationId: 'conv-1' },
     });
 
     expect(res.statusCode).toBe(503);
