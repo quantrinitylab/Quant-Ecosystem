@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerWarn } from '../../../lib/server-log';
 
 // ============================================================================
 // QuantAI — CSP violation report collector (F-212 companion).
@@ -62,8 +63,9 @@ export async function POST(request: NextRequest | Request) {
       : (isSafeString(report['violated-directive']) ? report['violated-directive'] : 'n/a');
     const documentUri = isSafeString(report['document-uri']) ? report['document-uri'] : 'n/a';
     // Structured single-line log — greppable, no stack traces, no user data.
-    console.warn(
-      `[csp-report] blocked-uri=${blockedUri} directive=${directive} document=${documentUri}`,
+    logServerWarn(
+      '[csp-report]',
+      `blocked-uri=${blockedUri} directive=${directive} document=${documentUri}`,
     );
   }
 
