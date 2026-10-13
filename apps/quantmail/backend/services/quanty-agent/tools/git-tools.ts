@@ -553,8 +553,9 @@ const mergePrTool: QuantyTool = {
       }
     }
 
-    // Perform the git-level merge when a bare repo is present, otherwise
-    // record the merge at the Prisma level.
+    // Perform a real git-level merge. performGitMerge throws on conflicts
+    // and throws RepoStorageUnavailableError when the bare repo is absent
+    // from disk — in that case the PR stays open and nothing is persisted.
     let mergeCommitSha: string;
     try {
       const { performGitMerge } = await import('./git-helpers');
@@ -562,6 +563,11 @@ const mergePrTool: QuantyTool = {
     } catch (e: any) {
       if (e && (e as any).code === 'MERGE_CONFLICT') {
         return fail(`Merge conflict detected for PR #${prNumber}. Resolve conflicts and retry.`);
+      }
+      if (e && (e as any).code === 'REPO_STORAGE_UNAVAILABLE') {
+        return fail(
+          `Cannot merge PR #${prNumber}: repository storage is unavailable (no git repository on disk). The PR stays open — no commit was created and no SHA was recorded.`,
+        );
       }
       return fail(`Merge failed: ${(e as Error).message}`);
     }

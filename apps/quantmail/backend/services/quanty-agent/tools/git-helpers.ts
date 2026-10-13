@@ -45,6 +45,20 @@ export class MergeConflictError extends Error {
   }
 }
 
+/**
+ * Thrown when a merge cannot run because the bare git repository is not on
+ * disk (or the base/head commits cannot be resolved). The caller must leave
+ * the PR open and report the failure honestly — never fabricate a SHA.
+ */
+export class RepoStorageUnavailableError extends Error {
+  readonly code = 'REPO_STORAGE_UNAVAILABLE';
+  constructor() {
+    super(
+      'Repository storage unavailable for merge — no git repository on disk. No commit was created; refusing to fabricate a merge commit SHA.',
+    );
+  }
+}
+
 async function pathExists(filePath: string): Promise<boolean> {
   try {
     await access(filePath);
@@ -123,8 +137,13 @@ export async function resolveGitDiff(
 /**
  * Perform a real merge of the PR's source branch into its target branch.
  * Uses `git merge-tree` + `commit-tree` + `update-ref` when a bare repo is
- * present (same as the repos.ts merge endpoint); otherwise records a
- * synthetic merge commit SHA. Throws MergeConflictError on conflicts.
+ * present (same as the repos.ts merge endpoint).
+ *
+ * Honest-failure discipline: throws RepoStorageUnavailableError when the
+ * bare repo is absent from disk (or the base/head commits cannot be
+ * resolved) — the caller must leave the PR open and report the failure.
+ * NEVER fabricates or returns a synthetic merge commit SHA.
+ * Throws MergeConflictError on conflicts.
  */
 export async function performGitMerge(
   prisma: GitToolsPrisma,
@@ -178,7 +197,7 @@ export async function performGitMerge(
     return newCommitSha;
   }
 
-  // No bare repo on disk — record a synthetic merge SHA (matches the route's
-  // fallback behaviour so DB state stays consistent).
-  return '2222222222222222222222222222222222222222';
+  // No bare repo on disk (or SHAs unresolvable) — honest failure. Never
+  // fabricate a synthetic merge SHA; the PR must stay open.
+  throw new RepoStorageUnavailableError();
 }

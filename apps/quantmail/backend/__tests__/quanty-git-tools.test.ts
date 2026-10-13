@@ -231,7 +231,7 @@ describe('Quanty Git Tools', () => {
   });
 
   describe('merge_pr', () => {
-    it('merges an open PR', async () => {
+    it('fails honestly when the bare repo is absent from disk (never fabricates a merge SHA)', async () => {
       const { ctx, prisma } = ctxWithRepo();
       const pr = {
         id: 'pr-1',
@@ -246,11 +246,13 @@ describe('Quanty Git Tools', () => {
       (prisma.pullRequest.update as any).mockImplementation(async (a: any) => ({ ...pr, ...a.data }));
       (prisma.branch.upsert as any).mockResolvedValue({});
       const res = await tool('merge_pr').handler({ repo: 'demo', prNumber: 3 }, ctx);
-      expect(res.success).toBe(true);
-      expect((res.data as any).number).toBe(3);
-      expect(prisma.pullRequest.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ status: 'MERGED' }) }),
-      );
+      // No bare repo on disk in this unit-test env: the merge must fail
+      // honestly instead of returning a fabricated mergeCommitSha. The PR
+      // stays open and nothing is persisted.
+      expect(res.success).toBe(false);
+      expect(res.message).toContain('storage is unavailable');
+      expect(prisma.pullRequest.update).not.toHaveBeenCalled();
+      expect(prisma.branch.upsert).not.toHaveBeenCalled();
     });
 
     it('refuses already-merged PRs', async () => {
