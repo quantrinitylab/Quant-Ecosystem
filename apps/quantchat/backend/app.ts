@@ -1,4 +1,4 @@
-import { createApp } from '@quant/server-core';
+import { createApp, requiresRealSecret } from '@quant/server-core';
 import type { AppConfig } from '@quant/server-core';
 import type { PrismaClient } from '@prisma/client';
 import messagesRoutes from './routes/messages';
@@ -55,12 +55,16 @@ import { createAccountStatusGate } from './lib/account-status';
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
 
-  if (env === 'production' && !process.env['JWT_SECRET']) {
-    throw new Error('JWT_SECRET environment variable is required in production');
+  // QC-F-080: every deployed (non-local) env needs a real JWT_SECRET, not
+  // only the exact name 'production' — staging previously fell through to
+  // the public fallback below. Presence is checked here; the VALUE is
+  // checked by createApp's assertProductionSecret under the same predicate.
+  if (requiresRealSecret(env) && !process.env['JWT_SECRET']) {
+    throw new Error(`JWT_SECRET environment variable is required in ${env}`);
   }
 
   if (
-    (env === 'production' || (env as string) === 'staging') &&
+    (env === 'production' || env === 'staging') &&
     !process.env['VOICE_BOT_SECRET'] &&
     !process.env['LIVEKIT_API_SECRET']
   ) {

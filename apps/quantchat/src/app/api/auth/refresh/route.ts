@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authCookieSecure } from '../../_lib/cookie-options';
 
 const BACKEND_URL =
   process.env.QUANTCHAT_BACKEND_URL ||
@@ -62,9 +63,9 @@ export async function POST(request: NextRequest) {
       const cookieOptions = {
         path: '/',
         httpOnly: true,
-        // Secure only in production so http://localhost dev login keeps working;
-        // staging + prod are HTTPS, where the Secure flag is enforced.
-        secure: process.env.NODE_ENV === 'production',
+        // Secure on every deployed env (QC-F-080 shared helper);
+        // only local dev/test skip it so http://localhost login works.
+        secure: authCookieSecure(),
         sameSite: 'lax' as const,
       };
       nextResp.cookies.set('quant_access_token', newAccessToken, cookieOptions);

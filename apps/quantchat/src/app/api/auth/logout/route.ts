@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authCookieSecure } from '../../_lib/cookie-options';
 
 const BACKEND_URL =
   process.env.QUANTCHAT_BACKEND_URL ||
@@ -25,7 +26,8 @@ const BACKEND_URL =
  * offline or backend-down, the cookies are still expired and the client
  * still clears locally, so a user who taps "Sign out" is signed out on
  * this device regardless. The flags mirror the writers (path '/',
- * HttpOnly, Secure in production, Lax) so the browser matches and deletes
+ * HttpOnly, Secure via the shared QC-F-080 helper, Lax) so the browser
+ * matches and deletes
  * the same cookies. Expired below: `quant_access_token` + `token`
  * (current writers) and `quant_refresh_token` (the cookie PR #861's SSO
  * callback/ticket routes set).
@@ -61,7 +63,7 @@ export async function POST(request: NextRequest) {
   const expired = {
     path: '/',
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: authCookieSecure(),
     sameSite: 'lax' as const,
     maxAge: 0,
     expires: new Date(0),

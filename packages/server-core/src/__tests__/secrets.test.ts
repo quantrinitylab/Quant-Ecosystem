@@ -4,6 +4,7 @@ import {
   InsecureSecretError,
   INSECURE_DEV_JWT_SECRET,
   MIN_PRODUCTION_SECRET_LENGTH,
+  requiresRealSecret,
 } from '../secrets';
 
 const opts = { name: 'JWT_SECRET' } as const;
@@ -45,6 +46,13 @@ describe('assertProductionSecret', () => {
     expect(() => assertProductionSecret('K7$n2ZqR9wLm', opts)).toThrow(/at least 32/);
   });
 
+  it('rejects the WebSocket dev fallback string by value (QC-F-080)', () => {
+    // 56 chars: the old WS length-only check accepted this in production.
+    const wsFallback = 'dev-only-insecure-jwt-secret-not-for-production-use-000';
+    expect(wsFallback.length).toBeGreaterThanOrEqual(MIN_PRODUCTION_SECRET_LENGTH);
+    expect(() => assertProductionSecret(wsFallback, opts)).toThrow(InsecureSecretError);
+  });
+
   it('names the variable and the provisioning source so a crash loop is diagnosable', () => {
     try {
       assertProductionSecret(undefined, {
@@ -59,5 +67,27 @@ describe('assertProductionSecret', () => {
       expect(insecure.message).toContain('[FATAL]');
       expect(insecure.message).toContain('quant/trinity');
     }
+  });
+});
+
+// QC-F-080 case 1 — the predicate IS the security decision, so pin it by
+// name: a future "just add one more env name" refactor must fail here first.
+// Deployed names require a real secret; only local dev/test do not. Any
+// UNKNOWN future name must fail closed (true), never silently local.
+describe('requiresRealSecret (QC-F-080)', () => {
+  it('requires a real secret in production and staging', () => {
+    expect(requiresRealSecret('production')).toBe(true);
+    expect(requiresRealSecret('staging')).toBe(true);
+  });
+
+  it('requires a real secret for any unknown/future deployed name', () => {
+    expect(requiresRealSecret('preview')).toBe(true);
+    expect(requiresRealSecret('qa-public')).toBe(true);
+    expect(requiresRealSecret('production-v2')).toBe(true);
+  });
+
+  it('keeps local development and test on the dev fallback', () => {
+    expect(requiresRealSecret('development')).toBe(false);
+    expect(requiresRealSecret('test')).toBe(false);
   });
 });

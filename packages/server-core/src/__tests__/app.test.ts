@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as jose from 'jose';
 import { createApp } from '../app';
+import { InsecureSecretError } from '../secrets';
 import type { AppConfig } from '../types';
 
 const testConfig: AppConfig = {
@@ -418,5 +419,44 @@ describe('server-core app', () => {
       expect(res.statusCode).toBe(200);
       expect(res.json().channelId).toBe('channel-xyz-789');
     });
+  });
+});
+
+// QC-F-080 cases 2–4 — the createApp boot guard must fire on every deployed
+// (non-local) env name, not only the exact string 'production'. On the old
+// code every staging case below booted silently on the supplied value.
+describe('server-core app — deployed-env secret guard (QC-F-080)', () => {
+  const STRONG = 'K7$n2ZqR9wLm4XbV8pT1cY6hJ3fD5gQs';
+
+  it('rejects the committed public fallback on staging', async () => {
+    await expect(
+      createApp({ ...testConfig, env: 'staging', jwtSecret: 'dev-secret-change-in-production' }),
+    ).rejects.toThrow(InsecureSecretError);
+  });
+
+  it('rejects a missing/blank secret on staging', async () => {
+    await expect(createApp({ ...testConfig, env: 'staging', jwtSecret: '' })).rejects.toThrow(
+      InsecureSecretError,
+    );
+  });
+
+  it('rejects a short secret on staging', async () => {
+    await expect(
+      createApp({ ...testConfig, env: 'staging', jwtSecret: 'K7$n2ZqR9wLm4XbV' }),
+    ).rejects.toThrow(InsecureSecretError);
+  });
+
+  it('boots on staging with a strong provisioned secret', async () => {
+    const stagingApp = await createApp({ ...testConfig, env: 'staging', jwtSecret: STRONG });
+    await stagingApp.close();
+  });
+
+  it('still boots local development on the dev fallback (predicate control)', async () => {
+    const devApp = await createApp({
+      ...testConfig,
+      env: 'development',
+      jwtSecret: 'dev-secret-change-in-production',
+    });
+    await devApp.close();
   });
 });

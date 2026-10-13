@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authCookieSecure } from '../../_lib/cookie-options';
 
 const BACKEND_URL =
   process.env.QUANTCHAT_BACKEND_URL ||
@@ -139,20 +140,20 @@ export async function GET(request: NextRequest | Request) {
           if (exchangeData?.data?.user) {
             const nextResp = NextResponse.json({ success: true, data: exchangeData.data.user });
             if (exchangeData.data.accessToken) {
-              // P0-B fix: HttpOnly (+ Secure in production) so XSS cannot
+              // P0-B fix: HttpOnly (+ Secure on deployed envs, QC-F-080) so XSS cannot
               // steal the session token via document.cookie.
               nextResp.cookies.set('quant_access_token', exchangeData.data.accessToken, {
                 path: '/',
                 httpOnly: true,
-                // Secure only in production so http://localhost dev login keeps working;
-                // staging + prod are HTTPS, where the Secure flag is enforced.
-                secure: process.env.NODE_ENV === 'production',
+                // Secure on every deployed env (QC-F-080 shared helper);
+                // only local dev/test skip it so http://localhost login works.
+                secure: authCookieSecure(),
                 sameSite: 'lax',
               });
               nextResp.cookies.set('token', exchangeData.data.accessToken, {
                 path: '/',
                 httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
+                secure: authCookieSecure(),
                 sameSite: 'lax',
               });
             }

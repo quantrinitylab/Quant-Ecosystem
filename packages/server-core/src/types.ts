@@ -32,7 +32,7 @@ export interface AppConfig {
   jwtSecret: string;
   jwtIssuer: string;
   jwtAudience: string;
-  env: 'development' | 'production' | 'test';
+  env: 'development' | 'production' | 'staging' | 'test';
   /**
    * Extra URL path rules that bypass or relax the global auth hook (in addition to
    * the built-in health/metrics paths). Use for pre-authentication endpoints

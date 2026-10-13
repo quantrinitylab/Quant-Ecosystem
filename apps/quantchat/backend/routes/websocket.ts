@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import websocketPlugin, { type WebSocket } from '@fastify/websocket';
 import { ConnectionAuth, AuthError } from '@quant/realtime';
+import { assertProductionSecret, requiresRealSecret } from '@quant/server-core';
 import type { PresenceManager } from '@quant/realtime/presence';
 import type { RealtimeBackplane, RoomEvent } from '../services/realtime-backplane';
 import { BACKPLANE_PRESENCE_CHANNEL } from '../services/realtime-backplane';
@@ -17,21 +18,35 @@ import { DeliveryReceiptService } from '../services/delivery-receipt.service';
 import { getPrivacyService, type PrivacyService } from '../services/privacy.service';
 import type { AccountStatusGate } from '../lib/account-status';
 
-function getJwtSecret(): string {
+/**
+ * QC-F-080: the WS verifier reads its secret straight from the env, so the
+ * REST boot guards never covered it — and its old check was production-only
+ * AND length-only, so staging booted on a second public fallback string and
+ * production accepted any long-enough public placeholder explicitly set as
+ * JWT_SECRET (the value itself was never checked). Now: deployed
+ * (non-local) envs get the same value check as REST (assertProductionSecret)
+ * and a missing secret is a hard boot failure; the dev fallback survives
+ * ONLY for local development/test.
+ */
+export function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
-  if (process.env.NODE_ENV === 'production') {
-    if (!secret || secret.length < 32) {
-      throw new Error('JWT_SECRET must be set to a value of at least 32 characters in production');
+  const env = process.env.NODE_ENV ?? 'development';
+  if (secret) {
+    if (requiresRealSecret(env)) {
+      return assertProductionSecret(secret, {
+        name: 'JWT_SECRET',
+        provisionedBy: 'External Secrets (AWS Secrets Manager key quant/jwt)',
+      });
     }
     return secret;
   }
-  if (!secret) {
-    globalThis.console.warn(
-      '[SECURITY] JWT_SECRET not set - using dev-only fallback. NEVER use in production.',
-    );
-    return 'dev-only-insecure-jwt-secret-not-for-production-use-000';
+  if (requiresRealSecret(env)) {
+    throw new Error(`JWT_SECRET environment variable is required in ${env}`);
   }
-  return secret;
+  globalThis.console.warn(
+    '[SECURITY] JWT_SECRET not set - using dev-only fallback. NEVER use in production.',
+  );
+  return 'dev-only-insecure-jwt-secret-not-for-production-use-000';
 }
 
 /**

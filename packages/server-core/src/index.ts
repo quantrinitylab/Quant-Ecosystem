@@ -15,9 +15,11 @@ export type {
   FetchWithTimeoutOptions,
 } from './timeouts';
 export {
+  assertProductionSecret,
   InsecureSecretError,
   INSECURE_DEV_JWT_SECRET,
   MIN_PRODUCTION_SECRET_LENGTH,
+  requiresRealSecret,
 } from './secrets';
 export type { AssertSecretOptions } from './secrets';
 export { default as errorHandlerPlugin, createAppError, isAppError } from './plugins/error-handler';
