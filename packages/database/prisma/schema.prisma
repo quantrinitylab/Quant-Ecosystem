@@ -3286,11 +3286,17 @@ model OneTimePreKey {
   publicKey String // public one-time prekey
   claimed   Boolean   @default(false)
   claimedAt DateTime?
+  // QC-F-081: who consumed this key. The claimed rows double as the claim
+  // ledger — per-(claimer, owner) quota and pool-drain forensics are computed
+  // from (userId, claimedBy, claimedAt). Null for keys claimed before this
+  // column existed (and for unattributed legacy claims).
+  claimedBy String?
   createdAt DateTime  @default(now())
 
   bundle PreKeyBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
 
   @@index([userId, claimed])
+  @@index([userId, claimedBy, claimedAt])
   @@map("onetime_prekeys")
 }
 

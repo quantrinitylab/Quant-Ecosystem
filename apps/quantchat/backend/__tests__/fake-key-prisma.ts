@@ -44,6 +44,8 @@ interface OtkRow {
   publicKey: string;
   claimed: boolean;
   claimedAt: Date | null;
+  /** QC-F-081 claim ledger: who consumed the key (null = unattributed/legacy). */
+  claimedBy: string | null;
   createdAt: Date;
   /** Monotonic insertion order — models `ORDER BY "createdAt" ASC` deterministically. */
   seq: number;
@@ -195,6 +197,7 @@ export function createFakeKeyPrisma(): FakeKeyPrisma {
             publicKey: d.publicKey,
             claimed: false,
             claimedAt: null,
+            claimedBy: null,
             createdAt: new Date(),
             seq: (otkSeq += 1),
           });
@@ -210,11 +213,35 @@ export function createFakeKeyPrisma(): FakeKeyPrisma {
       },
     },
 
-    // Models the design's Algorithm 1 atomic claim. The select-and-mark runs
-    // synchronously (no internal await), mirroring `FOR UPDATE SKIP LOCKED`:
-    // each concurrent claim grabs a distinct row, never the same one twice.
-    async $queryRaw<T = unknown>(_strings: TemplateStringsArray, ...values: unknown[]): Promise<T> {
-      const userId = values[0] as string;
+    // Models the two raw statements PrismaKeyStorage issues:
+    //  (1) the design's Algorithm 1 atomic claim UPDATE — the select-and-mark
+    //      runs synchronously (no internal await), mirroring
+    //      `FOR UPDATE SKIP LOCKED`: each concurrent claim grabs a distinct
+    //      row, never the same one twice. QC-F-081: the UPDATE also stamps
+    //      `claimedBy`, so the interpolated values arrive as
+    //      [claimedBy, userId] (SET clause precedes the WHERE subquery).
+    //  (2) the QC-F-081 ledger COUNT — values [userId, since, claimer,
+    //      claimer]; a null claimer matches every claimer (aggregate count),
+    //      mirroring the `($p::text IS NULL OR "claimedBy" = $p)` predicate.
+    async $queryRaw<T = unknown>(strings: TemplateStringsArray, ...values: unknown[]): Promise<T> {
+      const sql = strings.join(' ');
+      if (sql.includes('COUNT(')) {
+        const userId = values[0] as string;
+        const since = values[1] as Date;
+        const claimer = (values[2] as string | null) ?? null;
+        const n = otks.filter(
+          (o) =>
+            o.userId === userId &&
+            o.claimed &&
+            o.claimedAt !== null &&
+            o.claimedAt >= since &&
+            (claimer === null || o.claimedBy === claimer),
+        ).length;
+        return [{ count: BigInt(n) }] as unknown as T;
+      }
+      const hasClaimedBy = sql.includes('"claimedBy"');
+      const claimedBy = hasClaimedBy ? ((values[0] as string | null) ?? null) : null;
+      const userId = (hasClaimedBy ? values[1] : values[0]) as string;
       const candidate = otks
         .filter((o) => o.userId === userId && !o.claimed)
         .sort((a, b) => a.seq - b.seq)[0];
@@ -223,6 +250,7 @@ export function createFakeKeyPrisma(): FakeKeyPrisma {
       }
       candidate.claimed = true;
       candidate.claimedAt = new Date();
+      candidate.claimedBy = claimedBy;
       return [{ publicKey: candidate.publicKey }] as unknown as T;
     },
 

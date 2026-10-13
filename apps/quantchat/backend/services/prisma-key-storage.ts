@@ -22,10 +22,23 @@ export interface OneTimePreKeyStore {
   /**
    * Atomically claim (consume) a single one-time prekey for a user.
    * Returns null when none remain (caller falls back to signedPreKey-only X3DH).
+   *
+   * QC-F-081: `claimedBy` records WHO consumed the key. The claimed rows are
+   * the claim ledger — per-claimer quota and drain forensics are computed
+   * from them via {@link OneTimePreKeyStore.countClaimsSince}. Omitting it
+   * records an unattributed claim (legacy callers only; the claim service
+   * always passes the authenticated requester).
    */
-  claimOneTimePreKey(userId: string): Promise<string | null>;
+  claimOneTimePreKey(userId: string, claimedBy?: string | null): Promise<string | null>;
   /** Count remaining unclaimed one-time prekeys (drives client replenishment). */
   countOneTimePreKeys(userId: string): Promise<number>;
+  /**
+   * QC-F-081: count keys claimed from `userId`'s pool at or after `since`,
+   * optionally restricted to a single claimer. Claimed rows are never
+   * un-claimed, so this is a durable ledger read — it survives restarts and
+   * is shared across backend instances, unlike an in-memory rate limiter.
+   */
+  countClaimsSince(userId: string, since: Date, claimedBy?: string): Promise<number>;
 }
 
 /**
@@ -224,10 +237,10 @@ export class PrismaKeyStorage implements KeyStorage, OneTimePreKeyStore {
    * is empty so the caller can fall back to signedPreKey-only X3DH.
    * (Requirements 2.3, 2.4, 2.5, 2.6)
    */
-  async claimOneTimePreKey(userId: string): Promise<string | null> {
+  async claimOneTimePreKey(userId: string, claimedBy?: string | null): Promise<string | null> {
     const rows = await this.prisma.$queryRaw<Array<{ publicKey: string }>>`
       UPDATE "onetime_prekeys"
-         SET "claimed" = true, "claimedAt" = now()
+         SET "claimed" = true, "claimedAt" = now(), "claimedBy" = ${claimedBy ?? null}
        WHERE "id" = (
          SELECT "id" FROM "onetime_prekeys"
           WHERE "userId" = ${userId} AND "claimed" = false
@@ -243,6 +256,31 @@ export class PrismaKeyStorage implements KeyStorage, OneTimePreKeyStore {
     }
 
     return rows[0].publicKey;
+  }
+
+  /**
+   * QC-F-081: ledger read backing the claim quotas. Raw SQL (like the claim
+   * itself) so it does not depend on a regenerated Prisma client knowing the
+   * `claimedBy` column. The claimer predicate is written so a single query
+   * shape serves both the per-(claimer, owner) counts and the per-owner
+   * aggregate-velocity count: a NULL claimer parameter matches every claimer.
+   */
+  async countClaimsSince(userId: string, since: Date, claimedBy?: string): Promise<number> {
+    const claimer = claimedBy ?? null;
+    const rows = await this.prisma.$queryRaw<Array<{ count: bigint | number }>>`
+      SELECT COUNT(*)::bigint AS "count"
+        FROM "onetime_prekeys"
+       WHERE "userId" = ${userId}
+         AND "claimed" = true
+         AND "claimedAt" >= ${since}
+         AND (${claimer}::text IS NULL OR "claimedBy" = ${claimer})
+    `;
+
+    if (!rows || rows.length === 0) {
+      return 0;
+    }
+
+    return Number(rows[0].count);
   }
 
   /**

@@ -12,8 +12,63 @@ function supportsOneTimePreKeys(storage: KeyStorage): storage is KeyStorage & On
   const candidate = storage as Partial<OneTimePreKeyStore>;
   return (
     typeof candidate.claimOneTimePreKey === 'function' &&
-    typeof candidate.storeOneTimePreKeys === 'function'
+    typeof candidate.storeOneTimePreKeys === 'function' &&
+    typeof candidate.countClaimsSince === 'function'
   );
+}
+
+// ---------------------------------------------------------------------------
+// QC-F-081 — one-time prekey claim quotas.
+//
+// Before this gate, ANY logged-in user could claim (consume) a victim's whole
+// one-time prekey pool one request at a time: claims were anonymous, unlimited
+// per claimer, and a claimed key never returns. The pool emptying silently
+// downgrades every NEW X3DH session for that victim to signedPreKey-only
+// (Requirement 2.6 fallback) with no signal to anyone.
+//
+// The gate runs in `claimPreKeyBundle` — the single service method both claim
+// lanes (GET /prekeys/:userId and GET /e2ee/prekeys/:userId) converge on — and
+// counts from the durable claim ledger (claimed rows carry claimedBy +
+// claimedAt), so limits survive restarts and are shared across instances.
+// A denied claim does NOT consume a key and does NOT error: the caller gets
+// the bundle without a one-time prekey, exactly the Requirement 2.6 shape.
+// ---------------------------------------------------------------------------
+
+/** Max keys one claimer may consume from one owner's pool per rolling hour. */
+export const PREKEY_CLAIM_PAIR_HOURLY_LIMIT = 10;
+/** Max keys one claimer may consume from one owner's pool per rolling day. */
+export const PREKEY_CLAIM_PAIR_DAILY_LIMIT = 25;
+/** Max keys consumable from one owner's pool (all claimers) per 10 minutes. */
+export const PREKEY_CLAIM_TARGET_VELOCITY_LIMIT = 30;
+export const PREKEY_CLAIM_TARGET_VELOCITY_WINDOW_MS = 10 * 60 * 1000;
+/** Remaining-pool size at/below which the pool-low signal fires. Matches the
+ * web client's replenishment threshold (e2eeClient: top up below 10). */
+export const PREKEY_POOL_LOW_THRESHOLD = 10;
+/** Minimum gap between pool-low signals for the same owner (per instance). */
+export const PREKEY_POOL_LOW_SIGNAL_INTERVAL_MS = 60 * 60 * 1000;
+
+export type PrekeyClaimDenialReason =
+  | 'unattributed'
+  | 'pair-hourly-quota'
+  | 'pair-daily-quota'
+  | 'target-velocity';
+
+export interface PrekeyClaimHooks {
+  /**
+   * A claim was refused by the QC-F-081 gate and NO key was consumed.
+   * Carries ids and counts only — never key material.
+   */
+  onClaimThrottled?(info: {
+    targetUserId: string;
+    requesterId: string | null;
+    reason: PrekeyClaimDenialReason;
+  }): void;
+  /**
+   * A successful claim left the owner's pool at/below
+   * {@link PREKEY_POOL_LOW_THRESHOLD}. Throttled per owner by the service.
+   * Carries ids and counts only — never key material.
+   */
+  onPoolLow?(info: { targetUserId: string; remaining: number }): void;
 }
 
 export interface PreKeyBundle {
@@ -66,7 +121,13 @@ export class InMemoryKeyStorage implements KeyStorage {
 }
 
 export class EncryptionService {
-  constructor(private readonly storage: KeyStorage) {}
+  /** Last pool-low signal time per owner (throttles the signal, per instance). */
+  private readonly poolLowSignalledAt = new Map<string, number>();
+
+  constructor(
+    private readonly storage: KeyStorage,
+    private readonly hooks: PrekeyClaimHooks = {},
+  ) {}
 
   async uploadPreKeyBundle(
     userId: string,
@@ -147,7 +208,7 @@ export class EncryptionService {
    * remains, the bundle is returned without one so the caller falls back to
    * signedPreKey-only X3DH (Requirement 2.6).
    */
-  async claimPreKeyBundle(userId: string): Promise<PreKeyBundle> {
+  async claimPreKeyBundle(userId: string, requesterId?: string | null): Promise<PreKeyBundle> {
     const bundle = await this.storage.getBundle(userId);
     if (!bundle) {
       throw createAppError('No prekey bundle found for user', 404, 'BUNDLE_NOT_FOUND');
@@ -163,13 +224,115 @@ export class EncryptionService {
     };
 
     if (supportsOneTimePreKeys(this.storage)) {
-      const oneTimePreKey = await this.storage.claimOneTimePreKey(userId);
+      const oneTimePreKey = await this.claimOneTimePreKeyGated(userId, requesterId ?? null);
       if (oneTimePreKey) {
         publicBundle.oneTimePreKey = oneTimePreKey;
       }
     }
 
     return publicBundle;
+  }
+
+  /**
+   * QC-F-081 gate in front of the atomic claim. Returns a claimed key, or
+   * null when the claim is refused (the caller then serves the bundle
+   * without a one-time prekey — Requirement 2.6 fallback, no error).
+   *
+   * Refusals, in order:
+   *  - `unattributed`: no authenticated requester id. An anonymous claim
+   *    cannot be quota'd or ledgered, so it never consumes (fail-closed).
+   *  - `pair-hourly-quota` / `pair-daily-quota`: this claimer has already
+   *    consumed {@link PREKEY_CLAIM_PAIR_HOURLY_LIMIT} /
+   *    {@link PREKEY_CLAIM_PAIR_DAILY_LIMIT} keys from this owner's pool in
+   *    the rolling window. A claimer with NO claim history against this
+   *    owner always passes — a first session is never quota-blocked.
+   *  - `target-velocity`: the owner's pool is being claimed at aggregate
+   *    velocity ({@link PREKEY_CLAIM_TARGET_VELOCITY_LIMIT} per
+   *    {@link PREKEY_CLAIM_TARGET_VELOCITY_WINDOW_MS}) — the signature of a
+   *    multi-account drain. This gate applies to everyone, first claimers
+   *    included: it is what stops account rotation from defeating the pair
+   *    quotas, and it only withholds the one-time key (sessions still
+   *    establish signedPreKey-only), never the bundle itself.
+   */
+  private async claimOneTimePreKeyGated(
+    targetUserId: string,
+    requesterId: string | null,
+  ): Promise<string | null> {
+    const storage = this.storage as KeyStorage & OneTimePreKeyStore;
+
+    if (!requesterId) {
+      this.hooks.onClaimThrottled?.({
+        targetUserId,
+        requesterId: null,
+        reason: 'unattributed',
+      });
+      return null;
+    }
+
+    const now = Date.now();
+
+    const claimsEverByPair = await storage.countClaimsSince(
+      targetUserId,
+      new Date(0),
+      requesterId,
+    );
+    if (claimsEverByPair > 0) {
+      const claimsLastHour = await storage.countClaimsSince(
+        targetUserId,
+        new Date(now - 60 * 60 * 1000),
+        requesterId,
+      );
+      if (claimsLastHour >= PREKEY_CLAIM_PAIR_HOURLY_LIMIT) {
+        this.hooks.onClaimThrottled?.({
+          targetUserId,
+          requesterId,
+          reason: 'pair-hourly-quota',
+        });
+        return null;
+      }
+
+      const claimsLastDay = await storage.countClaimsSince(
+        targetUserId,
+        new Date(now - 24 * 60 * 60 * 1000),
+        requesterId,
+      );
+      if (claimsLastDay >= PREKEY_CLAIM_PAIR_DAILY_LIMIT) {
+        this.hooks.onClaimThrottled?.({
+          targetUserId,
+          requesterId,
+          reason: 'pair-daily-quota',
+        });
+        return null;
+      }
+    }
+
+    const claimsVelocity = await storage.countClaimsSince(
+      targetUserId,
+      new Date(now - PREKEY_CLAIM_TARGET_VELOCITY_WINDOW_MS),
+    );
+    if (claimsVelocity >= PREKEY_CLAIM_TARGET_VELOCITY_LIMIT) {
+      this.hooks.onClaimThrottled?.({
+        targetUserId,
+        requesterId,
+        reason: 'target-velocity',
+      });
+      return null;
+    }
+
+    const oneTimePreKey = await storage.claimOneTimePreKey(targetUserId, requesterId);
+
+    if (oneTimePreKey) {
+      const remaining = await storage.countOneTimePreKeys(targetUserId);
+      if (remaining <= PREKEY_POOL_LOW_THRESHOLD) {
+        const lastSignalled = this.poolLowSignalledAt.get(targetUserId) ?? 0;
+        if (now - lastSignalled >= PREKEY_POOL_LOW_SIGNAL_INTERVAL_MS) {
+          this.poolLowSignalledAt.set(targetUserId, now);
+          this.hooks.onPoolLow?.({ targetUserId, remaining });
+        }
+      }
+    }
+
+    return oneTimePreKey;
   }
 
   async establishSession(initiatorId: string, responderId: string): Promise<KeySession> {

@@ -21,7 +21,16 @@ describe('QuantChat Prekey Registry & Ephemeral Snap Hard Purge (W36-02 & W36-05
           createMany: vi.fn(),
           count: vi.fn(),
         },
-        $queryRaw: vi.fn().mockResolvedValue([{ publicKey: 'ot-key-abc' }]),
+        // QC-F-081: the claim path now also issues the ledger COUNT query
+        // before the atomic claim UPDATE — answer 0 claims for COUNTs and
+        // the claimed key for the UPDATE.
+        $queryRaw: vi
+          .fn()
+          .mockImplementation((strings: TemplateStringsArray) =>
+            strings.join(' ').includes('COUNT(')
+              ? Promise.resolve([{ count: 0n }])
+              : Promise.resolve([{ publicKey: 'ot-key-abc' }]),
+          ),
       };
 
       const identityKey = 'id-key-123';
@@ -65,8 +74,9 @@ describe('QuantChat Prekey Registry & Ephemeral Snap Hard Purge (W36-02 & W36-05
         }),
       ).resolves.not.toThrow();
 
-      // Test fetching bundle & popping 1 one-time prekey
-      const fetched = await service.fetchPrekeyBundle('user-bob');
+      // Test fetching bundle & popping 1 one-time prekey (QC-F-081: the
+      // fetch now carries the authenticated claimer, 'user-alice')
+      const fetched = await service.fetchPrekeyBundle('user-bob', 'user-alice');
       expect(fetched).toMatchObject({
         identityKey,
         signedPrekey: {
