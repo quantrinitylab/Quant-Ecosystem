@@ -40,6 +40,16 @@ export interface ThreadComposerProps {
    * words back to the box.
    */
   onSendUndo?: (text: string, subject: string) => void;
+  /**
+   * QM fix qm-personthread-smart-replies: a smart-reply chip the user tapped
+   * above the box (SmartReplySuggestions). `{ text, nonce }` — the host
+   * mints a fresh nonce per tap so re-tapping the same chip still refills
+   * the box. Applied by overwriting the draft: a chip tap is an explicit
+   * "use these words" gesture, mirroring ConversationalThreadView's
+   * setQuickReplyText. The box keeps its own state afterwards — typing,
+   * sending, and the person-switch reset behave exactly as before.
+   */
+  suggestedReply?: { text: string; nonce: number } | null;
 }
 
 /**
@@ -129,8 +139,8 @@ export async function executeThreadSend(
  * text is preserved, nothing navigates, and no discard handler is ever
  * called — there is no `onDiscard` prop on this component by design.
  */
-export function ThreadComposer({ conversation, onSent, onSendStart, onSendError, onSendUndo }: ThreadComposerProps) {
-  const [body, setBody] = useState('');
+export function ThreadComposer({ conversation, suggestedReply, onSent, onSendStart, onSendError, onSendUndo }: ThreadComposerProps) {
+  const [body, setBody] = useState(suggestedReply?.text ?? '');
   const [newTopic, setNewTopic] = useState(false);
   const [customSubject, setCustomSubject] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -142,6 +152,25 @@ export function ThreadComposer({ conversation, onSent, onSendStart, onSendError,
     setNewTopic(false);
     setCustomSubject('');
   }, [conversation.personKey]);
+
+  // QM fix qm-personthread-smart-replies: a tapped smart-reply chip lands
+  // here. Fill the box and put the caret at the end so the user can edit or
+  // hit Enter to send — the same gesture as ConversationalThreadView's quick
+  // reply bar. Keyed on object identity (the host mints a fresh `{text,
+  // nonce}` per tap), so re-tapping the same chip refills the box.
+  useEffect(() => {
+    if (!suggestedReply) return;
+    setBody(suggestedReply.text);
+    const el = textareaRef.current;
+    if (el) {
+      el.focus();
+      // setBody flushes async — move the caret after paint so it lands at
+      // the end of the filled text rather than position 0.
+      requestAnimationFrame(() => {
+        el.setSelectionRange(el.value.length, el.value.length);
+      });
+    }
+  }, [suggestedReply]);
 
   // Auto-grow: the box follows its content instead of scrolling internally.
   useEffect(() => {

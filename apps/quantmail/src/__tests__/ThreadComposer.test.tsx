@@ -91,6 +91,21 @@ vi.mock('../components/PersonThread', () => ({
 vi.mock('../components/AppShell', () => ({
   AppShell: ({ children }: any) => <div data-testid="app-shell">{children}</div>,
 }));
+// QM fix qm-personthread-smart-replies: the real SmartReplySuggestions fetches
+// from the backend inside a useEffect (never runs under renderToStaticMarkup)
+// and pulls framer-motion. The mock keeps the page-wiring assertions honest —
+// it renders a tappable chip wired to the real onSelectReply prop, so the
+// chip → composer prefill loop is exercised without network or animation.
+const smartReplyChipText = vi.hoisted(() => ({ text: 'Sounds good, thanks!' }));
+vi.mock('../components/SmartReplySuggestions', () => ({
+  SmartReplySuggestions: ({ emailId, onSelectReply }: any) => (
+    <div data-testid="smart-replies" data-email-id={emailId}>
+      <button type="button" data-testid="smart-reply-chip" onClick={() => onSelectReply(smartReplyChipText.text)}>
+        {smartReplyChipText.text}
+      </button>
+    </div>
+  ),
+}));
 vi.mock('../components/AppSidebar', () => ({
   AppSidebar: () => <div data-testid="app-sidebar" />,
 }));
@@ -634,6 +649,101 @@ describe('/people/[personId] thread page', () => {
     expect(phantoms).toHaveLength(0);
     // The failed text is still in the box for a retry.
     expect(textarea.value).toBe('will fail');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+});
+
+describe('ThreadComposer smart-reply prefill (qm-personthread-smart-replies)', () => {
+  it('renders the tapped suggestion text in the box', () => {
+    const html = renderToStaticMarkup(
+      <ThreadComposer
+        conversation={makeConversation() as any}
+        currentUserEmail="me@quantmail.in"
+        suggestedReply={{ text: 'Sounds good, thanks!', nonce: 1 }}
+      />,
+    );
+    expect(html).toContain('id="people-reply-input"');
+    expect(html).toContain('Sounds good, thanks!');
+  });
+
+  it('renders an empty box with no suggestion (prop optional, backwards compatible)', () => {
+    const html = renderToStaticMarkup(
+      <ThreadComposer conversation={makeConversation() as any} currentUserEmail="me@quantmail.in" />,
+    );
+    expect(html).toContain('id="people-reply-input"');
+    expect(html).not.toContain('Sounds good, thanks!');
+  });
+});
+
+describe('/people/[personId] smart-reply wiring (qm-personthread-smart-replies)', () => {
+  it('renders smart-reply chips for the thread\'s latest message above the composer', () => {
+    groupState.convos = [makeConversation()];
+    navState.params = { personId: encodeURIComponent('ada') };
+
+    const html = renderToStaticMarkup(<PersonPage />);
+
+    // Chips are requested for the latest message — the same real backend
+    // (GET /emails/:id/reply-suggestions) the sibling ConversationalThreadView
+    // already uses. No canned fallbacks anywhere in this path.
+    expect(html).toContain('data-testid="smart-replies"');
+    expect(html).toContain('data-email-id="msg-9"');
+    // …and the composer they prefill sits in the same reply area below.
+    expect(html).toContain('id="people-reply-input"');
+  });
+
+  it('renders no smart replies in the updates world (no reply expectation)', () => {
+    groupState.convos = [makeConversation({ world: 'updates' })];
+    navState.params = { personId: encodeURIComponent('ada') };
+
+    const html = renderToStaticMarkup(<PersonPage />);
+
+    expect(html).not.toContain('data-testid="smart-replies"');
+    expect(html).not.toContain('id="people-reply-input"');
+  });
+
+  it('tapping a chip prefills the thread composer box (and re-tapping refills it)', async () => {
+    groupState.convos = [makeConversation()];
+    navState.params = { personId: encodeURIComponent('ada') };
+
+    // jsdom implements no scrollIntoView; the composer's onFocus handler
+    // calls it when the chip-prefill focuses the box. Stub it so the test
+    // exercises the real focus path without the jsdom gap (real browsers
+    // always have scrollIntoView — production code stays untouched).
+    (window.HTMLElement.prototype as unknown as Record<string, unknown>).scrollIntoView ??=
+      () => {};
+
+    const { act } = await import('react');
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const { createRoot } = await import('react-dom/client');
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(<PersonPage />);
+    });
+
+    const chip = container.querySelector('[data-testid="smart-reply-chip"]') as HTMLButtonElement;
+    expect(chip).not.toBeNull();
+    const box = container.querySelector('#people-reply-input') as HTMLTextAreaElement;
+    expect(box).not.toBeNull();
+    expect(box.value).toBe('');
+
+    await act(async () => {
+      chip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    // The chip's text lands in the box, ready to edit or send.
+    expect(box.value).toBe('Sounds good, thanks!');
+
+    // A second tap on the same chip refills the box (fresh nonce per tap —
+    // the fill is keyed on the suggestion object's identity, not its text).
+    await act(async () => {
+      chip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(box.value).toBe('Sounds good, thanks!');
 
     await act(async () => {
       root.unmount();

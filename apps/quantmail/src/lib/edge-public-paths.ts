@@ -94,6 +94,7 @@ const KNOWN_PRIVATE_SEGMENTS = [
   'postcards',
   'scheduled',
   'search',
+  'scheduled',
   'security',
   'sent',
   'settings',

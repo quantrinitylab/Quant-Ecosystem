@@ -37,7 +37,6 @@ import { MailIcon } from '../components/MailIcon';
 import { ReadTimeEstimate } from '../components/ReadTimeEstimate';
 import { QuantMailLogo } from '../components/QuantMailLogo';
 import { SelectionHeader } from '../components/SelectionHeader';
-import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
 import { GroupEditorModal, type GroupDraft } from '../components/GroupEditorModal';
 import { ThreadKindBadge } from '../components/MessageKindBadge';
 import { UnreadCountPill } from '../components/UnreadCountPill';
