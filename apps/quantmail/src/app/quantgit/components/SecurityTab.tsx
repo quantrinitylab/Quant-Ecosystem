@@ -29,6 +29,52 @@ export interface SecurityTabProps {
   onCreateFixPR?: (pkg: string, cve: string, version: string) => void;
 }
 
+/**
+ * Revoke a leaked credential via the REAL backend endpoint
+ * POST /api/repos/:id/security/secrets/:alertId/revoke (Next proxy -> Fastify,
+ * which persists status='revoked' in the server store).
+ *
+ * The success toast is only warranted when the server confirms
+ * data.status === 'revoked'. Any other outcome returns ok:false with an
+ * honest message and the caller must NOT flip local state or toast success.
+ * Exported for unit tests (component handlers are not directly testable with
+ * renderToStaticMarkup).
+ */
+export type RevokeSecretResult = { ok: true; message: string } | { ok: false; message: string };
+
+export async function revokeSecretOnServer(
+  targetRepo: string,
+  alertId: string,
+): Promise<RevokeSecretResult> {
+  try {
+    const res = await apiFetchRaw(
+      `/api/repos/${encodeURIComponent(targetRepo)}/security/secrets/${encodeURIComponent(alertId)}/revoke`,
+      { method: 'POST' },
+    );
+    const json = (await res.json().catch(() => null)) as {
+      success?: boolean;
+      data?: { status?: string; message?: string };
+      error?: { message?: string; code?: string };
+    } | null;
+    if (res.ok && json?.success && json?.data?.status === 'revoked') {
+      return { ok: true, message: json.data.message || 'Leaked credential revoked.' };
+    }
+    // Server refused or returned something unexpected — surface its honest
+    // message (e.g. 404 ALERT_NOT_FOUND) instead of inventing one.
+    return {
+      ok: false,
+      message:
+        json?.error?.message ||
+        'Revoke failed — the credential is still active. Nothing was changed.',
+    };
+  } catch {
+    return {
+      ok: false,
+      message: 'Revoke request failed — the credential is still active. Nothing was changed.',
+    };
+  }
+}
+
 export function SecurityTab({
   securityAlerts: propAlerts,
   showToast = () => {},
@@ -71,6 +117,11 @@ export function SecurityTab({
   const [secretSearch, setSecretSearch] = useState('');
   const [secretStatusFilter, setSecretStatusFilter] = useState<'all' | SecretAlertStatus>('all');
   const [isScanningSecrets, setIsScanningSecrets] = useState(false);
+  // Per-alert in-flight revoke markers — honest loading state while the real
+  // backend POST /api/repos/:id/security/secrets/:alertId/revoke is pending.
+  // The alert's status is NEVER flipped until the server confirms 'revoked',
+  // so a failed revoke needs no rollback: no false state was ever rendered.
+  const [revokingSecretIds, setRevokingSecretIds] = useState<ReadonlySet<string>>(new Set());
 
   // 3. CodeQL / SAST State
   // Genuine empty state — no fabricated CodeQL alerts.
@@ -277,11 +328,38 @@ export function SecurityTab({
     });
   }, [secretAlerts, secretStatusFilter, secretSearch]);
 
-  const handleRevokeSecret = (id: string, secretType: string, filePath: string) => {
-    setSecretAlerts((prev) =>
-      prev.map((sec) => (sec.id === id ? { ...sec, status: 'revoked' as SecretAlertStatus } : sec)),
-    );
-    showToast(`Revoked leaked credential: ${secretType} at ${filePath}`);
+  // HONESTY (fix/qm-securitytab-revoke-real): the revoke button calls the real
+  // backend POST /api/repos/:id/security/secrets/:alertId/revoke. Local state
+  // flips to 'revoked' ONLY on confirmed server success, and the success
+  // toast fires only then. On failure nothing flips — there is no false state
+  // to roll back; the per-alert loading marker is always cleared in `finally`.
+  const handleRevokeSecret = async (id: string, secretType: string, filePath: string) => {
+    const targetRepo = repoId || selectedRepo?.id;
+    if (!targetRepo) {
+      showToast('Select a repository before revoking a leaked credential.');
+      return;
+    }
+    if (revokingSecretIds.has(id)) return;
+    setRevokingSecretIds((prev) => new Set(prev).add(id));
+    try {
+      const result = await revokeSecretOnServer(targetRepo, id);
+      if (!result.ok) {
+        showToast(result.message);
+        return;
+      }
+      setSecretAlerts((prev) =>
+        prev.map((sec) =>
+          sec.id === id ? { ...sec, status: 'revoked' as SecretAlertStatus } : sec,
+        ),
+      );
+      showToast(result.message || `Revoked leaked credential: ${secretType} at ${filePath}`);
+    } finally {
+      setRevokingSecretIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
   const handleMarkFalsePositive = (id: string, secretType: string) => {
@@ -993,9 +1071,11 @@ export function SecurityTab({
                         type="button"
                         data-testid={`revoke-token-btn-${sec.id}`}
                         onClick={() => handleRevokeSecret(sec.id, sec.secretType, sec.filePath)}
-                        className="px-3 py-1.5 rounded bg-[#F85149]/20 hover:bg-[#F85149]/30 text-[#F85149] border border-[#F85149]/40 font-semibold text-xs transition-colors"
+                        disabled={revokingSecretIds.has(sec.id)}
+                        aria-live="polite"
+                        className="px-3 py-1.5 rounded bg-[#F85149]/20 hover:bg-[#F85149]/30 text-[#F85149] border border-[#F85149]/40 font-semibold text-xs transition-colors disabled:opacity-50 disabled:cursor-wait disabled:hover:bg-[#F85149]/20"
                       >
-                        Revoke token
+                        {revokingSecretIds.has(sec.id) ? 'Revoking…' : 'Revoke token'}
                       </button>
                     )}
 
