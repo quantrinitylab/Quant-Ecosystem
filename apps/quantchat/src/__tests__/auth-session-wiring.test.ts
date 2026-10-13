@@ -15,7 +15,15 @@
 // ============================================================================
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { persistSession, bootstrapSession, clearSession } from '../lib/auth-session';
+
+// Stable module-level mock: signOut's network leg is asserted here, and
+// the real @quant/api-client fetch would need a live origin in jsdom.
+const apiFetchRawMock = vi.hoisted(() =>
+  vi.fn(async () => new Response('{}', { status: 200 })),
+);
+vi.mock('@quant/api-client', () => ({ apiFetchRaw: apiFetchRawMock }));
+
+import { persistSession, bootstrapSession, clearSession, signOut } from '../lib/auth-session';
 import { apiClient } from '../services/api-client';
 
 describe('auth-session wiring', () => {
@@ -90,6 +98,23 @@ describe('auth-session wiring', () => {
     clearSession();
     expect(clearTokens).toHaveBeenCalled();
     expect(localStorage.getItem('quant_access_token')).toBeNull();
+  });
+
+  it('signOut sends the stored refresh token + access token BEFORE clearing (QC-F-118 revocation)', async () => {
+    apiFetchRawMock.mockClear();
+    persistSession('access-1', 'refresh-1');
+    await signOut();
+    expect(apiFetchRawMock).toHaveBeenCalledWith(
+      '/api/auth/logout',
+      expect.objectContaining({
+        method: 'POST',
+        body: { refreshToken: 'refresh-1' },
+        token: 'access-1',
+      }),
+    );
+    // Local traces are gone afterwards regardless.
+    expect(localStorage.getItem('quant_access_token')).toBeNull();
+    expect(localStorage.getItem('quant_refresh_token')).toBeNull();
   });
 
   it('device id is stable across bootstraps', () => {

@@ -20,6 +20,7 @@ import type { PrismaClient } from '@prisma/client';
 import { passwordService } from '@quant/auth';
 import type { OtpService } from '../lib/otp-service';
 import type { SessionTokenIssuer } from '../lib/session-tokens';
+import { RefreshTokenStore, type RefreshSessionMeta } from '../lib/refresh-token-store';
 import { fetchWithTimeout, getTimeoutMs } from '@quant/server-core';
 
 const loginSchema = z.object({
@@ -49,6 +50,19 @@ const ssoExchangeSchema = z.object({
 const refreshSchema = z.object({
   refreshToken: z.string().min(10).max(8192),
 });
+
+const logoutSchema = z.object({
+  refreshToken: z.string().min(10).max(8192),
+});
+
+/** Best-effort session metadata for the refresh-token row (display/audit only). */
+function sessionMeta(request: { headers: Record<string, unknown>; ip?: string }): RefreshSessionMeta {
+  const ua = request.headers['user-agent'];
+  return {
+    userAgent: typeof ua === 'string' ? ua : undefined,
+    ipAddress: request.ip,
+  };
+}
 
 const updateProfileSchema = z
   .object({
@@ -97,6 +111,9 @@ function accountDeletedBody() {
 
 export default async function authRoutes(fastify: FastifyInstance) {
   const { prisma, otpService, sessionTokens } = decorations(fastify);
+  // QC-F-118: stateful refresh redemption (rotation spend + reuse
+  // detection + family revocation) on the existing RefreshToken model.
+  const refreshStore = new RefreshTokenStore(prisma, sessionTokens);
 
   // GET /auth/me — OIDC-style userinfo: verify the caller's bearer token (the
   // global auth hook already validated the JWT signature and bound req.auth)
@@ -260,7 +277,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
       });
     }
 
-    const tokens = await sessionTokens.issue({ userId: user.id, username: user.username });
+    const tokens = await refreshStore.issueNewSession(
+      { userId: user.id, username: user.username },
+      sessionMeta(request),
+    );
     return reply.send({
       success: true,
       data: {
@@ -409,7 +429,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const { user, isNewUser } = ssoUpsert;
 
     // 3. Issue QuantChat-native tokens (accepted by every protected route).
-    const tokens = await sessionTokens.issue({ userId: user.id, username: user.username });
+    const tokens = await refreshStore.issueNewSession(
+      { userId: user.id, username: user.username },
+      sessionMeta(request),
+    );
     return reply.send({
       success: true,
       data: {
@@ -441,8 +464,9 @@ export default async function authRoutes(fastify: FastifyInstance) {
   // authenticates by the refresh token itself: the issuer verifies the
   // signature/issuer/audience/expiry AND the `kind: 'refresh'` claim (an
   // access token is NOT redeemable here), then the user must still exist
-  // and not be deleted. Rotation: a brand-new pair (new session id) is
-  // issued on every successful refresh.
+  // and not be deleted. Rotation is STATEFUL (QC-F-118): the presented
+  // token is spent against its RefreshToken row and a successor pair is
+  // issued in the same family; replaying a spent token revokes the family.
   fastify.post('/refresh', async (request, reply) => {
     const parsed = refreshSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -497,7 +521,57 @@ export default async function authRoutes(fastify: FastifyInstance) {
       });
     }
 
-    const tokens = await sessionTokens.issue({ userId: user.id, username: user.username });
+    // QC-F-118: stateful redemption. The account check above deliberately
+    // runs BEFORE the store spends anything (a refused account's token is
+    // never spent and its family never advances). The store spends the
+    // presented token (CAS), issues the successor in the same family, and
+    // treats re-presentation of a spent token — outside the short
+    // chain-follow grace for the client's parallel-401 race — as reuse:
+    // the whole family is revoked.
+    const redeemed = await refreshStore.redeem({
+      payload,
+      presentedToken: parsed.data.refreshToken,
+      subject: { userId: user.id, username: user.username },
+      meta: sessionMeta(request),
+    });
+    if (!redeemed.ok) {
+      if (redeemed.reason === 'unavailable') {
+        return reply.status(503).send({
+          success: false,
+          error: {
+            code: 'UPSTREAM_UNAVAILABLE',
+            message: 'Auth service unavailable',
+            statusCode: 503,
+          },
+        });
+      }
+      if (redeemed.reason === 'legacy') {
+        return reply.status(401).send({
+          success: false,
+          error: {
+            code: 'INVALID_REFRESH_TOKEN',
+            message: 'Refresh token is invalid or expired',
+            statusCode: 401,
+          },
+        });
+      }
+      // unknown / binding / reuse — the family has been revoked. The log
+      // carries ids and the family only, never any token material.
+      request.log.warn(
+        { userId: user.id, family: redeemed.familyId, reason: redeemed.reason },
+        'refresh token reuse detected; session family revoked',
+      );
+      return reply.status(401).send({
+        success: false,
+        error: {
+          code: 'REFRESH_TOKEN_REUSE_DETECTED',
+          message: 'Refresh token reuse detected; this session has been revoked',
+          statusCode: 401,
+        },
+      });
+    }
+
+    const tokens = redeemed.tokens;
     return reply.send({
       success: true,
       data: {
@@ -507,6 +581,51 @@ export default async function authRoutes(fastify: FastifyInstance) {
         tokenType: tokens.tokenType,
       },
     });
+  });
+
+  // POST /auth/logout — revoke the caller's refresh-token family server-side.
+  //
+  // QC-F-118: there was NO backend logout route at all, so "sign out" only
+  // cleared cookies/local storage while the refresh token itself stayed
+  // redeemable for its full 30 days. This route is AUTHENTICATED (not in
+  // publicPaths): the global auth hook has already bound req.auth from the
+  // access token, and the store revokes only a family whose refresh token
+  // both digests to a stored row AND belongs to that same user — nobody
+  // can revoke another user's session by presenting its token here.
+  // Idempotent: an unknown token still returns 200 signedOut.
+  fastify.post('/logout', async (request, reply) => {
+    const authUserId = (request as { auth?: { userId?: string } }).auth?.userId;
+    if (!authUserId) {
+      return reply.status(401).send({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required', statusCode: 401 },
+      });
+    }
+    const parsed = logoutSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: 'BAD_REQUEST',
+          message: 'refreshToken is required',
+          statusCode: 400,
+        },
+      });
+    }
+    try {
+      await refreshStore.revokeFamilyForUser(authUserId, parsed.data.refreshToken);
+    } catch (err) {
+      request.log.error({ err }, 'logout: refresh family revoke failed');
+      return reply.status(503).send({
+        success: false,
+        error: {
+          code: 'UPSTREAM_UNAVAILABLE',
+          message: 'Auth service unavailable',
+          statusCode: 503,
+        },
+      });
+    }
+    return reply.send({ success: true, data: { signedOut: true } });
   });
 
   // POST /auth/otp/request
@@ -583,7 +702,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
         const verifiedMobile = verifyData.data.mobile || phoneNumber;
         const normalized = verifiedMobile.replace(/[\s\-()]/g, '');
         const { user, isNewUser } = await upsertPhoneUser(prisma, normalized);
-        const tokens = await sessionTokens.issue({ userId: user.id, username: user.username });
+        const tokens = await refreshStore.issueNewSession(
+          { userId: user.id, username: user.username },
+          sessionMeta(request),
+        );
         return reply.send({
           success: true,
           data: {
@@ -627,7 +749,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
     const { user, isNewUser } = phoneUpsert;
 
-    const tokens = await sessionTokens.issue({ userId: user.id, username: user.username });
+    const tokens = await refreshStore.issueNewSession(
+      { userId: user.id, username: user.username },
+      sessionMeta(request),
+    );
     return reply.send({
       success: true,
       data: {

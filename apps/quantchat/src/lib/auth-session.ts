@@ -135,10 +135,22 @@ export function clearSession(): void {
  * only a Next response can delete them), then clear every local trace.
  * Best-effort network, unconditional local clear: a user who taps
  * "Sign out" offline is still signed out on this device.
+ *
+ * QC-F-118: the stored refresh token and access token are read BEFORE
+ * anything is cleared and sent along, so the Next route can forward them
+ * to the backend, which revokes the refresh token's whole family — the
+ * token itself dies, not just this device's copies of it.
  */
 export async function signOut(): Promise<void> {
+  const s = storage();
+  const refreshToken = s?.getItem(REFRESH_TOKEN_KEY) ?? undefined;
+  const accessToken = s?.getItem(ACCESS_TOKEN_KEY) ?? undefined;
   try {
-    await apiFetchRaw('/api/auth/logout', { method: 'POST' });
+    await apiFetchRaw('/api/auth/logout', {
+      method: 'POST',
+      ...(refreshToken ? { body: { refreshToken } } : {}),
+      ...(accessToken ? { token: accessToken } : {}),
+    });
   } catch {
     // Offline sign-out still clears locally below.
   }
