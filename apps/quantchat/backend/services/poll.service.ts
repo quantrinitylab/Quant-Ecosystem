@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 
@@ -17,16 +18,43 @@ export class PollService {
 
   constructor(private readonly prisma?: PrismaClient) {}
 
+  /**
+   * QC-F-268: polls are conversation-scoped, so every create/vote/results
+   * call requires an ACTIVE membership row — the same 403 NOT_A_MEMBER
+   * convention as MessageService / ThemeService (QC-F-095 pattern). A
+   * nonexistent conversation yields the same 403 as a non-member: the
+   * membership query returns null either way, and there is deliberately
+   * no separate conversation lookup (no existence oracle). Fail-closed:
+   * when the service was constructed without a Prisma client, membership
+   * can never be proven, so the gate throws instead of being skipped.
+   */
+  private async requireMembership(conversationId: string, userId: string): Promise<void> {
+    const membership = await this.prisma?.conversationMember.findFirst({
+      where: { conversationId, userId, leftAt: null },
+    });
+
+    if (!membership) {
+      throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
+    }
+  }
+
   async createPoll(
     chatId: string,
     creatorId: string,
     data: { question: string; options: string[]; allowMultiple?: boolean },
   ): Promise<PollRecord> {
+    await this.requireMembership(chatId, creatorId);
+
     if (!data.question || !data.options || data.options.length < 2) {
       throw createAppError('Poll requires a question and at least 2 options', 400, 'INVALID_POLL');
     }
 
-    const pollId = `poll_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    // QC-F-268: unguessable id (house precedent: media.service.ts uses
+    // `media_${crypto.randomUUID()}`). The old `Date.now()` + 5-char
+    // Math.random suffix made other users' polls enumerable. No format
+    // gate is applied on lookup — ids minted before this change keep
+    // working for the rest of this process's life.
+    const pollId = `poll_${randomUUID()}`;
     const record: PollRecord = {
       id: pollId,
       chatId,
@@ -47,6 +75,11 @@ export class PollService {
     if (!poll) {
       throw createAppError('Poll not found', 404, 'POLL_NOT_FOUND');
     }
+
+    // QC-F-268: pinned order 404 → 403 → 400 — membership is checked
+    // before the option index, so a non-member learns nothing about the
+    // poll's options from the error either.
+    await this.requireMembership(poll.chatId, userId);
 
     if (optionIndex < 0 || optionIndex >= poll.options.length) {
       throw createAppError('Invalid option index', 400, 'INVALID_OPTION');
@@ -77,7 +110,10 @@ export class PollService {
     return poll;
   }
 
-  async getPollResults(pollId: string): Promise<{
+  async getPollResults(
+    pollId: string,
+    requesterId: string,
+  ): Promise<{
     question: string;
     totalVotes: number;
     options: Array<{ text: string; votes: number; percentage: number; voters: string[] }>;
@@ -86,6 +122,11 @@ export class PollService {
     if (!poll) {
       throw createAppError('Poll not found', 404, 'POLL_NOT_FOUND');
     }
+
+    // QC-F-268: results expose the question and every option's voter
+    // userIds, so they are members-only — a non-member gets the 403
+    // above, not even the counts.
+    await this.requireMembership(poll.chatId, requesterId);
 
     const totalVotes = poll.votes.length;
 

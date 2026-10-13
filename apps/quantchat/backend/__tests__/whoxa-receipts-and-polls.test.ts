@@ -175,7 +175,26 @@ describe('Whoxa Receipts & Polls Engine', () => {
   });
 
   it('tests poll creation, voting, multiple votes handling, and percentage calculation', async () => {
-    const pollService = new PollService();
+    // QC-F-268 harness extension: PollService now gates create/vote/results
+    // on active conversation membership (403 NOT_A_MEMBER, fail-closed
+    // without Prisma). The whoxa scenarios presuppose legitimate actors —
+    // creator_1 and user_1..user_3 are active members of 'chat_1' — modelled
+    // by this delegate, which honours the query's leftAt filter the way a
+    // real delegate would (modelled rows are active, leftAt: null). The
+    // poll assertions below are unchanged; getPollResults now also takes
+    // the requesting member's id.
+    const pollService = new PollService({
+      conversationMember: {
+        async findFirst({ where }: any) {
+          const memberIds = ['creator_1', 'user_1', 'user_2', 'user_3'];
+          const isActiveMember =
+            where.conversationId === 'chat_1' && memberIds.includes(where.userId);
+          return isActiveMember && (where.leftAt === undefined || where.leftAt === null)
+            ? { conversationId: where.conversationId, userId: where.userId, leftAt: null }
+            : null;
+        },
+      },
+    } as any);
 
     // 1. Create poll
     const poll = await pollService.createPoll('chat_1', 'creator_1', {
@@ -193,7 +212,7 @@ describe('Whoxa Receipts & Polls Engine', () => {
     await pollService.votePoll(poll.id, 'user_2', 0); // TypeScript
     await pollService.votePoll(poll.id, 'user_3', 1); // Python
 
-    let results = await pollService.getPollResults(poll.id);
+    let results = await pollService.getPollResults(poll.id, 'creator_1');
     expect(results.totalVotes).toBe(3);
     expect(results.options[0].votes).toBe(2); // 2 votes for TypeScript
     expect(results.options[0].percentage).toBe(66.67); // 2/3 = 66.67%
@@ -202,7 +221,7 @@ describe('Whoxa Receipts & Polls Engine', () => {
 
     // 3. Single choice replacement test: user_3 changes vote from Python (1) to Go (2)
     await pollService.votePoll(poll.id, 'user_3', 2);
-    results = await pollService.getPollResults(poll.id);
+    results = await pollService.getPollResults(poll.id, 'creator_1');
     expect(results.totalVotes).toBe(3);
     expect(results.options[1].votes).toBe(0);
     expect(results.options[2].votes).toBe(1);
@@ -216,7 +235,7 @@ describe('Whoxa Receipts & Polls Engine', () => {
 
     await pollService.votePoll(multiPoll.id, 'user_1', 0);
     await pollService.votePoll(multiPoll.id, 'user_1', 1); // user_1 votes for React and Node
-    const multiResults = await pollService.getPollResults(multiPoll.id);
+    const multiResults = await pollService.getPollResults(multiPoll.id, 'creator_1');
     expect(multiResults.totalVotes).toBe(2);
     expect(multiResults.options[0].votes).toBe(1);
     expect(multiResults.options[1].votes).toBe(1);
