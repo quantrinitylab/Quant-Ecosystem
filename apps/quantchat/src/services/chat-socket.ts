@@ -489,7 +489,7 @@ export class ChatSocketManager {
           // exactly one warning per failure episode (reset on any success).
           if (!this.pollFailureSurfaced) {
             this.pollFailureSurfaced = true;
-            console.warn('[chat-socket] HTTP polling failed', {
+            console.warn('[chat-socket] HTTP polling failed', { // eslint-disable-line no-console -- QC-F-286: this warn IS the pinned failure-surfacing behaviour (PR tests spy on console.warn, exactly once per episode); scoped exception only, warn kept.
               status: res.status,
               conversationId,
             });
@@ -520,7 +520,7 @@ export class ChatSocketManager {
         // episode once (same once-per-episode rule as HTTP errors above).
         if (!this.pollFailureSurfaced) {
           this.pollFailureSurfaced = true;
-          console.warn('[chat-socket] HTTP polling failed', {
+          console.warn('[chat-socket] HTTP polling failed', { // eslint-disable-line no-console -- QC-F-286: this warn IS the pinned failure-surfacing behaviour (PR tests spy on console.warn, exactly once per episode); scoped exception only, warn kept.
             status: 'network-error',
             conversationId,
             error: err instanceof Error ? err.message : String(err),
