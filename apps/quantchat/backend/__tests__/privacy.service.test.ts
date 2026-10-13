@@ -25,6 +25,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   PrivacyService,
   extractPrivacyPrefs,
+  extractBlockedUserIds,
   DEFAULT_PRIVACY,
   MOST_RESTRICTIVE_PRIVACY,
   type PrivacyPrismaLike,
@@ -369,5 +370,89 @@ describe('PrivacyService.checkCanMessage', () => {
     await expect(svc.checkCanMessage(STRANGER, 'user_ghost')).resolves.toBe(
       'missing-target',
     );
+  });
+});
+
+describe('extractBlockedUserIds (QC-F-218)', () => {
+  it('returns [] when nothing was ever stored', () => {
+    expect(extractBlockedUserIds(null)).toEqual([]);
+    expect(extractBlockedUserIds(undefined)).toEqual([]);
+    expect(extractBlockedUserIds({})).toEqual([]);
+    expect(extractBlockedUserIds({ chatSettings: {} })).toEqual([]);
+    expect(extractBlockedUserIds({ chatSettings: { blockedUsers: [] } })).toEqual([]);
+  });
+
+  it('reads the canonical object-form entries ({id, ...})', () => {
+    const preferences = {
+      chatSettings: {
+        blockedUsers: [
+          { id: 'user_a', name: 'A', username: 'a', blockedAt: '2026-10-01T00:00:00.000Z' },
+          { id: 'user_b' },
+        ],
+      },
+    };
+    expect(extractBlockedUserIds(preferences)).toEqual(['user_a', 'user_b']);
+  });
+
+  it('accepts bare string entries defensively and ignores unmatchable shapes', () => {
+    const preferences = {
+      chatSettings: { blockedUsers: ['user_a', { id: 'user_b' }, { name: 'no-id' }, 42, null] },
+    };
+    expect(extractBlockedUserIds(preferences)).toEqual(['user_a', 'user_b']);
+  });
+
+  it('returns null (malformed) instead of a lying empty list', () => {
+    expect(extractBlockedUserIds('not-an-object')).toBeNull();
+    expect(extractBlockedUserIds({ chatSettings: 'nope' })).toBeNull();
+    expect(extractBlockedUserIds({ chatSettings: { blockedUsers: 'user_a' } })).toBeNull();
+  });
+});
+
+describe('checkBlockedBy (QC-F-218)', () => {
+  const blockedPrefs = {
+    chatSettings: { blockedUsers: [{ id: STRANGER }] },
+  };
+
+  it('answers blocked when the owner blocked the candidate', async () => {
+    const svc = new PrivacyService(
+      makeFakePrisma({ users: new Map([[OWNER, { preferences: blockedPrefs }]]) }),
+    );
+    await expect(svc.checkBlockedBy(OWNER, STRANGER)).resolves.toBe('blocked');
+  });
+
+  it('answers clear when the candidate is not on the list', async () => {
+    const svc = new PrivacyService(
+      makeFakePrisma({ users: new Map([[OWNER, { preferences: blockedPrefs }]]) }),
+    );
+    await expect(svc.checkBlockedBy(OWNER, CHAT_PARTNER)).resolves.toBe('clear');
+  });
+
+  it('answers clear for a missing owner row (the list lives on that row)', async () => {
+    const svc = new PrivacyService(makeFakePrisma());
+    await expect(svc.checkBlockedBy('user_ghost', STRANGER)).resolves.toBe('clear');
+  });
+
+  it('answers clear for a self-check', async () => {
+    const svc = new PrivacyService(
+      makeFakePrisma({ users: new Map([[OWNER, { preferences: blockedPrefs }]]) }),
+    );
+    await expect(svc.checkBlockedBy(OWNER, OWNER)).resolves.toBe('clear');
+  });
+
+  it('answers unavailable on a prefs read error (action gates fail closed)', async () => {
+    const svc = new PrivacyService(makeFakePrisma({ throwOnUserRead: true }));
+    await expect(svc.checkBlockedBy(OWNER, STRANGER)).resolves.toBe('unavailable');
+  });
+
+  it('answers unavailable when no user delegate is wired', async () => {
+    const svc = new PrivacyService({});
+    await expect(svc.checkBlockedBy(OWNER, STRANGER)).resolves.toBe('unavailable');
+  });
+
+  it('answers unavailable when stored prefs are malformed', async () => {
+    const svc = new PrivacyService(
+      makeFakePrisma({ users: new Map([[OWNER, { preferences: 'garbage' }]]) }),
+    );
+    await expect(svc.checkBlockedBy(OWNER, STRANGER)).resolves.toBe('unavailable');
   });
 });
