@@ -113,3 +113,71 @@ describe('POST /api/auth/logout (Next cookie expiry)', () => {
     }
   });
 });
+
+describe('POST /api/auth/logout (QC-F-118 backend revocation forward)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  it('forwards the refresh token + caller Authorization to the backend logout so the family is revoked', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true, data: { signedOut: true } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const req = new NextRequest('http://localhost:3000/api/auth/logout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer access-123',
+      },
+      body: JSON.stringify({ refreshToken: 'refresh-123' }),
+    });
+    const res = await logoutPOST(req);
+    expect(res.status).toBe(200);
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      { method: string; headers: Record<string, string>; body: string },
+    ];
+    expect(url).toContain('/auth/logout');
+    expect(init.method).toBe('POST');
+    expect(init.headers.Authorization).toBe('Bearer access-123');
+    expect(JSON.parse(init.body)).toEqual({ refreshToken: 'refresh-123' });
+    // Cookies still expire on the same response.
+    expect(res.headers.getSetCookie().join('\n')).toContain('quant_access_token=');
+  });
+
+  it('backend unreachable during logout: still 200 + cookies expired (best-effort revocation)', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('connect ECONNREFUSED'));
+    const req = new NextRequest('http://localhost:3000/api/auth/logout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer access-123',
+      },
+      body: JSON.stringify({ refreshToken: 'refresh-123' }),
+    });
+    const res = await logoutPOST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(res.headers.getSetCookie().join('\n')).toContain('Max-Age=0');
+  });
+
+  it('no body / no Authorization (legacy callers): no backend call, still 200 + cookies', async () => {
+    global.fetch = vi.fn();
+    const req = new NextRequest('http://localhost:3000/api/auth/logout', { method: 'POST' });
+    const res = await logoutPOST(req);
+    expect(res.status).toBe(200);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+});
