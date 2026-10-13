@@ -217,6 +217,46 @@ export function extractPrivacyPrefs(preferences: unknown): ResolvedPrivacy {
   };
 }
 
+/**
+ * Extract the blocked-user ids from a raw `User.preferences` value
+ * (QC-F-218). The block list lives at `chatSettings.blockedUsers`, SIBLING
+ * of the `privacy` block above — it is a per-person list, not one of the 8
+ * category prefs. Canonical entries are objects (`{id, name, username,
+ * blockedAt}` — the settings UI's BlockedUser shape, and the shape the
+ * DELETE /settings/blocked/:userId filter matches on); bare string entries
+ * are accepted defensively because the column is free-form JSON written by
+ * more than one client generation.
+ *
+ * Returns `null` when the stored value is MALFORMED (present but not the
+ * shape above): a block list that cannot be read must not silently read as
+ * "nobody blocked" on an action surface. An absent list (no prefs stored,
+ * no chatSettings, no blockedUsers key) is a readable empty list — that is
+ * the 'default' analogue, not an error.
+ */
+export function extractBlockedUserIds(preferences: unknown): string[] | null {
+  if (preferences == null) return [];
+  if (!isPlainObject(preferences)) return null;
+  const chat = preferences['chatSettings'];
+  if (chat == null) return [];
+  if (!isPlainObject(chat)) return null;
+  const blocked = chat['blockedUsers'];
+  if (blocked == null) return [];
+  if (!Array.isArray(blocked)) return null;
+  const ids: string[] = [];
+  for (const entry of blocked) {
+    if (typeof entry === 'string' && entry) {
+      ids.push(entry);
+    } else if (isPlainObject(entry) && typeof entry['id'] === 'string' && entry['id']) {
+      ids.push(entry['id']);
+    }
+    // Any other entry shape can never equal a userId (the DELETE filter
+    // treats entries the same way), so it is ignored rather than fatal.
+  }
+  return ids;
+}
+
+export type BlockedVerdict = 'blocked' | 'clear' | 'unavailable';
+
 export type CanMessageVerdict = 'allowed' | 'denied' | 'unavailable' | 'missing-target';
 
 const CACHE_TTL_MS = 30_000;
@@ -374,6 +414,37 @@ export class PrivacyService {
       return direct.length > 0;
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Block verdict (QC-F-218): has `ownerId` blocked `candidateId`?
+   * Deliberately NOT cached (unlike resolve()): call initiation is not a
+   * hot path, and a block must take effect on the next call attempt, not
+   * within a TTL window. Never throws. Fail-closed on an action surface,
+   * mirroring checkCanMessage's §4 semantics:
+   *   - owner row missing -> 'clear': the block list lives ON that row, so
+   *     a missing row means no list exists anywhere (the 'missing'
+   *     analogue) — there is nothing that could contain candidateId.
+   *   - no user delegate wired, malformed stored prefs, or a failed read
+   *     -> 'unavailable': the caller (an action gate) must answer 503
+   *     rather than silently allow a possibly-blocked action.
+   */
+  async checkBlockedBy(ownerId: string, candidateId: string): Promise<BlockedVerdict> {
+    if (ownerId === candidateId) return 'clear';
+    const findUnique = this.prisma.user?.findUnique;
+    if (typeof findUnique !== 'function') return 'unavailable';
+    try {
+      const row = await findUnique.call(this.prisma.user, {
+        where: { id: ownerId },
+        select: { preferences: true },
+      });
+      if (!row) return 'clear';
+      const ids = extractBlockedUserIds(row.preferences);
+      if (ids === null) return 'unavailable';
+      return ids.includes(candidateId) ? 'blocked' : 'clear';
+    } catch {
+      return 'unavailable';
     }
   }
 

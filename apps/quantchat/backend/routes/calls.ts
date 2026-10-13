@@ -5,13 +5,22 @@ import { createAppError } from '@quant/server-core';
 import { CallService } from '../services/call.service';
 import { CallRecordService, type CallRecordPrisma } from '../services/call-record.service';
 import { ConversationService } from '../services/conversation.service';
+import { getPrivacyService } from '../services/privacy.service';
 
 const initiate1v1Schema = z.object({
   calleeId: z.string().min(1),
+  // QC-F-218: conversationId is REQUIRED so the membership gate has a
+  // conversation to check. Without it, authorization is impossible by
+  // construction — that was the bypass: any logged-in user could "call"
+  // any userId, member or not. The shipped thread page always knows its
+  // conversation id and sends it.
+  conversationId: z.string().min(1),
 });
 
 const initiateGroupSchema = z.object({
   participantIds: z.array(z.string().min(1)).min(1).max(7),
+  // QC-F-218: same requirement as the 1:1 schema — see above.
+  conversationId: z.string().min(1),
 });
 
 const createCallSchema = z.object({
@@ -73,6 +82,8 @@ function getCallService(): CallService {
 
 /**
  * QC-F-075: build the conversation-membership gate used by POST /calls/create.
+ * QC-F-218: the same gate now also guards POST /calls/initiate and
+ * POST /calls/group, which previously bypassed it entirely.
  *
  * The gate lives in ConversationService (the QC-F-017 service-layer pattern),
  * so this helper only resolves the shared `fastify.prisma` decorator into a
@@ -97,6 +108,49 @@ function getMembershipGate(fastify: FastifyInstance): ConversationService {
     );
   }
   return new ConversationService(prisma);
+}
+
+/**
+ * QC-F-218 blocked-check (specialist brief §4 Step-4, option (i)): on the
+ * 1:1 initiate path, a callee who has blocked the caller must not be
+ * call-able — membership alone does not capture this (a blocked user can
+ * still be a conversation member). The block list is the callee's own
+ * `chatSettings.blockedUsers`, resolved through the shared PrivacyService
+ * (the QC-F-042 single-resolver pattern). Like the membership gate this
+ * FAILS CLOSED: when block status cannot be verified the call is refused
+ * with 503 BLOCKED_CHECK_UNAVAILABLE instead of silently ringing someone
+ * who may have blocked the caller.
+ *
+ * Scope decision (recorded, not silent): 1:1 ONLY. /calls/group does not
+ * apply this check — group participants are already members of a shared
+ * conversation, and per-participant block semantics inside existing
+ * groups are a separate product question (the same reason
+ * PrivacyService.checkCanMessage never gates existing conversations).
+ */
+async function assertCalleeHasNotBlockedCaller(
+  fastify: FastifyInstance,
+  calleeId: string,
+  callerId: string,
+): Promise<void> {
+  const prisma = (fastify as unknown as { prisma?: PrismaClient }).prisma;
+  if (!prisma || typeof prisma.user?.findUnique !== 'function') {
+    throw createAppError(
+      'Call creation is unavailable: block status cannot be verified.',
+      503,
+      'BLOCKED_CHECK_UNAVAILABLE',
+    );
+  }
+  const verdict = await getPrivacyService(prisma).checkBlockedBy(calleeId, callerId);
+  if (verdict === 'unavailable') {
+    throw createAppError(
+      'Call creation is unavailable: block status cannot be verified.',
+      503,
+      'BLOCKED_CHECK_UNAVAILABLE',
+    );
+  }
+  if (verdict === 'blocked') {
+    throw createAppError('This user cannot receive calls from you.', 403, 'CALLER_BLOCKED');
+  }
 }
 
 export default async function callsRoutes(fastify: FastifyInstance) {
@@ -269,6 +323,15 @@ export default async function callsRoutes(fastify: FastifyInstance) {
   });
 
   // POST /calls/initiate - Initiate a 1:1 call
+  //
+  // QC-F-218: this handler (the SHIPPED thread-page path) used to create a
+  // LiveKit room for ANY calleeId with no authorization at all — it fully
+  // bypassed the QC-F-075 membership gate on /calls/create, and the call
+  // left no durable history row. It now applies the exact same gate and
+  // persistence as /create: LiveKit fail-closed check first, then the
+  // membership gate (caller AND callee must be active members of
+  // conversationId; the conversation must exist), then room creation,
+  // then persistStarted. A rejected attempt creates no room and no row.
   fastify.post('/initiate', async (request, reply) => {
     const parseResult = initiate1v1Schema.safeParse(request.body);
     if (!parseResult.success) {
@@ -280,14 +343,49 @@ export default async function callsRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    // POST /calls/initiate - Initiate a 1:1 call
-    // (also reaches getCallService → fail closed without LiveKit)
+    const { calleeId, conversationId } = parseResult.data;
+
+    // QC-F-218: a self-call is a malformed request, not a call — without
+    // this check the gate below dedupes [userId, userId] and a one-person
+    // "call" (and its history row) would be created.
+    if (calleeId === userId) {
+      throw createAppError('You cannot call yourself.', 400, 'VALIDATION_ERROR');
+    }
+
+    // Fail closed: throws 503 CALLS_UNAVAILABLE when LiveKit is not
+    // configured (same ordering as /create — "calls are down" is the
+    // honest first answer, and the pre-existing 503 suite runs without
+    // a database).
     const callService = getCallService();
-    const call = await callService.initiate1v1Call(userId, parseResult.data.calleeId);
+
+    // QC-F-218 membership gate (QC-F-075 pattern, shared helper).
+    const membershipGate = getMembershipGate(fastify);
+    await membershipGate.assertAllMembers(conversationId, [userId, calleeId]);
+
+    // QC-F-218 blocked-check: the callee's own block list, fail-closed
+    // (see assertCalleeHasNotBlockedCaller for the recorded scope call).
+    await assertCalleeHasNotBlockedCaller(fastify, calleeId, userId);
+
+    const call = await callService.initiate1v1Call(userId, calleeId);
+
+    await persistStarted({
+      conversationId,
+      initiatorId: userId,
+      roomId: call.callId,
+      participants: call.participantIds,
+    });
+
     return reply.status(201).send({ success: true, data: call });
   });
 
   // POST /calls/group - Initiate a group call
+  //
+  // QC-F-218: same bypass and same fix as /initiate above — arbitrary
+  // participantIds used to get a LiveKit room with zero checks and no
+  // durable record. Every participant (caller included) must now be an
+  // active member of conversationId, and the started call is persisted.
+  // (The blocked-check is 1:1-only by recorded decision — see
+  // assertCalleeHasNotBlockedCaller.)
   fastify.post('/group', async (request, reply) => {
     const parseResult = initiateGroupSchema.safeParse(request.body);
     if (!parseResult.success) {
@@ -299,9 +397,25 @@ export default async function callsRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    // (also reaches getCallService → fail closed without LiveKit)
+    const { participantIds, conversationId } = parseResult.data;
+    const allParticipants = [userId, ...participantIds.filter((id) => id !== userId)];
+
+    // Fail closed without LiveKit (see /initiate note on ordering).
     const callService = getCallService();
-    const call = await callService.initiateGroupCall(userId, parseResult.data.participantIds);
+
+    // QC-F-218 membership gate (QC-F-075 pattern, shared helper).
+    const membershipGate = getMembershipGate(fastify);
+    await membershipGate.assertAllMembers(conversationId, allParticipants);
+
+    const call = await callService.initiateGroupCall(userId, participantIds);
+
+    await persistStarted({
+      conversationId,
+      initiatorId: userId,
+      roomId: call.callId,
+      participants: call.participantIds,
+    });
+
     return reply.status(201).send({ success: true, data: call });
   });
 
