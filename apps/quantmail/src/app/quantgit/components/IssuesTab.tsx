@@ -4,7 +4,7 @@
 // QuantGit — Comprehensive Issues Lifecycle Engine (GitHub Screens 28, 76, 89–90, 147–158)
 // ============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { IssueItem } from '../types';
 import {
   QuantGitIssueOpenIcon,
@@ -33,6 +33,139 @@ export interface IssuesTabProps {
     issueId: number,
     body: string,
   ) => Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Full issue list used to build the filter menus (authors/labels/assignees).
+   * Optional — defaults to `filteredIssues` so the component still works when the
+   * parent does not pass it. The parent passes the unfiltered `issues` array so
+   * menu options stay stable while other filters are active.
+   */
+  allIssues?: IssueItem[];
+}
+
+// ============================================================================
+// Real filter dropdowns (fix/qm-issues-filters).
+// The Author/Label/Assignee/Sort buttons were native alert() stubs. They are now
+// real client-side filters over the issue list. Projects/Milestones have no
+// corresponding field on IssueItem, so those stay as HONEST disabled buttons
+// (no fake options, no alert) until the backend exposes project/milestone data.
+// ============================================================================
+
+type FilterMenuId = 'author' | 'label' | 'assignee' | 'sort' | null;
+type IssueSortOrder = 'newest' | 'oldest' | 'most-commented' | 'least-commented';
+
+const SORT_LABELS: Record<IssueSortOrder, string> = {
+  newest: 'Newest',
+  oldest: 'Oldest',
+  'most-commented': 'Most commented',
+  'least-commented': 'Least commented',
+};
+
+/** Sentinel for the "Unassigned" assignee option (no real assignee is this). */
+const UNASSIGNED = '__unassigned__';
+
+function FilterDropdown({
+  id,
+  label,
+  activeValue,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  id: string;
+  label: string;
+  activeValue: string | null;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  const isActive = activeValue !== null;
+  return (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        data-testid={id}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        onClick={onToggle}
+        className={`px-2.5 py-1 rounded-md border flex items-center gap-1 transition-colors cursor-pointer ${
+          isActive
+            ? 'bg-[#1c1230] border-[#8B5CF6] text-[#E6EDF3]'
+            : 'bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] border-[#30363D] text-[#8D96A0] hover:text-[#E6EDF3]'
+        }`}
+      >
+        <span>
+          {label}
+          {isActive ? `: ${activeValue}` : ''}
+        </span>
+        <span className="text-[var(--q-type-xs)]">▼</span>
+      </button>
+      {isOpen && (
+        <div
+          role="menu"
+          data-testid={`${id}-menu`}
+          className="absolute left-0 top-full mt-2 w-60 max-h-64 overflow-y-auto bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl p-1.5 shadow-2xl z-50 space-y-0.5"
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilterMenuOption({
+  menuId,
+  value,
+  label,
+  isSelected,
+  onSelect,
+  swatchColor,
+}: {
+  menuId: string;
+  value: string;
+  label: string;
+  isSelected: boolean;
+  onSelect: () => void;
+  swatchColor?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={isSelected}
+      data-testid={`${menuId}-option-${value}`}
+      onClick={onSelect}
+      className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-2 transition-colors cursor-pointer ${
+        isSelected
+          ? 'bg-[#1c1230] text-[#E6EDF3] font-semibold'
+          : 'text-[#8D96A0] hover:bg-[#21262D] hover:text-[#E6EDF3]'
+      }`}
+    >
+      {swatchColor && (
+        <span
+          className="w-2.5 h-2.5 rounded-full shrink-0"
+          style={{ backgroundColor: swatchColor }}
+        />
+      )}
+      <span className="flex-1 truncate">{label}</span>
+      {isSelected && <span className="text-[#8B5CF6]">✓</span>}
+    </button>
+  );
+}
+
+/** Honest disabled stub: the IssueItem type carries no projects/milestones data. */
+function UnavailableFilter({ id, label }: { id: string; label: string }) {
+  return (
+    <button
+      type="button"
+      disabled
+      data-testid={id}
+      title={`${label} filtering is unavailable — the issue data has no ${label.toLowerCase()} field yet.`}
+      className="px-2.5 py-1 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] text-[#8D96A0] flex items-center gap-1 opacity-50 cursor-not-allowed shrink-0"
+    >
+      <span>{label}</span>
+      <span className="text-[var(--q-type-xs)]">▼</span>
+    </button>
+  );
 }
 
 export function IssuesTab({
@@ -47,6 +180,7 @@ export function IssuesTab({
   isLoading = false,
   onCreateIssue,
   onPostIssueComment,
+  allIssues,
 }: IssuesTabProps) {
   const [selectedIssue, setSelectedIssue] = useState<IssueItem | null>(null);
   const [isCreatingIssue, setIsCreatingIssue] = useState(false);
@@ -61,6 +195,80 @@ export function IssuesTab({
   const [commentError, setCommentError] = useState<string | null>(null);
   const [isSubmittingIssue, setIsSubmittingIssue] = useState(false);
   const [createIssueError, setCreateIssueError] = useState<string | null>(null);
+
+  // Real filter state (fix/qm-issues-filters): these drive the list below.
+  const [authorFilter, setAuthorFilter] = useState<string | null>(null);
+  const [labelFilter, setLabelFilter] = useState<string | null>(null);
+  const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<IssueSortOrder>('newest');
+  const [openMenu, setOpenMenu] = useState<FilterMenuId>(null);
+
+  // Menu options come from the FULL issue list so they stay stable while other
+  // filters are active. Falls back to filteredIssues when the parent passes none.
+  const filterSource = allIssues ?? filteredIssues;
+  const authorOptions = useMemo(
+    () => Array.from(new Set(filterSource.map((i) => i.author))).sort(),
+    [filterSource],
+  );
+  const labelOptions = useMemo(() => {
+    const byName = new Map<string, string>();
+    for (const issue of filterSource) {
+      for (const lbl of issue.labels) {
+        if (!byName.has(lbl.name)) byName.set(lbl.name, lbl.color);
+      }
+    }
+    return Array.from(byName.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [filterSource]);
+  const assigneeOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          filterSource.map((i) => i.assignee).filter((a): a is string => !!a),
+        ),
+      ).sort(),
+    [filterSource],
+  );
+  const hasUnassigned = useMemo(
+    () => filterSource.some((i) => !i.assignee),
+    [filterSource],
+  );
+
+  // The rendered list: parent search/state filter first, then our real filters.
+  const displayIssues = useMemo(() => {
+    let list = filteredIssues;
+    if (authorFilter) list = list.filter((i) => i.author === authorFilter);
+    if (labelFilter)
+      list = list.filter((i) => i.labels.some((l) => l.name === labelFilter));
+    if (assigneeFilter === UNASSIGNED) list = list.filter((i) => !i.assignee);
+    else if (assigneeFilter) list = list.filter((i) => i.assignee === assigneeFilter);
+    const sorted = [...list];
+    // Issue ids are monotonic from the backend, so id order == creation order.
+    switch (sortOrder) {
+      case 'oldest':
+        sorted.sort((a, b) => a.id - b.id);
+        break;
+      case 'most-commented':
+        sorted.sort((a, b) => b.commentsCount - a.commentsCount);
+        break;
+      case 'least-commented':
+        sorted.sort((a, b) => a.commentsCount - b.commentsCount);
+        break;
+      case 'newest':
+      default:
+        sorted.sort((a, b) => b.id - a.id);
+        break;
+    }
+    return sorted;
+  }, [filteredIssues, authorFilter, labelFilter, assigneeFilter, sortOrder]);
+
+  const hasActiveFilters =
+    authorFilter !== null || labelFilter !== null || assigneeFilter !== null;
+
+  const clearFilters = () => {
+    setAuthorFilter(null);
+    setLabelFilter(null);
+    setAssigneeFilter(null);
+  };
 
   // Insert markdown tag helper
   const insertMarkdown = (prefix: string, suffix = '') => {
@@ -469,19 +677,172 @@ export function IssuesTab({
             </div>
           </div>
 
-          {/* Filter Dropdowns (Screens 147–149) */}
+          {/* Filter Dropdowns (Screens 147–149) — real client-side filters.
+              Projects/Milestones are honest disabled states: IssueItem carries
+              no project/milestone field, so there is nothing real to offer. */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 text-[#8D96A0] text-[11px]">
-            {['Author', 'Label', 'Projects', 'Milestones', 'Assignee', 'Sort: Newest'].map(
-              (flt) => (
-                <button
-                  key={flt}
-                  onClick={() => alert(`Filter by ${flt}...`)}
-                  className="px-2.5 py-1 rounded-md bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] border border-[#30363D] text-[#8D96A0] hover:text-[#E6EDF3] flex items-center gap-1 transition-colors"
-                >
-                  <span>{flt}</span>
-                  <span className="text-[var(--q-type-xs)]">▼</span>
-                </button>
-              ),
+            <FilterDropdown
+              id="issue-filter-author"
+              label="Author"
+              activeValue={authorFilter}
+              isOpen={openMenu === 'author'}
+              onToggle={() => setOpenMenu(openMenu === 'author' ? null : 'author')}
+            >
+              <FilterMenuOption
+                menuId="issue-filter-author"
+                value="all"
+                label="All authors"
+                isSelected={authorFilter === null}
+                onSelect={() => {
+                  setAuthorFilter(null);
+                  setOpenMenu(null);
+                }}
+              />
+              {authorOptions.length === 0 && (
+                <p className="px-2.5 py-1.5 text-xs text-[#8D96A0]">
+                  No authors in the issue list.
+                </p>
+              )}
+              {authorOptions.map((author) => (
+                <FilterMenuOption
+                  key={author}
+                  menuId="issue-filter-author"
+                  value={author}
+                  label={author}
+                  isSelected={authorFilter === author}
+                  onSelect={() => {
+                    setAuthorFilter(author);
+                    setOpenMenu(null);
+                  }}
+                />
+              ))}
+            </FilterDropdown>
+
+            <FilterDropdown
+              id="issue-filter-label"
+              label="Label"
+              activeValue={labelFilter}
+              isOpen={openMenu === 'label'}
+              onToggle={() => setOpenMenu(openMenu === 'label' ? null : 'label')}
+            >
+              <FilterMenuOption
+                menuId="issue-filter-label"
+                value="all"
+                label="All labels"
+                isSelected={labelFilter === null}
+                onSelect={() => {
+                  setLabelFilter(null);
+                  setOpenMenu(null);
+                }}
+              />
+              {labelOptions.length === 0 && (
+                <p className="px-2.5 py-1.5 text-xs text-[#8D96A0]">
+                  No labels in the issue list.
+                </p>
+              )}
+              {labelOptions.map(([name, color]) => (
+                <FilterMenuOption
+                  key={name}
+                  menuId="issue-filter-label"
+                  value={name}
+                  label={name}
+                  swatchColor={color}
+                  isSelected={labelFilter === name}
+                  onSelect={() => {
+                    setLabelFilter(name);
+                    setOpenMenu(null);
+                  }}
+                />
+              ))}
+            </FilterDropdown>
+
+            <UnavailableFilter id="issue-filter-projects" label="Projects" />
+            <UnavailableFilter id="issue-filter-milestones" label="Milestones" />
+
+            <FilterDropdown
+              id="issue-filter-assignee"
+              label="Assignee"
+              activeValue={
+                assigneeFilter === UNASSIGNED ? 'Unassigned' : assigneeFilter
+              }
+              isOpen={openMenu === 'assignee'}
+              onToggle={() =>
+                setOpenMenu(openMenu === 'assignee' ? null : 'assignee')
+              }
+            >
+              <FilterMenuOption
+                menuId="issue-filter-assignee"
+                value="all"
+                label="All assignees"
+                isSelected={assigneeFilter === null}
+                onSelect={() => {
+                  setAssigneeFilter(null);
+                  setOpenMenu(null);
+                }}
+              />
+              {hasUnassigned && (
+                <FilterMenuOption
+                  menuId="issue-filter-assignee"
+                  value={UNASSIGNED}
+                  label="Unassigned"
+                  isSelected={assigneeFilter === UNASSIGNED}
+                  onSelect={() => {
+                    setAssigneeFilter(UNASSIGNED);
+                    setOpenMenu(null);
+                  }}
+                />
+              )}
+              {assigneeOptions.length === 0 && !hasUnassigned && (
+                <p className="px-2.5 py-1.5 text-xs text-[#8D96A0]">
+                  No assignees in the issue list.
+                </p>
+              )}
+              {assigneeOptions.map((assignee) => (
+                <FilterMenuOption
+                  key={assignee}
+                  menuId="issue-filter-assignee"
+                  value={assignee}
+                  label={assignee}
+                  isSelected={assigneeFilter === assignee}
+                  onSelect={() => {
+                    setAssigneeFilter(assignee);
+                    setOpenMenu(null);
+                  }}
+                />
+              ))}
+            </FilterDropdown>
+
+            <FilterDropdown
+              id="issue-filter-sort"
+              label={`Sort: ${SORT_LABELS[sortOrder]}`}
+              activeValue={null}
+              isOpen={openMenu === 'sort'}
+              onToggle={() => setOpenMenu(openMenu === 'sort' ? null : 'sort')}
+            >
+              {(Object.keys(SORT_LABELS) as IssueSortOrder[]).map((order) => (
+                <FilterMenuOption
+                  key={order}
+                  menuId="issue-filter-sort"
+                  value={order}
+                  label={SORT_LABELS[order]}
+                  isSelected={sortOrder === order}
+                  onSelect={() => {
+                    setSortOrder(order);
+                    setOpenMenu(null);
+                  }}
+                />
+              ))}
+            </FilterDropdown>
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                data-testid="issue-filters-clear"
+                onClick={clearFilters}
+                className="px-2.5 py-1 rounded-md text-[#8B5CF6] hover:text-white hover:bg-[#1c1230] border border-transparent hover:border-[#8B5CF6] transition-colors cursor-pointer shrink-0"
+              >
+                Clear filters ✕
+              </button>
             )}
           </div>
 
@@ -523,21 +884,23 @@ export function IssuesTab({
             <div className="divide-y divide-[#21262D]">
               {isLoading ? (
                 <QuantGitRowSkeleton rows={5} testId="issue-list-skeleton" />
-              ) : filteredIssues.length === 0 ? (
+              ) : displayIssues.length === 0 ? (
                 <QuantGitEmptyState
                   icon="issue"
                   title="No issues"
                   hint={
-                    issueSearchQuery.includes('state:closed')
-                      ? 'There are no closed issues matching your search.'
-                      : 'There are no open issues. Create one to track work.'
+                    hasActiveFilters
+                      ? 'No issues match the current filters. Clear the filters or adjust your search.'
+                      : issueSearchQuery.includes('state:closed')
+                        ? 'There are no closed issues matching your search.'
+                        : 'There are no open issues. Create one to track work.'
                   }
                   actionLabel="New issue"
                   onAction={() => setModalState('new-issue')}
                   testId="issue-list-empty"
                 />
               ) : (
-                filteredIssues.map((issue) => (
+                displayIssues.map((issue) => (
                   <button
                     key={issue.id}
                     type="button"

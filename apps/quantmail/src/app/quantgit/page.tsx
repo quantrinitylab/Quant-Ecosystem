@@ -2493,6 +2493,7 @@ function QuantGitContent() {  const router = useRouter();
                   issueSearchQuery={issueSearchQuery}
                   setIssueSearchQuery={setIssueSearchQuery}
                   filteredIssues={filteredIssues}
+                  allIssues={issues}
                   openIssuesCount={openIssuesCount}
                   closedIssuesCount={closedIssuesCount}
                   setModalState={setModalState}
