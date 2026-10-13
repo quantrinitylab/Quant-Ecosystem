@@ -18,7 +18,16 @@ function requireUserId(request: unknown): string {
   return userId;
 }
 function parentEventId(id: string): string {
-  return id.includes('_') ? id.split('_')[0]! : id;
+  return splitEventId(id).parentId;
+}
+// Occurrence ids are <parentId>_<iso>: occurrences are virtual rows expanded
+// from the parent's recurrenceRule, so occurrence-scoped operations resolve to
+// the parent (same as DELETE /events/:id). The suffix is the occurrence's
+// start instant, percent-decoded.
+function splitEventId(id: string): { parentId: string; occurrenceIso: string | null } {
+  const idx = id.indexOf('_');
+  if (idx === -1) return { parentId: id, occurrenceIso: null };
+  return { parentId: id.slice(0, idx), occurrenceIso: decodeURIComponent(id.slice(idx + 1)) };
 }
 
 const attendeeInput = z.union([
@@ -2291,27 +2300,52 @@ export default async function calendarRoutes(
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
     // Occurrence ids are <parentId>_<iso>: occurrences are virtual rows, so the
-    // RSVP lands on the parent's attendee list (same as DELETE /events/:id).
-    const eventId = parentEventId(request.params.id);
-    const event = await prisma.event.findUnique({ where: { id: eventId } });
-    if (!event) throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
+    // RSVP lands on the parent's (series-level) attendee list — same as
+    // DELETE /events/:id. The v1 occurrence-vs-series contract
+    // (docs/quant-architecture/products/quantmail/backend/calendar-rsvp-occurrence-contract.md)
+    // keeps this scope; the response below reports it so the UI can confirm
+    // honestly what the RSVP covered instead of implying a per-occurrence write.
+    const { parentId: eventId, occurrenceIso } = splitEventId(request.params.id);
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
     const email = String(user?.email ?? '').toLowerCase();
-    let matched = false;
-    const attendees = toStoredAttendees(parseJsonArray(event.attendees) as AttendeeInput[]).map(
-      (attendee) => {
-        if (attendee.userId !== userId && attendee.email.toLowerCase() !== email) return attendee;
-        matched = true;
-        return { ...attendee, userId: attendee.userId || userId, status: parsed.data.status };
-      },
-    );
-    if (!matched)
-      throw createAppError('The authenticated user is not an attendee', 403, 'NOT_EVENT_ATTENDEE');
-    const updated = await prisma.event.update({
-      where: { id: eventId },
-      data: { attendees: JSON.stringify(attendees), updatedAt: new Date() },
+    const { updated, attendees, recurrenceRule } = await prisma.$transaction(async (tx: any) => {
+      // The attendee list is a JSON column written read-modify-write: without
+      // a row lock, two simultaneous RSVPs both read the same list and the
+      // second write silently drops the first attendee's response. SELECT ...
+      // FOR UPDATE serializes concurrent writes on this event row inside the
+      // transaction, so no RSVP is ever lost.
+      await tx.$queryRaw`SELECT "id" FROM "calendar_events" WHERE "id" = ${eventId} FOR UPDATE`;
+      const event = await tx.event.findUnique({ where: { id: eventId } });
+      if (!event) throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
+      let matched = false;
+      const next = toStoredAttendees(parseJsonArray(event.attendees) as AttendeeInput[]).map(
+        (attendee) => {
+          if (attendee.userId !== userId && attendee.email.toLowerCase() !== email) return attendee;
+          matched = true;
+          return { ...attendee, userId: attendee.userId || userId, status: parsed.data.status };
+        },
+      );
+      if (!matched)
+        throw createAppError('The authenticated user is not an attendee', 403, 'NOT_EVENT_ATTENDEE');
+      const saved = await tx.event.update({
+        where: { id: eventId },
+        data: { attendees: JSON.stringify(next), updatedAt: new Date() },
+      });
+      return { updated: saved, attendees: next, recurrenceRule: event.recurrenceRule };
     });
-    return reply.send({ success: true, data: { ...toEventDto(updated), attendees } });
+    const appliesTo = recurrenceRule ? 'series' : 'event';
+    return reply.send({
+      success: true,
+      data: {
+        ...toEventDto(updated),
+        attendees,
+        rsvpScope: {
+          kind: occurrenceIso ? 'occurrence' : 'event',
+          appliesTo,
+          fromOccurrence: occurrenceIso,
+        },
+      },
+    });
   });
 
   const handleCreateBookingLink = async (request: FastifyRequest, reply: FastifyReply) => {

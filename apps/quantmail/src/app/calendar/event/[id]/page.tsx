@@ -28,10 +28,13 @@ import {
   toZonedInputValue,
   zonedInputToIso,
   stripQuantMeta,
+  fallbackRsvpScope,
   RSVP_LABELS,
   type RsvpStatus,
+  type RsvpScopeInfo,
   type EventDetailDto,
 } from '../event-detail-utils';
+import { RsvpScopeConfirmation } from '../rsvp-scope-confirmation';
 import type { CalendarEvent } from '../../../../types';
 import { TIMEZONES } from '../../types';
 
@@ -104,6 +107,13 @@ export default function CalendarEventDetailPage() {
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [rsvpError, setRsvpError] = useState<string | null>(null);
+  // The v1 occurrence-vs-series contract writes every RSVP to the
+  // series-level attendee list; after a successful RSVP we confirm exactly
+  // what it covered instead of implying a per-occurrence write.
+  const [rsvpConfirmation, setRsvpConfirmation] = useState<{
+    status: RsvpStatus;
+    scope: RsvpScopeInfo;
+  } | null>(null);
 
   const { data: raw, isLoading, error, refetch } = useCalendarEvent(eventId || null);
   const event = useMemo(() => (raw ? asDto(raw) : null), [raw]);
@@ -195,9 +205,15 @@ export default function CalendarEventDetailPage() {
   const handleRsvp = async (status: RsvpStatus) => {
     if (!eventId) return;
     setRsvpError(null);
+    setRsvpConfirmation(null);
     try {
-      await rsvp.mutateAsync({ id: eventId, status });
+      const result = await rsvp.mutateAsync({ id: eventId, status });
       void refetch();
+      // Prefer the backend's authoritative scope; derive the same shape
+      // client-side when the backend predates rsvpScope (deploy skew).
+      const scope: RsvpScopeInfo =
+        result?.rsvpScope ?? fallbackRsvpScope(eventId, event?.recurrence);
+      setRsvpConfirmation({ status, scope });
     } catch (err) {
       setRsvpError(err instanceof Error ? err.message : 'Could not update your response.');
     }
@@ -498,6 +514,13 @@ export default function CalendarEventDetailPage() {
                       </div>
                       {rsvpError && (
                         <p role="alert" className="mt-2 text-sm text-red-400">{rsvpError}</p>
+                      )}
+                      {rsvpConfirmation && !rsvpError && (
+                        <RsvpScopeConfirmation
+                          status={rsvpConfirmation.status}
+                          scope={rsvpConfirmation.scope}
+                          timeZone={event.timeZone}
+                        />
                       )}
                     </div>
                   )}

@@ -29,22 +29,30 @@ const BASE_ROW = {
 };
 
 function createFakePrisma() {
+  const event = {
+    findUnique: vi.fn().mockResolvedValue(BASE_ROW),
+    findMany: vi.fn().mockResolvedValue([BASE_ROW]),
+    count: vi.fn().mockResolvedValue(1),
+    create: vi.fn().mockImplementation(async ({ data }) => ({
+      ...BASE_ROW,
+      ...data,
+      id: data.id || 'evt-created-1',
+    })),
+    update: vi.fn().mockImplementation(async ({ data }) => ({
+      ...BASE_ROW,
+      ...data,
+    })),
+    delete: vi.fn().mockResolvedValue(BASE_ROW),
+  };
+  // The RSVP route writes through prisma.$transaction with a SELECT ...
+  // FOR UPDATE row lock (attendees is a JSON column written
+  // read-modify-write). The fake models the pass-through.
+  const txQueryRaw = vi.fn().mockResolvedValue([]);
   return {
-    event: {
-      findUnique: vi.fn().mockResolvedValue(BASE_ROW),
-      findMany: vi.fn().mockResolvedValue([BASE_ROW]),
-      count: vi.fn().mockResolvedValue(1),
-      create: vi.fn().mockImplementation(async ({ data }) => ({
-        ...BASE_ROW,
-        ...data,
-        id: data.id || 'evt-created-1',
-      })),
-      update: vi.fn().mockImplementation(async ({ data }) => ({
-        ...BASE_ROW,
-        ...data,
-      })),
-      delete: vi.fn().mockResolvedValue(BASE_ROW),
-    },
+    event,
+    $transaction: vi.fn(async (cb: (tx: unknown) => unknown) =>
+      cb({ $queryRaw: txQueryRaw, event }),
+    ),
     calendar: {
       findFirst: vi.fn().mockResolvedValue({
         id: 'cal-primary-1',
