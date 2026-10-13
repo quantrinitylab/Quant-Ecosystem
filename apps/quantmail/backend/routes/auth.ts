@@ -4,6 +4,7 @@ import prisma from '@quant/auth/lib/prisma';
 import * as argon2 from 'argon2';
 import {
   REFRESH_COOKIE_NAME,
+  SessionUser,
   authenticatedUserId,
   clearRefreshCookie,
   createTokenService,
@@ -11,6 +12,7 @@ import {
   issueBrowserSession,
   requireTrustedOrigin,
   sessionMetadataFromRequest,
+  sessionUserPayload,
   setRefreshCookie,
 } from '../lib/auth-session';
 import { signTwoFactorChallenge } from '../lib/two-factor';
@@ -448,14 +450,37 @@ export async function authRoutes(fastify: FastifyInstance) {
       }
 
       try {
-        const tokens = await tokenService.refreshToken(oldRefreshToken, sessionMetadataFromRequest(request));
+        const tokens = await tokenService.refreshToken(
+          oldRefreshToken,
+          sessionMetadataFromRequest(request),
+        );
         setRefreshCookie(reply, tokens.refreshToken);
+        // Collapse the browser's hydrate waterfall: the profile the frontend
+        // used to fetch with a second /oauth/userinfo round trip rides along
+        // on this response instead. The user is located the same
+        // possession-bound way /auth/logout does — the one-way digest of the
+        // presented refresh token — so this adds no new trust assumption, and
+        // a missing row is a best-effort omission, not a failure: the frontend
+        // falls back to /oauth/userinfo for backends that don't embed yet.
+        let embeddedUser: Record<string, unknown> | undefined;
+        try {
+          const digest = createHash('sha256').update(oldRefreshToken).digest('hex');
+          const stored = await prisma.refreshToken.findFirst({ where: { token: digest } });
+          const user = stored ? await prisma.user.findUnique({ where: { id: stored.userId } }) : null;
+          if (user) {
+            embeddedUser = sessionUserPayload(user as SessionUser);
+          }
+        } catch {
+          // Profile lookup must never fail a token rotation that already
+          // succeeded — the browser retries the profile leg on its own.
+        }
         return reply.send({
           success: true,
           data: {
             accessToken: tokens.accessToken,
             expiresIn: tokens.expiresIn,
             tokenType: tokens.tokenType,
+            ...(embeddedUser ? { user: embeddedUser } : {}),
           },
         });
       } catch {

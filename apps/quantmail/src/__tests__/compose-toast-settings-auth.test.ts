@@ -66,7 +66,9 @@ describe('auth hydrate timeout', () => {
   it('races the profile load with a timeout, not just the refresh', () => {
     // Pre-fix: only `browserAuthSession.refresh()` was inside Promise.race;
     // `await loadProfile()` hung unbounded on a slow /oauth/userinfo.
-    expect(authProviderSource).toMatch(/Promise\.race\(\[loadProfile\(\), timeout/);
+    // The profile leg is now `applySessionUser` (embedded profile, or the
+    // /oauth/userinfo fallback) — still timeout-bound either way.
+    expect(authProviderSource).toMatch(/Promise\.race\(\[applySessionUser\(session\.data\), timeout/);
   });
 
   it('still fails closed on timeout (no weakened auth check)', () => {

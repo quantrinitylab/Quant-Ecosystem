@@ -537,7 +537,15 @@ export class QuantMailApiClient {
   }
 
   async getUserInfo(): Promise<
-    ApiResponse<{ id: string; email: string; username: string; displayName: string; role: string }>
+    ApiResponse<{
+      id: string;
+      email: string;
+      username: string;
+      displayName: string;
+      role: string;
+      phoneNumber?: string | null;
+      phoneVerified?: boolean | null;
+    }>
   > {
     return this.get('/oauth/userinfo');
   }
