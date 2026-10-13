@@ -201,6 +201,48 @@ describe('SearchQueryService.buildEmailWhere', () => {
     const and = where.AND as Record<string, unknown>[];
     expect(and.some((c) => 'isSent' in c || 'isTrash' in c || 'folder' in c)).toBe(false);
   });
+
+  it('excludes trash and spam by default (Gmail parity with the literal search path)', () => {
+    const where = service.buildEmailWhere('user-1', 'from:alice');
+    expect(where.isTrash).toBe(false);
+    expect(where.isSpam).toBe(false);
+  });
+
+  it('excludes trash and spam by default for free-text queries too', () => {
+    const where = service.buildEmailWhere('user-1', 'invoice');
+    expect(where.isTrash).toBe(false);
+    expect(where.isSpam).toBe(false);
+  });
+
+  it('in:trash is the escape hatch: drops only the trash exclusion', () => {
+    const where = service.buildEmailWhere('user-1', 'in:trash');
+    expect(where.isTrash).toBeUndefined();
+    expect(where.isSpam).toBe(false);
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toContainEqual({ isTrash: true });
+  });
+
+  it('in:spam is the escape hatch: drops only the spam exclusion', () => {
+    const where = service.buildEmailWhere('user-1', 'in:spam');
+    expect(where.isSpam).toBeUndefined();
+    expect(where.isTrash).toBe(false);
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toContainEqual({ isSpam: true, isTrash: false });
+  });
+
+  it('is:spam is the escape hatch: drops only the spam exclusion', () => {
+    const where = service.buildEmailWhere('user-1', 'is:spam invoice');
+    expect(where.isSpam).toBeUndefined();
+    expect(where.isTrash).toBe(false);
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toContainEqual({ isSpam: true });
+  });
+
+  it('explicit in:trash in:spam drops both default exclusions', () => {
+    const where = service.buildEmailWhere('user-1', 'in:trash in:spam');
+    expect(where.isTrash).toBeUndefined();
+    expect(where.isSpam).toBeUndefined();
+  });
 });
 
 describe('SearchQueryService.search', () => {
@@ -588,6 +630,72 @@ describe('SearchQueryService.search', () => {
     expect(sql).toContain('"isTrash" = $');
     expect(sql).toContain('"isSpam" = $');
     expect(sql).toContain(' OR ');
+    // Both defaults dropped (explicit trash + spam requested): the one
+    // remaining false bind is the spam folder clause's own
+    // `"isTrash" = false` — spam-folder semantics exclude trash by design.
+    expect(dataCall!.filter((p) => p === false)).toHaveLength(1);
+    expect(dataCall!.filter((p) => p === true)).toHaveLength(2);
+  });
+
+  it('excludes trash and spam by default on the raw full-text search SQL branch', async () => {
+    prisma.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*)::int AS total')) {
+        return [{ total: 1 }];
+      }
+      return [{ id: 'email-1' }];
+    });
+
+    await service.search('user-1', 'from:alice invoice', { page: 1, limit: 10 });
+
+    const calls = prisma.$queryRawUnsafe.mock.calls;
+    const dataCall = calls.find((c: any[]) => String(c[0]).includes('SELECT id, "userId"'));
+    const sql = String(dataCall![0]);
+    expect(sql).toContain('"isTrash" = $');
+    expect(sql).toContain('"isSpam" = $');
+    // Exactly the two default-exclusion binds (no operator requested trash/spam).
+    expect(dataCall!.filter((p) => p === false)).toHaveLength(2);
+  });
+
+  it('in:trash on the raw branch drops only the default trash exclusion', async () => {
+    prisma.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*)::int AS total')) {
+        return [{ total: 1 }];
+      }
+      return [{ id: 'email-1' }];
+    });
+
+    await service.search('user-1', 'in:trash invoice', { page: 1, limit: 10 });
+
+    const calls = prisma.$queryRawUnsafe.mock.calls;
+    const dataCall = calls.find((c: any[]) => String(c[0]).includes('SELECT id, "userId"'));
+    const sql = String(dataCall![0]);
+    // isTrash=true comes from the trash folder clause; the isSpam=false
+    // default stays (one false bind left).
+    expect(sql).toContain('"isTrash" = $');
+    expect(sql).toContain('"isSpam" = $');
+    expect(dataCall!.filter((p) => p === false)).toHaveLength(1);
+    expect(dataCall!).toContain(true);
+  });
+
+  it('is:spam on the raw branch drops only the default spam exclusion', async () => {
+    prisma.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*)::int AS total')) {
+        return [{ total: 1 }];
+      }
+      return [{ id: 'email-1' }];
+    });
+
+    await service.search('user-1', 'is:spam invoice', { page: 1, limit: 10 });
+
+    const calls = prisma.$queryRawUnsafe.mock.calls;
+    const dataCall = calls.find((c: any[]) => String(c[0]).includes('SELECT id, "userId"'));
+    const sql = String(dataCall![0]);
+    // isSpam=true comes from the is:spam operator; the isTrash=false
+    // default stays (one false bind left).
+    expect(sql).toContain('"isSpam" = $');
+    expect(sql).toContain('"isTrash" = $');
+    expect(dataCall!.filter((p) => p === false)).toHaveLength(1);
+    expect(dataCall!).toContain(true);
   });
 
   it('wires in: types into the Prisma fallback path when $queryRawUnsafe throws', async () => {
