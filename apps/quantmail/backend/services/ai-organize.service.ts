@@ -102,6 +102,7 @@ export class AIOrganizeService {
         userId,
         app: 'quantmail',
         feature: 'drive-ai-organize',
+        stateless: true,
         temperature: 0.3,
         maxTokens: 256,
       });

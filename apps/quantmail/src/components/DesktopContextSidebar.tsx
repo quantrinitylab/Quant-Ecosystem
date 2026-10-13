@@ -4,7 +4,7 @@
 // QuantMail — Desktop Context Sidebar (the ONE desktop left sidebar)
 // ============================================================================
 // Desktop-only (`hidden md:flex`). The full sidebar, top to bottom:
-//   1. current app's logo + name
+//   1. Quant Workplace brand: suite mark (current app's arc lit) + app name
 //   2. search field (expands inline, wired to the shell's `onSearchChange`)
 //   3. per-app compose action + the current app's contextual tabs (vertical,
 //      icon + label + REAL count badge, from `PILLAR_SUB_CONFIGS` — the same
@@ -28,14 +28,12 @@ import {
   type ProductivityPillar,
 } from './desktopContextTabs';
 import { triggerHapticTap } from './QuantPillarTopBar';
-import { QuantMailLogo } from './QuantMailLogo';
-import { QuantCalendarLogo } from './QuantCalendarLogo';
-import { QuantDriveLogo } from './QuantDriveLogo';
-import { QuantContactsLogo } from './QuantContactsLogo';
-import { QuantGitLogo } from './QuantGitLogo';
-import { BrandWordmark, appDisplayName } from './BrandWordmark';
+import { appDisplayName } from './BrandWordmark';
+import { WorkplaceMark } from './workplace/WorkplaceMark';
+import type { PillarAccentId } from './pillar-accents';
 import { AccountBadge } from './AccountBadge';
 import { Quanty } from './Quanty';
+import { openQuantyAvatarPicker, useQuantyAvatar } from '../lib/quanty/avatar-choice';
 import { SidebarStorage } from './AppSidebar';
 import { SearchClearButton } from './SearchClearButton';
 import type { LogoAppType } from './Interactive3DLogo';
@@ -85,21 +83,14 @@ function appForPathname(pathname: string): LogoAppType {
   return 'mail';
 }
 
-function AppMark({ app }: { app: LogoAppType }) {
-  switch (app) {
-    case 'calendar':
-      return <QuantCalendarLogo size={36} />;
-    case 'drive':
-      return <QuantDriveLogo size={36} />;
-    case 'contacts':
-      return <QuantContactsLogo size={36} />;
-    case 'code':
-      return <QuantGitLogo size={36} />;
-    case 'mail':
-    default:
-      return <QuantMailLogo size={36} showBadge={false} interactive={false} />;
-  }
-}
+/** Sidebar brand: which arc of the Workplace mark is lit + the app's short name. */
+const BRAND_APP: Record<LogoAppType, { arc: PillarAccentId; name: string }> = {
+  mail: { arc: 'mail', name: 'Mail' },
+  calendar: { arc: 'calendar', name: 'Calendar' },
+  drive: { arc: 'drive', name: 'Drive' },
+  contacts: { arc: 'contacts', name: 'Contacts' },
+  code: { arc: 'quantgit', name: 'Git' },
+};
 
 export interface DesktopContextSidebarProps {
   pillar: ProductivityPillar;
@@ -137,7 +128,9 @@ export function DesktopContextSidebar({
   const pathname = usePathname() ?? '/';
   const searchParams = useSearchParams();
   const app = appForPathname(pathname);
+  const brand = BRAND_APP[app] ?? BRAND_APP.mail;
   const [activeTabState, setActiveTabState] = useState<string | null>(null);
+  const quantyAvatar = useQuantyAvatar();
 
   const config = PILLAR_SUB_CONFIGS[pillar];
 
@@ -181,17 +174,25 @@ export function DesktopContextSidebar({
       data-testid="desktop-context-sidebar"
       className={`hidden md:flex w-60 flex-none flex-col bg-black py-4 z-30 select-none desktop-sidebar ${className}`}
     >
-      {/* 1 — current app's logo + name */}
+      {/* 1 — Quant Workplace brand; the current app's arc is lit + its name */}
       <div className="sidebar-brand">
         <button
           type="button"
-          className="flex items-center gap-2.5 select-none rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+          className="qw-brand select-none rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
           onClick={() => router.push('/')}
-          title={`${appDisplayName(app)} — Go to Inbox`}
-          aria-label={`${appDisplayName(app)} — Go to Inbox`}
+          title={`Quant Workplace · ${appDisplayName(app)} — Go to Inbox`}
+          aria-label={`Quant Workplace · ${appDisplayName(app)} — Go to Inbox`}
+          data-testid="workplace-brand"
         >
-          <AppMark app={app} />
-          <BrandWordmark app={app} size="text-lg" />
+          <WorkplaceMark size={32} active={brand.arc} />
+          <span className="qw-brand-text">
+            <span className="qw-brand-wm">
+              <b>Quant</b> <span>Workplace</span>
+            </span>
+            <span className="qw-brand-app" data-wordmark={app}>
+              {brand.name}
+            </span>
+          </span>
         </button>
       </div>
 
@@ -319,9 +320,28 @@ export function DesktopContextSidebar({
 
         {extra}
 
-        {/* 4 — the empty area: big Quanty avatar + Ask Quanty */}
+        {/* 4 — the empty area: big Quanty avatar + Ask Quanty. The avatar
+            itself opens "Choose your Quanty"; the button asks Quanty. */}
         <section aria-label="Ask Quanty" className="sidebar-quanty">
-          <Quanty expression="greeting" size={76} />
+          <button
+            type="button"
+            onClick={openQuantyAvatarPicker}
+            className="sidebar-quanty-avatar"
+            aria-label={`Choose your Quanty (now ${quantyAvatar.name})`}
+            title="Choose your Quanty"
+            data-testid="sidebar-quanty-avatar"
+          >
+            <span className="qw-quanty-ring">
+              <Quanty expression="greeting" size={76} />
+            </span>
+            <span className="sidebar-quanty-edit" aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+              </svg>
+            </span>
+          </button>
+          <span className="sidebar-quanty-name">{quantyAvatar.name} · your AI teammate</span>
           <button
             type="button"
             onClick={() => onQuantyOpen?.()}

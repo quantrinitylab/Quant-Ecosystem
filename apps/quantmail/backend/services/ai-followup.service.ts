@@ -131,6 +131,7 @@ Respond ONLY with valid JSON array:
       userId,
       app: 'quantmail',
       feature: 'email-followup',
+      stateless: true,
       temperature: 0.2,
       maxTokens: 512,
     });

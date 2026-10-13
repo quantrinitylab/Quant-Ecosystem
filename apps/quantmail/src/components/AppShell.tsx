@@ -37,6 +37,7 @@ import { ContextBottomNavBar } from './ContextBottomNavBar';
 import { DesktopAppRail } from './DesktopAppRail';
 import { pillarForApp } from './desktopContextTabs';
 import { appThemeForPath } from '../lib/app-theme';
+import { QuantyAvatarPicker } from './workplace/QuantyAvatarPicker';
 
 export interface AppShellProps {
   children: ReactNode;
@@ -307,6 +308,16 @@ export function AppShell({
     pathname.startsWith('/drive') ||
     pathname.startsWith('/contacts') ||
     pathname.startsWith('/quantgit');
+
+  /*
+   * Mail's own folder pages (Sent, Drafts, Archive, Trash, Scheduled) are the
+   * targets of the Mail tabs in the bottom bar / app rail. They keep their own
+   * page headers (no pillar top bar), but they must keep the suite navigation:
+   * without it, tapping "Sent" on a phone landed on a page with no bottom bar
+   * and no way back but the browser's back gesture.
+   */
+  const isMailFolderRoute = /^\/(sent|drafts|archive|trash|scheduled)(\/|$)/.test(pathname);
+  const showSuiteNav = isMainSuiteRoute || isMailFolderRoute;
 
   /*
    * SIA-P1-3: on mobile the pillar top bar below owns a pinned search field
@@ -927,7 +938,7 @@ export function AppShell({
               collapses to 0 and <main> expands to reclaim the space — the
               black-void bug is structurally impossible. See ContextBottomNavBar.
             */}
-            {isMainSuiteRoute && (
+            {showSuiteNav && (
               <ContextBottomNavBar
                 badgeOverrides={{
                   inbox: unreadCount > 0 ? unreadCount : undefined,
@@ -941,7 +952,7 @@ export function AppShell({
             Desktop right app rail: slim 5-app switcher (Mail/Calendar/Drive/
             Contacts/QuantGit), Gmail's Google-apps-rail style. Desktop only.
           */}
-          {isMainSuiteRoute && (
+          {showSuiteNav && (
             <DesktopAppRail
               currentPillar={
                 currentApp === 'calendar'
@@ -967,6 +978,8 @@ export function AppShell({
         swap and take the conversation with it.
       */}
           {!hasOwnQuanty && <QuantyDrawerHost isOpen={isQuantyOpen} onClose={closeQuanty} />}
+          {/* "Choose your Quanty": opened from the sidebar card and the drawer header. */}
+          <QuantyAvatarPicker />
           {/* Live agentic surface: mounted once at shell top level (next to the
               drawer, never inside the header) so a task survives route/header
               swaps while Quanty works. */}

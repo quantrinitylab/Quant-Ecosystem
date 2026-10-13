@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { IdentityAvatar } from './IdentityAvatar';
 import type { Contact } from '../types';
+import { isValidEmail } from '../lib/email-validation';
 
 export interface RecipientOption {
   email: string;
@@ -90,6 +91,20 @@ export function RecipientChipInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Inline invalid-address flag for the in-progress input (compose
+  // validation): parse exactly the way Enter/comma/blur/paste commits would,
+  // and underline in red only once the text already has an address shape
+  // (contains '@' or a space) but would commit as malformed. Mid-typing
+  // fragments like "kundan" stay unflagged until committed — then the chip
+  // itself turns red (see below).
+  const pendingInvalidEmail = (() => {
+    const trimmed = inputValue.trim();
+    if (!trimmed) return null;
+    if (!trimmed.includes('@') && !/\s/.test(trimmed)) return null;
+    const bad = parseEmailString(inputValue).find((p) => !isValidEmail(p.email));
+    return bad ? bad.email : null;
+  })();
 
   // Filter contacts based on current input
   const suggestions = inputValue.trim()
@@ -195,22 +210,25 @@ export function RecipientChipInput({
   };
 
   const handleBlur = () => {
-    // Delay to let click on suggestion register
-    setTimeout(() => {
-      if (inputValue.trim()) {
-        const parsed = parseEmailString(inputValue);
-        if (parsed.length > 0) {
-          const newItems = parsed.filter(
-            (p) => !recipients.some((r) => r.email.toLowerCase() === p.email.toLowerCase()),
-          );
-          if (newItems.length > 0) {
-            onChange([...recipients, ...newItems]);
-          }
-          setInputValue('');
+    // Commit pending typed text SYNCHRONOUSLY (no debounce): the suggestion
+    // buttons handle selection via onMouseDown + preventDefault, so blur
+    // never fires for a suggestion click. A delayed commit here races the
+    // Send button — the typed recipient would commit 180ms AFTER handleSend
+    // already ran, so the send would fail with "specify at least one
+    // recipient" while the chip appears moments later.
+    if (inputValue.trim()) {
+      const parsed = parseEmailString(inputValue);
+      if (parsed.length > 0) {
+        const newItems = parsed.filter(
+          (p) => !recipients.some((r) => r.email.toLowerCase() === p.email.toLowerCase()),
+        );
+        if (newItems.length > 0) {
+          onChange([...recipients, ...newItems]);
         }
+        setInputValue('');
       }
-      setIsOpen(false);
-    }, 180);
+    }
+    setIsOpen(false);
   };
 
   return (
@@ -231,19 +249,43 @@ export function RecipientChipInput({
         onClick={() => inputRef.current?.focus()}
       >
         {/* Recipient Chips */}
-        {recipients.map((recipient, idx) => (
-          <span
-            key={`${recipient.email}-${idx}`}
-            className="inline-flex max-w-full items-center gap-1.5 pl-1.5 pr-2 py-0.5 rounded-full bg-[var(--quant-surface-elevated)]/90 border border-[#3A404D]/80 text-xs text-[var(--quant-foreground)] hover:border-[var(--quant-primary)]/50 hover:bg-[var(--quant-surface-elevated)] transition-all select-none shadow-sm group"
-          >
-            <IdentityAvatar
-              name={recipient.name || recipient.email}
-              size="sm"
-              className="!size-4 !text-[var(--q-type-xs)]"
-            />
-            <span className="font-medium text-white text-[11px] truncate max-w-[120px] sm:max-w-[200px]">
-              {recipient.name || recipient.email}
-            </span>
+        {recipients.map((recipient, idx) => {
+          // Inline invalid-address flag (compose validation): a committed
+          // chip whose address is malformed turns red with the reason in its
+          // title — Gmail-style — instead of silently passing and failing
+          // at the server. The send button stays disabled until it is fixed
+          // or removed (EmailComposer's getSendBlockReason / DockedComposer's
+          // handleSend guard derive from the same isValidEmail check).
+          const chipInvalid = !isValidEmail(recipient.email);
+          return (
+            <span
+              key={`${recipient.email}-${idx}`}
+              aria-invalid={chipInvalid || undefined}
+              title={
+                chipInvalid
+                  ? `"${recipient.email}" is not a valid email address — fix or remove it`
+                  : undefined
+              }
+              className={`inline-flex max-w-full items-center gap-1.5 pl-1.5 pr-2 py-0.5 rounded-full bg-[var(--quant-surface-elevated)]/90 border text-xs text-[var(--quant-foreground)] transition-all select-none shadow-sm group ${
+                chipInvalid
+                  ? 'border-rose-500/80 hover:border-rose-400'
+                  : 'border-[#3A404D]/80 hover:border-[var(--quant-primary)]/50 hover:bg-[var(--quant-surface-elevated)]'
+              }`}
+            >
+              <IdentityAvatar
+                name={recipient.name || recipient.email}
+                size="sm"
+                className="!size-4 !text-[var(--q-type-xs)]"
+              />
+              <span
+                className={`font-medium text-[11px] truncate max-w-[120px] sm:max-w-[200px] ${
+                  chipInvalid
+                    ? 'text-rose-300 underline decoration-rose-500/70 underline-offset-2'
+                    : 'text-white'
+                }`}
+              >
+                {recipient.name || recipient.email}
+              </span>
             <button
               type="button"
               onClick={(e) => {
@@ -265,8 +307,9 @@ export function RecipientChipInput({
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
             </button>
-          </span>
-        ))}
+            </span>
+          );
+        })}
 
         {/* Input box for new recipient */}
         <input
@@ -287,7 +330,17 @@ export function RecipientChipInput({
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={recipients.length === 0 ? placeholder : ''}
-          className="flex-1 min-w-[70px] sm:min-w-[120px] min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none py-1 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+          aria-invalid={pendingInvalidEmail ? true : undefined}
+          title={
+            pendingInvalidEmail
+              ? `"${pendingInvalidEmail}" is not a valid email address`
+              : undefined
+          }
+          className={`flex-1 min-w-[70px] sm:min-w-[120px] min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none py-1 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
+            pendingInvalidEmail
+              ? 'underline decoration-rose-500 decoration-2 underline-offset-4'
+              : ''
+          }`}
           autoComplete="off"
           spellCheck={false}
         />

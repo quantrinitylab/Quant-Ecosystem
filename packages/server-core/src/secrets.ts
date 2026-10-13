@@ -41,6 +41,10 @@ const REJECTED_SECRET_VALUES = new Set(
     'local-secret',
     'your-secret-here',
     'replace-me',
+    // QC-F-080: QuantChat's WebSocket dev fallback (routes/websocket.ts) —
+    // long enough to pass the old WS length-only check, so it must be
+    // rejected by value like every other committed placeholder.
+    'dev-only-insecure-jwt-secret-not-for-production-use-000',
   ].map((value) => value.toLowerCase()),
 );
 
@@ -58,6 +62,22 @@ const REJECTED_SECRET_PATTERNS = [
   'example',
   'your-secret',
 ];
+
+/**
+ * QC-F-080 — which environments must run with a real, provisioned secret.
+ *
+ * Local environments (`development`, `test`) keep the committed dev fallback
+ * so local boot and test suites stay frictionless. EVERY other name is a
+ * deployed environment and must fail closed: before this predicate existed,
+ * each guard checked `env === 'production'` by name, so a staging deploy
+ * (helm values set `NODE_ENV: staging`) silently booted on the public
+ * fallback string and every token became forgeable. An allowlist of deployed
+ * names would repeat that bug the day a `preview`/`qa` name appears; asking
+ * "is this local?" cannot forget a future deployed name.
+ */
+export function requiresRealSecret(env: string): boolean {
+  return env !== 'development' && env !== 'test';
+}
 
 /** Thrown at boot when production configuration is insecure. */
 export class InsecureSecretError extends Error {
@@ -81,8 +101,8 @@ export interface AssertSecretOptions {
  * Throws when `value` is unusable as a production secret: missing, blank, too
  * short, a known placeholder, or containing a placeholder marker.
  *
- * Call this only for production environments; development and test keep the
- * convenient fallbacks.
+ * Call this for deployed (non-local) environments — see `requiresRealSecret`;
+ * development and test keep the convenient fallbacks.
  */
 export function assertProductionSecret(
   value: string | undefined,

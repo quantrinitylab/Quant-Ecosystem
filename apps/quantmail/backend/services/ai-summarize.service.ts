@@ -21,6 +21,24 @@ export const SingleSummarizeResultSchema = z.object({
   keyPoints: z.array(z.string()),
 });
 
+/**
+ * What the model must return. Only `summary` is required: small models often
+ * drop an empty `actionItems` array or echo `messageCount` as a string, and
+ * either used to fail the whole summary with AI_VALIDATION_ERROR ("Could not
+ * generate summary") although the summary itself was fine. `messageCount` is
+ * never taken from the model — the server knows how many messages it sent.
+ */
+const ModelThreadSummarySchema = z.object({
+  summary: z.string().trim().min(1),
+  keyPoints: z.array(z.string()).default([]),
+  actionItems: z.array(z.string()).default([]),
+});
+
+const ModelSingleSummarySchema = z.object({
+  summary: z.string().trim().min(1),
+  keyPoints: z.array(z.string()).default([]),
+});
+
 export type ThreadMessage = z.infer<typeof ThreadMessageSchema>;
 export type SummarizeResult = z.infer<typeof SummarizeResultSchema>;
 export type SingleSummarizeResult = z.infer<typeof SingleSummarizeResultSchema>;
@@ -133,6 +151,7 @@ Respond ONLY with valid JSON:
       userId,
       app: 'quantmail',
       feature: 'email-summarize',
+      stateless: true,
       temperature: 0.3,
       maxTokens: 512,
       });
@@ -147,12 +166,12 @@ Respond ONLY with valid JSON:
       throw createAppError('Failed to parse AI summary response', 500, 'AI_PARSE_ERROR');
     }
 
-    const result = SummarizeResultSchema.safeParse(parsed);
+    const result = ModelThreadSummarySchema.safeParse(parsed);
     if (!result.success) {
       throw createAppError('AI returned invalid summary result', 500, 'AI_VALIDATION_ERROR');
     }
 
-    return result.data;
+    return SummarizeResultSchema.parse({ ...result.data, messageCount: validated.length });
   }
 
   async summarizeSingle(email: ThreadMessage, userId: string): Promise<SingleSummarizeResult> {
@@ -177,6 +196,7 @@ Respond ONLY with valid JSON:
       userId,
       app: 'quantmail',
       feature: 'email-summarize',
+      stateless: true,
       temperature: 0.3,
       maxTokens: 256,
       });
@@ -191,11 +211,11 @@ Respond ONLY with valid JSON:
       throw createAppError('Failed to parse AI summary response', 500, 'AI_PARSE_ERROR');
     }
 
-    const result = SingleSummarizeResultSchema.safeParse(parsed);
+    const result = ModelSingleSummarySchema.safeParse(parsed);
     if (!result.success) {
       throw createAppError('AI returned invalid summary result', 500, 'AI_VALIDATION_ERROR');
     }
 
-    return result.data;
+    return SingleSummarizeResultSchema.parse(result.data);
   }
 }

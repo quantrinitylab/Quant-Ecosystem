@@ -234,24 +234,22 @@ describe('Mobile Shell Overhaul — Worker A', () => {
       expect(html).toContain('aria-label="Sub-category lenses"');
     });
 
-    it('marks the active tile with aria-selected and the raised-tab indicator', () => {
+    it('marks the active tile with aria-selected and the liquid-tab indicator', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" />);
 
       expect(html).toContain('data-testid="pillar-tile-contacts"');
       // Active tile announces itself…
       expect(html).toContain('aria-selected="true"');
-      // …and carries the raised tab's clean colored edge in the pillar's own
-      // color (Contacts amber, user correction 2026-10-09 ~11:00 IST) — the
-      // old sliding line is gone, and there is no glow anywhere by user rule.
-      expect(html).toContain('border-top:1.5px solid #F59E0B');
+      // …and the Quant Workplace liquid tab (2026-10-13) rises out of the bar
+      // in the pillar's own color (Contacts amber, user correction
+      // 2026-10-09 ~11:00 IST). No glow on the marks by user rule.
+      expect(html).toContain('--lq-accent:#F59E0B');
+      expect(html).toContain('data-active-pillar="contacts"');
+      expect(html).toContain('data-testid="pillar-switcher-liquid"');
       expect(html).not.toContain('drop-shadow(0 0 6px');
-      // …and the active tile keeps the snappy premium transition (not the old 350ms).
-      expect(html).toContain('transition-transform duration-150 ease-out');
       expect(html).not.toContain('0.35s cubic-bezier(0.34, 1.3, 0.64, 1)');
-      // Raised-tab treatment (2026-10-09): active tab rises 18px above the
-      // capsule like a folder tab, base merging into the bar from below.
-      expect(html).toContain('top:-18px');
-      expect(html).toContain('-translate-y-0.5');
+      // The old folder-tab ribbon is gone (the liquid tab replaces it).
+      expect(html).not.toContain('top:-18px');
     });
 
     it('triggerHapticTap is a silent no-op where vibrate is unsupported', () => {

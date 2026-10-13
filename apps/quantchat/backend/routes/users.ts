@@ -10,8 +10,16 @@ import { getPrivacyService } from '../services/privacy.service';
 // GET /users/search?q=... powers the "New chat" contact picker. It returns a
 // safe public profile subset (never password hashes, tokens, phone numbers, or
 // other PII beyond what the directory needs), excludes the requesting user,
-// and only matches ACTIVE accounts so suspended, deactivated, or unverified
-// rows are not discoverable.
+// and matches the account-status gate's DENY-LIST predicate (QC-F-259; see
+// backend/lib/account-status.ts): a row is discoverable unless it is deleted
+// (deletedAt set), SUSPENDED, or DEACTIVATED. There is deliberately NO
+// ACTIVE allow-list here — phone-OTP users stay PENDING_VERIFICATION for
+// their whole account life by design (QC-F-041), so an ACTIVE filter hid
+// that entire population from discovery while the gate let them use the
+// app. Invariant: anyone the gate resolves 'ok' is discoverable. A future
+// signup path that uses PENDING_VERIFICATION to mean "not yet proven, keep
+// hidden" must promote its own users (or revisit this filter) instead of
+// relying on the status alone.
 
 const searchUsersSchema = z.object({
   q: z.string().min(1).max(100),
@@ -51,7 +59,8 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     const users = await prisma.user.findMany({
       where: {
         id: { not: userId },
-        status: 'ACTIVE',
+        deletedAt: null,
+        status: { notIn: ['SUSPENDED', 'DEACTIVATED'] },
         OR: [
           { username: { contains: q, mode: 'insensitive' } },
           { displayName: { contains: q, mode: 'insensitive' } },

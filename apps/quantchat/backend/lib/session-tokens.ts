@@ -30,6 +30,23 @@ export interface IssuedTokens {
   refreshToken: string;
   expiresIn: number;
   tokenType: 'Bearer';
+  /**
+   * QC-F-118: the refresh token's own id (its JWT `jti`) and the session
+   * family it belongs to (its JWT `fam` claim). The refresh-token store
+   * persists one row per refresh token keyed by this id, so issuance
+   * callers must register the pair with the store (see
+   * lib/refresh-token-store.ts) — an unregistered refresh token cannot be
+   * redeemed.
+   */
+  refreshTokenId: string;
+  familyId: string;
+}
+
+export interface IssueOptions {
+  /** Carry the family forward on rotation; a fresh family is minted otherwise. */
+  familyId?: string;
+  /** The refresh token's row id / `jti`; a fresh one is minted otherwise. */
+  refreshTokenId?: string;
 }
 
 const DEFAULT_ACCESS_TTL = 60 * 60; // 1h
@@ -55,15 +72,19 @@ export class SessionTokenIssuer {
     this.refreshTtl = config.refreshTtlSec ?? DEFAULT_REFRESH_TTL;
   }
 
-  async issue(subject: SessionSubject): Promise<IssuedTokens> {
+  async issue(subject: SessionSubject, opts?: IssueOptions): Promise<IssuedTokens> {
     const sessionId = randomUUID();
+    const familyId = opts?.familyId ?? randomUUID();
+    const refreshTokenId = opts?.refreshTokenId ?? randomUUID();
     const accessToken = this.sign(subject, sessionId, 'access', this.accessTtl);
-    const refreshToken = this.sign(subject, sessionId, 'refresh', this.refreshTtl);
+    const refreshToken = this.sign(subject, refreshTokenId, 'refresh', this.refreshTtl, familyId);
     return Promise.resolve({
       accessToken,
       refreshToken,
       expiresIn: this.accessTtl,
       tokenType: 'Bearer',
+      refreshTokenId,
+      familyId,
     });
   }
 
@@ -87,28 +108,20 @@ export class SessionTokenIssuer {
     return result.payload;
   }
 
-  /**
-   * Rotate: verify the refresh token and mint a brand-new token pair (new
-   * session id) for the same subject. Returns null when the refresh token is
-   * invalid/expired/wrong-kind. Stateless JWTs cannot be revoked server-side,
-   * so the previous refresh token technically stays valid until its own
-   * expiry — rotation still bounds the useful life of any single leaked pair
-   * and gives the client a fresh pair on every use.
-   */
-  async rotate(refreshToken: string): Promise<IssuedTokens | null> {
-    const payload = this.verifyRefreshToken(refreshToken);
-    if (!payload) return null;
-    return this.issue({
-      userId: payload['sub'] as string,
-      username: typeof payload['username'] === 'string' ? payload['username'] : '',
-    });
-  }
+  // QC-F-118: there is deliberately NO stateless `rotate()` here anymore.
+  // Rotation is a stateful redemption owned by RefreshTokenStore
+  // (lib/refresh-token-store.ts): the presented token's row is spent
+  // (compare-and-set), reuse outside a short grace window revokes the whole
+  // family, and the successor pair is issued in the same family. A bare
+  // verify+issue helper made the previous refresh token immortal until its
+  // own 30-day expiry and left no record that reuse ever happened.
 
   private sign(
     subject: SessionSubject,
-    sessionId: string,
+    tokenId: string,
     kind: 'access' | 'refresh',
     ttlSec: number,
+    familyId?: string,
   ): string {
     const nowSec = Math.floor(Date.now() / 1000);
     const header = { alg: 'HS256', typ: 'JWT' };
@@ -119,7 +132,11 @@ export class SessionTokenIssuer {
       scopes: [] as string[],
       role: 'user',
       kind,
-      jti: sessionId,
+      jti: tokenId,
+      // QC-F-118: only the refresh token carries its session family. The
+      // access token's claims are unchanged (its `jti` stays the session
+      // id the server-core auth plugin reads).
+      ...(kind === 'refresh' && familyId ? { fam: familyId } : {}),
       iat: nowSec,
       iss: this.config.jwtIssuer,
       aud: this.config.jwtAudience,

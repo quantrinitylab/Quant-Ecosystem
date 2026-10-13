@@ -17,10 +17,17 @@ import {
   type InlineFormatRange,
 } from '../lib/email-body';
 import { loadDefaultSignatureHtml } from '../lib/email-signature-preference';
+import { getInvalidRecipientReason } from '../lib/email-validation';
 import type { Attachment } from './EmailComposer';
 import { createPortal } from 'react-dom';
 import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
 import { ScheduleSendModal, isPastScheduleTime } from './ScheduleSendModal';
+import {
+  RecipientChipInput,
+  parseEmailString,
+  dedupeRecipientPayload,
+  type RecipientOption,
+} from './RecipientChipInput';
 
 /**
  * Superhuman/Gmail-class floating bottom-right docked composer widget.
@@ -35,6 +42,26 @@ import { ScheduleSendModal, isPastScheduleTime } from './ScheduleSendModal';
 
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024; // 20 MB per file
 const MAX_TOTAL_ATTACHMENTS_BYTES = 25 * 1024 * 1024; // 25 MB total
+
+/**
+ * Send-payload recipient lists for the docked composer. Each address goes to
+ * the API exactly once, and `Name <addr>` stays ONE recipient — the old
+ * derivation (`to.split(/[,;\s]+/)`) split on whitespace, so typing
+ * `John Doe <john@x.com>` shipped three bogus addresses (`John`, `Doe`,
+ * `<john@x.com>`) to compose/updateDraft. Exported for tests.
+ */
+export function buildRecipientPayload(
+  to: RecipientOption[],
+  cc: RecipientOption[],
+  bcc: RecipientOption[],
+): { to: { email: string }[]; cc?: { email: string }[]; bcc?: { email: string }[] } {
+  const toList = dedupeRecipientPayload(to.map((r) => ({ email: r.email })));
+  const ccList =
+    cc.length > 0 ? dedupeRecipientPayload(cc.map((r) => ({ email: r.email }))) : undefined;
+  const bccList =
+    bcc.length > 0 ? dedupeRecipientPayload(bcc.map((r) => ({ email: r.email }))) : undefined;
+  return { to: toList, cc: ccList, bcc: bccList };
+}
 
 export interface DockedComposerProps {
   isOpen: boolean;
@@ -366,11 +393,16 @@ export function DockedComposer({
     setCustomHeightPx(next);
   };
 
-  // Field states
-  const [to, setTo] = useState(initialTo);
+  // Field states — chip-based recipient rows (RecipientChipInput, the same
+  // component EmailComposer uses), so `John Doe <john@x.com>` is parsed as ONE
+  // recipient instead of being whitespace-split into three invalid addresses
+  // on send, and autocomplete appends a chip instead of replacing the field.
+  const [toRecipients, setToRecipients] = useState<RecipientOption[]>(() =>
+    parseEmailString(initialTo ?? ''),
+  );
   const [showCcBcc, setShowCcBcc] = useState(false);
-  const [cc, setCc] = useState('');
-  const [bcc, setBcc] = useState('');
+  const [ccRecipients, setCcRecipients] = useState<RecipientOption[]>([]);
+  const [bccRecipients, setBccRecipients] = useState<RecipientOption[]>([]);
   const [subject, setSubject] = useState(initialSubject);
   const [body, setBody] = useState(initialBody);
 
@@ -399,8 +431,7 @@ export function DockedComposer({
   // uses (same pick logic, same past-time rejection, same backend contract).
   const [showScheduleModal, setShowScheduleModal] = useState(false);
 
-  // Autocomplete suggestions for To:
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  // (Recipient autocomplete is owned by RecipientChipInput now.)
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
@@ -434,22 +465,11 @@ export function DockedComposer({
     const { bodyText, bodyHtml } = composeMessageBodies(body, signatureHtml, {
       inline: bodyFormats,
     });
-    const toList = to
-      .split(/[,;\s]+/)
-      .filter(Boolean)
-      .map((email) => ({ email }));
-    const ccList = cc
-      ? cc
-          .split(/[,;\s]+/)
-          .filter(Boolean)
-          .map((email) => ({ email }))
-      : undefined;
-    const bccList = bcc
-      ? bcc
-          .split(/[,;\s]+/)
-          .filter(Boolean)
-          .map((email) => ({ email }))
-      : undefined;
+    const { to: toList, cc: ccList, bcc: bccList } = buildRecipientPayload(
+      toRecipients,
+      ccRecipients,
+      bccRecipients,
+    );
     // The backend requires a non-empty subject to create a draft; without one
     // the save honestly fails and the indicator says "Couldn't save" instead
     // of pretending.
@@ -497,26 +517,26 @@ export function DockedComposer({
   const draftSnapshot = useMemo(
     () =>
       JSON.stringify({
-        to,
-        cc,
-        bcc,
+        to: toRecipients,
+        cc: ccRecipients,
+        bcc: bccRecipients,
         subject,
         body,
         attachments: attachments.map((a) => (a as any).id ?? a.filename),
       }),
-    [to, cc, bcc, subject, body, attachments],
+    [toRecipients, ccRecipients, bccRecipients, subject, body, attachments],
   );
   const draftHasContent = useMemo(
     () =>
       Boolean(
-        to.trim() ||
-          cc.trim() ||
-          bcc.trim() ||
+        toRecipients.length > 0 ||
+          ccRecipients.length > 0 ||
+          bccRecipients.length > 0 ||
           subject.trim() ||
           body.trim() ||
           attachments.length > 0,
       ),
-    [to, cc, bcc, subject, body, attachments],
+    [toRecipients, ccRecipients, bccRecipients, subject, body, attachments],
   );
 
   // QM-UIUX-083: every X close path routes through the exact same
@@ -546,7 +566,7 @@ export function DockedComposer({
 
   // Sync initials when props change
   useEffect(() => {
-    if (initialTo) setTo(initialTo);
+    if (initialTo) setToRecipients(parseEmailString(initialTo));
   }, [initialTo]);
 
   useEffect(() => {
@@ -571,18 +591,8 @@ export function DockedComposer({
     }
   }, [isOpen]);
 
-  // Filter contacts matching current 'to' text
-  const filteredSuggestions = useMemo(() => {
-    const query = to.trim().toLowerCase();
-    if (!query || query.length < 1) return [];
-    return contacts
-      .filter(
-        (c) =>
-          c.email.toLowerCase().includes(query) ||
-          (c.name && c.name.toLowerCase().includes(query))
-      )
-      .slice(0, 5);
-  }, [contacts, to]);
+  // (Contact filtering for recipient autocomplete is owned by
+  // RecipientChipInput now — no separate filteredSuggestions memo.)
 
   // Total attachment size
   const totalAttachmentBytes = useMemo(
@@ -785,7 +795,18 @@ export function DockedComposer({
   // toast tells the truth. The composer minimizes (stays mounted) instead of
   // closing, so Undo can hand the draft back visibly; the real close happens
   // when the send actually fires. This mirrors EmailComposer's modal path.
-  //
+  // Compose validation — same single-source-of-truth pattern as
+  // EmailComposer's getSendBlockReason: the Send button's `disabled` state
+  // and `handleSend`'s guard both derive from `invalidRecipientReason`, so
+  // the button can never look tappable while tapping it would just toast.
+  // Malformed recipient chips are flagged inline by RecipientChipInput AND
+  // block the send with a named reason — never a silent pass that fails on
+  // a server round-trip.
+  const invalidRecipientReason = getInvalidRecipientReason([
+    ...toRecipients,
+    ...ccRecipients,
+    ...bccRecipients,
+  ]);
   // SCHEDULE-SEND: `scheduledAt` (ISO, future) comes from the
   // ScheduleSendModal. Recall-window interplay — explicit decision: a
   // scheduled send DEFERS to the same 10-second recall window, it does not
@@ -798,8 +819,12 @@ export function DockedComposer({
   // genuinely different send, and the bar claims "Email scheduled!" via
   // successLabel so it never says "Message sent!" for a future schedule.
   const handleSend = async (scheduledAt?: string) => {
-    if (!to.trim()) {
+    if (toRecipients.length === 0) {
       showToast({ text: 'Please specify at least one recipient (To:)', type: 'error' });
+      return;
+    }
+    if (invalidRecipientReason) {
+      showToast({ text: invalidRecipientReason, type: 'error' });
       return;
     }
     if (!subject.trim()) {
@@ -827,9 +852,11 @@ export function DockedComposer({
     const { bodyText, bodyHtml } = composeMessageBodies(body, signatureHtml, { inline: bodyFormats });
 
     const draftSnapshot = {
-      to: to.trim(),
-      cc: cc.trim(),
-      bcc: bcc.trim(),
+      // Display string for the undo-send countdown bar ("Message to …").
+      to: toRecipients.map((r) => r.name || r.email).join(', '),
+      toRecipients: [...toRecipients],
+      ccRecipients: [...ccRecipients],
+      bccRecipients: [...bccRecipients],
       subject: subject.trim(),
       body: body.trim(),
       bodyFormats: [...bodyFormats],
@@ -840,24 +867,11 @@ export function DockedComposer({
       scheduledAt,
     };
 
-    const toList = draftSnapshot.to
-      .split(/[,;\s]+/)
-      .filter(Boolean)
-      .map((email) => ({ email }));
-
-    const ccList = draftSnapshot.cc
-      ? draftSnapshot.cc
-          .split(/[,;\s]+/)
-          .filter(Boolean)
-          .map((email) => ({ email }))
-      : undefined;
-
-    const bccList = draftSnapshot.bcc
-      ? draftSnapshot.bcc
-          .split(/[,;\s]+/)
-          .filter(Boolean)
-          .map((email) => ({ email }))
-      : undefined;
+    const { to: toList, cc: ccList, bcc: bccList } = buildRecipientPayload(
+      toRecipients,
+      ccRecipients,
+      bccRecipients,
+    );
 
     // A chat message is a thread start, not a letter: the backend requires a
     // non-empty subject, so fall back to the recipient line.
@@ -869,9 +883,9 @@ export function DockedComposer({
     // failed send, so a message is never silently eaten and never falsely
     // "restored" into a closed composer.
     const restoreDraft = () => {
-      setTo(draftSnapshot.to);
-      setCc(draftSnapshot.cc);
-      setBcc(draftSnapshot.bcc);
+      setToRecipients(draftSnapshot.toRecipients);
+      setCcRecipients(draftSnapshot.ccRecipients);
+      setBccRecipients(draftSnapshot.bccRecipients);
       setSubject(draftSnapshot.subject);
       setBody(draftSnapshot.body);
       setBodyFormats(draftSnapshot.bodyFormats);
@@ -1165,78 +1179,56 @@ export function DockedComposer({
 
       {/* INPUTS BODY */}
       <div className="flex-1 flex flex-col min-h-0 overflow-y-auto divide-y divide-[#1A202E]">
-        {/* Recipient To: */}
-        <div className="relative flex items-center px-4 py-2 gap-2 text-xs">
-          <label htmlFor="docked-composer-to" className="w-10 text-[#6B7280] font-semibold select-none">To</label>
-          <input
-            type="text"
+        {/* Recipient To: chip-based — typing `John Doe <john@x.com>` parses as
+            ONE recipient (no whitespace splitting), and the autocomplete
+            dropdown appends a chip instead of replacing the whole field. */}
+        <div className="px-4 py-2 text-xs">
+          <RecipientChipInput
             id="docked-composer-to"
-            value={to}
-            onChange={(e) => {
-              setTo(e.target.value);
-              setShowSuggestions(true);
-            }}
-            onFocus={() => setShowSuggestions(true)}
+            name="to"
+            label="To"
+            required
+            recipients={toRecipients}
+            onChange={setToRecipients}
+            contacts={contacts}
             placeholder="Recipients (e.g. sundar@google.com)"
-            aria-label="To recipients"
-            className="flex-1 bg-transparent text-white placeholder-[#4B5563] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded text-xs"
-          />
-
-          {!showCcBcc && (
-            <button
-              type="button"
-              onClick={() => setShowCcBcc(true)}
-              className="relative text-[11px] after:absolute after:-inset-[12px] after:content-[''] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] font-semibold transition-colors px-1.5 py-0.5 rounded"
-            >
-              Cc / Bcc
-            </button>
-          )}
-
-          {/* Autocomplete suggestions dropdown */}
-          {showSuggestions && filteredSuggestions.length > 0 && (
-            <div className="absolute left-14 top-full mt-1 w-72 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] shadow-2xl z-50 overflow-hidden py-1">
-              {filteredSuggestions.map((c) => (
-                <div
-                  key={c.id}
-                  onClick={() => {
-                    setTo(c.email);
-                    setShowSuggestions(false);
-                  }}
-                  className="px-3 py-1.5 hover:bg-[var(--quant-primary)]/15 cursor-pointer flex flex-col transition-colors"
+            rightAction={
+              !showCcBcc ? (
+                <button
+                  type="button"
+                  onClick={() => setShowCcBcc(true)}
+                  className="relative text-[11px] after:absolute after:-inset-[12px] after:content-[''] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] font-semibold transition-colors px-1.5 py-0.5 rounded"
                 >
-                  <span className="text-xs font-semibold text-white">{c.name || c.email}</span>
-                  <span className="text-[10px] text-[#9CA3AF] truncate">{c.email}</span>
-                </div>
-              ))}
-            </div>
-          )}
+                  Cc / Bcc
+                </button>
+              ) : undefined
+            }
+          />
         </div>
 
-        {/* Optional Cc / Bcc fields */}
+        {/* Optional Cc / Bcc fields — chip-based like To */}
         {showCcBcc && (
           <>
-            <div className="flex items-center px-4 py-1.5 gap-2 text-xs">
-              <label htmlFor="docked-composer-cc" className="w-10 text-[#6B7280] font-semibold select-none">Cc</label>
-              <input
-                type="text"
+            <div className="px-4 py-1.5 text-xs">
+              <RecipientChipInput
                 id="docked-composer-cc"
-                value={cc}
-                onChange={(e) => setCc(e.target.value)}
+                name="cc"
+                label="Cc"
+                recipients={ccRecipients}
+                onChange={setCcRecipients}
+                contacts={contacts}
                 placeholder="Cc recipients"
-                aria-label="Cc recipients"
-                className="flex-1 bg-transparent text-white placeholder-[#4B5563] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded text-xs"
               />
             </div>
-            <div className="flex items-center px-4 py-1.5 gap-2 text-xs">
-              <label htmlFor="docked-composer-bcc" className="w-10 text-[#6B7280] font-semibold select-none">Bcc</label>
-              <input
-                type="text"
+            <div className="px-4 py-1.5 text-xs">
+              <RecipientChipInput
                 id="docked-composer-bcc"
-                value={bcc}
-                onChange={(e) => setBcc(e.target.value)}
+                name="bcc"
+                label="Bcc"
+                recipients={bccRecipients}
+                onChange={setBccRecipients}
+                contacts={contacts}
                 placeholder="Bcc recipients"
-                aria-label="Bcc recipients"
-                className="flex-1 bg-transparent text-white placeholder-[#4B5563] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded text-xs"
               />
             </div>
           </>
@@ -1356,22 +1348,22 @@ export function DockedComposer({
           <button
             type="button"
             onClick={() => void handleSend()}
-            disabled={isSending}
+            disabled={isSending || invalidRecipientReason !== null}
             data-testid="docked-composer-send-button"
             className="group relative flex items-center gap-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] bg-gradient-to-r from-[var(--quant-primary)] to-[#F97316] px-4 py-2 text-xs font-bold text-black shadow-lg shadow-[var(--quant-primary)]/20 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
-            title="Send email (⌘↵ or Ctrl+Enter)"
+            title={invalidRecipientReason ?? 'Send email (⌘↵ or Ctrl+Enter)'}
           >
             <IconSend className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
             <span>Send (⌘↵)</span>
           </button>
 
           {/* Schedule send — the same ScheduleSendModal the /compose page
-              uses. Mail orange accent; invisible ::after halo (SIA-P2-4) so
-              the hit target stays ≥44px. */}
+              uses. Mail orange accent; invisible ::after halo so the hit
+              target stays ≥44px. */}
           <button
             type="button"
             onClick={() => setShowScheduleModal(true)}
-            disabled={isSending}
+            disabled={isSending || invalidRecipientReason !== null}
             data-testid="docked-composer-schedule-button"
             aria-label="Schedule send"
             className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] border border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 hover:border-[var(--quant-primary)] transition-all text-xs font-semibold disabled:opacity-50 cursor-pointer"

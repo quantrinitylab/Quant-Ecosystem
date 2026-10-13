@@ -46,6 +46,7 @@ Respond ONLY with valid JSON matching this schema:
       userId,
       app: 'quantmail',
       feature: 'email-triage',
+      stateless: true,
       temperature: 0.2,
       maxTokens: 256,
     });

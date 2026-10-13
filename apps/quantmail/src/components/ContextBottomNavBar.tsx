@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Quanty } from './Quanty';
+import { LiquidTrack } from './workplace/LiquidTrack';
 import { triggerHapticTap } from './QuantPillarTopBar';
 import { useChromeVisible } from './useScrollChrome';
 // QM-UIUX-037: single accent-color source of truth (mobile values canonical).
@@ -52,6 +53,13 @@ export interface ContextSubTab {
   queryParam?: { key: string; value: string };
   ariaLabel?: string;
   description?: string;
+  /**
+   * Quant Workplace bottom bar: the tab stays in the config (and in the
+   * drawer + desktop nav) but is not one of the bar's primary slots. It joins
+   * the bar only while it is the active view, so the bar never lies about
+   * where the user is.
+   */
+  mobileOverflow?: boolean;
 }
 
 export interface PillarContextConfig {
@@ -824,6 +832,7 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         // `GET /emails?folderType=SCHEDULED` — queued future sends with
         // per-row cancel/edit.
         id: 'scheduled',
+        mobileOverflow: true,
         label: 'Scheduled',
         icon: ScheduledIcon,
         targetPath: '/scheduled',
@@ -844,6 +853,7 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
       },
       {
         id: 'spam',
+        mobileOverflow: true,
         label: 'Spam',
         icon: SpamIcon,
         targetPath: '/',
@@ -851,6 +861,7 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
       },
       {
         id: 'trash',
+        mobileOverflow: true,
         label: 'Trash',
         icon: TrashIcon,
         targetPath: '/trash',
@@ -1196,135 +1207,116 @@ export function ContextBottomNavBar({
     });
   };
 
+  // Quant Workplace bar: the primary slots, plus the active overflow view
+  // (Scheduled / Spam / Trash) while the user is on it.
+  const primaryTabs = pillarConfig.tabs.filter((t) => !t.mobileOverflow);
+  const activeOverflow = pillarConfig.tabs.find((t) => t.mobileOverflow && t.id === activeTabId);
+  const visibleTabs = activeOverflow ? [...primaryTabs, activeOverflow] : primaryTabs;
+  // A view with no slot of its own (the inbox's Important lens, say) lives
+  // under the first tab, so the raised tab still says where the user is.
+  const foundIndex = visibleTabs.findIndex((t) => t.id === activeTabId);
+  const activeIndex = foundIndex >= 0 ? foundIndex : 0;
+
   return (
     <div
       aria-hidden={!isVisible}
       className={`md:hidden flex-none overflow-hidden motion-reduce:transition-none ${className}`}
       style={{
-        // In-flow collapse: height animates 4rem+safe-area <-> 0, so <main>
-        // expands to fill the space. GPU-cheap (single height), no void.
-        height: isVisible ? 'calc(4rem + env(safe-area-inset-bottom, 0px))' : 0,
+        // In-flow collapse: height animates (bar + gaps + safe-area) <-> 0,
+        // so <main> expands to fill the space. GPU-cheap (single height), no void.
+        height: isVisible ? 'calc(4.625rem + env(safe-area-inset-bottom, 0px))' : 0,
         transition: 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
       }}
     >
     <nav
-      // key={pillar}: remounts on app switch so the tab set cross-fades in
-      // sync with the top switcher's swoosh slide (same 300ms ease-out) —
-      // this synchronization is what makes the bottom bar feel CONNECTED
-      // to the active app (user-approved 2026-10-09).
+      // key={pillar}: remounts on app switch so the tab set eases in with the
+      // top switcher's liquid slide — the bottom bar reads as the same app.
       key={pillar}
-      className="flex h-16 items-center justify-around border-t border-[var(--quant-surface-elevated)] bg-[var(--quant-background)]/95 backdrop-blur-md px-2 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-8px_24px_rgba(0,0,0,0.45)] animate-[quantBottomTabsIn_0.3s_ease-out]"
+      className="h-full px-3 pt-2 pb-[env(safe-area-inset-bottom,0px)] bg-[var(--quant-background)]"
       aria-label={`${pillarConfig.name} contextual navigation`}
+      data-testid="context-bottom-nav"
     >
-      {pillarConfig.tabs.map((tab) => {
-        const isActive = tab.id === activeTabId;
-        const IconComponent = tab.icon;
-        // Badges are REAL counts only, wired via `badgeOverrides` from AppShell.
-        // No badge renders when the count is missing or zero.
-        const currentBadgeCount = badgeOverrides?.[tab.id];
+      {/*
+        Quant Workplace bottom bar (approved 2026-10-13): a floating glass bar
+        whose active tab rises out of it as one connected liquid shape in the
+        app accent (<LiquidTrack>, lib/liquid-bar). The tabs are real buttons
+        in an equal-cell grid above the drawn layer.
+      */}
+      <div
+        className="qw-bar qw-bar-h mb-1.5"
+        style={{ height: 60, ['--lq-accent' as string]: pillarConfig.accentColor }}
+      >
+        <LiquidTrack
+          orient="h"
+          count={visibleTabs.length}
+          index={activeIndex}
+          thickness={60}
+          radius={22}
+          lift={6}
+          pad={6}
+          top={0.34}
+          flare={0.26}
+          flareMax={24}
+          testId="context-bottom-nav-liquid"
+        />
+        <div className="qw-segs qw-tabs-in">
+          {visibleTabs.map((tab, idx) => {
+            const isActive = idx === activeIndex;
+            const IconComponent = tab.icon;
+            // Badges are REAL counts only, wired via `badgeOverrides` from AppShell.
+            // No badge renders when the count is missing or zero.
+            const currentBadgeCount = badgeOverrides?.[tab.id];
 
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => handleTabClick(tab)}
-            className={`group relative flex min-h-touch flex-1 flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-xl transition-all duration-200 select-none ${
-              isActive
-                ? `${pillarConfig.activeContainerStyle} ${pillarConfig.activeTextStyle} font-bold border shadow-sm`
-                : 'text-[#94A3B8] hover:text-[#F1F5F9] border border-transparent hover:bg-[#161922]/50 font-medium'
-            }`}
-            style={
-              isActive
-                ? {
-                    // Swoosh-adjacent glow: the active bottom tab carries the
-                    // same accent-color glow language as the top switcher's
-                    // swoosh, so the two feel like one connected control.
-                    boxShadow: `0 0 18px ${pillarConfig.accentColor}55, 0 0 36px ${pillarConfig.accentColor}26, inset 0 1px 0 ${pillarConfig.accentColor}66`,
-                  }
-                : undefined
-            }
-            aria-current={isActive ? 'page' : undefined}
-            aria-label={
-              tab.ariaLabel ||
-              `${tab.label}${currentBadgeCount ? ` (${currentBadgeCount} unread)` : ''}${
-                tab.badgeText ? ` (${tab.badgeText})` : ''
-              }`
-            }
-          >
-            {/* Tab Icon with badge indicator (logo-only tabs render the mark, no label) */}
-            <div className="relative flex items-center justify-center">
-              {tab.logoOnly ? (
-                <Quanty size={24} expression="idle" bob={false} />
-              ) : (
-                <IconComponent
-                  className={`size-4 transition-transform duration-200 ${
-                    isActive ? 'scale-110' : 'group-hover:scale-105'
-                  }`}
-                  active={isActive}
-                />
-              )}
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => handleTabClick(tab)}
+                data-testid={`context-tab-${tab.id}`}
+                className="qw-tab select-none"
+                aria-current={isActive ? 'page' : undefined}
+                aria-label={
+                  tab.ariaLabel ||
+                  `${tab.label}${currentBadgeCount ? ` (${currentBadgeCount} unread)` : ''}${
+                    tab.badgeText ? ` (${tab.badgeText})` : ''
+                  }`
+                }
+              >
+                <span className="qw-tab-ic relative">
+                  {tab.logoOnly ? (
+                    <Quanty size={26} expression="idle" bob={false} />
+                  ) : (
+                    <IconComponent className="size-[22px]" active={isActive} />
+                  )}
 
-              {/* Number Badge */}
-              {currentBadgeCount !== undefined && currentBadgeCount > 0 && (
-                <span
-                  className={`absolute -top-1.5 -right-3.5 flex min-w-[15px] h-[15px] items-center justify-center rounded-full px-1 text-[var(--q-type-xs)] font-bold leading-none shadow-sm transition-colors ${
-                    isActive
-                      ? pillarConfig.badgeStyle
-                      : 'bg-[var(--quant-surface-elevated)] text-[#E2E8F0] border border-[#3A404D]'
-                  }`}
-                >
-                  {currentBadgeCount > 99 ? '99+' : currentBadgeCount}
+                  {/* Number Badge */}
+                  {currentBadgeCount !== undefined && currentBadgeCount > 0 && (
+                    <span
+                      className={`absolute -top-1.5 -right-3.5 flex min-w-[16px] h-4 items-center justify-center rounded-full px-1 text-[var(--q-type-xs)] font-bold leading-none shadow-sm ${
+                        isActive
+                          ? pillarConfig.badgeStyle
+                          : 'bg-[var(--quant-surface-elevated)] text-[#E2E8F0] border border-[#3A404D]'
+                      }`}
+                    >
+                      {currentBadgeCount > 99 ? '99+' : currentBadgeCount}
+                    </span>
+                  )}
+
+                  {/* Text Badge (e.g. E2EE, CDC, CI/CD) */}
+                  {tab.badgeText && (
+                    <span className="absolute -top-1.5 -right-4 flex h-[13px] items-center justify-center rounded px-1 text-[var(--q-type-xs)] font-extrabold uppercase tracking-tight leading-none border bg-[#161922] text-[#94A3B8] border-[#232938]">
+                      {tab.badgeText}
+                    </span>
+                  )}
                 </span>
-              )}
 
-              {/* Text Badge (e.g. E2EE, CDC, CI/CD) */}
-              {tab.badgeText && (
-                <span
-                  className={`absolute -top-1.5 -right-4 flex h-[13px] items-center justify-center rounded px-1 text-[var(--q-type-xs)] font-extrabold uppercase tracking-tight leading-none shadow-sm border transition-colors ${
-                    isActive
-                      ? `${pillarConfig.activeContainerStyle} ${pillarConfig.activeTextStyle}`
-                      : 'bg-[#161922] text-[#94A3B8] border-[#232938]'
-                  }`}
-                >
-                  {tab.badgeText}
-                </span>
-              )}
-            </div>
-
-            {/* Tab Label (logo-only tabs show the mark alone, no text) */}
-            {!tab.logoOnly && (
-              <span className="text-[10px] tracking-tight leading-tight truncate max-w-full">
-                {tab.label}
-              </span>
-            )}
-
-            {/* Active Pill Indicator — swoosh-grade glowing bar in the pillar accent */}
-            {isActive && (
-              <span
-                className="absolute bottom-1 h-1 rounded-full animate-[quantNavPillIn_0.3s_cubic-bezier(0.34,1.56,0.64,1)]"
-                style={{
-                  width: '44%',
-                  minWidth: 28,
-                  background: `linear-gradient(90deg, ${pillarConfig.accentColor}00, ${pillarConfig.accentColor} 30%, ${pillarConfig.accentColor} 70%, ${pillarConfig.accentColor}00)`,
-                  boxShadow: `0 0 12px ${pillarConfig.accentColor}AA, 0 0 24px ${pillarConfig.accentColor}55`,
-                }}
-                aria-hidden="true"
-              />
-            )}
-          </button>
-        );
-      })}
-      <style>{`
-        @keyframes quantNavPillIn {
-          0% { transform: scaleX(0.3); opacity: 0; }
-          60% { transform: scaleX(1.12); opacity: 1; }
-          100% { transform: scaleX(1); opacity: 1; }
-        }
-        @keyframes quantBottomTabsIn {
-          0% { opacity: 0.35; transform: translateY(6px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
+                {/* Tab Label (logo-only tabs show the mark alone, no text) */}
+                {!tab.logoOnly && <span className="qw-tab-label">{tab.label}</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </nav>
     </div>
   );

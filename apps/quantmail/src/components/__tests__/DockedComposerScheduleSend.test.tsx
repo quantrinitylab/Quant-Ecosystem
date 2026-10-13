@@ -199,6 +199,11 @@ async function fillDraft(container: HTMLElement) {
     'textarea[placeholder^="Write your email here"]',
   )!;
   await typeInto(to, 'kundan@quantmail.in');
+  // The chip-based To: row commits on Enter — without this, toRecipients stays
+  // empty and handleSend bails with "Please specify at least one recipient".
+  await act(async () => {
+    to.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  });
   await typeInto(subject, 'schedule honesty check');
   await typeInto(body, 'the schedule must be real');
 }

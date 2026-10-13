@@ -107,6 +107,7 @@ Respond ONLY with valid JSON:
       userId,
       app: 'quantmail',
       feature: 'contact-context',
+      stateless: true,
       temperature: 0.3,
       maxTokens: 512,
     });

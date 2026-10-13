@@ -99,10 +99,12 @@ describe('DesktopContextSidebar (the one desktop sidebar)', () => {
     ['/contacts', 'contacts'],
     ['/quantgit', 'code'],
     ['/sent', 'mail'],
-  ])('route %s shows the %s logo + name', (route, app) => {
+  ])('route %s shows the Quant Workplace brand with the %s arc lit + name', (route, app) => {
     mockPathname = route;
     const markup = renderToStaticMarkup(createElement(DesktopContextSidebar, baseProps));
-    expect(markup).toContain(`data-logo="${app}"`);
+    expect(markup).toContain('data-testid="workplace-brand"');
+    expect(markup).toContain('Workplace');
+    expect(markup).toContain(`data-active-arc="${app === 'code' ? 'quantgit' : app}"`);
     expect(markup).toContain(`data-wordmark="${app}"`);
   });
 

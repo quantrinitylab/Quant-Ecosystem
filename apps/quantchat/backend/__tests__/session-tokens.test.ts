@@ -54,13 +54,31 @@ describe('SessionTokenIssuer', () => {
     expect(sig).toBe(expected);
   });
 
-  it('access + refresh share the same session id (jti)', async () => {
+  it('refresh token carries its OWN jti + family (QC-F-118); access jti stays the session id', async () => {
     const issuer = new SessionTokenIssuer(config);
     const tokens = await issuer.issue({ userId: 'u', username: 'u' });
-    expect(decodePayload(tokens.accessToken)['jti']).toBe(
-      decodePayload(tokens.refreshToken)['jti'],
+    const access = decodePayload(tokens.accessToken);
+    const refresh = decodePayload(tokens.refreshToken);
+    expect(refresh['kind']).toBe('refresh');
+    // Per-token refresh jti is what makes server-side spend/reuse
+    // tracking possible at all; the old pair-shared jti made every token
+    // in a chain indistinguishable. This assertion is the deliberate
+    // inverse of the pre-QC-F-118 pin.
+    expect(refresh['jti']).not.toBe(access['jti']);
+    expect(refresh['jti']).toBe(tokens.refreshTokenId);
+    expect(refresh['fam']).toBe(tokens.familyId);
+    expect(access['fam']).toBeUndefined();
+  });
+
+  it('issue() carries the family forward when asked (rotation) but mints a fresh refresh jti', async () => {
+    const issuer = new SessionTokenIssuer(config);
+    const first = await issuer.issue({ userId: 'u', username: 'u' });
+    const next = await issuer.issue(
+      { userId: 'u', username: 'u' },
+      { familyId: first.familyId },
     );
-    expect(decodePayload(tokens.refreshToken)['kind']).toBe('refresh');
+    expect(next.familyId).toBe(first.familyId);
+    expect(next.refreshTokenId).not.toBe(first.refreshTokenId);
   });
 
   it('rejects tokens signed with a different secret', async () => {

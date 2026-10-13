@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Quanty } from './Quanty';
+import { openQuantyAvatarPicker } from '../lib/quanty/avatar-choice';
 import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
 import { showToast } from './InboxToast';
 import { IconX } from './icons';
@@ -935,7 +936,17 @@ export function QuantyCopilotDrawer({
 
             <div className="flex items-center justify-between px-4 sm:px-5 pt-1 pb-4 relative">
               <div className="flex items-center gap-2.5">
-                <Quanty size={28} expression={quantyExpression} bob={false} />
+                {/* The header avatar opens "Choose your Quanty" (Quant Workplace). */}
+                <button
+                  type="button"
+                  onClick={openQuantyAvatarPicker}
+                  className="relative rounded-full transition-transform hover:-translate-y-px before:absolute before:-inset-[8px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                  aria-label="Choose your Quanty"
+                  title="Choose your Quanty"
+                  data-testid="quanty-drawer-avatar"
+                >
+                  <Quanty size={28} expression={quantyExpression} bob={false} />
+                </button>
                 <h3 className="text-sm font-semibold text-[var(--quant-foreground)] tracking-tight">
                   Quanty AI Copilot
                 </h3>

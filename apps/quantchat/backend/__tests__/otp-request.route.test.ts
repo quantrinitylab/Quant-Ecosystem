@@ -95,6 +95,12 @@ const fakePrisma = {
       throw new Error('user not found');
     },
   },
+  // QC-F-118: OTP issuance now also registers the refresh token's row.
+  // These route tests exercise the OTP flow, not redemption, so the
+  // delegate only needs to accept the registration write.
+  refreshToken: {
+    create: async ({ data }: { data: Record<string, unknown> }) => data,
+  },
 };
 
 let app: FastifyInstance;

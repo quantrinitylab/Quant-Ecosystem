@@ -84,6 +84,7 @@ Respond ONLY with valid JSON:
       userId,
       app: 'quantmail',
       feature: 'email-reply',
+      stateless: true,
       temperature: 0.6,
       maxTokens: 1024,
     });

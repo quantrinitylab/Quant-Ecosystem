@@ -20,6 +20,7 @@ import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
 import { parseEmailString, dedupeRecipientPayload, type RecipientOption } from './RecipientChipInput';
+import { getInvalidRecipientReason } from '../lib/email-validation';
 import { ContactAutocomplete, type ContactSuggestion } from './ContactAutocomplete';
 import { useContactSuggestions } from '../hooks/useContactSuggestions';
 import {
@@ -116,12 +117,26 @@ export interface ComposerMessageData {
  * Returns the exact error message shown to the user, or `null` when the
  * composer is send-ready. Validation is intentionally strict — To, subject
  * AND body are all required, exactly as `handleSend` enforced before this
- * fix. Weakening validation is not allowed; if a field ever becomes
+ * fix, and every recipient address must be well-formed (a malformed chip
+ * blocks the send with a named reason instead of failing on a server
+ * round-trip). Weakening validation is not allowed; if a field ever becomes
  * optional (e.g. subject behind a confirm dialog), that decision lives
  * here, in one place, and the disabled state follows it automatically.
+ *
+ * `recipients` carries the To/Cc/Bcc chips; the malformed-address block sits
+ * right after the empty-To block and before subject/body, in the order a
+ * user fixes the form top-down. Callers must pass the same recipient list
+ * `to` was derived from, so the string check and the address check agree.
  */
-export function getSendBlockReason(to: string, subject: string, body: string): string | null {
+export function getSendBlockReason(
+  to: string,
+  subject: string,
+  body: string,
+  recipients: Array<{ email: string }> = [],
+): string | null {
   if (!to.trim()) return 'Please specify at least one recipient (To:)';
+  const invalidReason = getInvalidRecipientReason(recipients);
+  if (invalidReason) return invalidReason;
   if (!subject.trim()) return 'Please enter an email subject';
   if (!body.trim()) return 'Please enter your message body';
   return null;
@@ -155,14 +170,18 @@ export function isFullPageComposePath(pathname: string | null | undefined): bool
  * disagree about what is missing. Before this, every block — missing subject
  * and missing body included — fired `mail:noRecipients`, a copy-paste bug
  * that made Quanty react "no recipients" to problems that had nothing to do
- * with recipients. Returns `null` exactly when `getSendBlockReason` does.
+ * with recipients. Returns `null` exactly when `getSendBlockReason` does. A
+ * malformed recipient address maps to `mail:noRecipients` — it is a
+ * recipient problem, in the same position as in `getSendBlockReason`.
  */
 export function getSendBlockReaction(
   to: string,
   subject: string,
   body: string,
+  recipients: Array<{ email: string }> = [],
 ): 'mail:noRecipients' | 'mail:noSubject' | 'mail:noBody' | null {
   if (!to.trim()) return 'mail:noRecipients';
+  if (getInvalidRecipientReason(recipients)) return 'mail:noRecipients';
   if (!subject.trim()) return 'mail:noSubject';
   if (!body.trim()) return 'mail:noBody';
   return null;
@@ -877,8 +896,11 @@ export function EmailComposer({
   );
 
   // QM-UIUX-024: the Send button's disabled state mirrors this exactly, so a
-  // tap can never reach handleSend while validation would reject it.
-  const sendBlockReason = getSendBlockReason(to, subject, body);
+  // tap can never reach handleSend while validation would reject it. The
+  // recipient list covers To/Cc/Bcc chips — a malformed address anywhere
+  // blocks the send with a named reason (compose validation).
+  const allRecipients = [...toRecipients, ...ccRecipients, ...bccRecipients];
+  const sendBlockReason = getSendBlockReason(to, subject, body, allRecipients);
 
   // Send Handler
   //
@@ -893,7 +915,7 @@ export function EmailComposer({
     if (sendBlockReason) {
       // QM-UIUX-025: announce the field that is actually missing — subject
       // and body blocks must not fire the recipients reaction.
-      quantyReact(getSendBlockReaction(to, subject, body) ?? 'mail:noRecipients');
+      quantyReact(getSendBlockReaction(to, subject, body, allRecipients) ?? 'mail:noRecipients');
       showToast({ text: sendBlockReason, type: 'error' });
       return;
     }

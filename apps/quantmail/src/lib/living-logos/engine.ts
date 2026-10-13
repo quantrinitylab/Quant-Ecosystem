@@ -373,6 +373,12 @@ interface InstanceOptions {
   interactive: boolean;
   seed: number;
   face: CalendarFace | null;
+  /** Professional motion: rarer blinks, small slow glances, gentle reactions. */
+  calm: boolean;
+  /** Clean eyes: glossy beads, no neon/LED cores. */
+  clean: boolean;
+  /** Eye radius multiplier (1 = reference art). */
+  eyeScale: number;
 }
 
 class LogoInstance {
@@ -390,7 +396,8 @@ class LogoInstance {
   private pointerActive = false;
   private lastMove = -Infinity;
   private readonly rigs: EyeRig[];
-  private readonly gaze = new SpringVec([0, 0], 380, 0.68);
+  private gaze = new SpringVec([0, 0], 380, 0.68);
+  private glanceUntil = 0;
   private readonly tilt = new SpringVec([0, 0], 55, 0.9);
   private readonly scale = new SpringVec([1, 1], 210, 0.38);
   private readonly glow = new Spring(1, 60, 0.9);
@@ -434,6 +441,11 @@ class LogoInstance {
     this.logo = LOGOS[opts.app];
     this.rng = mulberry32(opts.seed * 9973 + 17);
     this.nextBlink = 1.2 + this.rng() * 2.5;
+    if (opts.calm) {
+      this.gaze = new SpringVec([0, 0], 140, 0.92);
+      this.nextBlink = 2.5 + this.rng() * 4;
+      this.nextSaccade = 3 + this.rng() * 3;
+    }
     this.rigs = this.logo.eyes.map((e) => new EyeRig(this.logo.eyeStyle, e));
     this.applyExpression('default', true);
     this.liveFace = !opts.face;
@@ -459,17 +471,24 @@ class LogoInstance {
   }
   notify(): void {
     if (this.reduced) return;
-    this.react('surprised', 1.4);
-    this.bounce(1.2);
-    this.glow.vel += 6;
+    this.react(this.opts.calm ? 'happy' : 'surprised', this.opts.calm ? 1.1 : 1.4);
+    this.bounce(this.opts.calm ? 0.7 : 1.2);
+    this.glow.vel += this.opts.calm ? 4 : 6;
+  }
+  /** Look towards (nx, ny) in [-1, 1] (y up) for `seconds`, overriding idle glances and the pointer. */
+  glance(nx: number, ny: number, seconds = 1): void {
+    if (this.reduced) return;
+    this.glanceUntil = this.time + seconds;
+    this.gazeTarget = [clamp(nx, -1, 1), clamp(ny, -1, 1)];
+    this.settleUntil = Math.max(this.settleUntil, this.glanceUntil + 0.6);
   }
   tap(): void {
-    this.react('excited', 0.9);
-    this.bounce(1);
+    this.react(this.opts.calm ? 'happy' : 'excited', 0.9);
+    this.bounce(this.opts.calm ? 0.6 : 1);
     if (this.app === 'calendar') this.flip(this.face);
   }
   hover(): void {
-    this.react(HOVER_REACTION[this.app], 1.3);
+    this.react(this.opts.calm ? 'content' : HOVER_REACTION[this.app], this.opts.calm ? 1.0 : 1.3);
   }
   setFace(face: CalendarFace | null): void {
     if (this.app !== 'calendar') return;
@@ -565,6 +584,7 @@ class LogoInstance {
   private trackPointer(): void {
     if (!this.opts.interactive || this.reduced || pointer.seq === this.pointerSeq) return;
     this.pointerSeq = pointer.seq;
+    if (this.time < this.glanceUntil) return;
     if (pointer.seq === 0) return;
     const b = this.canvas.getBoundingClientRect();
     if (!b.width || !b.height) return;
@@ -599,9 +619,9 @@ class LogoInstance {
     if (t >= this.nextBlink) {
       if (canBlink) {
         this.blinkT = 0;
-        if (this.rng() < 0.16) this.queuedBlink = t + 0.34;
+        if (this.rng() < (this.opts.calm ? 0.08 : 0.16)) this.queuedBlink = t + 0.34;
       }
-      this.nextBlink = t + 2.4 + this.rng() * 3.6;
+      this.nextBlink = t + (this.opts.calm ? 3.6 + this.rng() * 4.4 : 2.4 + this.rng() * 3.6);
     }
     if (this.queuedBlink > 0 && t >= this.queuedBlink) {
       this.queuedBlink = -1;
@@ -617,14 +637,22 @@ class LogoInstance {
     this.blinkAmt = canBlink ? blink : 0;
     // gaze: pointer tracking or idle saccades
     const idle = t - this.lastMove;
-    if (this.pointerActive && idle < 5) {
+    const calm = this.opts.calm;
+    if (this.glanceUntil > 0 && t >= this.glanceUntil) {
+      this.glanceUntil = 0;
+      this.gazeTarget = [0, 0];
+      this.nextSaccade = t + (calm ? 2.5 + this.rng() * 3 : 0.9 + this.rng() * 1.5);
+    }
+    if (t < this.glanceUntil) {
+      // gazeTarget is held by glance()
+    } else if (this.pointerActive && idle < 5) {
       // gazeTarget already follows the pointer
     } else if (t > this.nextSaccade && !reduced) {
       this.pointerActive = false;
       const a = this.rng() * Math.PI * 2;
-      const m = this.rng() < 0.3 ? 0 : 0.2 + this.rng() * 0.45;
+      const m = calm ? (this.rng() < 0.5 ? 0 : 0.12 + this.rng() * 0.2) : this.rng() < 0.3 ? 0 : 0.2 + this.rng() * 0.45;
       this.gazeTarget = [Math.cos(a) * m, Math.sin(a) * m * 0.7];
-      this.nextSaccade = t + 0.9 + this.rng() * 2.6;
+      this.nextSaccade = t + (calm ? 2.8 + this.rng() * 4.5 : 0.9 + this.rng() * 2.6);
     }
     if (this.current === 'sleepy' || this.current === 'dizzy') this.gaze.set([0, 0]);
     else this.gaze.set(this.gazeTarget);
@@ -723,7 +751,7 @@ class LogoInstance {
     this.rigs.forEach((rig, i) => {
       const e = L.eyes[i];
       const b = i * 12;
-      set4(E, b, (e.x - F.x0) / F.size, 1 - (e.y - F.y0) / F.size, e.r / F.size, e.side);
+      set4(E, b, (e.x - F.x0) / F.size, 1 - (e.y - F.y0) / F.size, (e.r * this.opts.eyeScale) / F.size, e.side);
       set4(E, b + 1, rig.A.type, rig.B.type, ease(rig.t), STYLE_ID[style]);
       const PA = rig.A.P.slice();
       const PB = rig.B.P.v;
@@ -771,11 +799,11 @@ class LogoInstance {
       set4(E, b + 9, H[4], H[5], H[6], H[7]);
       set4(E, b + 10, rig.A.rot, rig.B.rot.v, 0, 0);
     });
-    set4(M, 0, Math.max(0, this.rigs[0].line.v), (0.11 * (STYLE_SCALE[style] ?? 1) * L.eyes[0].r) / F.size, 0, 0);
+    set4(M, 0, Math.max(0, this.rigs[0].line.v), (0.11 * (STYLE_SCALE[style] ?? 1) * L.eyes[0].r * this.opts.eyeScale) / F.size, 0, 0);
     set4(M, 1, this.glow.v * (reduced ? 1 : 0.94 + 0.06 * Math.sin(t * 2.1)), 0, 0, 0);
     const mo = this.mouth.v;
     set4(M, 2, mo[0], Math.max(0.05, mo[1]), clamp(mo[2], 0, 1), mo[3]);
-    if (this.app === 'calendar') set4(M, 3, this.calendarPhase(), 0, 0, 0);
+    set4(M, 3, this.app === 'calendar' ? this.calendarPhase() : 0, this.opts.clean ? 1 : 0, 0, 0);
 
     const breathe = reduced ? 0 : Math.sin(t * 1.7) * 0.006;
     const sc = this.scale.v;
@@ -923,6 +951,12 @@ export interface LivingLogoOptions {
   zoom?: number;
   /** Hover, tap and pointer-follow reactions (default true). */
   interactive?: boolean;
+  /** Professional motion preset (default false). */
+  calm?: boolean;
+  /** Clean glossy-bead eyes without neon cores (default false). */
+  clean?: boolean;
+  /** Eye size multiplier (default 1). */
+  eyeScale?: number;
 }
 
 export interface LivingLogoHandle {
@@ -931,6 +965,12 @@ export interface LivingLogoHandle {
   react(name: ExpressionName, seconds?: number): void;
   /** Attention: surprised + bounce + glow (new mail, upload done...). */
   notify(): void;
+  /** Look towards (nx, ny), each in [-1, 1] with y up, for `seconds`. */
+  glance(nx: number, ny: number, seconds?: number): void;
+  /** Hover-style reaction (used by parents that own the pointer). */
+  hover(): void;
+  /** Tap-style reaction. */
+  tap(): void;
   dispose(): void;
 }
 
@@ -949,6 +989,9 @@ export function mountLivingLogo(canvas: HTMLCanvasElement, options: LivingLogoOp
     interactive: options.interactive ?? true,
     seed: ++seedCounter,
     face: options.face ?? null,
+    calm: options.calm ?? false,
+    clean: options.clean ?? false,
+    eyeScale: options.eyeScale ?? 1,
   });
   inst.reduced = !!reducedQuery?.matches;
   if (inst.opts.interactive) bindPointer();
@@ -1029,6 +1072,18 @@ export function mountLivingLogo(canvas: HTMLCanvasElement, options: LivingLogoOp
     },
     notify() {
       inst.notify();
+      poke();
+    },
+    glance(nx, ny, seconds) {
+      inst.glance(nx, ny, seconds);
+      poke();
+    },
+    hover() {
+      inst.hover();
+      poke();
+    },
+    tap() {
+      inst.tap();
       poke();
     },
     dispose() {

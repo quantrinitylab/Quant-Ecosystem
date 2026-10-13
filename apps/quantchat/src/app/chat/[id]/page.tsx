@@ -7,6 +7,8 @@ import { spring } from '@quant/brand';
 import { ChatBubble, ChatInput, TypingIndicator, TopBar } from '@quant/shared-ui';
 import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
 import { apiClient } from '../../../services/api-client';
+import { apiFetchRaw } from '@quant/api-client';
+import { getAuthHeaders } from '../../../lib/auth';
 import { useMessages } from '../../../hooks/useMessages';
 import { useConversations } from '../../../hooks/useConversations';
 import { useMe } from '../../../hooks/useMe';
@@ -102,11 +104,69 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     return name || 'Chat';
   }, [conversations, id, me?.id, me?.username]);
 
+  // QC-F-317: the peer of a DIRECT conversation — the only surface the
+  // Block action ships on in Slice 1. Group threads, a missing
+  // participants array, or a conversation with nobody else in it yield
+  // null and no Block UI renders (never a crash, never a dead button).
+  const directPeer = useMemo(() => {
+    const conversation = conversations.find((c) => c.id === id);
+    if (!conversation || conversation.type !== 'direct') return null;
+    const participants = conversation.participants ?? [];
+    const other = participants.find(
+      (p) => p.userId !== me?.id && p.username !== me?.username,
+    );
+    if (!other) return null;
+    return {
+      userId: other.userId,
+      name:
+        other.nickname?.trim() ||
+        other.displayName?.trim() ||
+        other.username?.trim() ||
+        'this user',
+    };
+  }, [conversations, id, me?.id, me?.username]);
+
   // Real voice/video calls (LiveKit backend). Initiates via POST
   // /calls/initiate and routes to the call room. Fails closed with an honest
   // error when calls are unavailable — never a fake call UI.
   const [isStartingCall, setIsStartingCall] = useState(false);
   const [callError, setCallError] = useState<string | null>(null);
+  // QC-F-317: Block-user flow state (confirm sheet, in-flight, in-sheet
+  // error, and the peer blocked during this view of the thread).
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  const [isBlocking, setIsBlocking] = useState(false);
+  const [blockError, setBlockError] = useState<string | null>(null);
+  const [blockedPeerId, setBlockedPeerId] = useState<string | null>(null);
+  const handleBlockUser = useCallback(async () => {
+    if (!directPeer || isBlocking) return;
+    setIsBlocking(true);
+    setBlockError(null);
+    try {
+      const response = await apiFetchRaw(
+        `/api/settings/blocked/${encodeURIComponent(directPeer.userId)}`,
+        { method: 'POST', headers: { ...getAuthHeaders() } },
+      );
+      if (!response.ok) {
+        let message = `Block failed (${response.status})`;
+        try {
+          const body = (await response.json()) as {
+            error?: { message?: string };
+          } | null;
+          if (body?.error?.message) message = body.error.message;
+        } catch {
+          /* keep the status-based message */
+        }
+        setBlockError(message);
+        return;
+      }
+      setBlockedPeerId(directPeer.userId);
+      setShowBlockConfirm(false);
+    } catch {
+      setBlockError('Block failed. Check your connection and try again.');
+    } finally {
+      setIsBlocking(false);
+    }
+  }, [directPeer, isBlocking]);
   const startCall = useCallback(async () => {
     if (isStartingCall) return;
     const conversation = conversations.find((c) => c.id === id);
@@ -692,6 +752,23 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           >
             ⏱️
           </button>,
+          ...(directPeer && blockedPeerId !== directPeer.userId
+            ? [
+                <button
+                  key="block-user"
+                  type="button"
+                  onClick={() => {
+                    setBlockError(null);
+                    setShowBlockConfirm(true);
+                  }}
+                  aria-label={`Block ${directPeer.name}`}
+                  className="min-w-touch min-h-touch flex items-center justify-center px-2 text-sm font-medium text-red-600 transition-opacity"
+                  title={`Block ${directPeer.name}`}
+                >
+                  Block
+                </button>,
+              ]
+            : []),
           <div key="status" className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full ${getStatusColor()}`} />
             <span className="text-xs text-[var(--quant-muted-foreground)]">{getStatusLabel()}</span>
@@ -717,6 +794,22 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         )}
       </AnimatePresence>
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {blockedPeerId && directPeer && blockedPeerId === directPeer.userId && (
+          <div
+            role="status"
+            className="mx-1 rounded-xl bg-red-500/10 border border-red-500/30 px-3 py-2 text-sm text-red-600"
+          >
+            You blocked {directPeer.name}. They can&apos;t call you or start a
+            new conversation with you. Unblock in Settings → Blocked Users.{' '}
+            <button
+              type="button"
+              onClick={() => setBlockedPeerId(null)}
+              className="underline font-medium"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         {callError && (
           <div
             role="alert"
@@ -1432,6 +1525,63 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                 onPostSystemMessage={handlePostSystemMessage}
                 onClose={() => setShowGames(false)}
               />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Block user confirmation (QC-F-317, bottom sheet) */}
+      <AnimatePresence>
+        {showBlockConfirm && directPeer && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => {
+              if (!isBlocking) setShowBlockConfirm(false);
+            }}
+          >
+            <motion.div
+              className="w-full max-w-md rounded-t-2xl bg-[var(--quant-background)] p-4 pb-6"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', ...spring.stiff }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-base font-semibold">Block {directPeer.name}?</h2>
+              <p className="mt-2 text-sm text-[var(--quant-muted-foreground)]">
+                They won&apos;t be able to call you or start a new conversation
+                with you. This doesn&apos;t delete your existing conversation.
+                You can unblock them anytime in Settings → Blocked Users.
+              </p>
+              {blockError && (
+                <div
+                  role="alert"
+                  className="mt-3 rounded-xl bg-red-500/10 border border-red-500/30 px-3 py-2 text-sm text-red-600"
+                >
+                  {blockError}
+                </div>
+              )}
+              <div className="mt-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowBlockConfirm(false)}
+                  disabled={isBlocking}
+                  className="min-w-touch min-h-touch flex-1 rounded-xl border border-[var(--quant-border)] px-4 text-sm font-medium disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleBlockUser()}
+                  disabled={isBlocking}
+                  className="min-w-touch min-h-touch flex-1 rounded-xl bg-red-500/10 border border-red-500/30 px-4 text-sm font-medium text-red-600 disabled:opacity-40"
+                >
+                  {isBlocking ? 'Blocking…' : 'Block'}
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

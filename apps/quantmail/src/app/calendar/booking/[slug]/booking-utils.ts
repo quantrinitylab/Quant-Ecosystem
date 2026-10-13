@@ -446,6 +446,151 @@ function zonedYmdParts(d: Date, timeZone: string): { year: number; month: number
   return { year: get('year'), month: get('month'), day: get('day') };
 }
 
+// ============================================================================
+// Timezone-free guest-day keys (fix/qm-booking-journey-v2).
+//
+// The old page carried the selected day as a browser-local `Date` (midnight
+// in the BROWSER's zone) and re-derived the requested YYYY-MM-DD with
+// `formatDateToYmdInTz(selectedDate, selectedTimezone)`. For a guest whose
+// browser zone differs from the selected zone, browser-local midnight lands
+// on a DIFFERENT calendar day in the selected zone — the request silently
+// named the wrong day (off-by-one). The selected day is now a plain
+// {year, month, day} key in the selected zone: no Date is ever constructed,
+// so no zone can reinterpret it. The key serializes to YYYY-MM-DD directly.
+// ============================================================================
+
+/** A calendar day in a named zone, carried without any Date instant. */
+export interface GuestDayKey {
+  year: number;
+  month: number;
+  day: number;
+}
+
+/** YYYY-MM-DD — the exact string the slots API's `date` param must name. */
+export function guestDayKeyToYmd(key: GuestDayKey): string {
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return `${key.year}-${pad(key.month)}-${pad(key.day)}`;
+}
+
+/** -1 / 0 / 1 calendar-day comparison of two keys (timezone-free). */
+export function compareGuestDayKeys(a: GuestDayKey, b: GuestDayKey): number {
+  if (a.year !== b.year) return a.year < b.year ? -1 : 1;
+  if (a.month !== b.month) return a.month < b.month ? -1 : 1;
+  if (a.day !== b.day) return a.day < b.day ? -1 : 1;
+  return 0;
+}
+
+/** Add (or subtract) whole calendar days — pure UTC math, no zone involved. */
+export function addDaysToKey(key: GuestDayKey, n: number): GuestDayKey {
+  const d = new Date(Date.UTC(key.year, key.month - 1, key.day + n));
+  return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
+}
+
+/** Today's calendar day in `timeZone` (Intl parts — never browser-local). */
+export function todayInTimeZone(timeZone: string): GuestDayKey {
+  return zonedYmdParts(new Date(), timeZone);
+}
+
+/** Weekday (0=Sun … 6=Sat) of a calendar day in `timeZone`; noon dodges DST-midnight edges. */
+export function weekdayInTimeZone(key: GuestDayKey, timeZone: string): number {
+  const noonUtc = bookingWallTimeToUtcMs(key.year, key.month, key.day, 12, 0, timeZone);
+  const name = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' }).format(
+    new Date(noonUtc),
+  );
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(name);
+}
+
+/**
+ * Every host calendar date intersecting the guest-day interval
+ * (fix/qm-booking-journey-v2). Walks host midnights instead of sampling
+ * the two endpoints, so a DST transition can never omit the middle host
+ * date (the 23h spring-forward day lets a 24h interval cross two host
+ * midnights). Mirrors the backend's hostDatesForGuestDayInterval.
+ */
+export function hostDatesForGuestDayInterval(
+  intervalStartMs: number,
+  intervalEndMs: number,
+  timeZone: string,
+): GuestDayKey[] {
+  const out: GuestDayKey[] = [];
+  const seen = new Set<string>();
+  if (!Number.isFinite(intervalStartMs) || !Number.isFinite(intervalEndMs)) return out;
+  if (intervalEndMs <= intervalStartMs) return out;
+  let cursor = intervalStartMs;
+  for (let i = 0; i < 8 && cursor < intervalEndMs; i++) {
+    const ymd = zonedYmdParts(new Date(cursor), timeZone);
+    const key = `${ymd.year}-${ymd.month}-${ymd.day}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(ymd);
+    }
+    const nextMidnight = bookingWallTimeToUtcMs(ymd.year, ymd.month, ymd.day + 1, 0, 0, timeZone);
+    cursor = nextMidnight > cursor ? nextMidnight : cursor + 24 * 60 * 60 * 1000;
+  }
+  return out;
+}
+
+/**
+ * Slot-authoritative day enablement (fix/qm-booking-journey-v2).
+ *
+ * The old calendar grid enabled a tile with the BROWSER-LOCAL weekday
+ * (`availableDays.includes(d.getDay())`). For a guest whose browser zone
+ * differs from the host zone that mask disables VALID days (and enables
+ * days whose host-side window is actually closed). A day is now enabled
+ * iff at least one host calendar date intersecting the guest-day interval
+ * has its HOST-timezone weekday in availableDays — i.e. the host can
+ * genuinely produce slots inside this guest day. Pure function.
+ */
+export function isGuestDayEnabled(
+  key: GuestDayKey,
+  guestTimeZone: string,
+  hostTimeZone: string,
+  availableDays: number[],
+): boolean {
+  const intervalStart = bookingWallTimeToUtcMs(key.year, key.month, key.day, 0, 0, guestTimeZone);
+  const intervalEnd = bookingWallTimeToUtcMs(key.year, key.month, key.day + 1, 0, 0, guestTimeZone);
+  const hostDates = hostDatesForGuestDayInterval(intervalStart, intervalEnd, hostTimeZone);
+  return hostDates.some((hd) => availableDays.includes(weekdayInTimeZone(hd, hostTimeZone)));
+}
+
+/**
+ * Summary-header label for a guest-day key: "Monday, Oct 13, 2026" —
+ * built from a UTC midnight instant so no zone can reinterpret the day.
+ */
+export function formatGuestDayHeader(key: GuestDayKey): string {
+  return new Date(Date.UTC(key.year, key.month - 1, key.day)).toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/** Compact "Oct 13" label for a guest-day key (UTC midnight, zone-free). */
+export function formatGuestDayShort(key: GuestDayKey): string {
+  return new Date(Date.UTC(key.year, key.month - 1, key.day)).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/**
+ * Default selected day: tomorrow in the guest zone, skipping forward past
+ * days the host cannot serve (fix/qm-booking-journey-v2). The seed assumes
+ * the pre-load placeholder window (Mon–Fri, UTC anchor) — the real link
+ * record refines enablement through isGuestDayEnabled once loaded.
+ */
+export function defaultSelectedGuestDay(guestTimeZone: string): GuestDayKey {
+  let key = addDaysToKey(todayInTimeZone(guestTimeZone), 1);
+  for (let i = 0; i < 7; i++) {
+    if (isGuestDayEnabled(key, guestTimeZone, 'UTC', [1, 2, 3, 4, 5])) return key;
+    key = addDaysToKey(key, 1);
+  }
+  return key;
+}
+
 /**
  * Pure guest-day slot generation mirroring the backend contract. Labels are
  * rendered in the guest's zone; every slot's guest-local calendar day
@@ -456,16 +601,9 @@ export function generateGuestDaySlots(spec: GuestDaySlotSpec): BookingSlotItem[]
   const intervalStart = bookingWallTimeToUtcMs(year, month, day, 0, 0, guestTimeZone);
   const intervalEnd = bookingWallTimeToUtcMs(year, month, day + 1, 0, 0, guestTimeZone);
 
-  const seen = new Set<string>();
-  const hostDates: Array<{ year: number; month: number; day: number }> = [];
-  for (const instant of [intervalStart, intervalEnd - 1]) {
-    const ymd = zonedYmdParts(new Date(instant), hostTimeZone);
-    const key = `${ymd.year}-${ymd.month}-${ymd.day}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      hostDates.push(ymd);
-    }
-  }
+  // Walk host midnights (fix/qm-booking-journey-v2) — endpoint sampling
+  // omits the middle host date around DST transitions.
+  const hostDates = hostDatesForGuestDayInterval(intervalStart, intervalEnd, hostTimeZone);
 
   const now = Date.now();
   const slots: BookingSlotItem[] = [];

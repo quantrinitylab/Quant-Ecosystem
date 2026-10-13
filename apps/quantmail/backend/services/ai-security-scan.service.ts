@@ -79,6 +79,7 @@ Respond ONLY with valid JSON matching this schema:
       userId,
       app: 'quantmail',
       feature: 'security-scan',
+      stateless: true,
       temperature: 0.1,
       maxTokens: 2048,
     });

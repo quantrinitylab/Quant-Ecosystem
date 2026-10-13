@@ -110,17 +110,20 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       // #000000 in dark theme), no blur tint, no dividers.
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
-      // Active-only markers: these strings render ONLY when Mail is active —
-      // the raised tab's clean colored edge (no glow anywhere by user rule).
+      // Quant Workplace switcher (2026-10-13): the active app rises out of the
+      // glass bar as one connected liquid tab in its own accent. Active-only
+      // markers: the bar's liquid accent and the active pillar attribute.
       // (Bare 'var(--quant-primary)' / '#FF6B35' are global: AI capsule, search ring and the
       // profile avatar all carry them, so they prove nothing per-pillar.)
-      expect(html).toContain('border-top:1.5px solid #FF6B35');
+      expect(html).toContain('--lq-accent:#FF6B35');
+      expect(html).toContain('data-active-pillar="mail"');
+      expect(html).toContain('data-testid="pillar-switcher-liquid"');
       expect(html).not.toContain('drop-shadow(0 0 6px');
-      // Raised-tab treatment (2026-10-09): the active tab rises 18px above
-      // the capsule like a folder tab and its base extends into the bar,
-      // connecting the slot to the screen from below.
-      expect(html).toContain('top:-18px');
-      expect(html).toContain('-translate-y-0.5');
+      // The old folder-tab ribbon and the per-tile tint squares are gone: the
+      // marks sit directly on the glass.
+      expect(html).not.toContain('top:-18px');
+      expect(html).not.toContain('background-color:#FF6B352E');
+      expect(html).not.toContain('background-color:#4285F414');
     });
 
     it('applies professional Blue active styling to Calendar tile when active', () => {
@@ -130,8 +133,9 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       // #000000 in dark theme), no blur tint, no dividers.
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
-      // Active-only: raised tab edge in Calendar's blue, no glow.
-      expect(html).toContain('border-top:1.5px solid #4285F4');
+      // Active-only: the liquid tab in Calendar's blue, no glow.
+      expect(html).toContain('--lq-accent:#4285F4');
+      expect(html).toContain('data-active-pillar="calendar"');
       expect(html).not.toContain('drop-shadow(0 0 6px');
     });
 
@@ -142,8 +146,9 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       // #000000 in dark theme), no blur tint, no dividers.
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
-      // Active-only: raised tab edge in Drive's green, no glow.
-      expect(html).toContain('border-top:1.5px solid #34A853');
+      // Active-only: the liquid tab in Drive's green, no glow.
+      expect(html).toContain('--lq-accent:#34A853');
+      expect(html).toContain('data-active-pillar="drive"');
       expect(html).not.toContain('drop-shadow(0 0 6px');
     });
 
@@ -154,8 +159,9 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       // #000000 in dark theme), no blur tint, no dividers.
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
-      // Active-only: raised tab edge in Contacts' amber (user correction 2026-10-09 ~11:00 IST).
-      expect(html).toContain('border-top:1.5px solid #F59E0B');
+      // Active-only: the liquid tab in Contacts' amber (user correction 2026-10-09 ~11:00 IST).
+      expect(html).toContain('--lq-accent:#F59E0B');
+      expect(html).toContain('data-active-pillar="contacts"');
       expect(html).not.toContain('drop-shadow(0 0 6px');
     });
 
@@ -166,8 +172,9 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       // #000000 in dark theme), no blur tint, no dividers.
       expect(html).toContain('background:var(--quant-background)');
       expect(html).not.toContain('rgba(13,13,18,0.96)');
-      // Active-only: raised tab edge in QuantGit's purple (user correction 2026-10-09 ~11:00 IST).
-      expect(html).toContain('border-top:1.5px solid #8B5CF6');
+      // Active-only: the liquid tab in QuantGit's purple (user correction 2026-10-09 ~11:00 IST).
+      expect(html).toContain('--lq-accent:#8B5CF6');
+      expect(html).toContain('data-active-pillar="quantgit"');
       expect(html).not.toContain('drop-shadow(0 0 6px');
     });
 
@@ -640,12 +647,12 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       expect(html).not.toContain('open settings');
     });
 
-    it('gives every pillar tile its own per-app accent tint behind the logo', () => {
+    it('puts the marks straight on the glass and colours the liquid tab per app', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="calendar" />);
-      // Calendar tile must carry the blue accent tint (bug: it disappeared).
-      expect(html).toContain('#4285F4');
-      // Mail tile keeps its orange tint.
-      expect(html).toContain('#FF6B35');
+      // Quant Workplace (approved 2026-10-13): no tinted squares behind the
+      // logos any more — the active app's accent lives on the liquid tab.
+      expect(html).toContain('--lq-accent:#4285F4');
+      expect(html).not.toMatch(/background-color:#[0-9A-F]{6}(2E|14)/i);
     });
 
     it('removes the pill container behind the switcher logos', () => {

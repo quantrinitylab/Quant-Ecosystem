@@ -152,6 +152,40 @@ describe('AISummarizeService', () => {
     });
   });
 
+  // 2026-10-13 live audit: once the engine reached a real model, small models
+  // dropped empty arrays or echoed messageCount as a string, and the strict
+  // schema turned a usable summary into "Could not generate summary".
+  describe('summarizeThread tolerates incomplete model JSON', () => {
+    it('defaults missing arrays and takes messageCount from the request', async () => {
+      aiEngine.infer.mockResolvedValue({
+        content: JSON.stringify({ summary: 'Priya asked about lunch.', messageCount: '7' }),
+      });
+
+      const result = await service.summarizeThread(
+        [
+          { from: 'priya@quantmail.in', subject: 'Lunch', body: 'Lunch at 1?' },
+          { from: 'me@quantmail.in', subject: 'Re: Lunch', body: 'Sure.' },
+        ],
+        'user-1',
+      );
+
+      expect(result).toEqual({
+        summary: 'Priya asked about lunch.',
+        keyPoints: [],
+        actionItems: [],
+        messageCount: 2,
+      });
+      expect(aiEngine.infer).toHaveBeenCalledWith(expect.objectContaining({ stateless: true }));
+    });
+
+    it('still rejects output without a summary', async () => {
+      aiEngine.infer.mockResolvedValue({ content: JSON.stringify({ keyPoints: ['x'] }) });
+      await expect(
+        service.summarizeThread([{ from: 'a@b.c', subject: 's', body: 'b' }], 'user-1'),
+      ).rejects.toThrow('AI returned invalid summary result');
+    });
+  });
+
   describe('summarizeThread with fenced model output', () => {
     it('succeeds when the model wraps JSON in fences', async () => {
       aiEngine.infer.mockResolvedValue({

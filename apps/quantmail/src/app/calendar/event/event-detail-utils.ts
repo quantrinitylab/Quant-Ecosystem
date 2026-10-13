@@ -287,18 +287,34 @@ export interface RsvpWriteGateActions {
  * - direct (non-recurring) → request() returns false and posts immediately,
  * - series → request() returns true WITHOUT posting; confirm() posts exactly
  *   once (later calls are no-ops), cancel() performs zero mutation.
+ *
+ * In-flight guard (fix/qm-booking-journey-v2): the direct path used to fire
+ * `post` unconditionally — a double-click before the button's disabled
+ * state propagates (React state updates are async) fired TWO POSTs. A
+ * request while a write is already in flight is now a no-op; the flag
+ * clears when the in-flight write settles, so a later status change
+ * (accepted → declined) still posts.
  */
 export function createRsvpWriteGate(actions: RsvpWriteGateActions) {
   let pending: { status: RsvpStatus; confirmed: boolean } | null = null;
+  let inFlight = false;
 
   return {
     /**
      * Start an RSVP write. Returns true when the caller must show the
-     * pre-write confirmation first; false when the write posted directly.
+     * pre-write confirmation first; false when the write posted directly
+     * (or was already in flight, in which case nothing fires).
      */
     request(status: RsvpStatus, intent: RsvpWriteIntent): boolean {
+      if (inFlight) return false;
       if (!intent.requiresPreConfirm) {
-        void actions.post(status);
+        inFlight = true;
+        void actions
+          .post(status)
+          .catch(() => undefined)
+          .finally(() => {
+            inFlight = false;
+          });
         return false;
       }
       pending = { status, confirmed: false };
