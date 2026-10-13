@@ -13,6 +13,7 @@ import {
   type PersonalAccessToken,
   type MintedPersonalAccessToken,
 } from '../../services/api-client';
+import { describeRevokeAvailability } from './session-revoke';
 
 // ---------------------------------------------------------------------------
 // Security Tabs — GitHub/Gmail-quality tabbed navigation
@@ -1085,7 +1086,15 @@ export default function SecurityPage() {
                       </p>
                       <p className="text-xs text-[var(--quant-muted-foreground)]">
                         {(() => {
-                          const others = (sessions ?? []).filter((s) => !s.isCurrent).length;
+                          const availability = describeRevokeAvailability(sessions);
+                          // The backend fails closed with 409
+                          // CURRENT_SESSION_UNKNOWN when it cannot tell which
+                          // session is this device — say so instead of
+                          // counting this device among "other" sessions.
+                          if (availability.currentUnknown) {
+                            return 'We couldn\u2019t identify this device in the list, so revoking other sessions is unavailable right now. Sign in again, then retry.';
+                          }
+                          const others = availability.othersCount;
                           return others > 0
                             ? `Sign out ${others} other ${others === 1 ? 'session' : 'sessions'} now.`
                             : 'Sign out of every device except the one you\u2019re using now.';
@@ -1098,7 +1107,7 @@ export default function SecurityPage() {
                         sessions === null ||
                         sessionsLoading ||
                         revokingSessions ||
-                        (sessions ?? []).filter((s) => !s.isCurrent).length === 0
+                        !describeRevokeAvailability(sessions).enabled
                       }
                       onClick={() => void handleRevokeOthers()}
                     >

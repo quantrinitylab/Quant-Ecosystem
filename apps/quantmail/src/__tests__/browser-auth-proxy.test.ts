@@ -7,6 +7,7 @@ import { POST as logout } from '../app/api/auth/logout/route';
 import { POST as refresh } from '../app/api/auth/refresh/route';
 import { POST as verifyTwoFactor } from '../app/api/auth/2fa/verify/route';
 import { GET as getUserInfo } from '../app/api/oauth/userinfo/route';
+import { GET as catchAllGet } from '../app/api/[...path]/route';
 
 const BACKEND_URL = process.env['QUANTMAIL_BACKEND_URL'] ?? 'http://localhost:3010';
 
@@ -154,6 +155,44 @@ describe('QuantMail same-origin browser auth proxy', () => {
     expect(new Headers(init.headers).get('authorization')).toBe('Bearer access-rotated');
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ success: true, data: user });
+  });
+
+  it('forwards the refresh cookie on GET /api/auth/sessions through the catch-all proxy', async () => {
+    // Regression lock for the Active Sessions finding: the sessions endpoints
+    // ride the generic /api/[...path] proxy (not a dedicated /api/auth/*
+    // route), so the only thing that lets the backend identify the current
+    // session is the Cookie header reaching it. If the proxy ever drops
+    // cookies here, currentFamily resolves to null and the whole surface —
+    // Current badge, "Only this device is active", Revoke All — silently dies.
+    const sessions = {
+      success: true,
+      data: {
+        sessions: [
+          {
+            id: 'fam-current',
+            isCurrent: true,
+            firstSeenAt: '2026-10-12T00:00:00.000Z',
+            lastActiveAt: '2026-10-13T00:00:00.000Z',
+            userAgent: null,
+            ipAddress: null,
+          },
+        ],
+      },
+    };
+    fetchMock.mockResolvedValueOnce(backendJson(sessions));
+    const request = new NextRequest('http://localhost:3000/api/auth/sessions', {
+      headers: { cookie: 'theme=dark; quantmail_refresh=refresh-secret' },
+    });
+
+    const response = await catchAllGet(request, {
+      params: Promise.resolve({ path: ['auth', 'sessions'] }),
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(new URL('/auth/sessions', BACKEND_URL).toString());
+    expect(new Headers(init.headers).get('cookie')).toBe('theme=dark; quantmail_refresh=refresh-secret');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(sessions);
   });
 
   it('fails closed without exposing backend connection details', async () => {
