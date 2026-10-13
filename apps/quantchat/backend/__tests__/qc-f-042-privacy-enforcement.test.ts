@@ -13,9 +13,10 @@
 //   showReadReceipts   -> read receipts neither created (reader pref) nor
 //                         shown (sender pref, reciprocity); delivered kept
 //   hideFromSearch     -> GET /users/search post-filter
-//   whoCanMessage      -> NEW direct conversations only (403
-//                         MESSAGE_NOT_ALLOWED / honest 503 on prefs error);
-//                         existing conversations are NEVER gated (case 11)
+//   whoCanMessage      -> NEW conversations (direct + group create) and
+//                         addMember (QC-F-277) (403 MESSAGE_NOT_ALLOWED /
+//                         honest 503 on prefs error); existing
+//                         conversations are NEVER gated (case 11)
 //   whoCanSeeLocation  -> LocationService owner-side filter
 //   allowScreenshots   -> screenshot system message only when the AUTHOR
 //                         did not opt out (notified flag tells the truth)
@@ -288,17 +289,118 @@ describe('QC-F-042 whoCanMessage: new direct conversation gate', () => {
     expect(created).toEqual([]);
   });
 
-  it('does not gate group creation (invitation into a group is out of v1 scope)', async () => {
-    const { service } = serviceFor(
+  // QC-F-277 (PIN FLIP): this case previously asserted the bypass — group
+  // creation was "out of v1 scope" and a 'nobody' target was added without
+  // any gate. Group creation is initiation, so it is gated exactly like a
+  // direct create now.
+  it('rejects group creation when a target chose nobody (QC-F-277 pin flip)', async () => {
+    const { service, created } = serviceFor(
       new Map([[OWNER.userId, prefs({ whoCanMessage: 'nobody' })]]),
+    );
+    await expect(
+      service.createConversation({
+        creatorId: STRANGER.userId,
+        participantIds: [OWNER.userId, CLOSE_FRIEND.userId],
+        type: 'group',
+        name: 'Team',
+      }),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'MESSAGE_NOT_ALLOWED' });
+    expect(created).toEqual([]);
+  });
+
+  it('QC-F-277: rejects a 2-person group when the sole target chose nobody', async () => {
+    const { service, created } = serviceFor(
+      new Map([[OWNER.userId, prefs({ whoCanMessage: 'nobody' })]]),
+    );
+    await expect(
+      service.createConversation({
+        creatorId: STRANGER.userId,
+        participantIds: [OWNER.userId],
+        type: 'group',
+      }),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'MESSAGE_NOT_ALLOWED' });
+    expect(created).toEqual([]);
+  });
+
+  it("QC-F-277: 2-person group under the default 'friends' pref rejects a stranger but allows the target's close friend", async () => {
+    const { service, created } = serviceFor(new Map([[OWNER.userId, null]]));
+    await expect(
+      service.createConversation({
+        creatorId: STRANGER.userId,
+        participantIds: [OWNER.userId],
+        type: 'group',
+      }),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'MESSAGE_NOT_ALLOWED' });
+    expect(created).toEqual([]);
+
+    const conv = await service.createConversation({
+      creatorId: CLOSE_FRIEND.userId,
+      participantIds: [OWNER.userId],
+      type: 'group',
+    });
+    expect(conv.id).toBe('conv-new');
+    expect(created).toHaveLength(1);
+  });
+
+  it('QC-F-277: a large group is all-or-nothing — one denied target rejects the whole create, nothing is created', async () => {
+    const { service, created } = serviceFor(
+      new Map<string, unknown>([
+        [SENDER_ON.userId, prefs({ whoCanMessage: 'everyone' })],
+        [SENDER_OFF.userId, prefs({ whoCanMessage: 'everyone' })],
+        [OWNER.userId, prefs({ whoCanMessage: 'nobody' })],
+      ]),
+    );
+    await expect(
+      service.createConversation({
+        creatorId: STRANGER.userId,
+        participantIds: [SENDER_ON.userId, SENDER_OFF.userId, OWNER.userId],
+        type: 'group',
+        name: 'Big Team',
+      }),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'MESSAGE_NOT_ALLOWED' });
+    expect(created).toEqual([]);
+  });
+
+  it('QC-F-277: a large group whose targets all allow the creator is created', async () => {
+    const { service, created } = serviceFor(
+      new Map<string, unknown>([
+        [SENDER_ON.userId, prefs({ whoCanMessage: 'everyone' })],
+        [SENDER_OFF.userId, prefs({ whoCanMessage: 'everyone' })],
+        [OWNER.userId, prefs({ whoCanMessage: 'everyone' })],
+      ]),
     );
     const conv = await service.createConversation({
       creatorId: STRANGER.userId,
-      participantIds: [OWNER.userId, CLOSE_FRIEND.userId],
+      participantIds: [SENDER_ON.userId, SENDER_OFF.userId, OWNER.userId],
       type: 'group',
-      name: 'Team',
+      name: 'Big Team',
     });
     expect(conv.id).toBe('conv-new');
+    expect(created).toHaveLength(1);
+  });
+
+  it('QC-F-277: group creation answers an honest 503 when a target prefs read fails, creating nothing', async () => {
+    const { service, created } = serviceFor(new Map(), true);
+    await expect(
+      service.createConversation({
+        creatorId: STRANGER.userId,
+        participantIds: [OWNER.userId, CLOSE_FRIEND.userId],
+        type: 'group',
+        name: 'Team',
+      }),
+    ).rejects.toMatchObject({ statusCode: 503, code: 'UPSTREAM_UNAVAILABLE' });
+    expect(created).toEqual([]);
+  });
+
+  it('QC-F-277: group creation keeps direct-gate parity for a missing target (gate skipped; existence is QC-F-278 scope)', async () => {
+    const { service, created } = serviceFor(new Map());
+    const conv = await service.createConversation({
+      creatorId: STRANGER.userId,
+      participantIds: ['user_missing_target'],
+      type: 'group',
+    });
+    expect(conv.id).toBe('conv-new');
+    expect(created).toHaveLength(1);
   });
 
   it('case 11: an existing conversation keeps working after the recipient flips to nobody — sendMessage carries no pref gate', async () => {
@@ -317,6 +419,154 @@ describe('QC-F-042 whoCanMessage: new direct conversation gate', () => {
     });
     expect(sent.conversationId).toBe('conv-existing');
     expect(fake.__state.messages).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// QC-F-277 — whoCanMessage gate on addMember (initiation via an existing
+// group). The ADDER is the actor: the target's pref judges the adder,
+// exactly as the create gate judges the creator. The privacy check runs
+// LAST — every pre-existing rejection (404 / DIRECT 400 / NOT_A_MEMBER /
+// NOT_CONVERSATION_ADMIN / ALREADY_MEMBER 409) keeps its precedence.
+// ---------------------------------------------------------------------------
+describe('QC-F-277 whoCanMessage: addMember gate', () => {
+  const ADDER = STRANGER;
+  const GROUP_ID = 'conv-group';
+
+  function makeAddMemberService(
+    userPrefs: Map<string, unknown>,
+    opts: {
+      conversationType?: string;
+      memberIds?: string[];
+      throwOnRead?: boolean;
+    } = {},
+  ) {
+    const memberIds = new Set(opts.memberIds ?? [ADDER.userId, CLOSE_FRIEND.userId]);
+    const added: Array<Record<string, unknown>> = [];
+    const prisma = {
+      conversation: {
+        async findUnique() {
+          return { id: GROUP_ID, type: opts.conversationType ?? 'GROUP' };
+        },
+        async findMany() {
+          return [];
+        },
+      },
+      conversationMember: {
+        async findFirst(args: unknown) {
+          const w = (args as { where: { userId: string } }).where;
+          return memberIds.has(w.userId)
+            ? { id: `mem-${w.userId}`, conversationId: GROUP_ID, userId: w.userId, role: 'MEMBER', leftAt: null }
+            : null;
+        },
+        async findMany() {
+          return [];
+        },
+        async create(args: unknown) {
+          const row = { id: 'mem-new', ...(args as { data: object }).data };
+          added.push(row as Record<string, unknown>);
+          return row;
+        },
+      },
+      user: {
+        async findUnique(args: unknown) {
+          const id = (args as { where: { id: string } }).where.id;
+          if (!userPrefs.has(id)) return null;
+          return { preferences: userPrefs.get(id) };
+        },
+        async findMany(args: unknown) {
+          const ids = (args as { where: { id: { in: string[] } } }).where.id.in;
+          return ids
+            .filter((id) => userPrefs.has(id))
+            .map((id) => ({ id, preferences: userPrefs.get(id) }));
+        },
+      },
+      closeFriend: {
+        async findMany(args: unknown) {
+          const where = (args as { where: { userId: string; friendId: string } }).where;
+          return where.userId === OWNER.userId && where.friendId === CLOSE_FRIEND.userId
+            ? [{ userId: OWNER.userId }]
+            : [];
+        },
+      },
+    };
+    const privacy = opts.throwOnRead
+      ? privacyOver(new Map(), true)
+      : new PrivacyService(prisma as never);
+    const service = new ConversationService(prisma as never, privacy);
+    return { service, added };
+  }
+
+  it("rejects adding a target who chose 'nobody', creating no member", async () => {
+    const { service, added } = makeAddMemberService(
+      new Map([[OWNER.userId, prefs({ whoCanMessage: 'nobody' })]]),
+    );
+    await expect(
+      service.addMember(GROUP_ID, ADDER.userId, OWNER.userId),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'MESSAGE_NOT_ALLOWED' });
+    expect(added).toEqual([]);
+  });
+
+  it("adds a target who chose 'everyone'", async () => {
+    const { service, added } = makeAddMemberService(
+      new Map([[OWNER.userId, prefs({ whoCanMessage: 'everyone' })]]),
+    );
+    const row = await service.addMember(GROUP_ID, ADDER.userId, OWNER.userId);
+    expect(row.userId).toBe(OWNER.userId);
+    expect(added).toHaveLength(1);
+  });
+
+  it("under the default 'friends' pref, a stranger adder is rejected but the target's close friend may add", async () => {
+    const denied = makeAddMemberService(new Map([[OWNER.userId, null]]));
+    await expect(
+      denied.service.addMember(GROUP_ID, ADDER.userId, OWNER.userId),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'MESSAGE_NOT_ALLOWED' });
+    expect(denied.added).toEqual([]);
+
+    const allowed = makeAddMemberService(new Map([[OWNER.userId, null]]));
+    const row = await allowed.service.addMember(GROUP_ID, CLOSE_FRIEND.userId, OWNER.userId);
+    expect(row.userId).toBe(OWNER.userId);
+    expect(allowed.added).toHaveLength(1);
+  });
+
+  it('answers an honest 503 when the target prefs read fails, creating no member', async () => {
+    const { service, added } = makeAddMemberService(new Map(), { throwOnRead: true });
+    await expect(
+      service.addMember(GROUP_ID, ADDER.userId, OWNER.userId),
+    ).rejects.toMatchObject({ statusCode: 503, code: 'UPSTREAM_UNAVAILABLE' });
+    expect(added).toEqual([]);
+  });
+
+  it('precedence: an already-member target gets 409 ALREADY_MEMBER even when their pref would deny', async () => {
+    const { service, added } = makeAddMemberService(
+      new Map([[OWNER.userId, prefs({ whoCanMessage: 'nobody' })]]),
+      { memberIds: [ADDER.userId, OWNER.userId] },
+    );
+    await expect(
+      service.addMember(GROUP_ID, ADDER.userId, OWNER.userId),
+    ).rejects.toMatchObject({ statusCode: 409, code: 'ALREADY_MEMBER' });
+    expect(added).toEqual([]);
+  });
+
+  it('precedence: a plain member assigning a privileged role still gets NOT_CONVERSATION_ADMIN before the privacy gate', async () => {
+    const { service, added } = makeAddMemberService(
+      new Map([[OWNER.userId, prefs({ whoCanMessage: 'everyone' })]]),
+    );
+    await expect(
+      service.addMember(GROUP_ID, ADDER.userId, OWNER.userId, 'ADMIN'),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'NOT_CONVERSATION_ADMIN' });
+    expect(added).toEqual([]);
+  });
+
+  it('precedence: adding to a direct conversation still gets 400 DIRECT_CONVERSATION', async () => {
+    const { service, added } = makeAddMemberService(
+      new Map([[OWNER.userId, prefs({ whoCanMessage: 'everyone' })]]),
+      { conversationType: 'DIRECT' },
+    );
+    await expect(
+      service.addMember(GROUP_ID, ADDER.userId, OWNER.userId),
+    ).rejects.toMatchObject({ statusCode: 400, code: 'DIRECT_CONVERSATION' });
+    expect(added).toEqual([]);
   });
 });
 
