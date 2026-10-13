@@ -138,6 +138,15 @@ export interface AIInferenceRequest {
   app: QuantApp;
   feature: string;
   metadata?: Record<string, unknown>;
+  /**
+   * One-shot analysis (classification, extraction, summaries, scans): skip
+   * conversation memory entirely — the prompt is not enriched with the
+   * user's recent history and the exchange is not recorded into it. Without
+   * this, every phishing scan or summary was appended to the per-user chat
+   * history and replayed into the next call: one email's content leaked into
+   * another email's verdict, and every prompt grew by up to 20 messages.
+   */
+  stateless?: boolean;
   /** Tools the model may call (function calling). When provided, the model
    * can return tool calls instead of (or in addition to) text. */
   tools?: import('./core/tool-calling').ToolDefinition[];

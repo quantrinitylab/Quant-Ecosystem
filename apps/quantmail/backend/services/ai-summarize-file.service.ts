@@ -36,6 +36,7 @@ export class AISummarizeFileService {
       userId,
       app: 'quantmail',
       feature: 'drive-ai-summarize',
+      stateless: true,
       temperature: 0.4,
       maxTokens: 1024,
     });

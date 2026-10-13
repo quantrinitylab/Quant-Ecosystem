@@ -61,9 +61,24 @@ test.describe('public booking journey', () => {
       }
 
       if (url.pathname.endsWith('/slots')) {
-        // One available slot tomorrow at 10:00 host time (UTC instant).
-        const start = new Date(Date.now() + 24 * 60 * 60 * 1000);
-        start.setUTCHours(14, 0, 0, 0);
+        // One available slot ON THE GUEST DAY THE PAGE REQUESTED (?date=).
+        // The page defaults to "tomorrow" in the guest zone (Asia/Kolkata,
+        // UTC+05:30), skips weekends, and keeps only slots inside that guest
+        // day. Deriving the slot from the runner's UTC clock ("now + 24h")
+        // put it on the wrong guest day whenever IST had already rolled over
+        // (18:30–24:00 UTC) or the next UTC day was a weekend — a
+        // time-of-day flake, not a product bug. 14:00 UTC is 19:30 IST on the
+        // same calendar date, so the slot always lands inside the requested
+        // guest day, and since that day is at least "tomorrow" in IST it is
+        // always in the future.
+        const requestedDay = url.searchParams.get('date');
+        let start: Date;
+        if (requestedDay && /^\d{4}-\d{2}-\d{2}$/.test(requestedDay)) {
+          start = new Date(`${requestedDay}T14:00:00.000Z`);
+        } else {
+          start = new Date(Date.now() + 24 * 60 * 60 * 1000);
+          start.setUTCHours(14, 0, 0, 0);
+        }
         const end = new Date(start.getTime() + 30 * 60 * 1000);
         await route.fulfill({
           status: 200,

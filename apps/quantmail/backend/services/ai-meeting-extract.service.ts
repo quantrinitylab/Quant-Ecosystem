@@ -67,6 +67,7 @@ Respond ONLY with valid JSON:
       userId,
       app: 'quantmail',
       feature: 'meeting-extract',
+      stateless: true,
       temperature: 0.2,
       maxTokens: 512,
     });

@@ -130,6 +130,7 @@ Respond ONLY with valid JSON:
       userId,
       app: 'quantmail',
       feature: 'smart-send-time',
+      stateless: true,
       temperature: 0.3,
       maxTokens: 256,
     });

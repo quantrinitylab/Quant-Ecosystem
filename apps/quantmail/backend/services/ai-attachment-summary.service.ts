@@ -63,6 +63,7 @@ Respond ONLY with valid JSON:
       userId,
       app: 'quantmail',
       feature: 'attachment-summary',
+      stateless: true,
       temperature: 0.3,
       maxTokens: 512,
     });
