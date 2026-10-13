@@ -1,4 +1,14 @@
-import { QuantMailLogo } from '../QuantMailLogo';
+/*
+ * QuantMailLogoStatic — the zero-JS SVG twin of the canvas QuantMailLogo.
+ * Its geometry is derived bezier-for-bezier from QuantMailLogo's own
+ * markMPath (the sanctioned "SVG matches the Canvas-2D M-mark design" brand
+ * lock; BrandLoader ships the same mark on the splash loader). The canvas
+ * QuantMailLogo is interactive-only: it pulls the marks/living-logo pipeline
+ * plus a rAF repaint loop into the bundle, and paints nothing until its
+ * first frame — pointless for a signed-out lockup that can never animate.
+ * Do NOT swap this back to QuantMailLogo.
+ */
+import { QuantMailLogoStatic } from '../QuantMailLogoStatic';
 import { BrandWordmark } from '../BrandWordmark';
 import { QuantAiLogo } from '../QuantAiLogo';
 import { quantMailAuthLockup } from './auth-brand-contract';
@@ -108,7 +118,8 @@ function BrandLockup({ compact = false }: { compact?: boolean }) {
       /*
        * `role="img"` because `aria-label` on a bare div is dropped — the generic
        * role does not take an author name. With the wordmark already
-       * `aria-hidden` and the logo an unlabelled canvas, the brand on the
+       * `aria-hidden` and the logo a decorative SVG (QuantMailLogoStatic
+       * renders aria-hidden when it gets no title), the brand on the
        * signed-out screen had no accessible name at all. As an image, the
        * lockup announces once and its decorative parts stay silent.
        */
@@ -116,7 +127,7 @@ function BrandLockup({ compact = false }: { compact?: boolean }) {
       className="auth-brand-lockup flex items-center gap-3"
       aria-label={quantMailAuthLockup.accessibleName}
     >
-      <QuantMailLogo size={compact ? 32 : 40} showBadge={false} interactive={false} />
+      <QuantMailLogoStatic size={compact ? 32 : 40} />
       <div className="flex flex-col" aria-hidden="true">
         <BrandWordmark app="mail" size={compact ? 'text-lg' : 'text-xl'} />
         <span className="auth-byline">{quantMailAuthLockup.byline}</span>
