@@ -218,6 +218,31 @@ export class ConversationService {
     return membership;
   }
 
+  /**
+   * QC-F-042 / QC-F-277: whoCanMessage initiation gate for one target.
+   * 'denied' → 403 MESSAGE_NOT_ALLOWED; a prefs read failure → honest 503
+   * UPSTREAM_UNAVAILABLE (never a fabricated refusal). 'allowed' and
+   * 'missing-target' pass through — a target that does not exist keeps
+   * the pre-gate behaviour (existence validation is QC-F-278's scope).
+   */
+  private async assertCanMessage(actorId: string, targetId: string): Promise<void> {
+    const verdict = await this.privacy.checkCanMessage(actorId, targetId);
+    if (verdict === 'denied') {
+      throw createAppError(
+        'This user is not accepting new messages',
+        403,
+        'MESSAGE_NOT_ALLOWED',
+      );
+    }
+    if (verdict === 'unavailable') {
+      throw createAppError(
+        'Privacy preferences are temporarily unavailable',
+        503,
+        'UPSTREAM_UNAVAILABLE',
+      );
+    }
+  }
+
   async createConversation(input: CreateConversationInput): Promise<Conversation> {
     const { creatorId, participantIds, type, name, description } = input;
 
@@ -230,39 +255,39 @@ export class ConversationService {
       );
     }
 
-    // QC-F-042: whoCanMessage gate — NEW direct conversations only. The
-    // target's pref decides whether a stranger may START a conversation:
-    // 'everyone' allows anyone, 'nobody' allows no one, 'friends' (the
-    // default) allows the target's close friends and existing chat
-    // partners (PrivacyService.isFriendOf v1). Existing conversations are
+    // QC-F-042: whoCanMessage gate — NEW conversations only. The target's
+    // pref decides whether a stranger may START a conversation: 'everyone'
+    // allows anyone, 'nobody' allows no one, 'friends' (the default)
+    // allows the target's close friends and existing chat partners
+    // (PrivacyService.isFriendOf v1). Existing conversations are
     // deliberately NOT gated anywhere — sendMessage keeps membership as
     // its only authority, so flipping this pref never strands a live
-    // conversation. Group creation is out of scope for v1 (being invited
-    // into a group is a different social act). A target that does not
-    // exist keeps today's behaviour (missing-target → no gate); a prefs
-    // read failure answers an honest 503, not a fabricated refusal.
+    // conversation. A target that does not exist keeps today's behaviour
+    // (missing-target → no gate); a prefs read failure answers an honest
+    // 503, not a fabricated refusal.
+    //
+    // QC-F-277: group creation is initiation too. A 2-person 'group' is a
+    // direct conversation in everything but type, and a larger group
+    // delivers the same unsolicited messages to every added target, so
+    // EVERY non-creator participant is gated before anything is created:
+    // one denied/unavailable target rejects the whole create (no partial
+    // group, no silently skipped roster). Previously only `direct` was
+    // gated, which made the group path a complete bypass.
     if (type === 'direct') {
       const targetId = participantIds[0];
       if (targetId && targetId !== creatorId) {
-        const verdict = await this.privacy.checkCanMessage(creatorId, targetId);
-        if (verdict === 'denied') {
-          throw createAppError(
-            'This user is not accepting new messages',
-            403,
-            'MESSAGE_NOT_ALLOWED',
-          );
-        }
-        if (verdict === 'unavailable') {
-          throw createAppError(
-            'Privacy preferences are temporarily unavailable',
-            503,
-            'UPSTREAM_UNAVAILABLE',
-          );
-        }
+        await this.assertCanMessage(creatorId, targetId);
       }
     }
 
     const allParticipants = [creatorId, ...participantIds.filter((id) => id !== creatorId)];
+
+    if (type === 'group') {
+      const gatedTargets = [...new Set(allParticipants.filter((id) => id !== creatorId))];
+      for (const targetId of gatedTargets) {
+        await this.assertCanMessage(creatorId, targetId);
+      }
+    }
 
     // Use a transaction to create conversation and members atomically
     const conversation = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -410,6 +435,18 @@ export class ConversationService {
 
     if (existing) {
       throw createAppError('User is already a member', 409, 'ALREADY_MEMBER');
+    }
+
+    // QC-F-277: adding a member is initiation for the added user — the
+    // same whoCanMessage gate as conversation creation applies, with the
+    // ADDER as the actor (the target's pref judges the adder, exactly as
+    // the direct gate judges the creator). This check runs last, after
+    // every pre-existing rejection (404 / DIRECT 400 / NOT_A_MEMBER /
+    // NOT_CONVERSATION_ADMIN / ALREADY_MEMBER 409), so established error
+    // precedence is unchanged. Self-adds skip the gate (they are already
+    // stopped by ALREADY_MEMBER above in practice).
+    if (userId !== requesterId) {
+      await this.assertCanMessage(requesterId, userId);
     }
 
     return this.prisma.conversationMember.create({
