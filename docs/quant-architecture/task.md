@@ -1382,7 +1382,8 @@ R4 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 0 P2 (2 P1 + 3 P2 carryovers confirmed stil
 Rotation → QM-SCREEN-018 (help) R4, queued.
 
 ## QM-SCREEN-018 — Help / privacy / terms / invite / groups / SSO / legacy route disposition
-Status: [x] DONE (ROUND 5 regression audit complete 2026-10-13 ~12:05 IST — Owner: LANE-1, Branch: lane1-audit-018r5; 1 new P2 filed, no fix agents per P0/P1-only protocol)
+Status: [~] IN PROGRESS (ROUND 6 regression audit started 2026-10-13 ~21:35 IST — Owner: LANE-1, Branch: lane1-audit-018r6; base R5 @ 356eeb7a → origin/main ed2b893e)
+R6-CLAIM: 2026-10-13 ~21:35 IST. Window scan: 62 non-merge commits. ZERO diff on help/privacy/terms/sso/invite/groups pages, sso components, contact-groups backend — only edge-public-paths.ts (+11: REFRESH_COOKIE_NAME export, 'scheduled' KNOWN_PRIVATE x2 dup). Pure re-verification pass.
 Owner: LANE-1
 Branch: lane1-audit-018r5
 R5-AUDIT (2026-10-13 ~11:35–12:05 IST): origin/main 356eeb7a (fresh fetch) vs R4 base e4bc5f5b. 129 commits in window.
