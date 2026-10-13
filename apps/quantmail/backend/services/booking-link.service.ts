@@ -13,6 +13,11 @@ export interface BookingLink {
   availableDays: number[];
   startHour: number;
   endHour: number;
+  // IANA timezone anchoring the availability window
+  // (fix/qm-booking-tz-availability-2). startHour/endHour/availableDays are
+  // wall-clock values in this zone — never server-local. 'UTC' for legacy
+  // links created before the field existed.
+  timezone: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -40,6 +45,9 @@ export interface CreateBookingLinkInput {
   availableDays?: number[];
   startHour?: number;
   endHour?: number;
+  // Host's IANA timezone (fix/qm-booking-tz-availability-2); invalid or
+  // missing values normalize to 'UTC' in createBookingLink.
+  timezone?: string;
 }
 export interface SlotLock {
   lockId: string;
@@ -89,9 +97,13 @@ export const BOOKING_SLOT_FUTURE_BUFFER_MS = 15 * 60 * 1000; // 15 minutes
 
 // ============================================================================
 // Guest-timezone slot math (public booking page timezone selector).
-// The host's startHour/endHour/availableDays are wall-clock values; when a
-// guest picks an IANA timezone the requested calendar day is interpreted in
-// that zone so displayed slot times are honest in the chosen timezone.
+//
+// CONTRACT (fix/qm-booking-tz-availability-2): the host's
+// startHour/endHour/availableDays are wall-clock values in the LINK's
+// timezone (hostAnchorTimeZone) — never the server's, and no longer the
+// guest's. The guest's selected timezone is display-only: the public page
+// formats the returned absolute instants in it. The requested calendar day
+// is interpreted in the host's timezone.
 // Pure Intl-based math — no extra date library required.
 // ============================================================================
 
@@ -175,6 +187,25 @@ export function zonedWeekday(year: number, month: number, day: number, timeZone:
   const noonUtc = zonedWallTimeToUtcMs(year, month, day, 12, 0, timeZone);
   const name = f.format(new Date(noonUtc));
   return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(name);
+}
+
+/**
+ * The timezone anchoring a booking link's availability window
+ * (fix/qm-booking-tz-availability-2). Host hours are wall-clock values in
+ * this zone — never the server's. Records created before the timezone field
+ * existed normalize to 'UTC', matching the previous server-tz behavior on
+ * UTC servers.
+ */
+export function hostAnchorTimeZone(link: { timezone?: unknown }): string {
+  const tz = typeof link.timezone === 'string' ? link.timezone.trim() : '';
+  return isValidIanaTimeZone(tz) ? tz : 'UTC';
+}
+
+/** Calendar-date parts (year/month/day) of a UTC instant in `timeZone`. */
+export function zonedYmd(date: Date, timeZone: string): { year: number; month: number; day: number } {
+  const parts = getTzPartsFormatter(timeZone).formatToParts(date);
+  const get = (type: string): number => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return { year: get('year'), month: get('month'), day: get('day') };
 }
 
 export function formatIcsDateTime(date: Date): string {
@@ -326,6 +357,7 @@ export class BookingLinkService {
         availableDays: JSON.stringify(input.availableDays ?? [1, 2, 3, 4, 5]),
         startHour: input.startHour ?? 9,
         endHour: input.endHour ?? 17,
+        timezone: hostAnchorTimeZone({ timezone: input.timezone }),
         isActive: true,
         createdAt: now,
         updatedAt: now,
@@ -375,17 +407,21 @@ export class BookingLinkService {
       throw createAppError('Invalid booking slot', 400, 'INVALID_BOOKING_SLOT');
 
     const endTime = new Date(startTime.getTime() + link.duration * 60 * 1000);
-    const dayStart = new Date(startTime);
-    dayStart.setHours(link.startHour, 0, 0, 0);
-    const dayEnd = new Date(startTime);
-    dayEnd.setHours(link.endHour, 0, 0, 0);
+    // Availability window check in the HOST's timezone
+    // (fix/qm-booking-tz-availability-2) — the slot's host-local calendar
+    // day must be an available day and the slot must sit inside the
+    // host-local [startHour, endHour) window. Never server-local.
+    const anchorTz = hostAnchorTimeZone(link);
+    const { year, month, day } = zonedYmd(startTime, anchorTz);
+    const dayStart = new Date(zonedWallTimeToUtcMs(year, month, day, link.startHour, 0, anchorTz));
+    const dayEnd = new Date(zonedWallTimeToUtcMs(year, month, day, link.endHour, 0, anchorTz));
     const availableDays = (link.availableDays ?? [1, 2, 3, 4, 5]).map(Number);
 
     if (
       startTime.getTime() < Date.now() ||
-      !availableDays.includes(startTime.getDay()) ||
-      startTime < dayStart ||
-      endTime > dayEnd
+      !availableDays.includes(zonedWeekday(year, month, day, anchorTz)) ||
+      startTime.getTime() < dayStart.getTime() ||
+      endTime.getTime() > dayEnd.getTime()
     ) {
       throw createAppError(
         'Requested slot is outside the booking link availability',
@@ -457,24 +493,63 @@ export class BookingLinkService {
     const link = await this.getBookingLink(slug);
     if (!link.isActive) return [];
     const slotDuration = link.duration * 60 * 1000;
-    const tz =
-      typeof guestTimezone === 'string' && isValidIanaTimeZone(guestTimezone)
-        ? guestTimezone
-        : null;
+    // Availability window anchor (fix/qm-booking-tz-availability-2): the
+    // host's startHour/endHour/availableDays are wall-clock values in the
+    // LINK's timezone — never the server's, and no longer the guest's.
+    const anchorTz = hostAnchorTimeZone(link);
 
-    // Candidate slot start instants + the busy-query window, resolved either in
-    // the guest's selected timezone or (legacy) in server-local time.
-    let slotStarts: Date[];
-    let windowStart: Date;
-    let windowEnd: Date;
+    // Guest-day contract (fix/qm-booking-guest-day): when the caller
+    // supplies a guest timezone, the requested YYYY-MM-DD is the GUEST's
+    // calendar day in that zone — not the host's. The selected guest-day
+    // interval is converted to UTC, slots are generated for the host-local
+    // date(s) the interval spans, and ONLY slots whose instants fall
+    // inside the requested interval are returned — the guest never sees
+    // missing slots or slots labeled on another day.
+    // An invalid IANA zone is an honest 400 (never silent UTC fallback).
+    // No tz → legacy host-day interpretation (API compatibility).
+    let guestDayStartMs: number | null = null;
+    let guestDayEndMs: number | null = null;
+    if (guestTimezone !== undefined && guestTimezone !== null && guestTimezone !== '') {
+      if (!isValidIanaTimeZone(guestTimezone)) {
+        throw createAppError(`Invalid guest timezone: ${guestTimezone}`, 400, 'INVALID_TIMEZONE');
+      }
+      const gy = date.getUTCFullYear();
+      const gm = date.getUTCMonth() + 1;
+      const gd = date.getUTCDate();
+      guestDayStartMs = zonedWallTimeToUtcMs(gy, gm, gd, 0, 0, guestTimezone);
+      guestDayEndMs = zonedWallTimeToUtcMs(gy, gm, gd + 1, 0, 0, guestTimezone);
+    }
 
-    if (tz) {
-      // The requested date is the guest's calendar day: derive parts from the
-      // UTC instant the client sent (YYYY-MM-DD parsed as UTC midnight).
-      const year = date.getUTCFullYear();
-      const month = date.getUTCMonth() + 1;
-      const day = date.getUTCDate();
-      if (!link.availableDays.includes(zonedWeekday(year, month, day, tz))) return [];
+    // Host-local calendar dates to generate slots for: the single host day
+    // (legacy path) or every host date intersecting the guest-day interval
+    // (a 24h interval spans at most two host calendar dates).
+    const hostDates: Array<{ year: number; month: number; day: number }> = [];
+    if (guestDayStartMs !== null && guestDayEndMs !== null) {
+      const seen = new Set<string>();
+      for (const instant of [guestDayStartMs, guestDayEndMs - 1]) {
+        const ymd = zonedYmd(new Date(instant), anchorTz);
+        const key = `${ymd.year}-${ymd.month}-${ymd.day}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          hostDates.push(ymd);
+        }
+      }
+    } else {
+      hostDates.push({
+        year: date.getUTCFullYear(),
+        month: date.getUTCMonth() + 1,
+        day: date.getUTCDate(),
+      });
+    }
+
+    // Candidate slot start instants + the busy-query window, resolved in the
+    // host's timezone (wall-clock startHour/endHour per host date).
+    let slotStarts: Date[] = [];
+    let windowStart: Date | null = null;
+    let windowEnd: Date | null = null;
+
+    for (const { year, month, day } of hostDates) {
+      if (!link.availableDays.includes(zonedWeekday(year, month, day, anchorTz))) continue;
       const starts: Date[] = [];
       const totalMinutes = (link.endHour - link.startHour) * 60;
       for (let offsetMin = 0; offsetMin + link.duration <= totalMinutes; offsetMin += link.duration) {
@@ -487,30 +562,32 @@ export class BookingLinkService {
               day,
               Math.floor(wallMinutes / 60),
               wallMinutes % 60,
-              tz,
+              anchorTz,
             ),
           ),
         );
       }
-      slotStarts = starts;
-      windowStart = starts.length > 0 ? starts[0] : new Date(zonedWallTimeToUtcMs(year, month, day, link.startHour, 0, tz));
-      const dayEndUtc = zonedWallTimeToUtcMs(year, month, day, link.endHour, 0, tz);
-      windowEnd = new Date(Math.min(dayEndUtc, windowStart.getTime() + MAX_SLOT_WINDOW_MS));
-    } else {
-      if (!link.availableDays.includes(date.getDay())) return [];
-      const dayStart = new Date(date);
-      dayStart.setHours(link.startHour, 0, 0, 0);
-      const dayEnd = new Date(date);
-      dayEnd.setHours(link.endHour, 0, 0, 0);
-      windowStart = dayStart;
-      windowEnd = new Date(Math.min(dayEnd.getTime(), dayStart.getTime() + MAX_SLOT_WINDOW_MS));
-      const starts: Date[] = [];
-      let current = dayStart.getTime();
-      while (current + slotDuration <= windowEnd.getTime()) {
-        starts.push(new Date(current));
-        current += slotDuration;
-      }
-      slotStarts = starts;
+      slotStarts = slotStarts.concat(starts);
+      const dayWindowStart =
+        starts.length > 0
+          ? starts[0]
+          : new Date(zonedWallTimeToUtcMs(year, month, day, link.startHour, 0, anchorTz));
+      const dayEndUtc = zonedWallTimeToUtcMs(year, month, day, link.endHour, 0, anchorTz);
+      const dayWindowEnd = new Date(
+        Math.min(dayEndUtc, dayWindowStart.getTime() + MAX_SLOT_WINDOW_MS),
+      );
+      if (windowStart === null || dayWindowStart < windowStart) windowStart = dayWindowStart;
+      if (windowEnd === null || dayWindowEnd > windowEnd) windowEnd = dayWindowEnd;
+    }
+    if (windowStart === null || windowEnd === null) return [];
+
+    // Keep only slots whose instants fall inside the requested guest-day
+    // interval. The legacy path (no guest tz) keeps the host-day slots.
+    if (guestDayStartMs !== null && guestDayEndMs !== null) {
+      const start = guestDayStartMs;
+      const end = guestDayEndMs;
+      slotStarts = slotStarts.filter((s) => s.getTime() >= start && s.getTime() < end);
+      slotStarts.sort((a, b) => a.getTime() - b.getTime());
     }
 
     const events = await this.prisma.event.findMany({
@@ -575,16 +652,20 @@ export class BookingLinkService {
     if (Number.isNaN(startTime.getTime()))
       throw createAppError('Invalid booking slot', 400, 'INVALID_BOOKING_SLOT');
     const endTime = new Date(startTime.getTime() + link.duration * 60 * 1000);
-    const dayStart = new Date(startTime);
-    dayStart.setHours(link.startHour, 0, 0, 0);
-    const dayEnd = new Date(startTime);
-    dayEnd.setHours(link.endHour, 0, 0, 0);
+    // Host-timezone day-boundary check (fix/qm-booking-tz-availability-2):
+    // same anchor rule as lockSlot — the slot's host-local calendar day
+    // must be an available day and the slot must sit inside the host-local
+    // [startHour, endHour) window.
+    const anchorTz = hostAnchorTimeZone(link);
+    const { year, month, day } = zonedYmd(startTime, anchorTz);
+    const dayStart = new Date(zonedWallTimeToUtcMs(year, month, day, link.startHour, 0, anchorTz));
+    const dayEnd = new Date(zonedWallTimeToUtcMs(year, month, day, link.endHour, 0, anchorTz));
     const availableDays = (link.availableDays ?? [1, 2, 3, 4, 5]).map(Number);
     if (
       startTime.getTime() < Date.now() ||
-      !availableDays.includes(startTime.getDay()) ||
-      startTime < dayStart ||
-      endTime > dayEnd
+      !availableDays.includes(zonedWeekday(year, month, day, anchorTz)) ||
+      startTime.getTime() < dayStart.getTime() ||
+      endTime.getTime() > dayEnd.getTime()
     ) {
       throw createAppError(
         'Requested slot is outside the booking link availability',
@@ -741,6 +822,7 @@ export class BookingLinkService {
           : ((record['availableDays'] as number[]) ?? [1, 2, 3, 4, 5]),
       startHour: (record['startHour'] as number) ?? 9,
       endHour: (record['endHour'] as number) ?? 17,
+      timezone: hostAnchorTimeZone(record),
       isActive: (record['isActive'] as boolean) ?? true,
       createdAt: new Date(record['createdAt'] as string | Date),
       updatedAt: new Date(record['updatedAt'] as string | Date),

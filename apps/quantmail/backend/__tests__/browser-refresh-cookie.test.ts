@@ -297,6 +297,120 @@ describe('QuantMail browser refresh-token boundary', () => {
 });
 
 /**
+ * QM fix (auth hydration waterfall): /auth/refresh embeds the user profile so
+ * the browser hydrates its session in ONE round trip (refresh) instead of two
+ * (refresh, then /oauth/userinfo). Additive and backwards-compatible — older
+ * frontends ignore the extra `user` field, and newer frontends fall back to
+ * /oauth/userinfo when it is absent.
+ */
+describe('QuantMail refresh embeds the user profile (single-trip hydration)', () => {
+  const refresh = async (storedRow: unknown, userRow: unknown) => {
+    mocks.prisma.refreshToken.findFirst.mockResolvedValue(storedRow);
+    mocks.prisma.user.findUnique.mockResolvedValue(userRow);
+    const handlers = await loadHandlers();
+    const reply = makeReply();
+    await handlers.get('/auth/refresh')!(
+      { headers: trustedHeaders, cookies: { quantmail_refresh: 'refresh-token' } },
+      reply,
+    );
+    return reply;
+  };
+
+  it('embeds the full userinfo-shaped profile and keeps the refresh token out of JSON', async () => {
+    const reply = await refresh(
+      { userId: 'user-1' },
+      {
+        id: 'user-1',
+        email: 'user@quantmail.in',
+        username: 'user',
+        displayName: 'User',
+        role: 'USER',
+        phoneNumber: null,
+        phoneVerified: false,
+      },
+    );
+
+    expect(reply.statusCode).toBe(200);
+    expect(reply.body.data.user).toEqual({
+      id: 'user-1',
+      email: 'user@quantmail.in',
+      username: 'user',
+      displayName: 'User',
+      role: 'USER',
+      phoneNumber: null,
+      phoneVerified: false,
+    });
+    // Rotation itself is unchanged.
+    expect(reply.body.data.accessToken).toBe('rotated-access-token');
+    expect(reply.cookie.value).toBe('rotated-refresh-token');
+    // The refresh credential is never echoed in JSON.
+    expect(reply.body.data).not.toHaveProperty('refreshToken');
+    expect(JSON.stringify(reply.body)).not.toContain('rotated-refresh-token');
+    // Possession-bound lookup, the same way /auth/logout locates the row: the
+    // one-way digest of the PRESENTED token, never the token itself.
+    expect(mocks.prisma.refreshToken.findFirst).toHaveBeenCalledWith({
+      where: { token: createHash('sha256').update('refresh-token').digest('hex') },
+    });
+  });
+
+  it('still rotates when the profile lookup misses — no user embedded, no failure', async () => {
+    const reply = await refresh(null, null);
+
+    expect(reply.statusCode).toBe(200);
+    expect(reply.body.data.accessToken).toBe('rotated-access-token');
+    expect(reply.cookie.value).toBe('rotated-refresh-token');
+    expect(reply.body.data).not.toHaveProperty('user');
+  });
+
+  it('never fails a successful rotation when the profile query throws', async () => {
+    mocks.prisma.refreshToken.findFirst.mockRejectedValue(new Error('db down'));
+
+    const handlers = await loadHandlers();
+    const reply = makeReply();
+    await handlers.get('/auth/refresh')!(
+      { headers: trustedHeaders, cookies: { quantmail_refresh: 'refresh-token' } },
+      reply,
+    );
+
+    expect(reply.statusCode).toBe(200);
+    expect(reply.body.data.accessToken).toBe('rotated-access-token');
+    expect(reply.body.data).not.toHaveProperty('user');
+  });
+
+  it('/auth/login embeds the full profile so sign-in is one round trip too', async () => {
+    mocks.prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'user@quantmail.in',
+      username: 'user',
+      displayName: 'User',
+      passwordHash: 'hashed_password',
+      role: 'ADMIN',
+      phoneNumber: '+911234567890',
+      phoneVerified: true,
+    });
+
+    const handlers = await loadHandlers();
+    const reply = makeReply();
+    await handlers.get('/auth/login')!(
+      { headers: trustedHeaders, body: { email: 'user@quantmail.in', password: 'password' } },
+      reply,
+    );
+
+    expect(reply.statusCode).toBe(200);
+    expect(reply.body.data.user).toEqual({
+      id: 'user-1',
+      email: 'user@quantmail.in',
+      username: 'user',
+      displayName: 'User',
+      role: 'ADMIN',
+      phoneNumber: '+911234567890',
+      phoneVerified: true,
+    });
+    expect(reply.body.data).not.toHaveProperty('refreshToken');
+  });
+});
+
+/**
  * The gate `/auth/login` did not have. Both 2FA columns were on the row and the
  * login handler read neither, so an account with a second factor signed in on a
  * password exactly like one without.

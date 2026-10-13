@@ -12,6 +12,7 @@ import { groupEmailsByPerson, type PersonConversation } from '../../../lib/peopl
 import { inboxSelectTarget } from '../../../lib/inbox-nav';
 import { PersonThread } from '../../../components/PersonThread';
 import { ThreadComposer } from '../../../components/ThreadComposer';
+import { SmartReplySuggestions } from '../../../components/SmartReplySuggestions';
 import type { Email } from '../../../types';
 import { useThreadViewKeyboard } from '../../../hooks/useThreadViewKeyboard';
 
@@ -63,9 +64,23 @@ export default function PersonPage() {
     Array<{ clientId: string; bodyText: string; subject: string; sentAt: Date }>
   >([]);
 
-  // A different person is a different thread: drop stale optimistic bubbles.
+  /**
+   * QM fix qm-personthread-smart-replies: the smart-reply chip the user
+   * tapped above the composer. `{ text, nonce }` — a fresh nonce per tap so
+   * re-tapping the same chip still refills the box (ThreadComposer keys its
+   * fill effect on the object's identity). Handed to ThreadComposer as
+   * `suggestedReply`; cleared on person switch with the optimistic bubbles.
+   */
+  const [suggestedReply, setSuggestedReply] = useState<{ text: string; nonce: number } | null>(
+    null,
+  );
+
+  // A different person is a different thread: drop stale optimistic bubbles
+  // and any tapped smart-reply draft (a suggestion belongs to one
+  // conversation).
   useEffect(() => {
     setPendingSends([]);
+    setSuggestedReply(null);
   }, [personKey]);
 
   /**
@@ -257,9 +272,28 @@ export default function PersonPage() {
               currentUserEmail={currentUserEmail}
               renderComposer={
                 conversation.world === 'updates' ? undefined : (
-                  <ThreadComposer
-                    conversation={conversation}
-                    currentUserEmail={currentUserEmail}
+                  <>
+                    {/*
+                      QM fix qm-personthread-smart-replies: Gmail shows Smart
+                      Reply chips on the mobile thread; the sibling
+                      ConversationalThreadView already had them, but the People
+                      person thread — the default mobile surface — rendered
+                      none. Same real backend (GET /emails/:id/reply-
+                      suggestions via apiClient.aiSuggestReplies) for the
+                      thread's latest message; a chip tap prefills the
+                      composer below. No canned fallbacks: when the backend
+                      cannot generate, SmartReplySuggestions renders nothing.
+                    */}
+                    <SmartReplySuggestions
+                      emailId={conversation.lastMessage.id}
+                      onSelectReply={(text) =>
+                        setSuggestedReply({ text, nonce: Date.now() })
+                      }
+                    />
+                    <ThreadComposer
+                      conversation={conversation}
+                      currentUserEmail={currentUserEmail}
+                      suggestedReply={suggestedReply}
                     onSendStart={(text, subject) => {
                       const clientId =
                         typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -280,7 +314,8 @@ export default function PersonPage() {
                     }}
                     onSendError={withdrawPendingSend}
                     onSendUndo={withdrawPendingSend}
-                  />
+                    />
+                  </>
                 )
               }
             />

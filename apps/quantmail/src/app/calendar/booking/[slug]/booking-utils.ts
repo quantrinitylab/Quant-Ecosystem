@@ -94,6 +94,11 @@ export interface BookingLinkDetails {
   startHour: number;
   endHour: number;
   availableDays: number[];
+  // IANA timezone anchoring the host's availability window
+  // (fix/qm-booking-tz-availability-2). startHour/endHour/availableDays are
+  // wall-clock values in this zone; slot labels render in the guest's zone.
+  // 'UTC' when the backend record predates the field.
+  timezone: string;
   // Real host identity from the backend booking-link record.
   // Empty string = unknown host (rendered honestly as "unknown host").
   hostName: string;
@@ -125,6 +130,12 @@ export function applyBookingLinkResponse(
     startHour: data.startHour ?? prev.startHour,
     endHour: data.endHour ?? prev.endHour,
     availableDays: data.availableDays || prev.availableDays,
+    // The backend normalizes the stored value; default 'UTC' for records
+    // created before the field existed (fix/qm-booking-tz-availability-2).
+    timezone:
+      typeof data.timezone === 'string' && data.timezone.trim()
+        ? data.timezone
+        : prev.timezone || 'UTC',
     hostName: data.hostName || '',
     hostEmail: data.hostEmail || '',
     isActive: data.isActive ?? prev.isActive ?? true,
@@ -364,4 +375,125 @@ export function formatSlotTimeLabelInTz(d: Date, timeZone: string): string {
     hour12: true,
     timeZone,
   });
+}
+
+// ============================================================================
+// Guest-day request contract (fix/qm-booking-guest-day).
+// The slots request must name the GUEST's calendar day in the SELECTED
+// timezone — not the browser-local date. Sending browser-local Y/M/D while
+// the user picked another zone silently shifts the date boundary.
+// ============================================================================
+
+/** YYYY-MM-DD of the instant's calendar day in `timeZone`. */
+export function formatDateToYmdInTz(d: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d);
+  const get = (type: string): string => parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+/**
+ * Defensive guest-day filter (fix/qm-booking-guest-day).
+ *
+ * The backend returns only slots whose instants fall inside the requested
+ * guest-day interval; this re-applies that rule client-side so a stale
+ * backend (deploy skew) can never surface next-day or missing-day slots
+ * under the guest's selected date. Pure function, unit-testable.
+ *
+ * dateStr: the YYYY-MM-DD the request named (in timeZone).
+ */
+export function slotsWithinGuestDay<T extends { start: Date }>(
+  slots: T[],
+  dateStr: string,
+  timeZone: string,
+): T[] {
+  return slots.filter((s) => formatDateToYmdInTz(s.start, timeZone) === dateStr);
+}
+
+// ============================================================================
+// Guest-day slot generation for the client fallback path
+// (fix/qm-booking-guest-day). The fallback claims the same contract as the
+// slots API, so it follows the same rule: the requested day is the GUEST's
+// calendar day in their selected zone; slots are generated from the
+// host-local date(s) the interval spans and filtered to the interval.
+// ============================================================================
+
+export interface GuestDaySlotSpec {
+  /** The requested guest-local calendar day (in guestTimeZone). */
+  year: number;
+  month: number;
+  day: number;
+  guestTimeZone: string;
+  hostTimeZone: string;
+  startHour: number;
+  endHour: number;
+  durationMin: number;
+}
+
+/** Calendar-date parts (year/month/day) of a UTC instant in `timeZone`. */
+function zonedYmdParts(d: Date, timeZone: string): { year: number; month: number; day: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d);
+  const get = (type: string): number => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return { year: get('year'), month: get('month'), day: get('day') };
+}
+
+/**
+ * Pure guest-day slot generation mirroring the backend contract. Labels are
+ * rendered in the guest's zone; every slot's guest-local calendar day
+ * equals the requested day. Never invents slots for other days.
+ */
+export function generateGuestDaySlots(spec: GuestDaySlotSpec): BookingSlotItem[] {
+  const { year, month, day, guestTimeZone, hostTimeZone, startHour, endHour, durationMin } = spec;
+  const intervalStart = bookingWallTimeToUtcMs(year, month, day, 0, 0, guestTimeZone);
+  const intervalEnd = bookingWallTimeToUtcMs(year, month, day + 1, 0, 0, guestTimeZone);
+
+  const seen = new Set<string>();
+  const hostDates: Array<{ year: number; month: number; day: number }> = [];
+  for (const instant of [intervalStart, intervalEnd - 1]) {
+    const ymd = zonedYmdParts(new Date(instant), hostTimeZone);
+    const key = `${ymd.year}-${ymd.month}-${ymd.day}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      hostDates.push(ymd);
+    }
+  }
+
+  const now = Date.now();
+  const slots: BookingSlotItem[] = [];
+  for (const hd of hostDates) {
+    const totalMinutes = (endHour - startHour) * 60;
+    for (let offsetMin = 0; offsetMin + durationMin <= totalMinutes; offsetMin += durationMin) {
+      const wallMinutes = startHour * 60 + offsetMin;
+      const slotStart = new Date(
+        bookingWallTimeToUtcMs(
+          hd.year,
+          hd.month,
+          hd.day,
+          Math.floor(wallMinutes / 60),
+          wallMinutes % 60,
+          hostTimeZone,
+        ),
+      );
+      const t = slotStart.getTime();
+      if (t < intervalStart || t >= intervalEnd) continue;
+      const slotEnd = new Date(t + durationMin * 60 * 1000);
+      slots.push({
+        start: slotStart,
+        end: slotEnd,
+        timeLabel: formatSlotTimeLabelInTz(slotStart, guestTimeZone),
+        available: t > now + 15 * 60 * 1000,
+      });
+    }
+  }
+  slots.sort((a, b) => a.start.getTime() - b.start.getTime());
+  return slots;
 }

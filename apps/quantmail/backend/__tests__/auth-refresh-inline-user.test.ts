@@ -2,13 +2,15 @@
 //
 // The browser hydration used to pay a SECOND sequential round trip (GET
 // /oauth/userinfo) after every refresh just to learn who it is. The refresh
-// service already looks the user up (indexed findUnique on the token's sub),
-// so the handler attaches `{ id, email, username, displayName, role }` to the
-// refresh response and the client skips the second trip. These tests pin that
-// contract: user present when the row exists, field omitted (still success)
-// when the account vanished between calls, and the no-cookie fast 401
-// untouched.
+// response now embeds the session's own user (same shape as GET
+// /oauth/userinfo) so the client hydrates in one round trip. The user is
+// located the same possession-bound way /auth/logout does — the one-way
+// digest of the presented refresh token — so this adds no new trust
+// assumption. These tests pin that contract: user present when the row
+// exists, field omitted (still success) when the account vanished between
+// calls, and the no-cookie fast 401 untouched.
 
+import { createHash } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -90,13 +92,10 @@ const makeReply = () => {
   return reply;
 };
 
-// `decodeJwt` is verification-free, so an unsigned fake JWT is enough to
-// exercise the sub → user-row lookup. The handler only decodes AFTER
-// `tokenService.refreshToken` cryptographically verified the real cookie.
-const fakeJwtFor = (sub: string) => {
-  const b64u = (s: string) => Buffer.from(s).toString('base64url');
-  return `${b64u(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))}.${b64u(JSON.stringify({ sub }))}.fakesig`;
-};
+const b64u = (s: string) => Buffer.from(s).toString('base64url');
+const fakeJwtFor = (sub: string) =>
+  `${b64u(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))}.${b64u(JSON.stringify({ sub }))}.fakesig`;
+const digestOf = (token: string) => createHash('sha256').update(token).digest('hex');
 
 const makeRequest = (refreshCookie: string | undefined) => ({
   headers: { origin: 'http://localhost:3000', 'user-agent': 'TestAgent/1.0' },
@@ -122,16 +121,20 @@ describe('POST /auth/refresh inline user (fix/qm-api-roundtrip-latency)', () => 
   });
 
   it('attaches the user profile inline on a successful rotation', async () => {
+    const presented = fakeJwtFor('user-1');
+    mocks.prisma.refreshToken.findFirst.mockResolvedValue({ userId: 'user-1' });
     mocks.prisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
       email: 'ada@quantmail.in',
       username: 'ada',
       displayName: 'Ada Lovelace',
       role: 'user',
+      phoneNumber: null,
+      phoneVerified: false,
     });
 
     const reply = makeReply();
-    await refresh(makeRequest(fakeJwtFor('user-1')), reply);
+    await refresh(makeRequest(presented), reply);
 
     expect(reply.statusCode).toBe(200);
     expect(reply.body).toMatchObject({
@@ -146,27 +149,31 @@ describe('POST /auth/refresh inline user (fix/qm-api-roundtrip-latency)', () => 
           username: 'ada',
           displayName: 'Ada Lovelace',
           role: 'user',
+          phoneNumber: null,
+          phoneVerified: false,
         },
       },
     });
-    // The lookup is the same indexed findUnique the profile endpoint runs —
-    // no new query class, just one the refresh already paid for.
-    expect(mocks.prisma.user.findUnique).toHaveBeenCalledWith({
-      where: { id: 'user-1' },
-      select: { id: true, email: true, username: true, displayName: true, role: true },
+    // Possession-bound lookup: the one-way digest of the presented cookie, the
+    // same mechanism /auth/logout uses — no new trust assumption.
+    expect(mocks.prisma.refreshToken.findFirst).toHaveBeenCalledWith({
+      where: { token: digestOf(presented) },
     });
+    expect(mocks.prisma.user.findUnique).toHaveBeenCalledWith({ where: { id: 'user-1' } });
   });
 
-  it('omits the user field but still succeeds when the account is gone', async () => {
-    mocks.prisma.user.findUnique.mockResolvedValue(null);
+  it('omits the user field but still succeeds when the session row is gone', async () => {
+    const presented = fakeJwtFor('user-gone');
+    mocks.prisma.refreshToken.findFirst.mockResolvedValue(null);
 
     const reply = makeReply();
-    await refresh(makeRequest(fakeJwtFor('user-gone')), reply);
+    await refresh(makeRequest(presented), reply);
 
     expect(reply.statusCode).toBe(200);
     expect(reply.body.success).toBe(true);
     expect(reply.body.data.accessToken).toBe('rotated-access-token');
     expect('user' in reply.body.data).toBe(false);
+    expect(mocks.prisma.user.findUnique).not.toHaveBeenCalled();
   });
 
   it('keeps the no-cookie fast 401 without touching the user table', async () => {
@@ -175,6 +182,7 @@ describe('POST /auth/refresh inline user (fix/qm-api-roundtrip-latency)', () => 
 
     expect(reply.statusCode).toBe(401);
     expect(reply.body.error.code).toBe('REFRESH_REQUIRED');
+    expect(mocks.prisma.refreshToken.findFirst).not.toHaveBeenCalled();
     expect(mocks.prisma.user.findUnique).not.toHaveBeenCalled();
     expect(mocks.refreshToken).not.toHaveBeenCalled();
   });

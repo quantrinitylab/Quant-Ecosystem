@@ -151,3 +151,171 @@ export function zonedInputToIso(value: string, timeZone?: string): string {
   }
   return new Date(value).toISOString();
 }
+
+// ============================================================================
+// RSVP occurrence-vs-series scope confirmation (v1 contract).
+// The backend RSVP always writes the series-level attendee list (occurrences
+// are virtual rows — see docs/quant-architecture/products/quantmail/backend/
+// calendar-rsvp-occurrence-contract.md). After a successful RSVP the response carries
+// rsvpScope; these helpers build the honest confirmation copy so the user
+// knows exactly what their response covered, instead of implying a
+// per-occurrence write.
+// ============================================================================
+
+export interface RsvpScopeInfo {
+  kind: 'occurrence' | 'event';
+  appliesTo: 'series' | 'event';
+  fromOccurrence: string | null;
+}
+
+/** "2026-10-15T09:00:00.000Z" -> "Wed, Oct 15 · 2:30 PM" in the event's zone. */
+export function formatOccurrenceLabel(iso: string, timeZone?: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      ...(timeZone ? { timeZone } : {}),
+    }).format(d);
+  } catch {
+    return iso;
+  }
+}
+
+/**
+ * Honest confirmation copy for a completed RSVP. Never claims a
+ * per-occurrence write: v1 applies the status to the whole series.
+ */
+export function buildRsvpScopeCopy(
+  status: RsvpStatus,
+  scope: RsvpScopeInfo,
+  occurrenceLabel?: string | null,
+): string {
+  const label = RSVP_LABELS[status] ?? status;
+  if (scope.appliesTo === 'event') {
+    return `${label} — recorded for this event.`;
+  }
+  const from = occurrenceLabel ?? scope.fromOccurrence;
+  if (scope.kind === 'occurrence' && from) {
+    return (
+      `${label} — recorded for the entire series. ` +
+      `You responded from the ${from} occurrence; every occurrence in this series shares this response.`
+    );
+  }
+  return `${label} — recorded for the entire series. Every occurrence in this series shares this response.`;
+}
+
+/**
+ * Fallback scope when the backend predates rsvpScope (deploy skew): derive
+ * the same shape client-side from the page's event id and recurrence flag.
+ */
+export function fallbackRsvpScope(eventId: string, recurrence?: string | null): RsvpScopeInfo {
+  const idx = eventId.indexOf('_');
+  return {
+    kind: idx === -1 ? 'event' : 'occurrence',
+    appliesTo: recurrence ? 'series' : 'event',
+    fromOccurrence: idx === -1 ? null : decodeURIComponent(eventId.slice(idx + 1)),
+  };
+}
+
+// ============================================================================
+// RSVP pre-write confirmation gate (CODEX-REVIEW follow-up on #1100).
+//
+// The v1 contract writes every RSVP to the series-level attendee list, but
+// the old UI POSTed first and explained the scope only AFTER success — the
+// user clicked "Accepted" on an occurrence believing they answered that one
+// occurrence. Before ANY request from a recurring series, the UI must show
+// the authoritative effect and require explicit confirm; Cancel/back must
+// produce zero mutation. Non-recurring events post directly (no scope
+// surprise is possible).
+//
+// Kept pure (no React) so the no-POST-before-confirm / cancel-no-POST /
+// confirm-sends-once contract is unit-testable without a DOM.
+// ============================================================================
+
+export interface RsvpWriteIntent {
+  /** True when the RSVP must not POST until the user explicitly confirms. */
+  requiresPreConfirm: boolean;
+  scope: RsvpScopeInfo;
+}
+
+/**
+ * Pre-write copy: future tense ("will apply"), never claims a per-occurrence
+ * write. Mirrors buildRsvpScopeCopy's shape so the pre- and post-action
+ * messages agree on scope.
+ */
+export function buildRsvpPreWriteCopy(
+  status: RsvpStatus,
+  scope: RsvpScopeInfo,
+  occurrenceLabel?: string | null,
+): string {
+  const label = RSVP_LABELS[status] ?? status;
+  const from = occurrenceLabel ?? scope.fromOccurrence;
+  if (scope.kind === 'occurrence' && from) {
+    return (
+      `${label} — your response will apply to the entire series. ` +
+      `You are responding from the ${from} occurrence; every occurrence in this series will share this response.`
+    );
+  }
+  return (
+    `${label} — your response will apply to the entire series. ` +
+    `Every occurrence in this series will share this response.`
+  );
+}
+
+/** Decide whether an RSVP needs the pre-write confirmation dialog. */
+export function planRsvpWrite(
+  eventId: string,
+  recurrence: string | null | undefined,
+): RsvpWriteIntent {
+  const scope = fallbackRsvpScope(eventId, recurrence);
+  return { requiresPreConfirm: scope.appliesTo === 'series', scope };
+}
+
+export interface RsvpWriteGateActions {
+  /** The single mutation trigger — the gate guarantees it fires at most once. */
+  post: (status: RsvpStatus) => Promise<unknown>;
+}
+
+/**
+ * A one-shot gate around the RSVP mutation. The page resolves the intent
+ * with planRsvpWrite, then:
+ * - direct (non-recurring) → request() returns false and posts immediately,
+ * - series → request() returns true WITHOUT posting; confirm() posts exactly
+ *   once (later calls are no-ops), cancel() performs zero mutation.
+ */
+export function createRsvpWriteGate(actions: RsvpWriteGateActions) {
+  let pending: { status: RsvpStatus; confirmed: boolean } | null = null;
+
+  return {
+    /**
+     * Start an RSVP write. Returns true when the caller must show the
+     * pre-write confirmation first; false when the write posted directly.
+     */
+    request(status: RsvpStatus, intent: RsvpWriteIntent): boolean {
+      if (!intent.requiresPreConfirm) {
+        void actions.post(status);
+        return false;
+      }
+      pending = { status, confirmed: false };
+      return true;
+    },
+    /**
+     * The dialog's Confirm path. Posts exactly once per pending intent;
+     * a second call (double-tap, key repeat) is a no-op.
+     */
+    confirm(): Promise<unknown> | null {
+      if (!pending || pending.confirmed) return null;
+      pending.confirmed = true;
+      return actions.post(pending.status);
+    },
+    /** The dialog's Cancel/back path — zero mutation, by construction. */
+    cancel(): void {
+      pending = null;
+    },
+  };
+}

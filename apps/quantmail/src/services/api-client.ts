@@ -46,6 +46,18 @@ import type {
 // Re-export shared types used by settings and other surfaces.
 export type { EmailLabel } from '../types';
 
+/**
+ * RSVP result — the event DTO plus the v1 occurrence-vs-series scope the
+ * backend reported (always present on current backends; optional for deploy
+ * skew, the client derives the same shape via fallbackRsvpScope).
+ */
+export interface RsvpScopeInfo {
+  kind: 'occurrence' | 'event';
+  appliesTo: 'series' | 'event';
+  fromOccurrence: string | null;
+}
+export type RsvpResponse = CalendarEvent & { rsvpScope?: RsvpScopeInfo };
+
 /** A synced mail folder from the backend `/folders` API. */
 export interface EmailFolder {
   id: string;
@@ -537,7 +549,15 @@ export class QuantMailApiClient {
   }
 
   async getUserInfo(): Promise<
-    ApiResponse<{ id: string; email: string; username: string; displayName: string; role: string }>
+    ApiResponse<{
+      id: string;
+      email: string;
+      username: string;
+      displayName: string;
+      role: string;
+      phoneNumber?: string | null;
+      phoneVerified?: boolean | null;
+    }>
   > {
     return this.get('/oauth/userinfo');
   }
@@ -1278,11 +1298,15 @@ export class QuantMailApiClient {
   /**
    * RSVP to an event the caller was invited to.
    * status is one of 'accepted' | 'declined' | 'tentative' | 'pending'.
+   *
+   * The backend reports rsvpScope (v1 occurrence-vs-series contract): the
+   * RSVP always writes the series-level attendee list, and the UI must say
+   * exactly what it covered.
    */
   async rsvpEvent(
     id: string,
     status: 'accepted' | 'declined' | 'tentative' | 'pending',
-  ): Promise<ApiResponse<CalendarEvent>> {
+  ): Promise<ApiResponse<RsvpResponse>> {
     return this.post(`/events/${encodeURIComponent(id)}/rsvp`, { status });
   }
 

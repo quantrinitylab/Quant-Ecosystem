@@ -49,6 +49,31 @@ export function buildLoginRedirect(request: NextRequest): NextResponse {
   return NextResponse.redirect(loginUrl);
 }
 
+/**
+ * Edge-cache policy for the static auth shell (fix/qm-login-paint-vs-gmail).
+ *
+ * The four auth-form pages render identical HTML for a given URL for every
+ * signed-out visitor: all session state is client-side, and search-param
+ * notices (`?success=`, `?switch_to=`) vary only by query string, which
+ * shared caches key on by default. Marking the document response publicly cacheable lets
+ * the CDN serve the shell from the edge instead of paying a cold origin
+ * render per visitor (measured cold TTFB 3.1s vs warm 0.45-0.64s).
+ *
+ * RSC (flight) and prefetch requests are EXCLUDED: they carry `RSC: 1` and
+ * expect a `text/x-component` payload — serving them a cached document would
+ * corrupt client-side navigation. `max-age=0` keeps browsers revalidating
+ * (no stale form from bfcache/history); only shared caches hold the 120s
+ * copy. Next.js never overrides an already-set Cache-Control
+ * (send-payload.js), so this header survives to the client.
+ */
+export const AUTH_SHELL_CACHE_CONTROL =
+  'public, max-age=0, s-maxage=120, stale-while-revalidate=600';
+
+/** App Router flight / prefetch requests carry `RSC: 1`, never `text/html`. */
+export function isRscRequest(request: NextRequest): boolean {
+  return request.headers.has('rsc');
+}
+
 export function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
   if (isPublicPath(pathname)) {
@@ -58,7 +83,12 @@ export function middleware(request: NextRequest): NextResponse {
     if (isAuthShellPath(pathname)) {
       const requestHeaders = new Headers(request.headers);
       requestHeaders.set(AUTH_SHELL_HEADER, 'auth');
-      return NextResponse.next({ request: { headers: requestHeaders } });
+      const response = NextResponse.next({ request: { headers: requestHeaders } });
+      // Edge-cache the static shell document; never the RSC flight payload.
+      if (!isRscRequest(request)) {
+        response.headers.set('Cache-Control', AUTH_SHELL_CACHE_CONTROL);
+      }
+      return response;
     }
     return NextResponse.next();
   }

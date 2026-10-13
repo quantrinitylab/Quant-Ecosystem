@@ -107,6 +107,27 @@ export interface SessionUser {
   username: string;
   displayName?: string | null;
   role: string;
+  phoneNumber?: string | null;
+  phoneVerified?: boolean | null;
+}
+
+/**
+ * The profile the browser embeds in every session-minting response
+ * (/auth/login, /auth/register, /auth/2fa/verify, /auth/refresh). Same shape as
+ * GET /oauth/userinfo so the frontend can hydrate from the session response
+ * alone and skip its second round trip. One builder for every endpoint keeps
+ * the four shapes from drifting.
+ */
+export function sessionUserPayload(user: SessionUser): Record<string, unknown> {
+  return {
+    id: user.id,
+    email: user.email,
+    username: user.username,
+    displayName: user.displayName,
+    role: user.role,
+    phoneNumber: user.phoneNumber ?? null,
+    phoneVerified: Boolean(user.phoneVerified),
+  };
 }
 
 /**
@@ -140,16 +161,7 @@ export async function issueBrowserSession(
       accessToken: tokens.accessToken,
       expiresIn: tokens.expiresIn,
       tokenType: tokens.tokenType,
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        displayName: user.displayName,
-        // fix/qm-api-roundtrip-latency: the full profile shape (same as GET
-        // /oauth/userinfo) so the browser can skip its second sequential
-        // profile round trip after sign-in. `role` was already on SessionUser.
-        role: user.role,
-      },
+      user: sessionUserPayload(user),
     },
   };
 }

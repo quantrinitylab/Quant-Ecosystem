@@ -8,7 +8,7 @@
 // ============================================================================
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../services/api-client';
+import { apiClient, type RsvpResponse } from '../services/api-client';
 import type { CalendarEvent } from '../types';
 
 export type RsvpStatus = 'accepted' | 'declined' | 'tentative' | 'pending';
@@ -32,7 +32,13 @@ export function useCalendarEvent(id: string | null) {
 export function useRsvpEvent() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: RsvpStatus }) => {
+    mutationFn: async ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: RsvpStatus;
+    }): Promise<RsvpResponse> => {
       const response = await apiClient.rsvpEvent(id, status);
       if (!response.success) throw new Error(response.error?.message || 'Failed to update RSVP');
       return response.data!;
