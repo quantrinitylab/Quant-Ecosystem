@@ -7,7 +7,12 @@ import { AuthShell } from '../../components/auth/AuthShell';
 /**
  * Standalone public legal page (mirrors /terms): no AppShell, no AppSidebar,
  * no inbox chrome for signed-out visitors. Pure-black, no divider lines,
- * Mail orange accents. Copy is unchanged from the previous version.
+ * Mail orange accents. Copy 2026-10-13: §1's absolute "does not read, index,
+ * parse" wording was qualified — AI triage genuinely sends the content of the
+ * messages you select to the AI provider (backend/services/ai-triage.service.ts
+ * → @quant/ai AIEngine.infer → routed model provider) — so the policy now
+ * discloses that processing honestly in §3A instead of contradicting the
+ * "AI triage" promise on /login and /register.
  */
 export default function PrivacyPolicyPage() {
   return (
@@ -95,8 +100,10 @@ export default function PrivacyPolicyPage() {
               QuantMail (provided by Quantrinity as part of the Quant Sovereign Ecosystem) is
               engineered on fundamental cryptographic privacy and data autonomy principles. Unlike
               ad-driven email providers, QuantMail does not read, index, parse, or monetize your
-              inbox to serve behavioral advertisements or profile you. Your communication data
-              belongs exclusively to you.
+              inbox to serve behavioral advertisements or profile you. The one exception is AI
+              features you explicitly invoke: when you ask Quant AI to triage, summarize, or draft
+              a reply, the content of the messages you select is processed to perform exactly
+              that task (see §3A). Your communication data belongs exclusively to you.
             </p>
           </section>
 
@@ -136,7 +143,9 @@ export default function PrivacyPolicyPage() {
                     <td className="py-2 pr-4 font-medium text-[var(--quant-foreground)]">Messages</td>
                     <td className="py-2 pr-4">Emails, subjects, message body, attachments, drafts</td>
                     <td className="py-2 pr-4">
-                      Core App functionality: sending, receiving, and displaying mail
+                      Core App functionality: sending, receiving, and displaying mail — plus AI
+                      triage and reply drafting, but only for the messages you explicitly ask AI
+                      to handle (see §3A)
                     </td>
                     {/* Never Shared is dishonest here: outbound mail passes through
                         AWS SES (backend/lib/ses-sender.ts, SESv2 SendEmail), which by
@@ -213,7 +222,38 @@ export default function PrivacyPolicyPage() {
               <p>
                 <strong className="text-[var(--quant-foreground)]">No Behavioral Profiling:</strong>{' '}
                 We do not scan message contents or recipient graphs to build behavioral or
-                demographic profiles.
+                demographic profiles. This covers profiling only — content you explicitly
+                hand to an AI feature (see §3A) is processed to perform that task and
+                nothing else.
+              </p>
+            </div>
+          </section>
+
+          {/* Section 3A: AI features the user explicitly invokes.
+              Copy-honesty note (2026-10-13): AI triage genuinely reads message
+              contents server-side — backend/services/ai-triage.service.ts passes
+              From/Subject/Body verbatim into @quant/ai's AIEngine.infer, which
+              routes to a model provider (default model muse-spark-1.3 → 'meta'
+              provider, packages/ai/src/core/model-router.ts). It is NOT
+              on-device/local, and it is NOT profile-building — both halves of
+              that claim are wired in the code, so the wording below states
+              exactly that. */}
+          <section>
+            <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
+              3A. AI Features You Explicitly Invoke
+            </h2>
+            <div className="mt-2 space-y-3 text-sm leading-6 text-[var(--quant-muted-foreground)]">
+              <p>
+                When you use Quant AI to triage your inbox, summarize a message, or draft a
+                reply, the content of the messages you select — sender, subject, and body —
+                is sent to the AI provider that powers the feature, solely to perform the
+                task you asked for.
+              </p>
+              <p>
+                Content processed this way is never used for advertising, never sold, and
+                never used to build behavioral or demographic profiles of you. No AI
+                feature reads your inbox on its own: processing happens only when you
+                invoke it.
               </p>
             </div>
           </section>

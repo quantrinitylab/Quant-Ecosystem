@@ -51,3 +51,6 @@ android-project/local.properties
 .worktrees/
 
 
+
+# bare entry matches symlinks too (trailing-slash form does not)
+node_modules

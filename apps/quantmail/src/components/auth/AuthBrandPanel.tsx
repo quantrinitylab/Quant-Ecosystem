@@ -45,6 +45,13 @@ export function AuthBrandPanel({ eyebrow, title, subtitle }: AuthBrandPanelProps
               title="Mail + chat threads"
               copy="Email and chat in one thread."
             />
+            {/*
+              Copy-honesty note (2026-10-13): keep this card in sync with the
+              privacy policy's §3A (src/app/privacy/page.tsx). AI triage reads
+              message contents server-side (backend/services/ai-triage.service.ts
+              → AIEngine.infer), so the policy qualifies its "does not
+              read/index/parse" wording instead of this card over-promising.
+            */}
             <FeatureCard
               icon={<QuantAiLogo size={34} />}
               title="AI triage"
