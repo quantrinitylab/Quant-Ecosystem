@@ -208,6 +208,42 @@ export function zonedYmd(date: Date, timeZone: string): { year: number; month: n
   return { year: get('year'), month: get('month'), day: get('day') };
 }
 
+/**
+ * Every host calendar date intersecting [intervalStartMs, intervalEndMs) in
+ * `timeZone` (fix/qm-booking-journey-v2).
+ *
+ * The old code sampled only the two interval endpoints. Around DST
+ * transitions that silently omits the middle host date: e.g. a 24h guest-day
+ * interval over a spring-forward Sunday spans THREE host calendar dates
+ * (the 23h day lets the interval cross two host midnights), so slots for
+ * the middle date were never generated — the guest saw a valid day with
+ * missing slots. Walking host midnights through the interval enumerates
+ * every intersected date on both 23h and 25h days. Pure function.
+ */
+export function hostDatesForGuestDayInterval(
+  intervalStartMs: number,
+  intervalEndMs: number,
+  timeZone: string,
+): Array<{ year: number; month: number; day: number }> {
+  const out: Array<{ year: number; month: number; day: number }> = [];
+  const seen = new Set<string>();
+  if (!Number.isFinite(intervalStartMs) || !Number.isFinite(intervalEndMs)) return out;
+  if (intervalEndMs <= intervalStartMs) return out;
+  let cursor = intervalStartMs;
+  // Safety cap: a guest-day interval is ~24h; 8 iterations is generous.
+  for (let i = 0; i < 8 && cursor < intervalEndMs; i++) {
+    const ymd = zonedYmd(new Date(cursor), timeZone);
+    const key = `${ymd.year}-${ymd.month}-${ymd.day}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(ymd);
+    }
+    const nextMidnight = zonedWallTimeToUtcMs(ymd.year, ymd.month, ymd.day + 1, 0, 0, timeZone);
+    cursor = nextMidnight > cursor ? nextMidnight : cursor + 24 * 60 * 60 * 1000;
+  }
+  return out;
+}
+
 export function formatIcsDateTime(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   const year = date.getUTCFullYear();
@@ -521,19 +557,14 @@ export class BookingLinkService {
     }
 
     // Host-local calendar dates to generate slots for: the single host day
-    // (legacy path) or every host date intersecting the guest-day interval
-    // (a 24h interval spans at most two host calendar dates).
+    // (legacy path) or every host date intersecting the guest-day interval.
+    // A 24h guest-day interval can intersect up to three host calendar
+    // dates around a DST transition (the 23h spring-forward day lets it
+    // cross two host midnights) — hostDatesForGuestDayInterval walks the
+    // host midnights so the middle date is never omitted.
     const hostDates: Array<{ year: number; month: number; day: number }> = [];
     if (guestDayStartMs !== null && guestDayEndMs !== null) {
-      const seen = new Set<string>();
-      for (const instant of [guestDayStartMs, guestDayEndMs - 1]) {
-        const ymd = zonedYmd(new Date(instant), anchorTz);
-        const key = `${ymd.year}-${ymd.month}-${ymd.day}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          hostDates.push(ymd);
-        }
-      }
+      hostDates.push(...hostDatesForGuestDayInterval(guestDayStartMs, guestDayEndMs, anchorTz));
     } else {
       hostDates.push({
         year: date.getUTCFullYear(),

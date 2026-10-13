@@ -1483,6 +1483,45 @@ describe('POST /events/:id/rsvp — concurrent RSVPs are atomic (no lost respons
     expect(txQueryRaw).toHaveBeenCalled();
   });
 
+  it('same-user concurrent double-submit yields exactly one attendee row (no duplicate, no error)', async () => {
+    // The client-side in-flight guard (createRsvpWriteGate) drops the
+    // second click, but a double POST can still reach the server (retry,
+    // double-tap race). The FOR UPDATE serialization must make the pair
+    // collapse into a single consistent attendee row — never a duplicate
+    // row, never a lost write, never an error.
+    const { build, store } = buildConcurrentApp({ locking: true });
+    const app = await build();
+
+    const [r1, r2] = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: '/events/e1/rsvp',
+        headers: { 'x-test-user': 'user-1' },
+        payload: { status: 'accepted' },
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/events/e1/rsvp',
+        headers: { 'x-test-user': 'user-1' },
+        payload: { status: 'declined' },
+      }),
+    ]);
+
+    expect(r1.statusCode).toBe(200);
+    expect(r2.statusCode).toBe(200);
+    const final = JSON.parse(store.get('e1')!.attendees) as Array<{
+      userId: string;
+      status: string;
+    }>;
+    const rows = final.filter((a) => a.userId === 'user-1');
+    // Exactly one row for the user — the two writes serialized; the last
+    // writer wins, but nothing is duplicated or dropped.
+    expect(rows).toHaveLength(1);
+    expect(['accepted', 'declined']).toContain(rows[0]!.status);
+    // The other attendee is untouched.
+    expect(final.find((a) => a.userId === 'user-2')!.status).toBe('pending');
+  });
+
   it('the row lock is acquired before the row is read', async () => {
     const { build, txEvent, txQueryRaw } = buildConcurrentApp({ locking: true });
     const app = await build();

@@ -13,6 +13,7 @@ import {
   formatIcsDateTime,
   globalSlotLockStore,
   hostAnchorTimeZone,
+  hostDatesForGuestDayInterval,
 } from '../services/booking-link.service';
 
 function createInMemoryPrisma() {
@@ -1258,4 +1259,94 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
       ]);
     });
   });
+
+describe('hostDatesForGuestDayInterval — DST transitions never omit a host date (fix/qm-booking-journey-v2)', () => {
+  it('spans three host dates over the spring-forward transition (middle date not omitted)', () => {
+    // Synthetic 25h interval crossing both host midnights around the
+    // 2026-03-08 US spring-forward (23h day). Endpoint sampling yields
+    // {Mar 6, Mar 8} — the middle date Mar 7 would be silently omitted,
+    // so its slots were never generated.
+    const start = Date.UTC(2026, 2, 7, 4, 30);
+    const end = Date.UTC(2026, 2, 8, 5, 30);
+    expect(hostDatesForGuestDayInterval(start, end, 'America/New_York')).toEqual([
+      { year: 2026, month: 3, day: 6 },
+      { year: 2026, month: 3, day: 7 },
+      { year: 2026, month: 3, day: 8 },
+    ]);
+  });
+
+  it('covers the 25h fall-back day without omitting or inventing dates', () => {
+    // Guest day 2026-11-01 in New York is 25 absolute hours (fall-back).
+    const start = Date.UTC(2026, 10, 1, 4, 0);
+    const end = Date.UTC(2026, 10, 2, 5, 0);
+    expect(hostDatesForGuestDayInterval(start, end, 'America/New_York')).toEqual([
+      { year: 2026, month: 11, day: 1 },
+    ]);
+  });
+
+  it('returns [] for degenerate input', () => {
+    expect(hostDatesForGuestDayInterval(1000, 1000, 'UTC')).toEqual([]);
+    expect(hostDatesForGuestDayInterval(2000, 1000, 'UTC')).toEqual([]);
+    expect(hostDatesForGuestDayInterval(NaN, 2000, 'UTC')).toEqual([]);
+  });
+});
+
+describe('getAvailableSlots across DST transitions (fix/qm-booking-journey-v2)', () => {
+  // 2028-11-05 is the US fall-back Sunday; 2028-03-12 the spring-forward
+  // Sunday. Both are Sundays, so availableDays [0] keeps the window open.
+  async function seedDstLink(slug: string) {
+    await service.createBookingLink({
+      userId: 'host-user-1',
+      slug,
+      title: 'DST Test Link',
+      duration: 60,
+      availableDays: [0],
+      startHour: 9,
+      endHour: 17,
+      timezone: 'America/New_York',
+    });
+  }
+
+  it('fall-back Sunday: full 8-slot window, all labeled on the guest day', async () => {
+    await seedDstLink('dst-fallback');
+    const slots = await service.getAvailableSlots(
+      'dst-fallback',
+      new Date('2028-11-05T00:00:00.000Z'),
+      'America/New_York',
+    );
+    expect(slots).toHaveLength(8);
+    // 9:00 EST (after the 2 AM fall-back) == 14:00Z; last slot 16:00 EST == 21:00Z.
+    expect(slots[0].start.toISOString()).toBe('2028-11-05T14:00:00.000Z');
+    expect(slots[7].start.toISOString()).toBe('2028-11-05T21:00:00.000Z');
+    expect(slots.every((s) => s.available)).toBe(true);
+  });
+
+  it('spring-forward Sunday: slots exist for the transition day (nothing omitted)', async () => {
+    await seedDstLink('dst-springfwd');
+    const slots = await service.getAvailableSlots(
+      'dst-springfwd',
+      new Date('2028-03-12T00:00:00.000Z'),
+      'America/New_York',
+    );
+    expect(slots).toHaveLength(8);
+    // 9:00 EDT == 13:00Z; last slot 16:00 EDT == 20:00Z.
+    expect(slots[0].start.toISOString()).toBe('2028-03-12T13:00:00.000Z');
+    expect(slots[7].start.toISOString()).toBe('2028-03-12T20:00:00.000Z');
+    expect(slots.every((s) => s.available)).toBe(true);
+  });
+
+  it('spring-forward Sunday for a UTC guest: host-date walk agrees with endpoint sampling', async () => {
+    await seedDstLink('dst-springfwd-utc');
+    const slots = await service.getAvailableSlots(
+      'dst-springfwd-utc',
+      new Date('2028-03-12T00:00:00.000Z'),
+      'UTC',
+    );
+    // Guest day 2028-03-12 UTC = [00:00Z, 24:00Z); host dates Mar 11+12;
+    // Mar 12 (Sunday) is in availableDays → 9:00–17:00 EDT wall slots,
+    // filtered to the guest-day interval.
+    expect(slots).toHaveLength(8);
+    expect(slots[0].start.toISOString()).toBe('2028-03-12T13:00:00.000Z');
+  });
+});
 });

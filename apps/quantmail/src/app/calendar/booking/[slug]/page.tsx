@@ -8,8 +8,8 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TIMEZONES } from '../../types';
-import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolveSlotsResponse, generateGuestDaySlots, formatDateToYmdInTz, slotsWithinGuestDay } from './booking-utils';
-import type { BookingLinkDetails, BookingLinkLoadStatus, BookingSlotItem } from './booking-utils';
+import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolveSlotsResponse, generateGuestDaySlots, slotsWithinGuestDay, guestDayKeyToYmd, compareGuestDayKeys, todayInTimeZone, weekdayInTimeZone, isGuestDayEnabled, formatGuestDayHeader, formatGuestDayShort, defaultSelectedGuestDay } from './booking-utils';
+import type { BookingLinkDetails, BookingLinkLoadStatus, BookingSlotItem, GuestDayKey } from './booking-utils';
 import {
   IconClock,
   IconVideoCall,
@@ -23,14 +23,6 @@ import {
 } from '../../../../components/icons';
 import { apiFetchRaw } from '@quant/api-client';
 import { BookingLinkDeadPanel, shouldUseHistoryBack } from './dead-link-panel';
-
-// Helper to format Date to YYYY-MM-DD
-function formatDateToYmd(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
 
 // BookingSlotItem lives in ./booking-utils (Next.js rejects non-page value
 // exports from page.tsx; the interface is type-only and shared with tests).
@@ -129,20 +121,21 @@ export default function PublicBookingPage(props: PageProps) {
   // Timezone selector
   const [selectedTimezone, setSelectedTimezone] = useState<string>('Asia/Kolkata');
 
-  // Calendar Date State (default to tomorrow or nearest weekday)
-  const [calendarMonthDate, setCalendarMonthDate] = useState<Date>(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1);
+  // Calendar Date State — timezone-free guest-day keys in the SELECTED
+  // timezone (fix/qm-booking-journey-v2). The old code carried browser-local
+  // `Date`s (midnight in the browser's zone); for a guest whose browser
+  // zone differs from the selected zone that silently re-derived the wrong
+  // YYYY-MM-DD (off-by-one) and enabled tiles with the browser-local
+  // weekday. No Date is constructed for day math anymore.
+  const [calendarMonth, setCalendarMonth] = useState<{ year: number; month: number }>(() => {
+    const today = todayInTimeZone('Asia/Kolkata');
+    return { year: today.year, month: today.month };
   });
 
-  const [selectedDate, setSelectedDate] = useState<Date>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    // If weekend, skip to Monday
-    if (d.getDay() === 0) d.setDate(d.getDate() + 1);
-    if (d.getDay() === 6) d.setDate(d.getDate() + 2);
-    return d;
-  });
+  // Default to tomorrow in the guest zone, skipping days the host cannot serve.
+  const [selectedDate, setSelectedDate] = useState<GuestDayKey>(() =>
+    defaultSelectedGuestDay('Asia/Kolkata'),
+  );
 
   // Slot Selection
   const [availableSlots, setAvailableSlots] = useState<BookingSlotItem[]>([]);
@@ -255,20 +248,19 @@ export default function PublicBookingPage(props: PageProps) {
   // other guest days.
   const generateSlotsForDate = useCallback(
     (
-      targetDate: Date,
+      targetKey: GuestDayKey,
       duration: number,
       startHour: number,
       endHour: number,
       anchorTimeZone: string,
       displayTimeZone: string,
     ): BookingSlotItem[] => {
-      const [y, m, d] = formatDateToYmdInTz(targetDate, displayTimeZone)
-        .split('-')
-        .map(Number);
+      // The key IS the guest's calendar day in the selected zone — it
+      // serializes to YYYY-MM-DD directly, with no Date reinterpretation.
       return generateGuestDaySlots({
-        year: y,
-        month: m,
-        day: d,
+        year: targetKey.year,
+        month: targetKey.month,
+        day: targetKey.day,
         guestTimeZone: displayTimeZone,
         hostTimeZone: anchorTimeZone,
         startHour,
@@ -297,9 +289,10 @@ export default function PublicBookingPage(props: PageProps) {
 
     async function loadSlots() {
       // The request names the GUEST's calendar day in the SELECTED timezone
-      // (fix/qm-booking-guest-day) — browser-local Y/M/D would silently
-      // shift the date boundary when the user picked another zone.
-      const dateStr = formatDateToYmdInTz(selectedDate, selectedTimezone);
+      // (fix/qm-booking-guest-day) — the key serializes to YYYY-MM-DD
+      // directly; no browser-local Date is reinterpreted
+      // (fix/qm-booking-journey-v2).
+      const dateStr = guestDayKeyToYmd(selectedDate);
       const tzParam = encodeURIComponent(selectedTimezone);
       try {
         const res = await apiFetchRaw(
@@ -360,36 +353,46 @@ export default function PublicBookingPage(props: PageProps) {
 
   // Handle Month Navigation
   const handlePrevMonth = () => {
-    setCalendarMonthDate((curr) => new Date(curr.getFullYear(), curr.getMonth() - 1, 1));
+    setCalendarMonth((curr) =>
+      curr.month === 1 ? { year: curr.year - 1, month: 12 } : { year: curr.year, month: curr.month - 1 },
+    );
   };
 
   const handleNextMonth = () => {
-    setCalendarMonthDate((curr) => new Date(curr.getFullYear(), curr.getMonth() + 1, 1));
+    setCalendarMonth((curr) =>
+      curr.month === 12 ? { year: curr.year + 1, month: 1 } : { year: curr.year, month: curr.month + 1 },
+    );
   };
 
-  // Calendar Grid Days Calculation
+  // Calendar Grid Days Calculation — pure calendar math on guest-day keys
+  // in the SELECTED timezone (fix/qm-booking-journey-v2). The old grid
+  // built browser-local Dates and enabled tiles with the browser-local
+  // weekday; both are zone-free now: grid alignment uses the selected
+  // zone's weekday, month length is UTC math, and tile enablement is
+  // slot-authoritative via isGuestDayEnabled (host-zone weekday of the
+  // host date(s) intersecting each guest day).
   const calendarDays = useMemo(() => {
-    const year = calendarMonthDate.getFullYear();
-    const month = calendarMonthDate.getMonth();
+    const { year, month } = calendarMonth;
+    const hostTz = meetingDetails.timezone || 'UTC';
 
-    const firstDayIndex = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayIndex = weekdayInTimeZone({ year, month, day: 1 }, selectedTimezone);
+    const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
 
     const days: Array<{
-      date: Date;
+      key: GuestDayKey;
       isCurrentMonth: boolean;
       isAvailable: boolean;
       isPast: boolean;
     }> = [];
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const todayKey = todayInTimeZone(selectedTimezone);
 
-    // Padding for days before the 1st
+    // Padding for days before the 1st (previous month's tail)
+    const prevMonth = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
+    const daysInPrevMonth = new Date(Date.UTC(prevMonth.year, prevMonth.month + 1, 0)).getUTCDate();
     for (let i = 0; i < firstDayIndex; i++) {
-      const prevDate = new Date(year, month, -firstDayIndex + i + 1);
       days.push({
-        date: prevDate,
+        key: { year: prevMonth.year, month: prevMonth.month, day: daysInPrevMonth - firstDayIndex + i + 1 },
         isCurrentMonth: false,
         isAvailable: false,
         isPast: true,
@@ -398,13 +401,13 @@ export default function PublicBookingPage(props: PageProps) {
 
     // Days in current month
     for (let day = 1; day <= daysInMonth; day++) {
-      const d = new Date(year, month, day);
-      const isPast = d.getTime() < today.getTime();
-      const isDayAllowed = meetingDetails.availableDays.includes(d.getDay());
-      const isAvailable = !isPast && isDayAllowed;
+      const key: GuestDayKey = { year, month, day };
+      const isPast = compareGuestDayKeys(key, todayKey) < 0;
+      const isAvailable =
+        !isPast && isGuestDayEnabled(key, selectedTimezone, hostTz, meetingDetails.availableDays);
 
       days.push({
-        date: d,
+        key,
         isCurrentMonth: true,
         isAvailable,
         isPast,
@@ -412,7 +415,7 @@ export default function PublicBookingPage(props: PageProps) {
     }
 
     return days;
-  }, [calendarMonthDate, meetingDetails.availableDays]);
+  }, [calendarMonth, meetingDetails.availableDays, meetingDetails.timezone, selectedTimezone]);
 
   // Click slot -> Step 2
   const handleSelectSlot = (slot: BookingSlotItem) => {
@@ -581,14 +584,8 @@ export default function PublicBookingPage(props: PageProps) {
 
   // Format Date for Summary Header (in the guest's selected timezone)
   const formattedSelectedDate = useMemo(() => {
-    return selectedDate.toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      timeZone: selectedTimezone,
-    });
-  }, [selectedDate, selectedTimezone]);
+    return formatGuestDayHeader(selectedDate);
+  }, [selectedDate]);
 
   return (
     <div className="min-h-screen bg-[var(--quant-background)] text-[var(--quant-foreground)] font-sans flex flex-col justify-between selection:bg-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] selection:text-white">
@@ -746,9 +743,9 @@ export default function PublicBookingPage(props: PageProps) {
                     {/* Month Stepper Header */}
                     <div className="flex items-center justify-between pb-2 border-b border-[var(--quant-surface-elevated)]/60">
                       <h3 className="font-bold text-sm text-white flex items-center gap-1.5">
-                        <span>{MONTH_NAMES[calendarMonthDate.getMonth()]}</span>
+                        <span>{MONTH_NAMES[calendarMonth.month - 1]}</span>
                         <span className="text-[var(--quant-muted-foreground)] font-normal">
-                          {calendarMonthDate.getFullYear()}
+                          {calendarMonth.year}
                         </span>
                       </h3>
 
@@ -784,8 +781,7 @@ export default function PublicBookingPage(props: PageProps) {
                     {/* Days grid */}
                     <div className="grid grid-cols-7 gap-1">
                       {calendarDays.map((item, idx) => {
-                        const isSelected =
-                          formatDateToYmd(item.date) === formatDateToYmd(selectedDate);
+                        const isSelected = compareGuestDayKeys(item.key, selectedDate) === 0;
                         const isCurrentMonth = item.isCurrentMonth;
                         const isAvailable = item.isAvailable;
 
@@ -794,7 +790,7 @@ export default function PublicBookingPage(props: PageProps) {
                             key={idx}
                             type="button"
                             disabled={!isAvailable}
-                            onClick={() => setSelectedDate(item.date)}
+                            onClick={() => setSelectedDate(item.key)}
                             className={`size-9 rounded-xl text-xs font-semibold flex items-center justify-center transition-all ${
                               isSelected
                                 ? 'bg-[var(--app-accent)] text-[var(--quant-background)] font-black shadow-md shadow-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] scale-105'
@@ -805,7 +801,7 @@ export default function PublicBookingPage(props: PageProps) {
                                     : 'text-transparent cursor-not-allowed pointer-events-none'
                             }`}
                           >
-                            {isCurrentMonth ? item.date.getDate() : ''}
+                            {isCurrentMonth ? item.key.day : ''}
                           </button>
                         );
                       })}
@@ -817,11 +813,7 @@ export default function PublicBookingPage(props: PageProps) {
                     <div className="text-xs font-bold text-white flex items-center justify-between pb-1 border-b border-[var(--quant-surface-elevated)]/60">
                       <span>Available Slots</span>
                       <span className="text-[10px] text-[var(--quant-muted-foreground)] font-normal truncate">
-                        {selectedDate.toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          timeZone: selectedTimezone,
-                        })}
+                        {formatGuestDayShort(selectedDate)}
                       </span>
                     </div>
 
