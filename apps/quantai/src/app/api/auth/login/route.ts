@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loginRateLimiter, getClientIp } from '../../../../lib/rate-limit';
+import { logServerError } from '../../../../lib/server-log';
 
 const QUANTMAIL_BACKEND_URL = process.env.QUANTMAIL_BACKEND_URL || 'http://localhost:3010';
-
-// Exported for tests (reset between cases).
-export { loginRateLimiter };
 
 // Accepts NextRequest | Request (same convention as the userinfo route): the
 // handler only uses Request-surface APIs (headers/json/url).
@@ -30,9 +28,11 @@ export async function POST(request: NextRequest | Request) {
     }
   } catch (limiterError) {
     // Fail open, but scream: a broken limiter is a P0, not a login outage.
-    console.error(
-      '[auth/login] RATE LIMITER FAILURE — failing open:',
-      limiterError instanceof Error ? limiterError.message : limiterError,
+    logServerError(
+      '[auth/login]',
+      `RATE LIMITER FAILURE — failing open: ${
+        limiterError instanceof Error ? limiterError.message : String(limiterError)
+      }`,
     );
   }
 
