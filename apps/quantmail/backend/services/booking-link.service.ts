@@ -488,10 +488,7 @@ export class BookingLinkService {
   async getAvailableSlots(
     slug: string,
     date: Date,
-    // Accepted for API compatibility but display-only: the public page
-    // formats the returned absolute instants in it. It no longer moves the
-    // availability window (fix/qm-booking-tz-availability-2).
-    _guestTimezone?: string,
+    guestTimezone?: string,
   ): Promise<BookingSlot[]> {
     const link = await this.getBookingLink(slug);
     if (!link.isActive) return [];
@@ -499,47 +496,99 @@ export class BookingLinkService {
     // Availability window anchor (fix/qm-booking-tz-availability-2): the
     // host's startHour/endHour/availableDays are wall-clock values in the
     // LINK's timezone — never the server's, and no longer the guest's.
-    // The guestTimezone query param is accepted for API compatibility but
-    // is display-only (the public page formats instants in it); it no
-    // longer moves the window.
     const anchorTz = hostAnchorTimeZone(link);
 
-    // Candidate slot start instants + the busy-query window, resolved in the
-    // host's timezone. The requested date is the host's calendar day:
-    // y/m/d are derived from the UTC instant the client sent (YYYY-MM-DD
-    // parsed as UTC midnight).
-    let slotStarts: Date[];
-    let windowStart: Date;
-    let windowEnd: Date;
-
-    const year = date.getUTCFullYear();
-    const month = date.getUTCMonth() + 1;
-    const day = date.getUTCDate();
-    if (!link.availableDays.includes(zonedWeekday(year, month, day, anchorTz))) return [];
-    const starts: Date[] = [];
-    const totalMinutes = (link.endHour - link.startHour) * 60;
-    for (let offsetMin = 0; offsetMin + link.duration <= totalMinutes; offsetMin += link.duration) {
-      const wallMinutes = link.startHour * 60 + offsetMin;
-      starts.push(
-        new Date(
-          zonedWallTimeToUtcMs(
-            year,
-            month,
-            day,
-            Math.floor(wallMinutes / 60),
-            wallMinutes % 60,
-            anchorTz,
-          ),
-        ),
-      );
+    // Guest-day contract (fix/qm-booking-guest-day): when the caller
+    // supplies a guest timezone, the requested YYYY-MM-DD is the GUEST's
+    // calendar day in that zone — not the host's. The selected guest-day
+    // interval is converted to UTC, slots are generated for the host-local
+    // date(s) the interval spans, and ONLY slots whose instants fall
+    // inside the requested interval are returned — the guest never sees
+    // missing slots or slots labeled on another day.
+    // An invalid IANA zone is an honest 400 (never silent UTC fallback).
+    // No tz → legacy host-day interpretation (API compatibility).
+    let guestDayStartMs: number | null = null;
+    let guestDayEndMs: number | null = null;
+    if (guestTimezone !== undefined && guestTimezone !== null && guestTimezone !== '') {
+      if (!isValidIanaTimeZone(guestTimezone)) {
+        throw createAppError(`Invalid guest timezone: ${guestTimezone}`, 400, 'INVALID_TIMEZONE');
+      }
+      const gy = date.getUTCFullYear();
+      const gm = date.getUTCMonth() + 1;
+      const gd = date.getUTCDate();
+      guestDayStartMs = zonedWallTimeToUtcMs(gy, gm, gd, 0, 0, guestTimezone);
+      guestDayEndMs = zonedWallTimeToUtcMs(gy, gm, gd + 1, 0, 0, guestTimezone);
     }
-    slotStarts = starts;
-    windowStart =
-      starts.length > 0
-        ? starts[0]
-        : new Date(zonedWallTimeToUtcMs(year, month, day, link.startHour, 0, anchorTz));
-    const dayEndUtc = zonedWallTimeToUtcMs(year, month, day, link.endHour, 0, anchorTz);
-    windowEnd = new Date(Math.min(dayEndUtc, windowStart.getTime() + MAX_SLOT_WINDOW_MS));
+
+    // Host-local calendar dates to generate slots for: the single host day
+    // (legacy path) or every host date intersecting the guest-day interval
+    // (a 24h interval spans at most two host calendar dates).
+    const hostDates: Array<{ year: number; month: number; day: number }> = [];
+    if (guestDayStartMs !== null && guestDayEndMs !== null) {
+      const seen = new Set<string>();
+      for (const instant of [guestDayStartMs, guestDayEndMs - 1]) {
+        const ymd = zonedYmd(new Date(instant), anchorTz);
+        const key = `${ymd.year}-${ymd.month}-${ymd.day}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          hostDates.push(ymd);
+        }
+      }
+    } else {
+      hostDates.push({
+        year: date.getUTCFullYear(),
+        month: date.getUTCMonth() + 1,
+        day: date.getUTCDate(),
+      });
+    }
+
+    // Candidate slot start instants + the busy-query window, resolved in the
+    // host's timezone (wall-clock startHour/endHour per host date).
+    let slotStarts: Date[] = [];
+    let windowStart: Date | null = null;
+    let windowEnd: Date | null = null;
+
+    for (const { year, month, day } of hostDates) {
+      if (!link.availableDays.includes(zonedWeekday(year, month, day, anchorTz))) continue;
+      const starts: Date[] = [];
+      const totalMinutes = (link.endHour - link.startHour) * 60;
+      for (let offsetMin = 0; offsetMin + link.duration <= totalMinutes; offsetMin += link.duration) {
+        const wallMinutes = link.startHour * 60 + offsetMin;
+        starts.push(
+          new Date(
+            zonedWallTimeToUtcMs(
+              year,
+              month,
+              day,
+              Math.floor(wallMinutes / 60),
+              wallMinutes % 60,
+              anchorTz,
+            ),
+          ),
+        );
+      }
+      slotStarts = slotStarts.concat(starts);
+      const dayWindowStart =
+        starts.length > 0
+          ? starts[0]
+          : new Date(zonedWallTimeToUtcMs(year, month, day, link.startHour, 0, anchorTz));
+      const dayEndUtc = zonedWallTimeToUtcMs(year, month, day, link.endHour, 0, anchorTz);
+      const dayWindowEnd = new Date(
+        Math.min(dayEndUtc, dayWindowStart.getTime() + MAX_SLOT_WINDOW_MS),
+      );
+      if (windowStart === null || dayWindowStart < windowStart) windowStart = dayWindowStart;
+      if (windowEnd === null || dayWindowEnd > windowEnd) windowEnd = dayWindowEnd;
+    }
+    if (windowStart === null || windowEnd === null) return [];
+
+    // Keep only slots whose instants fall inside the requested guest-day
+    // interval. The legacy path (no guest tz) keeps the host-day slots.
+    if (guestDayStartMs !== null && guestDayEndMs !== null) {
+      const start = guestDayStartMs;
+      const end = guestDayEndMs;
+      slotStarts = slotStarts.filter((s) => s.getTime() >= start && s.getTime() < end);
+      slotStarts.sort((a, b) => a.getTime() - b.getTime());
+    }
 
     const events = await this.prisma.event.findMany({
       where: {

@@ -47,6 +47,18 @@ Inherited from the series (never per-occurrence in v1):
     in this series shares this response."
   - non-recurring event: "Accepted — recorded for this event."
 
+## Pre-write confirmation (v1 UI rule)
+
+- Before ANY `POST /events/:id/rsvp` from a recurring series (occurrence
+  page or series page), the UI must show the authoritative effect — "your
+  response will apply to the entire series" — and require explicit confirm.
+  The mutation fires only on the Confirm path (exactly once; double-tap is a
+  no-op). Cancel/back produces zero mutation. Non-recurring events post
+  directly: no scope surprise is possible. Pinned copy (see
+  `buildRsvpPreWriteCopy`): "Accepted — your response will apply to the
+  entire series. You are responding from the {label} occurrence; every
+  occurrence in this series will share this response."
+
 ## Concurrency
 
 - The write is read-modify-write on a JSON column. Concurrent writes
