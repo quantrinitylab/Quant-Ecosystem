@@ -332,6 +332,10 @@ export default async function emailsRoutes(
   options: EmailsRouteOptions = {},
 ) {
   // K4: Idempotency-Key support on compose/send/reply (and other mutating routes).
+  // WR-MAIL-104: the active catalog commands below (mail.draft.create,
+  // mail.draft.update, mail.send.execute, mail.thread.archive,
+  // mail.thread.restore) REQUIRE a valid Idempotency-Key — missing/malformed
+  // keys are rejected with 4xx before the handler executes.
   enableIdempotency(fastify);
 
   const smartInbox = options.smartInbox ?? new SmartInboxService();
@@ -475,13 +479,19 @@ export default async function emailsRoutes(
   };
 
   // POST /emails - Compose or send an email
-  fastify.post('/', handleComposeOrSend);
+  // WR-MAIL-104: mail.draft.create is an active catalog command — key required.
+  fastify.post('/', { config: { idempotencyRequired: true } }, handleComposeOrSend);
 
   // POST /emails/compose - Unified composer contract (M07)
-  fastify.post('/compose', handleComposeOrSend);
+  // WR-MAIL-104: mail.draft.create is an active catalog command — key required.
+  fastify.post('/compose', { config: { idempotencyRequired: true } }, handleComposeOrSend);
 
   // PUT /emails/:id - update an owned draft without creating duplicates.
-  fastify.put<{ Params: { id: string } }>('/:id', async (request, reply) => {
+  // WR-MAIL-104: mail.draft.update is an active catalog command — key required.
+  fastify.put<{ Params: { id: string } }>(
+    '/:id',
+    { config: { idempotencyRequired: true } },
+    async (request, reply) => {
     const parsed = composeSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
@@ -556,7 +566,11 @@ export default async function emailsRoutes(
   });
 
   // POST /emails/:id/send - durably queue an owned draft for delivery.
-  fastify.post<{ Params: { id: string } }>('/:id/send', async (request, reply) => {
+  // WR-MAIL-104: mail.send.execute is an active catalog command — key required.
+  fastify.post<{ Params: { id: string } }>(
+    '/:id/send',
+    { config: { idempotencyRequired: true } },
+    async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
 
@@ -986,7 +1000,11 @@ export default async function emailsRoutes(
   });
 
   // POST /emails/:id/archive - move to the owner's archive folder without trashing it.
-  fastify.post<{ Params: { id: string } }>('/:id/archive', async (request, reply) => {
+  // WR-MAIL-104: mail.thread.archive is an active catalog command — key required.
+  fastify.post<{ Params: { id: string } }>(
+    '/:id/archive',
+    { config: { idempotencyRequired: true } },
+    async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     const prisma = getPrisma(fastify);
@@ -1061,7 +1079,11 @@ export default async function emailsRoutes(
   });
 
   // POST /emails/:id/restore - restore a recoverable trashed email to the inbox.
-  fastify.post<{ Params: { id: string } }>('/:id/restore', async (request, reply) => {
+  // WR-MAIL-104: mail.thread.restore is an active catalog command — key required.
+  fastify.post<{ Params: { id: string } }>(
+    '/:id/restore',
+    { config: { idempotencyRequired: true } },
+    async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     const prisma = getPrisma(fastify);

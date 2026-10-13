@@ -102,6 +102,27 @@ interface RequestOptions {
 }
 
 /**
+ * WR-MAIL-104: mint a client idempotency key for one logical mutation.
+ *
+ * The capability catalog marks every active mail command idempotency-required
+ * and the backend now rejects keyless/malformed-key mutations with 4xx before
+ * executing them. `crypto.randomUUID()` needs no Node imports, so it is safe
+ * in browser bundles and SSR alike, and the value satisfies the server's
+ * `[\w\-]{1,128}` key pattern.
+ *
+ * One key per api-client call = one key per logical operation from the
+ * caller's perspective. A caller that retries ONE operation across attempts
+ * must hold a stable key and pass it via `options.headers` (the offline
+ * outbox queue already does this with its mutation ids); a fresh key per
+ * retry only dedupes concurrent duplicates, not sequential retries.
+ */
+export function mintIdempotencyKey(): string {
+  return crypto.randomUUID();
+}
+
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+/**
  * True when a mail search string uses Gmail-style operator syntax that the
  * legacy literal search (GET /emails/search) would match as plain text.
  * Mirrors the operator vocabulary of the backend SearchQueryService
@@ -2048,6 +2069,13 @@ export class QuantMailApiClient {
       'Content-Type': 'application/json',
       ...options?.headers,
     };
+    // WR-MAIL-104: active mail commands require Idempotency-Key server-side.
+    // Mint one per mutating call unless the caller supplied its own stable key
+    // (e.g. the offline outbox retrying one queued mutation).
+    if (MUTATING_METHODS.has(method.toUpperCase())) {
+      const hasKey = Object.keys(headers).some((h) => h.toLowerCase() === 'idempotency-key');
+      if (!hasKey) headers['Idempotency-Key'] = mintIdempotencyKey();
+    }
     const hadAccessToken = Boolean(browserAuthSession.getAccessToken());
 
     try {
