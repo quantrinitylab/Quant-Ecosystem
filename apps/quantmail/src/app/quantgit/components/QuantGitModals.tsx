@@ -407,8 +407,18 @@ export function QuantGitModals({
                 </div>
                 <div className="rounded-lg border border-[#30363D] bg-[#0D1117] p-3">
                   <p className="text-[#7D8590]">Status</p>
-                  <p className="mt-1 font-bold capitalize text-[#3FB950]">
-                    {selectedOfficeAgent.status}
+                  {/* Local-only agents are neutral gray — never a green 'active' pill;
+                      no agent here is connected to an agent backend. */}
+                  <p
+                    className={`mt-1 font-bold capitalize ${
+                      selectedOfficeAgent.status === 'local-only'
+                        ? 'text-[#8D96A0]'
+                        : 'text-[#3FB950]'
+                    }`}
+                  >
+                    {selectedOfficeAgent.status === 'local-only'
+                      ? 'Local only'
+                      : selectedOfficeAgent.status}
                   </p>
                 </div>
               </div>
@@ -420,12 +430,11 @@ export function QuantGitModals({
                 </p>
               </div>
 
-              <div className="rounded-lg border border-[#30363D] bg-[#0D1117] p-3">
-                <p className="font-bold text-white">Live thought stream</p>
-                <p className="mt-2 leading-relaxed text-[#7D8590]">
-                  {selectedOfficeAgent.thoughts || 'Awaiting the next orchestrator instruction.'}
-                </p>
-              </div>
+              {/* "Live thought stream" removed: agents are local-only placeholders with
+                  no agent backend, so there is no live thought stream to display —
+                  rendering one (or its 'Awaiting the next orchestrator instruction.'
+                  fallback) fabricates a live agent. Matches the R4 AgentsTab card
+                  fix that removed invented steps/thoughts. */}
 
               {selectedOfficeAgent.steps && selectedOfficeAgent.steps.length > 0 && (
                 <div>
