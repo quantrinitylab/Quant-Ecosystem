@@ -680,6 +680,15 @@ describe('ThreadComposer smart-reply prefill (qm-personthread-smart-replies)', (
 });
 
 describe('/people/[personId] smart-reply wiring (qm-personthread-smart-replies)', () => {
+  // QM fix qm-threadcomposer-draft-persist: the composer now persists an
+  // unsent reply per person in window.localStorage and restores it on mount.
+  // Earlier tests in this file type real text into the box, so start each
+  // test with a clean slate — otherwise a saved draft for the same person
+  // would (correctly) prefill the box and these assertions would see it.
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it('renders smart-reply chips for the thread\'s latest message above the composer', () => {
     groupState.convos = [makeConversation()];
     navState.params = { personId: encodeURIComponent('ada') };
