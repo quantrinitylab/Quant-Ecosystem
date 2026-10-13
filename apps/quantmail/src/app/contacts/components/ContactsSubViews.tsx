@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import type { Contact, SearchEmailRequest } from '../../../types';
+import type { Contact, CompanyGroup, SearchEmailRequest } from '../../../types';
 import { sanitizeSnippetText } from '../../../lib/threading';
 import { apiClient } from '../../../services/api-client';
 import { Avatar } from '@quant/shared-ui';
@@ -89,19 +89,58 @@ export function formatContactMailDate(value?: string | Date | null): string {
 // ============================================================================
 
 export interface CompaniesSubViewProps {
-  contacts: (Contact | SovereignContact)[];
+  /**
+   * Page-scoped contact list, grouped client-side. Legacy path — kept for
+   * callers/tests that group a known list.
+   */
+  contacts?: (Contact | SovereignContact)[];
+  /**
+   * Server-aggregated groups across ALL of the user's contacts
+   * (`GET /contacts/companies`). When provided, the client-side grouping
+   * from `contacts` is skipped: grouping from a paginated page silently
+   * dropped companies whose members all sat on other pages and undercounted
+   * members, while the header copy read as complete.
+   */
+  groups?: CompanyGroup[];
   onInspect: (contact: any) => void;
   onCall: (contact: { name: string; phone?: string }) => void;
   onEmail: (email: string) => void;
 }
 
 export function CompaniesSubView({
-  contacts,
+  contacts = [],
+  groups,
   onInspect,
   onCall,
   onEmail,
 }: CompaniesSubViewProps) {
+  // True only for the server-aggregated path: the header copy must say the
+  // groups span the whole address book, not just the loaded page.
+  const isWholeAddressBook = groups !== undefined;
+
   const companyGroups = React.useMemo(() => {
+    if (groups) {
+      // Server-aggregated across all contacts — normalize to the
+      // SovereignContact shape the member card renders.
+      return groups.map((g) => ({
+        name: g.name,
+        subtitle: g.subtitle,
+        members: g.members.map(
+          (m): SovereignContact => ({
+            id: m.id,
+            name: m.name,
+            email: m.email,
+            phone: m.phone || undefined,
+            company: m.company || undefined,
+            role: undefined,
+            tag: m.tags?.[0] || 'All',
+            isVip: m.isFavorite || false,
+            isStarred: m.isFavorite || false,
+          }),
+        ),
+      }));
+    }
+
     // Build from the user's real contacts only — no seeded defaults.
     const all: SovereignContact[] = [];
     contacts.forEach((c) => {
@@ -125,20 +164,21 @@ export function CompaniesSubView({
     // Group by the contact's own `company` field — nothing is seeded, matched by
     // substring rules, or looked up anywhere. Companies that appear here exist
     // only because the user's contacts say they work there.
-    const groups = new Map<string, { name: string; members: SovereignContact[] }>();
+    // (Named groupMap, not groups: the `groups` prop is in scope above.)
+    const groupMap = new Map<string, { name: string; members: SovereignContact[] }>();
     all.forEach((c) => {
       const raw = (c.company || '').trim();
       if (!raw) return; // no company on the record — nothing honest to group by
       const key = raw.toLowerCase();
-      const existing = groups.get(key);
+      const existing = groupMap.get(key);
       if (existing) {
         existing.members.push(c);
       } else {
-        groups.set(key, { name: raw, members: [c] });
+        groupMap.set(key, { name: raw, members: [c] });
       }
     });
 
-    return [...groups.values()]
+    return [...groupMap.values()]
       .map((g) => {
         // Subtitle is derived from the members' own email addresses: the most
         // common email domain in the group. Never an invented HQ or domain.
@@ -158,7 +198,7 @@ export function CompaniesSubView({
         return { ...g, subtitle: commonDomain ? `@${commonDomain}` : undefined };
       })
       .sort((a, b) => b.members.length - a.members.length || a.name.localeCompare(b.name));
-  }, [contacts]);
+  }, [contacts, groups]);
 
   return (
     <div className="space-y-6">
@@ -187,7 +227,9 @@ export function CompaniesSubView({
               )}
             </div>
             <p className="text-xs text-[#9CA3AF] mt-0.5">
-              Grouped from the organization fields in your own contacts — no directories, no external claims
+              {isWholeAddressBook
+                ? 'Grouped from the organization fields across all your contacts — no directories, no external claims'
+                : 'Grouped from the organization fields in your own contacts — no directories, no external claims'}
             </p>
           </div>
         </div>

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../services/api-client';
 import { createContactsPageQuery, type ContactsPageOptions } from '../lib/contacts-pagination';
-import type { Contact } from '../types';
+import type { Contact, CompanyGroup } from '../types';
 
 export function useContacts(options?: {
   q?: string;
@@ -95,6 +95,40 @@ export function useDeleteContact() {
 /** Paginated list for the contacts screen; folded from useContactsPage (Task K07). */
 export function useContactsPage(options?: ContactsPageOptions) {
   return useQuery(createContactsPageQuery((request) => apiClient.getContacts(request), options));
+}
+
+/**
+ * Company groups for the Companies tab, aggregated server-side across ALL of
+ * the user's contacts. Grouping from the paginated list page silently dropped
+ * companies whose members all sat on other pages and undercounted members —
+ * `GET /contacts/companies` is unpaginated, which is the fix.
+ *
+ * The key sits under `['contacts']` so the create/update/delete mutations,
+ * which invalidate that prefix, refresh the tab too: edit a contact's
+ * company and the Companies tab regroups without any extra wiring.
+ */
+export function useCompanyGroups(options?: {
+  q?: string;
+  favorites?: boolean;
+  enabled?: boolean;
+}) {
+  return useQuery({
+    queryKey: ['contacts', 'companies', { q: options?.q, favorites: options?.favorites }] as const,
+    queryFn: async (): Promise<CompanyGroup[]> => {
+      const response = await apiClient.getCompanyGroups({
+        q: options?.q,
+        favorites: options?.favorites,
+      });
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to load companies');
+      }
+      return response.data ?? [];
+    },
+    enabled: options?.enabled ?? true,
+    // An address book changes on a human timescale, and every mutation that
+    // can change it invalidates this key anyway.
+    staleTime: 5 * 60_000,
+  });
 }
 
 export type { ContactsPageOptions };

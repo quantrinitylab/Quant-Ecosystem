@@ -366,3 +366,96 @@ describe('DELETE /contacts/:id', () => {
     expect(prisma.contact.delete).not.toHaveBeenCalled();
   });
 });
+
+// ============================================================================
+// GET /contacts/companies — server-side aggregation across ALL contacts.
+// ============================================================================
+//
+// Regression: the Companies tab used to group on the client from the paginated
+// list page (`GET /contacts` is 20/page, capped at 100), so companies whose
+// members all sat on other pages never appeared and member counts
+// undercounted — while the header copy read as complete. The endpoint is
+// deliberately UNPAGINATED; the test that matters asserts `findMany` runs
+// with no skip/take.
+const COMPANIES_ROWS = [
+  { ...ROW, id: 'c1', name: 'Ada Lovelace', email: 'ada@acme.example', company: 'Acme Corp' },
+  // Same company, different case — and the member that used to sit on page 2
+  // of the list, invisible to the old client-side grouping.
+  { ...ROW, id: 'c2', name: 'Grace Hopper', email: 'grace@acme.example', company: 'acme corp' },
+  // Same address as c1 on a different row: a duplicated import must not
+  // inflate the company's headcount.
+  { ...ROW, id: 'c3', name: 'Ada Duplicate', email: 'ADA@acme.example', company: 'Acme Corp' },
+  { ...ROW, id: 'c4', name: 'Linus Torvalds', email: 'linus@linux.example', company: 'Linux Foundation' },
+  // No company on the record — nothing honest to group by.
+  { ...ROW, id: 'c5', name: 'Solo Act', email: 'solo@example.org', company: null },
+];
+
+describe('GET /contacts/companies', () => {
+  it('groups across ALL contacts — the aggregation is not paginated', async () => {
+    const app = await buildApp();
+    prisma.contact.findMany.mockResolvedValue(COMPANIES_ROWS);
+    const res = await app.inject({ method: 'GET', url: '/contacts/companies' });
+
+    expect(res.statusCode).toBe(200);
+    const groups = res.json().data;
+
+    const acme = groups.find((g: { name: string }) => g.name === 'Acme Corp');
+    expect(acme).toBeDefined();
+    // c1 + c2 merged (case-insensitive key); the c3 duplicate address dropped.
+    expect(acme.members).toHaveLength(2);
+    expect(acme.members.map((m: { id: string }) => m.id).sort()).toEqual(['c1', 'c2']);
+    // Subtitle is the members' own most common email domain — never invented.
+    expect(acme.subtitle).toBe('@acme.example');
+
+    const linux = groups.find((g: { name: string }) => g.name === 'Linux Foundation');
+    expect(linux.members).toHaveLength(1);
+    expect(linux.subtitle).toBe('@linux.example');
+
+    // Solo Act has no company: no group is invented for them.
+    expect(groups).toHaveLength(2);
+    // Most members first, then alphabetical.
+    expect(groups[0].name).toBe('Acme Corp');
+
+    // THE regression assertion: no skip/take — every matching contact is
+    // grouped, not just one list page of them.
+    const findManyArg = prisma.contact.findMany.mock.calls[0]![0] as Record<string, unknown>;
+    expect(findManyArg.skip).toBeUndefined();
+    expect(findManyArg.take).toBeUndefined();
+    expect((findManyArg.where as Record<string, unknown>).userId).toBe('user-1');
+  });
+
+  it('honours ?q= with the same predicate the list tab uses', async () => {
+    const app = await buildApp();
+    prisma.contact.findMany.mockResolvedValue(COMPANIES_ROWS);
+    const res = await app.inject({ method: 'GET', url: '/contacts/companies?q=acme' });
+
+    expect(res.statusCode).toBe(200);
+    const where = prisma.contact.findMany.mock.calls[0]![0].where as Record<string, unknown>;
+    expect(where.OR).toBeDefined();
+  });
+
+  it('honours ?favorites=true', async () => {
+    const app = await buildApp();
+    prisma.contact.findMany.mockResolvedValue(COMPANIES_ROWS);
+    const res = await app.inject({ method: 'GET', url: '/contacts/companies?favorites=true' });
+
+    expect(res.statusCode).toBe(200);
+    const where = prisma.contact.findMany.mock.calls[0]![0].where as Record<string, unknown>;
+    expect(where.isFavorite).toBe(true);
+  });
+
+  it('401s an unauthenticated request', async () => {
+    const app = await buildApp(null);
+    const res = await app.inject({ method: 'GET', url: '/contacts/companies' });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('400s an unknown query key (strict schema)', async () => {
+    const app = await buildApp();
+    const res = await app.inject({ method: 'GET', url: '/contacts/companies?bogus=1' });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('VALIDATION_ERROR');
+  });
+});

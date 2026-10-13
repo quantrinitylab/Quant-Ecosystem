@@ -95,6 +95,17 @@ const searchSchema = z
   })
   .strict();
 
+// GET /contacts/companies honours the list's search + favorites filters so a
+// search narrows the Companies tab exactly like it narrows the list tab.
+// Strict for the same reason as the list schema: a misspelt filter must 400,
+// not silently return unfiltered groups.
+const companiesQuerySchema = z
+  .object({
+    q: z.string().trim().min(1).max(200).optional(),
+    favorites: queryBooleanSchema.optional(),
+  })
+  .strict();
+
 const frequentQuerySchema = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -214,6 +225,35 @@ export default async function contactsRoutes(fastify: FastifyInstance) {
     const emails = await service.listContactEmails(userId);
 
     return reply.send({ success: true, data: { emails } });
+  });
+
+  // GET /contacts/companies
+  //
+  // The Companies tab groups the user's contacts by their `company` field.
+  // Grouping on the client from the paginated list page undercounted members
+  // and dropped companies whose members all sat on other pages, while the
+  // header copy read as complete. This endpoint aggregates server-side across
+  // ALL matching contacts (unpaginated), honouring the list's `q`/`favorites`
+  // filters so a search still narrows the tab.
+  //
+  // A dedicated static segment (like /directory, /search, /frequent) so it
+  // never lands in the `/:id` route below.
+  fastify.get('/companies', async (request, reply) => {
+    const queryResult = companiesQuerySchema.safeParse(request.query);
+    if (!queryResult.success) {
+      throw queryResult.error;
+    }
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new ContactService(prisma as never);
+    const groups = await service.getCompanyGroups(userId, queryResult.data);
+
+    return reply.send({ success: true, data: groups });
   });
 
   // GET /contacts/export/vcard (Task QC-01)
