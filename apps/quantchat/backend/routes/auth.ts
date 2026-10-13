@@ -39,7 +39,12 @@ const requestSchema = z.object({
 
 const verifySchema = z.object({
   phoneNumber: z.string().min(4).max(24),
-  otp: z.string().regex(/^\d{4,8}$/),
+  // QC-F-304: plain digit OTPs (local path) OR the MSG91 widget form
+  // "msg91:<access-token>". The digit-only schema previously made the
+  // msg91: branch below unreachable; the widened form is admitted ONLY
+  // in this exact shape and the branch itself must fail closed on
+  // identity binding (see the guard there).
+  otp: z.string().regex(/^(\d{4,8}|msg91:\S{10,4096})$/),
   deviceId: z.string().max(128).optional(),
 });
 
@@ -698,8 +703,31 @@ export default async function authRoutes(fastify: FastifyInstance) {
             error: { code: 'OTP_INVALID', message: 'OTP verification failed', statusCode: 401 },
           });
         }
-        // Verified! Use the mobile from MSG91 response
-        const verifiedMobile = verifyData.data.mobile || phoneNumber;
+        // QC-F-304: identity binds ONLY to the provider-verified mobile.
+        // The previous `verifyData.data.mobile || phoneNumber` fallback
+        // issued a full session for the body-supplied number whenever the
+        // provider omitted `mobile` — an unauthenticated caller could
+        // verify their OWN number in the widget and take over ANY phone
+        // account. Fail closed instead: a missing/blank provider mobile
+        // is a rejection, and a provider mobile that does not match the
+        // body number digit-for-digit (format-insensitive: "+91…" and
+        // "91…" are the same number; no partial/suffix matching) is a
+        // rejection. The 401 shape is identical to the not-verified
+        // response above, so nothing about the provider reply leaks.
+        const providerMobile = verifyData.data.mobile;
+        const providerDigits =
+          typeof providerMobile === 'string' ? providerMobile.replace(/\D/g, '') : '';
+        const bodyDigits = phoneNumber.replace(/\D/g, '');
+        if (!providerDigits || providerDigits !== bodyDigits) {
+          return reply.status(401).send({
+            success: false,
+            error: { code: 'OTP_INVALID', message: 'OTP verification failed', statusCode: 401 },
+          });
+        }
+        // Verified — and the verified mobile matches the requested number.
+        // Binding/storage normalization is unchanged: the provider's
+        // mobile is the identity source, the body was only a cross-check.
+        const verifiedMobile = providerMobile as string;
         const normalized = verifiedMobile.replace(/[\s\-()]/g, '');
         const { user, isNewUser } = await upsertPhoneUser(prisma, normalized);
         const tokens = await refreshStore.issueNewSession(
