@@ -9,9 +9,13 @@
 //     Body verbatim into @quant/ai's AIEngine.infer, which routes to a model
 //     provider (default muse-spark-1.3 → 'meta' provider,
 //     packages/ai/src/core/model-router.ts). NOT on-device, NOT client-local.
-//   - Triage, summarize, and reply-draft routes all exist and are wired:
-//     src/app/api/ai/{triage,summarize,summarize-thread,reply}/route.ts +
-//     backend/routes/ai-services.ts.
+//   - Triage and summarize routes are wired and user-facing:
+//     src/app/api/ai/{triage,summarize,summarize-thread}/route.ts +
+//     backend/routes/ai-services.ts. Reply drafting (POST /api/v1/ai/reply,
+//     AIReplyService) exists backend-only — NO UI surface calls it (the
+//     composer's onAIAssist prop is never rendered by EmailComposer: dead
+//     plumbing, verified 2026-10-13 in PR #1083) — so it is not a provable
+//     user-facing truth and the auth card no longer claims it.
 // So the honest resolution is: keep the triage promise (it is provable) and
 // QUALIFY the privacy wording. These tests pin both halves via source
 // assertions (same pattern as privacy-copy.test.ts); JSX block comments are

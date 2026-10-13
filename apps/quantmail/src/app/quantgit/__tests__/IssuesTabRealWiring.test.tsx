@@ -111,9 +111,10 @@ describe('IssuesTab real backend wiring (no alert stubs)', () => {
     expect(src).not.toContain("alert('Comment posted!')");
     // The create-issue stub.
     expect(src).not.toContain('alert(`Issue created:');
-    // NOTE: one alert() stub remains at IssuesTab.tsx:478 (filter dropdowns:
-    // `Filter by ${flt}...`) — intentionally out of this fix's scope and
-    // logged as a separate queue finding.
+    // UPDATE (fix/qm-issues-filters): the filter-dropdown stub that used to live
+    // at IssuesTab.tsx:478 (`Filter by ${flt}...`) is now real client-side
+    // filtering (Author/Label/Assignee/Sort) plus honest disabled
+    // Projects/Milestones buttons. Pinned by IssuesTabFilters.test.tsx.
   });
 
   describe('comment flow', () => {
