@@ -33,6 +33,89 @@ export function extractStorageKey(mediaUrl: string): string {
 }
 
 /**
+ * QC-F-274: message `metadata` keys that only the server may write.
+ *
+ * The send schema accepts `metadata` as an open record, and before this fix
+ * `sendMessage` persisted it verbatim — so a sender could pre-forge state
+ * that backend consumers trust: fake `reactions` attributed to other users,
+ * `pinned`/`pinnedBy`, a fabricated `storyReply`, view-once flags
+ * (`viewOnce`/`isSnap`) that push an ordinary message into the snap
+ * pipeline, a `storageKey` that steered consumeSnap's presign key
+ * selection, `deliveries` bookkeeping, and ephemeral-timer
+ * state (`viewedAt`, `consumedAt`, `consumedBy`, plus the screenshot-event
+ * keys `system`/`event`/`screenshotBy`/`targetMessageId`).
+ *
+ * Every key below has a server-side writer (react/pin, the snap branch of
+ * sendMessage itself, DeliveryService, DisappearingService, consumeSnap)
+ * or, for `storageKey`, must never exist from a client at all. They are
+ * stripped from client-supplied metadata at the single persistence choke
+ * point; trusted server-side callers use `SendMessageInput.serverMetadata`
+ * instead, which the REST route schema never accepts.
+ */
+export const RESERVED_METADATA_KEYS: ReadonlySet<string> = new Set([
+  'reactions',
+  'pinned',
+  'pinnedBy',
+  'storyReply',
+  'viewOnce',
+  'isSnap',
+  'duration',
+  'disappearMode',
+  'storageKey',
+  'deliveries',
+  'viewedAt',
+  'consumedAt',
+  'consumedBy',
+  'system',
+  'event',
+  'screenshotBy',
+  'targetMessageId',
+]);
+
+/** Longest legitimate snap duration a client may request: 24h in seconds. */
+const MAX_SNAP_DURATION_SEC = 86_400;
+
+/**
+ * QC-F-274: sanitize client-supplied message metadata before persistence.
+ *
+ * Reserved server-owned keys (RESERVED_METADATA_KEYS) are dropped. All
+ * other keys pass through verbatim — this is deliberately NOT a strict
+ * allowlist (free-form keys such as `caption` are legitimate client data).
+ *
+ * `snap` is the one legitimate client key that carries server-trusted
+ * data, so it is sanitized rather than stripped: only a plain object with
+ * a finite `durationSec` in (0, 86400] survives, rebuilt as exactly
+ * `{ durationSec }` so no nested key can be smuggled through it. An
+ * invalid `snap` is dropped entirely and the snap branch of sendMessage
+ * falls back to its default duration.
+ */
+export function sanitizeClientMetadata(
+  input: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  if (!input) return {};
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (RESERVED_METADATA_KEYS.has(key)) continue;
+    if (key === 'snap') {
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        const durationSec = (value as Record<string, unknown>).durationSec;
+        if (
+          typeof durationSec === 'number' &&
+          Number.isFinite(durationSec) &&
+          durationSec > 0 &&
+          durationSec <= MAX_SNAP_DURATION_SEC
+        ) {
+          out.snap = { durationSec };
+        }
+      }
+      continue;
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+/**
  * Map the public (lowercase) message-type string accepted by the API/clients to
  * the Prisma `MessageType` enum stored in Postgres. The HTTP layer validates the
  * incoming value against a lowercase enum; here we translate it to the DB enum so
@@ -132,6 +215,12 @@ export interface SendMessageInput {
   // route schema does not accept this from clients — only trusted
   // server-side callers set it.
   isAIGenerated?: boolean;
+  // QC-F-274: server-owned metadata (currently only the stories reply
+  // route's `storyReply`) merged OVER the sanitized client metadata, so a
+  // server key always wins. Like `isAIGenerated`, the REST route schema
+  // does not accept this from clients — only trusted server-side callers
+  // set it.
+  serverMetadata?: Record<string, unknown>;
   // QC-F-022: deliberately NO `encryption` / `recipientPublicKeys` fields.
   // See the block comment above — E2EE is client-side only.
 }
@@ -205,6 +294,7 @@ export class MessageService {
       metadata,
       disappearMode,
       isAIGenerated,
+      serverMetadata,
     } = input;
 
     // Verify user is a member of the conversation
@@ -224,7 +314,13 @@ export class MessageService {
     // view-once snap when the client asks for 'after_view' OR uses a snap
     // type; record that in metadata in the exact shape consumeSnap reads
     // (viewOnce/isSnap + duration + snap.durationSec).
-    const storedMetadata: Record<string, unknown> = { ...(metadata ?? {}) };
+    // QC-F-274: client metadata is sanitized first (reserved server-owned
+    // keys stripped, `snap` rebuilt to just its validated durationSec);
+    // trusted server metadata is merged over it so the server always wins.
+    const storedMetadata: Record<string, unknown> = {
+      ...sanitizeClientMetadata(metadata),
+      ...(serverMetadata ?? {}),
+    };
     if (disappearMode) {
       storedMetadata.disappearMode = disappearMode;
     }
@@ -585,11 +681,14 @@ export class MessageService {
       // exactly once, never repeatedly from the message list.
       if (rawMediaUrl.startsWith('data:')) return rawMediaUrl;
 
-      // Prefer explicit persisted storageKey if available in metadata, else extract from mediaUrl
-      const storageKey =
-        typeof metadata.storageKey === 'string' && metadata.storageKey.trim().length > 0
-          ? metadata.storageKey.trim()
-          : extractStorageKey(rawMediaUrl);
+      // QC-F-274: the storage key is ALWAYS derived from the persisted
+      // mediaUrl. A `metadata.storageKey` is never honoured here: before
+      // the send-path sanitize existed it was fully sender-controlled, and
+      // rows persisted before this fix may still carry a forged one — this
+      // sender-review/consume path must not let stored client data choose
+      // which bucket object gets presigned (the delete path below already
+      // derived from mediaUrl only).
+      const storageKey = extractStorageKey(rawMediaUrl);
 
       if (!storageKey) {
         throw createAppError(

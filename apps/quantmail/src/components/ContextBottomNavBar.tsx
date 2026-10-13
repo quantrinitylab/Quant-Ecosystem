@@ -159,6 +159,25 @@ function DraftsIcon({ className }: { className?: string; active?: boolean }) {
   );
 }
 
+// QM-SCHEDULED: clock glyph for the Scheduled folder.
+function ScheduledIcon({ className }: { className?: string; active?: boolean }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 15.5 13.5" />
+    </svg>
+  );
+}
+
 function SpamIcon({ className }: { className?: string; active?: boolean }) {
   return (
     <svg
@@ -801,6 +820,15 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         targetPath: '/sent',
       },
       {
+        // QM-SCHEDULED: `/scheduled` is the real page backed by
+        // `GET /emails?folderType=SCHEDULED` — queued future sends with
+        // per-row cancel/edit.
+        id: 'scheduled',
+        label: 'Scheduled',
+        icon: ScheduledIcon,
+        targetPath: '/scheduled',
+      },
+      {
         // SIA-P1-5: one folder list everywhere — Inbox, Sent, Drafts,
         // Archive, Spam, Trash — matching the drawer and desktop nav.
         id: 'drafts',
@@ -972,6 +1000,7 @@ export function resolveActiveTab(
 
   if (pillar === 'mail') {
     if (pathname.startsWith('/sent') || tabParam === 'sent') return 'sent';
+    if (pathname.startsWith('/scheduled')) return 'scheduled';
     if (pathname.startsWith('/archive') || tabParam === 'archive') return 'archive';
     if (pathname.startsWith('/drafts') || tabParam === 'drafts') return 'drafts';
     if (pathname.startsWith('/trash') || tabParam === 'trash') return 'trash';

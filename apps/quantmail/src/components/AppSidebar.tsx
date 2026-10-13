@@ -216,7 +216,7 @@ function Icon({ name, className = 'h-4 w-4' }: { name: IconName; className?: str
   route. That is the trade the inbox's Spam chip already declined in writing at
   `src/app/page.tsx:1861-1866`, and this matches it.
 */
-const NAV_GROUPS: Array<{
+export const NAV_GROUPS: Array<{
   label: string;
   items: Array<{
     id: string;
@@ -231,12 +231,11 @@ const NAV_GROUPS: Array<{
      */
     lens?: string;
     /**
-     * SIA-P1-5: tab items live on the classic inbox page — Archive is the
-     * inbox page's archived view, and the People home (the root route's
-     * default) ignores the `tab` param. So Archive must link straight at
-     * `/?view=inbox&tab=archive`: a bare `/?tab=archive` silently lands on
-     * the plain People home (`/archive`'s shim replaces to this URL too,
-     * but the drawer should get there in one hop).
+     * SIA-P1-5: tab items live on `/?view=inbox` with `?tab=` set. Archive is
+     * the inbox page's archived view (`/archive`'s shim replaces to
+     * `/?view=inbox&tab=archive`, but the drawer should get there in one hop).
+     * The People home at bare `/` never reads `tab`, so a bare `/?tab=archive`
+     * silently lands on the plain People home.
      */
     tab?: string;
     shortcut?: string;
@@ -252,6 +251,11 @@ const NAV_GROUPS: Array<{
       // Trash). The group header stays "Mail" (the app's name).
       { id: 'inbox', label: 'Inbox', icon: 'inbox', path: '/' },
       { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
+      // QM-SCHEDULED: scheduled sends are real queued rows now (GET
+      // /emails?folderType=SCHEDULED), so the folder gets a drawer entry —
+      // Gmail order (after Sent), same `clock` glyph the keyboard registry
+      // already uses for scheduled-adjacent commands.
+      { id: 'scheduled', label: 'Scheduled', icon: 'clock', path: '/scheduled' },
       { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
       { id: 'archive', label: 'Archive', icon: 'archive', path: '/?view=inbox&tab=archive', tab: 'archive' },
       { id: 'spam', label: 'Spam', icon: 'spam', path: '/?lens=spam', lens: 'spam' },

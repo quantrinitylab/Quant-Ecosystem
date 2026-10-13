@@ -522,7 +522,10 @@ export default async function storiesRoutes(fastify: FastifyInstance) {
       senderId: userId,
       content: parsed.data.message,
       type: 'text',
-      metadata: { storyReply: { storyId } },
+      // QC-F-274: `storyReply` is a server-owned metadata key — it goes
+      // through the trusted serverMetadata channel, not client metadata
+      // (client-supplied `storyReply` is stripped by MessageService).
+      serverMetadata: { storyReply: { storyId } },
     });
 
     // Realtime fan-out, same as the REST message send path: the durable

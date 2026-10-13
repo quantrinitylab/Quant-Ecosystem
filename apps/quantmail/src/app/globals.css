@@ -2411,6 +2411,28 @@ body {
   background: var(--quant-surface);
 }
 
+/*
+  Scheduled mailbox row actions (Cancel / Edit per scheduled send). Row-level
+  controls, touch-sized, in the row's own accent — the same `.delivery-resend`
+  button treatment the Sent page's Resend action uses, grouped after the
+  snippet so they never collide with the subject line's truncation.
+*/
+.sent-row-actions {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
+.sent-row-actions .delivery-resend {
+  margin-left: 0;
+  min-height: 2.5rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.7rem;
+}
+.sent-row-actions .delivery-resend:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 /* Delivery status indicators */
 .delivery-status {
   display: inline-flex;
