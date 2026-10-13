@@ -231,12 +231,11 @@ export const NAV_GROUPS: Array<{
      */
     lens?: string;
     /**
-     * SIA-P1-5: tab items live on the classic inbox page — Archive is the
-     * inbox page's archived view, and the People home (the root route's
-     * default) ignores the `tab` param. So Archive must link straight at
-     * `/?view=inbox&tab=archive`: a bare `/?tab=archive` silently lands on
-     * the plain People home (`/archive`'s shim replaces to this URL too,
-     * but the drawer should get there in one hop).
+     * SIA-P1-5: tab items live on `/?view=inbox` with `?tab=` set. Archive is
+     * the inbox page's archived view (`/archive`'s shim replaces to
+     * `/?view=inbox&tab=archive`, but the drawer should get there in one hop).
+     * The People home at bare `/` never reads `tab`, so a bare `/?tab=archive`
+     * silently lands on the plain People home.
      */
     tab?: string;
     shortcut?: string;

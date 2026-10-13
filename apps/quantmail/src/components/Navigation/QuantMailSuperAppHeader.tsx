@@ -935,7 +935,7 @@ export function QuantMailSuperAppHeader({
             {priorityMailCount != null && (
             <div
               className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] hover:border-[#282E3E] transition-all cursor-pointer group"
-              onClick={() => router.push('/?lens=important')}
+              onClick={() => router.push('/?view=inbox&lens=important')}
               role="button"
               tabIndex={0}
               aria-label={`Priority Mail: ${priorityMailCount} Unread`}
