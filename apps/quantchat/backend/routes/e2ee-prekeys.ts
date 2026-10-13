@@ -71,7 +71,22 @@ const userParamsSchema = z.object({ userId: z.string().min(1) });
  * Durable prekey routes, registered under the `/e2ee` prefix in `buildApp()`.
  */
 export default async function e2eePreKeyRoutes(fastify: FastifyInstance) {
-  const service = new EncryptionService(createKeyStorage(fastify.prisma));
+  // QC-F-081 claim signals: structured logs only — ids/counts, never key
+  // material (same wiring as the unscoped lane in routes/prekeys.ts; both
+  // lanes share one gate in EncryptionService, so a claimer cannot dodge a
+  // quota by switching lanes).
+  const service = new EncryptionService(createKeyStorage(fastify.prisma), {
+    onClaimThrottled: ({ targetUserId, requesterId, reason }) =>
+      fastify.log.warn(
+        { event: 'prekey_claim_throttled', targetUserId, requesterId, reason },
+        'one-time prekey claim refused by QC-F-081 quota gate; no key consumed',
+      ),
+    onPoolLow: ({ targetUserId, remaining }) =>
+      fastify.log.warn(
+        { event: 'prekey_pool_low', targetUserId, remaining },
+        'one-time prekey pool low; owner client should replenish',
+      ),
+  });
 
   // POST /e2ee/prekeys — publish the authenticated user's PUBLIC prekey bundle
   // (+ optional one-time prekey pool), OR top up the one-time prekey pool with a
@@ -156,7 +171,10 @@ export default async function e2eePreKeyRoutes(fastify: FastifyInstance) {
         throw parsed.error;
       }
 
-      const bundle = await service.claimPreKeyBundle(parsed.data.userId);
+      // QC-F-081: pass the authenticated claimer — claims are ledgered and
+      // quota'd per (claimer, owner) in the service; omitting it would make
+      // the claim unattributed and the gate would refuse to consume a key.
+      const bundle = await service.claimPreKeyBundle(parsed.data.userId, request.auth.userId);
       return reply.send({ success: true, data: bundle });
     },
   );
