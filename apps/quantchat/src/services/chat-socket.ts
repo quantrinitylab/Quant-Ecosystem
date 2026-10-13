@@ -16,9 +16,10 @@
 //   - Expose the connection state as exactly one of `connecting` | `open` |
 //     `closed` | `degraded` (Req 13.4; `degraded` = HTTP long-poll fallback).
 //   - Graceful degradation (P0-1): after 3 consecutive unexpected WS failures
-//     the manager polls `GET /api/messages/:id` per subscribed conversation and
-//     fans unseen messages as `new_message` events, while the socket keeps
-//     retrying in the background. The first successful open stops polling.
+//     the manager polls `GET /api/conversations/:id/messages` per subscribed
+//     conversation and fans unseen messages as `new_message` events, while
+//     the socket keeps retrying in the background. The first successful open
+//     stops polling.
 //   - Auth travels as a negotiated WebSocket subprotocol (see
 //     `getWsProtocols`), never as a `?token=` query parameter.
 //
@@ -123,8 +124,10 @@ const HEARTBEAT_INTERVAL_MS = 25_000;
 // HTTP long-poll fallback (P0-1 graceful degradation). When the WebSocket
 // cannot be established — e.g. the production WS endpoint is unreachable —
 // the manager keeps retrying the socket in the background AND polls the
-// existing `GET /api/messages/:id` HTTP endpoint so inbound chat events still
-// arrive instead of the app hanging forever. Outbound realtime frames
+// existing `GET /api/conversations/:id/messages` HTTP endpoint (the backend
+// list route — there is NO backend `/messages/:id` list route; QC-F-286) so
+// inbound chat events still arrive instead of the app hanging forever.
+// Outbound realtime frames
 // (typing, receipts) are dropped while degraded; sends go through the normal
 // HTTP mutation hooks.
 const MAX_FAILED_ATTEMPTS_BEFORE_POLL = 3;
@@ -134,13 +137,23 @@ const POLL_PAGE_LIMIT = 25;
 // without bound.
 const MAX_KNOWN_MESSAGE_IDS = 1_000;
 
-/** Normalize the several envelope shapes `GET /api/messages/:id` can return. */
+/**
+ * Normalize the envelope shapes the messages list endpoint can return.
+ * The REAL backend shape (QC-F-286) is the paginated envelope
+ * `{ success: true, data: { data: Message[], total, page, pageSize, ... } }`
+ * from `GET /conversations/:id/messages` — the array lives at `data.data`.
+ * That branch is checked FIRST so a real response can never fall through to
+ * `[]`; the bare-array / `messages` / `data.messages` branches are kept only
+ * for backwards compatibility with older/rolling-deploy responses.
+ */
 function extractMessages(body: unknown): Array<Record<string, unknown>> {
   if (Array.isArray(body)) return body as Array<Record<string, unknown>>;
   if (body && typeof body === 'object') {
     const b = body as Record<string, unknown>;
-    if (Array.isArray(b.messages)) return b.messages as Array<Record<string, unknown>>;
     const data = b.data as Record<string, unknown> | undefined;
+    if (data && Array.isArray(data.data))
+      return data.data as Array<Record<string, unknown>>;
+    if (Array.isArray(b.messages)) return b.messages as Array<Record<string, unknown>>;
     if (data && Array.isArray(data.messages))
       return data.messages as Array<Record<string, unknown>>;
   }
@@ -168,6 +181,13 @@ export class ChatSocketManager {
   private failedAttempts = 0;
   /** HTTP long-poll fallback timer; non-null while degraded. */
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  /**
+   * QC-F-286 — true once the current poll-failure episode has been surfaced
+   * (one `console.warn` per episode). Reset on any successful poll response
+   * and when polling (re)starts, so a degraded session never spams a warn
+   * every 5s tick, yet a NEW failure episode after a recovery warns again.
+   */
+  private pollFailureSurfaced = false;
   /** Message ids already seen per conversation (drives new_message fan-out). */
   private readonly knownMessageIds = new Map<string, Set<string>>();
 
@@ -414,15 +434,17 @@ export class ChatSocketManager {
 
   /**
    * Start the HTTP long-poll fallback: every POLL_INTERVAL_MS each subscribed
-   * conversation is fetched via the existing `GET /api/messages/:id` endpoint
-   * and unseen messages are fanned out as `new_message` events — the same
-   * shape the backend emits over the socket. State becomes `degraded` so the
-   * UI can say so. Idempotent: a second call while polling is a no-op.
+   * conversation is fetched via the existing
+   * `GET /api/conversations/:id/messages` endpoint and unseen messages are
+   * fanned out as `new_message` events — the same shape the backend emits
+   * over the socket. State becomes `degraded` so the UI can say so.
+   * Idempotent: a second call while polling is a no-op.
    */
   private startPolling(): void {
     if (this.pollTimer) return;
     // Only poll while somebody is actually consuming the socket.
     if (this.intentionalClose || this.refCount === 0) return;
+    this.pollFailureSurfaced = false;
     this.setState('degraded');
     // Seed the known-id sets immediately so the first tick does not replay
     // history as "new" messages.
@@ -453,11 +475,28 @@ export class ChatSocketManager {
         this.knownMessageIds.set(conversationId, known);
       }
       try {
+        // QC-F-286 — the poll MUST go through the shipped conversations proxy
+        // to the real backend list route `GET /conversations/:id/messages`.
+        // The old `/api/messages/:id?limit=` path forwarded to a backend
+        // route that does not exist (every poll 404'd and was swallowed).
+        // The backend pagination schema reads `pageSize`, not `limit`.
         const res = await apiFetchRaw(
-          `/api/messages/${encodeURIComponent(conversationId)}?limit=${POLL_PAGE_LIMIT}`,
+          `/api/conversations/${encodeURIComponent(conversationId)}/messages?pageSize=${POLL_PAGE_LIMIT}`,
           { headers },
         );
-        if (!res.ok) continue;
+        if (!res.ok) {
+          // QC-F-286 — never swallow a failed poll silently forever: surface
+          // exactly one warning per failure episode (reset on any success).
+          if (!this.pollFailureSurfaced) {
+            this.pollFailureSurfaced = true;
+            console.warn('[chat-socket] HTTP polling failed', {
+              status: res.status,
+              conversationId,
+            });
+          }
+          continue;
+        }
+        this.pollFailureSurfaced = false;
         const body: unknown = await res.json();
         for (const msg of extractMessages(body)) {
           const id = msg.id;
@@ -475,9 +514,18 @@ export class ChatSocketManager {
             this.dispatchEvent({ type: 'new_message', data: msg });
           }
         }
-      } catch {
+      } catch (err) {
         // Transient network failure — the next tick retries. Never throw out
-        // of the interval callback.
+        // of the interval callback. QC-F-286: surface the first failure of an
+        // episode once (same once-per-episode rule as HTTP errors above).
+        if (!this.pollFailureSurfaced) {
+          this.pollFailureSurfaced = true;
+          console.warn('[chat-socket] HTTP polling failed', {
+            status: 'network-error',
+            conversationId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     }
   }
