@@ -626,6 +626,28 @@ LIVE (2026-10-13 ~02:45 IST, logged-out): /search?q=test -> honest "Sign in to Q
 NOT VERIFIED (needs live/auth, unchanged): staging DB GIN indexes; live 401 E2E; operator routing live on real data; overlapping-fetch flicker; Hinglish stemming; scope-chip live; search latency.
 Status: [x] DONE (R5 regression audit complete 2026-10-13 ~02:55 IST; 2 P2s closed by #1034, 1 new P2 + 2 new P3s filed, 4 opens carried; fixes tracked via their PRs)
 
+## QM-SCREEN-007 R6 — Search regression (ROUND 6)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-007r6
+Audit started: 2026-10-13 ~12:35 IST (lane-1 deep audit loop, ROUND 6)
+Base: R5 @ 617337af -> origin/main 090cb9d15. Regression diff over all audited search paths (git show/grep on origin/main; no working-tree changes made):
+- ONLY search-adjacent change since R5: new GET /contacts/companies (CompanyGroup aggregation for the Contacts Companies tab, so a contacts search `q` narrows the tab). FULL STACK REVIEWED, VERIFIED SOUND: app/api/contacts/companies/route.ts = dedicated proxy to backend (static segment wins over [id], never lands in [id]); api-client.getCompanyGroups docs the routing reason; backend contacts.ts:230-258 strict zod (q max 200, favorites, .strict()), 401 on missing userId; ContactService.getCompanyGroups userId-scoped via shared listWhere (Prisma `contains` insensitive — parameterized, no SQL injection); unpaginated aggregation groups by trimmed company name case-insensitively, dedupes by email, members without company skipped honestly, subtitle = most-common email domain among members (never invented); api-client shared serializer drops undefined/null params (api-client.ts:2001-2005) so q:undefined sends no param; useCompanyGroups hook has honest error state, query-key under ['contacts'] so mutations invalidate it. No fake data, no leak, no invented copy.
+- Second diff is NON-search: routes-config.ts phone OTP entries removed (phone login/OTP deleted per locked 2026-10-05/2026-10-11 SSO design — intentional 404s, not a search change).
+- ZERO diff on: search-query.service.ts, email.service.ts, routes/search.ts, ai-search-content.service.ts, useSearchEmails.ts, useUniversalSearch.ts, app/search/page.tsx, UniversalSearchResults.tsx, api-client searchEmail/searchAll paths, slos.ts, all search Next route files.
+R6 RE-VERIFIED STILL OPEN (all carried forward, byte-level confirmed, none new):
+- [ ] FINDING P2: unsupported operator values silently dropped, scope widens without notice (is: has unread/read/starred/important/spam only — no trash branch; invalid before:/after: dates dropped, token not re-added to terms).
+- [ ] FINDING P3: no abort of in-flight search requests — 0 `signal` refs in useSearchEmails.ts/useUniversalSearch.ts.
+- [ ] FINDING P3: universal mail leg 20 vs 8 — searchEmails({query}), no pageSize.
+- [ ] FINDING P3: main search input no Esc-to-clear — page.tsx:328-330 onKeyDown Enter-only.
+- [ ] FINDING P3: operator syntax has zero UI discoverability — placeholder still "Search mail — sender, subject, words…", EXAMPLE_SEARCHES all plain strings.
+- [ ] FINDING P3: branch semantic divergence (quoted phrase: exact-substring on Prisma vs stemmed-AND on raw-SQL FTS; label:/to: exact-array vs ILIKE).
+- [ ] FINDING P3: document search under-covers vs access policy (searchDocuments userId-only vs Gate N-G5 shared/public) -> BLOCKER: product decision.
+R6: no fix agents dispatched (0 new P0/P1; new /contacts/companies endpoint reviewed and sound).
+LIVE (2026-10-13 ~12:50 IST, logged-out): /search?q=test -> sign-in page on desktop (1440x900) AND mobile (390x844) — auth gate intact, unchanged R2-R5. Signed-in search UI still needs-auth (no test session). Evidence: /tmp/lane1-007r6-desktop.png + lane1-007r6-mobile.png. Proxy 127.0.0.1:8888 healthy (307 via proxy); /tmp 47% used.
+NOT VERIFIED (needs live/auth, unchanged): staging DB GIN indexes; live 401 E2E; operator routing live on real data; overlapping-fetch flicker; Hinglish stemming; scope-chip live; search latency.
+Status: [x] DONE (R6 regression audit complete 2026-10-13 ~12:55 IST; 1 new search-adjacent endpoint reviewed+sound, 0 new findings, 7 opens carried; fixes tracked via their PRs)
+
 ## QM-SCREEN-008/009 R3 — Calendar regression (ROUND 3)
 Status: [~] IN PROGRESS
 Owner: LANE-1
@@ -1286,6 +1308,7 @@ R5-NEW FINDING (filed to findings.md; P2 only → no fix agent):
 VERDICT-LIVE: /help /privacy /terms /sso logged-out honest desktop 1440x900 + mobile 390x844 (pure black, zero hairlines, mail-orange accents; /privacy §1 AI-triage qualification LIVE; /terms 5 honest sections); /invite/badtoken123 → honest "Invitation not valid" mobile; GET /api/contact-groups/invite/badtoken → 404 INVITE_NOT_FOUND (R2-NEW-1 P0 RESOLVED stays resolved); POST /api/auth/verify-email → 403 UNTRUSTED_ORIGIN (origin-guard; email-verification lane's). Signed-in flows needs-auth. Proxy 127.0.0.1:8888 healthy; /tmp chrome orphans cleaned.
 R5 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 1 P2. No fix agents spawned (protocol: P0/P1 only).
 Rotation → ROUND 6: QM-SCREEN-007 (search) regression, queued.
+Rotation → ROUND 7: QM-SCREEN-008/009 (calendar) regression, queued.
 R4-AUDIT (2026-10-13 ~01:40–02:00 IST): origin/main e4bc5f5bb4a8 (fresh fetch) vs R3 base 226c5025. Read-only code audit by subagent (git show/grep on origin/main only; qe-main working tree CONFIRMED STALE again — contains apps/quantmail/src/app/forgot-email/ not on origin/main) + live logged-out desktop 1440x900 + mobile 390x844 Chrome + live curl (proxy 127.0.0.1:8888).
 R4 REGRESSION DIFF (226c5025..e4bc5f5bb4a8, 110 commits): only #1030's 5 commits touched the audited surfaces (privacy 7d retention, sso hairline, help support mailto+eyebrow, privacy-copy.test.ts, privacy SES disclosure) — all BENIGN, verified present. Zero commits touched api/contact-groups, backend/routes/contact-groups.ts, backend/app.ts, sso components, edge-public-paths.
 R3-NEW-1..5 ALL VERIFIED-INTACT in code + LIVE: 7-day retention in both privacy spots (Trash/Spam 30d is a separate data class, not the fixed contradiction); no shredding/immutable claims; no AES at-rest claims ("Encryption at Rest (rolling out)" honest note); /help names support@quantrinity.in + Email support link; eyebrows help=Help/terms=Legal/privacy=Legal; SsoChooserContent hairline gone.
