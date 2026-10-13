@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { QuantLogoProps } from './AppMark';
 import { useLiveMark, type MarkFrame } from './marks/useLiveMark';
+import { LivingLogoCanvas, useLivingLogo } from './marks/LivingLogo';
 import {
   paintCalendarMark,
   type CalendarMarkArt,
@@ -129,7 +130,8 @@ export function QuantCalendarLogo({ size = 28, className = '', title }: QuantLog
     [],
   );
 
-  const { canvasRef, pointerProps, repaint } = useLiveMark(paint, size);
+  const living = useLivingLogo('calendar');
+  const { canvasRef, pointerProps, repaint } = useLiveMark(paint, size, !living);
 
   // When the painted date changes (midnight), force one frame even under
   // reduced motion, where the loop is parked.
@@ -149,14 +151,25 @@ export function QuantCalendarLogo({ size = 28, className = '', title }: QuantLog
       className={`inline-flex shrink-0 select-none items-center justify-center ${className}`}
       style={{ width: size, height: size }}
     >
-      <canvas
-        ref={canvasRef}
-        width={size}
-        height={size}
-        className="h-full w-full"
-        aria-hidden="true"
-        {...pointerProps}
-      />
+      {living ? (
+        <LivingLogoCanvas
+          key="living"
+          app="calendar"
+          size={size}
+          className="h-full w-full"
+          face={{ weekday: date.weekday, day: date.day }}
+        />
+      ) : (
+        <canvas
+          key="classic"
+          ref={canvasRef}
+          width={size}
+          height={size}
+          className="h-full w-full"
+          aria-hidden="true"
+          {...pointerProps}
+        />
+      )}
     </span>
   );
 }
