@@ -268,7 +268,8 @@ export class QuantChatApiClient {
 
   /**
    * Search the user directory for contact discovery (New-chat picker).
-   * GET /users/search?q=... — excludes the current user, ACTIVE accounts only.
+   * GET /users/search?q=... — excludes the current user; deleted, suspended,
+   * and deactivated accounts are not discoverable (deny-list, QC-F-259).
    */
   async searchUsers(query: string): Promise<ApiResponse<ChatContact[]>> {
     return this.get('/users/search', { params: { q: query } });
