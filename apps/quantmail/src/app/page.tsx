@@ -369,6 +369,12 @@ type EmailRowProps = {
    */
   canToggleRead?: boolean;
   onSnooze: (emailId: string, snoozeUntil: Date) => void;
+  /**
+   * Avatar identity for a conversation with nobody else in it (a note to
+   * self). Without it the row fell back to the literal label "me", so every
+   * self-thread wore an "M" instead of the account's own initial.
+   */
+  selfName?: string;
 };
 
 function EmailRow({
@@ -391,6 +397,7 @@ function EmailRow({
   onMarkUnread,
   canToggleRead = true,
   onSnooze,
+  selfName = 'me',
 }: EmailRowProps) {
   const [isHovered, setIsHovered] = useState(false);
   /*
@@ -642,7 +649,7 @@ function EmailRow({
                 .join('') || 'GP'}
             </span>
           ) : (
-            <IdentityAvatar name={thread.participants[0] || 'me'} size="sm" className="mail-row-avatar" />
+            <IdentityAvatar name={thread.participants[0] || selfName} size="sm" className="mail-row-avatar" />
           )}
         </span>
         <div className="mail-row-copy">
@@ -1049,7 +1056,8 @@ const MemoizedEmailRow = memo(
     prev.savedGroups === next.savedGroups &&
     prev.canToggleRead === next.canToggleRead &&
     prev.onRescueSpam === next.onRescueSpam &&
-    prev.isArchiveView === next.isArchiveView,
+    prev.isArchiveView === next.isArchiveView &&
+    prev.selfName === next.selfName,
 );
 
 
@@ -1913,6 +1921,10 @@ function InboxPageContent() {
 
   const { user: currentUser } = useAuth();
   const currentEmail = currentUser?.email || '';
+  // Same precedence as the sidebar AccountBadge, so "you" looks the same
+  // everywhere your own avatar appears.
+  const selfAvatarName =
+    currentUser?.displayName || currentUser?.username || currentEmail.split('@')[0] || 'me';
 
   /**
    * The ids the server matched.
@@ -4025,6 +4037,7 @@ function InboxPageContent() {
                           <div key={thread.id} role="listitem">
                             <MemoizedEmailRow
                               thread={thread}
+                              selfName={selfAvatarName}
                               isChecked={selectedIds.has(thread.id)}
                               isActive={
                                 selectedEmail?.id === thread.id || selectedThread?.id === thread.id
@@ -4302,6 +4315,7 @@ function InboxPageContent() {
                       >
                         <MemoizedEmailRow
                           thread={thread}
+                          selfName={selfAvatarName}
                           isChecked={selectedIds.has(thread.id)}
                           isActive={
                             selectedEmail?.id === thread.id || selectedThread?.id === thread.id
