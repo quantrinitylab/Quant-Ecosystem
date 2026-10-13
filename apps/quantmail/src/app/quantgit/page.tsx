@@ -947,7 +947,13 @@ function QuantGitContent() {  const router = useRouter();
               author: item.author || 'user',
               branchSource: item.branchSource || 'main',
               branchTarget: item.branchTarget || 'main',
-              checksStatus: item.checksStatus || 'unknown',
+              // checksStatus honesty (#1071): normalize unrecognized values to 'unknown'
+              // so an untyped leak never reaches the PR detail modal's CI cell.
+              checksStatus: (['passing', 'pending', 'failing', 'unknown'] as string[]).includes(
+                item.checksStatus,
+              )
+                ? item.checksStatus
+                : 'unknown',
               // Pass through honestly: null (unknown) stays null, never becomes an invented 0.
               commentsCount: item.commentsCount ?? null,
               createdAt: item.createdAt || 'recently',
