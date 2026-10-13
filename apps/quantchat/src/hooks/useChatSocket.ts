@@ -24,7 +24,7 @@ export type { ChatConnectionState, ClientEvent } from '../services/chat-socket';
  *   `message:delivered`, ...). Registered for the lifetime of the component.
  *   While the WebSocket is unreachable the shared socket degrades to HTTP
  *   long-polling and `new_message` events still arrive via `GET
- *   /api/messages/:id`.
+ *   /api/conversations/:id/messages`.
  * @returns `{ send, subscribe, connectionState }` where `connectionState` is
  *   exactly one of `connecting` | `open` | `closed` | `degraded` (Requirement
  *   13.4).
