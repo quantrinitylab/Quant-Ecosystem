@@ -32,7 +32,14 @@ import { DRAFT_AUTOSAVE_DELAY_MS } from '../useDraftAutosave';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
 
-vi.useFakeTimers();
+// NOTE: no module-level vi.useFakeTimers() here — deliberately. The autosave
+// tests (a)/(b) enable fake timers explicitly for the 10s debounce, while the
+// dialog tests (c)/(d)/(e) run on REAL timers: the shared ConfirmDialog's
+// framer-motion exit animation (AnimatePresence, 200ms) never completes under
+// fake timers in this environment — the panel freezes mid-exit with its exit
+// styles applied and never unmounts, so "Keep editing → dialog gone" can only
+// be asserted after a real wall-clock wait. (Interaction pattern copied from
+// DockedComposerCloseConfirm.test.tsx, which passes with real timers.)
 
 // jsdom does not implement matchMedia; framer-motion's useReducedMotion (used
 // by ConfirmDialog) probes it. Environment shim only — no behaviour mocked.
@@ -148,12 +155,26 @@ afterEach(() => {
   }
   document.body.innerHTML = '';
   vi.clearAllTimers();
+  // The autosave tests below enable fake timers explicitly; always restore
+  // real timers so the dialog tests (and any later file) are unaffected.
+  vi.useRealTimers();
 });
 
-/** Flush microtasks AND advance fake timers (debounces, exit animations). */
-async function settle(ms = 0): Promise<void> {
+/** Advance FAKE timers (autosave debounce). Only valid inside tests (a)/(b). */
+async function settleFake(ms = 0): Promise<void> {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms);
+  });
+}
+
+/**
+ * Real wall-clock wait (framer-motion exit animations). The shared
+ * ConfirmDialog unmounts via AnimatePresence's 200ms exit animation, which
+ * does not complete under fake timers — mirror DockedComposerCloseConfirm.
+ */
+async function flushReal(ms = 0): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
   });
 }
 
@@ -161,7 +182,7 @@ async function click(el: Element): Promise<void> {
   await act(async () => {
     (el as HTMLElement).click();
   });
-  await settle();
+  await flushReal();
 }
 
 function sendButton(container: HTMLElement): HTMLButtonElement {
@@ -200,7 +221,7 @@ async function typeInto(
     setter.call(el, value);
     el.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  await settle();
+  await settleFake();
 }
 
 /**
@@ -233,6 +254,9 @@ function saveIndicator(container: HTMLElement): string | null {
 
 describe('DockedComposer subject-optional behaviour', () => {
   it('(a) a subjectless draft autosaves to the server after the quiet period', async () => {
+    // Fake timers for the 10s autosave debounce (see note at the top of
+    // this file); restored to real timers in afterEach.
+    vi.useFakeTimers();
     // NOTE: the draft is typed, not passed via props — the autosave
     // controller only schedules a save when the snapshot CHANGES, exactly
     // like a real typing session. Pre-filled props never go dirty.
@@ -242,7 +266,7 @@ describe('DockedComposer subject-optional behaviour', () => {
     // The regression: saveDraftToServer used to `return false` before touching
     // the network when the subject was empty, so composeEmail NEVER fired for
     // a subjectless draft and the indicator said "Couldn't save".
-    await settle(DRAFT_AUTOSAVE_DELAY_MS + 500);
+    await settleFake(DRAFT_AUTOSAVE_DELAY_MS + 500);
 
     expect(mocks.composeEmail).toHaveBeenCalledTimes(1);
     expect(mocks.composeEmail.mock.calls[0][0]).toMatchObject({ subject: '' });
@@ -251,11 +275,12 @@ describe('DockedComposer subject-optional behaviour', () => {
   });
 
   it('(b) a draft WITH a subject still autosaves (no regression)', async () => {
+    vi.useFakeTimers();
     const { container } = renderComposer({ initialTo: 'friend@example.com' });
     await typeInto(subjectInput(container), 'Quarterly numbers');
     await typeInto(bodyTextarea(container), 'Here they are.');
 
-    await settle(DRAFT_AUTOSAVE_DELAY_MS + 500);
+    await settleFake(DRAFT_AUTOSAVE_DELAY_MS + 500);
 
     expect(mocks.composeEmail).toHaveBeenCalledTimes(1);
     expect(mocks.composeEmail.mock.calls[0][0]).toMatchObject({
@@ -290,8 +315,10 @@ describe('DockedComposer subject-optional behaviour', () => {
     expect(dialogEl()).not.toBeNull();
 
     await click(dialogButton('Keep editing'));
-    // framer-motion's exit animation needs wall-clock under fake timers.
-    await settle(3000);
+    // The dialog unmounts via framer-motion's 200ms exit animation, which
+    // needs REAL wall-clock — under fake timers the panel freezes mid-exit
+    // and never unmounts (the CI failure this fixes).
+    await flushReal(500);
 
     expect(dialogEl()).toBeNull();
     expect(mocks.queueSend).not.toHaveBeenCalled();
@@ -314,7 +341,7 @@ describe('DockedComposer subject-optional behaviour', () => {
     expect(dialogEl()).not.toBeNull();
 
     await click(dialogButton('Send anyway'));
-    await settle(400);
+    await flushReal(400);
 
     expect(mocks.queueSend).toHaveBeenCalledTimes(1);
     expect(mocks.queueSend.mock.calls[0][0]).toMatchObject({ subject: '' });
