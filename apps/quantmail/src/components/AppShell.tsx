@@ -944,6 +944,7 @@ export function AppShell({
                   inbox: unreadCount > 0 ? unreadCount : undefined,
                   teams: mailLensCounts.teams,
                 }}
+                onQuantyOpen={openQuanty}
               />
             )}
           </div>
