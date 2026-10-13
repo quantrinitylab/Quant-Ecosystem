@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AUTH_SHELL_HEADER, isAuthShellPath, isPublicPath } from './lib/edge-public-paths';
+import { AUTH_SHELL_HEADER, isAuthShellPath, isKnownAppPath, isPublicPath } from './lib/edge-public-paths';
 
 // ============================================================================
 // QuantMail edge middleware — kill the logged-out double-boot on `/`.
@@ -11,6 +11,10 @@ import { AUTH_SHELL_HEADER, isAuthShellPath, isPublicPath } from './lib/edge-pub
 // redirect server-side, before any JavaScript ships, when there is provably
 // no session.
 //
+// Exception (fix/qm-unknown-route-404): unknown routes (no matching app route
+// per isKnownAppPath) are let through so the framework renders the branded
+// 404 instead of bouncing a dead link to /login.
+//
 // Session signal: the HttpOnly `quantmail_refresh` cookie
 // (apps/quantmail/backend/lib/auth-session.ts). Absent cookie ⇒ definitely
 // signed out ⇒ redirect now. Present cookie ⇒ let the request through;
@@ -21,7 +25,7 @@ import { AUTH_SHELL_HEADER, isAuthShellPath, isPublicPath } from './lib/edge-pub
 export const REFRESH_COOKIE_NAME = 'quantmail_refresh';
 
 // Re-exported for tests and for parity assertions against AuthGuard.
-export { AUTH_SHELL_HEADER, isAuthShellPath, isPublicPath };
+export { AUTH_SHELL_HEADER, isAuthShellPath, isKnownAppPath, isPublicPath };
 
 /**
  * Build the /login redirect for a signed-out request, mirroring AuthGuard's
@@ -49,6 +53,13 @@ export function middleware(request: NextRequest): NextResponse {
       requestHeaders.set(AUTH_SHELL_HEADER, 'auth');
       return NextResponse.next({ request: { headers: requestHeaders } });
     }
+    return NextResponse.next();
+  }
+  // Unknown route (no matching app route): let the request through so the
+  // framework renders the branded 404 (src/app/not-found.tsx) instead of
+  // bouncing a dead link to /login with a returnTo that 404s again after
+  // sign-in (fix/qm-unknown-route-404).
+  if (!isKnownAppPath(pathname)) {
     return NextResponse.next();
   }
   // No refresh cookie ⇒ provably signed out ⇒ redirect server-side.
