@@ -46,9 +46,9 @@ describe('QM-UIUX-082 — Sent folder in the live navigation', () => {
     vi.restoreAllMocks();
   });
 
-  it('desktop left nav (desktopContextTabs) lists Inbox, Sent, Drafts, Archive, Spam, Trash in order', () => {
+  it('desktop left nav (desktopContextTabs) lists Inbox, Sent, Scheduled, Drafts, Archive, Spam, Trash in order', () => {
     const ids = desktop.PILLAR_SUB_CONFIGS.mail.tabs.map((t) => t.id);
-    expect(ids).toEqual(['inbox', 'sent', 'drafts', 'archive', 'spam', 'trash']);
+    expect(ids).toEqual(['inbox', 'sent', 'scheduled', 'drafts', 'archive', 'spam', 'trash']);
   });
 
   it('desktop Sent tab targets the real /sent route with no fake badge', () => {
@@ -103,9 +103,9 @@ describe('QM-UIUX-082 — Sent folder in the live navigation', () => {
     ).toBe('spam');
   });
 
-  it('mobile bottom nav (ContextBottomNavBar) lists Inbox, Sent, Drafts, Archive, Spam, Trash in order', () => {
+  it('mobile bottom nav (ContextBottomNavBar) lists Inbox, Sent, Scheduled, Drafts, Archive, Spam, Trash in order', () => {
     const ids = mobile.PILLAR_SUB_CONFIGS.mail.tabs.map((t) => t.id);
-    expect(ids).toEqual(['inbox', 'sent', 'drafts', 'archive', 'spam', 'trash']);
+    expect(ids).toEqual(['inbox', 'sent', 'scheduled', 'drafts', 'archive', 'spam', 'trash']);
   });
 
   it('mobile Sent tab targets the real /sent route with no fake badge', () => {
