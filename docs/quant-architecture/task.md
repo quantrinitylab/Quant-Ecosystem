@@ -3111,3 +3111,10 @@ Finding: Zero-defect run-38 (2026-10-10) found QuantMail web's ConversationalThr
 Required: More-menu actions must check the result and surface failures honestly (error toast/state, no success confirmation on {success:false}); regression tests prove a failed API result shows failure, a successful one shows success.
 Scope: apps/quantmail ConversationalThreadView + its menu actions.
 Dependencies: none.
+
+## QM-SCREEN-007 R7 — Search regression (ROUND 7)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-007r7
+Audit started: 2026-10-13 ~22:35 IST (lane-1 deep audit loop, ROUND 7)
+Base: R6 @ 090cb9d15 -> origin/main 5e7ea63e (fresh fetch).
