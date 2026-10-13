@@ -3216,33 +3216,46 @@ describe('PR merge diff-stats honesty (P1: merge response never invents zeros)',
   });
 
   it('POST /repos/:id/pulls/:number/merge reports null diff stats, not hardcoded zeros', async () => {
-    const app = await buildApp('user-1');
-    const res = await app.inject({
-      method: 'POST',
-      url: '/repos/repo-1/pulls/1/merge',
-    });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.success).toBe(true);
-    expect(body.data.state).toBe('merged');
-    // The merge path runs merge-tree/commit-tree but never measures numstat,
-    // so the honest answer is explicit unknown (null) — the #960 discipline.
-    // Hardcoded 0/0/0 would fabricate measured stats that were never computed.
-    expect(body.data.additions).toBeNull();
-    expect(body.data.deletions).toBeNull();
-    expect(body.data.changedFiles).toBeNull();
+    // The merge endpoint now fails honestly (501 REPO_STORAGE_UNAVAILABLE)
+    // when no bare repo is on disk — #1081 discipline. These #960/#1078
+    // honesty assertions need the real throwaway bare-git fixture.
+    await ensureMergeFixture();
+    try {
+      const app = await buildApp('user-1');
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/pulls/1/merge',
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.state).toBe('merged');
+      // The merge path runs merge-tree/commit-tree but never measures numstat,
+      // so the honest answer is explicit unknown (null) — the #960 discipline.
+      // Hardcoded 0/0/0 would fabricate measured stats that were never computed.
+      expect(body.data.additions).toBeNull();
+      expect(body.data.deletions).toBeNull();
+      expect(body.data.changedFiles).toBeNull();
+    } finally {
+      await destroyMergeFixture();
+    }
   });
 
   it('POST /repos/:id/pulls/:number/merge still returns the real mergeCommitSha', async () => {
-    const app = await buildApp('user-1');
-    const res = await app.inject({
-      method: 'POST',
-      url: '/repos/repo-1/pulls/1/merge',
-    });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.data.mergeCommitSha).toEqual(expect.any(String));
-    expect(body.data.mergeCommitSha.length).toBeGreaterThan(0);
+    await ensureMergeFixture();
+    try {
+      const app = await buildApp('user-1');
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/pulls/1/merge',
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.data.mergeCommitSha).toEqual(expect.any(String));
+      expect(body.data.mergeCommitSha.length).toBeGreaterThan(0);
+    } finally {
+      await destroyMergeFixture();
+    }
   });
 });
 
