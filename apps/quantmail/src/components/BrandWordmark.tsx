@@ -1,6 +1,8 @@
-'use client';
-
 import React from 'react';
+
+// NOTE (fix/qm-login-paint-vs-gmail): this module is intentionally NOT
+// 'use client'. It renders pure static markup with no hooks or browser APIs,
+// so the auth shell can render it server-side with zero client JS.
 
 export type BrandWordmarkProps = {
   app?: 'mail' | 'calendar' | 'drive' | 'contacts' | 'code';

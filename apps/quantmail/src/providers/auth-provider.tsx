@@ -1,8 +1,13 @@
 'use client';
 
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
-import { clearMailCache } from '../lib/offline/mail-cache';
-import { clearOutbox } from '../lib/offline/outbox';
+// NOTE (fix/qm-login-paint-vs-gmail): `../lib/offline/mail-cache` and
+// `../lib/offline/outbox` are deliberately NOT statically imported. They pull
+// in the IndexedDB client, the sqlite-fts5 indexer, and the 2000-line
+// api-client — thousands of lines that used to land in EVERY route chunk
+// mounting AuthProvider, including the public /login shell. Both are only
+// ever needed at logout, so they load on demand there instead; the first
+// logout pays one extra chunk fetch, sign-in pays nothing.
 import { getQueryClient } from '../lib/query-client-registry';
 import {
   browserAuthSession,
@@ -274,9 +279,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // entries are gone, so nothing is retried.
       //
       // Deliberately not awaited and never allowed to throw — a wedged IndexedDB
-      // must not be able to strand someone in a signed-in shell.
-      void clearOutbox()
-        .then(() => clearMailCache())
+      // must not be able to strand someone in a signed-in shell. Loaded
+      // dynamically (see module header): the offline stores must not bloat
+      // the initial chunk of routes like /login that never call logout.
+      void import('../lib/offline/outbox')
+        .then((outbox) => outbox.clearOutbox())
+        .then(() => import('../lib/offline/mail-cache'))
+        .then((mailCache) => mailCache.clearMailCache())
         .catch(() => {
           /* best effort: the session is already gone either way */
         });
