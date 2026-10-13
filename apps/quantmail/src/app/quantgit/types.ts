@@ -142,7 +142,8 @@ export type PRItem = {
   branchSource: string;
   branchTarget: string;
   checksStatus: 'passing' | 'pending' | 'failing' | 'unknown';
-  commentsCount: number;
+  // null = unknown (count source unavailable) — never render an invented 0.
+  commentsCount: number | null;
   createdAt: string;
   body?: string;
   additions?: number;

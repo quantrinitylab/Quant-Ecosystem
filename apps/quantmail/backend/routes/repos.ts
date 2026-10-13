@@ -461,6 +461,28 @@ const memoryWebhooksStore = new Map<string, WebhookRecord[]>();
 const memoryForksStore = new Map<string, string[]>();
 const memoryReviewCommentsStore = new Map<string, ReviewCommentRecord[]>();
 
+/**
+ * Real per-PR comment count — never an invented zero.
+ *
+ * Counts the rows in the review_comments table (the same table the
+ * GET/POST /:id/pulls/:number/comments endpoints read). When the generated
+ * Prisma client lacks the reviewComment model (older generated clients), the
+ * comments endpoints fall back to the in-memory store, so the count follows
+ * the same fallback. If neither source is available the count is null
+ * (unknown) — the UI renders '—' — rather than a fabricated 0.
+ */
+async function getPrCommentsCount(prisma: any, prId: string): Promise<number | null> {
+  if (prisma?.reviewComment?.count) {
+    try {
+      return await prisma.reviewComment.count({ where: { prId } });
+    } catch {
+      return null;
+    }
+  }
+  const mem = memoryReviewCommentsStore.get(prId);
+  return mem ? mem.length : 0;
+}
+
 const memorySecurityAlertsStore = new Map<string, BackendSecurityAlert[]>();
 const memorySecretAlertsStore = new Map<string, BackendSecretAlert[]>();
 const memoryCodeqlAlertsStore = new Map<string, BackendCodeqlAlert[]>();
@@ -1645,7 +1667,12 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       if (request.query.status) where.status = request.query.status.toUpperCase();
       const rows = (await prisma.pullRequest.findMany({
         where,
-        include: { author: { select: { username: true, displayName: true } } },
+        include: {
+          author: { select: { username: true, displayName: true } },
+          // Real comment counts come from the review_comments relation —
+          // never hardcode 0 on a list row.
+          _count: { select: { reviewComments: true } },
+        },
         orderBy: { number: 'desc' },
       })) as Array<{
         id: string;
@@ -1657,10 +1684,10 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         targetBranch: string;
         createdAt: Date;
         author?: { username: string; displayName: string | null } | null;
+        _count?: { reviewComments: number };
       }>;
-      return reply.send({
-        success: true,
-        data: rows.map((pull) => ({
+      const data = await Promise.all(
+        rows.map(async (pull) => ({
           id: pull.number,
           number: pull.number,
           title: pull.title,
@@ -1671,7 +1698,10 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           branchSource: pull.sourceBranch,
           branchTarget: pull.targetBranch,
           checksStatus: 'none',
-          commentsCount: 0,
+          commentsCount:
+            typeof pull._count?.reviewComments === 'number'
+              ? pull._count.reviewComments
+              : await getPrCommentsCount(prisma, pull.id),
           createdAt: pull.createdAt.toISOString(),
           // Diff stats are NOT computed for list responses — that would run a
           // git diff per PR row. Report explicit unknown (null) instead of
@@ -1680,6 +1710,10 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           deletions: null,
           changedFiles: null,
         })),
+      );
+      return reply.send({
+        success: true,
+        data,
       });
     },
   );
@@ -1726,6 +1760,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         branchSource: pr.sourceBranch,
         branchTarget: pr.targetBranch,
         checksStatus: 'none',
+        // Genuinely 0: this PR was just created, so no review comments exist yet.
         commentsCount: 0,
         createdAt: pr.createdAt.toISOString(),
         // A freshly created PR has no computed diff stats yet — report
@@ -1757,6 +1792,8 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       let deletions: number | null = null;
       let changedFiles: number | null = null;
       let diffText = '';
+      // Real comment count from the review_comments table — never an invented 0.
+      const commentsCount = await getPrCommentsCount(prisma, pr.id);
 
       const repoPath = await resolveRepoPath(repo);
       if (repoPath && (await pathExists(repoPath))) {
@@ -1825,7 +1862,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           branchSource: pr.sourceBranch,
           branchTarget: pr.targetBranch,
           checksStatus: 'none',
-          commentsCount: 0,
+          commentsCount,
           createdAt: pr.createdAt.toISOString(),
           mergedAt: pr.mergedAt?.toISOString() ?? null,
           mergeCommitSha: (pr as any).mergeCommitSha ?? null,
@@ -2403,7 +2440,8 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           branchSource: merged.sourceBranch,
           branchTarget: merged.targetBranch,
           checksStatus: 'none',
-          commentsCount: 0,
+          // Real comment count from the review_comments table — never an invented 0.
+          commentsCount: await getPrCommentsCount(prisma, merged.id),
           createdAt: merged.createdAt.toISOString(),
           mergedAt: merged.mergedAt?.toISOString() ?? mergedAt.toISOString(),
           mergeCommitSha: newCommitSha,
@@ -2614,6 +2652,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         status: issue.status.toLowerCase(),
         author: issue.author?.username ?? 'user',
         labels: labelsList,
+        // Genuinely 0: this issue was just created, so no comments exist yet.
         commentsCount: 0,
         createdAt: issue.createdAt.toISOString(),
         assignee: ((issue as any).assignees as string[])?.[0] ?? null,

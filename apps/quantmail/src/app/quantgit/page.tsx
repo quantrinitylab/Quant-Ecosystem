@@ -948,7 +948,8 @@ function QuantGitContent() {  const router = useRouter();
               branchSource: item.branchSource || 'main',
               branchTarget: item.branchTarget || 'main',
               checksStatus: item.checksStatus || 'unknown',
-              commentsCount: item.commentsCount || 0,
+              // Pass through honestly: null (unknown) stays null, never becomes an invented 0.
+              commentsCount: item.commentsCount ?? null,
               createdAt: item.createdAt || 'recently',
               body: item.body || '',
               // Diff stats: pass through honestly — the list endpoint reports

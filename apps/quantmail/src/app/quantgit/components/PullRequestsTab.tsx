@@ -1209,7 +1209,8 @@ export function PullRequestsTab({
                     </div>
                     <div className="flex items-center gap-1.5 text-[#8D96A0] shrink-0">
                       <QuantGitCommentIcon size={14} />
-                      <span className="text-xs">{pr.commentsCount}</span>
+                      {/* Unknown count renders as '—', never an invented 0. */}
+                      <span className="text-xs">{pr.commentsCount ?? '—'}</span>
                     </div>
                   </button>
                 ))

@@ -3014,6 +3014,84 @@ describe('QuantGit Database-Backed Repos Routes', () => {
       expect(delRes.json()).toEqual({ success: true, data: { deleted: true } });
     });
   });
+
+  describe('PR commentsCount honesty (P1: never an invented zero)', () => {
+    beforeEach(() => {
+      resetRepoStores();
+    });
+
+    async function postComment(app: any, body: string) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/pulls/1/comments',
+        payload: { filePath: 'src/index.ts', line: 42, side: 'RIGHT', body },
+      });
+      expect(res.statusCode).toBe(201);
+    }
+
+    it('GET /repos/:id/pulls reports the real review-comment count per PR, not a hardcoded 0', async () => {
+      const app = await buildApp('user-1');
+      await postComment(app, 'First review note.');
+      await postComment(app, 'Second review note.');
+
+      const res = await app.inject({ method: 'GET', url: '/repos/repo-1/pulls' });
+      expect(res.statusCode).toBe(200);
+      const pr = res.json().data[0];
+      // Two real comments exist on this PR — the count must be derived from
+      // the comments table, not the old hardcoded 0.
+      expect(pr.commentsCount).toBe(2);
+    });
+
+    it('GET /repos/:id/pulls reports a genuine 0 only when the PR has no comments', async () => {
+      const app = await buildApp('user-1');
+      const res = await app.inject({ method: 'GET', url: '/repos/repo-1/pulls' });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data[0].commentsCount).toBe(0);
+    });
+
+    it('GET /repos/:id/pulls/:number reports the real review-comment count', async () => {
+      const app = await buildApp('user-1');
+      await postComment(app, 'Detail-page review note.');
+
+      const res = await app.inject({ method: 'GET', url: '/repos/repo-1/pulls/1' });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data.commentsCount).toBe(1);
+    });
+
+    it('POST /repos/:id/pulls/:number/merge reports the real review-comment count', async () => {
+      const app = await buildApp('user-1');
+      await postComment(app, 'Pre-merge review note.');
+
+      const res = await app.inject({ method: 'POST', url: '/repos/repo-1/pulls/1/merge' });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data.commentsCount).toBe(1);
+    });
+
+    it('GET /repos/:id/pulls counts reviewComment rows when the Prisma model is available', async () => {
+      const app = await buildApp('user-1');
+      // Simulate the production client where reviewComment exists: the route
+      // must derive the count from reviewComment.count, not invent it.
+      const rows = [
+        { id: 'c1', prId: 'pr-1' },
+        { id: 'c2', prId: 'pr-1' },
+        { id: 'c3', prId: 'pr-2' },
+      ];
+      (prisma as any).reviewComment = {
+        count: vi
+          .fn()
+          .mockImplementation(
+            async ({ where }: any) => rows.filter((r) => r.prId === where?.prId).length,
+          ),
+      };
+
+      const res = await app.inject({ method: 'GET', url: '/repos/repo-1/pulls' });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data[0].commentsCount).toBe(2);
+      expect((prisma as any).reviewComment.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { prId: 'pr-1' } }),
+      );
+    });
+  });
 });
 
 describe('QuantGit Security Endpoints Honesty (no security-scan theater)', () => {
