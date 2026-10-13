@@ -508,6 +508,18 @@ export interface Contact extends BaseEntity {
   syncedApps: QuantApp[];
 }
 
+/**
+ * One company card on the Companies tab, aggregated server-side across ALL of
+ * the user's contacts (not just the loaded list page). Members are full
+ * contact rows so inspect/call/email keep working on them.
+ */
+export interface CompanyGroup {
+  name: string;
+  /** Most common email domain among members, `@`-prefixed — derived, never invented. */
+  subtitle?: string;
+  members: Contact[];
+}
+
 export interface ContactAddress {
   type: 'home' | 'work' | 'other';
   street: string;
