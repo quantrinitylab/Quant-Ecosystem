@@ -20,6 +20,7 @@ import { loadDefaultSignatureHtml } from '../lib/email-signature-preference';
 import type { Attachment } from './EmailComposer';
 import { createPortal } from 'react-dom';
 import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
+import { ScheduleSendModal, isPastScheduleTime } from './ScheduleSendModal';
 
 /**
  * Superhuman/Gmail-class floating bottom-right docked composer widget.
@@ -179,6 +180,16 @@ function IconList({ className = 'size-3.5' }: { className?: string }) {
       <line x1="3" y1="6" x2="3.01" y2="6" strokeWidth="3" />
       <line x1="3" y1="12" x2="3.01" y2="12" strokeWidth="3" />
       <line x1="3" y1="18" x2="3.01" y2="18" strokeWidth="3" />
+    </svg>
+  );
+}
+
+// Schedule-send clock icon — pure SVG like the rest of this file's icon set.
+function IconScheduleClock({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
     </svg>
   );
 }
@@ -381,6 +392,12 @@ export function DockedComposer({
   const [showTemplates, setShowTemplates] = useState(false);
   const [templatesMenuPos, setTemplatesMenuPos] = useState<{ left: number; bottom: number } | null>(null);
   const templatesAnchorRef = useRef<HTMLDivElement>(null);
+
+  // Schedule-send: the docked composer is the primary inbox composer, and
+  // Gmail ships schedule-send on every compose surface — so this surface
+  // reuses the same ScheduleSendModal the /compose page's EmailComposer
+  // uses (same pick logic, same past-time rejection, same backend contract).
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   // Autocomplete suggestions for To:
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -768,7 +785,19 @@ export function DockedComposer({
   // toast tells the truth. The composer minimizes (stays mounted) instead of
   // closing, so Undo can hand the draft back visibly; the real close happens
   // when the send actually fires. This mirrors EmailComposer's modal path.
-  const handleSend = async () => {
+  //
+  // SCHEDULE-SEND: `scheduledAt` (ISO, future) comes from the
+  // ScheduleSendModal. Recall-window interplay — explicit decision: a
+  // scheduled send DEFERS to the same 10-second recall window, it does not
+  // bypass it. During the window nothing has been delivered (the API call
+  // only exists inside `doRealSend`, invoked as the queue's onSendNow), so
+  // Undo genuinely cancels the schedule before it exists server-side.
+  // Neither silent cancellation nor double-sends are possible: the queue
+  // flushes each item exactly once (countdown expiry or Send Now), the
+  // duplicate-send guard treats same-content/different-scheduledAt as a
+  // genuinely different send, and the bar claims "Email scheduled!" via
+  // successLabel so it never says "Message sent!" for a future schedule.
+  const handleSend = async (scheduledAt?: string) => {
     if (!to.trim()) {
       showToast({ text: 'Please specify at least one recipient (To:)', type: 'error' });
       return;
@@ -779,6 +808,19 @@ export function DockedComposer({
     }
     if (!body.trim()) {
       showToast({ text: 'Please write your message body', type: 'error' });
+      return;
+    }
+
+    // PR #908 past-time convention: the modal rejects past times and the
+    // backend 400s them — a past scheduledAt must never be queued, or the
+    // queue below would deliver it IMMEDIATELY while the UI claimed
+    // "scheduled". Belt-and-braces here in case the modal's clock raced the
+    // confirm, or the caller passed the time some other way.
+    if (scheduledAt && isPastScheduleTime(new Date(scheduledAt))) {
+      showToast({
+        text: 'That time has already passed — pick a future time to schedule your send.',
+        type: 'error',
+      });
       return;
     }
 
@@ -795,6 +837,7 @@ export function DockedComposer({
       bodyHtml,
       attachments: [...attachments],
       replyToId,
+      scheduledAt,
     };
 
     const toList = draftSnapshot.to
@@ -840,6 +883,12 @@ export function DockedComposer({
     // Rejects on failure so the countdown bar never claims "Message sent!"
     // for a delivery that never happened. Reuses the autosaved server draft
     // when one exists instead of orphaning it with a second compose.
+    //
+    // For a scheduled send this is the SAME call EmailComposer makes on the
+    // /compose page: compose with `scheduledAt` carried in the draft payload,
+    // then POST /emails/:id/send with `{ sendAt }` — the backend validates
+    // (past sendAt → honest 400, never a silent immediate send) and holds
+    // the outbox until the time. One call, one fire: never double-sent.
     const doRealSend = async (): Promise<void> => {
       setIsSending(true);
       try {
@@ -854,6 +903,7 @@ export function DockedComposer({
             bodyHtml: draftSnapshot.bodyHtml,
             attachments: draftSnapshot.attachments as any,
             inReplyTo: draftSnapshot.replyToId,
+            scheduledAt: draftSnapshot.scheduledAt,
             messageKind: initialMessageKind,
           });
           if (!updateRes.success) {
@@ -872,6 +922,7 @@ export function DockedComposer({
             bodyHtml: draftSnapshot.bodyHtml,
             attachments: draftSnapshot.attachments as any,
             inReplyTo: draftSnapshot.replyToId,
+            scheduledAt: draftSnapshot.scheduledAt,
             messageKind: initialMessageKind,
           });
           if (!composeRes.success || !composeRes.data?.id) {
@@ -880,7 +931,13 @@ export function DockedComposer({
           emailId = composeRes.data.id;
         }
 
-        const sendRes = await apiClient.sendEmail(emailId);
+        // The schedule contract: sendAt carries the future time; omit it for
+        // an immediate send (the immediate-send call stays byte-identical).
+        // Past times never reach here (guarded above) and the backend 400s
+        // them as backstop — never a silent immediate send.
+        const sendRes = scheduledAt
+          ? await apiClient.sendEmail(emailId, { sendAt: scheduledAt })
+          : await apiClient.sendEmail(emailId);
         if (!sendRes.success) {
           throw new Error(sendRes.error?.message || 'Failed to deliver email');
         }
@@ -898,11 +955,17 @@ export function DockedComposer({
     setIsMinimized(true);
 
     // Queue the send with a 10-second recall window. Nothing is delivered
-    // until the window closes — Undo genuinely cancels.
+    // until the window closes — Undo genuinely cancels. A scheduled send
+    // rides the same window (see the recall-window note above); the bar
+    // claims "Email scheduled!" on success instead of "Message sent!", and
+    // scheduledAt joins the duplicate-guard identity so the same content
+    // scheduled for a different time is a genuinely different send.
     queueSend({
       to: draftSnapshot.to,
       subject: draftSnapshot.subject,
       body: draftSnapshot.bodyText || draftSnapshot.body,
+      scheduledAt: draftSnapshot.scheduledAt,
+      successLabel: draftSnapshot.scheduledAt ? 'Email scheduled!' : undefined,
       onSendNow: () => doRealSend(),
       onSendFailed: (error: unknown) => {
         // The message never went out — hand the words back with the truth.
@@ -1292,7 +1355,7 @@ export function DockedComposer({
           {/* Molten Amber Send Button */}
           <button
             type="button"
-            onClick={handleSend}
+            onClick={() => void handleSend()}
             disabled={isSending}
             data-testid="docked-composer-send-button"
             className="group relative flex items-center gap-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] bg-gradient-to-r from-[var(--quant-primary)] to-[#F97316] px-4 py-2 text-xs font-bold text-black shadow-lg shadow-[var(--quant-primary)]/20 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
@@ -1300,6 +1363,22 @@ export function DockedComposer({
           >
             <IconSend className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
             <span>Send (⌘↵)</span>
+          </button>
+
+          {/* Schedule send — the same ScheduleSendModal the /compose page
+              uses. Mail orange accent; invisible ::after halo (SIA-P2-4) so
+              the hit target stays ≥44px. */}
+          <button
+            type="button"
+            onClick={() => setShowScheduleModal(true)}
+            disabled={isSending}
+            data-testid="docked-composer-schedule-button"
+            aria-label="Schedule send"
+            className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] border border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 hover:border-[var(--quant-primary)] transition-all text-xs font-semibold disabled:opacity-50 cursor-pointer"
+            title="Schedule send — pick a future date & time"
+          >
+            <IconScheduleClock className="size-3.5" />
+            <span>Schedule</span>
           </button>
 
           {/* Formatting Toggle */}
@@ -1419,6 +1498,19 @@ export function DockedComposer({
         </button>
       </div>
       {confirmDialog}
+      {/* Schedule Send Modal — the same component EmailComposer uses on the
+          /compose page (same pick logic, same past-time rejection, same
+          backend contract). z-50 renders above the composer chrome. */}
+      {showScheduleModal && (
+        <ScheduleSendModal
+          isOpen={showScheduleModal}
+          onClose={() => setShowScheduleModal(false)}
+          onSchedule={(at) => {
+            setShowScheduleModal(false);
+            void handleSend(at);
+          }}
+        />
+      )}
       {/* Saved-templates picker — portaled to document.body with fixed
           positioning so the toolbar's horizontal scroll (overflow-x-auto on
           mobile) can never clip it. Reads from the real backend

@@ -105,4 +105,61 @@ describe('UndoSendManager duplicate-send guard', () => {
     expect(first.onSendNow).not.toHaveBeenCalled();
     expect(second.onSendNow).toHaveBeenCalledTimes(1);
   });
+
+  // Scheduled-send identity: scheduledAt joins the duplicate-guard.
+  // (6) same content + SAME scheduledAt inside the window -> still a no-op
+  //     (the scheduled send is never double-scheduled);
+  // (7) same content + DIFFERENT scheduledAt -> a genuinely different send:
+  //     first is flushed immediately (flush+replace), second runs after its
+  //     own window — both delivered exactly once.
+  it('identical content + same scheduledAt inside the window -> still no duplicate', () => {
+    const mgr = new UndoSendManager({ countdownDurationSec: 10, sentDisplayDurationMs: 2000 });
+    const at = new Date(Date.now() + 3_600_000).toISOString();
+    const first = makeOptions();
+    const second = makeOptions();
+    const duplicateSendNow = vi.fn(async () => {});
+
+    mgr.queueSend({ ...first.options, scheduledAt: at });
+    mgr.queueSend({ ...second.options, scheduledAt: at, onSendNow: duplicateSendNow });
+
+    vi.advanceTimersByTime(11_000);
+
+    expect(first.onSendNow).toHaveBeenCalledTimes(1);
+    expect(duplicateSendNow).not.toHaveBeenCalled();
+  });
+
+  it('identical content + different scheduledAt -> both delivered exactly once', () => {
+    const mgr = new UndoSendManager({ countdownDurationSec: 10, sentDisplayDurationMs: 2000 });
+    const first = makeOptions();
+    const second = makeOptions();
+
+    mgr.queueSend({
+      ...first.options,
+      scheduledAt: new Date(Date.now() + 3_600_000).toISOString(),
+    });
+    mgr.queueSend({
+      ...second.options,
+      scheduledAt: new Date(Date.now() + 7_200_000).toISOString(),
+    });
+
+    // flush+replace: the first send goes out immediately on replacement.
+    expect(first.onSendNow).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(11_000);
+
+    expect(first.onSendNow).toHaveBeenCalledTimes(1);
+    expect(second.onSendNow).toHaveBeenCalledTimes(1);
+  });
+
+  it('a scheduled send carries successLabel + scheduledAt through queueSend', () => {
+    const mgr = new UndoSendManager({ countdownDurationSec: 10, sentDisplayDurationMs: 2000 });
+    const at = new Date(Date.now() + 3_600_000).toISOString();
+    const { options } = makeOptions();
+
+    mgr.queueSend({ ...options, scheduledAt: at, successLabel: 'Email scheduled!' });
+
+    const state = mgr.getState();
+    expect(state.pendingItem?.scheduledAt).toBe(at);
+    expect(state.pendingItem?.successLabel).toBe('Email scheduled!');
+  });
 });

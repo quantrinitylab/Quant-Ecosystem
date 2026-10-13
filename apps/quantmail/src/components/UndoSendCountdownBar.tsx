@@ -19,6 +19,28 @@ export interface QueueSendOptions {
   subject?: string;
   body?: string;
   /**
+   * ISO timestamp of a scheduled send — carried into POST /emails/:id/send
+   * as `{ sendAt }` (the backend 400s past times; the ScheduleSendModal
+   * rejects them client-side as PR #908's convention).
+   *
+   * Recall-window interplay (explicit decision): a scheduled send goes
+   * through the SAME 10-second recall window as a regular send — it does
+   * NOT bypass it. During the window nothing has been delivered (the API
+   * call only exists inside the caller's `onSendNow`), so Undo genuinely
+   * cancels the schedule before it exists server-side. A scheduled send
+   * therefore can neither be silently cancelled (undo shows a toast and
+   * restores the draft visibly) nor double-sent (flush/sendNow fire the
+   * queued item exactly once; the duplicate guard below dedupes identical
+   * queueSends, and the countdown expiry flushes exactly once).
+   */
+  scheduledAt?: string;
+  /**
+   * Honest success copy for the bar's 'sent' state. Defaults to
+   * "Message sent!" — a scheduled send passes "Email scheduled!" so the
+   * bar never claims a delivery that is really a future schedule.
+   */
+  successLabel?: string;
+  /**
    * Runs the real send once the recall window closes (countdown expiry or
    * Send Now). MUST resolve only after the send truly completed — the bar
    * claims "Message sent!" only on resolve. Reject (or throw) on failure so
@@ -118,13 +140,15 @@ export class UndoSendManager {
     // same content (same to/subject/body), a second Send press (double-click,
     // Cmd+Enter x2, or restore-badge -> Send) is a no-op. Returning here keeps
     // the existing countdown untouched — no flush, no requeue, no double
-    // delivery.
+    // delivery. scheduledAt joins the identity: the same content scheduled
+    // for a DIFFERENT time is a genuinely different send and must NOT dedupe.
     if (this.state.pendingItem && this.state.status === 'counting') {
       const pending = this.state.pendingItem;
       if (
         options.to === pending.to &&
         options.subject === pending.subject &&
-        options.body === pending.body
+        options.body === pending.body &&
+        options.scheduledAt === pending.scheduledAt
       ) {
         return;
       }
@@ -452,6 +476,11 @@ export function UndoSendCountdownBar(props: UndoSendCountdownBarProps) {
     return null;
   }
 
+  // A scheduled send rides the same recall window — keep the copy honest at
+  // every state: "Scheduling…" while it can still be undone, the caller's
+  // successLabel (default "Message sent!") once the window closes.
+  const actionWord = pendingItem.scheduledAt ? 'Scheduling' : 'Sending';
+
   return (
     <div
       role="status"
@@ -472,7 +501,7 @@ export function UndoSendCountdownBar(props: UndoSendCountdownBarProps) {
                 data-testid="undo-send-text"
                 className="text-xs sm:text-sm font-medium text-[#F4F4F5] truncate"
               >
-                Sending message to&nbsp;
+                {actionWord} message to&nbsp;
                 <span className="font-semibold text-white">{pendingItem.to}</span>
                 {`... (${remainingSeconds}s)`}
               </p>
@@ -531,7 +560,7 @@ export function UndoSendCountdownBar(props: UndoSendCountdownBarProps) {
                 data-testid="undo-send-text"
                 className="text-xs sm:text-sm font-medium text-[#F4F4F5] truncate"
               >
-                Sending message to&nbsp;
+                {actionWord} message to&nbsp;
                 <span className="font-semibold text-white">{pendingItem.to}</span>
                 ...
               </p>
@@ -567,7 +596,9 @@ export function UndoSendCountdownBar(props: UndoSendCountdownBarProps) {
           >
             <polyline points="20 6 9 17 4 12" />
           </svg>
-          <span className="text-xs sm:text-sm font-medium text-emerald-400">Message sent!</span>
+          <span className="text-xs sm:text-sm font-medium text-emerald-400">
+            {pendingItem.successLabel ?? 'Message sent!'}
+          </span>
         </div>
       )}
     </div>
