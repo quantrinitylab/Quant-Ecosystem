@@ -70,6 +70,11 @@ export function useLiveMark(
    * exactly the softness the fixed-`res` original shows when it is drawn large.
    */
   size: number,
+  /**
+   * `false` parks the hook: no buffer, no loop, no listeners. A mark passes `false`
+   * while its living (WebGL2) twin is on screen in place of this canvas.
+   */
+  active = true,
 ): {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   pointerProps: MarkPointerProps;
@@ -127,6 +132,7 @@ export function useLiveMark(
   }, []);
 
   useEffect(() => {
+    if (!active) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d', { alpha: true });
@@ -231,11 +237,12 @@ export function useLiveMark(
 
     return () => {
       stop();
+      drawOnceRef.current = () => {};
       io?.disconnect();
       media.removeEventListener('change', onMedia);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [size]);
+  }, [size, active]);
 
   return {
     canvasRef,
