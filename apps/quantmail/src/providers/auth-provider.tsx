@@ -62,7 +62,22 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({
+  children,
+  skipSessionRestore = false,
+}: {
+  children: React.ReactNode;
+  /**
+   * fix/qm-api-roundtrip-latency: the root layout sets this when the
+   * HttpOnly `quantmail_refresh` cookie is provably absent (server-side
+   * check). There is no session to restore — skipping the POST
+   * /api/auth/refresh saves every signed-out visitor a ~1.3s round trip on
+   * every page load (the refresh would 401 anyway, after paying the full
+   * proxy chain). Local cleanup still runs; only the network call is
+   * skipped.
+   */
+  skipSessionRestore?: boolean;
+}) {
   // No `useQueryClient()` here, deliberately: the public auth shell renders
   // this provider with no QueryClientProvider above it (lean auth shell), and
   // on the app shell this provider is hoisted above QueryProvider so the
@@ -134,6 +149,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function hydrate() {
       cleanupLegacyBrowserTokens();
       clearMemorySession();
+      // fix/qm-api-roundtrip-latency: when the server already proved there is
+      // no refresh cookie, there is no session to restore — skip the network
+      // refresh entirely (it would 401 after paying the full chain). The
+      // provider still settles `isLoading` so public pages paint immediately.
+      if (skipSessionRestore) {
+        if (active) setIsLoading(false);
+        return;
+      }
       try {
         // One timeout for the refresh, another for the profile load. The
         // refresh used to be the only raced call — a slow `/oauth/userinfo`
@@ -161,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       active = false;
     };
-  }, [clearMemorySession, applySessionUser]);
+  }, [clearMemorySession, applySessionUser, skipSessionRestore]);
 
   // Rotate before the 15-minute access token expires. The rotated refresh token
   // remains inside the HttpOnly cookie and never enters this provider.

@@ -8,7 +8,12 @@ import {
 } from '../services/browser-auth-session';
 
 const authResponse = (
-  data: { accessToken: string; expiresIn: number; tokenType?: string },
+  data: {
+    accessToken: string;
+    expiresIn: number;
+    tokenType?: string;
+    user?: { id: string; email: string; username: string; displayName: string; role: string };
+  },
   status = 200,
 ): Response =>
   new Response(JSON.stringify({ success: true, data }), {
@@ -110,6 +115,58 @@ describe('browserAuthSession', () => {
     expect(firstResult).toEqual(secondResult);
     expect(browserAuthSession.getAccessToken()).toBe('access-rotated');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces the inline user on refresh so hydration skips the profile round trip', async () => {
+    // fix/qm-api-roundtrip-latency: POST /api/auth/refresh now carries the
+    // profile inline (same shape as GET /oauth/userinfo). The session layer
+    // must pass it through untouched — the auth provider consumes it instead
+    // of firing a second sequential fetch.
+    const inlineUser = {
+      id: 'user-1',
+      email: 'ada@quantmail.in',
+      username: 'ada',
+      displayName: 'Ada Lovelace',
+      role: 'user',
+    };
+    fetchMock.mockResolvedValueOnce(
+      authResponse({ accessToken: 'access-rotated', expiresIn: 900, user: inlineUser }),
+    );
+
+    const result = await browserAuthSession.refresh();
+
+    expect(result.success).toBe(true);
+    expect(result.data?.user).toEqual(inlineUser);
+    expect(browserAuthSession.getAccessToken()).toBe('access-rotated');
+  });
+
+  it('leaves user undefined on refresh when the backend omits it (older deploys)', async () => {
+    fetchMock.mockResolvedValueOnce(authResponse({ accessToken: 'access-rotated', expiresIn: 900 }));
+
+    const result = await browserAuthSession.refresh();
+
+    expect(result.success).toBe(true);
+    expect(result.data?.user).toBeUndefined();
+    expect(browserAuthSession.getAccessToken()).toBe('access-rotated');
+  });
+
+  it('surfaces the inline user on login so sign-in skips the profile round trip', async () => {
+    const inlineUser = {
+      id: 'user-1',
+      email: 'ada@quantmail.in',
+      username: 'ada',
+      displayName: 'Ada Lovelace',
+      role: 'user',
+    };
+    fetchMock.mockResolvedValueOnce(
+      authResponse({ accessToken: 'access-login', expiresIn: 900, user: inlineUser }),
+    );
+
+    const result = await browserAuthSession.login('ada@quantmail.in', 's3cret');
+
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({ user: inlineUser });
+    expect(browserAuthSession.getAccessToken()).toBe('access-login');
   });
 
   it('performs only one refresh and one request retry after a 401', async () => {

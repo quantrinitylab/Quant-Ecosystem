@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from 'next';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import './shell.css';
 import './overrides.css';
 import { quantMailBrandMetadata } from '../brand/identity';
-import { AUTH_SHELL_HEADER } from '../lib/edge-public-paths';
+import { AUTH_SHELL_HEADER, REFRESH_COOKIE_NAME } from '../lib/edge-public-paths';
 import { AuthGuard } from '../components/AuthGuard';
 import { KeyboardProvider } from '../components/KeyboardProvider';
 import { KeyboardSurfaces } from '../components/KeyboardSurfaces';
@@ -91,6 +91,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // static page; the trade buys every signed-out visitor a leaner /login.
   const isAuthShell = (await headers()).get(AUTH_SHELL_HEADER) === 'auth';
 
+  // fix/qm-api-roundtrip-latency: an absent HttpOnly refresh cookie means
+  // provably signed out (same signal the edge middleware uses). Tell the auth
+  // provider not to burn a POST /api/auth/refresh round trip (~1.3s median on
+  // the live chain) on every signed-out page load — the refresh would 401
+  // anyway. Signed-out visitors to /login, /privacy, /marketing, … now pay
+  // zero auth round trips before first paint.
+  const skipSessionRestore = !(await cookies()).has(REFRESH_COOKIE_NAME);
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -107,7 +115,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             module registry (`lib/query-client-registry.ts`) instead of
             `useQueryClient()`, which is what lets the auth shell omit
             QueryClientProvider entirely. */}
-        <AuthProvider>
+        <AuthProvider skipSessionRestore={skipSessionRestore}>
           {isAuthShell ? (
             /* Lean auth shell: brand CSS + auth session only. No
                QueryClientProvider, no theme/sidekick providers, no AuthGuard

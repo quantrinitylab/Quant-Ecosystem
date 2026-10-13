@@ -3,7 +3,21 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function proxyToBackend(
   request: NextRequest,
   backendPath: string,
-  options?: { method?: string; body?: unknown },
+  options?: {
+    method?: string;
+    body?: unknown;
+    /**
+     * fix/qm-api-roundtrip-latency: short-lived `Cache-Control` applied to
+     * honest backend 404s (e.g. public booking-slug lookups that 404: one
+     * indexed findUnique, but every miss pays the full ~1.2s proxy chain).
+     * Only applied when the backend did not set its own Cache-Control —
+     * never on 2xx/4xx-with-meaning, never on auth endpoints. The 404 body is
+     * stable for the TTL window (a slug that 404s now cannot resolve before
+     * it expires), so repeat hits — same browser, bots, link checkers — skip
+     * the chain via the browser HTTP cache.
+     */
+    notFoundCacheControl?: string;
+  },
   backendUrl?: string,
 ) {
   const base = backendUrl || process.env.QUANTMAIL_BACKEND_URL || 'http://localhost:3010';
@@ -59,9 +73,19 @@ export async function proxyToBackend(
 
   try {
     const data = await res.json();
+    // fix/qm-api-roundtrip-latency: the backend is authoritative on freshness.
+    // An explicit backend Cache-Control is forwarded untouched; otherwise the
+    // historic no-store default holds — except honest 404s on call sites that
+    // opted into `notFoundCacheControl`.
+    const backendCacheControl = res.headers.get('cache-control');
+    const cacheControl =
+      backendCacheControl ??
+      (res.status === 404 && options?.notFoundCacheControl
+        ? options.notFoundCacheControl
+        : 'no-store');
     const response = NextResponse.json(data, {
       status: res.status,
-      headers: { 'cache-control': 'no-store' },
+      headers: { 'cache-control': cacheControl },
     });
     // Forward Set-Cookie headers from backend (for auth refresh tokens)
     const setCookie = res.headers.get('set-cookie');

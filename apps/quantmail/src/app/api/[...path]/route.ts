@@ -4,6 +4,22 @@ import { ALLOWED_BACKEND_ROUTES } from '../../../../backend/lib/routes-config';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * fix/qm-api-roundtrip-latency: public, unauthenticated read paths whose
+ * honest 404s are stable — a booking slug that 404s now cannot resolve before
+ * the TTL expires. Their misses get a short-lived cache so repeat hits (same
+ * browser, bots, link checkers) skip the full ~1.2s proxy chain. Slot
+ * availability itself (2xx) stays no-store: locks and bookings change it by
+ * the second. Auth and mutation routes are never listed here.
+ */
+const NOT_FOUND_CACHE_PATHS: RegExp[] = [
+  /^calendar\/booking\/[^/]+$/,
+  /^calendar\/booking\/[^/]+\/slots$/,
+  /^booking\/links\/[^/]+$/,
+  /^booking\/links\/[^/]+\/slots$/,
+];
+const NOT_FOUND_CACHE_CONTROL = 'public, max-age=30, stale-while-revalidate=60';
+
 const handle = async (
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
@@ -17,7 +33,10 @@ const handle = async (
         success: false,
         error: { code: 'API_ROUTE_NOT_FOUND', message: 'API route not found.', statusCode: 404 },
       },
-      { status: 404, headers: { 'cache-control': 'no-store' } },
+      // fix/qm-api-roundtrip-latency: the allow-list is deployment-stable, so
+      // an unknown API path 404s identically for a minute — let the browser
+      // cache the miss instead of paying the chain on every retry.
+      { status: 404, headers: { 'cache-control': 'public, max-age=60' } },
     );
   }
   if (!route.methods.includes(request.method)) {
@@ -34,7 +53,15 @@ const handle = async (
   }
 
   const backendPath = `/${path.map((segment) => encodeURIComponent(segment)).join('/')}`;
-  return proxyToBackend(request, backendPath);
+  const cacheNotFound =
+    request.method === 'GET' && NOT_FOUND_CACHE_PATHS.some((pattern) => pattern.test(decodedPath))
+      ? NOT_FOUND_CACHE_CONTROL
+      : undefined;
+  return proxyToBackend(
+    request,
+    backendPath,
+    cacheNotFound ? { notFoundCacheControl: cacheNotFound } : undefined,
+  );
 };
 
 // One handler, one export per method. The App Router 405s a method that has no

@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AUTH_SHELL_HEADER, isAuthShellPath, isKnownAppPath, isPublicPath } from './lib/edge-public-paths';
+import {
+  AUTH_SHELL_HEADER,
+  REFRESH_COOKIE_NAME as SHARED_REFRESH_COOKIE_NAME,
+  isAuthShellPath,
+  isKnownAppPath,
+  isPublicPath,
+} from './lib/edge-public-paths';
 
 // ============================================================================
 // QuantMail edge middleware — kill the logged-out double-boot on `/`.
@@ -22,7 +28,8 @@ import { AUTH_SHELL_HEADER, isAuthShellPath, isKnownAppPath, isPublicPath } from
 // bounces expired sessions client-side).
 // ============================================================================
 
-export const REFRESH_COOKIE_NAME = 'quantmail_refresh';
+// Re-exported from the shared module for existing importers (tests).
+export const REFRESH_COOKIE_NAME = SHARED_REFRESH_COOKIE_NAME;
 
 // Re-exported for tests and for parity assertions against AuthGuard.
 export { AUTH_SHELL_HEADER, isAuthShellPath, isKnownAppPath, isPublicPath };
