@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { PrismaClient } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
-import { CallService } from '../services/call.service';
+import { CallService, type CallRegistryLookup } from '../services/call.service';
 import { CallRecordService, type CallRecordPrisma } from '../services/call-record.service';
 import { ConversationService } from '../services/conversation.service';
 import { getPrivacyService } from '../services/privacy.service';
@@ -59,10 +59,20 @@ function getCallRecordService(fastify: FastifyInstance): CallRecordService | nul
  *
  * The instance is shared across requests so the in-memory call registry
  * (`CallService.calls`) stays consistent for join/token/leave lookups.
+ *
+ * QC-F-287: that registry is only a per-process CACHE — after a restart (or
+ * on a second replica) it is empty while the call is still live. The shared
+ * instance is therefore constructed with the durable CallRecordService as
+ * its rehydration lookup, so a registry miss falls back to the persisted
+ * `Call` row. The lookup binds at first construction; nothing outside this
+ * plugin constructs the singleton, and every handler in this plugin passes
+ * the same record service, so first-construction binding is sufficient.
+ * When Prisma is unavailable (callRecord === null) the service is built
+ * without a lookup and keeps the pre-QC-F-287 in-memory-only behaviour.
  */
 let sharedCallService: CallService | null = null;
 
-function getCallService(): CallService {
+function getCallService(lookup?: CallRegistryLookup | null): CallService {
   if (!sharedCallService) {
     const apiKey = process.env['LIVEKIT_API_KEY'];
     const apiSecret = process.env['LIVEKIT_API_SECRET'];
@@ -75,7 +85,7 @@ function getCallService(): CallService {
         'CALLS_UNAVAILABLE',
       );
     }
-    sharedCallService = new CallService({ apiKey, apiSecret, wsUrl });
+    sharedCallService = new CallService({ apiKey, apiSecret, wsUrl }, lookup ?? undefined);
   }
   return sharedCallService;
 }
@@ -227,7 +237,7 @@ export default async function callsRoutes(fastify: FastifyInstance) {
 
     // Fail closed: throws 503 CALLS_UNAVAILABLE when LiveKit is not configured.
     // Never mint unsigned mock tokens.
-    const callService = getCallService();
+    const callService = getCallService(callRecord);
 
     // QC-F-075 membership gate — AFTER the LiveKit check (the pre-existing
     // 503 suite runs without a database and "calls are down" is the honest
@@ -281,7 +291,7 @@ export default async function callsRoutes(fastify: FastifyInstance) {
 
     // Fail closed: throws 503 CALLS_UNAVAILABLE when LiveKit is not configured.
     // Never return a fake "Call ended" acknowledgement without a real teardown.
-    const callService = getCallService();
+    const callService = getCallService(callRecord);
 
     try {
       await callService.endCall(roomId, userId);
@@ -356,7 +366,7 @@ export default async function callsRoutes(fastify: FastifyInstance) {
     // configured (same ordering as /create — "calls are down" is the
     // honest first answer, and the pre-existing 503 suite runs without
     // a database).
-    const callService = getCallService();
+    const callService = getCallService(callRecord);
 
     // QC-F-218 membership gate (QC-F-075 pattern, shared helper).
     const membershipGate = getMembershipGate(fastify);
@@ -401,7 +411,7 @@ export default async function callsRoutes(fastify: FastifyInstance) {
     const allParticipants = [userId, ...participantIds.filter((id) => id !== userId)];
 
     // Fail closed without LiveKit (see /initiate note on ordering).
-    const callService = getCallService();
+    const callService = getCallService(callRecord);
 
     // QC-F-218 membership gate (QC-F-075 pattern, shared helper).
     const membershipGate = getMembershipGate(fastify);
@@ -427,7 +437,7 @@ export default async function callsRoutes(fastify: FastifyInstance) {
     }
 
     // Fail closed without LiveKit: token issuance requires LIVEKIT_API_SECRET.
-    const callService = getCallService();
+    const callService = getCallService(callRecord);
     const token = await callService.generateCallToken(request.params.id, userId);
     const serverUrl =
       process.env['LIVEKIT_WS_URL'] ?? process.env['LIVEKIT_URL'] ?? '';
@@ -442,8 +452,16 @@ export default async function callsRoutes(fastify: FastifyInstance) {
     }
 
     // (also reaches getCallService → fail closed without LiveKit)
-    const callService = getCallService();
+    const callService = getCallService(callRecord);
     const result = await callService.leaveCall(request.params.id, userId);
+    if (result.ended) {
+      // QC-F-287: a call ended by its last participant leaving must also be
+      // closed in the durable record. Without this the row stays ACTIVE and
+      // the rehydration path would resurrect a finished call after a
+      // restart (this gap existed even before QC-F-287: leave-ended calls
+      // never closed their history row).
+      await persistEnded(request.params.id);
+    }
     return reply.send({
       success: true,
       data: { message: result.ended ? 'Call ended' : 'Left call' },
@@ -458,7 +476,7 @@ export default async function callsRoutes(fastify: FastifyInstance) {
     }
 
     // Fail closed without LiveKit: token issuance requires LIVEKIT_API_SECRET.
-    const callService = getCallService();
+    const callService = getCallService(callRecord);
     const token = await callService.generateCallToken(request.params.id, userId);
     const serverUrl =
       process.env['LIVEKIT_WS_URL'] ?? process.env['LIVEKIT_URL'] ?? '';
