@@ -58,6 +58,94 @@ export function isPublicPath(pathname: string): boolean {
 }
 
 // ============================================================================
+// Known app routes — single source of truth (fix/qm-unknown-route-404).
+//
+// The guards (edge middleware + AuthGuard) must distinguish three cases for a
+// signed-out visitor:
+//   1. public path  -> let through (isPublicPath above),
+//   2. known private route -> bounce to /login?returnTo=...,
+//   3. unknown route -> let through so the framework renders the branded 404
+//      (src/app/not-found.tsx) instead of bouncing a dead link to /login.
+//
+// Before this fix, case 3 bounced exactly like case 2: /no-such-page-xyz went
+// to /login?returnTo=%2Fno-such-page-xyz with no explanation, and the shipped
+// not-found.tsx was unreachable while signed out.
+//
+// This list is derived from apps/quantmail/src/app (page.tsx files). It must
+// stay dependency-free (imported by the edge middleware). Drift protection:
+// src/__tests__/unknown-route-404.test.ts walks the app dir and fails if any
+// page.tsx/route.ts exists under a segment classified neither public nor
+// known here.
+// ============================================================================
+
+/** Top-level segments that are real QuantMail routes requiring a session. */
+const KNOWN_PRIVATE_SEGMENTS = [
+  'admin',
+  'archive',
+  'calendar',
+  'compose',
+  'contacts',
+  'drafts',
+  'drive',
+  'labels',
+  'notifications',
+  'people',
+  'pipelines',
+  'postcards',
+  'search',
+  'security',
+  'sent',
+  'settings',
+  'snoozed',
+  'spam',
+  'starred',
+  'thread',
+  'trash',
+  'workspaces',
+] as const;
+
+/**
+ * Segments with real nested private routes, so the whole subtree is known:
+ * /admin/dlp-audit, /admin/domains, /calendar/event/[id], /drive/doc/[docId],
+ * /people/[personId], /settings/account, /settings/mail, /thread/[id],
+ * /workspaces/[id]. (Public nested subtrees — /calendar/booking/*,
+ * /drive/share/* — are handled by isPublicPath first and never reach here.)
+ */
+const KNOWN_PRIVATE_PREFIXES = [
+  'admin',
+  'calendar',
+  'drive',
+  'people',
+  'settings',
+  'thread',
+  'workspaces',
+] as const;
+
+/**
+ * True when the pathname is a real, private app route — i.e. a signed-out
+ * visitor should be bounced to /login rather than shown the 404. False for
+ * public paths (isPublicPath wins; the guards check it first anyway) and for
+ * unknown URLs: the guards let those through so Next renders the branded
+ * not-found page.
+ */
+export function isKnownAppPath(pathname: string): boolean {
+  if (isPublicPath(pathname)) return false;
+  if (pathname === '/') return true; // root inbox
+  for (const segment of KNOWN_PRIVATE_SEGMENTS) {
+    if (pathname === `/${segment}`) return true;
+  }
+  for (const prefix of KNOWN_PRIVATE_PREFIXES) {
+    if (pathname.startsWith(`/${prefix}/`)) return true;
+  }
+  // OIDC discovery route handler (app/.well-known/openid-configuration).
+  // Known (so it keeps today's login-bounce, not a 404) — making it public
+  // per the OIDC spec is tracked as a separate finding (it must be fetchable
+  // by unauthenticated SSO clients); see the qm-auto findings queue.
+  if (pathname === '/.well-known' || pathname.startsWith('/.well-known/')) return true;
+  return false;
+}
+
+// ============================================================================
 // Minimal auth shell — single source of truth (fix/qm-auth-providers-minimal).
 //
 // These are the public sign-in/up form pages. The edge middleware tags them
