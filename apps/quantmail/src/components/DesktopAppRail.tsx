@@ -22,6 +22,7 @@ import {
 } from './pillarTiles';
 import { triggerHapticTap } from './QuantPillarTopBar';
 import { MoreAppsMenu } from './MoreAppsMenu';
+import { LiquidTrack } from './workplace/LiquidTrack';
 
 export interface DesktopAppRailProps {
   currentPillar?: PillarId;
@@ -52,14 +53,28 @@ export function DesktopAppRail({
     }
   }, []);
 
+  // Optimistic selection: the liquid tab starts sliding on the click, not when
+  // the target route commits; cleared once the pathname moves (or after a
+  // fallback if the navigation never lands).
+  const [pendingPillar, setPendingPillar] = useState<PillarId | null>(null);
+  useEffect(() => {
+    setPendingPillar(null);
+  }, [pathname]);
+  useEffect(() => {
+    if (!pendingPillar) return;
+    const t = window.setTimeout(() => setPendingPillar(null), 2500);
+    return () => window.clearTimeout(t);
+  }, [pendingPillar]);
+
   const effectivePillar: PillarId = useMemo(() => {
+    if (pendingPillar) return pendingPillar;
     if (currentPillar) return currentPillar;
     if (pathname.startsWith('/calendar')) return 'calendar';
     if (pathname.startsWith('/drive')) return 'drive';
     if (pathname.startsWith('/contacts')) return 'contacts';
     if (pathname.startsWith('/quantgit')) return 'quantgit';
     return 'mail';
-  }, [currentPillar, pathname]);
+  }, [pendingPillar, currentPillar, pathname]);
 
   const handlePillarClick = useCallback(
     (tile: DesktopPillarTile) => {
@@ -72,6 +87,7 @@ export function DesktopAppRail({
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       } else {
+        setPendingPillar(tile.id);
         router.push(tile.path);
       }
     },
@@ -87,6 +103,7 @@ export function DesktopAppRail({
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       } else {
+        setPendingPillar(id);
         router.push(path);
       }
     },
@@ -107,25 +124,56 @@ export function DesktopAppRail({
   useShortcut('mod+5', () => navigatePillar('/quantgit', 'quantgit'), { label: 'Go to QuantGit', allowInInput: true });
   useShortcut('5', () => navigatePillar('/quantgit', 'quantgit'), { label: 'Go to QuantGit', allowInInput: false });
 
+  const activeIndex = Math.max(0, DESKTOP_PILLAR_TILES.findIndex((t) => t.id === effectivePillar));
+  const shortcutText = (n: number) => (isMac ? `⌘${n}` : `Ctrl+${n}`);
+
   return (
     <aside
       aria-label="App switcher"
       data-testid="desktop-app-rail"
-      className={`hidden md:flex flex-col items-center justify-center w-14 flex-none h-full bg-black py-3 z-30 select-none ${className}`}
+      className={`hidden md:flex flex-col items-center justify-center flex-none h-full bg-black pl-3.5 pr-2.5 py-3 z-30 select-none ${className}`}
     >
+      {/*
+        Quant Workplace rail (approved 2026-10-13): the vertical twin of the
+        mobile switcher. A glass column whose active app rises out of it
+        towards the content as ONE connected liquid tab in the app accent
+        (<LiquidTrack orient="v">, lib/liquid-bar); the five living marks sit
+        on the glass with no tiles behind them.
+      */}
       <nav
         role="tablist"
         aria-orientation="vertical"
         aria-label="Suite apps"
-        className="flex flex-col items-center gap-2 w-full"
+        data-active-pillar={effectivePillar}
+        className="qw-bar qw-bar-v"
+        style={{
+          width: 60,
+          height: 340,
+          ['--lq-accent' as string]: DESKTOP_PILLAR_TILES[activeIndex]?.accentColor,
+        }}
       >
+        <LiquidTrack
+          orient="v"
+          count={DESKTOP_PILLAR_TILES.length}
+          index={activeIndex}
+          thickness={60}
+          radius={20}
+          lift={6}
+          pad={6}
+          top={0.38}
+          flare={0.3}
+          floor={false}
+          testId="desktop-app-rail-liquid"
+        />
+        <div className="qw-segs">
         {DESKTOP_PILLAR_TILES.map((tile) => {
           const isActive = effectivePillar === tile.id;
           const badgeCount = unreadCounts?.[tile.id];
+          const fullName = tile.label.startsWith('Quant') ? tile.label.replace(/^Quant/, 'Quant ') : `Quant ${tile.label}`;
 
           return (
-            <div key={tile.id} className="relative group w-full flex items-center justify-center">
               <button
+                key={tile.id}
                 type="button"
                 role="tab"
                 data-testid={`desktop-app-rail-tile-${tile.id}`}
@@ -135,41 +183,36 @@ export function DesktopAppRail({
                 // chip in the hover tooltip; the accessible name states the
                 // shortcut outright.
                 aria-label={`${tile.label}, keyboard shortcut ${isMac ? 'Command' : 'Ctrl'}+${tile.shortcutNumber}`}
-                title={`${tile.label} — ${isMac ? `⌘${tile.shortcutNumber}` : `Ctrl+${tile.shortcutNumber}`}`}
                 onClick={() => handlePillarClick(tile)}
                 // SIA-P2-7: tile touch targets must be >= 44px (Apple HIG /
-                // WCAG 2.5.8). Buttons are size-11 (44px) with 32px marks.
-                className={`relative flex size-11 items-center justify-center rounded-xl transition-opacity duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 ${
-                  isActive ? '' : 'hover:bg-[var(--quant-surface-elevated)] opacity-60 hover:opacity-100'
-                }`}
+                // WCAG 2.5.8). Each tile fills its 60x65px rail cell, never
+                // less than 44px.
+                className="qw-seg min-h-11 min-w-11"
               >
-                <span className="flex items-center justify-center">{tile.renderIcon(isActive)}</span>
+                <span className="qw-seg-mark">{tile.renderIcon(isActive)}</span>
 
                 {badgeCount !== undefined && badgeCount > 0 && (
                   <span
                     data-testid={`desktop-app-rail-badge-${tile.id}`}
-                    className="absolute -top-1 -left-1 min-w-[16px] h-[16px] px-1 flex items-center justify-center rounded-full text-[var(--q-type-xs)] font-bold leading-none text-black shadow-md"
+                    className="absolute top-1.5 right-1 z-[3] min-w-[16px] h-[16px] px-1 flex items-center justify-center rounded-full text-[var(--q-type-xs)] font-bold leading-none text-black shadow-md"
                     style={{ backgroundColor: tile.accentColor }}
                     aria-label={`${badgeCount} unread`}
                   >
                     {badgeCount > 99 ? '99+' : badgeCount}
                   </span>
                 )}
-              </button>
 
-              {/* Tooltip opens to the LEFT (rail is on the right edge) */}
-              <div
-                role="tooltip"
-                className="pointer-events-none absolute right-[52px] top-1/2 -translate-y-1/2 z-50 hidden group-hover:flex items-center gap-2 rounded-xl border border-[#282F42] bg-[#0C0F17]/95 px-3 py-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.85)] backdrop-blur-xl whitespace-nowrap"
-              >
-                <span className="text-xs font-semibold text-white tracking-wide">{tile.label}</span>
-                <kbd className="rounded border border-[#30384C] bg-[var(--quant-surface-elevated)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--quant-muted-foreground)]">
-                  {isMac ? `⌘${tile.shortcutNumber}` : `Ctrl+${tile.shortcutNumber}`}
-                </kbd>
-              </div>
-            </div>
+                {/* Tooltip opens to the LEFT (rail is on the right edge) */}
+                <span role="tooltip" className="qw-tip">
+                  {fullName}
+                  <kbd className="rounded border border-[#30384C] bg-[var(--quant-surface-elevated)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--quant-muted-foreground)]">
+                    {shortcutText(tile.shortcutNumber)}
+                  </kbd>
+                </span>
+              </button>
           );
         })}
+        </div>
       </nav>
 
       {/*
@@ -180,7 +223,7 @@ export function DesktopAppRail({
         by spacing only (no divider lines, per UI rules). No keyboard shortcut
         number: Ctrl+1..5 stay reserved for the 5 pillars.
       */}
-      <div className="mt-2 w-full flex items-center justify-center">
+      <div className="mt-5 w-full flex items-center justify-center">
         <MoreAppsMenu
           align="left"
           buttonTestId="desktop-app-rail-tile-more"

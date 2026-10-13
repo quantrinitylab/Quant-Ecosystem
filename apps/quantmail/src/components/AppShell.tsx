@@ -37,6 +37,7 @@ import { ContextBottomNavBar } from './ContextBottomNavBar';
 import { DesktopAppRail } from './DesktopAppRail';
 import { pillarForApp } from './desktopContextTabs';
 import { appThemeForPath } from '../lib/app-theme';
+import { QuantyAvatarPicker } from './workplace/QuantyAvatarPicker';
 
 export interface AppShellProps {
   children: ReactNode;
@@ -967,6 +968,8 @@ export function AppShell({
         swap and take the conversation with it.
       */}
           {!hasOwnQuanty && <QuantyDrawerHost isOpen={isQuantyOpen} onClose={closeQuanty} />}
+          {/* "Choose your Quanty": opened from the sidebar card and the drawer header. */}
+          <QuantyAvatarPicker />
           {/* Live agentic surface: mounted once at shell top level (next to the
               drawer, never inside the header) so a task survives route/header
               swaps while Quanty works. */}

@@ -43,7 +43,7 @@ export const DESKTOP_PILLAR_TILES: DesktopPillarTile[] = [
     path: '/',
     shortcutNumber: 1,
     accentColor: PILLAR_ACCENTS.mail,
-    renderIcon: () => <QuantMailLogo size={32} interactive={false} showBadge={false} />,
+    renderIcon: () => <QuantMailLogo size={38} interactive={false} showBadge={false} />,
   },
   {
     id: 'calendar',
@@ -51,7 +51,7 @@ export const DESKTOP_PILLAR_TILES: DesktopPillarTile[] = [
     path: '/calendar',
     shortcutNumber: 2,
     accentColor: PILLAR_ACCENTS.calendar,
-    renderIcon: () => <QuantCalendarLogo size={32} />,
+    renderIcon: () => <QuantCalendarLogo size={39} />,
   },
   {
     id: 'drive',
@@ -59,7 +59,7 @@ export const DESKTOP_PILLAR_TILES: DesktopPillarTile[] = [
     path: '/drive',
     shortcutNumber: 3,
     accentColor: PILLAR_ACCENTS.drive,
-    renderIcon: () => <QuantDriveLogo size={32} />,
+    renderIcon: () => <QuantDriveLogo size={39} />,
   },
   {
     id: 'contacts',
@@ -67,7 +67,7 @@ export const DESKTOP_PILLAR_TILES: DesktopPillarTile[] = [
     path: '/contacts',
     shortcutNumber: 4,
     accentColor: PILLAR_ACCENTS.contacts,
-    renderIcon: () => <QuantContactsLogo size={32} />,
+    renderIcon: () => <QuantContactsLogo size={43} />,
   },
   {
     id: 'quantgit',
@@ -75,6 +75,6 @@ export const DESKTOP_PILLAR_TILES: DesktopPillarTile[] = [
     path: '/quantgit',
     shortcutNumber: 5,
     accentColor: PILLAR_ACCENTS.quantgit,
-    renderIcon: () => <QuantGitLogo size={32} />,
+    renderIcon: () => <QuantGitLogo size={43} />,
   },
 ];
