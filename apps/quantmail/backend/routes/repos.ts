@@ -924,12 +924,14 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     const parsed = importRepoSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
 
-    let userId: string;
-    try {
-      userId = requireUserId(request);
-    } catch {
-      userId = parsed.data.targetOwner || 'user-default';
-    }
+    // SECURITY: auth is mandatory. requireUserId throws the honest 401
+    // UNAUTHORIZED error for callers without an authenticated identity — there
+    // is intentionally NO try/catch fallback here. A previous fallback silently
+    // attributed imports to the caller-supplied targetOwner (or the
+    // 'user-default' pseudo-user), letting unauthenticated callers POST
+    // /api/repos/import (also mounted at /repos/import) and mint repositories
+    // owned by arbitrary user IDs (P0 auth bypass, 2026-10-13).
+    const userId = requireUserId(request);
 
     const prisma = getPrisma(fastify);
     const service = prisma ? new RepoMigrationService(prisma) : repoMigrationService;
@@ -937,7 +939,11 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       sourceUrl: parsed.data.sourceUrl,
       provider: parsed.data.provider,
       token: parsed.data.token,
-      targetOwner: parsed.data.targetOwner || userId,
+      // Spoof-proof: the owner derives ONLY from the authenticated identity.
+      // The schema still accepts the optional targetOwner field for backwards
+      // compatibility, but it is never trusted — ignoring it matches the
+      // create-repo route, which uses ownerId: userId directly.
+      targetOwner: userId,
       targetRepoName: parsed.data.targetRepoName,
       isPrivate: parsed.data.isPrivate,
       importPipelines: parsed.data.importPipelines,
