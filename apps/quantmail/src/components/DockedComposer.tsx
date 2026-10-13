@@ -17,6 +17,7 @@ import {
   type InlineFormatRange,
 } from '../lib/email-body';
 import { loadDefaultSignatureHtml } from '../lib/email-signature-preference';
+import { getInvalidRecipientReason } from '../lib/email-validation';
 import type { Attachment } from './EmailComposer';
 import { createPortal } from 'react-dom';
 import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
@@ -777,9 +778,25 @@ export function DockedComposer({
   // toast tells the truth. The composer minimizes (stays mounted) instead of
   // closing, so Undo can hand the draft back visibly; the real close happens
   // when the send actually fires. This mirrors EmailComposer's modal path.
+  // Compose validation — same single-source-of-truth pattern as
+  // EmailComposer's getSendBlockReason: the Send button's `disabled` state
+  // and `handleSend`'s guard both derive from `invalidRecipientReason`, so
+  // the button can never look tappable while tapping it would just toast.
+  // Malformed recipient chips are flagged inline by RecipientChipInput AND
+  // block the send with a named reason — never a silent pass that fails on
+  // a server round-trip.
+  const invalidRecipientReason = getInvalidRecipientReason([
+    ...toRecipients,
+    ...ccRecipients,
+    ...bccRecipients,
+  ]);
   const handleSend = async () => {
     if (toRecipients.length === 0) {
       showToast({ text: 'Please specify at least one recipient (To:)', type: 'error' });
+      return;
+    }
+    if (invalidRecipientReason) {
+      showToast({ text: invalidRecipientReason, type: 'error' });
       return;
     }
     if (!subject.trim()) {
@@ -1269,10 +1286,10 @@ export function DockedComposer({
           <button
             type="button"
             onClick={handleSend}
-            disabled={isSending}
+            disabled={isSending || invalidRecipientReason !== null}
             data-testid="docked-composer-send-button"
             className="group relative flex items-center gap-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] bg-gradient-to-r from-[var(--quant-primary)] to-[#F97316] px-4 py-2 text-xs font-bold text-black shadow-lg shadow-[var(--quant-primary)]/20 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
-            title="Send email (⌘↵ or Ctrl+Enter)"
+            title={invalidRecipientReason ?? 'Send email (⌘↵ or Ctrl+Enter)'}
           >
             <IconSend className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
             <span>Send (⌘↵)</span>
