@@ -92,6 +92,7 @@ Respond ONLY with valid JSON matching this schema:
       userId,
       app: 'quantmail',
       feature: 'ci-fix',
+      stateless: true,
       temperature: 0.2,
       maxTokens: 1024,
     });
@@ -137,6 +138,7 @@ Generate an automated healing patch. Respond ONLY with valid JSON matching this 
       userId,
       app: 'quantmail',
       feature: 'ci-healing',
+      stateless: true,
       temperature: 0.1,
       maxTokens: 2048,
     });

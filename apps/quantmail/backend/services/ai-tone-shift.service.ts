@@ -45,6 +45,7 @@ Respond ONLY with valid JSON:
       userId,
       app: 'quantmail',
       feature: 'email-tone-shift',
+      stateless: true,
       temperature: 0.6,
       maxTokens: 1024,
     });
@@ -81,6 +82,7 @@ Respond ONLY with valid JSON:
       userId,
       app: 'quantmail',
       feature: 'email-tone-shift',
+      stateless: true,
       temperature: 0.2,
       maxTokens: 256,
     });

@@ -66,6 +66,7 @@ Respond ONLY with valid JSON matching this schema:
       userId,
       app: 'quantmail',
       feature: 'code-review',
+      stateless: true,
       temperature: 0.3,
       maxTokens: 2048,
     });

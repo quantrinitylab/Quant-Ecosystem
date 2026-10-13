@@ -65,6 +65,7 @@ export class AIExtractDataService {
       userId,
       app: 'quantmail',
       feature: 'drive-ai-extract',
+      stateless: true,
       temperature: 0.2,
       maxTokens: 1024,
     });
@@ -79,6 +80,7 @@ export class AIExtractDataService {
       userId,
       app: 'quantmail',
       feature: 'drive-ai-extract',
+      stateless: true,
       temperature: 0.2,
       maxTokens: 1024,
     });

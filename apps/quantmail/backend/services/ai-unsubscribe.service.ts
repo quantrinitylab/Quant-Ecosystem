@@ -67,6 +67,7 @@ Respond ONLY with valid JSON array:
       userId,
       app: 'quantmail',
       feature: 'email-unsubscribe',
+      stateless: true,
       temperature: 0.2,
       maxTokens: 1024,
     });

@@ -31,6 +31,12 @@ import { SemanticCache } from './semantic-cache';
 import { SafetyPipeline } from './safety';
 import { CostTracker } from './cost-tracker';
 import {
+  compatChatCompletion,
+  compatChatCompletionStream,
+  toCompatMessages,
+  type OpenAICompatibleEndpoint,
+} from './openai-compatible-transport';
+import {
   toVercelTools,
   validateToolDefinitions,
   parseToolCall,
@@ -104,6 +110,12 @@ export class AIEngine {
   private costTracker: CostTracker;
   private activeRequests: number = 0;
   private cloudflareProvider: ReturnType<typeof createOpenAI> | null = null;
+  /**
+   * Direct OpenAI-compatible endpoint for Cloudflare Workers AI. Tool-free
+   * rounds use it instead of the AI SDK, whose v1 OpenAI provider is rejected
+   * by `ai@5` (see openai-compatible-transport.ts).
+   */
+  private cloudflareEndpoint: OpenAICompatibleEndpoint | null = null;
   private openaiProvider: ReturnType<typeof createOpenAI> | null = null;
   private anthropicProvider: ReturnType<typeof createAnthropic> | null = null;
   private googleProvider: ReturnType<typeof createGoogleGenerativeAI> | null = null;
@@ -142,10 +154,12 @@ export class AIEngine {
     const cloudflareAccountId =
       process.env['CLOUDFLARE_ACCOUNT_ID'] ?? '9af698848a5edd00e756c3a2c908ec8d';
     if (cloudflareToken) {
+      const cloudflareBaseURL = `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/ai/v1`;
       this.cloudflareProvider = createOpenAI({
         apiKey: cloudflareToken,
-        baseURL: `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/ai/v1`,
+        baseURL: cloudflareBaseURL,
       });
+      this.cloudflareEndpoint = { baseURL: cloudflareBaseURL, apiKey: cloudflareToken };
     }
 
     // Meta AI: primary provider for the ecosystem (Muse Spark models,
@@ -411,6 +425,24 @@ export class AIEngine {
       };
     }
 
+    // Cloudflare Workers AI, tool-free round: direct OpenAI-compatible HTTP.
+    // The AI SDK path cannot run here — `@ai-sdk/openai@1` builds v1 models and
+    // `ai@5` rejects them before any request is made.
+    if (model.provider === 'cloudflare' && tools.length === 0 && this.cloudflareEndpoint) {
+      const result = await compatChatCompletion(this.cloudflareEndpoint, toCompatMessages(messages), {
+        model: model.id,
+        temperature: request.temperature ?? 0.7,
+        maxTokens: request.maxTokens ?? model.maxOutputTokens,
+        timeoutMs: this.config.requestTimeoutMs,
+      });
+      return {
+        text: result.text,
+        unexecutedToolCalls: [],
+        promptTokens: result.promptTokens ?? Math.ceil(promptEstimateText.length / 4),
+        completionTokens: result.completionTokens ?? Math.ceil(result.text.length / 4),
+      };
+    }
+
     const providerModel = this.getProviderModel(model);
 
     const generateOptions: Record<string, unknown> = {
@@ -658,12 +690,11 @@ export class AIEngine {
     // Route to appropriate model
     const model = this.modelRouter.selectModel(request);
 
-    // Build context-enriched prompt (via memory facade; legacy mode = unchanged)
-    const enrichedPrompt = await this.memory.enrich(
-      request.userId,
-      safePrompt,
-      request.context || [],
-    );
+    // Build context-enriched prompt (via memory facade; legacy mode = unchanged).
+    // Stateless requests (one-shot analyses) never read conversation memory.
+    const enrichedPrompt = request.stateless
+      ? safePrompt
+      : await this.memory.enrich(request.userId, safePrompt, request.context || []);
 
     // Execute with circuit breaker and retry
     const breaker = this.circuitBreakerRegistry.getBreaker(model.provider);
@@ -745,7 +776,9 @@ export class AIEngine {
       }
 
       // Update conversation context (via memory facade; legacy mode = unchanged)
-      await this.memory.record(request.userId, request.prompt, outputSafety.text);
+      if (!request.stateless) {
+        await this.memory.record(request.userId, request.prompt, outputSafety.text);
+      }
 
       return {
         id: this.generateRequestId(),
@@ -781,11 +814,9 @@ export class AIEngine {
     const safePrompt = safetyResult.text;
 
     const model = this.modelRouter.selectModel(request);
-    const enrichedPrompt = await this.memory.enrich(
-      request.userId,
-      safePrompt,
-      request.context || [],
-    );
+    const enrichedPrompt = request.stateless
+      ? safePrompt
+      : await this.memory.enrich(request.userId, safePrompt, request.context || []);
 
     const requestId = this.generateRequestId();
 
@@ -813,6 +844,19 @@ export class AIEngine {
         textStream = this.bedrockConverseStream(model, messages, {
           temperature: request.temperature ?? 0.7,
           maxTokens: request.maxTokens ?? model.maxOutputTokens,
+        });
+      } else if (
+        model.provider === 'cloudflare' &&
+        (request.tools ?? []).length === 0 &&
+        this.cloudflareEndpoint
+      ) {
+        // Same direct transport as `generateOnce`; the request is issued on
+        // first iteration, so failures land in the catch below (breaker).
+        textStream = compatChatCompletionStream(this.cloudflareEndpoint, messages, {
+          model: model.id,
+          temperature: request.temperature ?? 0.7,
+          maxTokens: request.maxTokens ?? model.maxOutputTokens,
+          timeoutMs: this.config.requestTimeoutMs,
         });
       } else {
         const providerModel = this.getProviderModel(model);
@@ -897,7 +941,9 @@ export class AIEngine {
     }
 
     // Update context with the response (via memory facade; legacy mode = unchanged)
-    await this.memory.record(request.userId, request.prompt, accumulated);
+    if (!request.stateless) {
+      await this.memory.record(request.userId, request.prompt, accumulated);
+    }
 
     // Track usage (estimated)
     const promptTokens = Math.ceil(enrichedPrompt.length / 4);

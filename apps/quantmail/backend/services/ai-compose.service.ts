@@ -60,6 +60,7 @@ Respond ONLY with valid JSON:
       userId,
       app: 'quantmail',
       feature: 'email-compose',
+      stateless: true,
       temperature: 0.6,
       maxTokens: 1024,
     });
@@ -99,6 +100,7 @@ Respond ONLY with valid JSON:
       userId,
       app: 'quantmail',
       feature: 'email-compose',
+      stateless: true,
       temperature: 0.5,
       maxTokens: 1024,
     });

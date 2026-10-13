@@ -120,6 +120,7 @@ Respond ONLY with valid JSON:
       userId,
       app: 'quantmail',
       feature: 'style-learner',
+      stateless: true,
       temperature: 0.3,
       maxTokens: 512,
     });
@@ -176,6 +177,7 @@ Respond ONLY with valid JSON:
       userId,
       app: 'quantmail',
       feature: 'style-learner',
+      stateless: true,
       temperature: 0.6,
       maxTokens: 1024,
     });
