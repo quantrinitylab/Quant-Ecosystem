@@ -40,6 +40,7 @@ import {
   CLUE_ENERGY,
 } from '../types';
 import { toDateInput } from '../lib/calendar-geometry';
+import { isEmailShaped } from '../lib/attendee-validation';
 import { apiFetchRaw } from '@quant/api-client';
 import {
   suggestFreeSlots,
@@ -101,16 +102,31 @@ export function CalendarEventForm({
   setIsPeriodCustomizeOpen,
   currentWeekDays,
 }: CalendarEventFormProps) {
+  // Inline error for a rejected guest address — shown under the input so a
+  // typoed address is corrected, never silently stored.
+  const [attendeeError, setAttendeeError] = React.useState<string | null>(null);
+
   const handleAddAttendee = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
       const val = formState.attendeeInput.trim().replace(',', '');
-      if (val && !formState.attendees.includes(val)) {
+      if (!val) return;
+      // The input's type="email" never fires here because Enter/comma is
+      // intercepted — validate the shape explicitly so "hello" can never
+      // become an invitee chip.
+      if (!isEmailShaped(val)) {
+        setAttendeeError(`"${val}" is not a valid email address`);
+        return;
+      }
+      setAttendeeError(null);
+      if (!formState.attendees.includes(val)) {
         setFormState((prev) => ({
           ...prev,
           attendees: [...prev.attendees, val],
           attendeeInput: '',
         }));
+      } else {
+        setFormState((prev) => ({ ...prev, attendeeInput: '' }));
       }
     }
   };
@@ -557,13 +573,25 @@ export function CalendarEventForm({
                         type="email"
                         placeholder="Add guests (type email & enter)"
                         value={formState.attendeeInput}
-                        onChange={(e) =>
-                          setFormState({ ...formState, attendeeInput: e.target.value })
-                        }
+                        onChange={(e) => {
+                          setAttendeeError(null);
+                          setFormState({ ...formState, attendeeInput: e.target.value });
+                        }}
                         onKeyDown={handleAddAttendee}
+                        aria-invalid={attendeeError ? true : undefined}
+                        aria-describedby={attendeeError ? 'attendee-email-error' : undefined}
                         className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                       />
                     </div>
+                    {attendeeError && (
+                      <p
+                        id="attendee-email-error"
+                        role="alert"
+                        className="pl-7 text-[11px] text-rose-400"
+                      >
+                        {attendeeError}
+                      </p>
+                    )}
                     {formState.attendees.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 pl-7">
                         {formState.attendees.map((email) => (
