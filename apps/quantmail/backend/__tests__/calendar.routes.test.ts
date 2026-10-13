@@ -873,6 +873,70 @@ describe('a guest list must not be able to 400 the whole save', () => {
     ]);
   });
 });
+describe('attendee email-shape validation — a non-address is not an invitee', () => {
+  it('POST /events drops garbage attendee strings but still creates the event', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/events',
+      payload: {
+        title: 'Sprint planning',
+        start: '2026-09-11T09:00:00.000Z',
+        attendees: ['hello', 'good@example.com', { email: 'not-an-email' }, { email: 'ok@example.com' }],
+      },
+    });
+
+    // The pinned design stands: a bad guest list never 400s the whole save —
+    // the non-addresses are declined at normalization instead.
+    expect(res.statusCode).toBe(201);
+    expect(storedJson(createData(), 'attendees')).toEqual([
+      { userId: '', email: 'good@example.com', name: '', status: 'pending' },
+      { userId: '', email: 'ok@example.com', name: '', status: 'pending' },
+    ]);
+  });
+
+  it('PUT /events/:id drops a garbage string attendee and still writes the event', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/events/e1',
+      payload: { title: 'Still saved', attendees: ['hello', 'real@example.com'] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(storedJson(updateData(), 'attendees')).toEqual([
+      { userId: '', email: 'real@example.com', name: '', status: 'pending' },
+    ]);
+  });
+
+  it('GET /events/:id/invite.ics never emits a malformed mailto: line for a legacy garbage attendee', async () => {
+    const app = await buildApp();
+    prisma.event.findUnique.mockResolvedValue({
+      ...ROW,
+      attendees: JSON.stringify(['hello', 'good@example.com']),
+    });
+    const res = await app.inject({ method: 'GET', url: '/events/e1/invite.ics' });
+
+    expect(res.statusCode).toBe(200);
+    const ics = res.body;
+    expect(ics).toContain('ATTENDEE');
+    expect(ics).toContain('mailto:good@example.com');
+    expect(ics).not.toContain('mailto:hello');
+  });
+
+  it('GET /events/:id/invite.ics skips a garbage object-form attendee too', async () => {
+    const app = await buildApp();
+    prisma.event.findUnique.mockResolvedValue({
+      ...ROW,
+      attendees: JSON.stringify([{ email: 'garbage' }, { email: 'fine@example.com' }]),
+    });
+    const res = await app.inject({ method: 'GET', url: '/events/e1/invite.ics' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('mailto:fine@example.com');
+    expect(res.body).not.toContain('mailto:garbage');
+  });
+});
 describe('GET /events — the window the grid asks for', () => {
   it('filters on a parsed [start,end] window', async () => {
     const app = await buildApp();

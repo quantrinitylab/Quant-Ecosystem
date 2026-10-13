@@ -137,6 +137,13 @@ function toDate(value: string, field: string): Date {
     throw createAppError(`\`${field}\` is not a valid date`, 400, 'INVALID_DATE');
   return date;
 }
+// Email-shape check shared by attendee persistence (toStoredAttendees) and
+// ICS emission (buildIcsContent). Deliberately a shape check, not a
+// deliverability check — it exists to stop non-addresses like "hello" from
+// being stored as invitees or emitted as `ATTENDEE:...:mailto:hello` lines.
+function isEmailShaped(value: unknown): value is string {
+  return typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
 function parseJsonArray(raw: unknown): unknown[] {
   if (Array.isArray(raw)) return raw;
   if (typeof raw !== 'string' || raw.trim() === '') return [];
@@ -170,7 +177,10 @@ function toStoredAttendees(input: AttendeeInput[]): StoredAttendee[] {
   for (const entry of input) {
     const source = typeof entry === 'string' ? { email: entry } : entry;
     const email = String(source.email ?? '').trim();
-    if (!email || seen.has(email.toLowerCase())) continue;
+    // Email-shape guard: "hello" is not an invitee. Dropped here (not 400'd —
+    // a guest list must never be able to 400 the whole save) and skipped at
+    // ICS emission below, so malformed `mailto:` lines are never produced.
+    if (!email || !isEmailShaped(email) || seen.has(email.toLowerCase())) continue;
     seen.add(email.toLowerCase());
     result.push({
       userId: typeof source['userId'] === 'string' ? source['userId'] : '',
@@ -501,6 +511,10 @@ function buildIcsContent(event: EventRow, options: IcsOptions = {}): string {
             ? entry.email.trim()
             : '';
       if (!email) continue;
+      // Legacy rows can hold non-email strings ("hello" was storable before
+      // attendee validation) — never emit a malformed `ATTENDEE:...:mailto:`
+      // line that foreign calendar clients choke on.
+      if (!isEmailShaped(email)) continue;
       const name =
         typeof entry === 'object' && entry && typeof entry.name === 'string' && entry.name
           ? escapeIcs(entry.name)
