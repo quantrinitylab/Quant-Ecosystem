@@ -101,15 +101,15 @@ describe('privacy ↔ auth-brand triage copy consistency', () => {
   });
 
   it('auth brand panel keeps the provable triage promise (not watered down)', () => {
-    // The card promises triage + thread summaries — both provable: triage
-    // passes real From/Subject/Body to the server-side AI engine (#1080),
-    // and ThreadSummaryCard calls POST /api/ai/summarize-thread (#1083).
-    // "Drafts the reply" was REMOVED 2026-10-13 (#1083): the reply route is
-    // backend-only dead plumbing (no UI surface), so it is not claimed
-    // user-facing — auth-copy-honesty.test.tsx pins its absence.
+    // The card's promise is the HONEST wording set in PR #1083: triage +
+    // summarize are shipped and user-facing, so both are provable truths.
+    // AI reply drafting is deliberately NOT claimed here — the backend route
+    // exists but no UI surface calls it, so "drafts the reply" is not a
+    // provable user-facing truth and was removed from the card.
     expect(brandSource).toMatch(/title="AI triage"/);
     expect(brandSource).toMatch(/surfaces what'?s urgent/);
     expect(brandSource).toMatch(/sums up long threads/);
+    expect(brandSource).not.toMatch(/drafts the reply/);
   });
 
   it('wired truth: triage service actually sends full message content to the AI engine', () => {
