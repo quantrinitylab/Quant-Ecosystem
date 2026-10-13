@@ -8,6 +8,18 @@ import { calendarEventMatchesQuery } from '../app/calendar/lib/calendar-search';
 import type { Holiday } from '../lib/holidays';
 import { showToast } from './InboxToast';
 import {
+  safeStorage,
+  todayKey,
+  waterLogKey,
+  lifeTrackersKey,
+  loadWaterMl,
+  loadLifeTrackers,
+  saveLifeTrackers,
+  applyWaterLog,
+  applyCreateTracker,
+  type StoredLifeTracker,
+} from '../lib/calendar-trackers-storage';
+import {
   CalendarWeekView,
   type WeekViewSheetOpts,
 } from '../app/calendar/components/CalendarWeekView';
@@ -1107,6 +1119,8 @@ export interface CalendarTrackersSubViewProps {
   events?: CalendarEventLike[];
   openDedicatedSheet?: (type: EntryType, date?: Date, endDate?: Date) => void;
   onSelectEvent?: (event: CalendarEventLike) => void;
+  /** Passed from the calendar page (user.id). Scopes the on-device logs per user. */
+  userId?: string;
   className?: string;
 }
 
@@ -1114,17 +1128,32 @@ export function CalendarTrackersSubView({
   events = [],
   openDedicatedSheet,
   onSelectEvent,
+  userId = '',
   className = '',
 }: CalendarTrackersSubViewProps) {
   // Discreet mode toggle for Period Tracker
   const [isDiscreetMode, setIsDiscreetMode] = useState(false);
 
-  // Health tracker interactive counters
-  const [waterMl, setWaterMl] = useState(0);
+  // Health tracker: water log is PERSISTED in localStorage, date-scoped
+  // (there is no water/habit backend — a day-old total must not carry over).
+  // Storage keys are derived from userId so they survive a login switch;
+  // note: if userId changes mid-session the keys change too.
+  const waterKey = waterLogKey(userId);
+  const trackersKey = lifeTrackersKey(userId);
+  const today = todayKey();
+  const [waterMl, setWaterMl] = useState(() => loadWaterMl(safeStorage(), waterKey, today));
   const waterTarget = 2500;
 
-  // Custom life trackers state
-  const [lifeTrackers, setLifeTrackers] = useState<CustomLifeTracker[]>([]);
+  // Custom life trackers state — PERSISTED in localStorage (no backend exists).
+  // loadLifeTrackers normalizes category/tone to the valid sets, so the casts
+  // below are sound.
+  const [lifeTrackers, setLifeTrackers] = useState<CustomLifeTracker[]>(() =>
+    loadLifeTrackers(safeStorage(), trackersKey).map((t) => ({
+      ...t,
+      category: t.category as CustomLifeTracker['category'],
+      tone: t.tone as CustomLifeTracker['tone'],
+    })),
+  );
 
   // Modal / Creator for Custom Tracker
   const [isAddTrackerOpen, setIsAddTrackerOpen] = useState(false);
@@ -1134,11 +1163,16 @@ export function CalendarTrackersSubView({
   const [newTrackerNotes, setNewTrackerNotes] = useState('');
 
   const handleAddWater = () => {
-    setWaterMl((prev) => {
-      const next = prev + 250;
-      showToast({ text: `Logged +250ml water (${next}ml / ${waterTarget}ml)`, type: 'success' });
-      return next;
-    });
+    // Write to storage FIRST; the success toast may only fire when the write
+    // actually landed. (Also: never toast inside the setState updater — React
+    // may invoke updaters twice, which double-fired this toast.)
+    // The persist/toast decision lives in applyWaterLog so the honesty
+    // contract is unit-testable without a DOM.
+    const result = applyWaterLog(safeStorage(), waterKey, today, waterMl);
+    if (result.persisted) {
+      setWaterMl(result.nextMl);
+    }
+    showToast(result.toast);
   };
 
   const handleCreateTracker = (e: React.FormEvent) => {
@@ -1148,24 +1182,44 @@ export function CalendarTrackersSubView({
       return;
     }
 
-    const item: CustomLifeTracker = {
-      id: `lt-${Date.now()}`,
+    // Persist before celebrating: only claim "added" when the list is stored.
+    const result = applyCreateTracker(safeStorage(), trackersKey, lifeTrackers as StoredLifeTracker[], {
       title: newTrackerTitle.trim(),
       category: newTrackerCategory,
       targetDate: newTrackerDate,
       notes: newTrackerNotes.trim(),
-      tone: newTrackerCategory === 'Recurring Cycle' ? 'emerald' : newTrackerCategory === 'Medical / Health' ? 'rose' : 'sky',
-    };
-
-    setLifeTrackers((prev) => [item, ...prev]);
+      tone:
+        newTrackerCategory === 'Recurring Cycle'
+          ? 'emerald'
+          : newTrackerCategory === 'Medical / Health'
+            ? 'rose'
+            : 'sky',
+    });
+    if (!result.persisted) {
+      showToast(result.toast);
+      return;
+    }
+    setLifeTrackers(
+      result.next.map((t) => ({
+        ...t,
+        category: t.category as CustomLifeTracker['category'],
+        tone: t.tone as CustomLifeTracker['tone'],
+      })),
+    );
     setIsAddTrackerOpen(false);
     setNewTrackerTitle('');
     setNewTrackerNotes('');
-    showToast({ text: `Tracker added: "${item.title}"`, type: 'success' });
+    showToast(result.toast);
   };
 
   const handleDeleteTracker = (id: string) => {
-    setLifeTrackers((prev) => prev.filter((t) => t.id !== id));
+    const next = lifeTrackers.filter((t) => t.id !== id);
+    const persisted = saveLifeTrackers(safeStorage(), trackersKey, next as StoredLifeTracker[]);
+    if (!persisted) {
+      showToast({ text: 'Could not save change — storage unavailable', type: 'error' });
+      return;
+    }
+    setLifeTrackers(next);
     showToast({ text: 'Tracker deleted', type: 'info' });
   };
 
@@ -1377,6 +1431,7 @@ export function CalendarTrackersSubView({
                 <SvgPlus className="size-3 text-sky-300" />
                 <span>Quick Log +250ml Water</span>
               </button>
+              <p className="text-[10px] text-[#64748B]">Saved on this device · resets each day</p>
             </div>
 
             {/* Sleep & Workout Grid */}
@@ -1414,6 +1469,7 @@ export function CalendarTrackersSubView({
               <div>
                 <h3 className="text-sm font-bold text-[var(--quant-foreground)]">Life Event Trackers</h3>
                 <p className="text-[11px] text-[var(--quant-muted-foreground)]">Custom recurring cycles & countdowns</p>
+                <p className="text-[10px] text-[#64748B] mt-0.5">Stored on this device only</p>
               </div>
             </div>
 
