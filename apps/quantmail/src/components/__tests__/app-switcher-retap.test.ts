@@ -111,11 +111,28 @@ describe('app-switcher re-tap refresh', () => {
   it('every bottom tab navigates to a real route (no fake tabs)', () => {
     for (const cfg of Object.values(PILLAR_SUB_CONFIGS)) {
       for (const tab of cfg.tabs) {
+        // QM-MOBILE-QUANTY-TAB: the Quanty tab opens the AI cockpit overlay
+        // (opensQuanty) — it never navigates, so it legitimately carries no
+        // targetPath. Its tap behavior (cockpit open, no route push) is
+        // covered by mobile-quanty-tab.test.ts instead.
+        if (tab.opensQuanty) continue;
         // `/sent` added by QM-UIUX-082: it is a real route
         // (src/app/sent/page.tsx, backed by `GET /emails?folderType=SENT`).
         // `/drafts`, `/spam`, `/trash` added by SIA-P1-5 (unified folder list):
         // all are real routes (src/app/drafts|spam|trash/page.tsx).
         expect(tab.targetPath).toMatch(/^\/(archive|sent|drafts|spam|trash|scheduled|calendar|drive|contacts|quantgit(\/repositories)?)?$/);
+      }
+    }
+  });
+
+  it('cockpit tabs (opensQuanty) carry no navigation target', () => {
+    for (const cfg of Object.values(PILLAR_SUB_CONFIGS)) {
+      for (const tab of cfg.tabs) {
+        if (tab.opensQuanty) {
+          // An opensQuanty tab opens the AI cockpit overlay — it must not
+          // also carry a route, which would be dead/fake config.
+          expect(tab.targetPath).toBeUndefined();
+        }
       }
     }
   });
