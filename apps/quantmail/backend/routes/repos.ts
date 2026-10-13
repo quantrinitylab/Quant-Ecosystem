@@ -2445,9 +2445,13 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           createdAt: merged.createdAt.toISOString(),
           mergedAt: merged.mergedAt?.toISOString() ?? mergedAt.toISOString(),
           mergeCommitSha: newCommitSha,
-          additions: 0,
-          deletions: 0,
-          changedFiles: 0,
+          // Diff stats are NOT measured on the merge path (merge-tree only
+          // builds the tree, it never runs numstat) — report explicit
+          // unknown (null) instead of invented zeros; see the #960 discipline
+          // on list/create/detail above. The client renders null as "—".
+          additions: null,
+          deletions: null,
+          changedFiles: null,
         },
       });
     },
