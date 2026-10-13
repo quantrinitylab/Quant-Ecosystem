@@ -18,6 +18,7 @@ import receiptsRoutes from './routes/receipts';
 import pollsRoutes from './routes/polls';
 import reelsRoutes from './routes/reels';
 import avatarRoutes from './routes/avatar';
+import bitmojiRoutes from './routes/bitmoji';
 import memoriesRoutes from './routes/memories';
 import spotlightRoutes from './routes/spotlight';
 import storiesRoutes from './routes/stories';
@@ -213,6 +214,7 @@ export async function buildApp(config?: AppConfig) {
 
   await app.register(reelsRoutes, { prefix: '/reels' });
   await app.register(avatarRoutes, { prefix: '/avatar' });
+  await app.register(bitmojiRoutes, { prefix: '/bitmoji' });
   await app.register(gamesRoutes, { prefix: '/games' });
   await app.register(channelsRoutes, { prefix: '/channels' });
   await app.register(voiceNoteRoutes, { prefix: '/voice-notes' });
