@@ -85,9 +85,31 @@ describe('AuthGuard: /calendar/booking/* is public for signed-out guests (fix/qm
   it('still hard-gates private surfaces for signed-out visitors (no regression)', () => {
     // AuthGuard returns null for private pages when signed out; the page
     // itself never reaches the browser — the login redirect fires instead.
-    expect(renderGuard('/inbox', false)).not.toContain(CONTENT_MARKER);
+    // NOTE (fix/qm-unknown-route-404): /inbox is not a real route — it is
+    // unknown and now renders the branded 404's children instead of gating.
     expect(renderGuard('/calendar', false)).not.toContain(CONTENT_MARKER);
     expect(renderGuard('/drive', false)).not.toContain(CONTENT_MARKER);
+    expect(renderGuard('/settings/account', false)).not.toContain(CONTENT_MARKER);
+  });
+
+  it('renders children for unknown routes signed-out (branded 404, fix/qm-unknown-route-404)', () => {
+    // Dead links must reach not-found.tsx, never bounce to /login.
+    expect(renderGuard('/no-such-page-xyz', false)).toContain(CONTENT_MARKER);
+    expect(renderGuard('/inbox', false)).toContain(CONTENT_MARKER);
+    expect(renderGuard('/invitations', false)).toContain(CONTENT_MARKER);
+  });
+
+  it('renders children while loading on unknown routes (no auth spinner on the 404)', () => {
+    navState.pathname = '/no-such-page-xyz';
+    authState.isLoading = true;
+    authState.isAuthenticated = false;
+    const html = renderToStaticMarkup(
+      <AuthGuard>
+        <div data-marker={CONTENT_MARKER}>not found</div>
+      </AuthGuard>,
+    );
+    expect(html).toContain(CONTENT_MARKER);
+    expect(html).not.toContain('Authenticating...');
   });
 
   it('keeps exact PUBLIC_PATHS working for signed-out visitors (no regression)', () => {
