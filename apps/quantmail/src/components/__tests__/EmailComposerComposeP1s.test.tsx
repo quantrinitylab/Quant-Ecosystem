@@ -132,11 +132,13 @@ describe('getSendBlockReaction (QM-UIUX-025a)', () => {
     expect(getSendBlockReaction('a@b.com', '', '')).toBe('mail:noSubject');
   });
 
-  it('returns null exactly when getSendBlockReason does', () => {
+  it('is null exactly when the send is fully ready (empty body is a confirm, not a block)', () => {
+    // The mirror holds for every case except the empty body: an empty body
+    // no longer blocks (it is a confirm), but the reaction still names the
+    // field so the confirm-cancel path can announce the unfinished draft.
     const cases: Array<[string, string, string]> = [
       ['', '', ''],
       ['a@b.com', '', ''],
-      ['a@b.com', 'Subject', ''],
       ['a@b.com', 'Subject', 'Body'],
       ['', 'Subject', 'Body'],
     ];
@@ -145,7 +147,8 @@ describe('getSendBlockReaction (QM-UIUX-025a)', () => {
         getSendBlockReason(to, subject, body) === null,
       );
     }
-    expect(getSendBlockReaction('a@b.com', 'Subject', 'Body')).toBeNull();
+    expect(getSendBlockReason('a@b.com', 'Subject', '')).toBeNull();
+    expect(getSendBlockReaction('a@b.com', 'Subject', '')).toBe('mail:noBody');
   });
 
   it('gives each missing field a distinct event', () => {
