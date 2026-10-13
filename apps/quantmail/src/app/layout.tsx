@@ -8,6 +8,7 @@ import './workplace.css';
 import { quantMailBrandMetadata } from '../brand/identity';
 import { AUTH_SHELL_HEADER, REFRESH_COOKIE_NAME } from '../lib/edge-public-paths';
 import { AuthGuard } from '../components/AuthGuard';
+import { AuthShellExitGate } from '../components/AuthShellExitGate';
 import { KeyboardProvider } from '../components/KeyboardProvider';
 import { KeyboardSurfaces } from '../components/KeyboardSurfaces';
 import { AppProviders } from '../providers/app-providers';
@@ -122,7 +123,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                QueryClientProvider, no theme/sidekick providers, no AuthGuard
                (the middleware already guards server-side), no keyboard system,
                no toasts, no offline bar. */
-            <BrandProvider>{children}</BrandProvider>
+            <BrandProvider>
+              {/* Layouts never re-render on a soft navigation: leaving the
+                  auth pages (e.g. sign-in → "/") must do a full load so the
+                  app gets the full provider stack below. */}
+              <AuthShellExitGate>{children}</AuthShellExitGate>
+            </BrandProvider>
           ) : (
             <>
               <LazyOfflineBar />

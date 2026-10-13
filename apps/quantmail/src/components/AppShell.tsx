@@ -310,6 +310,16 @@ export function AppShell({
     pathname.startsWith('/quantgit');
 
   /*
+   * Mail's own folder pages (Sent, Drafts, Archive, Trash, Scheduled) are the
+   * targets of the Mail tabs in the bottom bar / app rail. They keep their own
+   * page headers (no pillar top bar), but they must keep the suite navigation:
+   * without it, tapping "Sent" on a phone landed on a page with no bottom bar
+   * and no way back but the browser's back gesture.
+   */
+  const isMailFolderRoute = /^\/(sent|drafts|archive|trash|scheduled)(\/|$)/.test(pathname);
+  const showSuiteNav = isMainSuiteRoute || isMailFolderRoute;
+
+  /*
    * SIA-P1-3: on mobile the pillar top bar below owns a pinned search field
    * wired to the same `onSearchChange` (see QuantPillarTopBar), so the shell's
    * collapsible mobile search row would be a second box doing the same job.
@@ -928,7 +938,7 @@ export function AppShell({
               collapses to 0 and <main> expands to reclaim the space — the
               black-void bug is structurally impossible. See ContextBottomNavBar.
             */}
-            {isMainSuiteRoute && (
+            {showSuiteNav && (
               <ContextBottomNavBar
                 badgeOverrides={{
                   inbox: unreadCount > 0 ? unreadCount : undefined,
@@ -942,7 +952,7 @@ export function AppShell({
             Desktop right app rail: slim 5-app switcher (Mail/Calendar/Drive/
             Contacts/QuantGit), Gmail's Google-apps-rail style. Desktop only.
           */}
-          {isMainSuiteRoute && (
+          {showSuiteNav && (
             <DesktopAppRail
               currentPillar={
                 currentApp === 'calendar'
