@@ -158,6 +158,14 @@ function uniqueViolation(): Error & { code: string } {
 function makeFakePrisma(users: FakeUser[]) {
   const created: Record<string, unknown>[] = [];
   const prisma = {
+    // QC-F-118: sign-in issuance registers the refresh token's row; this
+    // suite pins WHO may be issued a pair, not redemption, so the
+    // delegate only accepts the registration write.
+    refreshToken: {
+      async create({ data }: { data: Record<string, unknown> }) {
+        return data;
+      },
+    },
     user: {
       async findUnique({ where }: { where: { id?: string; phoneNumber?: string } }) {
         if (where.id) return users.find((u) => u.id === where.id) ?? null;
@@ -235,6 +243,10 @@ function makeSessionTokensStub() {
         refreshToken: 'stub-refresh-token',
         expiresIn: 3600,
         tokenType: 'Bearer',
+        // QC-F-118: the issuer contract now carries the refresh row id +
+        // family so callers can register the pair with the store.
+        refreshTokenId: 'stub-refresh-id',
+        familyId: 'stub-family-id',
       };
     },
     verifyRefreshToken: () => null,

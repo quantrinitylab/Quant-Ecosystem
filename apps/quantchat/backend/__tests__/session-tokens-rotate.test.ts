@@ -1,12 +1,17 @@
 // ============================================================================
-// quantchat — SessionTokenIssuer refresh verification + rotation
+// quantchat — SessionTokenIssuer refresh verification
 //
 // The refresh flow used to be a dead end: tokens were issued with a
 // `kind: 'refresh'` claim but nothing anywhere could verify or redeem one.
-// These tests pin the issuer-side contract the new POST /auth/refresh route
+// These tests pin the issuer-side contract the POST /auth/refresh route
 // relies on: a refresh token verifies, an access token NEVER does (kinds
-// are not interchangeable), tampered/expired tokens fail, and rotation
-// mints a fresh pair (new session id) for the same subject.
+// are not interchangeable), and tampered/expired tokens fail.
+//
+// QC-F-118 removed the issuer's stateless `rotate()` entirely: rotation is
+// now the RefreshTokenStore's stateful redemption (spend + reuse
+// detection + family revocation), pinned by refresh-token-store.test.ts
+// and qc-f-118-refresh-logout.routes.test.ts. A bare verify+issue helper
+// left the previous token immortal until its own expiry.
 // ============================================================================
 
 import { describe, it, expect } from 'vitest';
@@ -64,31 +69,21 @@ describe('SessionTokenIssuer.verifyRefreshToken', () => {
   });
 });
 
-describe('SessionTokenIssuer.rotate', () => {
-  it('mints a fresh pair with a NEW session id for the same subject', async () => {
+describe('SessionTokenIssuer has no stateless rotate (QC-F-118)', () => {
+  it('rotate is gone — redemption belongs to the store', () => {
     const issuer = new SessionTokenIssuer(config);
-    const original = await issuer.issue({ userId: 'user-9', username: 'carol' });
-
-    const rotated = await issuer.rotate(original.refreshToken);
-    expect(rotated).not.toBeNull();
-
-    const oldPayload = decodePayload(original.refreshToken);
-    const newAccess = decodePayload(rotated!.accessToken);
-    const newRefresh = decodePayload(rotated!.refreshToken);
-
-    expect(newAccess['sub']).toBe('user-9');
-    expect(newAccess['username']).toBe('carol');
-    expect(newAccess['kind']).toBe('access');
-    expect(newRefresh['kind']).toBe('refresh');
-    // Rotation = new session id (jti), shared by the new pair.
-    expect(newAccess['jti']).not.toBe(oldPayload['jti']);
-    expect(newRefresh['jti']).toBe(newAccess['jti']);
+    expect((issuer as unknown as Record<string, unknown>)['rotate']).toBeUndefined();
   });
 
-  it('returns null when asked to rotate an ACCESS token', async () => {
+  it('a verified refresh payload carries the fam + jti the store redeems against', async () => {
     const issuer = new SessionTokenIssuer(config);
-    const tokens = await issuer.issue({ userId: 'user-1', username: 'alice' });
+    const tokens = await issuer.issue({ userId: 'user-9', username: 'carol' });
 
-    expect(await issuer.rotate(tokens.accessToken)).toBeNull();
+    const payload = issuer.verifyRefreshToken(tokens.refreshToken);
+    expect(payload?.['jti']).toBe(tokens.refreshTokenId);
+    expect(payload?.['fam']).toBe(tokens.familyId);
+    expect(payload?.['sub']).toBe('user-9');
+    // decodePayload sanity: the raw claims agree with the verified payload.
+    expect(decodePayload(tokens.refreshToken)['fam']).toBe(tokens.familyId);
   });
 });
