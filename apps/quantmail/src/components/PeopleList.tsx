@@ -16,6 +16,7 @@
 
 import { useMemo, type CSSProperties } from 'react';
 import { IdentityAvatar } from './IdentityAvatar';
+import { IconPaperclip } from './icons';
 import { Button, Skeleton } from '@quant/shared-ui';
 import { APP_THEMES } from '../lib/app-theme';
 import { personSnippet, type PersonConversation } from '../lib/peopleGrouping';
@@ -172,6 +173,9 @@ export function PeopleList({
           <ul className="pb-4">
           {visible.map((c) => {
             const unread = c.unreadCount > 0;
+            // Paperclip signal: any message in this conversation carrying
+            // attachments. Real rows only — never inferred, never faked.
+            const hasAttachments = c.messages.some((m) => (m.attachments ?? []).length > 0);
             return (
               <li key={c.personKey}>
                 <button
@@ -209,6 +213,16 @@ export function PeopleList({
                             <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
                             <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                           </svg>
+                        )}
+                        {hasAttachments && (
+                          <span
+                            data-testid="row-attachments"
+                            role="img"
+                            aria-label="Includes attachments"
+                            className="inline-flex flex-none text-zinc-500"
+                          >
+                            <IconPaperclip size={13} />
+                          </span>
                         )}
                       </span>
                       <span className="flex-none text-xs text-zinc-500">

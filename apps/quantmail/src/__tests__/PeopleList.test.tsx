@@ -449,3 +449,79 @@ describe('PeopleList invalid-timestamp rows', () => {
     expect(el.textContent).toContain(conversations[0].name);
   });
 });
+
+// ============================================================================
+// PeopleList attachment signal (fix/qm-personthread-attachments).
+//
+// Rows for conversations with attachments carry a paperclip signal; rows
+// without attachments carry none. The signal reflects real message data —
+// never inferred, never faked.
+// ============================================================================
+
+function fixtureConversationsWithAttachments(): PersonConversation[] {
+  const aliceWithFile = email({
+    from: { email: 'alice@example.com', name: 'Alice' },
+    to: [{ email: ME }],
+    subject: 'Files',
+    snippet: 'see the attached report',
+    isRead: true,
+    receivedAt: at('2026-10-10T09:00:00Z'),
+    attachments: [
+      {
+        id: 'a1',
+        createdAt: at('2026-10-10T09:00:00Z'),
+        updatedAt: at('2026-10-10T09:00:00Z'),
+        emailId: 'm-alice',
+        filename: 'report.pdf',
+        mimeType: 'application/pdf',
+        size: 2048,
+        url: 'https://example.com/report.pdf',
+        isInline: false,
+      },
+    ],
+  });
+  const bobPlain = email({
+    from: { email: 'bob@example.com', name: 'Bob' },
+    to: [{ email: ME }],
+    subject: 'Hi',
+    snippet: 'just saying hello',
+    isRead: true,
+    receivedAt: at('2026-10-10T08:00:00Z'),
+  });
+  return groupEmailsByPerson([aliceWithFile, bobPlain], ME);
+}
+
+describe('PeopleList attachment signal', () => {
+  it('shows the paperclip signal on rows whose conversation has attachments, and not elsewhere', () => {
+    const conversations = fixtureConversationsWithAttachments();
+    const el = render(
+      <PeopleList
+        conversations={conversations}
+        onSelect={() => {}}
+        searchQuery=""
+        onSearchQuery={() => {}}
+      />,
+    );
+
+    const rows = rowButtons(el);
+    expect(rows).toHaveLength(2);
+    // Alice's row (newest first) carries the signal; Bob's does not.
+    const aliceSignal = rows[0].querySelector('[data-testid="row-attachments"]');
+    expect(aliceSignal).not.toBeNull();
+    expect(aliceSignal!.getAttribute('aria-label')).toBe('Includes attachments');
+    expect(rows[1].querySelector('[data-testid="row-attachments"]')).toBeNull();
+  });
+
+  it('shows no paperclip signal when no conversation has attachments', () => {
+    const conversations = fixtureConversations();
+    const el = render(
+      <PeopleList
+        conversations={conversations}
+        onSelect={() => {}}
+        searchQuery=""
+        onSearchQuery={() => {}}
+      />,
+    );
+    expect(el.querySelectorAll('[data-testid="row-attachments"]')).toHaveLength(0);
+  });
+});
