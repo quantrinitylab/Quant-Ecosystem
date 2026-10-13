@@ -2651,15 +2651,22 @@ function QuantGitContent() {  const router = useRouter();
           />
         )}
 
-        {/* VIEW D: Agent Lab (Swarm Fleet Command) */}
+        {/* VIEW D: Agent Lab (Agent Workspace) */}
         {activeDeckTab === 'lab' && (
           <div className="flex-1 min-h-0 w-full overflow-y-auto overscroll-contain">
             <div className="mx-auto flex min-h-full max-w-7xl flex-col gap-4 px-4 py-5 pb-20 text-xs sm:px-8">
               <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
-                <div>
-                  <h3 className="text-base font-bold text-white">Autonomous Swarm Fleet Command</h3>
+                <div className="space-y-1">
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    Agent Workspace
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#30363D]/60 text-[#8D96A0] border border-[#30363D]">
+                      Local only — no backend connected
+                    </span>
+                  </h3>
                   <p className="text-[#7D8590]">
-                    Select a live agent on the operations floor to inspect its dossier.
+                    Workspace agents you configure here are local to this session. Connect a
+                    real agent backend to enable autonomous reviews and migrations. Select a
+                    local agent to inspect its dossier.
                   </p>
                 </div>
                 <button

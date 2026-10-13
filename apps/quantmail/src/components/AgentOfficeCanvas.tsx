@@ -190,7 +190,7 @@ function drawFloor(context: CanvasRenderingContext2D, width: number, height: num
 
   context.fillStyle = '#484f58';
   context.font = '500 10px ui-monospace, SFMono-Regular, monospace';
-  context.fillText('LIVE AUTONOMOUS WORKSPACE', 34, 51);
+  context.fillText('LOCAL AGENT WORKSPACE', 34, 51);
 }
 
 function drawDesk(context: CanvasRenderingContext2D, desk: Desk, agent: OfficeAgent) {
