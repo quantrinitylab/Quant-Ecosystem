@@ -290,4 +290,84 @@ describe('QuantMail backend allow-list', () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
   });
+
+  describe('fix/qm-api-roundtrip-latency — honest 404s are cheap to repeat', () => {
+    // Trivial handlers were measured at ~1.1-1.3s median per round trip on
+    // the live chain (proxy + ingress + pod). Their honest 404s are stable,
+    // so repeat hits serve from the browser HTTP cache instead of paying the
+    // chain again. Nothing here changes 2xx freshness.
+    const backend404 = () =>
+      new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: 'BOOKING_LINK_NOT_FOUND',
+            message: 'Booking link not found',
+            statusCode: 404,
+          },
+        }),
+        { status: 404, headers: { 'content-type': 'application/json' } },
+      );
+
+    it('caches the allow-list 404 for 60s so scanners/typos skip the chain', async () => {
+      const response = await call('ci/secrets', 'GET');
+
+      expect(response.status).toBe(404);
+      expect(response.headers.get('cache-control')).toBe('public, max-age=60');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('caches a backend 404 on public booking-slot reads for 30s', async () => {
+      fetchMock.mockResolvedValueOnce(backend404());
+
+      const response = await call('calendar/booking/bad-slug/slots', 'GET', '?date=2026-10-20');
+
+      expect(response.status).toBe(404);
+      expect(response.headers.get('cache-control')).toBe(
+        'public, max-age=30, stale-while-revalidate=60',
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('caches a backend 404 on the public booking-link read too', async () => {
+      fetchMock.mockResolvedValueOnce(backend404());
+
+      const response = await call('calendar/booking/bad-slug', 'GET');
+
+      expect(response.status).toBe(404);
+      expect(response.headers.get('cache-control')).toBe(
+        'public, max-age=30, stale-while-revalidate=60',
+      );
+    });
+
+    it('keeps backend 2xx on booking reads uncached (slots change by the second)', async () => {
+      const response = await call('calendar/booking/real-slug/slots', 'GET', '?date=2026-10-20');
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+    });
+
+    it('keeps backend 404s on non-public routes uncached', async () => {
+      fetchMock.mockResolvedValueOnce(backend404());
+
+      const response = await call('ci/builds/nope', 'GET');
+
+      expect(response.status).toBe(404);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+    });
+
+    it('forwards an explicit backend Cache-Control instead of forcing no-store', async () => {
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, data: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json', 'cache-control': 'public, max-age=10' },
+        }),
+      );
+
+      const response = await call('ci/builds', 'GET');
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('cache-control')).toBe('public, max-age=10');
+    });
+  });
 });

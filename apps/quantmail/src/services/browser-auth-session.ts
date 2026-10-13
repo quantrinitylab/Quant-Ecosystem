@@ -38,10 +38,27 @@ interface AuthResponse<T> {
   error?: AuthError;
 }
 
+/**
+ * The profile shape the backend now attaches inline to session-issuing
+ * responses (POST /auth/refresh, /auth/login, /auth/register, /auth/2fa/verify)
+ * — identical to GET /oauth/userinfo. Carrying it on the session response
+ * lets hydration and sign-in skip the second sequential profile round trip.
+ * Optional: older backends (rolling deploys) omit it, and the caller falls
+ * back to `loadProfile()`.
+ */
+export interface BrowserSessionUser {
+  id: string;
+  email: string;
+  username: string;
+  displayName: string;
+  role: string;
+}
+
 export interface BrowserAccessSession {
   accessToken: string;
   expiresIn: number;
   tokenType?: string;
+  user?: BrowserSessionUser;
 }
 
 /**

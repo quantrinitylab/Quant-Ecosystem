@@ -8,6 +8,7 @@ import {
   browserAuthSession,
   cleanupLegacyBrowserTokens,
   isTwoFactorChallenge,
+  type BrowserSessionUser,
 } from '../services/browser-auth-session';
 
 export interface AuthUser {
@@ -55,7 +56,22 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({
+  children,
+  skipSessionRestore = false,
+}: {
+  children: React.ReactNode;
+  /**
+   * fix/qm-api-roundtrip-latency: the root layout sets this when the
+   * HttpOnly `quantmail_refresh` cookie is provably absent (server-side
+   * check). There is no session to restore — skipping the POST
+   * /api/auth/refresh saves every signed-out visitor a ~1.3s round trip on
+   * every page load (the refresh would 401 anyway, after paying the full
+   * proxy chain). Local cleanup still runs; only the network call is
+   * skipped.
+   */
+  skipSessionRestore?: boolean;
+}) {
   // No `useQueryClient()` here, deliberately: the public auth shell renders
   // this provider with no QueryClientProvider above it (lean auth shell), and
   // on the app shell this provider is hoisted above QueryProvider so the
@@ -89,6 +105,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(profile.data);
   }, []);
 
+  // fix/qm-api-roundtrip-latency: the session-issuing endpoints now carry the
+  // profile inline (same shape as GET /oauth/userinfo), so a successful
+  // refresh/login/2FA no longer needs the second sequential profile round
+  // trip. Kept as a separate function so hydrate/login/completeTwoFactor share
+  // the one fallback rule: inline user wins, otherwise the profile fetch
+  // (older backends during rolling deploys omit the field).
+  const adoptInlineUser = useCallback(
+    async (inlineUser: BrowserSessionUser | undefined) => {
+      if (inlineUser) {
+        setUser({
+          id: inlineUser.id,
+          email: inlineUser.email,
+          username: inlineUser.username,
+          displayName: inlineUser.displayName,
+          role: inlineUser.role,
+        });
+      } else {
+        await loadProfile();
+      }
+    },
+    [loadProfile],
+  );
+
   useEffect(() => {
     // Lazy for the same reason as loadProfile: on the public auth shell there
     // are no authenticated API calls to observe 401s from, so the chunk can
@@ -111,6 +150,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function hydrate() {
       cleanupLegacyBrowserTokens();
       clearMemorySession();
+      // fix/qm-api-roundtrip-latency: when the server already proved there is
+      // no refresh cookie, there is no session to restore — skip the network
+      // refresh entirely (it would 401 after paying the full chain). The
+      // provider still settles `isLoading` so public pages paint immediately.
+      if (skipSessionRestore) {
+        if (active) setIsLoading(false);
+        return;
+      }
       try {
         // One timeout for the refresh, another for the profile load. The
         // refresh used to be the only raced call — a slow `/oauth/userinfo`
@@ -122,7 +169,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), ms));
         const session = await Promise.race([browserAuthSession.refresh(), timeout(5000)]);
         if (!active || !session.success || !session.data?.accessToken) return;
-        await Promise.race([loadProfile(), timeout(5000)]);
+        // fix/qm-api-roundtrip-latency: refresh now carries the profile
+        // inline — the second sequential round trip is gone.
+        await Promise.race([adoptInlineUser(session.data.user), timeout(5000)]);
       } catch {
         // Auth failed or timed out — go to login
         if (active) clearMemorySession();
@@ -135,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       active = false;
     };
-  }, [clearMemorySession, loadProfile]);
+  }, [clearMemorySession, adoptInlineUser, skipSessionRestore]);
 
   // Rotate before the 15-minute access token expires. The rotated refresh token
   // remains inside the HttpOnly cookie and never enters this provider.
@@ -173,7 +222,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!session.data.accessToken) {
           throw new Error('Login failed');
         }
-        await loadProfile();
+        // fix/qm-api-roundtrip-latency: login carries the profile inline —
+        // skip the second round trip (falls back to the profile fetch on
+        // older backends).
+        await adoptInlineUser(session.data.user);
         return { status: 'signed-in' };
       } catch (caught) {
         clearMemorySession();
@@ -209,7 +261,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         sessionIssued = true;
         try {
-          await loadProfile();
+          // fix/qm-api-roundtrip-latency: the 2FA verify response carries the
+          // profile inline — skip the second round trip (falls back to the
+          // profile fetch on older backends).
+          await adoptInlineUser(session.data.user);
         } catch {
           throw new AuthFlowError(
             'Your code was accepted, but the session could not be initialized. Sign in again.',

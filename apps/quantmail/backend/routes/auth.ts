@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { FastifyInstance } from 'fastify';
 import prisma from '@quant/auth/lib/prisma';
 import * as argon2 from 'argon2';
+import * as jose from 'jose';
 import {
   REFRESH_COOKIE_NAME,
   authenticatedUserId,
@@ -450,12 +451,47 @@ export async function authRoutes(fastify: FastifyInstance) {
       try {
         const tokens = await tokenService.refreshToken(oldRefreshToken, sessionMetadataFromRequest(request));
         setRefreshCookie(reply, tokens.refreshToken);
+        // fix/qm-api-roundtrip-latency: attach the profile inline. The browser
+        // hydration used to pay a SECOND sequential round trip (GET
+        // /oauth/userinfo) after every refresh just to learn who it is — the
+        // refresh service already looked this user up (indexed findUnique on
+        // the token's sub), so returning it here halves hydration round trips
+        // (2 sequential ~1.3s trips → 1). `decodeJwt` is verification-free, but
+        // that is safe here: the token was cryptographically verified by
+        // `refreshToken` above, so `sub` names the session's own user — the
+        // same data the client would fetch from /oauth/userinfo next.
+        // Best-effort: a deleted-between-calls user simply omits the field and
+        // the client falls back to its profile fetch (rolling-deploy safe).
+        let inlineUser:
+          | { id: string; email: string; username: string; displayName: string; role: string }
+          | undefined;
+        try {
+          const sub = jose.decodeJwt(oldRefreshToken).sub;
+          if (typeof sub === 'string' && sub) {
+            const row = await prisma.user.findUnique({
+              where: { id: sub },
+              select: { id: true, email: true, username: true, displayName: true, role: true },
+            });
+            if (row) {
+              inlineUser = {
+                id: row.id,
+                email: row.email,
+                username: row.username,
+                displayName: row.displayName,
+                role: row.role,
+              };
+            }
+          }
+        } catch {
+          /* inline profile is an optimization, never a gate */
+        }
         return reply.send({
           success: true,
           data: {
             accessToken: tokens.accessToken,
             expiresIn: tokens.expiresIn,
             tokenType: tokens.tokenType,
+            ...(inlineUser ? { user: inlineUser } : {}),
           },
         });
       } catch {

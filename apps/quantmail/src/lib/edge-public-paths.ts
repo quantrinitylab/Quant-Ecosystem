@@ -10,6 +10,15 @@
 // without a session in both the server-side and client-side guards.
 // ============================================================================
 
+/**
+ * The HttpOnly refresh-cookie name (apps/quantmail/backend/lib/auth-session.ts).
+ * Lives here so the edge middleware, the root layout, and any server
+ * component can read the signed-in signal without duplicating the literal.
+ * An absent cookie means provably signed out — the client must not waste a
+ * POST /api/auth/refresh round trip on it (fix/qm-api-roundtrip-latency).
+ */
+export const REFRESH_COOKIE_NAME = 'quantmail_refresh';
+
 /** Exact signed-out product surface. */
 export const PUBLIC_PATHS = [
   '/login',

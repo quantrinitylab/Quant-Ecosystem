@@ -145,6 +145,10 @@ export async function issueBrowserSession(
         email: user.email,
         username: user.username,
         displayName: user.displayName,
+        // fix/qm-api-roundtrip-latency: the full profile shape (same as GET
+        // /oauth/userinfo) so the browser can skip its second sequential
+        // profile round trip after sign-in. `role` was already on SessionUser.
+        role: user.role,
       },
     },
   };
