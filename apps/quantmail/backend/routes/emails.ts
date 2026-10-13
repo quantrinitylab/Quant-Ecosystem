@@ -233,7 +233,11 @@ const composeSchema = z
     cc: recipientArray(0).optional(),
     bccAddresses: recipientArray(0).optional(),
     bcc: recipientArray(0).optional(),
-    subject: z.string().min(1).max(500),
+    // Subject is OPTIONAL: a draft or message may carry an empty subject
+    // (Gmail-style "send without a subject", confirmed client-side). The DB
+    // column is non-nullable, so empty stays '' rather than null, and the
+    // readers already fall back to a display label for ''.
+    subject: z.string().max(500),
     bodyHtml: z.string().optional(),
     bodyPlain: z.string().optional(),
     bodyText: z.string().optional(),
