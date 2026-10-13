@@ -1145,3 +1145,115 @@ describe('driveLink — the sheet has always sent it; the schema silently droppe
     expect(storedMeta(updateData()).driveLink).toBe('https://drive.quantmail.in/file/abc123');
   });
 });
+
+describe('POST /events/:id/rsvp — recurring occurrence ids resolve to the parent', () => {
+  // The defect: the handler ran findUnique/update on request.params.id
+  // verbatim, so RSVPing from any <parentId>_<iso> occurrence detail page
+  // always 404'd — while the detail page renders the "Your response" widget
+  // there. Occurrence ids must resolve to the parent (same as DELETE
+  // /events/:id); the RSVP lands on the parent's attendee list. A
+  // per-occurrence RSVP split can come later.
+  function withUserDelegate() {
+    (prisma as unknown as { user: unknown }).user = {
+      findUnique: vi.fn().mockResolvedValue({ email: 'me@quantmail.in' }),
+    };
+  }
+
+  function parentWithAttendee(status: string) {
+    return {
+      ...ROW,
+      attendees: JSON.stringify([
+        { userId: 'user-1', email: 'me@quantmail.in', name: 'Me', status },
+      ]),
+    };
+  }
+
+  it('RSVPs an occurrence id against the parent attendee list instead of 404ing', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    prisma.event.findUnique.mockResolvedValue(parentWithAttendee('pending'));
+    const occId = `e1_${encodeURIComponent('2026-10-15T09:00:00.000Z')}`;
+    const res = await app.inject({
+      method: 'POST',
+      url: `/events/${occId}/rsvp`,
+      payload: { status: 'accepted' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    // Prisma is never asked for the virtual occurrence row — only the parent.
+    expect(prisma.event.findUnique).toHaveBeenCalledWith({ where: { id: 'e1' } });
+    const updateArg = prisma.event.update.mock.calls[0]![0] as {
+      where: { id: string };
+      data: Record<string, unknown>;
+    };
+    expect(updateArg.where.id).toBe('e1');
+    const stored = storedJson(updateArg.data, 'attendees') as Array<{
+      userId: string;
+      status: string;
+    }>;
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({ userId: 'user-1', status: 'accepted' });
+    expect(res.json().data.attendees).toMatchObject([{ userId: 'user-1', status: 'accepted' }]);
+  });
+
+  it('keeps RSVPing a plain parent id working', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    prisma.event.findUnique.mockResolvedValue(parentWithAttendee('pending'));
+    const res = await app.inject({
+      method: 'POST',
+      url: '/events/e1/rsvp',
+      payload: { status: 'declined' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(prisma.event.findUnique).toHaveBeenCalledWith({ where: { id: 'e1' } });
+    const stored = storedJson(updateData(), 'attendees') as Array<{ status: string }>;
+    expect(stored[0]!.status).toBe('declined');
+  });
+
+  it('still 404s with EVENT_NOT_FOUND when the resolved parent does not exist', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    prisma.event.findUnique.mockResolvedValue(null);
+    const occId = `missing_${encodeURIComponent('2026-10-15T09:00:00.000Z')}`;
+    const res = await app.inject({
+      method: 'POST',
+      url: `/events/${occId}/rsvp`,
+      payload: { status: 'accepted' },
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error.code).toBe('EVENT_NOT_FOUND');
+    expect(prisma.event.update).not.toHaveBeenCalled();
+  });
+
+  it('still 403s with NOT_EVENT_ATTENDEE when the viewer is not on the guest list', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    prisma.event.findUnique.mockResolvedValue({
+      ...ROW,
+      attendees: JSON.stringify([{ email: 'someoneelse@quantmail.in', status: 'pending' }]),
+    });
+    const occId = `e1_${encodeURIComponent('2026-10-15T09:00:00.000Z')}`;
+    const res = await app.inject({
+      method: 'POST',
+      url: `/events/${occId}/rsvp`,
+      payload: { status: 'accepted' },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('NOT_EVENT_ATTENDEE');
+    expect(prisma.event.update).not.toHaveBeenCalled();
+  });
+
+  it('DELETE /events/:id still resolves occurrence ids to the parent (scope=all)', async () => {
+    const app = await buildApp();
+    const occId = `e1_${encodeURIComponent('2026-10-15T09:00:00.000Z')}`;
+    const res = await app.inject({ method: 'DELETE', url: `/events/${occId}?scope=all` });
+
+    expect(res.statusCode).toBe(200);
+    expect(prisma.event.findUnique).toHaveBeenCalledWith({ where: { id: 'e1' } });
+    expect(prisma.event.delete).toHaveBeenCalledWith({ where: { id: 'e1' } });
+  });
+});
