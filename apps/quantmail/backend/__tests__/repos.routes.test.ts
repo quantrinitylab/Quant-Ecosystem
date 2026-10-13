@@ -3,11 +3,61 @@
 // /repos — QuantGit backend database-driven routes test suite.
 // ============================================================================
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { errorHandlerPlugin } from '@quant/server-core';
 import reposRoutes, { resetRepoStores, seedSecurityAlertsForTests } from '../routes/repos';
 import type { BackendSecurityAlert } from '../routes/repos';
+import { execFile } from 'node:child_process';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
+
+// ---------------------------------------------------------------------------
+// Real bare-git fixture for merge-honesty tests. The merge endpoint must
+// perform a REAL git merge; this stands up a throwaway bare repo under
+// GIT_REPOS_PATH so the endpoint's git plumbing genuinely executes.
+// (MOCK_REPO has ownerId 'user-1', name 'Quant-Ecosystem', and
+//  MOCK_PR merges source 'feat/test' into target 'main'.)
+// ---------------------------------------------------------------------------
+let mergeFixtureDir = '';
+async function ensureMergeFixture(): Promise<string> {
+  if (mergeFixtureDir) return mergeFixtureDir;
+  const root = await mkdtemp(join(tmpdir(), 'qm-merge-route-'));
+  const bare = join(root, 'user-1', 'Quant-Ecosystem.git');
+  const work = join(root, 'work');
+  await mkdir(join(root, 'user-1'), { recursive: true });
+  const git = (args: string[], cwd?: string) => execFileAsync('git', args, { cwd });
+  await git(['init', '--bare', '--initial-branch=main', bare]);
+  await git(['clone', bare, work]);
+  const w = (args: string[]) => git(args, work);
+  await w(['config', 'user.email', 'test@example.test']);
+  await w(['config', 'user.name', 'Test']);
+  await w(['checkout', '-b', 'main']);
+  await writeFile(join(work, 'file.txt'), 'base line\n');
+  await w(['add', 'file.txt']);
+  await w(['commit', '-m', 'init']);
+  await w(['push', '-u', 'origin', 'main']);
+  // feat/test touches a NEW file so merges are genuinely clean.
+  await w(['checkout', '-b', 'feat/test']);
+  await writeFile(join(work, 'file2.txt'), 'clean addition\n');
+  await w(['add', 'file2.txt']);
+  await w(['commit', '-m', 'clean change']);
+  await w(['push', '-u', 'origin', 'feat/test']);
+  process.env.GIT_REPOS_PATH = root;
+  mergeFixtureDir = root;
+  return root;
+}
+async function destroyMergeFixture(): Promise<void> {
+  delete process.env.GIT_REPOS_PATH;
+  if (mergeFixtureDir) {
+    await rm(mergeFixtureDir, { recursive: true, force: true });
+    mergeFixtureDir = '';
+  }
+}
 
 const MOCK_REPO = {
   id: 'repo-1',
@@ -1328,23 +1378,71 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     expect(prisma.branch.delete).not.toHaveBeenCalled();
   });
 
-  it('POST /repos/:id/pulls/:number/merge marks pull request as merged', async () => {
+  it('POST /repos/:id/pulls/:number/merge fails honestly (501 REPO_STORAGE_UNAVAILABLE) when no git repo is on disk — never fabricates a SHA', async () => {
+    // Guarantee: no bare repo on disk for this test.
+    await destroyMergeFixture();
     const app = await buildApp();
     const res = await app.inject({
       method: 'POST',
       url: '/repos/repo-1/pulls/1/merge',
     });
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(501);
     const body = res.json();
-    expect(body.success).toBe(true);
-    expect(body.data.state).toBe('merged');
-    expect(prisma.pullRequest.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: 'MERGED',
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe('REPO_STORAGE_UNAVAILABLE');
+    expect(body.error.message).toContain('remains open');
+    // Nothing was persisted: the PR must NOT be marked merged and no fake
+    // SHA may be written into any branch row.
+    expect(prisma.pullRequest.update).not.toHaveBeenCalled();
+    expect(prisma.branch.update).not.toHaveBeenCalled();
+    expect(prisma.branch.upsert).not.toHaveBeenCalled();
+    // And the honest error body carries no fabricated mergeCommitSha.
+    expect(JSON.stringify(body)).not.toContain('mergeCommitSha');
+  });
+
+  it('POST /repos/:id/pulls/:number/merge performs a REAL git merge when the bare repo exists — real SHA, no fabrication', async () => {
+    const gitRoot = await ensureMergeFixture();
+    const bare = join(gitRoot, 'user-1', 'Quant-Ecosystem.git');
+    try {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/pulls/1/merge',
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.state).toBe('merged');
+      const sha: string = body.data.mergeCommitSha;
+      expect(sha).toMatch(/^[0-9a-f]{40}$/i);
+      expect(sha).not.toBe('2222222222222222222222222222222222222222');
+      // The returned SHA is a REAL merge commit in the bare repo (two parents)…
+      const { stdout: catOut } = await execFileAsync('git', ['cat-file', '-p', sha], {
+        cwd: bare,
+      });
+      expect(catOut.split('\n').filter((l) => l.startsWith('parent '))).toHaveLength(2);
+      // …and the target branch ref was genuinely moved to it.
+      const { stdout: refOut } = await execFileAsync('git', ['rev-parse', 'refs/heads/main'], {
+        cwd: bare,
+      });
+      expect(refOut.trim()).toBe(sha);
+      // Persisted honestly: PR marked MERGED with the real SHA, target branch
+      // row updated with the same real SHA.
+      expect(prisma.pullRequest.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'MERGED', mergeCommitSha: sha }),
         }),
-      }),
-    );
+      );
+      expect(prisma.branch.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ commitSha: sha }),
+        }),
+      );
+    } finally {
+      // Tear the fixture down immediately so later tests that assume "no git
+      // repo on disk" (e.g. V22b null-diff-stats) see a clean environment.
+      await destroyMergeFixture();
+    }
   });
 
   it('GET /repos/:id/actions returns CI runs', async () => {
@@ -2350,41 +2448,46 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     });
 
     it('POST /repos/:id/pulls/:number/merge succeeds once an approval review is submitted', async () => {
-      const app = await buildApp('user-1');
-      prisma.branchProtection.findMany.mockResolvedValue([
-        {
-          id: 'bp-1',
-          repoId: 'repo-1',
-          branchPattern: 'main',
-          requiredApprovals: 1,
-          requireStatusChecks: false,
-        },
-      ]);
-      prisma.review.count.mockResolvedValue(1);
+      await ensureMergeFixture();
+      try {
+        const app = await buildApp('user-1');
+        prisma.branchProtection.findMany.mockResolvedValue([
+          {
+            id: 'bp-1',
+            repoId: 'repo-1',
+            branchPattern: 'main',
+            requiredApprovals: 1,
+            requireStatusChecks: false,
+          },
+        ]);
+        prisma.review.count.mockResolvedValue(1);
 
-      const res = await app.inject({
-        method: 'POST',
-        url: '/repos/repo-1/pulls/1/merge',
-      });
+        const res = await app.inject({
+          method: 'POST',
+          url: '/repos/repo-1/pulls/1/merge',
+        });
 
-      expect(res.statusCode).toBe(200);
-      const body = res.json();
-      expect(body.success).toBe(true);
-      expect(body.data.state).toBe('merged');
-      expect(prisma.review.count).toHaveBeenCalledWith({
-        where: {
-          prId: 'pr-1',
-          status: 'APPROVED',
-          reviewerId: { not: 'user-1' },
-        },
-      });
-      expect(prisma.pullRequest.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            status: 'MERGED',
+        expect(res.statusCode).toBe(200);
+        const body = res.json();
+        expect(body.success).toBe(true);
+        expect(body.data.state).toBe('merged');
+        expect(prisma.review.count).toHaveBeenCalledWith({
+          where: {
+            prId: 'pr-1',
+            status: 'APPROVED',
+            reviewerId: { not: 'user-1' },
+          },
+        });
+        expect(prisma.pullRequest.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              status: 'MERGED',
+            }),
           }),
-        }),
-      );
+        );
+      } finally {
+        await destroyMergeFixture();
+      }
     });
 
     it('POST /repos/:id/pulls/:number/merge blocked when requireStatusChecks: true and CI has not passed', async () => {
@@ -2413,33 +2516,38 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     });
 
     it('POST /repos/:id/pulls/:number/merge succeeds when requireStatusChecks: true and CI has passed', async () => {
-      const app = await buildApp('user-1');
-      prisma.branchProtection.findMany.mockResolvedValue([
-        {
-          id: 'bp-1',
+      await ensureMergeFixture();
+      try {
+        const app = await buildApp('user-1');
+        prisma.branchProtection.findMany.mockResolvedValue([
+          {
+            id: 'bp-1',
+            repoId: 'repo-1',
+            branchPattern: 'main',
+            requiredApprovals: 0,
+            requireStatusChecks: true,
+          },
+        ]);
+        prisma.ciRun.findFirst.mockResolvedValue({
+          id: 'run-1',
           repoId: 'repo-1',
-          branchPattern: 'main',
-          requiredApprovals: 0,
-          requireStatusChecks: true,
-        },
-      ]);
-      prisma.ciRun.findFirst.mockResolvedValue({
-        id: 'run-1',
-        repoId: 'repo-1',
-        branch: 'feat/test',
-        commitSha: '1111111111111111111111111111111111111111',
-        status: 'SUCCESS',
-      });
+          branch: 'feat/test',
+          commitSha: '1111111111111111111111111111111111111111',
+          status: 'SUCCESS',
+        });
 
-      const res = await app.inject({
-        method: 'POST',
-        url: '/repos/repo-1/pulls/1/merge',
-      });
+        const res = await app.inject({
+          method: 'POST',
+          url: '/repos/repo-1/pulls/1/merge',
+        });
 
-      expect(res.statusCode).toBe(200);
-      const body = res.json();
-      expect(body.success).toBe(true);
-      expect(body.data.state).toBe('merged');
+        expect(res.statusCode).toBe(200);
+        const body = res.json();
+        expect(body.success).toBe(true);
+        expect(body.data.state).toBe('merged');
+      } finally {
+        await destroyMergeFixture();
+      }
     });
 
     it('GET /repos/:id/branch-protection returns branch protection rules', async () => {
@@ -3059,12 +3167,17 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     });
 
     it('POST /repos/:id/pulls/:number/merge reports the real review-comment count', async () => {
-      const app = await buildApp('user-1');
-      await postComment(app, 'Pre-merge review note.');
+      await ensureMergeFixture();
+      try {
+        const app = await buildApp('user-1');
+        await postComment(app, 'Pre-merge review note.');
 
-      const res = await app.inject({ method: 'POST', url: '/repos/repo-1/pulls/1/merge' });
-      expect(res.statusCode).toBe(200);
-      expect(res.json().data.commentsCount).toBe(1);
+        const res = await app.inject({ method: 'POST', url: '/repos/repo-1/pulls/1/merge' });
+        expect(res.statusCode).toBe(200);
+        expect(res.json().data.commentsCount).toBe(1);
+      } finally {
+        await destroyMergeFixture();
+      }
     });
 
     it('GET /repos/:id/pulls counts reviewComment rows when the Prisma model is available', async () => {
@@ -3092,6 +3205,9 @@ describe('QuantGit Database-Backed Repos Routes', () => {
       );
     });
   });
+
+  // Clean up the throwaway bare-git fixture used by the merge-honesty tests.
+  afterAll(() => destroyMergeFixture());
 });
 
 describe('QuantGit Security Endpoints Honesty (no security-scan theater)', () => {

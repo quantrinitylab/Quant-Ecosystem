@@ -2360,9 +2360,28 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         if (gitHeadSha) headSha = gitHeadSha;
       }
 
-      let newCommitSha = '2222222222222222222222222222222222222222';
+      // Honest merge discipline: a merge MUST produce a real git commit.
+      // Never fabricate a SHA or mark the PR merged when the bare repo
+      // (or the base/head commits) cannot be reached — report the failure
+      // and leave the pull request open instead.
+      if (!isBareRepoPresent || !repoPath) {
+        throw createAppError(
+          'Repository storage unavailable for merge — the git repository is not on disk. No commit was created and the pull request remains open.',
+          501,
+          'REPO_STORAGE_UNAVAILABLE',
+        );
+      }
+      if (!baseSha || !headSha) {
+        throw createAppError(
+          'Cannot resolve the base and head commits for this pull request. No commit was created and the pull request remains open.',
+          409,
+          'MERGE_SHAS_UNRESOLVABLE',
+        );
+      }
 
-      if (isBareRepoPresent && repoPath && baseSha && headSha) {
+      let newCommitSha: string;
+
+      {
         // 1. git merge-tree <baseSha> <headSha>
         let mergeTreeStdout = '';
         try {
@@ -2392,6 +2411,15 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           { cwd: repoPath, env: GIT_CHILD_ENV },
         );
         newCommitSha = commitStdout.trim();
+        // Never let a malformed/fake SHA through — a real commit-tree
+        // always yields a 40-hex object id.
+        if (!/^[0-9a-f]{40}$/i.test(newCommitSha)) {
+          throw createAppError(
+            'Merge produced an invalid commit SHA. No merge was recorded and the pull request remains open.',
+            500,
+            'MERGE_INVALID_SHA',
+          );
+        }
 
         // 3. git update-ref refs/heads/${pr.targetBranch} <newCommitSha> <baseSha>
         await execFileAsync(
