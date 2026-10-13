@@ -5,6 +5,15 @@ import { apiClient } from '../services/api-client';
 import { showToast } from '../components/InboxToast';
 import { UndoSendContext } from './UndoSendCountdownBar';
 import type { PersonConversation } from '../lib/peopleGrouping';
+import {
+  clearThreadDraft,
+  isThreadDraftEmpty,
+  loadThreadDraft,
+  saveThreadDraft,
+  switchThreadDraft,
+  windowThreadDraftStorage,
+} from '../lib/threadReplyDrafts';
+import { draftSaveStateLabel } from './useDraftAutosave';
 
 export interface ThreadComposerProps {
   conversation: PersonConversation;
@@ -140,17 +149,74 @@ export async function executeThreadSend(
  * called — there is no `onDiscard` prop on this component by design.
  */
 export function ThreadComposer({ conversation, suggestedReply, onSent, onSendStart, onSendError, onSendUndo }: ThreadComposerProps) {
-  const [body, setBody] = useState(suggestedReply?.text ?? '');
-  const [newTopic, setNewTopic] = useState(false);
-  const [customSubject, setCustomSubject] = useState('');
+  // QM fix qm-threadcomposer-draft-persist: a draft restore on mount. If the
+  // user left unsent text for this person (same-device localStorage draft),
+  // it comes back instead of an empty box — and survives a full reload, not
+  // just in-app navigation. An explicit `suggestedReply` still wins the box:
+  // a chip tap is an intentional "use these words" gesture (this also matches
+  // the mount-time effect below, which overwrites the box on a fresh tap).
+  const [restoredDraft] = useState(() =>
+    loadThreadDraft(windowThreadDraftStorage(), conversation.personKey),
+  );
+  const [body, setBody] = useState(suggestedReply?.text ?? restoredDraft?.body ?? '');
+  const [newTopic, setNewTopic] = useState(restoredDraft?.newTopic ?? false);
+  const [customSubject, setCustomSubject] = useState(restoredDraft?.customSubject ?? '');
   const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // A different person is a different draft: reset the box and subject state.
+  // The honest save indicator state. 'pristine' shows nothing (draftSaveStateLabel
+  // returns null); 'saved'/'error' show the real outcome of the last write.
+  const [draftSaveState, setDraftSaveState] = useState<'pristine' | 'saved' | 'error'>(
+    restoredDraft ? 'saved' : 'pristine',
+  );
+  const draftSaveLabel = draftSaveStateLabel(draftSaveState);
+
+  // Mirror of the latest composer values, assigned during render so the
+  // person-switch flush below can never lose a keystroke that raced the tap.
+  const latestDraftRef = useRef({ body, newTopic, customSubject });
+  latestDraftRef.current = { body, newTopic, customSubject };
+  // Which person's draft is currently settled in the box. Guards the
+  // write-through effect during a switch so it can't write one person's
+  // text under another person's key.
+  const settledPersonKeyRef = useRef(conversation.personKey);
+
+  // Write-through persistence: every edit lands in the current person's
+  // draft immediately. Switching people only ever swaps which saved draft is
+  // shown — typed text is never silently discarded. An emptied box deletes
+  // its draft, so cleared text never resurfaces (e.g. after a send).
   useEffect(() => {
-    setBody('');
-    setNewTopic(false);
-    setCustomSubject('');
+    if (settledPersonKeyRef.current !== conversation.personKey) return;
+    const store = windowThreadDraftStorage();
+    const draft = { body, newTopic, customSubject, updatedAt: Date.now() };
+    if (isThreadDraftEmpty(draft)) {
+      clearThreadDraft(store, conversation.personKey);
+      setDraftSaveState('pristine');
+      return;
+    }
+    setDraftSaveState(saveThreadDraft(store, conversation.personKey, draft) ? 'saved' : 'error');
+  }, [body, newTopic, customSubject, conversation.personKey]);
+
+  // A different person is a different draft: flush the outgoing person's
+  // latest text synchronously, then restore the incoming person's saved
+  // draft (or an empty box when they have none). Declared AFTER the
+  // write-through effect so that effect's guard sees the stale
+  // settledPersonKey and yields to this one during a switch.
+  useEffect(() => {
+    const prevKey = settledPersonKeyRef.current;
+    const nextKey = conversation.personKey;
+    if (prevKey === nextKey) return;
+    const restored = switchThreadDraft({
+      store: windowThreadDraftStorage(),
+      prevPersonKey: prevKey,
+      nextPersonKey: nextKey,
+      latest: latestDraftRef.current,
+      now: Date.now(),
+    });
+    setBody(restored.body);
+    setNewTopic(restored.newTopic);
+    setCustomSubject(restored.customSubject);
+    setDraftSaveState(restored.hadSavedDraft ? 'saved' : 'pristine');
+    settledPersonKeyRef.current = nextKey;
   }, [conversation.personKey]);
 
   // QM fix qm-personthread-smart-replies: a tapped smart-reply chip lands
@@ -367,6 +433,10 @@ export function ThreadComposer({ conversation, suggestedReply, onSent, onSendSta
         {newTopic ? 'Starting a new topic' : `Replying: ${subject}`} · Enter to send
         {/* P2-3: the Shift+Enter hint is meaningless on phone keyboards. */}
         <span className="hidden sm:inline">, Shift+Enter for a new line</span>
+        {/* QM fix qm-threadcomposer-draft-persist: honest autosave indicator —
+            real state of the last localStorage write (null when pristine, so
+            the chat-style bar stays quiet), mirroring EmailComposer. */}
+        {draftSaveLabel && <span> · {draftSaveLabel}</span>}
       </p>
     </div>
   );
