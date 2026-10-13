@@ -14,7 +14,7 @@
 // ============================================================================
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { createAppError } from '@quant/server-core';
+import { createAppError, requireIdempotency } from '@quant/server-core';
 import { AI_INTENTS, measureAISignals, resolveAIIntent } from '@quant/common';
 import { aiChat, isAIConfigured, resolveTierModel } from '../services/ai-provider.service';
 
@@ -66,6 +66,12 @@ function buildSystemPrompt(tone?: string, length?: string, recipient?: string): 
 }
 
 export default async function aiComposeRoutes(fastify: FastifyInstance) {
+  // WR-MAIL-104: mail.ai.compose.assist is an active catalog command
+  // (kind:'command' ⇒ idempotency.required=true) — every mutating route in
+  // this file requires a valid Idempotency-Key; missing/malformed keys are
+  // rejected with 4xx before the handler executes.
+  requireIdempotency(fastify);
+
   fastify.post('/compose', async (request, reply) => {
     const parsed = composeSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;

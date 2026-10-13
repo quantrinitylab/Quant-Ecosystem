@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { createAppError } from '@quant/server-core';
+import { createAppError, enableIdempotency } from '@quant/server-core';
 import { AIEmailService } from '../services/ai-email.service';
 import { MailAIService } from '@quant/ai';
 import { AIEngine } from '@quant/ai';
@@ -17,6 +17,11 @@ const composeAssistSchema = z.object({
 });
 
 export default async function aiRoutes(fastify: FastifyInstance) {
+  // WR-MAIL-104: honor Idempotency-Key on the AI mutation routes; summarize
+  // is an active catalog command (mail.ai.summarize writes a cached aiSummary)
+  // and REQUIRES a valid key.
+  enableIdempotency(fastify);
+
   function getAIService(): AIEmailService {
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const engine = new AIEngine();
@@ -25,7 +30,12 @@ export default async function aiRoutes(fastify: FastifyInstance) {
   }
 
   // POST /emails/:id/summarize
-  fastify.post<{ Params: { id: string } }>('/:id/summarize', async (request, reply) => {
+  // WR-MAIL-104: mail.ai.summarize is an active catalog command (cached
+  // aiSummary write) — key required.
+  fastify.post<{ Params: { id: string } }>(
+    '/:id/summarize',
+    { config: { idempotencyRequired: true } },
+    async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');

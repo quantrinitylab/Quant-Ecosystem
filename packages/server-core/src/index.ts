@@ -78,7 +78,7 @@ export type { ErrorMonitoringService } from './plugins/error-monitoring';
 export { default as featureFlagsPlugin } from './plugins/feature-flags';
 export { default as organizationsPlugin } from './plugins/organizations';
 export { default as auditPlugin } from './plugins/audit';
-export { default as idempotencyPlugin, enableIdempotency } from './plugins/idempotency';
+export { default as idempotencyPlugin, enableIdempotency, requireIdempotency } from './plugins/idempotency';
 export type { IdempotencyPluginOptions, IdempotencyStore } from './plugins/idempotency';
 export { MemoryIdempotencyStore, RedisIdempotencyStore } from './plugins/idempotency';
 export { default as identityPermissionsPlugin } from './plugins/identity-permissions';
