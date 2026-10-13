@@ -87,6 +87,7 @@ describe('isKnownAppPath classification', () => {
     '/workspaces/ws-1',
     '/compose',
     '/search',
+    '/scheduled', // schedule-send outbox view: signed-in mailbox folder
     '/notifications',
     // OIDC discovery route handler: known (keeps today's login bounce, not
     // a 404) — making it public per the OIDC spec is a separate finding in
