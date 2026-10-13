@@ -97,3 +97,102 @@ describe('stripQuantMeta', () => {
     expect(stripQuantMeta(undefined)).toBe('');
   });
 });
+
+describe('createRsvpWriteGate — in-flight guard (fix/qm-booking-journey-v2)', () => {
+  // The direct (non-recurring) path used to fire `post` unconditionally: a
+  // double-click before the button's disabled state propagates (React state
+  // updates are async) fired TWO POSTs. The gate now drops any request
+  // while a write is in flight and re-arms when the write settles.
+  const directIntent = { requiresPreConfirm: false, scope: { appliesTo: 'event' } } as const;
+
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    let reject!: (e: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  it('drops a second direct request while the first write is in flight', async () => {
+    const { createRsvpWriteGate } = await import(
+      '../app/calendar/event/event-detail-utils'
+    );
+    const gatePost = deferred<unknown>();
+    let calls = 0;
+    const gate = createRsvpWriteGate({
+      post: () => {
+        calls++;
+        return gatePost.promise;
+      },
+    });
+    expect(gate.request('accepted', directIntent as never)).toBe(false);
+    // Rapid second click — still in flight → no second POST.
+    expect(gate.request('accepted', directIntent as never)).toBe(false);
+    expect(calls).toBe(1);
+    gatePost.resolve(undefined);
+    await gatePost.promise;
+    // Microtasks + the gate's finally must run before re-arming.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls).toBe(1);
+  });
+
+  it('re-arms after the in-flight write settles, so a status change still posts', async () => {
+    const { createRsvpWriteGate } = await import(
+      '../app/calendar/event/event-detail-utils'
+    );
+    const calls: string[] = [];
+    const gate = createRsvpWriteGate({
+      post: (status) => {
+        calls.push(status);
+        return Promise.resolve();
+      },
+    });
+    gate.request('accepted', directIntent as never);
+    await new Promise((r) => setTimeout(r, 0));
+    gate.request('declined', directIntent as never);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls).toEqual(['accepted', 'declined']);
+  });
+
+  it('a rejected in-flight write clears the guard (no stuck gate)', async () => {
+    const { createRsvpWriteGate } = await import(
+      '../app/calendar/event/event-detail-utils'
+    );
+    let calls = 0;
+    let fail = true;
+    const gate = createRsvpWriteGate({
+      post: () => {
+        calls++;
+        return fail ? Promise.reject(new Error('network down')) : Promise.resolve();
+      },
+    });
+    gate.request('accepted', directIntent as never);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls).toBe(1);
+    fail = false;
+    gate.request('accepted', directIntent as never);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls).toBe(2);
+  });
+
+  it('series path still requires confirmation and confirm() stays one-shot', async () => {
+    const { createRsvpWriteGate } = await import(
+      '../app/calendar/event/event-detail-utils'
+    );
+    let calls = 0;
+    const gate = createRsvpWriteGate({
+      post: () => {
+        calls++;
+        return Promise.resolve();
+      },
+    });
+    const seriesIntent = { requiresPreConfirm: true, scope: { appliesTo: 'series' } } as never;
+    expect(gate.request('accepted', seriesIntent)).toBe(true);
+    expect(calls).toBe(0);
+    gate.confirm();
+    gate.confirm();
+    expect(calls).toBe(1);
+  });
+});
