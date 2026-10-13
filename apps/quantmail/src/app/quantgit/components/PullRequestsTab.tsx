@@ -151,7 +151,6 @@ export function PullRequestsTab({
   isLoading = false,
 }: PullRequestsTabProps) {
   const [selectedPR, setSelectedPR] = useState<PRItem | null>(initialSelectedPR);
-  const [diffViewMode, setDiffViewMode] = useState<'unified' | 'split'>('unified');
 
   // Merge controls
   const [selectedMergeMethod, setSelectedMergeMethod] = useState<MergeMethod>(initialMergeMethod);
@@ -1028,35 +1027,15 @@ export function PullRequestsTab({
             </div>
           </div>
 
-          {/* Interactive Diff Viewer with Inline Comments */}
+          {/* Diff section: honest state only. No per-file diff endpoint exists
+              yet (only stats from /api/repos/<id>/pulls/<n>), so the
+              Unified/Split mode toggle is deliberately not rendered — it
+              would promise a working diff viewer that cannot be delivered. */}
           <div className="space-y-4" data-testid="diff-viewer">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-xs text-[#E6EDF3]">
                 Files changed ({selectedPR?.changedFiles ?? '—'})
               </span>
-
-              <div className="flex items-center gap-1 bg-[var(--quant-surface-elevated)] p-0.5 rounded border border-[#30363D]">
-                <button
-                  type="button"
-                  onClick={() => setDiffViewMode('unified')}
-                  data-testid="diff-mode-unified"
-                  className={`px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer ${
-                    diffViewMode === 'unified' ? 'bg-[#21262D] text-[#E6EDF3]' : 'text-[#8D96A0]'
-                  }`}
-                >
-                  Unified
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDiffViewMode('split')}
-                  data-testid="diff-mode-split"
-                  className={`px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer ${
-                    diffViewMode === 'split' ? 'bg-[#21262D] text-[#E6EDF3]' : 'text-[#8D96A0]'
-                  }`}
-                >
-                  Split
-                </button>
-              </div>
             </div>
 
             {/* Only a real measured zero means "no files changed". Unknown
@@ -1078,7 +1057,8 @@ export function PullRequestsTab({
                 </p>
                 <p className="mt-1 text-[11px] text-[#6E7681]">
                   Browse the repository code tab to review the changes.
-                </p>              </div>
+                </p>
+              </div>
             )}
           </div>
         </div>
