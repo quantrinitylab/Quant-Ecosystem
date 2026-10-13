@@ -291,11 +291,16 @@ describe('QuantMail backend allow-list', () => {
     });
   });
 
-  describe('fix/qm-api-roundtrip-latency — honest 404s are cheap to repeat', () => {
+  describe('fix/qm-api-roundtrip-latency + fix/qm-e2e-real-evidence — honest 404s', () => {
     // Trivial handlers were measured at ~1.1-1.3s median per round trip on
-    // the live chain (proxy + ingress + pod). Their honest 404s are stable,
-    // so repeat hits serve from the browser HTTP cache instead of paying the
-    // chain again. Nothing here changes 2xx freshness.
+    // the live chain (proxy + ingress + pod). The allow-list 404 is
+    // deployment-stable, so repeat hits serve from the browser HTTP cache.
+    // fix/qm-e2e-real-evidence CORRECTED the booking part: booking slugs are
+    // MUTABLE — a host can publish a link after a guest's first 404 hit —
+    // so a publicly negative-cached booking 404 would keep serving
+    // "Booking link not found" after the slug became valid. Booking 404s
+    // are now no-store: the 404→200 transition happens on the next request.
+    // Nothing here changes 2xx freshness.
     const backend404 = () =>
       new Response(
         JSON.stringify({
@@ -317,27 +322,47 @@ describe('QuantMail backend allow-list', () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it('caches a backend 404 on public booking-slot reads for 30s', async () => {
+    it('does NOT publicly cache a backend 404 on public booking-slot reads (mutable slug)', async () => {
+      // A host can publish the slug after the guest's first 404 hit — the
+      // next request must see the link. A 404→200 transition test proves
+      // no stale negative cache blocks it.
       fetchMock.mockResolvedValueOnce(backend404());
 
-      const response = await call('calendar/booking/bad-slug/slots', 'GET', '?date=2026-10-20');
+      const response = await call('calendar/booking/new-slug/slots', 'GET', '?date=2026-10-20');
 
       expect(response.status).toBe(404);
-      expect(response.headers.get('cache-control')).toBe(
-        'public, max-age=30, stale-while-revalidate=60',
-      );
+      expect(response.headers.get('cache-control')).toBe('no-store');
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
-    it('caches a backend 404 on the public booking-link read too', async () => {
+    it('404→200 transition: a slug that 404s now resolves the moment it is published', async () => {
+      // The guest hits the link before the host publishes it → honest 404.
+      fetchMock.mockResolvedValueOnce(backend404());
+      const first = await call('calendar/booking/fresh-slug', 'GET');
+      expect(first.status).toBe(404);
+      expect(first.headers.get('cache-control')).toBe('no-store');
+
+      // The host publishes the link; the guest retries → must get 200, not a
+      // stale negative-cached 404. no-store means the browser always replays.
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, data: { slug: 'fresh-slug' } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+      const second = await call('calendar/booking/fresh-slug', 'GET');
+      expect(second.status).toBe(200);
+      expect(second.headers.get('cache-control')).toBe('no-store');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('does NOT publicly cache a backend 404 on the public booking-link read either', async () => {
       fetchMock.mockResolvedValueOnce(backend404());
 
       const response = await call('calendar/booking/bad-slug', 'GET');
 
       expect(response.status).toBe(404);
-      expect(response.headers.get('cache-control')).toBe(
-        'public, max-age=30, stale-while-revalidate=60',
-      );
+      expect(response.headers.get('cache-control')).toBe('no-store');
     });
 
     it('keeps backend 2xx on booking reads uncached (slots change by the second)', async () => {

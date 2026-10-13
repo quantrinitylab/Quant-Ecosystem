@@ -5,20 +5,17 @@ import { ALLOWED_BACKEND_ROUTES } from '../../../../backend/lib/routes-config';
 export const dynamic = 'force-dynamic';
 
 /**
- * fix/qm-api-roundtrip-latency: public, unauthenticated read paths whose
- * honest 404s are stable — a booking slug that 404s now cannot resolve before
- * the TTL expires. Their misses get a short-lived cache so repeat hits (same
- * browser, bots, link checkers) skip the full ~1.2s proxy chain. Slot
- * availability itself (2xx) stays no-store: locks and bookings change it by
- * the second. Auth and mutation routes are never listed here.
+ * fix/qm-api-roundtrip-latency: the route allow-list itself is
+ * deployment-stable, so an unknown API path 404s identically for a minute —
+ * let the browser cache that miss instead of paying the chain on every retry.
+ *
+ * fix/qm-e2e-real-evidence: booking-slug 404s are deliberately NOT cached.
+ * A booking slug is MUTABLE — the host can publish a link after a guest's
+ * first 404 hit, and a publicly negative-cached 404 (public, max-age=30,
+ * stale-while-revalidate=60) would keep serving "Booking link not found"
+ * after the slug became valid. Slot availability stays no-store too: locks
+ * and bookings change it by the second. Auth and mutation routes are never
  */
-const NOT_FOUND_CACHE_PATHS: RegExp[] = [
-  /^calendar\/booking\/[^/]+$/,
-  /^calendar\/booking\/[^/]+\/slots$/,
-  /^booking\/links\/[^/]+$/,
-  /^booking\/links\/[^/]+\/slots$/,
-];
-const NOT_FOUND_CACHE_CONTROL = 'public, max-age=30, stale-while-revalidate=60';
 
 const handle = async (
   request: NextRequest,
@@ -53,15 +50,12 @@ const handle = async (
   }
 
   const backendPath = `/${path.map((segment) => encodeURIComponent(segment)).join('/')}`;
-  const cacheNotFound =
-    request.method === 'GET' && NOT_FOUND_CACHE_PATHS.some((pattern) => pattern.test(decodedPath))
-      ? NOT_FOUND_CACHE_CONTROL
-      : undefined;
-  return proxyToBackend(
-    request,
-    backendPath,
-    cacheNotFound ? { notFoundCacheControl: cacheNotFound } : undefined,
-  );
+  // fix/qm-e2e-real-evidence: no negative-cache opt-in remains. The booking
+  // paths used to cache honest 404s publicly, but a booking slug is mutable —
+  // the host can publish it after a guest's first 404 hit — so a negative
+  // cache would serve "Booking link not found" after the slug became valid.
+  // Every proxied miss now falls back to the proxy's `no-store` default.
+  return proxyToBackend(request, backendPath);
 };
 
 // One handler, one export per method. The App Router 405s a method that has no
