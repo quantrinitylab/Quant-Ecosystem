@@ -9,13 +9,18 @@
 //     Body verbatim into @quant/ai's AIEngine.infer, which routes to a model
 //     provider (default muse-spark-1.3 → 'meta' provider,
 //     packages/ai/src/core/model-router.ts). NOT on-device, NOT client-local.
-//   - Triage, summarize, and reply-draft routes all exist and are wired:
-//     src/app/api/ai/{triage,summarize,summarize-thread,reply}/route.ts +
+//   - Triage and summarize routes are wired and user-facing:
+//     src/app/api/ai/{triage,summarize,summarize-thread}/route.ts +
 //     backend/routes/ai-services.ts.
-// So the honest resolution is: keep the triage promise (it is provable) and
-// QUALIFY the privacy wording. These tests pin both halves via source
-// assertions (same pattern as privacy-copy.test.ts); JSX block comments are
-// stripped so audit notes may reference the removed absolute claim.
+//   - Reply drafting is NOT user-facing: POST /api/v1/ai/reply exists in the
+//     backend, but NO UI surface calls it (dead plumbing) — so the auth brand
+//     panel's "AI triage" card no longer claims "drafts the reply" (removed
+//     by #1083, 2026-10-13). The card's promise is: surface what's urgent +
+//     sum up long threads — both provable truths.
+// So the honest resolution is: keep the provable triage promise and QUALIFY
+// the privacy wording. These tests pin both halves via source assertions
+// (same pattern as privacy-copy.test.ts); JSX block comments are stripped so
+// audit notes may reference the removed absolute claim.
 // ============================================================================
 
 import { describe, expect, it } from 'vitest';
@@ -97,11 +102,15 @@ describe('privacy ↔ auth-brand triage copy consistency', () => {
   });
 
   it('auth brand panel keeps the provable triage promise (not watered down)', () => {
-    // Triage + reply drafting are wired (routes exist, service passes full
-    // content to the AI engine), so the card's promise is a provable truth.
+    // Triage + thread summarization are wired and user-facing, so the card's
+    // promise is a provable truth. AI reply drafting is NOT user-facing
+    // (backend route exists, no UI calls it) — the panel must not claim
+    // "drafts the reply" (removed by #1083); assert that too so it cannot
+    // creep back in as an unprovable claim.
     expect(brandSource).toMatch(/title="AI triage"/);
     expect(brandSource).toMatch(/surfaces what'?s urgent/);
-    expect(brandSource).toMatch(/drafts the reply/);
+    expect(brandSource).toMatch(/sums up long threads/);
+    expect(brandSource).not.toMatch(/drafts the reply/);
   });
 
   it('wired truth: triage service actually sends full message content to the AI engine', () => {
