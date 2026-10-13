@@ -395,16 +395,9 @@ export function IssuesTab({
                   </span>
                 </div>
                 <div className="p-4 space-y-3 leading-relaxed">
-                  <p className="text-xs text-[#E6EDF3]">
-                    Tracking issue for the CodeHub / QuantGit Smart HTTP daemon and repository
-                    inspection engine. Companion to the Wave A tracking issue #250.
+                  <p className="text-xs text-[#E6EDF3] whitespace-pre-wrap">
+                    {selectedIssue.body?.trim() ? selectedIssue.body : 'No description provided.'}
                   </p>
-                  <div className="p-3 rounded-lg bg-[#0D1117] border border-[#30363D] font-mono text-[11px] space-y-1">
-                    <p className="text-[#58A6FF]">git -c key=value receive-pack</p>
-                    <p className="text-[#8D96A0]">
-                      One directory, versioned with application, zero state.
-                    </p>
-                  </div>
                 </div>
               </div>
 
