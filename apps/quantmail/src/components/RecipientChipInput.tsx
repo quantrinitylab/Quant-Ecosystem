@@ -195,22 +195,25 @@ export function RecipientChipInput({
   };
 
   const handleBlur = () => {
-    // Delay to let click on suggestion register
-    setTimeout(() => {
-      if (inputValue.trim()) {
-        const parsed = parseEmailString(inputValue);
-        if (parsed.length > 0) {
-          const newItems = parsed.filter(
-            (p) => !recipients.some((r) => r.email.toLowerCase() === p.email.toLowerCase()),
-          );
-          if (newItems.length > 0) {
-            onChange([...recipients, ...newItems]);
-          }
-          setInputValue('');
+    // Commit pending typed text SYNCHRONOUSLY (no debounce): the suggestion
+    // buttons handle selection via onMouseDown + preventDefault, so blur
+    // never fires for a suggestion click. A delayed commit here races the
+    // Send button — the typed recipient would commit 180ms AFTER handleSend
+    // already ran, so the send would fail with "specify at least one
+    // recipient" while the chip appears moments later.
+    if (inputValue.trim()) {
+      const parsed = parseEmailString(inputValue);
+      if (parsed.length > 0) {
+        const newItems = parsed.filter(
+          (p) => !recipients.some((r) => r.email.toLowerCase() === p.email.toLowerCase()),
+        );
+        if (newItems.length > 0) {
+          onChange([...recipients, ...newItems]);
         }
+        setInputValue('');
       }
-      setIsOpen(false);
-    }, 180);
+    }
+    setIsOpen(false);
   };
 
   return (

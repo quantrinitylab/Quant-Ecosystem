@@ -171,6 +171,12 @@ async function fillAndSend(container: HTMLElement) {
     'textarea[placeholder^="Write your email here"]',
   )!;
   await typeInto(to, 'kundan@quantmail.in');
+  // Chip-based recipients: committing the typed email into a chip (Enter),
+  // exactly as a real user does. Without this, the raw typed text never
+  // becomes a recipient and Send errors out.
+  await act(async () => {
+    to.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  });
   await typeInto(subject, 'honesty check');
   await typeInto(body, 'the undo must be real');
   const sendBtn = container.querySelector<HTMLButtonElement>(
