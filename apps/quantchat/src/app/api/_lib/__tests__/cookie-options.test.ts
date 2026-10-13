@@ -60,7 +60,7 @@ describe('authCookieSecure (QC-F-080 helper pins)', () => {
 describe('QC-F-080 route-level Secure proof', () => {
   it('case 12: logout expiry cookies carry Secure on staging', async () => {
     setNodeEnv('staging');
-    const res = await logoutPOST();
+    const res = await logoutPOST(new NextRequest('http://localhost:3000/api/auth/logout', { method: 'POST' }));
     const setCookies = res.headers.getSetCookie();
     expect(setCookies).toHaveLength(3);
     for (const cookie of setCookies) {
@@ -70,7 +70,7 @@ describe('QC-F-080 route-level Secure proof', () => {
 
   it('case 13: logout expiry cookies skip Secure in local development', async () => {
     setNodeEnv('development');
-    const res = await logoutPOST();
+    const res = await logoutPOST(new NextRequest('http://localhost:3000/api/auth/logout', { method: 'POST' }));
     for (const cookie of res.headers.getSetCookie()) {
       expect(cookie).not.toContain('; Secure');
     }
@@ -135,7 +135,7 @@ describe('QC-F-080 route-level Secure proof', () => {
 
   it('case 13: production keeps Secure (pre-existing behaviour pin)', async () => {
     setNodeEnv('production');
-    const res = await logoutPOST();
+    const res = await logoutPOST(new NextRequest('http://localhost:3000/api/auth/logout', { method: 'POST' }));
     for (const cookie of res.headers.getSetCookie()) {
       expect(cookie).toContain('; Secure');
     }
