@@ -724,6 +724,13 @@ R5 NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents dispatched (protocol: 
 LIVE (2026-10-13 ~03:40 IST, logged-out): /calendar → honest sign-in page desktop (1440x900) + mobile (390x844), clean renders; GET /api/calendar/events → 401, GET /api/calendar/events/:id → 401 (auth airtight, unchanged). Signed-in calendar UI remains needs-auth. Evidence: /tmp/lane1-008r5-desktop-calendar.png + mobile-calendar.png. Proxy forwarder 127.0.0.1:8888 healthy. /tmp chrome orphans cleaned.
 Status: [x] DONE (R5 regression audit complete 2026-10-13 ~03:45 IST; zero diffs since R4; all carryovers confirmed unchanged)
 
+## QM-SCREEN-008/009 R7 — Calendar regression (ROUND 7)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-008-009-r7
+Audit started: 2026-10-13 ~13:40 IST (lane-1 deep audit loop, ROUND 7)
+Base: R5 @ da6d3975 (origin/main 2026-10-13 ~02:47 IST) → origin/main a3b3e745 (fresh fetch, 2026-10-13 13:36 IST). 167 commits in range; 12 calendar-path files changed this round (unlike R5's zero-diff pass): RSVP occurrence-id fix 7186282db; attendee validation kit (lib + form + page + backend normalize, #1073); trackers localStorage persistence a1ea2db57; living-logos WebGL2 calendar wiring df34b59c8 (CEO-directed, #1082).
+
 ## QM-SCREEN-008 — Calendar home / agenda / day / week / month
 Status: [x] DONE (audit complete 2026-10-11 ~02:10 IST; fixes tracked via their PRs)
 Owner: LANE-1
