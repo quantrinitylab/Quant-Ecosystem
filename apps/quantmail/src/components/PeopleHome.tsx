@@ -25,6 +25,11 @@ import { MailboxViewToggle } from './MailboxViewToggle';
  * mock or seeded conversations here: an empty mailbox is an honest empty
  * state, not a demo row.
  *
+ * The home pages the inbox corpus through useInbox's keyset-cursor pager
+ * (`loadMore` / `hasMore`): grouping must see the whole corpus, not just
+ * the newest-50 first-page window, or people whose mail is all older than
+ * 50 messages would never get a row.
+ *
  * Lives in components/ (not in an app/ route file) because Next.js App
  * Router route files may only export the default page component plus the
  * documented route-segment config exports — a shared named export like
@@ -42,9 +47,15 @@ export function PeopleHome() {
   // with spam threads, backed by the real SPAM folder query. Any other lens
   // (or none) shows the regular inbox people.
   const isSpamLens = searchParams?.get('lens') === 'spam';
-  const { data: emails, isLoading, isError, refetch } = useInbox(
-    isSpamLens ? { folderType: 'SPAM' } : undefined,
-  );
+  const {
+    data: emails,
+    isLoading,
+    isError,
+    refetch,
+    loadMore,
+    hasMore,
+    isLoadingMore,
+  } = useInbox(isSpamLens ? { folderType: 'SPAM' } : undefined);
   const [searchQuery, setSearchQuery] = useState('');
 
   const conversations = useMemo<PersonConversation[]>(
@@ -129,6 +140,9 @@ export function PeopleHome() {
               searchQuery={searchQuery}
               onSearchQuery={setSearchQuery}
               loading={isLoading}
+              onLoadMore={() => void loadMore()}
+              hasMore={hasMore}
+              loadingMore={isLoadingMore}
             />
           )}
         </div>

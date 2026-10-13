@@ -138,9 +138,15 @@ function setSearchValue(input: HTMLInputElement, value: string) {
 function Harness({
   conversations,
   onSelect,
+  onLoadMore,
+  hasMore = false,
+  loadingMore = false,
 }: {
   conversations: PersonConversation[];
   onSelect: (c: PersonConversation) => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
 }) {
   const [query, setQuery] = useState('');
   return (
@@ -149,6 +155,9 @@ function Harness({
       onSelect={onSelect}
       searchQuery={query}
       onSearchQuery={setQuery}
+      onLoadMore={onLoadMore}
+      hasMore={hasMore}
+      loadingMore={loadingMore}
     />
   );
 }
@@ -258,6 +267,114 @@ describe('PeopleList', () => {
     );
     expect(el.querySelector('[role="status"]')).not.toBeNull();
     expect(rowButtons(el)).toHaveLength(0);
+  });
+
+  it('shows "Load more people" only when the server has more pages, and calls onLoadMore on tap', () => {
+    const conversations = fixtureConversations();
+    const onLoadMore = vi.fn();
+    const el = render(
+      <PeopleList
+        conversations={conversations}
+        onSelect={() => {}}
+        searchQuery=""
+        onSearchQuery={() => {}}
+        onLoadMore={onLoadMore}
+        hasMore
+      />,
+    );
+
+    const buttons = Array.from(el.querySelectorAll('button')).filter((b) =>
+      b.textContent?.includes('Load more people'),
+    );
+    expect(buttons).toHaveLength(1);
+    act(() => {
+      buttons[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+
+    // No more pages: the tail hides, even with a handler wired.
+    const exhausted = render(
+      <PeopleList
+        conversations={conversations}
+        onSelect={() => {}}
+        searchQuery=""
+        onSearchQuery={() => {}}
+        onLoadMore={onLoadMore}
+        hasMore={false}
+      />,
+    );
+    expect(
+      Array.from(exhausted.querySelectorAll('button')).some((b) =>
+        b.textContent?.includes('Load more people'),
+      ),
+    ).toBe(false);
+
+    // No handler: the tail hides even when the server has more.
+    const noHandler = render(
+      <PeopleList
+        conversations={conversations}
+        onSelect={() => {}}
+        searchQuery=""
+        onSearchQuery={() => {}}
+        hasMore
+      />,
+    );
+    expect(
+      Array.from(noHandler.querySelectorAll('button')).some((b) =>
+        b.textContent?.includes('Load more people'),
+      ),
+    ).toBe(false);
+  });
+
+  it('disables the tail and says "Loading…" while a page is in flight', () => {
+    const conversations = fixtureConversations();
+    const el = render(
+      <PeopleList
+        conversations={conversations}
+        onSelect={() => {}}
+        searchQuery=""
+        onSearchQuery={() => {}}
+        onLoadMore={() => {}}
+        hasMore
+        loadingMore
+      />,
+    );
+
+    const button = Array.from(el.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Loading…'),
+    )!;
+    expect(button).toBeTruthy();
+    expect(button.hasAttribute('disabled')).toBe(true);
+  });
+
+  it('search with no matches stays honest: offers older mail while pages remain, "No matches" only when exhausted', () => {
+    const conversations = fixtureConversations();
+    const onLoadMore = vi.fn();
+
+    // Pages remain on the server: "No matches" would be a lie — the match
+    // may simply not be loaded yet.
+    const paged = render(
+      <Harness conversations={conversations} onSelect={() => {}} onLoadMore={onLoadMore} hasMore />,
+    );
+    setSearchValue(paged.querySelector('input')!, 'zzz-no-such-person');
+    expect(rowButtons(paged)).toHaveLength(0);
+    expect(paged.textContent).toContain('No matches in the loaded messages');
+    expect(paged.textContent).not.toContain('No matches for');
+    const keepSearching = Array.from(paged.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Load older messages to keep searching'),
+    )!;
+    expect(keepSearching).toBeTruthy();
+    act(() => {
+      keepSearching.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+
+    // Corpus exhausted: "No matches for …" is now the truth.
+    const done = render(<Harness conversations={conversations} onSelect={() => {}} />);
+    setSearchValue(done.querySelector('input')!, 'zzz-no-such-person');
+    expect(rowButtons(done)).toHaveLength(0);
+    expect(done.textContent).toContain('No matches for');
+    expect(done.textContent).not.toContain('No matches in the loaded messages');
   });
 });
 

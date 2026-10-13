@@ -16,7 +16,7 @@
 
 import { useMemo, type CSSProperties } from 'react';
 import { IdentityAvatar } from './IdentityAvatar';
-import { Skeleton } from '@quant/shared-ui';
+import { Button, Skeleton } from '@quant/shared-ui';
 import { APP_THEMES } from '../lib/app-theme';
 import { personSnippet, type PersonConversation } from '../lib/peopleGrouping';
 
@@ -26,6 +26,19 @@ export interface PeopleListProps {
   searchQuery: string;
   onSearchQuery: (q: string) => void;
   loading?: boolean;
+  /**
+   * Pagination tail (P1 inbox-people): the home pages the inbox corpus
+   * through useInbox's keyset-cursor pager, so every person gets a row —
+   * not just the ones in the newest 50 messages. When `hasMore` is true the
+   * list renders a "Load more people" tail that appends the next server
+   * slice; with a search query active and no local match, the empty state
+   * honestly says the older mail isn't loaded yet instead of claiming
+   * "No matches". Omit `onLoadMore`/`hasMore` and the list is a plain
+   * single-window render.
+   */
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
 }
 
 const MAIL_ACCENT = APP_THEMES.mail.accent;
@@ -98,6 +111,9 @@ export function PeopleList({
   searchQuery,
   onSearchQuery,
   loading = false,
+  onLoadMore,
+  hasMore = false,
+  loadingMore = false,
 }: PeopleListProps) {
   const visible = useMemo(
     () => conversations.filter((c) => conversationMatchesQuery(c, searchQuery)),
@@ -123,13 +139,37 @@ export function PeopleList({
       </div>
 
       {visible.length === 0 ? (
-        <div className="px-6 py-16 text-center">
-          <p className="text-sm text-zinc-400">
-            {trimmedQuery ? `No matches for \u201C${trimmedQuery}\u201D` : 'No conversations yet'}
-          </p>
-        </div>
+        trimmedQuery ? (
+          // The search box filters the LOADED window only. Claiming
+          // "No matches" while older pages are still on the server is a
+          // lie — say the corpus isn't fully loaded and offer to page it.
+          hasMore && onLoadMore ? (
+            <div className="px-6 py-16 text-center">
+              <p className="text-sm text-zinc-400">No matches in the loaded messages</p>
+              <p className="mt-1 text-xs text-zinc-500">
+                Older mail isn&apos;t loaded yet — it might contain a match.
+              </p>
+              <div className="mt-4 flex justify-center">
+                <Button variant="secondary" onClick={onLoadMore} disabled={loadingMore}>
+                  {loadingMore ? 'Loading…' : 'Load older messages to keep searching'}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="px-6 py-16 text-center">
+              <p className="text-sm text-zinc-400">
+                {`No matches for \u201C${trimmedQuery}\u201D`}
+              </p>
+            </div>
+          )
+        ) : (
+          <div className="px-6 py-16 text-center">
+            <p className="text-sm text-zinc-400">No conversations yet</p>
+          </div>
+        )
       ) : (
-        <ul className="pb-4">
+        <>
+          <ul className="pb-4">
           {visible.map((c) => {
             const unread = c.unreadCount > 0;
             return (
@@ -195,7 +235,15 @@ export function PeopleList({
               </li>
             );
           })}
-        </ul>
+          </ul>
+          {hasMore && onLoadMore && (
+            <div className="flex justify-center px-4 pb-6">
+              <Button variant="secondary" onClick={onLoadMore} disabled={loadingMore}>
+                {loadingMore ? 'Loading…' : 'Load more people'}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
