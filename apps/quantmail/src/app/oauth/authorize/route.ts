@@ -86,10 +86,19 @@ function renderInvalidRequestPage(missingParam: 'client_id' | 'redirect_uri'): s
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <title>Invalid sign-in request &middot; QuantMail</title>
 <style>
+  /*
+   * Theme tokens for this self-contained page (QM-UIUX-004): raw surface
+   * hexes are banned outside --quant-* definitions, so every banned hex
+   * below is referenced through these tokens.
+   */
+  :root {
+    --quant-background: #000000;
+    --quant-primary: #ff8c42;
+  }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
-    background: #000000;
+    background: var(--quant-background);
     color: #fafafa;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -103,7 +112,7 @@ function renderInvalidRequestPage(missingParam: 'client_id' | 'redirect_uri'): s
   .mark { width: 56px; height: 56px; margin: 0 auto 20px; display: block; }
   .eyebrow {
     font-size: 11px; font-weight: 700; letter-spacing: 0.18em;
-    text-transform: uppercase; color: #ff8c42; margin: 0 0 10px;
+    text-transform: uppercase; color: var(--quant-primary); margin: 0 0 10px;
   }
   h1 {
     font-size: 26px; font-weight: 600; letter-spacing: -0.03em;
@@ -133,18 +142,18 @@ function renderInvalidRequestPage(missingParam: 'client_id' | 'redirect_uri'): s
     flex: none; width: 24px; height: 24px; border-radius: 999px;
     background: rgba(255, 140, 66, 0.12);
     border: 1px solid rgba(255, 140, 66, 0.35);
-    color: #ff8c42; font-size: 12px; font-weight: 700;
+    color: var(--quant-primary); font-size: 12px; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
   }
   .cta {
     display: inline-flex; align-items: center; justify-content: center;
     min-height: 48px; margin-top: 28px; padding: 0 28px;
-    background: #ff8c42; color: #1a0d02;
+    background: var(--quant-primary); color: #1a0d02;
     font-size: 15px; font-weight: 700; text-decoration: none;
     border-radius: 12px;
   }
   .cta:hover { background: #ffa25e; }
-  .cta:focus-visible { outline: 2px solid #ff8c42; outline-offset: 3px; }
+  .cta:focus-visible { outline: 2px solid var(--quant-primary); outline-offset: 3px; }
 </style>
 </head>
 <body>
@@ -154,7 +163,7 @@ function renderInvalidRequestPage(missingParam: 'client_id' | 'redirect_uri'): s
     <radialGradient id="qm-ember" cx="42" cy="40" r="82" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#FFC189"/>
       <stop offset="0.3" stop-color="#FF9450"/>
-      <stop offset="0.5" stop-color="#FF8C42"/>
+      <stop offset="0.5" style="stop-color: var(--quant-primary)"/>
       <stop offset="0.74" stop-color="#C8520F"/>
       <stop offset="1" stop-color="#6E2606"/>
     </radialGradient>
