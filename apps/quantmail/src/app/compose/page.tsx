@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '../../components/AppShell';
@@ -13,7 +13,6 @@ import { invalidateMailLists } from '../../lib/offline/folders';
 import { apiClient } from '../../services/api-client';
 import type { MessageKind } from '../../types';
 import { UndoSendProvider } from '../../components/UndoSendCountdownBar';
-import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
 
 /**
  * REG-1: the prefill used to strip *every* "Re:" via /^(Re:\s*)+/i, so a reply
@@ -35,7 +34,11 @@ export default function ComposePage() {
   const prefillBody = searchParams?.get('body') ?? null;
   const prefillSubject = searchParams?.get('subject') ?? null;
   const prefillTo = searchParams?.get('to') ?? null;
-  const [currentDraftId, setCurrentDraftId] = useState<string | null>(draftId);
+  // The id of the draft the server holds, read at call time. A ref, not
+  // state: discard can run right after an autosave lands — before React would
+  // re-render a new id into this page's callbacks — and a stale `null` there
+  // skipped the delete and left an orphan draft in Drafts.
+  const currentDraftIdRef = useRef<string | null>(draftId);
 
   const [draftData, setDraftData] = useState<{
     to?: Array<{ email: string }>;
@@ -162,18 +165,19 @@ export default function ComposePage() {
         // comes from what the sender actually chose.
         messageKind: composeKind,
       };
-      const response = currentDraftId
-        ? await apiClient.updateDraft(currentDraftId, payload)
+      const existingId = currentDraftIdRef.current;
+      const response = existingId
+        ? await apiClient.updateDraft(existingId, payload)
         : await apiClient.composeEmail(payload);
 
       if (!response.success || !response.data) {
         throw new Error(response.error?.message || 'Draft could not be saved.');
       }
 
-      if (!currentDraftId) setCurrentDraftId(response.data.id);
+      if (!existingId) currentDraftIdRef.current = response.data.id;
       return response.data;
     },
-    [currentDraftId, replyTo, searchParams],
+    [replyTo, searchParams],
   );
 
   const handleSend = useCallback(
@@ -258,23 +262,25 @@ export default function ComposePage() {
 
   const handleDiscard = useCallback(async () => {
     // Delete the saved server draft (if any) so "Discard" actually discards.
-    if (currentDraftId) {
+    const savedId = currentDraftIdRef.current;
+    if (savedId) {
       try {
-        await apiClient.deleteEmail(currentDraftId);
+        await apiClient.deleteEmail(savedId);
       } catch {
         // Best-effort: still navigate away even if the delete fails.
       }
-      setCurrentDraftId(null);
+      currentDraftIdRef.current = null;
     }
     if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back();
     } else {
       router.push('/');
     }
-  }, [router, currentDraftId]);
+  }, [router]);
 
-  // Left-edge swipe → same as the composer's close/discard affordance.
-  useEdgeSwipeBack(handleDiscard, { disabled: draftLoading });
+  // No page-level edge swipe: it used to call handleDiscard, so a stray swipe
+  // from the left edge DELETED the draft with no prompt. The composer owns the
+  // gesture now and treats it as Back — save the draft, then leave.
 
   const handleAIAssist = useCallback(
     async (action: 'compose' | 'improve' | 'shorten' | 'formalize', text: string) => {
