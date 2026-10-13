@@ -1,8 +1,8 @@
-// Bitmoji seam proxy: POST /api/bitmoji/save -> backend POST /bitmoji (QC-F-089)
-// The /bitmoji page saves its editor config through this path.
+// Bitmoji seam proxy: GET /api/bitmoji/current -> backend GET /bitmoji/me (QC-F-089)
+// The /bitmoji page loads its saved config from this path.
 import { NextRequest } from 'next/server';
 import { proxyToBackend } from '../../_lib/proxy';
 
-export async function POST(request: NextRequest) {
-  return proxyToBackend(request, '/bitmoji');
+export async function GET(request: NextRequest) {
+  return proxyToBackend(request, '/bitmoji/me');
 }
