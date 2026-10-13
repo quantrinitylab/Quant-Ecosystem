@@ -134,22 +134,37 @@ export const BitmojiPage: React.FC<BitmojiPageProps> = ({ userId }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState<boolean>(false);
   const [previewAnimation, setPreviewAnimation] = useState<string>('idle');
   const [history, setHistory] = useState<AvatarConfig[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
 
+  // QC-F-089: this used to call a phantom endpoint and swallow every
+  // failure, so the editor always opened on defaults and the user's saved
+  // avatar never came back. The endpoint is real now (Next proxy →
+  // backend GET /bitmoji/me): a saved config arrives as
+  // { success, data: { config, updatedAt } } with config null until the
+  // first save, and a failed load is surfaced honestly instead of being
+  // mistaken for "no saved avatar".
   const fetchCurrentAvatar = useCallback(async () => {
     setLoading(true);
     try {
       const response = await apiFetchRaw('/api/bitmoji/current', {
         headers: { ...getAuthHeaders() },
       });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.config) setConfig(data.config);
+      if (!response.ok) {
+        setError('Could not load your saved avatar');
+        return;
+      }
+      const body: unknown = await response.json().catch(() => null);
+      const savedConfig = (body as { data?: { config?: Partial<AvatarConfig> } } | null)?.data
+        ?.config;
+      if (savedConfig) {
+        setConfig((prev) => ({ ...prev, ...savedConfig }));
       }
     } catch (err) {
       logger.error('Failed to load avatar:', err);
+      setError('Could not load your saved avatar');
     } finally {
       setLoading(false);
     }
@@ -161,6 +176,10 @@ export const BitmojiPage: React.FC<BitmojiPageProps> = ({ userId }) => {
 
   const updateConfig = useCallback(
     (updates: Partial<AvatarConfig>) => {
+      // Any edit makes the on-screen config unsaved again — the "Avatar
+      // saved" confirmation must never describe a config that differs
+      // from what the server stored.
+      setSaved(false);
       setConfig((prev) => {
         const newConfig = { ...prev, ...updates };
         setHistory((h) => [...h.slice(0, historyIndex + 1), prev]);
@@ -173,6 +192,7 @@ export const BitmojiPage: React.FC<BitmojiPageProps> = ({ userId }) => {
 
   const handleUndo = useCallback(() => {
     if (historyIndex >= 0) {
+      setSaved(false);
       setConfig(history[historyIndex]);
       setHistoryIndex((i) => i - 1);
     }
@@ -202,11 +222,18 @@ export const BitmojiPage: React.FC<BitmojiPageProps> = ({ userId }) => {
     };
     setHistory((h) => [...h, config]);
     setHistoryIndex((i) => i + 1);
+    setSaved(false);
     setConfig(randomConfig);
   }, [config]);
 
+  // QC-F-089: Save posts to the real endpoint now (Next proxy → backend
+  // POST /bitmoji, persisted in BitmojiConfig). "Saved" is shown only when
+  // the server confirms success — never optimistically — and a failure
+  // surfaces the server's own message when it sends one.
   const handleSave = useCallback(async () => {
     setSaving(true);
+    setError(null);
+    setSaved(false);
     try {
       const response = await apiFetchRaw('/api/bitmoji/save', {
         method: 'POST',
@@ -215,7 +242,15 @@ export const BitmojiPage: React.FC<BitmojiPageProps> = ({ userId }) => {
         },
         body: JSON.stringify({ config }),
       });
-      if (!response.ok) throw new Error('Failed to save avatar');
+      const body: unknown = await response.json().catch(() => null);
+      const envelope = body as {
+        success?: boolean;
+        error?: { message?: string };
+      } | null;
+      if (!response.ok || envelope?.success !== true) {
+        throw new Error(envelope?.error?.message ?? 'Failed to save avatar');
+      }
+      setSaved(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -224,6 +259,7 @@ export const BitmojiPage: React.FC<BitmojiPageProps> = ({ userId }) => {
   }, [config]);
 
   const toggleAccessory = useCallback((acc: string) => {
+    setSaved(false);
     setConfig((prev) => ({
       ...prev,
       accessories: prev.accessories.includes(acc)
@@ -537,6 +573,12 @@ export const BitmojiPage: React.FC<BitmojiPageProps> = ({ userId }) => {
         <div className="error-toast">
           {error}
           <button onClick={() => setError(null)}>Dismiss</button>
+        </div>
+      )}
+      {saved && !error && (
+        <div className="success-toast">
+          Avatar saved
+          <button onClick={() => setSaved(false)}>Dismiss</button>
         </div>
       )}
     </div>
