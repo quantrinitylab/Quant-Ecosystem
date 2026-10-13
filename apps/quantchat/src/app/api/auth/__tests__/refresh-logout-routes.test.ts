@@ -95,7 +95,7 @@ describe('POST /api/auth/refresh (Next proxy)', () => {
 
 describe('POST /api/auth/logout (Next cookie expiry)', () => {
   it('expires ALL session cookies so a signed-out session cannot resurrect', async () => {
-    const res = await logoutPOST();
+    const res = await logoutPOST(new NextRequest('http://localhost:3000/api/auth/logout', { method: 'POST' }));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
