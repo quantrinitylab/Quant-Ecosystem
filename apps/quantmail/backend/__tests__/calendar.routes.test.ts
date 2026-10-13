@@ -49,18 +49,28 @@ const ROW = {
 };
 
 function fakePrisma() {
+  const event = {
+    findUnique: vi.fn().mockResolvedValue(ROW),
+    findMany: vi.fn().mockResolvedValue([ROW]),
+    create: vi.fn().mockResolvedValue(ROW),
+    update: vi.fn().mockResolvedValue(ROW),
+    delete: vi.fn().mockResolvedValue(ROW),
+  };
+  // The RSVP route writes through prisma.$transaction with a SELECT ... FOR
+  // UPDATE row lock (attendees is a JSON column written read-modify-write).
+  // The fake models the pass-through; the lock ordering itself is asserted in
+  // the dedicated concurrency suite below with a serializing fake.
+  const txQueryRaw = vi.fn().mockResolvedValue([]);
   return {
-    event: {
-      findUnique: vi.fn().mockResolvedValue(ROW),
-      findMany: vi.fn().mockResolvedValue([ROW]),
-      create: vi.fn().mockResolvedValue(ROW),
-      update: vi.fn().mockResolvedValue(ROW),
-      delete: vi.fn().mockResolvedValue(ROW),
-    },
+    event,
     calendar: {
       findMany: vi.fn().mockResolvedValue([{ id: 'cal-1', name: 'My Calendar' }]),
       create: vi.fn(),
     },
+    $transaction: vi.fn(async (cb: (tx: unknown) => unknown) =>
+      cb({ $queryRaw: txQueryRaw, event }),
+    ),
+    __txQueryRaw: txQueryRaw,
   };
 }
 
@@ -1255,5 +1265,273 @@ describe('POST /events/:id/rsvp — recurring occurrence ids resolve to the pare
     expect(res.statusCode).toBe(200);
     expect(prisma.event.findUnique).toHaveBeenCalledWith({ where: { id: 'e1' } });
     expect(prisma.event.delete).toHaveBeenCalledWith({ where: { id: 'e1' } });
+  });
+});
+
+describe('POST /events/:id/rsvp — rsvpScope contract in the response', () => {
+  // Follow-up to the occurrence-id 404 fix: the RSVP writes the
+  // series-level attendee list (occurrences are virtual rows), but the UI
+  // previously gave the user no confirmation of WHAT their RSVP covered.
+  // The response now carries rsvpScope so the client can say exactly that.
+  function withUserDelegate() {
+    (prisma as unknown as { user: unknown }).user = {
+      findUnique: vi.fn().mockResolvedValue({ email: 'me@quantmail.in' }),
+    };
+  }
+  function recurringRow() {
+    return {
+      ...ROW,
+      recurrenceRule: 'FREQ=WEEKLY;INTERVAL=1',
+      attendees: JSON.stringify([
+        { userId: 'user-1', email: 'me@quantmail.in', name: 'Me', status: 'pending' },
+      ]),
+    };
+  }
+
+  it('RSVP from an occurrence page reports kind=occurrence, appliesTo=series', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    prisma.event.findUnique.mockResolvedValue(recurringRow());
+    const occId = `e1_${encodeURIComponent('2026-10-15T09:00:00.000Z')}`;
+    const res = await app.inject({
+      method: 'POST',
+      url: `/events/${occId}/rsvp`,
+      payload: { status: 'accepted' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.rsvpScope).toEqual({
+      kind: 'occurrence',
+      appliesTo: 'series',
+      fromOccurrence: '2026-10-15T09:00:00.000Z',
+    });
+  });
+
+  it('RSVP from the series page reports kind=event, appliesTo=series', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    prisma.event.findUnique.mockResolvedValue(recurringRow());
+    const res = await app.inject({
+      method: 'POST',
+      url: '/events/e1/rsvp',
+      payload: { status: 'tentative' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.rsvpScope).toEqual({
+      kind: 'event',
+      appliesTo: 'series',
+      fromOccurrence: null,
+    });
+  });
+
+  it('RSVP on a non-recurring event reports appliesTo=event', async () => {
+    const app = await buildApp();
+    withUserDelegate();
+    prisma.event.findUnique.mockResolvedValue({
+      ...ROW,
+      recurrenceRule: null,
+      attendees: JSON.stringify([
+        { userId: 'user-1', email: 'me@quantmail.in', name: 'Me', status: 'pending' },
+      ]),
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/events/e1/rsvp',
+      payload: { status: 'declined' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.rsvpScope).toEqual({
+      kind: 'event',
+      appliesTo: 'event',
+      fromOccurrence: null,
+    });
+  });
+});
+
+describe('POST /events/:id/rsvp — concurrent RSVPs are atomic (no lost responses)', () => {
+  // The write path is read-modify-write on the attendees JSON column. The
+  // route serializes it with SELECT ... FOR UPDATE inside $transaction.
+  // This suite proves it two ways against a faithful in-memory store:
+  //   1. with a serializing fake transaction (the FOR UPDATE model), two
+  //      simultaneous RSVPs both land;
+  //   2. a control with a pass-through fake transaction (the old unlocked
+  //      code) shows the same workload losing one response — the defect
+  //      the lock exists to kill.
+  // The ROW fixture types recurrenceRule as the literal `null` (it is the
+  // non-recurring base row), so widen it here: the store needs real RRULE
+  // strings for the concurrency workload.
+  type Row = Omit<typeof ROW, 'recurrenceRule' | 'attendees'> & {
+    recurrenceRule: string | null;
+    attendees: string;
+  };
+
+  function buildConcurrentApp(opts: { locking: boolean }) {
+    const store = new Map<string, Row>();
+    store.set('e1', {
+      ...ROW,
+      recurrenceRule: 'FREQ=WEEKLY;INTERVAL=1',
+      attendees: JSON.stringify([
+        { userId: 'user-1', email: 'a@quantmail.in', name: 'A', status: 'pending' },
+        { userId: 'user-2', email: 'b@quantmail.in', name: 'B', status: 'pending' },
+      ]),
+    });
+
+    // Async mutex per event row — the faithful model of Postgres
+    // SELECT ... FOR UPDATE: callbacks that hold the "row lock" never
+    // interleave.
+    const tails = new Map<string, Promise<unknown>>();
+    const withRowLock = async <T>(id: string, fn: () => Promise<T>): Promise<T> => {
+      const prev = tails.get(id) ?? Promise.resolve();
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      tails.set(id, prev.then(() => gate));
+      await prev;
+      try {
+        return await fn();
+      } finally {
+        release();
+      }
+    };
+
+    const txQueryRaw = vi.fn(async () => []);
+    const txEvent = {
+      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
+        // Genuine IO latency so the two requests interleave unless the
+        // lock serializes them.
+        await new Promise((r) => setTimeout(r, 10));
+        const row = store.get(where.id);
+        return row ? { ...row } : null;
+      }),
+      update: vi.fn(async ({ where, data }: { where: { id: string }; data: Partial<Row> }) => {
+        await new Promise((r) => setTimeout(r, 10));
+        const row = store.get(where.id);
+        if (!row) throw new Error('row vanished');
+        const next = { ...row, ...data };
+        store.set(where.id, next);
+        return { ...next };
+      }),
+    };
+
+    const runInTx = async (cb: (tx: unknown) => unknown) => {
+      const tx = { $queryRaw: txQueryRaw, event: txEvent };
+      return opts.locking ? withRowLock('e1', () => cb(tx) as Promise<unknown>) : cb(tx);
+    };
+
+    const prismaLike = {
+      $transaction: vi.fn(runInTx),
+      user: {
+        findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
+          const emails: Record<string, string> = {
+            'user-1': 'a@quantmail.in',
+            'user-2': 'b@quantmail.in',
+          };
+          return { email: emails[where.id] ?? `${where.id}@quantmail.in` };
+        }),
+      },
+    };
+
+    const build = async () => {
+      const app = Fastify();
+      await app.register(errorHandlerPlugin);
+      app.decorate('prisma', prismaLike as never);
+      app.addHook('onRequest', async (request) => {
+        const uid = (request.headers['x-test-user'] as string) || 'user-1';
+        (request as unknown as { auth: { userId: string } }).auth = { userId: uid };
+      });
+      await app.register(calendarRoutes);
+      await app.ready();
+      return app;
+    };
+
+    return { build, store, txEvent, txQueryRaw };
+  }
+
+  const OCC_ID = `e1_${encodeURIComponent('2026-10-15T09:00:00.000Z')}`;
+
+  it('two simultaneous RSVPs to the same occurrence both land (nothing clobbered)', async () => {
+    const { build, store, txQueryRaw } = buildConcurrentApp({ locking: true });
+    const app = await build();
+
+    const [r1, r2] = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: `/events/${OCC_ID}/rsvp`,
+        headers: { 'x-test-user': 'user-1' },
+        payload: { status: 'accepted' },
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/events/e1/rsvp',
+        headers: { 'x-test-user': 'user-2' },
+        payload: { status: 'declined' },
+      }),
+    ]);
+
+    expect(r1.statusCode).toBe(200);
+    expect(r2.statusCode).toBe(200);
+    const final = JSON.parse(store.get('e1')!.attendees) as Array<{
+      userId: string;
+      status: string;
+    }>;
+    expect(final.find((a) => a.userId === 'user-1')!.status).toBe('accepted');
+    expect(final.find((a) => a.userId === 'user-2')!.status).toBe('declined');
+    // The lock was actually taken before any row read inside the transaction.
+    expect(txQueryRaw).toHaveBeenCalled();
+  });
+
+  it('the row lock is acquired before the row is read', async () => {
+    const { build, txEvent, txQueryRaw } = buildConcurrentApp({ locking: true });
+    const app = await build();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/events/${OCC_ID}/rsvp`,
+      headers: { 'x-test-user': 'user-1' },
+      payload: { status: 'accepted' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    // FOR UPDATE is emitted before findUnique reads the row: a concurrent
+    // writer cannot slip its read between our lock and our read.
+    const lockOrder = txQueryRaw.mock.invocationCallOrder[0]!;
+    const readOrder = txEvent.findUnique.mock.invocationCallOrder[0]!;
+    expect(lockOrder).toBeLessThan(readOrder);
+  });
+
+  it('CONTROL: without the row lock the same workload loses one response', async () => {
+    const { build, store } = buildConcurrentApp({ locking: false });
+    const app = await build();
+
+    const [r1, r2] = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: `/events/${OCC_ID}/rsvp`,
+        headers: { 'x-test-user': 'user-1' },
+        payload: { status: 'accepted' },
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/events/e1/rsvp',
+        headers: { 'x-test-user': 'user-2' },
+        payload: { status: 'declined' },
+      }),
+    ]);
+
+    expect(r1.statusCode).toBe(200);
+    expect(r2.statusCode).toBe(200);
+    const final = JSON.parse(store.get('e1')!.attendees) as Array<{
+      userId: string;
+      status: string;
+    }>;
+    const a = final.find((x) => x.userId === 'user-1')!.status;
+    const b = final.find((x) => x.userId === 'user-2')!.status;
+    // Both requests read the same 'pending' baseline; the second write
+    // clobbers the first. Exactly one response survives — this is the
+    // defect the FOR UPDATE lock fixes.
+    expect([a, b].filter((s) => s === 'accepted' || s === 'declined')).toHaveLength(1);
   });
 });

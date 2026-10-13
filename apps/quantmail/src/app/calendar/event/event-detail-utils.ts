@@ -151,3 +151,73 @@ export function zonedInputToIso(value: string, timeZone?: string): string {
   }
   return new Date(value).toISOString();
 }
+
+// ============================================================================
+// RSVP occurrence-vs-series scope confirmation (v1 contract).
+// The backend RSVP always writes the series-level attendee list (occurrences
+// are virtual rows — see docs/quant-architecture/products/quantmail/backend/
+// calendar-rsvp-occurrence-contract.md). After a successful RSVP the response carries
+// rsvpScope; these helpers build the honest confirmation copy so the user
+// knows exactly what their response covered, instead of implying a
+// per-occurrence write.
+// ============================================================================
+
+export interface RsvpScopeInfo {
+  kind: 'occurrence' | 'event';
+  appliesTo: 'series' | 'event';
+  fromOccurrence: string | null;
+}
+
+/** "2026-10-15T09:00:00.000Z" -> "Wed, Oct 15 · 2:30 PM" in the event's zone. */
+export function formatOccurrenceLabel(iso: string, timeZone?: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      ...(timeZone ? { timeZone } : {}),
+    }).format(d);
+  } catch {
+    return iso;
+  }
+}
+
+/**
+ * Honest confirmation copy for a completed RSVP. Never claims a
+ * per-occurrence write: v1 applies the status to the whole series.
+ */
+export function buildRsvpScopeCopy(
+  status: RsvpStatus,
+  scope: RsvpScopeInfo,
+  occurrenceLabel?: string | null,
+): string {
+  const label = RSVP_LABELS[status] ?? status;
+  if (scope.appliesTo === 'event') {
+    return `${label} — recorded for this event.`;
+  }
+  const from = occurrenceLabel ?? scope.fromOccurrence;
+  if (scope.kind === 'occurrence' && from) {
+    return (
+      `${label} — recorded for the entire series. ` +
+      `You responded from the ${from} occurrence; every occurrence in this series shares this response.`
+    );
+  }
+  return `${label} — recorded for the entire series. Every occurrence in this series shares this response.`;
+}
+
+/**
+ * Fallback scope when the backend predates rsvpScope (deploy skew): derive
+ * the same shape client-side from the page's event id and recurrence flag.
+ */
+export function fallbackRsvpScope(eventId: string, recurrence?: string | null): RsvpScopeInfo {
+  const idx = eventId.indexOf('_');
+  return {
+    kind: idx === -1 ? 'event' : 'occurrence',
+    appliesTo: recurrence ? 'series' : 'event',
+    fromOccurrence: idx === -1 ? null : decodeURIComponent(eventId.slice(idx + 1)),
+  };
+}
