@@ -1,1 +1,7 @@
-// placeholder
+// Bitmoji seam proxy: GET /api/bitmoji/me -> backend GET /bitmoji/me (QC-F-089)
+import { NextRequest } from 'next/server';
+import { proxyToBackend } from '../../_lib/proxy';
+
+export async function GET(request: NextRequest) {
+  return proxyToBackend(request, '/bitmoji/me');
+}
