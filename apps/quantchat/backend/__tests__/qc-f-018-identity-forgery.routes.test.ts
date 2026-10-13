@@ -87,8 +87,17 @@ function makeFakePrisma() {
     },
     conversationMember: {
       async findFirst({ where }: any) {
-        return where.conversationId === 'conv_f018' &&
-          (where.userId === SENDER.userId || where.userId === ALICE.userId)
+        // QC-F-268 harness extension: PollService now gates create/vote/
+        // results on active membership, so the polls scenarios below —
+        // whose subject is identity, not membership — model ALICE and BOB
+        // as active members of 'chat_1', the chat their polls live in.
+        // The 'conv_f018' receipts modelling is unchanged.
+        const activeMembers: Record<string, string[]> = {
+          conv_f018: [SENDER.userId, ALICE.userId],
+          chat_1: [ALICE.userId, BOB.userId],
+        };
+        const members = activeMembers[where.conversationId as string];
+        return members?.includes(where.userId)
           ? { conversationId: where.conversationId, userId: where.userId, leftAt: null }
           : null;
       },
