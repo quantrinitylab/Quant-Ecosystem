@@ -3933,6 +3933,15 @@ body {
   border-color: #3A404D;
   background: var(--quant-surface-elevated);
 }
+/* PersonThread (People view): attachment chips live inside the message
+ * bubble — the preview container's top rule would draw a divider line,
+ * which the user-locked QuantMail visual language forbids (pure black,
+ * hierarchy through spacing and typography only). */
+.personthread-attachments .attachment-preview-container {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0.5rem;
+}
 .attachment-lightbox {
   position: fixed;
   inset: 0;
