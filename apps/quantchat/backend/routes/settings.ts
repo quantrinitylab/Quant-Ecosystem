@@ -7,6 +7,7 @@
 //
 //   GET    /settings               -> current settings (merged over defaults)
 //   PUT    /settings               -> upsert settings (validated with zod)
+//   POST   /settings/blocked/:id    -> block a user (QC-F-317)
 //   DELETE /settings/blocked/:id    -> unblock a user
 //   POST   /settings/export        -> JSON export of the user's chat data
 //   DELETE /settings/account       -> soft-delete the account (deletedAt)
@@ -20,7 +21,11 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
-import { DEFAULT_PRIVACY, getPrivacyService } from '../services/privacy.service';
+import {
+  DEFAULT_PRIVACY,
+  extractBlockedUserIds,
+  getPrivacyService,
+} from '../services/privacy.service';
 import type { AccountStatusGate } from '../lib/account-status';
 import { closeLiveSocketsForUser } from './websocket';
 
@@ -169,6 +174,76 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: toSettingsView(next) });
   });
 
+  // POST /settings/blocked/:userId — add a user to the block list (QC-F-317).
+  // Until this route existed the block list had NO writer on any surface:
+  // the enforcement in PrivacyService (checkBlockedBy / checkCanMessage)
+  // and calls-initiate always read an empty list, and the settings page's
+  // "Blocked Users" screen could only ever show (0). The entry is built
+  // from the target's real User row (never from client-supplied name /
+  // username / blockedAt — a block entry is a safety record, so its
+  // identity comes from the server), the write is idempotent, and a
+  // malformed stored list fails closed (503, no write) instead of being
+  // overwritten by a writer that treated it as empty.
+  fastify.post<{ Params: { userId: string } }>(
+    '/blocked/:userId',
+    async (request, reply) => {
+      const userId = getAuthUserId(request);
+      const blockedId = request.params.userId;
+      if (!blockedId) throw createAppError('Blocked user id is required', 400, 'BAD_REQUEST');
+      if (blockedId === userId) {
+        throw createAppError('You cannot block yourself', 400, 'BAD_REQUEST');
+      }
+      const prisma = getPrisma(fastify);
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { preferences: true },
+      });
+      if (!user) throw createAppError('User not found', 404, 'USER_NOT_FOUND');
+
+      const existingIds = extractBlockedUserIds(user.preferences);
+      if (existingIds === null) {
+        // The stored list is present but unreadable: refuse to write over
+        // it (treating it as [] would silently erase real block records).
+        throw createAppError('Blocked list unavailable', 503, 'BLOCKED_LIST_UNAVAILABLE');
+      }
+
+      const prefs =
+        user.preferences && typeof user.preferences === 'object'
+          ? { ...(user.preferences as Record<string, unknown>) }
+          : {};
+      const existing = readChatSettings(prefs);
+      const blocked = Array.isArray(existing.blockedUsers) ? existing.blockedUsers : [];
+
+      if (existingIds.includes(blockedId)) {
+        // Already blocked (canonical object form or legacy bare string):
+        // idempotent no-op — the first blockedAt stands, no duplicate.
+        return reply.send({ success: true, data: { blockedUsers: blocked } });
+      }
+
+      const target = await prisma.user.findUnique({
+        where: { id: blockedId },
+        select: { id: true, displayName: true, username: true, deletedAt: true },
+      });
+      if (!target || target.deletedAt != null) {
+        throw createAppError('User not found', 404, 'USER_NOT_FOUND');
+      }
+
+      const entry = {
+        id: target.id,
+        name: target.displayName?.trim() || target.username,
+        username: target.username,
+        blockedAt: new Date().toISOString(),
+      };
+      const nextBlocked = [...blocked, entry];
+      prefs.chatSettings = { ...existing, blockedUsers: nextBlocked };
+      await prisma.user.update({
+        where: { id: userId },
+        data: { preferences: prefs as Prisma.InputJsonValue },
+      });
+      return reply.send({ success: true, data: { blockedUsers: nextBlocked } });
+    },
+  );
+
   // DELETE /settings/blocked/:userId — remove a user from the block list.
   fastify.delete<{ Params: { userId: string } }>(
     '/blocked/:userId',
@@ -189,10 +264,18 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
           : {};
       const existing = readChatSettings(prefs);
       const blocked = Array.isArray(existing.blockedUsers) ? existing.blockedUsers : [];
-      const filtered = blocked.filter(
-        (entry) =>
-          !(entry && typeof entry === 'object' && (entry as { id?: unknown }).id === blockedId),
-      );
+      // QC-F-317 (R1): the reader (extractBlockedUserIds) also treats bare
+      // string entries as blocked, so the filter must remove BOTH forms —
+      // previously a legacy string entry survived every DELETE while the
+      // handler still answered success, leaving the user blocked forever.
+      const filtered = blocked.filter((entry) => {
+        if (typeof entry === 'string') return entry !== blockedId;
+        return !(
+          entry &&
+          typeof entry === 'object' &&
+          (entry as { id?: unknown }).id === blockedId
+        );
+      });
       prefs.chatSettings = { ...existing, blockedUsers: filtered };
       await prisma.user.update({ where: { id: userId }, data: { preferences: prefs as Prisma.InputJsonValue } });
       return reply.send({ success: true, data: { blockedUsers: filtered } });
