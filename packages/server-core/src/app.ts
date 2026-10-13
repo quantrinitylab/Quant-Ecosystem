@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import type { AppConfig, PublicPathEntry } from './types';
-import { assertProductionSecret } from './secrets';
+import { assertProductionSecret, requiresRealSecret } from './secrets';
 import errorHandler from './plugins/error-handler';
 import healthPlugin from './plugins/health';
 import authPlugin from './plugins/auth';
@@ -23,10 +23,13 @@ import idempotencyPlugin from './plugins/idempotency';
 import rateLimitPlugin from '@fastify/rate-limit';
 
 export async function createApp(config: AppConfig) {
-  // Production security validation. The length check this replaced passed any
-  // 32-character string, so a longer placeholder would have booted; the value
-  // itself is now checked against the placeholders committed to this repo.
-  if (config.env === 'production') {
+  // Deployed-environment security validation (QC-F-080: every non-local env,
+  // not only the exact name 'production' — a staging boot on the committed
+  // fallback made every token forgeable). The length check this replaced
+  // passed any 32-character string, so a longer placeholder would have
+  // booted; the value itself is now checked against the placeholders
+  // committed to this repo.
+  if (requiresRealSecret(config.env)) {
     assertProductionSecret(config.jwtSecret, {
       name: 'JWT_SECRET',
       provisionedBy: 'External Secrets (AWS Secrets Manager key quant/jwt)',
