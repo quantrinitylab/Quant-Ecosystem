@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TIMEZONES } from '../../types';
-import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolveSlotsResponse, bookingWallTimeToUtcMs, formatSlotTimeLabelInTz } from './booking-utils';
+import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolveSlotsResponse, generateGuestDaySlots, formatDateToYmdInTz, slotsWithinGuestDay } from './booking-utils';
 import type { BookingLinkDetails, BookingLinkLoadStatus, BookingSlotItem } from './booking-utils';
 import {
   IconClock,
@@ -229,10 +229,11 @@ export default function PublicBookingPage(props: PageProps) {
   }, [resolvedSlug, linkReloadNonce]);
 
   // Generate or fetch available slots for the selected date.
-  // Fallback path: wall-clock times are computed in the HOST's timezone
-  // (fix/qm-booking-tz-availability-2) and labeled in the guest's selected
-  // timezone — the same contract as the slots API — so the dropdown is
-  // honored even when the slots API is unreachable.
+  // Fallback path (slots API unreachable): the same guest-day contract as
+  // the API — the requested day is the GUEST's calendar day in their
+  // selected timezone; wall-clock times are computed in the HOST's
+  // timezone and labeled in the guest's zone. Never invents slots for
+  // other guest days.
   const generateSlotsForDate = useCallback(
     (
       targetDate: Date,
@@ -242,42 +243,19 @@ export default function PublicBookingPage(props: PageProps) {
       anchorTimeZone: string,
       displayTimeZone: string,
     ): BookingSlotItem[] => {
-      const slots: BookingSlotItem[] = [];
-      const now = new Date();
-
-      const year = targetDate.getFullYear();
-      const month = targetDate.getMonth() + 1;
-      const day = targetDate.getDate();
-
-      const stepMs = duration * 60 * 1000;
-      const totalMinutes = (endHour - startHour) * 60;
-
-      for (let offsetMin = 0; offsetMin + duration <= totalMinutes; offsetMin += duration) {
-        const wallMinutes = startHour * 60 + offsetMin;
-        const slotStart = new Date(
-          bookingWallTimeToUtcMs(
-            year,
-            month,
-            day,
-            Math.floor(wallMinutes / 60),
-            wallMinutes % 60,
-            anchorTimeZone,
-          ),
-        );
-        const slotEnd = new Date(slotStart.getTime() + stepMs);
-
-        // Slot is only available if in future
-        const isFuture = slotStart.getTime() > now.getTime() + 15 * 60 * 1000;
-
-        slots.push({
-          start: slotStart,
-          end: slotEnd,
-          timeLabel: formatSlotTimeLabelInTz(slotStart, displayTimeZone),
-          available: isFuture,
-        });
-      }
-
-      return slots;
+      const [y, m, d] = formatDateToYmdInTz(targetDate, displayTimeZone)
+        .split('-')
+        .map(Number);
+      return generateGuestDaySlots({
+        year: y,
+        month: m,
+        day: d,
+        guestTimeZone: displayTimeZone,
+        hostTimeZone: anchorTimeZone,
+        startHour,
+        endHour,
+        durationMin: duration,
+      });
     },
     [],
   );
@@ -299,7 +277,10 @@ export default function PublicBookingPage(props: PageProps) {
     setIsLoadingSlots(true);
 
     async function loadSlots() {
-      const dateStr = formatDateToYmd(selectedDate);
+      // The request names the GUEST's calendar day in the SELECTED timezone
+      // (fix/qm-booking-guest-day) — browser-local Y/M/D would silently
+      // shift the date boundary when the user picked another zone.
+      const dateStr = formatDateToYmdInTz(selectedDate, selectedTimezone);
       const tzParam = encodeURIComponent(selectedTimezone);
       try {
         const res = await apiFetchRaw(
@@ -314,7 +295,9 @@ export default function PublicBookingPage(props: PageProps) {
             // the honest "no slots" state; NEVER fall through to the
             // client-side generator, which would invent bookable slots the
             // backend rejects at submit with 409 SLOT_UNAVAILABLE.
-            setAvailableSlots(slots);
+            // Re-apply the guest-day rule client-side as a stale-backend
+            // guard: labels must always land on the selected guest date.
+            setAvailableSlots(slotsWithinGuestDay(slots, dateStr, selectedTimezone));
             setIsLoadingSlots(false);
             return;
           }

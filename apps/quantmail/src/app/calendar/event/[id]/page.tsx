@@ -13,7 +13,7 @@
 // reminders, and the viewer's own RSVP actions.
 // ============================================================================
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, Skeleton, ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppShell } from '../../../../components/AppShell';
@@ -29,12 +29,15 @@ import {
   zonedInputToIso,
   stripQuantMeta,
   fallbackRsvpScope,
+  planRsvpWrite,
+  createRsvpWriteGate,
   RSVP_LABELS,
   type RsvpStatus,
   type RsvpScopeInfo,
   type EventDetailDto,
 } from '../event-detail-utils';
 import { RsvpScopeConfirmation } from '../rsvp-scope-confirmation';
+import { RsvpScopePrewriteConfirmation } from '../rsvp-scope-prewrite-confirmation';
 import type { CalendarEvent } from '../../../../types';
 import { TIMEZONES } from '../../types';
 
@@ -107,9 +110,19 @@ export default function CalendarEventDetailPage() {
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [rsvpError, setRsvpError] = useState<string | null>(null);
-  // The v1 occurrence-vs-series contract writes every RSVP to the
-  // series-level attendee list; after a successful RSVP we confirm exactly
-  // what it covered instead of implying a per-occurrence write.
+  // Pre-write scope gate (CODEX-REVIEW follow-up on #1100): the v1
+  // occurrence-vs-series contract writes every RSVP to the series-level
+  // attendee list, so for a recurring series the UI must show the
+  // authoritative effect and require explicit confirm BEFORE any POST.
+  // Cancel/back produces zero mutation. The post-write confirmation below
+  // (RsvpScopeConfirmation) reports what the completed write covered.
+  const [pendingRsvp, setPendingRsvp] = useState<{
+    status: RsvpStatus;
+    scope: RsvpScopeInfo;
+  } | null>(null);
+  const openerRef = useRef<HTMLButtonElement | null>(null);
+  // Post-write receipt: reports what the completed write covered (backend's
+  // authoritative rsvpScope, or the same shape derived client-side).
   const [rsvpConfirmation, setRsvpConfirmation] = useState<{
     status: RsvpStatus;
     scope: RsvpScopeInfo;
@@ -202,8 +215,46 @@ export default function CalendarEventDetailPage() {
     }
   };
 
-  const handleRsvp = async (status: RsvpStatus) => {
+  // One gate per page instance; the post closure is resolved lazily so the
+  // declaration order (postRsvp below) is safe.
+  const gateRef = useRef<ReturnType<typeof createRsvpWriteGate> | null>(null);
+  const getGate = () => {
+    if (!gateRef.current) {
+      gateRef.current = createRsvpWriteGate({ post: (status) => postRsvp(status) });
+    }
+    return gateRef.current;
+  };
+
+  const handleRsvp = (status: RsvpStatus, opener?: HTMLButtonElement | null) => {
     if (!eventId) return;
+    // The pre-write gate decides: non-recurring events post directly (no
+    // scope surprise possible); recurring series open the confirmation
+    // dialog with NO POST. Cancel/back = zero mutation.
+    const intent = planRsvpWrite(eventId, event?.recurrence);
+    const needsConfirm = getGate().request(status, intent);
+    if (needsConfirm) {
+      setRsvpError(null);
+      openerRef.current = opener ?? null;
+      setPendingRsvp({ status, scope: intent.scope });
+    }
+  };
+
+  const confirmPendingRsvp = () => {
+    // Gate guarantees a single POST per intent (double-tap/key-repeat are
+    // no-ops). The dialog closes immediately; pending/retry state lives on
+    // the RSVP buttons (disabled via rsvp.isPending) and rsvpError below.
+    const p = getGate().confirm();
+    setPendingRsvp(null);
+    if (p) void p.catch(() => {});
+  };
+
+  const cancelPendingRsvp = () => {
+    // Zero mutation: the gate's Cancel path performs no POST.
+    getGate().cancel();
+    setPendingRsvp(null);
+  };
+
+  const postRsvp = async (status: RsvpStatus) => {
     setRsvpError(null);
     setRsvpConfirmation(null);
     try {
@@ -502,7 +553,7 @@ export default function CalendarEventDetailPage() {
                           <button
                             key={status}
                             type="button"
-                            onClick={() => void handleRsvp(status)}
+                            onClick={(e) => handleRsvp(status, e.currentTarget)}
                             disabled={rsvp.isPending}
                             className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[var(--quant-border)] px-4 text-sm font-medium transition-colors hover:bg-[var(--quant-muted)] disabled:opacity-50"
                             aria-label={`Respond ${RSVP_LABELS[status]}`}
@@ -520,6 +571,19 @@ export default function CalendarEventDetailPage() {
                           status={rsvpConfirmation.status}
                           scope={rsvpConfirmation.scope}
                           timeZone={event.timeZone}
+                        />
+                      )}
+                      {/* Pre-write scope gate: series-wide effect confirmed
+                          BEFORE any POST; Cancel = zero mutation. */}
+                      {pendingRsvp && (
+                        <RsvpScopePrewriteConfirmation
+                          status={pendingRsvp.status}
+                          scope={pendingRsvp.scope}
+                          timeZone={event.timeZone}
+                          isPending={rsvp.isPending}
+                          openerRef={openerRef}
+                          onConfirm={confirmPendingRsvp}
+                          onCancel={cancelPendingRsvp}
                         />
                       )}
                     </div>
