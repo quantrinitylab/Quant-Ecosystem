@@ -28,12 +28,32 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const OUT_OF_TX = (op: string) =>
   new Error(`registration write "${op}" ran outside the transaction — must be atomic`);
 
+/**
+ * A realistic Prisma unique-constraint error: PrismaClientKnownRequestError
+ * with code 'P2002'. The handler duck-types `code`, so a plain Error with the
+ * property is exactly what the mapping checks.
+ */
+function p2002Error(target: string): Error {
+  const err = new Error(`Unique constraint failed on the fields: (${target})`);
+  (err as any).code = 'P2002';
+  (err as any).meta = { target: [target] };
+  return err;
+}
+
 const fakes = vi.hoisted(() => {
   const state = {
     users: new Map<string, any>(),
     folders: [] as any[],
     codes: [] as any[],
     failCodeInsert: false,
+    // Race injection for the register TOCTOU test: when set, the
+    // transaction-scoped user.create throws this error instead of writing —
+    // modelling the race loser whose findFirst pre-check passed but whose
+    // insert collides with the winner's committed row (Prisma P2002).
+    p2002OnUserCreate: null as null | Error,
+    // Same race class on the verification-row insert: any P2002 inside the
+    // transaction must also surface as 409 USER_EXISTS, never a raw 500.
+    p2002OnCodeInsert: false,
   };
   let seq = 0;
   const nextId = (prefix: string) => `${prefix}-${++seq}`;
@@ -55,6 +75,7 @@ const fakes = vi.hoisted(() => {
       return null;
     },
     create: async ({ data }: any) => {
+      if (state.p2002OnUserCreate) throw state.p2002OnUserCreate;
       const row = { id: nextId('user'), ...data };
       store.set(row.id, row);
       return { ...row };
@@ -64,6 +85,7 @@ const fakes = vi.hoisted(() => {
   const codeApi = (arr: any[]) => ({
     create: async ({ data }: any) => {
       if (state.failCodeInsert) throw new Error('forced verification-row insert failure');
+      if (state.p2002OnCodeInsert) throw p2002Error('`codeHash`');
       const row = { id: nextId('evc'), ...data };
       arr.push(row);
       return { ...row };
@@ -213,6 +235,8 @@ beforeEach(() => {
   fakes.state.folders = [];
   fakes.state.codes = [];
   fakes.state.failCodeInsert = false;
+  fakes.state.p2002OnUserCreate = null;
+  fakes.state.p2002OnCodeInsert = false;
 });
 
 describe('POST /auth/register — atomic signup', () => {
@@ -276,5 +300,67 @@ describe('POST /auth/register — atomic signup', () => {
     expect(reply.statusCode).toBe(409);
     expect(reply.body.error.code).toBe('USER_EXISTS');
     expect(fakes.state.users.size).toBe(1);
+  });
+
+  it('the TOCTOU loser gets an honest 409 USER_EXISTS, not a raw 500', async () => {
+    // Two concurrent registers with the same email both pass the findFirst
+    // pre-check (nothing committed yet). The winner commits; the loser's
+    // tx.user.create hits the unique constraint — the database answers P2002.
+    fakes.state.p2002OnUserCreate = p2002Error('`email`');
+
+    const reply = await call('/auth/register', request());
+
+    expect(reply.statusCode).toBe(409);
+    expect(reply.body.error.code).toBe('USER_EXISTS');
+    // The loser's transaction rolls back completely: no user row, no
+    // folders, no verification row, and no email goes out for an account
+    // that was never created.
+    expect(fakes.state.users.size).toBe(0);
+    expect(fakes.state.folders.length).toBe(0);
+    expect(fakes.state.codes.length).toBe(0);
+    expect(fakes.sendVerificationEmail).not.toHaveBeenCalled();
+  });
+
+  it('the loser retries honestly: the winner is now visible and 409s on the pre-check', async () => {
+    fakes.state.p2002OnUserCreate = p2002Error('`email`');
+    const loser = await call('/auth/register', request());
+    expect(loser.statusCode).toBe(409);
+    expect(loser.body.error.code).toBe('USER_EXISTS');
+
+    // The winner's commit is now visible, exactly as in production. The
+    // loser's retry hits the pre-check and answers USER_EXISTS — the same
+    // 409 a sequential duplicate gets, so clients can treat it identically.
+    fakes.state.p2002OnUserCreate = null;
+    fakes.state.users.set('user-winner', {
+      id: 'user-winner',
+      email: REGISTER.email,
+      username: REGISTER.username,
+    });
+
+    const retry = await call('/auth/register', request());
+    expect(retry.statusCode).toBe(409);
+    expect(retry.body.error.code).toBe('USER_EXISTS');
+    expect(fakes.state.users.size).toBe(1);
+  });
+
+  it('a P2002 on the verification-row insert also 409s USER_EXISTS, never a 500', async () => {
+    fakes.state.p2002OnCodeInsert = true;
+
+    const reply = await call('/auth/register', request());
+
+    expect(reply.statusCode).toBe(409);
+    expect(reply.body.error.code).toBe('USER_EXISTS');
+    // Whole-transaction mapping: the rolled-back user row is gone too.
+    expect(fakes.state.users.size).toBe(0);
+    expect(fakes.sendVerificationEmail).not.toHaveBeenCalled();
+  });
+
+  it('a NON-P2002 transaction failure still propagates instead of being swallowed', async () => {
+    fakes.state.failCodeInsert = true;
+
+    await expect(call('/auth/register', request())).rejects.toThrow(
+      'forced verification-row insert failure',
+    );
+    expect(fakes.state.users.size).toBe(0);
   });
 });

@@ -41,6 +41,16 @@ const RESEND_CODE_SUPERSEDED = Symbol('resend-code-superseded');
 // handler answers alreadyVerified instead of issuing a code.
 const RESEND_ALREADY_VERIFIED = Symbol('resend-already-verified');
 
+/**
+ * Prisma unique-constraint violation (P2002), duck-typed on `code` so the
+ * check works without importing the generated client — same style as the
+ * collab-persistence layer. Register's duplicate-check TOCTOU maps this to
+ * 409 USER_EXISTS below.
+ */
+function isUniqueConstraintViolation(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === 'P2002';
+}
+
 export async function authRoutes(fastify: FastifyInstance) {
   const tokenService = createTokenService();
 
@@ -139,50 +149,69 @@ export async function authRoutes(fastify: FastifyInstance) {
       // behind whenever the row insert failed — and the retry then 409'd
       // USER_EXISTS with no way to ever verify that account.
       const verificationCode = generateVerificationCode();
-      const user = await prisma.$transaction(async (tx: any) => {
-        const created = await tx.user.create({
-          data: {
-            email,
-            username,
-            displayName: displayName || username,
-            passwordHash,
-            status: 'ACTIVE',
-            // The address is NOT proven at this point. Creating users with
-            // emailVerified: true here was how any address could be claimed
-            // with no proof of ownership — /auth/verify-email flips it.
-            emailVerified: false,
-          },
-        });
-
-        // Provision standard mail folders at signup (M10: eliminates per-request upsert overhead)
-        if (tx.emailFolder?.createMany) {
-          await tx.emailFolder.createMany({
-            data: [
-              { userId: created.id, name: 'Inbox', type: 'INBOX' },
-              { userId: created.id, name: 'Sent', type: 'SENT' },
-              { userId: created.id, name: 'Drafts', type: 'DRAFTS' },
-              { userId: created.id, name: 'Archive', type: 'ARCHIVE' },
-              { userId: created.id, name: 'Trash', type: 'TRASH' },
-              { userId: created.id, name: 'Spam', type: 'SPAM' },
-            ],
-            skipDuplicates: true,
+      let user;
+      try {
+        user = await prisma.$transaction(async (tx: any) => {
+          const created = await tx.user.create({
+            data: {
+              email,
+              username,
+              displayName: displayName || username,
+              passwordHash,
+              status: 'ACTIVE',
+              // The address is NOT proven at this point. Creating users with
+              // emailVerified: true here was how any address could be claimed
+              // with no proof of ownership — /auth/verify-email flips it.
+              emailVerified: false,
+            },
           });
-        }
 
-        // Prove-it-later: the new account is not yet entitled to claim this
-        // address. A real 6-digit code goes out over SES (no phone/SMS — that
-        // channel was removed by user order), and only its hash is stored.
-        await tx.emailVerificationCode.create({
-          data: {
-            userId: created.id,
-            codeHash: hashVerificationCode(verificationCode),
-            expiresAt: verificationCodeExpiry(),
-            requestedIp: typeof request.ip === 'string' ? request.ip : null,
-          },
+          // Provision standard mail folders at signup (M10: eliminates per-request upsert overhead)
+          if (tx.emailFolder?.createMany) {
+            await tx.emailFolder.createMany({
+              data: [
+                { userId: created.id, name: 'Inbox', type: 'INBOX' },
+                { userId: created.id, name: 'Sent', type: 'SENT' },
+                { userId: created.id, name: 'Drafts', type: 'DRAFTS' },
+                { userId: created.id, name: 'Archive', type: 'ARCHIVE' },
+                { userId: created.id, name: 'Trash', type: 'TRASH' },
+                { userId: created.id, name: 'Spam', type: 'SPAM' },
+              ],
+              skipDuplicates: true,
+            });
+          }
+
+          // Prove-it-later: the new account is not yet entitled to claim this
+          // address. A real 6-digit code goes out over SES (no phone/SMS — that
+          // channel was removed by user order), and only its hash is stored.
+          await tx.emailVerificationCode.create({
+            data: {
+              userId: created.id,
+              codeHash: hashVerificationCode(verificationCode),
+              expiresAt: verificationCodeExpiry(),
+              requestedIp: typeof request.ip === 'string' ? request.ip : null,
+            },
+          });
+
+          return created;
         });
-
-        return created;
-      });
+      } catch (err) {
+        // Duplicate-check TOCTOU: the findFirst pre-check above runs OUTSIDE
+        // this transaction, so two concurrent registers with the same email
+        // (or username) can both pass it. The winner's tx.user.create commits;
+        // the loser's hits the unique constraint (P2002). Mapping that to
+        // 409 USER_EXISTS keeps the loser's retry path honest — before this,
+        // the unmapped P2002 escaped as a raw 500.
+        if (isUniqueConstraintViolation(err)) {
+          return fail(
+            reply,
+            409,
+            'USER_EXISTS',
+            'An account with this email or username already exists. Try signing in instead.',
+          );
+        }
+        throw err;
+      }
 
       const verificationEmailSent = await sendVerificationEmail({
         to: email,
