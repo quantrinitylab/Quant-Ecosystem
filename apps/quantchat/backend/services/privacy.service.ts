@@ -453,6 +453,16 @@ export class PrivacyService {
    * `targetId`. Existing conversations are never gated by this (the toggle
    * guards initiation only — membership remains the authority inside a
    * conversation that already exists).
+   *
+   * QC-F-317: the target's block list is consulted too — a creator the
+   * target has blocked is 'denied' even when whoCanMessage is 'everyone'
+   * (a block beats the general permission, and also beats close-friend
+   * status). The blocked verdict runs AFTER the resolve() source checks
+   * (a missing target stays 'missing-target' and a failed read stays
+   * 'unavailable' — the blocked check must not rewrite those), and BEFORE
+   * the whoCanMessage switch. checkBlockedBy never caches and fails
+   * closed, so a malformed block list or a failed read answers
+   * 'unavailable' (the consumer's 503), never a silent allow.
    */
   async checkCanMessage(
     creatorId: string,
@@ -461,6 +471,9 @@ export class PrivacyService {
     const { prefs, source } = await this.resolve(targetId);
     if (source === 'missing') return 'missing-target';
     if (source === 'error') return 'unavailable';
+    const blockedVerdict = await this.checkBlockedBy(targetId, creatorId);
+    if (blockedVerdict === 'blocked') return 'denied';
+    if (blockedVerdict === 'unavailable') return 'unavailable';
     switch (prefs.whoCanMessage) {
       case 'everyone':
         return 'allowed';
