@@ -1274,9 +1274,10 @@ R4 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 0 P2 (2 P1 + 3 P2 carryovers confirmed stil
 Rotation → QM-SCREEN-018 (help) R4, queued.
 
 ## QM-SCREEN-018 — Help / privacy / terms / invite / groups / SSO / legacy route disposition
-Status: [x] DONE (ROUND 4 regression audit complete 2026-10-13 ~02:00 IST — Owner: LANE-1, Branch: lane1-audit-018r4; PR #1030 merged 2026-10-12 10:46Z and live-verified; R2-NEW-1 systemic backend P0 RESOLVED LIVE for contact-groups; 1 new P2 filed, no fix agents)
+Status: [~] IN PROGRESS (ROUND 5 regression audit claimed 2026-10-13 ~11:35 IST — base origin/main 356eeb7a vs R4 base e4bc5f5b; 129 commits in window)
 Owner: LANE-1
-Branch: lane1-audit-018r4
+Branch: lane1-audit-018r5
+R5-AUDIT: in progress.
 R4-AUDIT (2026-10-13 ~01:40–02:00 IST): origin/main e4bc5f5bb4a8 (fresh fetch) vs R3 base 226c5025. Read-only code audit by subagent (git show/grep on origin/main only; qe-main working tree CONFIRMED STALE again — contains apps/quantmail/src/app/forgot-email/ not on origin/main) + live logged-out desktop 1440x900 + mobile 390x844 Chrome + live curl (proxy 127.0.0.1:8888).
 R4 REGRESSION DIFF (226c5025..e4bc5f5bb4a8, 110 commits): only #1030's 5 commits touched the audited surfaces (privacy 7d retention, sso hairline, help support mailto+eyebrow, privacy-copy.test.ts, privacy SES disclosure) — all BENIGN, verified present. Zero commits touched api/contact-groups, backend/routes/contact-groups.ts, backend/app.ts, sso components, edge-public-paths.
 R3-NEW-1..5 ALL VERIFIED-INTACT in code + LIVE: 7-day retention in both privacy spots (Trash/Spam 30d is a separate data class, not the fixed contradiction); no shredding/immutable claims; no AES at-rest claims ("Encryption at Rest (rolling out)" honest note); /help names support@quantrinity.in + Email support link; eyebrows help=Help/terms=Legal/privacy=Legal; SsoChooserContent hairline gone.
