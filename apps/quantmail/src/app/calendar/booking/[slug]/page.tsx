@@ -22,6 +22,7 @@ import {
   IconCheck,
 } from '../../../../components/icons';
 import { apiFetchRaw } from '@quant/api-client';
+import { BookingLinkDeadPanel, shouldUseHistoryBack } from './dead-link-panel';
 
 // Helper to format Date to YYYY-MM-DD
 function formatDateToYmd(d: Date): string {
@@ -103,6 +104,24 @@ export default function PublicBookingPage(props: PageProps) {
   const [linkErrorMessage, setLinkErrorMessage] = useState<string | null>(null);
   // Bumped by the "Try again" button to re-run the link fetch below.
   const [linkReloadNonce, setLinkReloadNonce] = useState(0);
+
+  // Re-run the link fetch for the 'error'/'inactive' dead-link panel.
+  const handleReloadLink = useCallback(() => {
+    setLinkStatus('loading');
+    setLinkErrorMessage(null);
+    setLinkReloadNonce((n) => n + 1);
+  }, []);
+
+  // 'not-found' panel action: return to where the guest came from, or the
+  // QuantMail home when this tab has no history (so it never silently does
+  // nothing). Plain window.history avoids pulling in the app router.
+  const handleGoBack = useCallback(() => {
+    if (typeof window !== 'undefined' && shouldUseHistoryBack(window.history.length)) {
+      window.history.back();
+    } else {
+      window.location.assign('/');
+    }
+  }, []);
 
   // Flow State: Step 1 (Date & Slot) -> Step 2 (Visitor Form) -> Step 3 (Confirmation)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -1059,43 +1078,12 @@ export default function PublicBookingPage(props: PageProps) {
           </section>
         </div>
         ) : (
-        <div className="w-full max-w-md rounded-3xl bg-[var(--quant-surface-subtle)] border border-[var(--quant-surface-elevated)] shadow-2xl shadow-black/80 p-8 text-center space-y-4">
-          <div className="size-14 rounded-2xl bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] text-[var(--app-accent)] mx-auto flex items-center justify-center">
-            <IconBan size={26} />
-          </div>
-          <div className="space-y-1.5">
-            <h1 className="text-lg font-black tracking-tight text-white">
-              {linkStatus === 'not-found'
-                ? 'Booking link not found'
-                : linkStatus === 'inactive'
-                  ? 'This booking link is inactive'
-                  : "Couldn't load this booking link"}
-            </h1>
-            <p className="text-xs text-[var(--quant-muted-foreground)] leading-relaxed">
-              {linkErrorMessage || 'This booking link could not be loaded.'}
-            </p>
-            <p className="text-[11px] text-[#5E6472] leading-relaxed">
-              {linkStatus === 'not-found'
-                ? 'Double-check the URL — the link may have been deleted. Ask the host for a fresh one.'
-                : linkStatus === 'inactive'
-                  ? 'The host has paused or disabled this link. Ask them for a new one.'
-                  : 'Nothing was booked — your details were never sent. Check your connection and try again.'}
-            </p>
-          </div>
-          {linkStatus === 'error' && (
-            <button
-              type="button"
-              onClick={() => {
-                setLinkStatus('loading');
-                setLinkErrorMessage(null);
-                setLinkReloadNonce((n) => n + 1);
-              }}
-              className="px-5 py-2.5 rounded-xl bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-[var(--quant-background)] font-bold text-xs shadow-lg shadow-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] transition-all"
-            >
-              Try again
-            </button>
-          )}
-        </div>
+        <BookingLinkDeadPanel
+          status={linkStatus}
+          message={linkErrorMessage}
+          onRetry={handleReloadLink}
+          onGoBack={handleGoBack}
+        />
         )}
       </main>
 
