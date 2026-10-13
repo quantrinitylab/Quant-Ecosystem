@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { browserAuthSession } from '../../../services/browser-auth-session';
 
 // ============================================================================
 // Types & Interfaces
@@ -1224,12 +1225,13 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
       id: 'msg-initial',
       role: 'assistant',
       content:
-        'Quanty AI Copilot ready. Select a prompt chip below or type an instruction.',
+        'Quanty AI Copilot — type an instruction or tap a prompt chip. Your question is sent to the live QuantAI chat service; if the service is unreachable you get an honest error here, never a fabricated answer.',
       timestamp: 'Just now',
     },
   ]);
   const [inputVal, setInputVal] = useState('');
   const [activeSuggestion, setActiveSuggestion] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
 
   const promptChips = [
     { label: 'Explain a PR', query: 'Explain the selected pull request' },
@@ -1237,8 +1239,84 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
     { label: 'Generate Test', query: 'Generate Vitest test suite for ContextBottomNavBar sub-tabs' },
   ];
 
+  // One real round-trip to the live QuantAI chat endpoint
+  // (POST /api/ai/chat → Fastify /ai/chat). No canned replies: success
+  // appends the model's actual answer, failure appends an honest error.
+  const sendToAi = async (query: string, promptChip?: string) => {
+    if (isSending) return;
+    const userMsg: CopilotMessage = {
+      id: `msg-${Date.now()}`,
+      role: 'user',
+      content: query,
+      timestamp: 'Just now',
+      ...(promptChip ? { promptChip } : {}),
+    };
+    const outgoing = [...messages, userMsg];
+    setMessages(outgoing);
+    setIsSending(true);
+    try {
+      const response = await browserAuthSession.authenticatedFetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: outgoing.map((m) => ({ role: m.role, content: m.content })),
+          intent: 'auto',
+          context: {
+            app: 'quantgit',
+            route: typeof window !== 'undefined' ? window.location.pathname : '/quantgit',
+            view: 'quantgit-copilot',
+          },
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        data?: { message?: string };
+        error?: { message?: string };
+        message?: string;
+      } | null;
+      if (
+        !response.ok ||
+        !payload?.success ||
+        typeof payload.data?.message !== 'string' ||
+        !payload.data.message.trim()
+      ) {
+        throw new Error(
+          payload?.error?.message ||
+            payload?.message ||
+            `AI request failed with status ${response.status}.`,
+        );
+      }
+      const aiMsg: CopilotMessage = {
+        id: `msg-${Date.now() + 1}`,
+        role: 'assistant',
+        content: payload.data.message.trim(),
+        timestamp: 'Just now',
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : 'Unknown error.';
+      const aiMsg: CopilotMessage = {
+        id: `msg-${Date.now() + 1}`,
+        role: 'assistant',
+        content: `Couldn't reach Quanty: ${reason} Nothing here was analyzed or generated.`,
+        timestamp: 'Just now',
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const handleChipClick = (label: string, query: string) => {
     onPromptSelect?.(query);
+    if (label === 'Generate Test') {
+      // Real generation through the live chat service instead of a
+      // fabricated test-coverage snippet.
+      void sendToAi(query, label);
+      return;
+    }
+    // 'Explain a PR' and 'Security Audit' have no backend support on this
+    // surface yet: honest unavailable replies, never fabricated results.
     setActiveSuggestion(label);
 
     const userMsg: CopilotMessage = {
@@ -1249,17 +1327,10 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
       promptChip: label,
     };
 
-    let reply = '';
-    if (label === 'Explain a PR') {
-      reply =
-        'Select a pull request first — the copilot can explain its diffs once a PR is open.';
-    } else if (label === 'Security Audit') {
-      reply =
-        'Security audit requires a live scan — connect a repository to run one. No scan has run yet.';
-    } else {
-      reply =
-        'Generated Vitest test suite preview:\n```tsx\ndescribe("QuantGit Sub-Views", () => {\n  it("synchronizes with ?tab=... and renders all 5 views", () => {\n    // 100% green coverage\n  });\n});\n```';
-    }
+    const reply =
+      label === 'Explain a PR'
+        ? "PR explanation isn't wired to a backend on this screen yet — no pull request was read or analyzed."
+        : "Security audit isn't wired to a live scanner yet — no dependencies or vault were scanned.";
 
     const aiMsg: CopilotMessage = {
       id: `msg-${Date.now() + 1}`,
@@ -1273,26 +1344,11 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
 
   const handleSend = (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!inputVal.trim()) return;
+    if (!inputVal.trim() || isSending) return;
 
     const userText = inputVal.trim();
     setInputVal('');
-
-    const userMsg: CopilotMessage = {
-      id: `msg-${Date.now()}`,
-      role: 'user',
-      content: userText,
-      timestamp: 'Just now',
-    };
-
-    const aiMsg: CopilotMessage = {
-      id: `msg-${Date.now() + 1}`,
-      role: 'assistant',
-      content: `Analyzed workspace query: "${userText}". All monorepo AST nodes, Git Smart HTTP endpoints, and CI pipelines are synchronized.`,
-      timestamp: 'Just now',
-    };
-
-    setMessages((prev) => [...prev, userMsg, aiMsg]);
+    void sendToAi(userText);
   };
 
   return (
@@ -1357,7 +1413,7 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
                 {m.role === 'assistant' && (
                   <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#232938] text-[11px] font-bold text-[#8B5CF6]">
                     <SvgCopilotIcon className="size-3.5" />
-                    <span>Quanty Assistant Preview</span>
+                    <span>Quanty Assistant</span>
                   </div>
                 )}
                 <div className="whitespace-pre-wrap">{m.content}</div>
@@ -1380,7 +1436,7 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
             >
               <SvgCopilotIcon className="size-4 shrink-0 text-[#8B5CF6]" />
               <span>
-                Active inspection: <strong>{activeSuggestion}</strong> context loaded into reasoning buffer.
+                Prompt chip <strong>&ldquo;{activeSuggestion}&rdquo;</strong> selected — this action isn&rsquo;t wired to a backend yet, so no analysis was run.
               </span>
             </div>
           )}
@@ -1393,15 +1449,21 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
               type="text"
               value={inputVal}
               onChange={(e) => setInputVal(e.target.value)}
-              placeholder="Ask Quanty about repositories, PR diffs, or architecture..."
-              className="flex-1 bg-transparent px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+              disabled={isSending}
+              placeholder={
+                isSending
+                  ? 'Quanty is thinking…'
+                  : 'Ask Quanty about repositories, PR diffs, or architecture...'
+              }
+              aria-label="Ask Quanty"
+              className="flex-1 bg-transparent px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] disabled:opacity-60"
             />
             <button
               type="submit"
-              disabled={!inputVal.trim()}
+              disabled={!inputVal.trim() || isSending}
               className="px-4 py-2 rounded-xl bg-[#8B5CF6] hover:bg-[#906FFA] text-black font-bold text-xs disabled:opacity-40 transition-all flex items-center gap-1.5"
             >
-              <span>Send</span>
+              <span>{isSending ? 'Sending…' : 'Send'}</span>
               <SvgSendIcon className="size-3" />
             </button>
           </div>
