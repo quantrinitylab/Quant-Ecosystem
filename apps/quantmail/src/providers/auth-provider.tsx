@@ -8,7 +8,9 @@ import {
   browserAuthSession,
   cleanupLegacyBrowserTokens,
   isTwoFactorChallenge,
+  type BrowserAccessSession,
 } from '../services/browser-auth-session';
+import { resolveSessionUser } from '../services/session-user';
 
 export interface AuthUser {
   id: string;
@@ -77,7 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
-  const loadProfile = useCallback(async () => {
+  const fetchProfile = useCallback(async (): Promise<AuthUser> => {
     // Imported lazily: the public auth shell must not pay for the
     // authenticated API-client chunk until a session actually exists to use
     // it. On the auth shell this only runs after a successful sign-in.
@@ -86,11 +88,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!profile.success || !profile.data) {
       throw new Error(profile.error?.message || 'Could not load your profile.');
     }
-    setUser(profile.data);
+    return {
+      id: profile.data.id,
+      email: profile.data.email,
+      username: profile.data.username,
+      displayName: profile.data.displayName,
+      role: profile.data.role,
+      phoneNumber: profile.data.phoneNumber ?? null,
+      phoneVerified: Boolean(profile.data.phoneVerified),
+    };
   }, []);
 
+  /** Hydrate state from a session response: embedded profile if present, /oauth/userinfo otherwise. */
+  const applySessionUser = useCallback(
+    async (data: BrowserAccessSession | undefined) => {
+      setUser(await resolveSessionUser(data, fetchProfile));
+    },
+    [fetchProfile],
+  );
+
   useEffect(() => {
-    // Lazy for the same reason as loadProfile: on the public auth shell there
+    // Lazy for the same reason as fetchProfile: on the public auth shell there
     // are no authenticated API calls to observe 401s from, so the chunk can
     // wait until it is actually needed. The callback is stable and the client
     // is a module singleton, so re-subscribing on remount simply overwrites.
@@ -115,14 +133,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // One timeout for the refresh, another for the profile load. The
         // refresh used to be the only raced call — a slow `/oauth/userinfo`
         // then left the app on "Authenticating..." for up to 30s (the fetch
-        // timeout) because `loadProfile()` was not timeout-bound. Both legs
+        // timeout) because the profile leg was not timeout-bound. Both legs
         // now fail closed within 5s each, so the gate can never hang the
         // first visit to an authenticated route.
         const timeout = (ms: number) =>
           new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), ms));
         const session = await Promise.race([browserAuthSession.refresh(), timeout(5000)]);
         if (!active || !session.success || !session.data?.accessToken) return;
-        await Promise.race([loadProfile(), timeout(5000)]);
+        // The refresh response now embeds the user profile, so hydration is a
+        // single round trip; applySessionUser only falls back to /oauth/userinfo
+        // for backends that don't embed one yet.
+        await Promise.race([applySessionUser(session.data), timeout(5000)]);
       } catch {
         // Auth failed or timed out — go to login
         if (active) clearMemorySession();
@@ -135,7 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       active = false;
     };
-  }, [clearMemorySession, loadProfile]);
+  }, [clearMemorySession, applySessionUser]);
 
   // Rotate before the 15-minute access token expires. The rotated refresh token
   // remains inside the HttpOnly cookie and never enters this provider.
@@ -173,7 +194,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!session.data.accessToken) {
           throw new Error('Login failed');
         }
-        await loadProfile();
+        // /auth/login embeds the profile; only older backends need the
+        // /oauth/userinfo round trip.
+        await applySessionUser(session.data);
         return { status: 'signed-in' };
       } catch (caught) {
         clearMemorySession();
@@ -184,7 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
       }
     },
-    [clearMemorySession, loadProfile],
+    [clearMemorySession, applySessionUser],
   );
 
   const completeTwoFactor = useCallback(
@@ -209,7 +232,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         sessionIssued = true;
         try {
-          await loadProfile();
+          // /auth/2fa/verify embeds the profile; only older backends need the
+          // /oauth/userinfo round trip.
+          await applySessionUser(session.data);
         } catch {
           throw new AuthFlowError(
             'Your code was accepted, but the session could not be initialized. Sign in again.',
@@ -247,7 +272,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
       }
     },
-    [clearMemorySession, loadProfile],
+    [clearMemorySession, applySessionUser],
   );
 
   const cancelTwoFactor = useCallback(() => {
