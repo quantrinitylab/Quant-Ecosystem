@@ -3118,3 +3118,18 @@ Owner: LANE-1
 Branch: lane1-audit-007r7
 Audit started: 2026-10-13 ~22:35 IST (lane-1 deep audit loop, ROUND 7)
 Base: R6 @ 090cb9d15 -> origin/main 5e7ea63e (fresh fetch).
+R7-AUDIT (2026-10-13 ~22:35–23:00 IST): origin/main 5e7ea63e (fresh fetch) vs R6 base 090cb9d15. 101 commits in window.
+R7 REGRESSION DIFF (name-only diff on all search paths — ZERO hits): no change to search-query.service.ts, email.service.ts, routes/search.ts, ai-search-content.service.ts, useSearchEmails.ts, useUniversalSearch.ts, app/search/page.tsx, UniversalSearchResults.tsx, any search Next proxy route, routes-config.ts search entries, companies route (R6's endpoint untouched). Two non-search diffs only: (a) apps/quantchat/backend/__tests__/qc-f-259-users-search-discoverability.test.ts — QuantChat users-search test, out of lane scope (lane-2's app, not running); no QuantMail wiring; (b) apps/quantmail/src/services/api-client.ts — RSVP scope type + getUserInfo phone fields (calendar/auth window work), zero touch on searchEmail/searchAll methods.
+R6 OPENS RE-VERIFIED STILL PRESENT (byte-checked on 5e7ea63e):
+- [ ] FINDING P2: is: operator — search-query.service.ts:189-196 handles unread/read/starred/important/spam only; no trash branch; unknown values silently dropped (no error, scope widens without notice). before:/after: invalid dates dropped (token not re-added to terms) — :197-205.
+- [ ] FINDING P3: 0 `signal` refs in useSearchEmails.ts/useUniversalSearch.ts — no abort of in-flight search requests (git grep -c = 0 hits).
+- [ ] FINDING P3: universal mail leg 20 vs 8 — useUniversalSearch.ts:69 `apiClient.searchEmails({ query: trimmed } as never)`, no pageSize.
+- [ ] FINDING P3: main search input no Esc-to-clear — app/search/page.tsx:328-330 onKeyDown Enter-only.
+- [ ] FINDING P3: operator syntax zero UI discoverability — placeholder "Search mail — sender, subject, words…" (:333), EXAMPLE_SEARCHES = plain strings (:20, :571).
+- [ ] FINDING P3: branch semantic divergence — quoted phrase: exact-substring on Prisma branch vs stemmed-AND on raw-SQL FTS branch (to_tsvector@@plainto_tsquery :338); label:/to: exact-array vs ILIKE.
+- [ ] FINDING P3: document search under-covers vs access policy — searchDocuments userId-scoped (routes/search.ts:102) vs Gate N-G5 shared/public -> BLOCKER: product decision (unchanged).
+R7 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents spawned (protocol: P0/P1 only). findings.md: no new lines (clean pass).
+LIVE (2026-10-13 ~22:55 IST, proxy 127.0.0.1:8888 healthy): /search?q=test -> honest sign-in gate desktop (1440x900) + mobile (390x844), pure black, mail-orange accents, provable copy only. Signed-in search UI needs-auth (no test session). Evidence: /tmp/lane1-007r7-{desktop,mobile}.png. /tmp 4% used; chrome orphans cleaned.
+NOT VERIFIED (needs live/auth, unchanged): staging DB GIN indexes; live 401 E2E; operator routing live on real data; overlapping-fetch flicker; Hinglish stemming; scope-chip live; search latency.
+Rotation -> QM-SCREEN-013 (QuantGit) ROUND 6 regression, queued.
+Status: [x] DONE (R7 regression audit complete 2026-10-13 ~23:05 IST; 101-commit window reviewed, 0 new findings, 7 opens carried; fixes tracked via their PRs)
