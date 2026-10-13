@@ -30,7 +30,7 @@ const BACKEND_URL =
  * (current writers) and `quant_refresh_token` (the cookie PR #861's SSO
  * callback/ticket routes set).
  */
-export async function POST(request?: NextRequest) {
+export async function POST(request: NextRequest) {
   // Best-effort backend revocation. Body/headers are read defensively:
   // older callers POST with no body at all, and revocation must never be
   // what makes logout fail.
