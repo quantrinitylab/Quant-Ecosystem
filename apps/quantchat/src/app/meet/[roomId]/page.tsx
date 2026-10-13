@@ -34,6 +34,21 @@ import {
   type MeetingRoomSummary,
 } from '../../../services/api-client';
 import { routes } from '../../../lib/navigation';
+import {
+  buildRaiseQueue,
+  readHandState,
+  setOwnHand,
+} from '../../../lib/raise-hand';
+import { HandIcon } from '../../../components/icons/HandIcon';
+
+/** Honest wait label for the raise queue ("2m") — derived, never stored. */
+function formatWait(raisedAt: string | null): string | null {
+  if (!raisedAt) return null;
+  const ms = Date.now() - Date.parse(raisedAt);
+  if (Number.isNaN(ms) || ms < 0) return null;
+  if (ms < 60_000) return 'just now';
+  return `${Math.floor(ms / 60_000)}m`;
+}
 
 type Phase = 'loading' | 'gate' | 'studio' | 'joining' | 'meeting';
 type DeviceCheck = 'unchecked' | 'checking' | 'ok' | 'denied' | 'unavailable';
@@ -71,6 +86,13 @@ export default function MeetRoomPage() {
   const [isMicEnabled, setIsMicEnabled] = useState(true);
   const [isCameraEnabled, setIsCameraEnabled] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
+
+  // QC-F-263 raise hand: the hand's truth lives ONLY in LiveKit participant
+  // attributes (lib/raise-hand.ts) — these two are UI mechanics, not state:
+  // handBusy disables the button only while a write is in flight, and
+  // queueOpen only expands/collapses the queue strip.
+  const [handBusy, setHandBusy] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
 
   // ─── Load room info (join gate resolution) ────────────────────────────────
   useEffect(() => {
@@ -204,6 +226,7 @@ export default function MeetRoomPage() {
         .on(RoomEvent.TrackUnmuted, refreshParticipants)
         .on(RoomEvent.LocalTrackPublished, refreshParticipants)
         .on(RoomEvent.LocalTrackUnpublished, refreshParticipants)
+        .on(RoomEvent.ParticipantAttributesChanged, refreshParticipants)
         .on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
           setSpeaking(new Set(speakers.map((s) => s.identity)));
           refreshParticipants();
@@ -268,6 +291,27 @@ export default function MeetRoomPage() {
     await room.localParticipant.setCameraEnabled(next);
     setIsCameraEnabled(next);
   }, [room, isCameraEnabled]);
+
+  // QC-F-263: raise/lower my hand. Current state is read from the local
+  // participant's attributes (never a parallel useState), and a failed
+  // write shows the honest §2.4 notice — the UI falls back to the real
+  // attribute state, never an optimistic "raised".
+  const toggleHand = useCallback(async () => {
+    const raised = readHandState(room.localParticipant).raised;
+    setHandBusy(true);
+    try {
+      await setOwnHand(room, !raised);
+      setNotice(null);
+    } catch {
+      setNotice(
+        raised
+          ? 'Could not lower your hand — check your connection and try again.'
+          : 'Could not raise your hand — check your connection and try again.',
+      );
+    } finally {
+      setHandBusy(false);
+    }
+  }, [room]);
 
   // Disconnect the LiveKit room if the page unmounts mid-meeting.
   useEffect(() => {
@@ -462,6 +506,10 @@ export default function MeetRoomPage() {
   }
 
   // ── C08.4 Active Meeting ─────────────────────────────────────────────────
+  // QC-F-263: queue + own-hand are derived from participant attributes on
+  // every render — no stored counter, no parallel hand state.
+  const handQueue = buildRaiseQueue(participants);
+  const myHandRaised = readHandState(room.localParticipant).raised;
   return (
     <AppShell>
       <TopBar
@@ -484,6 +532,43 @@ export default function MeetRoomPage() {
         )}
         {connectionState === ConnectionState.Connected && (
           <>
+            {/* QC-F-263 raise queue — renders NOTHING when no hand is up
+                (no "No hands raised" noise). Tap expands the ordered list;
+                Slice 1 is read-only for everyone (host actions are Slice 2). */}
+            {handQueue.length > 0 && (
+              <div className="px-3 pt-3" data-testid="raise-queue">
+                <button
+                  type="button"
+                  onClick={() => setQueueOpen((open) => !open)}
+                  aria-expanded={queueOpen}
+                  className="flex w-full items-center gap-2 rounded-xl bg-gray-900 px-3 py-2 text-left text-sm text-gray-100"
+                  data-testid="raise-queue-toggle"
+                >
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-black">
+                    <HandIcon className="h-4 w-4" />
+                  </span>
+                  <span>
+                    {handQueue.length} hand{handQueue.length === 1 ? '' : 's'} raised
+                  </span>
+                </button>
+                {queueOpen && (
+                  <ol className="mt-2 space-y-1" data-testid="raise-queue-list">
+                    {handQueue.map((entry) => {
+                      const wait = formatWait(entry.raisedAt);
+                      return (
+                        <li
+                          key={entry.identity}
+                          className="flex items-center justify-between rounded-lg bg-gray-900 px-3 py-2 text-sm text-gray-100"
+                        >
+                          <span>{entry.name}</span>
+                          {wait && <span className="text-xs text-gray-400">{wait}</span>}
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+              </div>
+            )}
             {/* Participant grid — one tile per REAL participant, real tracks */}
             <div
               className="grid flex-1 grid-cols-2 gap-2 overflow-y-auto p-3"
@@ -495,6 +580,7 @@ export default function MeetRoomPage() {
                   participant={p}
                   isLocal={p === room.localParticipant}
                   isSpeaking={speaking.has(p.identity)}
+                  handRaised={readHandState(p).raised}
                 />
               ))}
             </div>
@@ -530,6 +616,21 @@ export default function MeetRoomPage() {
                 data-testid="toggle-camera"
               >
                 {isCameraEnabled ? '📹' : '🚫'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void toggleHand()}
+                disabled={handBusy}
+                aria-pressed={myHandRaised}
+                aria-label={myHandRaised ? 'Lower hand' : 'Raise hand'}
+                className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors disabled:opacity-50 ${
+                  myHandRaised
+                    ? 'bg-amber-500 text-black hover:bg-amber-400'
+                    : 'bg-gray-700 text-white hover:bg-gray-600'
+                }`}
+                data-testid="toggle-hand"
+              >
+                <HandIcon className="h-6 w-6" />
               </button>
               <button
                 type="button"
