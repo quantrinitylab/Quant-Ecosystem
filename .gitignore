@@ -1,3 +1,8 @@
+# Bare form (no trailing slash) matches BOTH directories and symlinks: with only
+# the slashed form, `git add -A` sweeps absolute node_modules SYMLINKS (created
+# for fresh-worktree vitest runs) into the tree as dangling mode-120000 blobs,
+# which breaks CI installs (ENOENT on pnpm install). Keep both lines.
+node_modules
 node_modules/
 .turbo/
 .next/
