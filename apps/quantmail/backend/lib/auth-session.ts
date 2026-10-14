@@ -107,8 +107,6 @@ export interface SessionUser {
   username: string;
   displayName?: string | null;
   role: string;
-  phoneNumber?: string | null;
-  phoneVerified?: boolean | null;
 }
 
 /**
@@ -116,7 +114,9 @@ export interface SessionUser {
  * (/auth/login, /auth/register, /auth/2fa/verify, /auth/refresh). Same shape as
  * GET /oauth/userinfo so the frontend can hydrate from the session response
  * alone and skip its second round trip. One builder for every endpoint keeps
- * the four shapes from drifting.
+ * the four shapes from drifting. Phone login/OTP was removed from the product
+ * (locked design), so no phone fields are carried — the SSO profile is
+ * { id, email, username, displayName, role } only.
  */
 export function sessionUserPayload(user: SessionUser): Record<string, unknown> {
   return {
@@ -125,8 +125,6 @@ export function sessionUserPayload(user: SessionUser): Record<string, unknown> {
     username: user.username,
     displayName: user.displayName,
     role: user.role,
-    phoneNumber: user.phoneNumber ?? null,
-    phoneVerified: Boolean(user.phoneVerified),
   };
 }
 

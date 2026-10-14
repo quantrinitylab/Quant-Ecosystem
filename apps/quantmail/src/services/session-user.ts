@@ -17,8 +17,6 @@ export function sessionUserFromData(
     username: embedded.username,
     displayName: embedded.displayName?.trim() ? embedded.displayName : embedded.username,
     role: embedded.role ?? 'USER',
-    phoneNumber: embedded.phoneNumber ?? null,
-    phoneVerified: Boolean(embedded.phoneVerified),
   };
 }
 

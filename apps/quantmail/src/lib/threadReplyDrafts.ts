@@ -27,8 +27,7 @@
  *   has no workspace/tenant dimension — enforced contract, published here
  *   instead of silently omitted (per CODEX):
  *     * GET /oauth/userinfo (apps/quantmail/backend/routes/oauth.ts) returns
- *       { id, email, username, displayName, role, phoneNumber, phoneVerified }
- *       — no tenant field;
+ *       { id, email, username, displayName, role } — no phone, no tenant field;
  *     * the access token carries `sub` = immutable user id with no tenant
  *       claim (packages/auth/src/services/token-service.ts);
  *     * middleware/workspace-tenant.ts belongs to the ERPGo company/agent

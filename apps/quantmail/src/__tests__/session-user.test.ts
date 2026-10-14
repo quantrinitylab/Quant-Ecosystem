@@ -23,8 +23,6 @@ describe('sessionUserFromData', () => {
           username: 'user',
           displayName: 'User One',
           role: 'ADMIN',
-          phoneNumber: '+911234567890',
-          phoneVerified: true,
         }),
       ),
     ).toEqual({
@@ -33,15 +31,13 @@ describe('sessionUserFromData', () => {
       username: 'user',
       displayName: 'User One',
       role: 'ADMIN',
-      phoneNumber: '+911234567890',
-      phoneVerified: true,
     });
   });
 
   it('falls back to username when displayName is blank and to USER when role is missing', () => {
     expect(
       sessionUserFromData(embedded({ id: 'u', email: 'e@x.in', username: 'u', displayName: '  ' })),
-    ).toMatchObject({ displayName: 'u', role: 'USER', phoneNumber: null, phoneVerified: false });
+    ).toMatchObject({ displayName: 'u', role: 'USER' });
   });
 
   it('returns null for older backends that embed no user', () => {

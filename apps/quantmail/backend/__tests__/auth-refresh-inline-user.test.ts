@@ -129,8 +129,6 @@ describe('POST /auth/refresh inline user (fix/qm-api-roundtrip-latency)', () => 
       username: 'ada',
       displayName: 'Ada Lovelace',
       role: 'user',
-      phoneNumber: null,
-      phoneVerified: false,
     });
 
     const reply = makeReply();
@@ -149,8 +147,6 @@ describe('POST /auth/refresh inline user (fix/qm-api-roundtrip-latency)', () => 
           username: 'ada',
           displayName: 'Ada Lovelace',
           role: 'user',
-          phoneNumber: null,
-          phoneVerified: false,
         },
       },
     });
