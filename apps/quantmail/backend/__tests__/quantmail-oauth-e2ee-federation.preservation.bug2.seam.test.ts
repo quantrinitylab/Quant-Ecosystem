@@ -95,7 +95,7 @@ vi.mock('@quant/auth/lib/prisma', () => {
     oAuthClient: { findUnique: vi.fn(), create: vi.fn() },
     oAuthConsent: { findUnique: vi.fn(), upsert: vi.fn() },
     authorizationCode: { findUnique: vi.fn(), create: vi.fn(), delete: vi.fn() },
-    user: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
+    user: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
     emailVerificationCode: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     // Interactive-transaction passthrough: the register route runs the
     // user + folders + verification writes inside prisma.$transaction(cb).
@@ -177,6 +177,7 @@ const db = vi.mocked(
     user: {
       findUnique: ReturnType<typeof vi.fn>;
       findFirst: ReturnType<typeof vi.fn>;
+      findMany: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
     };
   },
@@ -601,7 +602,7 @@ describe('Bug 2 preservation baseline — POST /auth/login', () => {
   });
 
   it('non-existent user -> 401 INVALID_CREDENTIALS', async () => {
-    db.user.findUnique.mockResolvedValue(null);
+    db.user.findMany.mockResolvedValue([]);
     const res = await app.inject({
       method: 'POST',
       url: '/auth/login',
@@ -616,13 +617,15 @@ describe('Bug 2 preservation baseline — POST /auth/login', () => {
   });
 
   it('wrong password -> 401 INVALID_CREDENTIALS', async () => {
-    db.user.findUnique.mockResolvedValue({
-      id: 'u1',
-      email: 'a@test.com',
-      username: 'a',
-      passwordHash: 'hashed_correct',
-      role: 'USER',
-    } as never);
+    db.user.findMany.mockResolvedValue([
+      {
+        id: 'u1',
+        email: 'a@test.com',
+        username: 'a',
+        passwordHash: 'hashed_correct',
+        role: 'USER',
+      } as never,
+    ]);
     const res = await app.inject({
       method: 'POST',
       url: '/auth/login',
@@ -637,14 +640,16 @@ describe('Bug 2 preservation baseline — POST /auth/login', () => {
   });
 
   it('valid credentials -> 200 { success, data: { user, accessToken } }', async () => {
-    db.user.findUnique.mockResolvedValue({
-      id: 'u1',
-      email: 'a@test.com',
-      username: 'alice',
-      displayName: 'Alice',
-      passwordHash: 'hashed_right',
-      role: 'USER',
-    } as never);
+    db.user.findMany.mockResolvedValue([
+      {
+        id: 'u1',
+        email: 'a@test.com',
+        username: 'alice',
+        displayName: 'Alice',
+        passwordHash: 'hashed_right',
+        role: 'USER',
+      } as never,
+    ]);
     const res = await app.inject({
       method: 'POST',
       url: '/auth/login',
