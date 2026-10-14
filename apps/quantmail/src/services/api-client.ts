@@ -1469,19 +1469,22 @@ export class QuantMailApiClient {
 
   async updateEvent(
     id: string,
-    data: Partial<CalendarEvent> & { scope?: string },
+    data: Partial<CalendarEvent> & { scope?: string; sendUpdate?: boolean },
   ): Promise<ApiResponse<CalendarEvent>> {
     return this.put(`/events/${id}`, data);
   }
 
   async deleteEvent(
     id: string,
-    options?: { scope?: string },
+    options?: { scope?: string; notifyGuests?: boolean },
   ): Promise<ApiResponse<{ message: string }>> {
-    const url = options?.scope
-      ? `/events/${id}?scope=${encodeURIComponent(options.scope)}`
-      : `/events/${id}`;
-    return this.delete(url);
+    const params = new URLSearchParams();
+    if (options?.scope) params.set('scope', options.scope);
+    // The delete dialog's "Notify guests" checkbox: unchecked → guests are
+    // not emailed about the cancellation (backend defaults to notifying).
+    if (options?.notifyGuests === false) params.set('notifyGuests', 'false');
+    const qs = params.toString();
+    return this.delete(`/events/${id}${qs ? `?${qs}` : ''}`);
   }
 
   /**

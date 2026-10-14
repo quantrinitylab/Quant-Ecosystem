@@ -69,6 +69,9 @@ export function useUpdateEvent() {
         description?: string;
         calendarId?: string;
         scope?: string;
+        // fix/qm-calendar-event-guest-notify: true → backend emails guests an
+        // updated invitation (the UI asks "Send update to guests?" on save).
+        sendUpdate?: boolean;
         [key: string]: unknown;
       };
     }) => {
@@ -96,9 +99,12 @@ export function useUpdateEvent() {
 export function useDeleteEvent() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (args: string | { id: string; scope?: string }) => {
+    mutationFn: async (args: string | { id: string; scope?: string; notifyGuests?: boolean }) => {
       const id = typeof args === 'string' ? args : args.id;
-      const options = typeof args === 'string' ? undefined : { scope: args.scope };
+      const options =
+        typeof args === 'string'
+          ? undefined
+          : { scope: args.scope, notifyGuests: args.notifyGuests };
       const response = await apiClient.deleteEvent(id, options);
       if (!response.success) throw new Error(response.error?.message || 'Failed to delete event');
       return response.data;

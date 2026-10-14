@@ -204,11 +204,19 @@ describe('edit form timezone', () => {
     const el = renderPage();
     click(el.querySelector('[aria-label="Edit event"]')!);
 
-    // The primary button in the edit panel is "Save changes".
+    // The primary button in the edit panel is "Save changes". The event has a
+    // guest, so the save asks "Send update to guests?" first (Gmail parity).
     const save = Array.from(el.querySelectorAll('button')).find((b) =>
       b.textContent?.includes('Save changes'),
     )!;
     await clickAsync(save);
+    expect(el.textContent).toContain('Send update to guests?');
+
+    // "Don't send" completes the save without the guest email.
+    const dontSend = Array.from(el.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes("Don't send"),
+    )!;
+    await clickAsync(dontSend);
 
     expect(mockUpdateMutate).toHaveBeenCalledTimes(1);
     const payload = mockUpdateMutate.mock.calls[0]![0] as {
@@ -220,6 +228,44 @@ describe('edit form timezone', () => {
     expect(payload.data.startTime).toBe('2026-10-11T10:00:00.000Z');
     expect(payload.data.endTime).toBe('2026-10-11T11:00:00.000Z');
     expect(payload.data.timezone).toBe('America/New_York');
+    // The user chose not to notify: no sendUpdate flag on the PUT.
+    expect(payload.data.sendUpdate).toBeUndefined();
+  });
+
+  it('sending the update passes sendUpdate: true on the PUT', async () => {
+    mockEvent = baseEvent({ viewerIsAttendee: false });
+    const el = renderPage();
+    click(el.querySelector('[aria-label="Edit event"]')!);
+
+    const save = Array.from(el.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Save changes'),
+    )!;
+    await clickAsync(save);
+    const sendUpdate = Array.from(el.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Send update'),
+    )!;
+    await clickAsync(sendUpdate);
+
+    expect(mockUpdateMutate).toHaveBeenCalledTimes(1);
+    const payload = mockUpdateMutate.mock.calls[0]![0] as {
+      id: string;
+      data: Record<string, unknown>;
+    };
+    expect(payload.data.sendUpdate).toBe(true);
+  });
+
+  it('an event with no guests saves without the prompt', async () => {
+    mockEvent = baseEvent({ viewerIsAttendee: false, attendees: [] });
+    const el = renderPage();
+    click(el.querySelector('[aria-label="Edit event"]')!);
+
+    const save = Array.from(el.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Save changes'),
+    )!;
+    await clickAsync(save);
+
+    expect(mockUpdateMutate).toHaveBeenCalledTimes(1);
+    expect(el.textContent).not.toContain('Send update to guests?');
   });
 
   it('switching the timezone keeps the same instant', async () => {

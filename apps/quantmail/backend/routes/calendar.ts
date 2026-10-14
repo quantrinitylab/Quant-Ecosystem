@@ -6,6 +6,7 @@ import { persistDueCallReminders } from '../services/call-reminder-notify.servic
 import { BookingLinkService } from '../services/booking-link.service';
 import { RecurringService, type CalendarEvent } from '../services/recurring.service';
 import { CalendarCallAlertService } from '../services/calendar-call-alert.service';
+import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
 
 const MAX_EVENT_WINDOW_MS = 365 * 86_400_000;
 
@@ -77,6 +78,10 @@ const eventUpdateSchema = z.object({
   checkConflicts: z.boolean().optional(),
   force: z.boolean().optional(),
   scope: z.string().optional(),
+  // Gmail parity (fix/qm-calendar-event-guest-notify): the client asks
+  // explicitly whether to notify guests on save; the backend only emails when
+  // this flag is true. Defaults to false so edits never mail guests silently.
+  sendUpdate: z.boolean().optional(),
   ...eventCollectionFields,
 });
 const calendarCreateSchema = z.object({
@@ -1492,6 +1497,137 @@ export default async function calendarRoutes(
     return user?.email ? { name: user.displayName || undefined, email: user.email } : undefined;
   };
 
+  // ========================================================================
+  // Guest notifications (fix/qm-calendar-event-guest-notify).
+  //
+  // Editing or deleting an event used to touch only prisma + the call-alert
+  // service — invitees silently missed moved/cancelled meetings. This helper
+  // is the honest mail path: it sends a real METHOD:REQUEST (update) or
+  // METHOD:CANCEL (cancellation) ICS email to the event's guests through SES,
+  // and reports exactly what happened so the UI can tell the truth instead
+  // of faking a confirmation.
+  //
+  // It never throws: the event write already succeeded before this runs, so
+  // a mail outage must not fail the save/delete. Failure is reported in the
+  // returned status ({ notified: false, reason }) and logged.
+  // ========================================================================
+  type GuestNotificationStatus = {
+    notified: boolean;
+    count: number;
+    reason?:
+      | 'sent'
+      | 'no-guests'
+      | 'not-requested'
+      | 'declined'
+      | 'mail-not-configured'
+      | 'send-failed'
+      | 'occurrence-notify-not-wired';
+  };
+
+  const OCCURRENCE_NOTIFY_NOT_WIRED: GuestNotificationStatus = {
+    notified: false,
+    count: 0,
+    reason: 'occurrence-notify-not-wired',
+  };
+
+  function formatEventWhen(start: Date, end: Date): string {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+    return `${fmt.format(start)} – ${fmt.format(end)}`;
+  }
+
+  const notifyEventGuests = async (
+    event: EventRow,
+    organizer: { name?: string; email: string } | undefined,
+    kind: 'update' | 'cancellation',
+    request: unknown,
+  ): Promise<GuestNotificationStatus> => {
+    const log = (request as { log?: { warn: (...args: unknown[]) => void } })?.log;
+    const organizerEmail = String(organizer?.email ?? '').toLowerCase();
+    const seen = new Set<string>();
+    const guests: string[] = [];
+    for (const email of attendeeEmails(event.attendees)) {
+      const trimmed = String(email ?? '').trim();
+      if (!trimmed || !isEmailShaped(trimmed)) continue;
+      const lowered = trimmed.toLowerCase();
+      if (lowered === organizerEmail || seen.has(lowered)) continue;
+      seen.add(lowered);
+      guests.push(trimmed);
+    }
+    if (guests.length === 0) {
+      return { notified: false, count: 0, reason: 'no-guests' };
+    }
+    if (!organizer?.email || !isSesConfigured()) {
+      return { notified: false, count: 0, reason: 'mail-not-configured' };
+    }
+    const method = kind === 'cancellation' ? 'CANCEL' : 'REQUEST';
+    const ics = buildIcsContent(event, {
+      method,
+      organizer,
+      sequence: kind === 'cancellation' ? 1 : 0,
+    });
+    const when = formatEventWhen(new Date(event.startTime), new Date(event.endTime));
+    const organizerName = organizer.name || organizer.email;
+    const subject =
+      kind === 'cancellation'
+        ? `Cancelled: ${event.title}`
+        : `Updated invitation: ${event.title}`;
+    const bodyText =
+      kind === 'cancellation'
+        ? `${organizerName} has cancelled "${event.title}".\n\nWhen: ${when}\n${
+            event.location ? `Where: ${event.location}\n` : ''
+          }\nThis meeting has been cancelled and removed from the organizer's calendar.`
+        : `${organizerName} has updated "${event.title}".\n\nWhen: ${when}\n${
+            event.location ? `Where: ${event.location}\n` : ''
+          }\nThe updated invitation is attached as an .ics file — add it to your calendar to stay in sync.`;
+    const bodyHtml =
+      kind === 'cancellation'
+        ? `<p><strong>${escapeHtml(organizerName)}</strong> has cancelled ` +
+          `<strong>${escapeHtml(event.title)}</strong>.</p>` +
+          `<p>When: ${escapeHtml(when)}${event.location ? `<br>Where: ${escapeHtml(event.location)}` : ''}</p>` +
+          `<p>This meeting has been cancelled and removed from the organizer's calendar.</p>`
+        : `<p><strong>${escapeHtml(organizerName)}</strong> has updated ` +
+          `<strong>${escapeHtml(event.title)}</strong>.</p>` +
+          `<p>When: ${escapeHtml(when)}${event.location ? `<br>Where: ${escapeHtml(event.location)}` : ''}</p>` +
+          `<p>The updated invitation is attached as an .ics file — add it to your calendar to stay in sync.</p>`;
+    try {
+      await sendViaSes({
+        from: `${organizerName} <${organizer.email}>`,
+        to: guests,
+        replyTo: organizer.email,
+        subject,
+        bodyText,
+        bodyHtml,
+        attachments: [
+          {
+            filename: `${event.title || 'event'}_${method.toLowerCase()}.ics`,
+            contentType: 'text/calendar; method=' + method,
+            content: Buffer.from(ics, 'utf8'),
+          },
+        ],
+      });
+      return { notified: true, count: guests.length, reason: 'sent' };
+    } catch (err) {
+      log?.warn(
+        { err, eventId: event.id, kind },
+        'Guest notification email failed to send',
+      );
+      return { notified: false, count: 0, reason: 'send-failed' };
+    }
+  };
+
+  const escapeHtml = (value: string): string =>
+    String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
   fastify.get<{ Params: { id: string } }>('/events/:id/ics', async (request, reply) => {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
@@ -1847,6 +1983,17 @@ export default async function calendarRoutes(
     const scope =
       parsed.data.scope || (request.query as any)?.scope || (request.body as any)?.scope;
 
+    // Gmail parity (fix/qm-calendar-event-guest-notify): guests are emailed a
+    // METHOD:REQUEST update only when the client passes sendUpdate: true (the
+    // UI asks "Send update to guests?" before saving). Occurrence-level edits
+    // report not-wired honestly — ICS RECURRENCE-ID support isn't there yet.
+    const maybeNotifyOnUpdate = async (row: EventRow): Promise<GuestNotificationStatus> => {
+      if (parsed.data.sendUpdate !== true)
+        return { notified: false, count: 0, reason: 'not-requested' };
+      const organizer = await getOrganizerInfo(prisma, userId);
+      return notifyEventGuests(row, organizer, 'update', request);
+    };
+
     if (request.params.id.includes('_')) {
       const parentId = request.params.id.split('_')[0]!;
       const occurrenceIso = request.params.id.split('_').slice(1).join('_');
@@ -1927,7 +2074,10 @@ export default async function calendarRoutes(
           data: updateData,
         })) as EventRow;
 
-        return reply.send({ success: true, data: toEventDto(updatedMaster) });
+        return reply.send({
+          success: true,
+          data: { ...toEventDto(updatedMaster), guestNotification: await maybeNotifyOnUpdate(updatedMaster) },
+        });
       }
 
       if (scope === 'this_and_following') {
@@ -2034,7 +2184,10 @@ export default async function calendarRoutes(
             request.log.warn({ err }, 'Failed to schedule event call alert');
           });
 
-        return reply.status(200).send({ success: true, data: toEventDto(newSeries) });
+        return reply.status(200).send({
+          success: true,
+          data: { ...toEventDto(newSeries), guestNotification: await maybeNotifyOnUpdate(newSeries) },
+        });
       }
 
       if (parent.recurrenceRule) {
@@ -2136,7 +2289,10 @@ export default async function calendarRoutes(
           request.log.warn({ err }, 'Failed to schedule event call alert');
         });
 
-      return reply.send({ success: true, data: toEventDto(created) });
+      return reply.send({
+        success: true,
+        data: { ...toEventDto(created), guestNotification: OCCURRENCE_NOTIFY_NOT_WIRED },
+      });
     }
 
     const eventId = parentEventId(request.params.id);
@@ -2230,13 +2386,29 @@ export default async function calendarRoutes(
       .catch((err) => {
         request.log.warn({ err }, 'Failed to schedule event call alert');
       });
-    return reply.send({ success: true, data: toEventDto(updated) });
+    return reply.send({
+      success: true,
+      data: { ...toEventDto(updated), guestNotification: await maybeNotifyOnUpdate(updated) },
+    });
   };
   fastify.put('/events/:id', updateEvent);
   fastify.patch('/events/:id', updateEvent);
   fastify.delete<{ Params: { id: string } }>('/events/:id', async (request: any, reply) => {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
+
+    // Gmail parity (fix/qm-calendar-event-guest-notify): cancelling an event
+    // with guests sends them a real METHOD:CANCEL email. The client opts out
+    // with notifyGuests=false (the delete dialog's "Notify guests" checkbox).
+    // The notification never fails the delete — its honest outcome lands in
+    // the response as guestNotification.
+    const notifyFlag = request.query?.notifyGuests ?? request.body?.notifyGuests;
+    const notifyGuestsRequested = notifyFlag !== false && notifyFlag !== 'false';
+    const maybeNotifyOnDelete = async (row: EventRow): Promise<GuestNotificationStatus> => {
+      if (!notifyGuestsRequested) return { notified: false, count: 0, reason: 'declined' };
+      const organizer = await getOrganizerInfo(prisma, userId);
+      return notifyEventGuests(row, organizer, 'cancellation', request);
+    };
 
     if (request.params.id.includes('_')) {
       const parentId = request.params.id.split('_')[0]!;
@@ -2259,7 +2431,13 @@ export default async function calendarRoutes(
         await callAlertService.cancelAlertsForEvent(parentId).catch((err) => {
           request.log.warn({ err }, 'Failed to schedule event call alert');
         });
-        return reply.send({ success: true, data: { message: 'All events in series deleted' } });
+        return reply.send({
+          success: true,
+          data: {
+            message: 'All events in series deleted',
+            guestNotification: await maybeNotifyOnDelete(parent as EventRow),
+          },
+        });
       }
 
       if (scope === 'this_and_following') {
@@ -2276,7 +2454,11 @@ export default async function calendarRoutes(
         }
         return reply.status(200).send({
           success: true,
-          data: { message: 'This and following occurrences deleted', until },
+          data: {
+            message: 'This and following occurrences deleted',
+            until,
+            guestNotification: OCCURRENCE_NOTIFY_NOT_WIRED,
+          },
         });
       }
 
@@ -2284,7 +2466,11 @@ export default async function calendarRoutes(
 
       return reply.send({
         success: true,
-        data: { message: 'Occurrence deleted from series', excludedDate: occurrenceIso },
+        data: {
+          message: 'Occurrence deleted from series',
+          excludedDate: occurrenceIso,
+          guestNotification: OCCURRENCE_NOTIFY_NOT_WIRED,
+        },
       });
     }
 
@@ -2296,7 +2482,13 @@ export default async function calendarRoutes(
     await callAlertService.cancelAlertsForEvent(eventId).catch((err) => {
       request.log.warn({ err }, 'Failed to schedule event call alert');
     });
-    return reply.send({ success: true, data: { message: 'Event deleted' } });
+    return reply.send({
+      success: true,
+      data: {
+        message: 'Event deleted',
+        guestNotification: await maybeNotifyOnDelete(event as EventRow),
+      },
+    });
   });
   fastify.post<{ Params: { id: string } }>('/events/:id/rsvp', async (request, reply) => {
     const parsed = rsvpSchema.safeParse(request.body);
