@@ -3427,3 +3427,9 @@ No fix agents dispatched (protocol: P0/P1 only). subagent.list checked — 0 act
 LIVE (2026-10-14 ~16:40 IST, proxy 127.0.0.1:8888 healthy): /calendar → honest sign-in gate desktop (1440x900) + mobile (390x844 iPhone 14), pure black, no copy issues; /calendar/booking/bogus-slug-12345 → honest dead-link panel, working "Go back" + "Open QuantMail", no dead end; GET /api/calendar/events → 401 UNAUTHORIZED logged out. Signed-in calendar/booking/RSVP/detail flows = needs-auth. Evidence: /tmp/lane1-008r9-{desktop,mobile}-calendar.png, lane1-008r9-desktop-deadlink.png. /tmp 5.4MB; chrome orphans cleaned.
 Rotation -> QM-SCREEN-010/011 (drive) ROUND 9 regression, queued.
 Status: [x] DONE (R9 regression audit complete 2026-10-14 ~16:50 IST; 53-commit window reviewed, 2 merged fixes audited correct (#1137 pass, #1143 notify), 2 carryovers narrowed (RSVP-silent → update/delete closed; attendee-validation closed), 1 new P3 logged, 8 opens carried; fixes tracked via their PRs)
+
+## QM-SCREEN-008/009 R10 — Calendar regression (ROUND 10)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-008-009-r10
+Audit started: 2026-10-15 ~04:40 IST (lane-1 deep audit loop, ROUND 10)
