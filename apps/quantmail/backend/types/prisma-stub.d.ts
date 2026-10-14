@@ -508,6 +508,7 @@ declare module '@prisma/client' {
     where?: WhereInput;
     orderBy?: OrderByInput | OrderByInput[];
     include?: Record<string, boolean | Record<string, unknown>>;
+    select?: Record<string, boolean | Record<string, unknown>>;
   }
 
   interface CreateArgs {
