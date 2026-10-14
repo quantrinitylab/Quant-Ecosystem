@@ -127,3 +127,52 @@ describe('Git Smart HTTP PAT authentication', () => {
     repository = { ...repository, visibility: 'PRIVATE' };
   });
 });
+
+describe('repo:admin scope is a true superset (read + write)', () => {
+  it('lets an admin-only token read (upload-pack advertisement)', async () => {
+    tokenRecord = { ...tokenRecord, scopes: ['repo:admin'] };
+    const response = await app.inject({
+      method: 'GET',
+      url: '/repos/user-1/private-repo/info/refs?service=git-upload-pack',
+      headers: { authorization: basic(generated.token) },
+    });
+    expect(response.statusCode).toBe(200);
+    tokenRecord = { ...tokenRecord, scopes: ['repo:read'] };
+  });
+
+  it('lets an admin-only token write (receive-pack advertisement)', async () => {
+    tokenRecord = { ...tokenRecord, scopes: ['repo:admin'] };
+    const response = await app.inject({
+      method: 'GET',
+      url: '/repos/user-1/private-repo/info/refs?service=git-receive-pack',
+      headers: { authorization: basic(generated.token) },
+    });
+    expect(response.statusCode).toBe(200);
+    tokenRecord = { ...tokenRecord, scopes: ['repo:read'] };
+  });
+
+  it('still rejects a write-only token from reading (no scope leakage)', async () => {
+    tokenRecord = { ...tokenRecord, scopes: ['repo:write'] };
+    const response = await app.inject({
+      method: 'GET',
+      url: '/repos/user-1/private-repo/info/refs?service=git-upload-pack',
+      headers: { authorization: basic(generated.token) },
+    });
+    expect(response.statusCode).toBe(403);
+    expect(response.json().error.code).toBe('INSUFFICIENT_SCOPE');
+    tokenRecord = { ...tokenRecord, scopes: ['repo:read'] };
+  });
+
+  it('admin combined with other scopes still satisfies read (hierarchy union)', async () => {
+    // Sanity: the hierarchy is a union — a token holding repo:admin plus any
+    // other scope must still pass the read check.
+    tokenRecord = { ...tokenRecord, scopes: ['repo:admin', 'repo:write'] };
+    const response = await app.inject({
+      method: 'GET',
+      url: '/repos/user-1/private-repo/info/refs?service=git-upload-pack',
+      headers: { authorization: basic(generated.token) },
+    });
+    expect(response.statusCode).toBe(200);
+    tokenRecord = { ...tokenRecord, scopes: ['repo:read'] };
+  });
+});
