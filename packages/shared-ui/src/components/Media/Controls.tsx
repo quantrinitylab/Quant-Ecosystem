@@ -4,7 +4,15 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Room } from 'livekit-client';
+import { Room, Track } from 'livekit-client';
+import {
+  applyBackgroundBlur,
+  removeBackgroundBlur,
+  trackHasBackgroundProcessor,
+  BACKGROUND_ASSET_PATH,
+  BACKGROUND_BLUR_ERROR_MESSAGE,
+  type BackgroundStatus,
+} from './BackgroundBlur';
 
 export interface ControlsProps {
   room: Room;
@@ -18,6 +26,8 @@ export const Controls: React.FC<ControlsProps> = ({ room, onLeave, className = '
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [isBlurEnabled, setIsBlurEnabled] = useState(false);
+  const [bgStatus, setBgStatus] = useState<BackgroundStatus>('off');
+  const [bgError, setBgError] = useState<string | null>(null);
   const [isPushToTalk, setIsPushToTalk] = useState(false);
 
   const toggleMic = useCallback(async () => {
@@ -56,9 +66,42 @@ export const Controls: React.FC<ControlsProps> = ({ room, onLeave, className = '
     [room],
   );
 
-  const toggleBlur = useCallback(() => {
-    setIsBlurEnabled(!isBlurEnabled);
-  }, [isBlurEnabled]);
+  // QC-F-322: blur is REAL or it is OFF. The button's ON state is set
+  // only from the track's verified processor (getProcessor()) — never
+  // from the click itself. The old toggle flipped a state flag and
+  // showed purple ON with no processing at all; that theatre is gone.
+  const toggleBlur = useCallback(async () => {
+    const track =
+      room.localParticipant.getTrackPublication(Track.Source.Camera)?.videoTrack ??
+      null;
+    if (!track) {
+      setBgStatus('error');
+      setBgError('Camera is off — turn it on to use background blur.');
+      setIsBlurEnabled(false);
+      return;
+    }
+    if (trackHasBackgroundProcessor(track)) {
+      await removeBackgroundBlur(track).catch(() => undefined);
+      const off = !trackHasBackgroundProcessor(track);
+      setIsBlurEnabled(!off);
+      setBgStatus(off ? 'off' : 'active');
+      setBgError(null);
+      return;
+    }
+    setBgStatus('starting');
+    setBgError(null);
+    try {
+      await applyBackgroundBlur(track, { assetPath: BACKGROUND_ASSET_PATH });
+      const on = trackHasBackgroundProcessor(track);
+      setIsBlurEnabled(on);
+      setBgStatus(on ? 'active' : 'error');
+      if (!on) setBgError(BACKGROUND_BLUR_ERROR_MESSAGE);
+    } catch {
+      setIsBlurEnabled(false);
+      setBgStatus('error');
+      setBgError(BACKGROUND_BLUR_ERROR_MESSAGE);
+    }
+  }, [room]);
 
   const handleLeave = useCallback(() => {
     room.disconnect();
@@ -148,9 +191,16 @@ export const Controls: React.FC<ControlsProps> = ({ room, onLeave, className = '
       </button>
 
       <button
-        onClick={toggleBlur}
+        onClick={() => void toggleBlur()}
+        aria-pressed={isBlurEnabled}
         className={`p-3 rounded-full ${isBlurEnabled ? 'bg-purple-600 text-white' : 'bg-gray-700 text-white'}`}
-        title={isBlurEnabled ? 'Disable blur' : 'Enable blur'}
+        title={
+          bgStatus === 'error' && bgError
+            ? bgError
+            : isBlurEnabled
+              ? 'Disable blur'
+              : 'Enable blur'
+        }
         data-testid="blur-toggle"
       >
         {'\u{1F32B}'}

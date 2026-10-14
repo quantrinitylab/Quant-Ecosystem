@@ -32,12 +32,22 @@ export type { PollsProps, Poll, PollOption } from './Polls';
 export { BreakoutRoomPanel } from './BreakoutRoomPanel';
 export type { BreakoutRoomPanelProps, BreakoutRoom } from './BreakoutRoomPanel';
 
-export { BackgroundBlur } from './BackgroundBlur';
+export {
+  BackgroundBlur,
+  useBackgroundBlur,
+  applyBackgroundBlur,
+  removeBackgroundBlur,
+  trackHasBackgroundProcessor,
+  backgroundIsSupported,
+  BACKGROUND_ASSET_PATH,
+  BACKGROUND_BLUR_ERROR_MESSAGE,
+} from './BackgroundBlur';
 export type {
   BackgroundBlurProps,
   BackgroundBlurOptions,
   UseBackgroundBlurReturn,
   BackgroundMode,
+  BackgroundStatus,
 } from './BackgroundBlur';
 
 export { E2EEncryptionToggle } from './E2EEncryption';
