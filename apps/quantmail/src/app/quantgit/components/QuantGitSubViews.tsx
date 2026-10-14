@@ -1366,12 +1366,10 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Quanty AI In-Repo Copilot</h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/30">
-                  NODE B AGENT OS
-                </span>
               </div>
               <p className="text-xs text-[#8B949E] mt-0.5">
-                Autonomous code intelligence, PR review explanations & automated test generation
+                Chat with Quanty — replies come from the live AI service. PR explanations
+                and security audits aren't wired to a backend yet.
               </p>
             </div>
           </div>
