@@ -38,8 +38,9 @@ import {
 } from '../event-detail-utils';
 import { RsvpScopeConfirmation } from '../rsvp-scope-confirmation';
 import { RsvpScopePrewriteConfirmation } from '../rsvp-scope-prewrite-confirmation';
-import type { CalendarEvent } from '../../../../types';
+import type { CalendarEvent, GuestNotificationStatus } from '../../../../types';
 import { TIMEZONES } from '../../types';
+import { guestNotificationToastText } from '../../lib/guest-notify';
 
 // --- inline icon set (SVG, no emoji) -----------------------------------------
 type IconName = 'back' | 'pencil' | 'trash' | 'pin' | 'link' | 'clock' | 'repeat' | 'bell' | 'users' | 'check';
@@ -145,6 +146,12 @@ export default function CalendarEventDetailPage() {
     timezone: '',
   });
   const [saveError, setSaveError] = useState<string | null>(null);
+  // fix/qm-calendar-event-guest-notify: Gmail parity — the edit-save prompt
+  // ("Send update to guests?") and the delete dialog's notify checkbox.
+  // saveNotice carries the backend's honest guest-notification outcome.
+  const [confirmSendUpdate, setConfirmSendUpdate] = useState(false);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
+  const [notifyGuests, setNotifyGuests] = useState(true);
 
   const openEdit = () => {
     if (!event) return;
@@ -181,9 +188,22 @@ export default function CalendarEventDetailPage() {
       setSaveError('A title and a start time are required.');
       return;
     }
+    // fix/qm-calendar-event-guest-notify — Gmail parity: when the event has
+    // guests, saving asks "Send update to guests?" instead of silently
+    // skipping the update email. The choice rides on the PUT as sendUpdate.
+    if ((event?.attendees ?? []).length > 0) {
+      setConfirmSendUpdate(true);
+      return;
+    }
+    await doSave(false);
+  };
+
+  const doSave = async (sendUpdate: boolean) => {
+    if (!eventId) return;
+    setConfirmSendUpdate(false);
     setSaveError(null);
     try {
-      await updateEvent.mutateAsync({
+      const saved = (await updateEvent.mutateAsync({
         id: eventId,
         data: {
           title: form.title.trim(),
@@ -196,9 +216,14 @@ export default function CalendarEventDetailPage() {
           location: form.location,
           timezone: form.timezone,
           ...(form.allDay ? { allDay: true } : {}),
+          ...(sendUpdate ? { sendUpdate: true } : {}),
         } as never,
-      });
+      })) as { guestNotification?: GuestNotificationStatus } | undefined;
       setEditing(false);
+      // Honest reporting: never claim guests were updated unless the backend
+      // actually sent the update email.
+      const guestNote = guestNotificationToastText(saved?.guestNotification, 'update');
+      setSaveNotice(guestNote);
       void refetch();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Could not save the event.');
@@ -208,8 +233,18 @@ export default function CalendarEventDetailPage() {
   const handleDelete = async () => {
     if (!eventId) return;
     try {
-      await deleteEvent.mutateAsync(eventId);
-      router.push('/calendar');
+      const deleted = (await deleteEvent.mutateAsync({
+        id: eventId,
+        notifyGuests,
+      })) as { guestNotification?: GuestNotificationStatus } | undefined;
+      // Honest reporting: carry the guest-notification outcome to the
+      // calendar page so it can tell the user what really happened.
+      const gn = deleted?.guestNotification;
+      const suffix =
+        gn && (gn.notified || (gn.reason && !['no-guests', 'declined', 'not-requested'].includes(gn.reason)))
+          ? `?guestNotice=${gn.reason}${gn.notified ? `:${gn.count}` : ''}`
+          : '';
+      router.push(`/calendar${suffix}`);
     } catch {
       // deleteEvent surfaces through its own error; stay on the page.
     }
@@ -299,7 +334,10 @@ export default function CalendarEventDetailPage() {
               </Button>
               <Button
                 variant="secondary"
-                onClick={() => setConfirmDelete(true)}
+                onClick={() => {
+                  setNotifyGuests(true);
+                  setConfirmDelete(true);
+                }}
                 aria-label="Delete event"
               >
                 <Icon name="trash" className="h-4 w-4 text-red-400" />
@@ -323,6 +361,22 @@ export default function CalendarEventDetailPage() {
                 message={error.message}
                 onRetry={() => void refetch()}
               />
+            )}
+
+            {/* fix/qm-calendar-event-guest-notify: the backend's honest guest-
+                notification outcome after a save — never a faked confirmation. */}
+            {saveNotice && !isLoading && !error && event && (
+              <div className="flex items-start justify-between gap-3 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)]/60 p-3 text-sm">
+                <p>{saveNotice}</p>
+                <button
+                  type="button"
+                  onClick={() => setSaveNotice(null)}
+                  aria-label="Dismiss"
+                  className="shrink-0 text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
+                >
+                  ✕
+                </button>
+              </div>
             )}
 
             {!isLoading && !error && !event && (
@@ -630,6 +684,20 @@ export default function CalendarEventDetailPage() {
               <p className="mt-1 text-sm text-[var(--quant-muted-foreground)]">
                 “{event?.title}” will be permanently deleted from your calendar.
               </p>
+              {attendees.length > 0 && (
+                <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={notifyGuests}
+                    onChange={(e) => setNotifyGuests(e.target.checked)}
+                    className="h-4 w-4 accent-[#3b82f6]"
+                  />
+                  Notify guests by email
+                  <span className="text-xs text-[var(--quant-muted-foreground)]">
+                    ({attendees.length} guest{attendees.length === 1 ? '' : 's'})
+                  </span>
+                </label>
+              )}
               <div className="mt-4 flex gap-2">
                 <Button variant="secondary" onClick={() => setConfirmDelete(false)} className="flex-1">
                   Keep
@@ -641,6 +709,32 @@ export default function CalendarEventDetailPage() {
                   className="min-h-11 flex-1 rounded-lg bg-red-600 px-4 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
                   {deleteEvent.isPending ? 'Deleting…' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Send update to guests? — Gmail parity on edit-save */}
+        {confirmSendUpdate && (
+          <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="Send update to guests">
+            <div className="w-full max-w-sm rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
+              <h2 className="text-base font-semibold">Send update to guests?</h2>
+              <p className="mt-1 text-sm text-[var(--quant-muted-foreground)]">
+                “{event?.title}” has {attendees.length} guest{attendees.length === 1 ? '' : 's'}.
+                Email them an updated invitation?
+              </p>
+              <div className="mt-4 flex gap-2">
+                <Button variant="secondary" onClick={() => void doSave(false)} className="flex-1" disabled={updateEvent.isPending}>
+                  Don&apos;t send
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => void doSave(true)}
+                  disabled={updateEvent.isPending}
+                  className="min-h-11 flex-1 rounded-lg bg-[#3b82f6] px-4 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  {updateEvent.isPending ? 'Saving…' : 'Send update'}
                 </button>
               </div>
             </div>

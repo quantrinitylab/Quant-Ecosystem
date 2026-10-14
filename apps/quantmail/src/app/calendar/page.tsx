@@ -36,6 +36,8 @@ import {
 } from './lib/calendar-search';
 import { toRecurrenceRule } from './lib/recurrence';
 import { isEmailShaped, toAttendeeEmail } from './lib/attendee-validation';
+import { guestNotificationToastText } from './lib/guest-notify';
+import type { GuestNotificationStatus } from '../../types';
 import { CalendarHeader } from './components/CalendarHeader';
 import { CalendarEventForm } from './components/CalendarEventForm';
 import { CalendarModals } from './components/CalendarModals';
@@ -128,6 +130,30 @@ function CalendarPageContent() {
 
   const searchParams = useSearchParams();
   const queryTab = searchParams?.get('tab');
+
+  // fix/qm-calendar-event-guest-notify: the event-detail page lands here
+  // after a delete with ?guestNotice=<reason>[:<count>] so the honest guest
+  // notification outcome is surfaced once instead of being lost in the
+  // navigation. The param is scrubbed immediately after reading.
+  useEffect(() => {
+    const raw = searchParams?.get('guestNotice');
+    if (!raw) return;
+    const [reason, countRaw] = raw.split(':');
+    const count = Number(countRaw);
+    const status: GuestNotificationStatus = {
+      notified: reason === 'sent',
+      count: Number.isFinite(count) ? count : 0,
+      reason: reason as GuestNotificationStatus['reason'],
+    };
+    const note = guestNotificationToastText(status, 'cancellation');
+    if (note) {
+      showToast({ text: note, type: status.notified ? 'success' : 'error' });
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete('guestNotice');
+    window.history.replaceState(null, '', url.toString());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [activeContextTab, setActiveContextTab] = useState<CalendarContextTab>(
     () => initialCalendarRoute().contextTab,
@@ -956,6 +982,19 @@ function CalendarPageContent() {
       return;
     }
 
+    // fix/qm-calendar-event-guest-notify — Gmail parity: editing an event with
+    // guests asks "Send update to guests?" before the PUT. The backend only
+    // emails when sendUpdate is true, so guests are never mailed silently.
+    let sendUpdate = false;
+    if (editingEventId && activeSheetType === 'event' && formState.attendees.length > 0) {
+      sendUpdate = await confirm({
+        title: 'Send update to guests?',
+        message: `“${formState.title.trim() || 'Untitled event'}” has ${formState.attendees.length} guest${formState.attendees.length === 1 ? '' : 's'}. Send them an updated invitation by email?`,
+        confirmLabel: 'Send update',
+        cancelLabel: "Don't send",
+      });
+    }
+
     const metaObj = {
       type: activeSheetType,
       priority: activeSheetType === 'task' ? formState.priority : undefined,
@@ -997,6 +1036,9 @@ function CalendarPageContent() {
       attendees: formState.attendees,
       accountEmail: formState.accountEmail,
       timezone: formState.timezone,
+      // fix/qm-calendar-event-guest-notify: only true when the user confirmed
+      // "Send update to guests?" above; the backend emails nobody otherwise.
+      sendUpdate: editingEventId ? sendUpdate : undefined,
       driveLink: formState.driveLink,
       priority: activeSheetType === 'task' ? formState.priority : undefined,
       subtasks: activeSheetType === 'task' ? formState.subtasks : undefined,
@@ -1028,21 +1070,38 @@ function CalendarPageContent() {
         : createEvent.mutateAsync(payload as never);
       // Swallow a late settlement after a timeout win — it is unobserved.
       savePromise.catch(() => undefined);
-      await Promise.race([
+      const saved = (await Promise.race([
         savePromise,
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('SAVE_TIMEOUT')), SAVE_TIMEOUT_MS),
         ),
-      ]);
+      ])) as { guestNotification?: GuestNotificationStatus } | undefined;
       setTimeout(() => {
         isSavingRef.current = false;
         setIsSaving(false);
         setActiveSheetType(null);
         setEditingEventId(null);
+        const entryLabel =
+          activeSheetType === 'task'
+            ? 'Task'
+            : activeSheetType === 'birthday'
+              ? 'Birthday'
+              : activeSheetType === 'period'
+                ? 'Cycle entry'
+                : 'Event';
         showToast({
-          text: `${activeSheetType === 'task' ? 'Task' : activeSheetType === 'birthday' ? 'Birthday' : activeSheetType === 'period' ? 'Cycle entry' : 'Event'} "${finalTitle}" ${editingEventId ? 'updated' : 'saved'}`,
+          text: `${entryLabel} "${finalTitle}" ${editingEventId ? 'updated' : 'saved'}`,
           type: 'success',
         });
+        // fix/qm-calendar-event-guest-notify: report honestly whether the
+        // guest update email actually went out — never fake the confirmation.
+        const guestNote = guestNotificationToastText(saved?.guestNotification, 'update');
+        if (guestNote) {
+          showToast({
+            text: guestNote,
+            type: saved?.guestNotification?.notified ? 'success' : 'error',
+          });
+        }
         void refetch();
       }, 350);
     } catch (err) {
@@ -1070,25 +1129,43 @@ function CalendarPageContent() {
   const handleDeleteEvent = useCallback(
     async (id: string, e?: React.MouseEvent) => {
       e?.stopPropagation();
+      // fix/qm-calendar-event-guest-notify: the delete confirm tells the
+      // truth about what happens to guests now — a cancellation notice is
+      // emailed, not silently skipped.
+      const target = events.find((ev) => ev.id === id) ?? null;
+      const guestCount = Array.isArray(target?.attendees) ? target.attendees.length : 0;
       const ok = await confirm({
         title: 'Delete this entry?',
         message:
-          'It is removed from your calendar. Anyone you invited keeps their own copy unless you cancel it with them.',
+          guestCount > 0
+            ? `It is removed from your calendar. The ${guestCount} guest${guestCount === 1 ? '' : 's'} will be emailed a cancellation notice.`
+            : 'It is removed from your calendar. Anyone you invited keeps their own copy unless you cancel it with them.',
         confirmLabel: 'Delete entry',
         variant: 'destructive',
       });
       if (ok) {
         try {
-          await deleteEvent.mutateAsync(id);
+          const deleted = (await deleteEvent.mutateAsync(id)) as
+            | { guestNotification?: GuestNotificationStatus }
+            | undefined;
           setSelectedEvent(null);
           showToast({ text: 'Entry deleted', type: 'info' });
+          // Honest reporting: never claim guests were notified unless the
+          // backend actually sent the cancellation email.
+          const guestNote = guestNotificationToastText(deleted?.guestNotification, 'cancellation');
+          if (guestNote) {
+            showToast({
+              text: guestNote,
+              type: deleted?.guestNotification?.notified ? 'success' : 'error',
+            });
+          }
           await refetch();
         } catch {
           showToast({ text: 'Failed to delete entry', type: 'error' });
         }
       }
     },
-    [confirm, deleteEvent, refetch],
+    [confirm, deleteEvent, events, refetch],
   );
 
   const addNotificationReminder = useCallback((timeText: string) => {

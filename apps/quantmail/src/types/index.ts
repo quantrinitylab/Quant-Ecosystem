@@ -464,6 +464,25 @@ export interface EventReminder {
   minutesBefore: number;
 }
 
+/**
+ * Honest outcome of the backend's guest-notification attempt on event
+ * save/delete (fix/qm-calendar-event-guest-notify). `notified` is only true
+ * when a real update/cancellation email went out; `reason` explains every
+ * other outcome so the UI never fakes a confirmation.
+ */
+export interface GuestNotificationStatus {
+  notified: boolean;
+  count: number;
+  reason?:
+    | 'sent'
+    | 'no-guests'
+    | 'not-requested'
+    | 'declined'
+    | 'mail-not-configured'
+    | 'send-failed'
+    | 'occurrence-notify-not-wired';
+}
+
 export interface ConferenceData {
   provider: 'quantmeet' | 'zoom' | 'teams' | 'custom';
   url: string;
