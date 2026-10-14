@@ -370,6 +370,15 @@ export interface DedupCollisionPair {
   recordB: DedupCollisionRecord;
   /** 0-100. Rendered only when supplied by a real detection source — never invented. */
   matchConfidence?: number;
+  /**
+   * Every record this collision's merge will touch, primary first.
+   * handleDedupMerge merges the WHOLE duplicate cluster (not just the two
+   * previewed records), so the wizard renders all of these and the merge
+   * button counts them — the button copy must match the real merge scope.
+   * Populated by loadDedupPairs from the full cluster. When absent (older
+   * callers / tests), the wizard falls back to [recordA, recordB].
+   */
+  allRecords?: DedupCollisionRecord[];
 }
 
 export interface DedupWizardSubViewProps {
@@ -397,6 +406,37 @@ export function DedupWizardSubView({
   const activeCollisions = isMerged ? [] : (collisions ?? []);
   const collision = activeCollisions[0];
   const remaining = activeCollisions.length;
+
+  // qm-dedup-cluster: the merge touches the WHOLE duplicate cluster, not just
+  // the two previewed records — render every record that will be merged and
+  // count them on the button so the copy matches the real merge scope.
+  const mergeRecords: DedupCollisionRecord[] =
+    collision?.allRecords && collision.allRecords.length > 0
+      ? collision.allRecords
+      : collision
+        ? [collision.recordA, collision.recordB]
+        : [];
+  const primaryRec = mergeRecords[0] ?? collision?.recordA;
+  const restRecs = mergeRecords.slice(1);
+  const mergeCount = mergeRecords.length;
+  // Mirror the backend merge semantics (contact.service.ts mergeContacts):
+  // the primary survives; phone/company fill from duplicates only when the
+  // primary lacks them. Never invent fields the merge does not keep.
+  const previewCompany =
+    primaryRec?.company ?? restRecs.find((r) => r.company)?.company ?? null;
+  const previewPhone =
+    primaryRec?.phone || restRecs.find((r) => r.phone)?.phone || null;
+  const previewEmails = mergeRecords
+    .map((r, i) =>
+      r.email
+        ? `${i === 0 ? 'Primary' : i === 1 ? 'Secondary' : `Duplicate ${i + 1}`}: ${r.email}`
+        : null,
+    )
+    .filter((s): s is string => Boolean(s));
+  const previewDetailLine =
+    [...previewEmails, previewPhone ? `Phone: ${previewPhone}` : null]
+      .filter(Boolean)
+      .join(' · ') || 'No contact details to merge';
 
   const renderCollisionRecord = (record: DedupCollisionRecord) => (
     <div className="rounded-xl border border-[#1E2433] bg-[#10131B] p-3.5 space-y-1.5">
@@ -468,7 +508,7 @@ export function DedupWizardSubView({
             )}
           </div>
 
-          {renderCollisionRecord(collision.recordA)}
+          {primaryRec && renderCollisionRecord(primaryRec)}
 
           {/* Conflict Resolution Preview Divider */}
           <div className="flex items-center gap-3">
@@ -479,9 +519,11 @@ export function DedupWizardSubView({
             <div className="flex-1 h-px bg-[#262C3A]" />
           </div>
 
-          {renderCollisionRecord(collision.recordB)}
+          {restRecs.map((record) => (
+            <React.Fragment key={record.id}>{renderCollisionRecord(record)}</React.Fragment>
+          ))}
 
-          {/* Proposed Unified Record */}
+          {/* Proposed Unified Record — aggregated over every record in the merge scope */}
           <div className="rounded-xl border border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_8%,transparent)] p-3.5 space-y-1.5">
             <div className="flex items-center gap-2 text-xs font-bold text-[var(--app-accent)]">
               <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -491,20 +533,10 @@ export function DedupWizardSubView({
               <span>Proposed Unified Record</span>
             </div>
             <p className="text-xs text-[#E2E8F0] leading-relaxed">
-              {collision.recordA.name}
-              {collision.recordA.company ? ` · ${collision.recordA.company}` : ''}
+              {primaryRec?.name ?? collision.recordA.name}
+              {previewCompany ? ` · ${previewCompany}` : ''}
               <br />
-              <span className="text-[#94A3B8] text-[11px]">
-                {[
-                  collision.recordA.email ? `Primary: ${collision.recordA.email}` : null,
-                  collision.recordB.email ? `Secondary: ${collision.recordB.email}` : null,
-                  collision.recordA.phone || collision.recordB.phone
-                    ? `Phone: ${collision.recordA.phone || collision.recordB.phone}`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ') || 'No contact details to merge'}
-              </span>
+              <span className="text-[#94A3B8] text-[11px]">{previewDetailLine}</span>
             </p>
           </div>
 
@@ -518,7 +550,9 @@ export function DedupWizardSubView({
               <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="m15 4 5 5-11 11H4v-5l11-11Z" />
               </svg>
-              <span>Merge 2 Contacts</span>
+              <span>
+                Merge {mergeCount} Contact{mergeCount === 1 ? '' : 's'}
+              </span>
             </button>
 
             <div className="flex items-center gap-2">
@@ -527,7 +561,7 @@ export function DedupWizardSubView({
                 onClick={() => onKeepSeparate(collision.id)}
                 className="flex-1 rounded-xl border border-[#333D52] bg-[var(--quant-surface-elevated)] py-2 text-xs font-medium text-[#94A3B8] hover:text-[var(--quant-foreground)] hover:border-[#4B5563] transition-colors"
               >
-                Keep Both Records Separate
+                Keep These Records Separate
               </button>
               <button
                 type="button"
