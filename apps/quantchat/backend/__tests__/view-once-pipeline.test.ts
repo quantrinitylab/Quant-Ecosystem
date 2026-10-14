@@ -193,7 +193,7 @@ describe('QC-F-019 consumeSnap delivery', () => {
       conversationId: 'conv-1',
       senderId: 'sender-1',
       type: 'IMAGE',
-      mediaUrl: 'https://s3.example.com/snaps/secret.jpg',
+      mediaUrl: 'https://s3.example.com/sender-1/media_fixture/secret.jpg',
       metadata: { viewOnce: true, duration: 10 },
     });
 
