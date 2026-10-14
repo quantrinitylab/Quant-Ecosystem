@@ -82,6 +82,11 @@ export { default as idempotencyPlugin, enableIdempotency, requireIdempotency } f
 export type { IdempotencyPluginOptions, IdempotencyStore } from './plugins/idempotency';
 export { MemoryIdempotencyStore, RedisIdempotencyStore, DbIdempotencyStore } from './plugins/idempotency';
 export { runIdempotentOperation, IdempotencyConflictError } from './plugins/idempotency';
+export {
+  handleIdempotentTransaction,
+  TRANSACTIONAL_PROCESSING_TTL_MS,
+} from './plugins/idempotency';
+export type { IdempotentTx } from './plugins/idempotency';
 export type {
   IdempotencyOperationTable,
   IdempotencyOperationRow,

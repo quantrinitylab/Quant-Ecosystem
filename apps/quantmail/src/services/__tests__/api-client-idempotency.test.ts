@@ -110,4 +110,57 @@ describe('api-client durable operation ids (PR #1124 P0)', () => {
     await client.sendEmail('draft-2', {});
     expect(sentKey(fetchSpy, 0)).not.toBe(sentKey(fetchSpy, 1));
   });
+
+  it('truncated 200 body keeps K1: the retry reuses it so the server replays instead of double-executing', async () => {
+    // fix/qm-idempotency-mail-routes-r4 (CODEX-REVIEW on merged #1145): the
+    // old client dropped the pending id as soon as response HEADERS arrived,
+    // before response.json() ran — a 200 with a truncated body deleted K1,
+    // the retry minted K2, and the server executed the mutation twice.
+    const truncated = new Response('{"success": tru', {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+    fetchSpy.mockResolvedValueOnce(truncated);
+    const first = await client.sendEmail('draft-1', {});
+    expect(first.success).toBe(false);
+    expect(first.error?.code).toBe('PARSE_ERROR');
+
+    fetchSpy.mockResolvedValueOnce(okResponse());
+    const second = await client.sendEmail('draft-1', {});
+    expect(second.success).toBe(true);
+
+    const k1 = sentKey(fetchSpy, 0);
+    expect(k1).toBeTruthy();
+    expect(sentKey(fetchSpy, 1)).toBe(k1);
+  });
+
+  it('5xx keeps K1: a gateway-timeout-after-commit retry reuses the key', async () => {
+    // A 502/504 may arrive after the mutation committed server-side — the
+    // retry must reuse K1 so the server replays instead of executing twice.
+    fetchSpy.mockResolvedValueOnce(statusResponse(502));
+    await client.sendEmail('draft-1', {});
+
+    fetchSpy.mockResolvedValueOnce(okResponse());
+    await client.sendEmail('draft-1', {});
+
+    const k1 = sentKey(fetchSpy, 0);
+    expect(k1).toBeTruthy();
+    expect(sentKey(fetchSpy, 1)).toBe(k1);
+  });
+
+  it('4xx other than 409 completes the operation: the next call mints a fresh id', async () => {
+    fetchSpy.mockResolvedValueOnce(statusResponse(422));
+    await client.sendEmail('draft-1', {});
+
+    fetchSpy.mockResolvedValueOnce(okResponse());
+    await client.sendEmail('draft-1', {});
+
+    const k1 = sentKey(fetchSpy, 0);
+    const k2 = sentKey(fetchSpy, 1);
+    expect(k1).toBeTruthy();
+    expect(k2).toBeTruthy();
+    // Authoritative rejection: the mutation did not run, so the next call
+    // is a NEW logical operation.
+    expect(k2).not.toBe(k1);
+  });
 });

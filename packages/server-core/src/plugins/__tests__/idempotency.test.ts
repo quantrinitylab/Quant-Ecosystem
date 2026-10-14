@@ -204,6 +204,9 @@ describe('idempotency plugin (K4)', () => {
         throw new Error('redis down');
       },
       release: async () => {},
+      extendProcessing: async () => {
+        throw new Error('redis down');
+      },
     };
     const broken = await buildApp({ store: brokenStore });
     const res = await postKey(broken.app, '/send', 'key-broken');

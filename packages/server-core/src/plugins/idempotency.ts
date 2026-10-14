@@ -128,6 +128,12 @@ export interface IdempotencyStore {
     ttlMs: number,
   ): Promise<void>;
   release(key: string): Promise<void>;
+  /**
+   * Extend the TTL of an in-flight (`processing`) claim the caller owns —
+   * the claim heartbeat. Resolves `false` when the key is not a live claim
+   * with this fingerprint (someone else's claim is never extended).
+   */
+  extendProcessing(key: string, fingerprint: string, ttlMs: number): Promise<boolean>;
 }
 
 export interface IdempotencyPluginOptions {
@@ -160,6 +166,15 @@ interface IdempotencyRequestContext {
    * `runIdempotentOperation()`.
    */
   operationId: string;
+  /**
+   * True when the route runs in transactional mode
+   * (`config.idempotencyTransactional`): the preHandler validated the key
+   * and attached this context but did NOT claim — the claim happens inside
+   * `handleIdempotentTransaction()`'s database transaction.
+   */
+  transactional: boolean;
+  /** Generic-path claim heartbeat; cleared when the response is sent. */
+  heartbeat?: NodeJS.Timeout;
 }
 
 declare module 'fastify' {
@@ -178,6 +193,26 @@ declare module 'fastify' {
      * `fastify.idempotencyRequired()`.
      */
     idempotencyRequired?: boolean;
+    /**
+     * Transactional mode (fix/qm-idempotency-mail-routes, CODEX-REVIEW on
+     * merged #1145): the route's handler owns the idempotency claim via
+     * `handleIdempotentTransaction()` (claim + mutation + outcome + outbox in
+     * ONE database transaction) instead of the generic preHandler claim. The
+     * preHandler still validates the key (required-mode 400s), replays
+     * completed outcomes, and answers 409/422 — but it NEVER claims, so the
+     * same key is never pre-claimed twice. Routes that set this MUST route
+     * their mutation through `handleIdempotentTransaction()`; a context left
+     * behind at onSend is logged as an error (loud, not silent).
+     */
+    idempotencyTransactional?: boolean;
+    /**
+     * In-flight claim window for this route, in seconds. Default: 5 minutes.
+     * Slow handlers (imports, large compose payloads) should declare an
+     * honest TTL; the generic path additionally heartbeats the claim while
+     * the handler runs, so a live handler's claim can never lapse mid-flight
+     * and let a retry double-execute.
+     */
+    idempotencyProcessingTtlSeconds?: number;
   }
 
   interface FastifyInstance {
@@ -261,6 +296,17 @@ export class MemoryIdempotencyStore implements IdempotencyStore {
   async release(key: string): Promise<void> {
     this.entries.delete(key);
   }
+
+  async extendProcessing(key: string, fingerprint: string, ttlMs: number): Promise<boolean> {
+    const now = Date.now();
+    const found = this.entries.get(key);
+    if (!found || found.expiresAt <= now) return false;
+    if (found.entry.status !== 'processing' || found.entry.fingerprint !== fingerprint) {
+      return false;
+    }
+    found.expiresAt = now + ttlMs;
+    return true;
+  }
 }
 
 /** Redis-backed store. `claimProcessing` uses `SET … NX` so concurrent
@@ -325,6 +371,24 @@ export class RedisIdempotencyStore implements IdempotencyStore {
 
   async release(key: string): Promise<void> {
     await this.withTimeout(this.redis.del(key), 'release');
+  }
+
+  async extendProcessing(key: string, fingerprint: string, ttlMs: number): Promise<boolean> {
+    // Best-effort ownership check: only extend a live claim we hold. A lost
+    // race here merely shortens one heartbeat interval; the next one retries.
+    const raw = await this.withTimeout(this.redis.get(key), 'extend-get');
+    if (!raw) return false;
+    try {
+      const parsed = JSON.parse(raw) as StoredEntry;
+      if (parsed.status !== 'processing' || parsed.fingerprint !== fingerprint) return false;
+    } catch {
+      return false;
+    }
+    const extended = await this.withTimeout(
+      this.redis.pexpire(key, Math.max(1, Math.floor(ttlMs))),
+      'extend-expire',
+    );
+    return extended === 1;
   }
 }
 
@@ -515,6 +579,22 @@ export class DbIdempotencyStore implements IdempotencyStore {
   async release(key: string): Promise<void> {
     await this.table.delete({ where: { operationId: key } }).catch(() => {});
   }
+
+  async extendProcessing(key: string, fingerprint: string, ttlMs: number): Promise<boolean> {
+    // Heartbeat: keep a live handler's claim from lapsing mid-flight (the
+    // (c) double-execution window). Read-then-write is fine here — the
+    // fingerprint + status check means we never extend a claim we do not
+    // hold, and a lost race only shortens one heartbeat interval.
+    const row = await this.table.findUnique({ where: { operationId: key } });
+    if (!row) return false;
+    if (row.expiresAt.getTime() <= Date.now()) return false;
+    if (row.status !== 'processing' || row.fingerprint !== fingerprint) return false;
+    await this.table.update({
+      where: { operationId: key },
+      data: { expiresAt: new Date(Date.now() + ttlMs) },
+    });
+    return true;
+  }
 }
 
 /**
@@ -701,6 +781,107 @@ export async function runIdempotentOperation(
   );
 }
 
+/**
+ * The transaction client `handleIdempotentTransaction` hands to route
+ * handlers. At runtime it is the database's real transaction client; the
+ * structural type keeps this module free of the generated Prisma client (see
+ * `IdempotencyOperationTable`). Routes cast it to their client type
+ * (`tx as unknown as PrismaClient`) — the same cast convention the mail
+ * routes already use for `VersionedTx`.
+ */
+export type IdempotentTx = {
+  idempotencyOperation: IdempotencyOperationTable;
+} & Record<string, unknown>;
+
+/**
+ * In-flight claim window for transactional mail routes. The claim is
+ * inserted INSIDE the same database transaction as the mutation, so it is
+ * invisible to concurrent claimants until commit: a same-key request that
+ * arrives mid-transaction blocks on the operation primary key and then
+ * replays the committed outcome (or proceeds after a rollback) — it can
+ * never steal a "lapsed" claim and double-execute. The TTL is therefore
+ * hygiene, not a safety bound; 15 minutes comfortably covers the slowest
+ * mail handler (large compose payloads) without pretending to bound them.
+ */
+export const TRANSACTIONAL_PROCESSING_TTL_MS = 15 * 60 * 1000;
+
+/**
+ * Runs a transactional-mode route handler's mutation through
+ * `runIdempotentOperation()` using the validated idempotency context the
+ * preHandler attached. USE ONLY on routes with
+ * `config: { idempotencyRequired: true, idempotencyTransactional: true }`
+ * (the preHandler validates the key and attaches the context but never
+ * claims for those routes — claiming here is the single ownership point).
+ *
+ * The handler's `work` receives the transaction client: EVERY write it
+ * performs MUST go through `tx`. Writes issued on the ambient client escape
+ * the transaction and void the atomicity guarantee.
+ *
+ * Sends the response itself (including the `Idempotent-Replayed` header on
+ * replays); the stored body is the exact JSON string of the original
+ * response, so a replay is byte-identical. A 409/422 from the helper is
+ * rendered as the matching error envelope; anything `work` threw (after
+ * rollback) propagates to the error handler, and the key is released so the
+ * client can retry the same logical operation with the same key.
+ */
+export async function handleIdempotentTransaction(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  db: IdempotencyDatabase,
+  opts: {
+    /** In-flight claim window. Default: `TRANSACTIONAL_PROCESSING_TTL_MS`. */
+    processingTtlMs?: number;
+    work: (tx: IdempotentTx) => Promise<{ statusCode: number; payload: unknown }>;
+  },
+): Promise<void> {
+  const ctx = request.idempotencyContext;
+  if (!ctx?.transactional) {
+    throw new Error(
+      '[idempotency] handleIdempotentTransaction requires a route with ' +
+        '`config: { idempotencyTransactional: true }` — the preHandler validates ' +
+        'the key and attaches the context it consumes.',
+    );
+  }
+
+  let result: IdempotentResult;
+  try {
+    result = await runIdempotentOperation(db, {
+      operationId: ctx.operationId,
+      fingerprint: ctx.fingerprint,
+      processingTtlMs: opts.processingTtlMs ?? TRANSACTIONAL_PROCESSING_TTL_MS,
+      work: async (tx) => {
+        const { statusCode, payload } = await opts.work(tx as IdempotentTx);
+        return {
+          statusCode,
+          headers: { 'content-type': 'application/json; charset=utf-8' },
+          body: JSON.stringify(payload),
+        };
+      },
+    });
+  } catch (err) {
+    if (err instanceof IdempotencyConflictError) {
+      if (err.code === 'IDEMPOTENCY_IN_FLIGHT') void reply.header('Retry-After', '1');
+      await reply.code(err.statusCode).send({
+        success: false,
+        error: { code: err.code, message: err.message },
+      });
+      return;
+    }
+    throw err;
+  }
+
+  // Consumed: the onSend guard treats a lingering transactional context as
+  // "handler forgot the helper" and logs an error.
+  request.idempotencyContext = undefined;
+  if (result.replayed) void reply.header(IDEMPOTENT_REPLAYED_HEADER, 'true');
+  const contentType = result.headers['content-type'];
+  if (contentType) void reply.header('content-type', contentType);
+  // The stored body is the exact JSON string Fastify serialized for the
+  // original response: send it verbatim (a string payload is not
+  // re-serialized) so a replay is byte-identical.
+  await reply.code(result.statusCode).send(result.body);
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -800,7 +981,6 @@ function keyInvalidError(reply: FastifyReply): FastifyReply {
 
 async function idempotencyPlugin(fastify: FastifyInstance, opts: IdempotencyPluginOptions) {
   const ttlMs = (opts.ttlSeconds ?? DEFAULT_TTL_SECONDS) * 1000;
-  const processingTtlMs = (opts.processingTtlSeconds ?? DEFAULT_PROCESSING_TTL_SECONDS) * 1000;
   const prefix = opts.keyPrefix ?? DEFAULT_KEY_PREFIX;
   const store: IdempotencyStore =
     opts.store ?? (opts.redisClient ? new RedisIdempotencyStore(opts.redisClient) : new MemoryIdempotencyStore());
@@ -845,14 +1025,69 @@ async function idempotencyPlugin(fastify: FastifyInstance, opts: IdempotencyPlug
       };
     });
   });
+  // Claim heartbeats for the generic path: a timer per in-flight request that
+  // extends the claim's TTL while the handler runs. Cleared in onSend (and,
+  // as a backstop for hijacked replies, in onResponse).
+  const heartbeatTimers = new WeakMap<FastifyRequest, NodeJS.Timeout>();
+
+  function stopHeartbeat(request: FastifyRequest): void {
+    const timer = heartbeatTimers.get(request);
+    if (timer) {
+      clearInterval(timer);
+      heartbeatTimers.delete(request);
+    }
+    const ctx = request.idempotencyContext;
+    if (ctx?.heartbeat) {
+      clearInterval(ctx.heartbeat);
+      ctx.heartbeat = undefined;
+    }
+  }
+
+  function startHeartbeat(
+    request: FastifyRequest,
+    fingerprint: string,
+    sKey: string,
+    ttlMs: number,
+  ): void {
+    // Extend at ~1/3 of the TTL so a single missed beat never lapses the
+    // claim; the 60s cap keeps the steady-state write rate trivial.
+    const everyMs = Math.min(60_000, Math.max(250, Math.floor(ttlMs / 3)));
+    const timer = setInterval(() => {
+      store.extendProcessing(sKey, fingerprint, ttlMs).catch((err) => {
+        request.log.warn(
+          { err, operationId: sKey },
+          'idempotency claim heartbeat failed; claim may lapse mid-handler',
+        );
+      });
+    }, everyMs);
+    heartbeatTimers.set(request, timer);
+    const ctx = request.idempotencyContext;
+    if (ctx) ctx.heartbeat = timer;
+  }
+
+  fastify.addHook('onResponse', async (request: FastifyRequest) => {
+    stopHeartbeat(request);
+  });
+
   fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     const config = request.routeOptions?.config as
-      | { idempotency?: boolean; idempotencyRequired?: boolean }
+      | {
+          idempotency?: boolean;
+          idempotencyRequired?: boolean;
+          idempotencyTransactional?: boolean;
+          idempotencyProcessingTtlSeconds?: number;
+        }
       | undefined;
     // `idempotencyRequired: true` implies enabled, so per-route config works
     // even in files that never called fastify.idempotency().
     if (config?.idempotency !== true && config?.idempotencyRequired !== true) return;
     if (!MUTATING_METHODS.has(request.method)) return;
+
+    // Per-route claim window (honest TTL for slow handlers) > plugin
+    // default > 5-minute built-in.
+    const routeTtlMs =
+      (config?.idempotencyProcessingTtlSeconds ?? opts.processingTtlSeconds ?? DEFAULT_PROCESSING_TTL_SECONDS) *
+      1000;
 
     const rawKey = request.headers[IDEMPOTENCY_KEY_HEADER];
     const key = typeof rawKey === 'string' ? rawKey : undefined;
@@ -908,9 +1143,26 @@ async function idempotencyPlugin(fastify: FastifyInstance, opts: IdempotencyPlug
       return;
     }
 
+    if (config?.idempotencyTransactional === true) {
+      // Transactional ownership (fix/qm-idempotency-mail-routes): the handler
+      // claims inside runIdempotentOperation's database transaction via
+      // handleIdempotentTransaction(). NEVER pre-claim here — a pre-claimed
+      // key would make the helper see our own 'processing' row and answer
+      // 409 IDEMPOTENCY_IN_FLIGHT to the first attempt. A concurrent
+      // same-key request that also reaches its handler serializes on the
+      // operation primary key inside the helper: exactly one executes.
+      request.idempotencyContext = {
+        storeKey: sKey,
+        fingerprint,
+        operationId: sKey,
+        transactional: true,
+      };
+      return;
+    }
+
     let claimed: boolean;
     try {
-      claimed = await store.claimProcessing(sKey, fingerprint, processingTtlMs);
+      claimed = await store.claimProcessing(sKey, fingerprint, routeTtlMs);
     } catch (err) {
       request.log.error({ err }, 'idempotency store claim failed');
       storeUnavailable(reply);
@@ -922,14 +1174,37 @@ async function idempotencyPlugin(fastify: FastifyInstance, opts: IdempotencyPlug
       return;
     }
 
-    request.idempotencyContext = { storeKey: sKey, fingerprint, operationId: sKey };
+    request.idempotencyContext = {
+      storeKey: sKey,
+      fingerprint,
+      operationId: sKey,
+      transactional: false,
+    };
+    // (c): a live handler's claim must never lapse mid-flight — without the
+    // heartbeat, a handler slower than the claim TTL lets a retry reclaim the
+    // key and execute the mutation a second time.
+    startHeartbeat(request, fingerprint, sKey, routeTtlMs);
   });
 
   fastify.addHook('onSend', async (request: FastifyRequest, reply: FastifyReply, payload: unknown) => {
     const ctx = request.idempotencyContext;
     if (!ctx) return payload;
+    // The handler is done: a live handler's claim no longer needs heartbeats.
+    stopHeartbeat(request);
     // Capture once; a replayed response never reaches here with a context.
     request.idempotencyContext = undefined;
+
+    if (ctx.transactional) {
+      // Fail-closed signal: a transactional route whose handler never
+      // consumed this context through handleIdempotentTransaction() executed
+      // its mutation with NO idempotency claim at all. Loud error, never
+      // silent acceptance.
+      request.log.error(
+        { operationId: ctx.operationId, route: request.routeOptions?.url },
+        'idempotencyTransactional route completed without handleIdempotentTransaction — mutation ran unguarded',
+      );
+      return payload;
+    }
 
     try {
       if (reply.statusCode >= 200 && reply.statusCode < 300 && typeof payload === 'string') {
