@@ -13,6 +13,7 @@ import { HeatmapOverlay } from '../../components/map/HeatmapOverlay';
 import { navItems, routes } from '../../lib/navigation';
 import { shouldBroadcastLocation } from './locationBroadcast';
 import { applyFriendLocationUpdate, type FriendLocationUpdate } from './friendLocationUpdate';
+import { filterFriendsOnMap } from './friendSearch';
 import type { GeoPosition, FriendLocation } from '../../components/map';
 import { apiFetchRaw } from '@quant/api-client';
 
@@ -54,6 +55,9 @@ interface FriendsOnMapResponse {
     friends?: Array<{
       userId: string;
       username?: string;
+      // Backend serializeFriendOnMap displayName pehle se bhejta hai
+      // (QC-F-331: map search ke naam-match ke liye page use rakhta hai).
+      displayName?: string;
       avatarUrl?: string | null;
       latitude: number;
       longitude: number;
@@ -85,6 +89,41 @@ export default function MapPage() {
   const [friendsLoaded, setFriendsLoaded] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
 
+  // QC-F-331 Slice 1: map search state. Results koi alag state NAHI hai —
+  // woh har render par current `friends` list se derived hain, taaki 30s
+  // refetch / socket update ke baad panel apne-aap sahi rahe.
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [focusedFriendId, setFocusedFriendId] = useState<string | null>(null);
+  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
+
+  const searchResults = filterFriendsOnMap(friends, searchQuery);
+
+  // Query badalte hi purana pin-focus saaf (stale focus NAHI rehta) aur
+  // panel dobara khulta hai.
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    setFocusedFriendId(null);
+    setSearchPanelOpen(true);
+  }, []);
+
+  // Result select: pin focus + panel band + pins sirf Friends tab par
+  // render hote hain, isiliye Explore se select Friends tab par le jata hai.
+  const handleSelectFriend = useCallback(
+    (friend: FriendLocation) => {
+      setFocusedFriendId(friend.userId);
+      setSearchPanelOpen(false);
+      if (activeTab !== 'friends') setActiveTab('friends');
+    },
+    [activeTab],
+  );
+
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery('');
+    setFocusedFriendId(null);
+    setSearchPanelOpen(false);
+  }, []);
+
   const broadcastIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Fetch the caller's close friends who are currently sharing their location
@@ -99,6 +138,7 @@ export default function MapPage() {
         list.map((f) => ({
           userId: String(f.userId),
           username: f.username ?? '',
+          displayName: f.displayName ?? undefined,
           avatarUrl: f.avatarUrl ?? '',
           position: [Number(f.longitude), Number(f.latitude)] as [number, number],
           lastUpdated: f.updatedAt ? new Date(f.updatedAt) : new Date(),
@@ -274,6 +314,7 @@ export default function MapPage() {
                 top={pos.top}
                 left={pos.left}
                 onOpenChat={handleOpenChat}
+                focused={focusedFriendId === friend.userId}
               />
             );
           })}
@@ -303,19 +344,103 @@ export default function MapPage() {
           <span className="text-[var(--quant-muted-foreground)]">&#128270;</span>
           <input
             type="text"
-            placeholder="Search locations..."
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            onFocus={() => {
+              setSearchFocused(true);
+              setSearchPanelOpen(true);
+            }}
+            onBlur={() => setSearchFocused(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') handleClearSearch();
+            }}
+            placeholder="Search friends on the map..."
+            aria-label="Search friends on the map"
             className="flex-1 bg-transparent text-[var(--quant-foreground)] placeholder:text-[var(--quant-muted-foreground)] text-sm outline-none"
           />
+          {searchQuery !== '' && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={handleClearSearch}
+              className="text-[var(--quant-muted-foreground)] text-sm leading-none px-1"
+            >
+              &#10005;
+            </button>
+          )}
           {/* Task 8.5: Ghost mode toggle in header */}
           <GhostModeToggle enabled={ghostMode} onToggle={handleGhostModeToggle} />
         </div>
+
+        {/* QC-F-331 Slice 1: search results — sirf asal sharing friends.
+            Panel tab dikhta hai jab search sakriya ho (focus ya query) aur
+            koi result select NAHI hua ho. Koi place/geocoding result NAHI —
+            woh data is page ke paas hai hi NAHI. */}
+        {searchPanelOpen && (
+          <div
+            aria-label="Friends sharing their location"
+            className="mt-2 bg-[var(--quant-card)]/90 backdrop-blur-md rounded-xl border border-[var(--quant-border)] shadow-lg px-2 py-2"
+          >
+            {friends.length === 0 ? (
+              <p className="px-2 py-1 text-sm text-[var(--quant-foreground)]">
+                No friends are sharing their location right now.
+              </p>
+            ) : searchResults.length === 0 ? (
+              <div className="px-2 py-1">
+                <p className="text-sm text-[var(--quant-foreground)]">
+                  No sharing friends match &apos;{searchQuery.trim()}&apos;.
+                </p>
+                <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
+                  This search only finds friends who are sharing their location
+                  — place search isn&apos;t available yet.
+                </p>
+              </div>
+            ) : (
+              searchResults.map((friend) => (
+                <button
+                  key={friend.userId}
+                  type="button"
+                  onClick={() => handleSelectFriend(friend)}
+                  className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-left hover:bg-black/5"
+                >
+                  <span className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+                    {friend.avatarUrl ? (
+                      <img
+                        src={friend.avatarUrl}
+                        alt={friend.username}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="w-full h-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold">
+                        {friend.username.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm text-[var(--quant-foreground)] truncate">
+                      {friend.username}
+                    </span>
+                    {friend.displayName && friend.displayName !== friend.username && (
+                      <span className="block text-xs text-[var(--quant-muted-foreground)] truncate">
+                        {friend.displayName}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tab bar: Friends / Explore */}
       <div className="absolute top-20 left-4 right-4 z-30">
         <div className="flex bg-black/40 backdrop-blur-sm rounded-full p-1">
           <button
-            onClick={() => setActiveTab('friends')}
+            onClick={() => {
+              setActiveTab('friends');
+              setFocusedFriendId(null);
+            }}
             className={`flex-1 py-2 text-sm font-medium rounded-full transition-colors min-h-[44px] flex items-center justify-center ${
               activeTab === 'friends'
                 ? 'bg-emerald-500 text-white'
@@ -325,7 +450,10 @@ export default function MapPage() {
             Friends
           </button>
           <button
-            onClick={() => setActiveTab('explore')}
+            onClick={() => {
+              setActiveTab('explore');
+              setFocusedFriendId(null);
+            }}
             className={`flex-1 py-2 text-sm font-medium rounded-full transition-colors min-h-[44px] flex items-center justify-center ${
               activeTab === 'explore'
                 ? 'bg-emerald-500 text-white'
