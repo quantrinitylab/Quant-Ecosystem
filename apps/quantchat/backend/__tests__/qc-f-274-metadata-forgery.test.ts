@@ -291,15 +291,15 @@ describe('QC-F-274 consumeSnap never honours a persisted metadata.storageKey', (
       conversationId: 'conv-1',
       senderId: 'sender-1',
       type: 'IMAGE',
-      mediaUrl: 'https://s3.example.com/snaps/real.jpg',
+      mediaUrl: 'https://s3.example.com/sender-1/media_fixture/real.jpg',
       // Row persisted BEFORE the send-path fix: forged key still in the DB.
       metadata: { viewOnce: true, duration: 10, storageKey: 'victim/secret.jpg' },
     });
 
     const result = await service.consumeSnap('snap-1', 'sender-1');
 
-    expect(storage.getSignedUrl).toHaveBeenCalledWith('snaps/real.jpg', 60);
-    expect(result.mediaUrl).toContain('snaps/real.jpg');
+    expect(storage.getSignedUrl).toHaveBeenCalledWith('sender-1/media_fixture/real.jpg', 60);
+    expect(result.mediaUrl).toContain('sender-1/media_fixture/real.jpg');
     expect(result.mediaUrl).not.toContain('victim');
   });
 });
