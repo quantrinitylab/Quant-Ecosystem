@@ -2277,23 +2277,53 @@ export class QuantMailApiClient {
         signal: options?.signal,
       });
 
-      // Any HTTP response completes the logical operation: drop the pending
-      // id so a later identical call mints a fresh one (it is a NEW
-      // operation then, e.g. send → undo-send → send again). The one
-      // exception is 409: it may be IDEMPOTENCY_IN_FLIGHT for OUR OWN key
-      // (concurrent duplicate) — the operation is still unanswered, so keep
-      // K1; the retry reuses it and the server replays instead of executing
-      // twice. (A 409 from a handler-level conflict released the server-side
-      // claim, so reusing K1 there is equally safe.)
-      if (pendingFingerprint && response.status !== 409) {
-        completePendingOperation(pendingFingerprint);
+      // fix/qm-idempotency-mail-routes (CODEX-REVIEW on merged #1145): K1 is
+      // the operation's identity until a VALIDATED authoritative terminal
+      // outcome arrives — response headers alone are not enough. The old code
+      // dropped the pending id as soon as headers arrived, before
+      // response.json() ran: a 200 with a truncated body (or a
+      // proxy-generated 502/504 after the mutation committed) deleted K1,
+      // the retry minted K2, and the server executed the mutation twice.
+      let parsed: ApiResponse<T>;
+      try {
+        parsed = (await response.json()) as ApiResponse<T>;
+      } catch {
+        // The body never fully arrived: treat like no response — KEEP K1 so
+        // the retry reuses it and the server replays the committed outcome
+        // instead of executing the mutation a second time.
+        return {
+          success: false,
+          error: {
+            code: 'PARSE_ERROR',
+            message: 'The server response was incomplete. Please try again.',
+            statusCode: response.status,
+          },
+        };
       }
 
       if (response.status === 401 && hadAccessToken) {
         this.onAuthError?.();
       }
 
-      return (await response.json()) as ApiResponse<T>;
+      if (pendingFingerprint) {
+        // Only a fully-parsed terminal outcome completes the logical
+        // operation: a 2xx (authoritative success) or a 4xx other than 409
+        // (authoritative rejection — the mutation did not run), after which a
+        // later identical call is a NEW operation with a fresh id (e.g.
+        // send → undo-send → send again). Everything else keeps K1: 409 may
+        // be IDEMPOTENCY_IN_FLIGHT for our own key (the operation is still
+        // unanswered — the retry reuses K1 and the server replays); any 5xx
+        // may have committed server-side (gateway-timeout-after-commit), so
+        // the retry must reuse K1 and let the server replay instead of
+        // executing twice. (A 409 from a handler-level conflict released the
+        // server-side claim, so reusing K1 there is equally safe.)
+        const terminal =
+          (response.status >= 200 && response.status < 300) ||
+          (response.status >= 400 && response.status < 500 && response.status !== 409);
+        if (terminal) completePendingOperation(pendingFingerprint);
+      }
+
+      return parsed;
     } catch (error) {
       // No response arrived (timeout / network failure / abort): the server
       // may have committed the mutation, so KEEP the pending id — the retry

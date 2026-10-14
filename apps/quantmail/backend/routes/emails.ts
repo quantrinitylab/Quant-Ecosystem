@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import type { PrismaClient, Prisma } from '@quant/database';
-import { createAppError, enableIdempotency } from '@quant/server-core';
+import { createAppError, enableIdempotency, handleIdempotentTransaction } from '@quant/server-core';
+import type { IdempotencyDatabase } from '@quant/server-core';
 import { EmailService, toMessageKind, toPriority } from '../services/email.service';
 import type { EmailSearchFilters } from '../services/email.service';
 import type { LearnedInboxCategoryStore } from '../services/learned-inbox-category.service';
@@ -513,7 +514,7 @@ export default async function emailsRoutes(
   // WR-MAIL-104: mail.draft.update is an active catalog command — key required.
   fastify.put<{ Params: { id: string } }>(
     '/:id',
-    { config: { idempotencyRequired: true }, bodyLimit: COMPOSE_BODY_LIMIT_BYTES },
+    { config: { idempotencyRequired: true, idempotencyTransactional: true }, bodyLimit: COMPOSE_BODY_LIMIT_BYTES },
     async (request, reply) => {
     const parsed = composeSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
@@ -550,50 +551,61 @@ export default async function emailsRoutes(
 
     // QM-BACK-002: guard + correlation for draft edits (autosave races).
     const draftOpts = mutationOpts(request, reply);
-    // K1: draft update + outbox row in ONE transaction (doc 05).
-    const email = await prisma.$transaction(async (tx) => {
-      const updated = await versionedUpdate<Record<string, any>>(tx as unknown as VersionedTx, {
-        id: request.params.id,
-        resource: 'Email',
-        notFoundCode: 'EMAIL_NOT_FOUND',
-        notFoundMessage: 'Email not found',
-        expectedVersion: draftOpts.expectedVersion,
-        data: {
-          toAddresses: d.toAddresses,
-          subject: d.subject,
-          ...(provided('cc') || provided('ccAddresses') ? { ccAddresses: d.ccAddresses } : {}),
-          ...(provided('bcc') || provided('bccAddresses') ? { bccAddresses: d.bccAddresses } : {}),
-          ...(htmlProvided ? { bodyHtml: nextHtml } : {}),
-          ...(plainProvided ? { bodyPlain: nextPlain } : {}),
-          ...(htmlProvided || plainProvided ? { snippet: buildSnippet(nextPlain, nextHtml) } : {}),
-          ...(provided('inReplyTo') ? { inReplyTo: d.inReplyTo ?? null } : {}),
-          ...(provided('threadId') ? { threadId: d.threadId ?? null } : {}),
-          ...(d.priority ? { priority: toPriority(d.priority) } : {}),
-          // Only rewrite the kind when the caller states one, so saving a draft from
-          // a composer that does not know about kinds cannot silently reclassify it.
-          ...(d.messageKind ? { messageKind: toMessageKind(d.messageKind) } : {}),
-          ...(d.attachments
-            ? {
-                attachments: d.attachments,
-                hasAttachments: d.attachments.length > 0,
-              }
-            : {}),
+    // fix/qm-idempotency-mail-routes-r4: the idempotency claim, the draft
+    // update and the outbox row commit in ONE database transaction — a retry
+    // with the same key replays the stored outcome instead of re-executing
+    // the mutation (generic preHandler path never claims for this route).
+    await handleIdempotentTransaction(
+      request,
+      reply,
+      prisma as unknown as IdempotencyDatabase,
+      {
+        work: async (tx) => {
+          const updated = await versionedUpdate<Record<string, any>>(tx as unknown as VersionedTx, {
+            id: request.params.id,
+            resource: 'Email',
+            notFoundCode: 'EMAIL_NOT_FOUND',
+            notFoundMessage: 'Email not found',
+            expectedVersion: draftOpts.expectedVersion,
+            data: {
+              toAddresses: d.toAddresses,
+              subject: d.subject,
+              ...(provided('cc') || provided('ccAddresses') ? { ccAddresses: d.ccAddresses } : {}),
+              ...(provided('bcc') || provided('bccAddresses') ? { bccAddresses: d.bccAddresses } : {}),
+              ...(htmlProvided ? { bodyHtml: nextHtml } : {}),
+              ...(plainProvided ? { bodyPlain: nextPlain } : {}),
+              ...(htmlProvided || plainProvided ? { snippet: buildSnippet(nextPlain, nextHtml) } : {}),
+              ...(provided('inReplyTo') ? { inReplyTo: d.inReplyTo ?? null } : {}),
+              ...(provided('threadId') ? { threadId: d.threadId ?? null } : {}),
+              ...(d.priority ? { priority: toPriority(d.priority) } : {}),
+              // Only rewrite the kind when the caller states one, so saving a draft from
+              // a composer that does not know about kinds cannot silently reclassify it.
+              ...(d.messageKind ? { messageKind: toMessageKind(d.messageKind) } : {}),
+              ...(d.attachments
+                ? {
+                    attachments: d.attachments,
+                    hasAttachments: d.attachments.length > 0,
+                  }
+                : {}),
+            },
+          });
+          await emitOutbox(tx, {
+            event: MailOutboxEvents.draftUpdated,
+            aggregateType: 'Email',
+            aggregateId: request.params.id,
+            payload: {
+              userId,
+              threadId: (updated as { threadId?: string | null }).threadId ?? null,
+              requestId: draftOpts.requestId,
+            },
+          });
+          return {
+            statusCode: 200,
+            payload: { success: true, data: formatEmailRecord(updated) },
+          };
         },
-      });
-      await emitOutbox(tx, {
-        event: MailOutboxEvents.draftUpdated,
-        aggregateType: 'Email',
-        aggregateId: request.params.id,
-        payload: {
-          userId,
-          threadId: (updated as { threadId?: string | null }).threadId ?? null,
-          requestId: draftOpts.requestId,
-        },
-      });
-      return updated;
-    });
-
-    return reply.send({ success: true, data: formatEmailRecord(email) });
+      },
+    );
   });
 
   // POST /emails/:id/send - durably queue an owned draft for delivery.
@@ -1034,7 +1046,7 @@ export default async function emailsRoutes(
   // WR-MAIL-104: mail.thread.archive is an active catalog command — key required.
   fastify.post<{ Params: { id: string } }>(
     '/:id/archive',
-    { config: { idempotencyRequired: true } },
+    { config: { idempotencyRequired: true, idempotencyTransactional: true } },
     async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
@@ -1047,33 +1059,47 @@ export default async function emailsRoutes(
       throw createAppError('Restore the email before archiving it', 409, 'EMAIL_IN_TRASH');
     }
 
-    const archiveFolder = await getOrCreateFolder(prisma, userId, 'Archive', 'ARCHIVE');
     // QM-BACK-002: guard + correlation for the archive move.
     const archiveOpts = mutationOpts(request, reply);
-    // K1: archive move + outbox row in ONE transaction (doc 05).
-    await prisma.$transaction(async (tx) => {
-      const archived = await versionedUpdate<Record<string, any>>(tx as unknown as VersionedTx, {
-        id: request.params.id,
-        resource: 'Email',
-        notFoundCode: 'EMAIL_NOT_FOUND',
-        notFoundMessage: 'Email not found',
-        expectedVersion: archiveOpts.expectedVersion,
-        data: { folderId: archiveFolder.id, isTrash: false, deletedAt: null },
-      });
-      await emitOutbox(tx, {
-        event: MailOutboxEvents.threadArchived,
-        aggregateType: 'EmailThread',
-        aggregateId:
-          (archived as { threadId?: string | null }).threadId ?? (archived as { id: string }).id,
-        payload: {
-          userId,
-          emailId: request.params.id,
-          folderId: archiveFolder.id,
-          requestId: archiveOpts.requestId,
+    // fix/qm-idempotency-mail-routes-r4: the idempotency claim, the archive
+    // move and the outbox row commit in ONE database transaction — a retry
+    // with the same key replays the stored outcome instead of re-executing
+    // the mutation (generic preHandler path never claims for this route).
+    await handleIdempotentTransaction(
+      request,
+      reply,
+      prisma as unknown as IdempotencyDatabase,
+      {
+        work: async (tx) => {
+          const txClient = tx as unknown as PrismaClient;
+          const archiveFolder = await getOrCreateFolder(txClient, userId, 'Archive', 'ARCHIVE');
+          const archived = await versionedUpdate<Record<string, any>>(tx as unknown as VersionedTx, {
+            id: request.params.id,
+            resource: 'Email',
+            notFoundCode: 'EMAIL_NOT_FOUND',
+            notFoundMessage: 'Email not found',
+            expectedVersion: archiveOpts.expectedVersion,
+            data: { folderId: archiveFolder.id, isTrash: false, deletedAt: null },
+          });
+          await emitOutbox(tx, {
+            event: MailOutboxEvents.threadArchived,
+            aggregateType: 'EmailThread',
+            aggregateId:
+              (archived as { threadId?: string | null }).threadId ?? (archived as { id: string }).id,
+            payload: {
+              userId,
+              emailId: request.params.id,
+              folderId: archiveFolder.id,
+              requestId: archiveOpts.requestId,
+            },
+          });
+          return {
+            statusCode: 200,
+            payload: { success: true, data: { message: 'Email archived' } },
+          };
         },
-      });
-    });
-    return reply.send({ success: true, data: { message: 'Email archived' } });
+      },
+    );
   });
 
   // POST /emails/:id/unarchive - move an archived email back to the inbox.
@@ -1113,7 +1139,7 @@ export default async function emailsRoutes(
   // WR-MAIL-104: mail.thread.restore is an active catalog command — key required.
   fastify.post<{ Params: { id: string } }>(
     '/:id/restore',
-    { config: { idempotencyRequired: true } },
+    { config: { idempotencyRequired: true, idempotencyTransactional: true } },
     async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
@@ -1127,26 +1153,39 @@ export default async function emailsRoutes(
     }
     // QM-BACK-002: guard + correlation for the restore.
     const restoreOpts = mutationOpts(request, reply);
-    // K1: trash restore + outbox row in ONE transaction (doc 05).
-    await prisma.$transaction(async (tx) => {
-      const restored = await versionedUpdate<Record<string, any>>(tx as unknown as VersionedTx, {
-        id: request.params.id,
-        resource: 'Email',
-        notFoundCode: 'EMAIL_NOT_FOUND',
-        notFoundMessage: 'Email not found',
-        expectedVersion: restoreOpts.expectedVersion,
-        data: { folderId: null, isTrash: false, deletedAt: null },
-      });
-      await emitOutbox(tx, {
-        event: MailOutboxEvents.threadRestored,
-        aggregateType: 'EmailThread',
-        aggregateId:
-          (restored as { threadId?: string | null }).threadId ??
-          (restored as { id: string }).id,
-        payload: { userId, emailId: request.params.id, requestId: restoreOpts.requestId },
-      });
-    });
-    return reply.send({ success: true, data: { message: 'Email restored to inbox' } });
+    // fix/qm-idempotency-mail-routes-r4: the idempotency claim, the trash
+    // restore and the outbox row commit in ONE database transaction — a retry
+    // with the same key replays the stored outcome instead of re-executing
+    // the mutation (generic preHandler path never claims for this route).
+    await handleIdempotentTransaction(
+      request,
+      reply,
+      prisma as unknown as IdempotencyDatabase,
+      {
+        work: async (tx) => {
+          const restored = await versionedUpdate<Record<string, any>>(tx as unknown as VersionedTx, {
+            id: request.params.id,
+            resource: 'Email',
+            notFoundCode: 'EMAIL_NOT_FOUND',
+            notFoundMessage: 'Email not found',
+            expectedVersion: restoreOpts.expectedVersion,
+            data: { folderId: null, isTrash: false, deletedAt: null },
+          });
+          await emitOutbox(tx, {
+            event: MailOutboxEvents.threadRestored,
+            aggregateType: 'EmailThread',
+            aggregateId:
+              (restored as { threadId?: string | null }).threadId ??
+              (restored as { id: string }).id,
+            payload: { userId, emailId: request.params.id, requestId: restoreOpts.requestId },
+          });
+          return {
+            statusCode: 200,
+            payload: { success: true, data: { message: 'Email restored to inbox' } },
+          };
+        },
+      },
+    );
   });
 
   // POST /emails/:id/snooze - persist a future wake time on an owner-local thread.
