@@ -130,6 +130,8 @@ model User {
   bitmojiConfig      BitmojiConfig?    @relation()
   preKeyBundle       PreKeyBundle?
   snapViews          SnapView[]
+  sentMessageRequests     MessageRequest[] @relation("MessageRequestSender")
+  receivedMessageRequests MessageRequest[] @relation("MessageRequestTarget")
 
   @@index([email])
   @@index([username])
@@ -533,6 +535,40 @@ model SnapView {
   @@index([messageId])
   @@index([userId])
   @@map("snap_views")
+}
+
+enum MessageRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+/// A first-contact consent request (QC-F-321). Created ONLY when the
+/// target's whoCanMessage gate denies a stranger ('friends' + not a
+/// friend): the sender's first message waits here — it is NOT a Message
+/// and belongs to no conversation — until the target accepts (a real
+/// DIRECT conversation is created and the message delivered as its
+/// first Message), declines (terminal for this ordered pair), or blocks.
+/// One row per ordered pair: @@unique([senderId, targetId]) is the
+/// anti-spam spine — a second PENDING can never exist, and a DECLINED
+/// row is what makes re-request impossible without a history table.
+model MessageRequest {
+  id             String               @id @default(cuid())
+  senderId       String
+  targetId       String
+  firstMessage   String
+  status         MessageRequestStatus @default(PENDING)
+  conversationId String?
+  createdAt      DateTime             @default(now())
+  respondedAt    DateTime?
+
+  sender User @relation("MessageRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  target User @relation("MessageRequestTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, targetId])
+  @@index([targetId, status, createdAt])
+  @@index([senderId, status])
+  @@map("message_requests")
 }
 
 // ==================== EMAILS (QuantMail) =============
