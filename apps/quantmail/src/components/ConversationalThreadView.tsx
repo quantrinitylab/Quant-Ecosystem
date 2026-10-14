@@ -56,6 +56,7 @@ import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useInbox } from '../hooks/useInbox';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import { useIsMobile } from '../hooks/useIsMobile';
 import {
   useThreadRealtime,
   type ThreadRealtimeMessage,
@@ -334,6 +335,23 @@ function cleanContactName(name: string | undefined, email: string): string {
 function normalizeAddress(value?: string): string {
   return (value ?? '').trim().toLowerCase();
 }
+
+/**
+ * One recipient for the header-style details block ("To:", "Cc:"):
+ * `Name <address>` when the name adds something, otherwise the address.
+ * A name that is just the address's local part ("qwlive20261013") or the
+ * address itself would only repeat it, so the full address alone is shown.
+ */
+export function formatHeaderAddress(addr: { name?: string; email?: string }): string {
+  const email = (addr.email ?? '').trim();
+  const name = (addr.name ?? '').trim();
+  if (!email) return name;
+  const local = email.split('@')[0] ?? '';
+  if (!name || normalizeAddress(name) === normalizeAddress(email) || normalizeAddress(name) === normalizeAddress(local)) {
+    return email;
+  }
+  return `${name} <${email}>`;
+}
 function normalizeGroupSubject(value?: string): string {
   let subject = (value ?? '').trim();
   while (/^(?:re|fwd):\s*/i.test(subject)) subject = subject.replace(/^(?:re|fwd):\s*/i, '').trim();
@@ -523,6 +541,9 @@ export function ConversationalThreadView({
 
   // Quick reply & AI state
   const [quickReplyText, setQuickReplyText] = useState('');
+  // Phones get the short reply placeholder: the keyboard hints (Enter,
+  // ⌘/Ctrl+Enter) mean nothing on a touch keyboard and truncated the line.
+  const isPhoneWidth = useIsMobile(640);
   /*
    * Quoted reply: set when a thread gesture (swipe-right, menu Reply) targets
    * a specific message. The send below replies to this message instead of the
@@ -2566,10 +2587,14 @@ export function ConversationalThreadView({
             const msgFromEmail = message.from?.email || (message as any).fromAddress || '';
             const msgAttachments = message.attachments || [];
             const hasAtt = msgAttachments.length > 0;
+            // Header-style, like the From line above: "Name <address>" when the
+            // name says something the address does not (a bare local part used
+            // to read as an incomplete address — "To: qwlive20261013").
             const toDisplay =
-              message.to?.map((t) => t.name || t.email).join(', ') ||
+              message.to?.map(formatHeaderAddress).join(', ') ||
               (message as any).toAddresses?.join(', ') ||
               'me';
+            const ccDisplay = message.cc?.map(formatHeaderAddress).join(', ') || '';
 
             /*
              * Letter or line: read from the message, never guessed.
@@ -3008,9 +3033,15 @@ export function ConversationalThreadView({
                               </span>
                             </div>
                             <div className="flex">
-                              <span className="w-20 text-[var(--quant-muted-foreground)]">To:</span>
-                              <span className="text-[var(--quant-muted-foreground)]">{toDisplay}</span>
+                              <span className="w-20 shrink-0 text-[var(--quant-muted-foreground)]">To:</span>
+                              <span className="min-w-0 break-words text-[var(--quant-muted-foreground)]">{toDisplay}</span>
                             </div>
+                            {ccDisplay && (
+                              <div className="flex">
+                                <span className="w-20 shrink-0 text-[var(--quant-muted-foreground)]">Cc:</span>
+                                <span className="min-w-0 break-words text-[var(--quant-muted-foreground)]">{ccDisplay}</span>
+                              </div>
+                            )}
                             <div className="flex">
                               <span className="w-20 text-[var(--quant-muted-foreground)]">Date:</span>
                               <span className="text-[var(--quant-muted-foreground)]">
@@ -3367,8 +3398,12 @@ export function ConversationalThreadView({
             }}
             placeholder={
               composeMode === 'mail'
-                ? 'Write a reply — Enter opens the composer…'
-                : 'Reply… (⌘/Ctrl+Enter to send)'
+                ? isPhoneWidth
+                  ? 'Write a reply…'
+                  : 'Write a reply — Enter opens the composer…'
+                : isPhoneWidth
+                  ? 'Reply…'
+                  : 'Reply… (⌘/Ctrl+Enter to send)'
             }
             aria-label={composeMode === 'mail' ? 'Write a reply' : 'Reply'}
             className="min-h-[44px] min-w-0 flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded px-1 sm:px-2 py-1.5 sm:min-h-0"

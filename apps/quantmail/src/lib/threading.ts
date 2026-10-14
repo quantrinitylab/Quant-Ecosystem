@@ -242,6 +242,20 @@ export function sanitizeSnippetText(text?: string): string {
     .trim();
 }
 
+/**
+ * True when a row is nothing but unsent writing — every message in it is a
+ * draft. Such a row resumes the draft in the composer (as the Drafts tab
+ * does); a thread view would have nothing to show but the draft.
+ */
+export function isDraftOnlyConversation(
+  email: Pick<Email, 'isDraft'> | null | undefined,
+  messages?: ReadonlyArray<Pick<Email, 'isDraft'>> | null,
+): boolean {
+  if (!email?.isDraft) return false;
+  const list = messages && messages.length > 0 ? messages : [email];
+  return list.every((m) => Boolean(m.isDraft));
+}
+
 const PREVIEW_PLAIN_CHARS = 600;
 const PREVIEW_HTML_CHARS = 4000;
 const PREVIEW_ENTITIES: Record<string, string> = {
