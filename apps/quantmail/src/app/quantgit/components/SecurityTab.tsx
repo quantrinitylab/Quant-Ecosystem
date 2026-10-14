@@ -123,6 +123,52 @@ export async function applyCodeqlFixOnServer(
   }
 }
 
+/**
+ * Mark a secret-scanning alert as false positive via the REAL backend endpoint
+ * POST /api/repos/:id/security/secrets/:alertId/false-positive (Next proxy ->
+ * Fastify, which persists status='false_positive' in the server store).
+ *
+ * The success toast is only warranted when the server confirms
+ * data.status === 'false_positive'. Any other outcome returns ok:false with an
+ * honest message and the caller must NOT flip local state or toast success.
+ * Exported for unit tests (component handlers are not directly testable with
+ * renderToStaticMarkup).
+ */
+export type MarkSecretFalsePositiveResult = { ok: true; message: string } | { ok: false; message: string };
+
+export async function markSecretFalsePositiveOnServer(
+  targetRepo: string,
+  alertId: string,
+): Promise<MarkSecretFalsePositiveResult> {
+  try {
+    const res = await apiFetchRaw(
+      `/api/repos/${encodeURIComponent(targetRepo)}/security/secrets/${encodeURIComponent(alertId)}/false-positive`,
+      { method: 'POST' },
+    );
+    const json = (await res.json().catch(() => null)) as {
+      success?: boolean;
+      data?: { status?: string; message?: string };
+      error?: { message?: string; code?: string };
+    } | null;
+    if (res.ok && json?.success && json?.data?.status === 'false_positive') {
+      return { ok: true, message: json.data.message || 'Secret alert marked as false positive.' };
+    }
+    // Server refused or returned something unexpected — surface its honest
+    // message (e.g. 404 ALERT_NOT_FOUND) instead of inventing one.
+    return {
+      ok: false,
+      message:
+        json?.error?.message ||
+        'Could not mark the alert as false positive. Nothing was changed.',
+    };
+  } catch {
+    return {
+      ok: false,
+      message: 'False-positive request failed — the alert was not updated. Nothing was changed.',
+    };
+  }
+}
+
 export function SecurityTab({
   securityAlerts: propAlerts,
   showToast = () => {},
@@ -170,6 +216,14 @@ export function SecurityTab({
   // The alert's status is NEVER flipped until the server confirms 'revoked',
   // so a failed revoke needs no rollback: no false state was ever rendered.
   const [revokingSecretIds, setRevokingSecretIds] = useState<ReadonlySet<string>>(new Set());
+  // Per-alert in-flight false-positive markers — honest loading state while the
+  // real backend POST
+  // /api/repos/:id/security/secrets/:alertId/false-positive is pending.
+  // The alert's status is NEVER flipped until the server confirms
+  // 'false_positive', so a failed request needs no rollback: no false state
+  // was ever rendered.
+  const [markingFalsePositiveIds, setMarkingFalsePositiveIds] =
+    useState<ReadonlySet<string>>(new Set());
 
   // 3. CodeQL / SAST State
   // Genuine empty state — no fabricated CodeQL alerts.
@@ -415,13 +469,40 @@ export function SecurityTab({
     }
   };
 
-  const handleMarkFalsePositive = (id: string, secretType: string) => {
-    setSecretAlerts((prev) =>
-      prev.map((sec) =>
-        sec.id === id ? { ...sec, status: 'false_positive' as SecretAlertStatus } : sec,
-      ),
-    );
-    showToast(`Marked ${secretType} as false positive`);
+  // HONESTY (fix/qm-quantgit-falsepositive-endpoint): the false-positive
+  // button calls the real backend POST
+  // /api/repos/:id/security/secrets/:alertId/false-positive. Local state
+  // flips to 'false_positive' ONLY on confirmed server success, and the
+  // success toast fires only then. On failure nothing flips — there is no
+  // false state to roll back; the per-alert loading marker is always cleared
+  // in `finally`.
+  const handleMarkFalsePositive = async (id: string, secretType: string) => {
+    const targetRepo = repoId || selectedRepo?.id;
+    if (!targetRepo) {
+      showToast('Select a repository before marking an alert as false positive.');
+      return;
+    }
+    if (markingFalsePositiveIds.has(id)) return;
+    setMarkingFalsePositiveIds((prev) => new Set(prev).add(id));
+    try {
+      const result = await markSecretFalsePositiveOnServer(targetRepo, id);
+      if (!result.ok) {
+        showToast(result.message);
+        return;
+      }
+      setSecretAlerts((prev) =>
+        prev.map((sec) =>
+          sec.id === id ? { ...sec, status: 'false_positive' as SecretAlertStatus } : sec,
+        ),
+      );
+      showToast(result.message || `Marked ${secretType} as false positive`);
+    } finally {
+      setMarkingFalsePositiveIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
   const handleTriggerSecretScan = async () => {
@@ -1163,9 +1244,11 @@ export function SecurityTab({
                         type="button"
                         data-testid={`false-positive-btn-${sec.id}`}
                         onClick={() => handleMarkFalsePositive(sec.id, sec.secretType)}
-                        className="px-3 py-1.5 rounded bg-[#21262D] hover:bg-[#30363D] text-[#7D8590] hover:text-white border border-[#30363D] font-semibold text-xs transition-colors"
+                        disabled={markingFalsePositiveIds.has(sec.id)}
+                        aria-live="polite"
+                        className="px-3 py-1.5 rounded bg-[#21262D] hover:bg-[#30363D] text-[#7D8590] hover:text-white border border-[#30363D] font-semibold text-xs transition-colors disabled:opacity-50 disabled:cursor-wait disabled:hover:bg-[#21262D]"
                       >
-                        Mark false positive
+                        {markingFalsePositiveIds.has(sec.id) ? 'Marking…' : 'Mark false positive'}
                       </button>
                     )}
                   </div>
