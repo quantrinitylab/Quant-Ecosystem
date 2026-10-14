@@ -88,6 +88,13 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   // Builds still failed to load. The backend fix landed; the door stayed shut.
   { pattern: /^ci\/(?:workflows|builds)$/, methods: ['GET'] },
   { pattern: /^ci\/builds\/[^/]+$/, methods: ['GET'] },
+  // Live CI build logs (P1 fix/qm-quantgit-ci-logs-allowlist). The action-detail
+  // modal's <BuildTerminal> defaults to GET /api/ci/builds/:id/logs when no
+  // streamUrl is passed, and backend/routes/ci-logs.ts registers exactly that
+  // GET (SSE). Without this row the catch-all answered API_ROUTE_NOT_FOUND and
+  // the Execution Logs panel could never stream — the same "door stayed shut"
+  // class documented above. GET only: there is no POST/DELETE on this path.
+  { pattern: /^ci\/builds\/[^/]+\/logs$/, methods: ['GET'] },
   { pattern: /^ci\/(?:workflows\/[^/]+\/trigger|builds\/[^/]+\/cancel)$/, methods: ['POST'] },
   // GET only. There is no `POST /ci/deployments` in the backend and the one
   // client for it, `apiClient.deploy`, has no callers — so listing POST was
