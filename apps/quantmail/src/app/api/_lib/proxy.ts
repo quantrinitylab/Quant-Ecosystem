@@ -17,6 +17,18 @@ export async function proxyToBackend(
      * the chain via the browser HTTP cache.
      */
     notFoundCacheControl?: string;
+    /**
+     * fix/qm-quantgit-ci-logs-stream: stream-through mode for SSE. The generic
+     * path below does `await res.json()` + `NextResponse.json(data, ...)` for
+     * every response, which either hangs the fetch until an SSE stream closes
+     * or throws into a 502 INVALID_RESPONSE ("Backend returned non-JSON
+     * response") — and NextResponse.json never sets the text/event-stream
+     * Content-Type a browser EventSource requires. When set (or when the
+     * backend itself answers with text/event-stream), the response body is
+     * piped untouched with SSE headers: no JSON parsing, no buffering, no
+     * caching. Everything else keeps the historic JSON-buffering behavior.
+     */
+    stream?: boolean;
   },
   backendUrl?: string,
 ) {
@@ -74,6 +86,29 @@ export async function proxyToBackend(
       },
       { status: 502, headers: { 'cache-control': 'no-store' } },
     );
+  }
+
+  // fix/qm-quantgit-ci-logs-stream: stream-through mode for SSE. The generic
+  // path below does `await res.json()` + `NextResponse.json(data, ...)`, which
+  // either hangs until the stream closes or throws into a 502
+  // INVALID_RESPONSE on a text/event-stream response — and NextResponse.json
+  // never sets the Content-Type a browser EventSource requires. Opt-in via
+  // `options.stream`, or auto-detected when the backend answers with
+  // text/event-stream: pipe the body untouched with SSE headers, never cached
+  // or buffered. (An SSE answer that previously reached this point could only
+  // end as a hung fetch or a 502, so auto-detect strictly repairs breakage.)
+  const backendContentType = res.headers.get('content-type') ?? '';
+  if (
+    (options?.stream === true || backendContentType.startsWith('text/event-stream')) &&
+    res.body
+  ) {
+    const streamHeaders = new Headers();
+    streamHeaders.set('content-type', backendContentType || 'text/event-stream');
+    streamHeaders.set('cache-control', 'no-cache');
+    streamHeaders.set('x-accel-buffering', 'no');
+    const connection = res.headers.get('connection');
+    if (connection) streamHeaders.set('connection', connection);
+    return new Response(res.body, { status: res.status, headers: streamHeaders });
   }
 
   try {
