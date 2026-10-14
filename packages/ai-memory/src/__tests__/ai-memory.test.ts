@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { AIMemoryStore } from '../memory-store';
 import { MemoryExplainer } from '../memory-explainer';
 import { MemoryExporter } from '../memory-export';
+import { AsyncAIMemoryStoreAdapter } from '../async-adapter';
 import type { MemoryEntry } from '../types';
 
 describe('AIMemoryStore', () => {
@@ -429,10 +430,10 @@ describe('MemoryExporter', () => {
 
   beforeEach(() => {
     store = new AIMemoryStore();
-    exporter = new MemoryExporter(store);
+    exporter = new MemoryExporter(new AsyncAIMemoryStoreAdapter(store));
   });
 
-  it('exports memories to JSON format', () => {
+  it('exports memories to JSON format', async () => {
     store.create({
       userId: 'user1',
       category: 'preferences',
@@ -446,13 +447,13 @@ describe('MemoryExporter', () => {
       tags: [],
     });
 
-    const json = exporter.export('user1', 'json');
+    const json = await exporter.export('user1', 'json');
     const parsed = JSON.parse(json) as { version: string; entries: unknown[] };
     expect(parsed.version).toBe('1.0.0');
     expect(parsed.entries).toHaveLength(1);
   });
 
-  it('imports memories from JSON format', () => {
+  it('imports memories from JSON format', async () => {
     const importData = JSON.stringify({
       version: '1.0.0',
       exportedAt: Date.now(),
@@ -477,14 +478,14 @@ describe('MemoryExporter', () => {
       ],
     });
 
-    const imported = exporter.importFromJson(importData);
+    const imported = await exporter.importFromJson(importData);
     expect(imported).toHaveLength(1);
     expect(imported[0]!.content).toBe('Imported fact');
     // Imported entry gets a new id
     expect(imported[0]!.id).toMatch(/^mem_/);
   });
 
-  it('exports memories to markdown format', () => {
+  it('exports memories to markdown format', async () => {
     store.create({
       userId: 'user1',
       category: 'goals',
@@ -498,7 +499,7 @@ describe('MemoryExporter', () => {
       tags: [],
     });
 
-    const markdown = exporter.export('user1', 'markdown');
+    const markdown = await exporter.export('user1', 'markdown');
     expect(markdown).toContain('# AI Memory Export');
     expect(markdown).toContain('Learn piano');
     expect(markdown).toContain('goals');
@@ -528,7 +529,7 @@ describe('MemoryExporter', () => {
 
     // Create a new store/exporter for import
     const store2 = new AIMemoryStore();
-    const exporter2 = new MemoryExporter(store2);
+    const exporter2 = new MemoryExporter(new AsyncAIMemoryStoreAdapter(store2));
     const imported = await exporter2.importEncrypted(encrypted, key);
 
     expect(imported).toHaveLength(1);

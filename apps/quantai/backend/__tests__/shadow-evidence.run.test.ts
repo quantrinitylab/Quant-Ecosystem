@@ -90,7 +90,7 @@ describe('quantai shadow evidence run (in-process, representative traffic)', () 
 
     const actor = 'shadow_user_1';
     for (const m of SEED_MEMORIES) {
-      service.createMemory(actor, {
+      await service.createMemory(actor, {
         category: 'preferences',
         content: m.content,
         source: 'seed',
@@ -103,10 +103,10 @@ describe('quantai shadow evidence run (in-process, representative traffic)', () 
     }
 
     for (const content of OBSERVE_TURNS) {
-      await facade.observe({ actor, session: 'shadow_run', role: 'user', content });
+      await await facade.observe({ actor, session: 'shadow_run', role: 'user', content });
     }
     for (const query of RECALL_QUERIES) {
-      await facade.recall({ actor, query });
+      await await facade.recall({ actor, query });
     }
 
     expect(shadowReports.length).toBe(RECALL_QUERIES.length);

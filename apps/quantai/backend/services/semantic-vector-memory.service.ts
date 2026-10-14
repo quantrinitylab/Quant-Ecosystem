@@ -2,12 +2,22 @@
 // QuantAI — Layer 3 Semantic Vector Memory Service
 //
 // Provides semantic recall across files, emails, documents, and past conversations.
-// Features cosine similarity matching over normalized embedding vectors,
-// source-scoped cross-app filtering, and resilient deterministic hashing
-// embedding generator for zero-mock, offline-first reliability.
+// Features cosine similarity matching over normalized embedding vectors and
+// source-scoped cross-app filtering.
+//
+// EMBEDDINGS ARE HONEST HERE: the service resolves a REAL embedding provider
+// from the environment (Cloudflare Workers AI, then OpenAI). The deterministic
+// hashing provider below is a NON-SEMANTIC dev fallback — it is never presented
+// as real embeddings, and the service logs a warning whenever it is used.
 // ============================================================================
 
 import { createHash } from 'node:crypto';
+import {
+  CloudflareEmbeddingProvider,
+  OpenAIEmbeddingProvider,
+  loadCloudflareEmbeddingConfig,
+  loadOpenAIEmbeddingConfig,
+} from '@quant/ai';
 
 export interface VectorChunk {
   id: string;
@@ -34,10 +44,18 @@ export interface EmbeddingProvider {
 }
 
 /**
- * Deterministic, offline-first TF/hashing embedding provider.
- * Maps any text to a unit-length normalized 64-dimensional dense vector.
+ * NON-SEMANTIC dev fallback. This is NOT a real embedding model: it hashes
+ * tokens into 64 buckets, so "similarity" only reflects crude token overlap —
+ * paraphrases, synonyms, and cross-lingual matches score ~0. It exists so the
+ * service works offline in dev/test with zero credentials. NEVER use it to
+ * claim semantic search in production; resolveEmbeddingProvider() only picks
+ * it when no real provider is configured, and the service logs a warning.
  */
 export class DeterministicEmbeddingProvider implements EmbeddingProvider {
+  /** Discriminator so callers can detect the non-semantic fallback. */
+  readonly kind = 'deterministic-dev-fallback' as const;
+  /** Always false — this provider has no semantic understanding. */
+  readonly isSemantic = false as const;
   private readonly dimensions: number;
 
   constructor(dimensions = 64) {
@@ -81,6 +99,27 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 
 export interface SemanticVectorMemoryOptions {
   embeddingProvider?: EmbeddingProvider;
+  /** Logger for the fallback warning (defaults to console). */
+  log?: { warn: (msg: string) => void };
+}
+
+/**
+ * Resolve a REAL embedding provider from the environment.
+ * Priority: Cloudflare Workers AI (CLOUDFLARE_API_TOKEN — the ecosystem's
+ * existing edge-inference credential, also used by AIEngine) → OpenAI
+ * (OPENAI_API_KEY) → deterministic NON-SEMANTIC dev fallback (honestly
+ * labeled; never silently fake).
+ */
+export function resolveEmbeddingProvider(
+  env: NodeJS.ProcessEnv = process.env,
+): EmbeddingProvider {
+  if (env['CLOUDFLARE_API_TOKEN']) {
+    return new CloudflareEmbeddingProvider(loadCloudflareEmbeddingConfig(env));
+  }
+  if (env['OPENAI_API_KEY']) {
+    return new OpenAIEmbeddingProvider(loadOpenAIEmbeddingConfig(env));
+  }
+  return new DeterministicEmbeddingProvider();
 }
 
 export class SemanticVectorMemoryService {
@@ -88,7 +127,20 @@ export class SemanticVectorMemoryService {
   private readonly chunks = new Map<string, VectorChunk>();
 
   constructor(options: SemanticVectorMemoryOptions = {}) {
-    this.embedder = options.embeddingProvider ?? new DeterministicEmbeddingProvider();
+    const provider = options.embeddingProvider ?? resolveEmbeddingProvider();
+    this.embedder = provider;
+    if (provider instanceof DeterministicEmbeddingProvider) {
+      (options.log ?? console).warn(
+        '[semantic-vector-memory] No CLOUDFLARE_API_TOKEN or OPENAI_API_KEY — ' +
+          'using NON-SEMANTIC deterministic dev fallback embeddings. ' +
+          'Similarity scores reflect token overlap only, not meaning.',
+      );
+    }
+  }
+
+  /** True when the configured embedder is a real semantic model. */
+  isSemantic(): boolean {
+    return !(this.embedder instanceof DeterministicEmbeddingProvider);
   }
 
   async upsertChunk(params: {

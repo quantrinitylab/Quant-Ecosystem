@@ -2545,6 +2545,39 @@ model MemoryEmbedding {
   @@map("memory_embeddings")
 }
 
+// ==================== AI-MEMORY CRUD ENTRIES (packages/ai-memory) ============
+// Durable home for the @quant/ai-memory AIMemoryStore domain (QuantAI memory
+// CRUD API: categories, candidates + approval flow, tags, access scopes,
+// access logs, export/import). Relation-free and additive: namespaced by
+// (appId, userId) so one table serves every app; NO User FK — safe for the
+// shared schema. This is SEPARATE from memory_records (the frozen ADR-005
+// MemoryStore port): that table serves the engine observe/recall path, this
+// one serves the user-facing CRUD + review workflow with its richer domain.
+model AiMemoryEntry {
+  id          String    @id @default(cuid())
+  appId       String    @default("quantai") // owning app namespace (server-set, not user input)
+  userId      String
+  category    String    // people | places | projects | preferences | skills | goals | schedules | routines
+  content     String
+  source      String
+  sourceApp   String    // per-entry provenance (may differ from appId)
+  explanation String
+  accessScopes String[] @default([])
+  tags        String[]  @default([])
+  writeSignal String    // explicit | digest-approved | pending-review
+  status      String    @default("active") // active | pending
+  expiresAt   DateTime?
+  accessLog   Json      @default("[]")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([appId, userId])
+  @@index([appId, userId, status])
+  @@index([appId, userId, category])
+  @@index([expiresAt])
+  @@map("ai_memory_entries")
+}
+
 // ==================== BILLING / CREDITS (Phase 7) =============// quantmail-superhub Task 25.1 (Requirements 16.1-16.5).
 //
 // A CreditWallet is owner-scoped (a user OR an org) and DOES NOT store its

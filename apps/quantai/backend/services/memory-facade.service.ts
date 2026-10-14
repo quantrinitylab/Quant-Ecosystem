@@ -38,7 +38,7 @@ export class QuantaiLegacyBackend implements MemoryBackend {
   async observe(turn: ConversationTurn): Promise<void> {
     // Conversation-sourced writes arrive as PENDING candidates — the existing
     // review flow (approve/reject) stays the authority, exactly like today.
-    this.service.createCandidate(turn.actor, {
+    await this.service.createCandidate(turn.actor, {
       category: 'preferences',
       content: turn.content,
       source: `conversation:${turn.session}`,
@@ -50,7 +50,7 @@ export class QuantaiLegacyBackend implements MemoryBackend {
   }
 
   async recall(ctx: RetrievalContext): Promise<RetrievedMemory[]> {
-    const entries = this.service.listMemories(ctx.actor, { search: ctx.query });
+    const entries = await this.service.listMemories(ctx.actor, { search: ctx.query });
     return entries.map((m) => ({
       id: m.id,
       content: m.content,

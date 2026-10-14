@@ -65,6 +65,15 @@ export {
 } from './core/memory-composition';
 export type { MemoryCompositionOptions, MemoryDbClient } from './core/memory-composition';
 export { createInMemoryMemoryDb } from './core/in-memory-memory-db';
+export { EngineMemoryFacade, LegacyEngineMemory, MemoryServiceEngineMemory } from './core/engine-memory';
+export type {
+  EngineMemory,
+  EngineMemoryMode,
+  EngineMemoryFacadeOptions,
+  EngineShadowReport,
+  EngineShadowSink,
+  EngineSecondaryWriteErrorSink,
+} from './core/engine-memory';
 export { VectorMemoryRetriever, DEFAULT_RETRIEVAL_WEIGHTS } from './core/vector-memory-retriever';
 export type {
   EmbeddingProvider,
@@ -268,6 +277,7 @@ export type { TokenCountResult } from './core/token-counter';
 export {
   CloudflareEmbeddingProvider,
   CLOUDFLARE_EMBEDDING_DIMENSIONS,
+  loadCloudflareEmbeddingConfig,
 } from './adapters/cloudflare-embedding-provider';
 export type { CloudflareEmbeddingConfig } from './adapters/cloudflare-embedding-provider';
 export {

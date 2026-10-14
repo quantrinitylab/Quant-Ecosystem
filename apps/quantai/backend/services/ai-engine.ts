@@ -1,5 +1,10 @@
 import { AIEngine as CoreAIEngine } from '@quant/ai';
 import type {
+  EngineMemory,
+  EngineMemoryMode,
+  EngineSecondaryWriteErrorSink,
+} from '@quant/ai';
+import type {
   AIEngineInterface,
   AIInferenceRequest,
   AIInferenceResponse,
@@ -15,6 +20,16 @@ export interface AIEngineOptions {
   env?: CloudflareAIEnv;
   fetchImpl?: CloudflareFetch;
   timeoutMs?: number;
+  /**
+   * Engine memory wiring (M11c follow-up). Passed through to the core engine:
+   * when `next` is provided, the real observe/recall path is wired via
+   * EngineMemoryFacade (default dual_write — fail-open for chat).
+   */
+  engineMemory?: {
+    mode?: EngineMemoryMode;
+    next?: EngineMemory;
+    onSecondaryWriteError?: EngineSecondaryWriteErrorSink;
+  };
 }
 
 export class AIEngine implements AIEngineInterface {
@@ -23,7 +38,9 @@ export class AIEngine implements AIEngineInterface {
   private readonly workersAI: CloudflareWorkersAIClient;
 
   constructor(options: AIEngineOptions = {}) {
-    this.engine = new CoreAIEngine();
+    this.engine = new CoreAIEngine(
+      options.engineMemory ? { engineMemory: options.engineMemory } : {},
+    );
     this.modelRouter = this.engine.getModelRouter();
     this.workersAI = new CloudflareWorkersAIClient(options);
   }

@@ -4,17 +4,17 @@
 
 import type { MemoryEntry, ExportFormat, MemoryExportData } from './types';
 import { MemoryExportSchema } from './types';
-import { AIMemoryStore } from './memory-store';
+import type { MemoryStorePort } from './store-port';
 
 export class MemoryExporter {
-  private store: AIMemoryStore;
+  private store: MemoryStorePort;
 
-  constructor(store: AIMemoryStore) {
+  constructor(store: MemoryStorePort) {
     this.store = store;
   }
 
-  export(userId: string, format: ExportFormat): string {
-    const entries = this.store.getUserMemories(userId);
+  async export(userId: string, format: ExportFormat): Promise<string> {
+    const entries = await this.store.getUserMemories(userId);
     const exportData: MemoryExportData = {
       version: '1.0.0',
       exportedAt: Date.now(),
@@ -33,7 +33,7 @@ export class MemoryExporter {
   }
 
   async exportEncrypted(userId: string, key: CryptoKey): Promise<ArrayBuffer> {
-    const entries = this.store.getUserMemories(userId);
+    const entries = await this.store.getUserMemories(userId);
     const exportData: MemoryExportData = {
       version: '1.0.0',
       exportedAt: Date.now(),
@@ -67,13 +67,14 @@ export class MemoryExporter {
     return this.importFromJson(json);
   }
 
-  importFromJson(json: string, overrideUserId?: string): MemoryEntry[] {
+
+  async importFromJson(json: string, overrideUserId?: string): Promise<MemoryEntry[]> {
     const parsed: unknown = JSON.parse(json);
     const validated = MemoryExportSchema.parse(parsed);
 
     const imported: MemoryEntry[] = [];
     for (const entry of validated.entries) {
-      const created = this.store.create({
+      const created = await this.store.create({
         userId: overrideUserId ?? entry.userId,
         category: entry.category,
         content: entry.content,
