@@ -110,6 +110,21 @@ vi.mock('../hooks/useConversations', () => ({
   }),
 }));
 
+vi.mock('../hooks/useMessageRequests', () => ({
+  // QC-F-321: ChatListPage now also calls useMessageRequests(), whose real
+  // implementation runs react-query's useQuery — without this mock the render
+  // crashes with "No QueryClient set" (the suite intentionally mounts the page
+  // without a QueryClientProvider and mocks every other data hook). Return the
+  // hook's real shape with an empty inbox: no pending first-contact requests.
+  useMessageRequests: () => ({
+    requests: [],
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+    isError: false,
+  }),
+}));
+
 vi.mock('../hooks/useChatSocket', () => ({
   useChatSocket: () => ({ subscribe: vi.fn(), send: vi.fn(), connectionState: 'open' }),
 }));
