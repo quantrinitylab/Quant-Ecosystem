@@ -53,6 +53,68 @@ function isUniqueConstraintViolation(error: unknown): boolean {
   return (error as { code?: string } | null)?.code === 'P2002';
 }
 
+/**
+ * Identity normalization for every auth entry point (register, login,
+ * verify-email, resend-verification): trim + lowercase, applied ONCE to the
+ * raw body value before any lookup or write — mirroring
+ * routes/password-reset.ts (`email.trim().toLowerCase()`).
+ *
+ * Before this, register/login/verify/resend used the raw body value while
+ * password-reset normalized: `User@X.com` and `user@x.com` registered as two
+ * distinct accounts on the same mailbox (the findFirst pre-check and the
+ * @unique DB constraint are both case-sensitive), and login was an
+ * exact-match findUnique so a different-case retype 401'd. New rows are now
+ * stored lowercase, so the case-sensitive @unique constraint also dedupes
+ * case variants at the database level.
+ */
+function normalizeIdentity(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+/**
+ * Case-insensitive user lookup by an already-normalized email — the lookup
+ * counterpart of normalizeIdentity, in the same style as password-reset's
+ * `findFirst({ email: { equals: normalized, mode: 'insensitive' } })`.
+ *
+ * Old rows were created before normalization existed and may carry mixed
+ * case, so an exact-match lookup must never be used at an identity entry
+ * point. `deletedAt: null` matches password-reset: a soft-deleted account
+ * must not log in or receive verification codes.
+ *
+ * When two or more rows differ only by case this is a data-corruption state
+ * (impossible for new rows, possible for legacy ones). The lookup reports it
+ * explicitly and the caller answers 409 EMAIL_CASE_CONFLICT — never silently
+ * picks one account and lets a stranger's password grant access to it.
+ */
+async function findUserByEmailInsensitive(normalizedEmail: string) {
+  const matches = await prisma.user.findMany({
+    where: { email: { equals: normalizedEmail, mode: 'insensitive' }, deletedAt: null },
+    take: 2,
+  });
+  if (matches.length > 1) {
+    return { user: null, conflict: true as const };
+  }
+  return { user: matches[0] ?? null, conflict: false as const };
+}
+
+const EMAIL_CASE_CONFLICT_MESSAGE =
+  'This email address is registered on more than one account with different capitalisation. ' +
+  'Sign-in is paused for these accounts until the addresses are merged — contact support.';
+
+/**
+ * MIGRATION NOTE for rows created before this change: mixed-case
+ * email/username rows are NOT rewritten in place. They keep working through
+ * the case-insensitive lookups above. New registrations are canonical
+ * (lowercase), so the case-sensitive @unique constraint is a true
+ * case-insensitive dedupe going forward. If two rows already differ only by
+ * case, every entry point answers 409 EMAIL_CASE_CONFLICT instead of
+ * silently signing into one of them; they must be merged by a human. Ops can
+ * find them with:
+ *   SELECT lower(email) AS canonical, count(*) FROM "User"
+ *   GROUP BY lower(email) HAVING count(*) > 1;
+ * (and the same on username).
+ */
+
 export async function authRoutes(fastify: FastifyInstance) {
   const tokenService = createTokenService();
 
@@ -68,8 +130,19 @@ export async function authRoutes(fastify: FastifyInstance) {
       if (!email || !password) {
         return fail(reply, 400, 'VALIDATION_ERROR', 'Email and password are required.');
       }
+      // normalizeIdentity: a stored mixed-case legacy row must still match,
+      // and new rows are stored lowercase, so login cannot be an exact-match
+      // lookup on the raw body value.
+      const normalizedEmail = normalizeIdentity(email);
+      if (!normalizedEmail) {
+        return fail(reply, 400, 'VALIDATION_ERROR', 'Email and password are required.');
+      }
 
-      const user = await prisma.user.findUnique({ where: { email } });
+      const lookup = await findUserByEmailInsensitive(normalizedEmail);
+      if (lookup.conflict) {
+        return fail(reply, 409, 'EMAIL_CASE_CONFLICT', EMAIL_CASE_CONFLICT_MESSAGE);
+      }
+      const user = lookup.user;
       if (!user) {
         return fail(reply, 401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
       }
@@ -124,17 +197,36 @@ export async function authRoutes(fastify: FastifyInstance) {
       if (!email || !username || !password) {
         return fail(reply, 400, 'VALIDATION_ERROR', 'Email, username and password are required.');
       }
+      // normalizeIdentity: register once in canonical form so the
+      // case-sensitive pre-check and @unique constraint actually dedupe.
+      const normalizedEmail = normalizeIdentity(email);
+      const normalizedUsername = normalizeIdentity(username);
+      if (!normalizedEmail || !normalizedUsername) {
+        return fail(reply, 400, 'VALIDATION_ERROR', 'Email, username and password are required.');
+      }
       // Mirror /auth/change-password: reject trivially short secrets at the door.
       if (password.length < 8) {
         return fail(reply, 400, 'VALIDATION_ERROR', 'Password must be at least 8 characters.');
       }
 
+      // Case-insensitive pre-check: a legacy row stored with mixed case must
+      // still block re-registration, answering an honest 409 instead of
+      // slipping a second account past the case-sensitive check and dying on
+      // P2002. (The P2002 mapping below still covers the concurrent-register
+      // TOCTOU, where two normalized-identical rows collide in the
+      // transaction.)
       const existing = await prisma.user.findFirst({
-        where: { OR: [{ email }, { username }] },
+        where: {
+          OR: [
+            { email: { equals: normalizedEmail, mode: 'insensitive' } },
+            { username: { equals: normalizedUsername, mode: 'insensitive' } },
+          ],
+        },
       });
 
       if (existing) {
-        const takenField = existing.email === email ? 'email' : 'username';
+        const takenField =
+          (existing.email as string).toLowerCase() === normalizedEmail ? 'email' : 'username';
         return fail(
           reply,
           409,
@@ -156,9 +248,13 @@ export async function authRoutes(fastify: FastifyInstance) {
         user = await prisma.$transaction(async (tx: any) => {
           const created = await tx.user.create({
             data: {
-              email,
-              username,
-              displayName: displayName || username,
+              // Canonical form: lowercase rows make the case-sensitive
+              // @unique constraint a true case-insensitive dedupe for all
+              // future registrations, and every entry point looks the same
+              // way up.
+              email: normalizedEmail,
+              username: normalizedUsername,
+              displayName: displayName || normalizedUsername,
               passwordHash,
               status: 'ACTIVE',
               // The address is NOT proven at this point. Creating users with
@@ -216,7 +312,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       }
 
       const verificationEmailSent = await sendVerificationEmail({
-        to: email,
+        to: normalizedEmail,
         code: verificationCode,
         name: user.displayName,
       });
@@ -259,8 +355,20 @@ export async function authRoutes(fastify: FastifyInstance) {
       if (!email || !looksLikeVerificationCode(code)) {
         return fail(reply, 400, 'VALIDATION_ERROR', 'Email and a 6-digit verification code are required.');
       }
+      // normalizeIdentity: the account was registered lowercase, and a
+      // legacy mixed-case row must still find its codes.
+      const normalizedEmail = normalizeIdentity(email);
+      if (!normalizedEmail) {
+        return fail(reply, 400, 'VALIDATION_ERROR', 'Email and a 6-digit verification code are required.');
+      }
 
-      const user = await prisma.user.findUnique({ where: { email } });
+      const lookup = await findUserByEmailInsensitive(normalizedEmail);
+      if (lookup.conflict) {
+        // A burned code belongs to exactly one account; never burn it for an
+        // ambiguous address.
+        return fail(reply, 409, 'EMAIL_CASE_CONFLICT', EMAIL_CASE_CONFLICT_MESSAGE);
+      }
+      const user = lookup.user;
       if (user?.emailVerified) {
         return reply.send({ success: true, data: { emailVerified: true, alreadyVerified: true } });
       }
@@ -344,8 +452,19 @@ export async function authRoutes(fastify: FastifyInstance) {
       if (!email) {
         return fail(reply, 400, 'VALIDATION_ERROR', 'Email is required.');
       }
+      // normalizeIdentity: the account was registered lowercase, and a
+      // legacy mixed-case row must still receive its code.
+      const normalizedEmail = normalizeIdentity(email);
+      if (!normalizedEmail) {
+        return fail(reply, 400, 'VALIDATION_ERROR', 'Email is required.');
+      }
 
-      const user = await prisma.user.findUnique({ where: { email } });
+      const lookup = await findUserByEmailInsensitive(normalizedEmail);
+      if (lookup.conflict) {
+        // Never issue a code for an ambiguous address.
+        return fail(reply, 409, 'EMAIL_CASE_CONFLICT', EMAIL_CASE_CONFLICT_MESSAGE);
+      }
+      const user = lookup.user;
       if (!user) {
         return fail(reply, 404, 'USER_NOT_FOUND', 'No account uses this email address.');
       }
@@ -427,7 +546,9 @@ export async function authRoutes(fastify: FastifyInstance) {
         throw err;
       }
       const emailSent = await sendVerificationEmail({
-        to: email,
+        // The stored spelling, mirroring password-reset: the mail still goes
+        // to the mailbox even if the request typed the case differently.
+        to: user.email,
         code: verificationCode,
         name: user.displayName,
       });

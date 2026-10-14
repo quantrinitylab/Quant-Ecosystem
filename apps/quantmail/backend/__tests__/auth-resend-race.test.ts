@@ -87,13 +87,45 @@ const fakes = vi.hoisted(() => {
     return [...rows, ...slot.stagedCreates];
   };
 
+  // Mirrors Postgres `{ equals, mode: 'insensitive' }` string-filter semantics
+  // for the identity lookups the resend handler now performs (the handler
+  // normalizes once and looks up case-insensitively, so a legacy mixed-case
+  // row must still match).
+  const insensitiveEquals = (stored: unknown, filter: any): boolean => {
+    if (typeof filter === 'string') return stored === filter;
+    if (filter && typeof filter === 'object' && 'equals' in filter) {
+      const lhs = String(stored ?? '');
+      const rhs = String(filter.equals);
+      return filter.mode === 'insensitive' ? lhs.toLowerCase() === rhs.toLowerCase() : lhs === rhs;
+    }
+    return false;
+  };
+
   const findUser = (where: any) => {
     for (const u of state.users.values()) {
-      if (where.email !== undefined && u.email !== where.email) continue;
+      if (where.email !== undefined && !insensitiveEquals(u.email, where.email)) continue;
       if (where.id !== undefined && u.id !== where.id) continue;
+      if (where.deletedAt !== undefined) {
+        const wantNull = where.deletedAt === null;
+        if (wantNull ? u.deletedAt != null : u.deletedAt == null) continue;
+      }
       return { ...u };
     }
     return null;
+  };
+
+  const findUsers = (where: any, take?: number) => {
+    const out: any[] = [];
+    for (const u of state.users.values()) {
+      if (where.email !== undefined && !insensitiveEquals(u.email, where.email)) continue;
+      if (where.id !== undefined && u.id !== where.id) continue;
+      if (where.deletedAt !== undefined) {
+        const wantNull = where.deletedAt === null;
+        if (wantNull ? u.deletedAt != null : u.deletedAt == null) continue;
+      }
+      out.push({ ...u });
+    }
+    return take === undefined ? out : out.slice(0, take);
   };
 
   const testHooks: {
@@ -177,6 +209,7 @@ const fakes = vi.hoisted(() => {
   const prisma = {
     user: {
       findUnique: async ({ where }: any) => findUser(where ?? {}),
+      findMany: async ({ where, take }: any) => findUsers(where ?? {}, take),
     },
     emailVerificationCode: {
       // Top-level writes are autocommit (the pre-fix path used these).

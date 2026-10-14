@@ -6,6 +6,9 @@ const mocks = vi.hoisted(() => ({
     user: {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
+      // The login handler looks up by normalized email case-insensitively
+      // (findMany + take 2, detecting the legacy dual-case-conflict state).
+      findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
     },
@@ -294,15 +297,17 @@ describe('POST /auth/sessions/revoke-others', () => {
 
 describe('session metadata capture', () => {
   it('stamps browser metadata on login', async () => {
-    mocks.prisma.user.findUnique.mockResolvedValue({
-      id: 'user-1',
-      email: 'user@quantmail.in',
-      username: 'user',
-      passwordHash: 'hashed_password',
-      role: 'USER',
-      twoFactorEnabled: false,
-      twoFactorSecret: null,
-    });
+    mocks.prisma.user.findMany.mockResolvedValue([
+      {
+        id: 'user-1',
+        email: 'user@quantmail.in',
+        username: 'user',
+        passwordHash: 'hashed_password',
+        role: 'USER',
+        twoFactorEnabled: false,
+        twoFactorSecret: null,
+      },
+    ]);
     const routes = await loadRoutes();
     const reply = makeReply();
 
