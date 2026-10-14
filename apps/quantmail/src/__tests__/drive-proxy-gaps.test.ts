@@ -180,12 +180,13 @@ describe('QM-SCREEN-010 drive proxy gaps', () => {
     expect(data.error.code).toBe('UPSTREAM_UNAVAILABLE');
   });
 
-  // QM-FIX drive-folders-405: Quanty's organize flow calls GET
-  // /api/drive/folders (resolveFolderId). The route only exported POST, so
-  // every GET 405'd and the lookup silently fell back to null. These pin the
-  // new GET export to the backend's GET /drive/folders (flat list of all
-  // non-deleted folders, every depth), keeping the caller's `{ folders }`
-  // contract.
+  // QM-FIX drive-folders-405: GET /api/drive/folders proxies to the backend's
+  // GET /drive/folders (flat list of all non-deleted folders, every depth).
+  // (History: Quanty's organize flow once resolved a suggested category name
+  // to a folder id via GET here; resolution now happens server-side and the
+  // suggest response carries the backend-resolved folderId.) Previously the
+  // route only exported POST, so every GET 405'd. These pin the GET export to
+  // the backend route, keeping the `{ folders }` contract.
   it('GET /api/drive/folders proxies to backend GET /drive/folders', async () => {
     const payload = {
       folders: [

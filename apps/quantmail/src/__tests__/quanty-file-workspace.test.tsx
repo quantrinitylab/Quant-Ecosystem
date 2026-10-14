@@ -168,7 +168,6 @@ describe('QuantyFileWorkspaceManager', () => {
         folderId: null,
         applied: false,
       },
-      '/api/drive/folders': { folders: [{ id: 'folder-docs', name: 'Documents' }] },
       '/api/drive/files/file-1/copy': { id: 'file-2', name: 'notes.txt (copy)' },
     });
     const manager = new QuantyFileWorkspaceManager({ apiFetch: apiFetch as any, onFilesChanged });
@@ -181,6 +180,12 @@ describe('QuantyFileWorkspaceManager', () => {
     expect(organize.status).toBe('error');
     expect(organize.error).toContain("doesn't exist");
     expect(organize.missingFolderName).toBe('Reports');
+    // The destination comes from the backend-resolved suggestion only — the
+    // client no longer name-matches the folder list itself.
+    expect(apiFetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('/api/drive/folders'),
+      expect.anything(),
+    );
     // Subscribers are told — the drawer re-renders the honest error + the
     // "create folder" offer.
     expect(notified).toContain('error');
@@ -195,7 +200,7 @@ describe('QuantyFileWorkspaceManager', () => {
     manager.dispose();
   });
 
-  it('copies into the resolved folder and reports the real destination', async () => {
+  it('copies into the backend-resolved folder and reports the real destination', async () => {
     const onFilesChanged = vi.fn();
     const apiFetch = makeFetch({
       '/api/drive/ai/organize': {
@@ -203,10 +208,9 @@ describe('QuantyFileWorkspaceManager', () => {
         suggestedFolder: '/Reports',
         category: 'Reports',
         confidence: 0.9,
-        folderId: null,
+        folderId: 'folder-reports',
         applied: false,
       },
-      '/api/drive/folders': { folders: [{ id: 'folder-reports', name: 'Reports' }] },
       '/api/drive/files/file-1/copy': { id: 'file-2', name: 'notes.txt (copy)' },
     });
     const manager = new QuantyFileWorkspaceManager({ apiFetch: apiFetch as any, onFilesChanged });
@@ -220,7 +224,51 @@ describe('QuantyFileWorkspaceManager', () => {
       '/api/drive/files/file-1/copy',
       expect.objectContaining({ body: JSON.stringify({ targetFolderId: 'folder-reports' }) }),
     );
+    // The client never consults the folder list — the shared rule lives in
+    // the backend, so the folder the copy lands in is the one the move uses.
+    expect(apiFetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('/api/drive/folders'),
+      expect.anything(),
+    );
     expect(onFilesChanged).toHaveBeenCalled();
+    manager.dispose();
+  });
+
+  it('never picks a nested differently-cased folder — the trap the old client rule fell into', async () => {
+    // Regression: the old resolveFolderId matched the FIRST case-insensitive
+    // name at ANY depth, so a nested "documents" folder took the copy while
+    // "Move here" created a root "Documents" — both reported "/Documents".
+    // The client no longer resolves folder names at all; it copies into the
+    // backend-resolved suggestion.folderId even when a tempting lookalike
+    // exists in the (unfetched) folder list.
+    const apiFetch = makeFetch({
+      '/api/drive/ai/organize': {
+        fileId: 'file-1',
+        suggestedFolder: '/Documents',
+        category: 'Documents',
+        confidence: 0.9,
+        folderId: 'folder-root-docs',
+        applied: false,
+      },
+      '/api/drive/folders': {
+        folders: [{ id: 'folder-nested-docs', name: 'documents', parentId: 'folder-x' }],
+      },
+      '/api/drive/files/file-1/copy': { id: 'file-2', name: 'notes.txt (copy)' },
+    });
+    const manager = new QuantyFileWorkspaceManager({ apiFetch: apiFetch as any });
+    manager.setCurrentFile(FILE);
+    await manager.suggestDestination();
+    await manager.copyToSuggestedFolder();
+    const { organize } = manager.getState();
+    expect(apiFetch).toHaveBeenCalledWith(
+      '/api/drive/files/file-1/copy',
+      expect.objectContaining({ body: JSON.stringify({ targetFolderId: 'folder-root-docs' }) }),
+    );
+    expect(organize.appliedResult).toEqual({ action: 'copied', folder: '/Documents' });
+    expect(apiFetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('/api/drive/folders'),
+      expect.anything(),
+    );
     manager.dispose();
   });
 
@@ -243,9 +291,6 @@ describe('QuantyFileWorkspaceManager', () => {
           folderId: null,
           applied: false,
         });
-      }
-      if (url === '/api/drive/folders' && init?.method === 'GET') {
-        return jsonResponse({ folders: [] });
       }
       if (url === '/api/drive/folders' && init?.method === 'POST') {
         return jsonResponse({ id: 'folder-new', name: 'Reports' });
@@ -284,12 +329,11 @@ describe('QuantyFileWorkspaceManager', () => {
           suggestedFolder: '/Reports',
           category: 'Reports',
           confidence: 0.9,
-          folderId: null,
+          // The backend resolved the destination folder, so the copy is
+          // really attempted and the backend's error is what must surface.
+          folderId: 'f-r',
           applied: false,
         });
-      }
-      if (url === '/api/drive/folders') {
-        return jsonResponse({ folders: [{ id: 'f-r', name: 'Reports' }] });
       }
       if (url.endsWith('/copy')) {
         return jsonResponse(

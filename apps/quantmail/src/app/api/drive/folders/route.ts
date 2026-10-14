@@ -16,11 +16,11 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(data, { status: res.status });
 }
 
-// GET /api/drive/folders — Quanty's organize flow resolves a suggested
-// category name to a folder id via GET here (QuantyFileWorkspace
-// resolveFolderId). Previously this route exported POST only, so every GET
-// 405'd and the lookup silently fell back to null. Forwards to the backend's
-// GET /drive/folders (flat list of all non-deleted folders, every depth),
+// GET /api/drive/folders — flat list of all non-deleted folders (every depth).
+// Quanty's organize flow no longer resolves folder names client-side: the
+// organize-suggest response carries the backend-resolved folderId (root-level,
+// exact-case match — the same rule "Move here" uses). This route stays for
+// the general Drive UI. Forwards to the backend's GET /drive/folders,
 // keeping the caller's `{ folders }` contract.
 export async function GET(request: NextRequest) {
   const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/folders`, {
