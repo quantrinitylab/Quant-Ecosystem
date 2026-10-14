@@ -100,6 +100,7 @@ export function CommentSheet({
                 <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500" />
                 <input
                   type="text"
+                  aria-label="Add a comment"
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
                   placeholder="Add a comment..."
