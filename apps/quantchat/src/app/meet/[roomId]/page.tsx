@@ -17,8 +17,11 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   Room,
   RoomEvent,
+  Track,
+  createLocalVideoTrack,
   type RemoteParticipant,
   type LocalParticipant,
+  type LocalVideoTrack,
   ConnectionState,
 } from 'livekit-client';
 import {
@@ -28,6 +31,10 @@ import {
   ErrorState,
   DevicePicker,
   ParticipantTile,
+  BackgroundBlur,
+  useBackgroundBlur,
+  applyBackgroundBlur,
+  BACKGROUND_ASSET_PATH,
 } from '@quant/shared-ui';
 import {
   apiClient,
@@ -75,6 +82,12 @@ export default function MeetRoomPage() {
   const previewVideoRef = useRef<HTMLVideoElement>(null);
   const previewStreamRef = useRef<MediaStream | null>(null);
   const meterRafRef = useRef<number | null>(null);
+  // QC-F-322: the studio preview is a real LocalVideoTrack (not a raw
+  // getUserMedia stream) so the background processor attaches to the
+  // very track the user is looking at. The getUserMedia stream above
+  // now carries audio only, for the mic meter.
+  const previewTrackRef = useRef<LocalVideoTrack | null>(null);
+  const [previewTrack, setPreviewTrack] = useState<LocalVideoTrack | null>(null);
 
   // Active meeting
   const [room] = useState(() => new Room({ adaptiveStream: true, dynacast: true }));
@@ -93,6 +106,19 @@ export default function MeetRoomPage() {
   // queueOpen only expands/collapses the queue strip.
   const [handBusy, setHandBusy] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
+
+  // QC-F-322: background blur, bound to whichever camera track is live
+  // right now — the studio preview track before joining, the published
+  // camera publication track in the meeting. The hook's status is proof
+  // from the track itself (getProcessor()); the pages never claim blur
+  // from the requested mode alone.
+  const camPublicationTrack =
+    room.localParticipant.getTrackPublication(Track.Source.Camera)?.videoTrack ??
+    null;
+  const background = useBackgroundBlur(
+    phase === 'studio' ? previewTrack : camPublicationTrack,
+    { assetPath: BACKGROUND_ASSET_PATH },
+  );
 
   // ─── Load room info (join gate resolution) ────────────────────────────────
   useEffect(() => {
@@ -129,6 +155,18 @@ export default function MeetRoomPage() {
     }
     previewStreamRef.current?.getTracks().forEach((t) => t.stop());
     previewStreamRef.current = null;
+    const track = previewTrackRef.current;
+    previewTrackRef.current = null;
+    setPreviewTrack(null);
+    if (track) {
+      try {
+        track.detach();
+        track.stop();
+      } catch {
+        /* already stopped */
+      }
+    }
+    if (previewVideoRef.current) previewVideoRef.current.srcObject = null;
     setMicLevel(0);
   }, []);
 
@@ -140,15 +178,24 @@ export default function MeetRoomPage() {
       return false;
     }
     try {
+      // QC-F-322: video preview is a real LocalVideoTrack so the
+      // background processor can attach to it (a raw MediaStream cannot
+      // carry a track processor). attach() renders the PROCESSED track,
+      // so the studio shows exactly what would be published.
+      const videoTrack = await createLocalVideoTrack(
+        cameraId ? { deviceId: cameraId } : undefined,
+      );
+      previewTrackRef.current = videoTrack;
+      setPreviewTrack(videoTrack);
+      if (previewVideoRef.current) {
+        videoTrack.attach(previewVideoRef.current);
+      }
+      // Audio stays a plain getUserMedia stream — it only feeds the
+      // mic level meter below.
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: cameraId ? { deviceId: { exact: cameraId } } : true,
         audio: micId ? { deviceId: { exact: micId } } : true,
       });
       previewStreamRef.current = stream;
-      if (previewVideoRef.current) {
-        previewVideoRef.current.srcObject = stream;
-        await previewVideoRef.current.play().catch(() => undefined);
-      }
       // Mic level meter from the real mic track.
       const audioTrack = stream.getAudioTracks()[0];
       if (audioTrack) {
@@ -172,6 +219,21 @@ export default function MeetRoomPage() {
       setDeviceCheck('ok');
       return true;
     } catch {
+      // Clean up a partially-started preview (e.g. video track created
+      // but audio denied) — no half-live camera left behind.
+      const track = previewTrackRef.current;
+      previewTrackRef.current = null;
+      setPreviewTrack(null);
+      if (track) {
+        try {
+          track.detach();
+          track.stop();
+        } catch {
+          /* already stopped */
+        }
+      }
+      previewStreamRef.current?.getTracks().forEach((t) => t.stop());
+      previewStreamRef.current = null;
       setDeviceCheck('denied');
       return false;
     }
@@ -252,9 +314,44 @@ export default function MeetRoomPage() {
       if (micId) await room.switchActiveDevice('audioinput', micId).catch(() => undefined);
 
       await room.localParticipant.setMicrophoneEnabled(!joinMuted);
-      await room.localParticipant.setCameraEnabled(!cameraOff);
       setIsMicEnabled(!joinMuted);
-      setIsCameraEnabled(!cameraOff);
+
+      // QC-F-322 §3.5 privacy order: if the user chose blur in the
+      // studio, the camera track is created and processed BEFORE it is
+      // published — a raw, unprocessed camera track is never published
+      // on a blur join. If the processor cannot start, we join with the
+      // camera OFF and say so: joining raw against the user's explicit
+      // choice would show the very background they asked to hide.
+      let cameraOn = !cameraOff;
+      if (cameraOn && background.mode === 'blur') {
+        try {
+          const track = await createLocalVideoTrack(
+            cameraId ? { deviceId: cameraId } : undefined,
+          );
+          try {
+            await applyBackgroundBlur(track, {
+              assetPath: BACKGROUND_ASSET_PATH,
+            });
+          } catch (e) {
+            try {
+              track.stop();
+            } catch {
+              /* already stopped */
+            }
+            throw e;
+          }
+          await room.localParticipant.publishTrack(track);
+        } catch {
+          cameraOn = false;
+          setNotice(
+            "Background blur couldn't start — you joined with your camera off, so your real background was never shown. You can turn your camera on in the meeting to join without blur.",
+          );
+        }
+        setIsCameraEnabled(cameraOn);
+      } else {
+        await room.localParticipant.setCameraEnabled(cameraOn);
+        setIsCameraEnabled(cameraOn);
+      }
 
       setConnectionState(ConnectionState.Connected);
       refreshParticipants();
@@ -264,7 +361,7 @@ export default function MeetRoomPage() {
       setError(e instanceof Error ? e.message : 'Could not join the meeting.');
       setPhase('gate');
     }
-  }, [roomInfo, displayName, joinMuted, cameraOff, cameraId, micId, room, refreshParticipants, stopPreview]);
+  }, [roomInfo, displayName, joinMuted, cameraOff, cameraId, micId, room, refreshParticipants, stopPreview, background.mode]);
 
   const handleLeave = useCallback(async () => {
     try {
@@ -492,6 +589,18 @@ export default function MeetRoomPage() {
             />
           </div>
 
+          {/* QC-F-322: background choice for this join. The preview
+              above renders the processed track itself, so what the
+              user sees here is exactly what gets published. */}
+          <div className="mt-4 text-gray-900 dark:text-gray-100">
+            <BackgroundBlur
+              mode={background.mode}
+              status={background.status}
+              error={background.error}
+              onModeChange={background.setMode}
+            />
+          </div>
+
           <button
             type="button"
             onClick={() => void handleJoin()}
@@ -632,6 +741,16 @@ export default function MeetRoomPage() {
               >
                 <HandIcon className="h-6 w-6" />
               </button>
+              {/* QC-F-322: in-call background menu — status comes from
+                  the published track's real processor, not the click. */}
+              <div className="text-gray-100">
+                <BackgroundBlur
+                  mode={background.mode}
+                  status={background.status}
+                  error={background.error}
+                  onModeChange={background.setMode}
+                />
+              </div>
               <button
                 type="button"
                 onClick={() => void handleLeave()}
