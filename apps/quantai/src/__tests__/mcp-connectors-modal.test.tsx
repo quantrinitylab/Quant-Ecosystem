@@ -102,8 +102,10 @@ describe('McpConnectorsDirectoryModal (Task W39-A07 Component Suite)', () => {
         }),
       );
 
-      // QuantMail wires 7 real executors, Session Cookie
-      expect(html).toContain('7 tools');
+      // QuantMail wires 6 real executors (search, listUnread, getMessage,
+      // archive, draft, send); 'quantmail.label' is planned — no executor
+      // yet, so it is not counted. Session Cookie
+      expect(html).toContain('6 tools');
       expect(html).toContain('Session Cookie');
 
       // GitHub is a planned preview: 0 runnable tools, API Key
