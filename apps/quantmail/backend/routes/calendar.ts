@@ -407,6 +407,25 @@ function toEventDto(event: EventRow | CalendarEvent) {
 
   const desc = event.description || '';
   let driveLink: string | undefined;
+  // Sheet-type round-trip (fix/qm-calendar-sheet-meta-roundtrip): the create
+  // sheet stores the sheet type plus task/birthday/period payload fields in
+  // the __QUANT_META__ description header, and the edit sheet restores the
+  // form from ev.type/ev.priority/ev.subtasks/… The DTO previously parsed
+  // only recurrenceParentId/originalStartTime/driveLink out of that header,
+  // so after any reload a saved Task/Birthday/Period reopened as a generic
+  // "Event" and its priority/subtasks/cycle data never came back. Every
+  // value is validated against the sheet's own vocabulary: garbage in the
+  // header is dropped, never echoed to the client.
+  let type: string | undefined;
+  let priority: string | undefined;
+  let subtasks: Array<{ text: string; done: boolean }> | undefined;
+  let birthYear: string | undefined;
+  let flowIntensity: string | undefined;
+  let spottingColor: string | undefined;
+  let cycleDay: number | undefined;
+  let feelings: string[] | undefined;
+  let pain: string[] | undefined;
+  let energy: string | undefined;
   const metaMatch = matchQuantMeta(desc);
   if (metaMatch) {
     try {
@@ -415,6 +434,41 @@ function toEventDto(event: EventRow | CalendarEvent) {
       if (meta.originalStartTime) originalStartTime = meta.originalStartTime;
       if (typeof meta.driveLink === 'string' && meta.driveLink.trim())
         driveLink = meta.driveLink.trim();
+      if (
+        typeof meta.type === 'string' &&
+        (['event', 'task', 'birthday', 'period'] as string[]).includes(meta.type)
+      )
+        type = meta.type;
+      if (
+        typeof meta.priority === 'string' &&
+        (['low', 'medium', 'urgent'] as string[]).includes(meta.priority)
+      )
+        priority = meta.priority;
+      if (Array.isArray(meta.subtasks))
+        subtasks = meta.subtasks
+          .filter((s: unknown): s is Record<string, unknown> => typeof s === 'object' && s !== null)
+          .map((s) => ({ text: String(s.text ?? ''), done: Boolean(s.done) }));
+      if (typeof meta.birthYear === 'string' && meta.birthYear.trim())
+        birthYear = meta.birthYear.trim();
+      if (
+        typeof meta.flowIntensity === 'string' &&
+        (['light', 'medium', 'heavy', 'super_heavy', 'spotting'] as string[]).includes(
+          meta.flowIntensity,
+        )
+      )
+        flowIntensity = meta.flowIntensity;
+      if (
+        typeof meta.spottingColor === 'string' &&
+        (['red', 'brown'] as string[]).includes(meta.spottingColor)
+      )
+        spottingColor = meta.spottingColor;
+      if (typeof meta.cycleDay === 'number' && Number.isFinite(meta.cycleDay))
+        cycleDay = meta.cycleDay;
+      if (Array.isArray(meta.feelings))
+        feelings = meta.feelings.filter((f: unknown): f is string => typeof f === 'string');
+      if (Array.isArray(meta.pain))
+        pain = meta.pain.filter((p: unknown): p is string => typeof p === 'string');
+      if (typeof meta.energy === 'string' && meta.energy.trim()) energy = meta.energy;
     } catch {
       // ignore
     }
@@ -459,6 +513,19 @@ function toEventDto(event: EventRow | CalendarEvent) {
     reminders: reminderLabels(event.reminders),
     recurrence: event.recurrenceRule ?? null,
     driveLink,
+    // Sheet-type fields parsed from the __QUANT_META__ header (undefined
+    // unless the header carried a valid value — the edit sheet falls back
+    // to its defaults, so an absent key must stay absent, never null).
+    type,
+    priority,
+    subtasks,
+    birthYear,
+    flowIntensity,
+    spottingColor,
+    cycleDay,
+    feelings,
+    pain,
+    energy,
   };
 }
 function formatIcsDate(date: Date): string {

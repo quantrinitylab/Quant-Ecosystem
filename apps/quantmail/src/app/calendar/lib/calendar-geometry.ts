@@ -24,14 +24,38 @@ export const dayKey = (date: Date): string =>
 export function parseCalendarEvent(raw: any): CalendarEventLike {
   let title: string = raw.title || '';
   let description: string = raw.description || '';
-  let type: EntryType = 'event';
-  let priority: 'low' | 'medium' | 'urgent' | undefined = undefined;
+  // fix/qm-calendar-sheet-meta-roundtrip: the backend DTO (toEventDto) now
+  // carries the sheet-type fields parsed + validated out of the
+  // __QUANT_META__ header. Prefer those validated values; the header re-parse
+  // below is only a fallback for rows that did not come through the DTO
+  // (imports), and stays unvalidated for that legacy path.
+  const asEntryType = (v: unknown): EntryType | undefined =>
+    v === 'event' || v === 'task' || v === 'birthday' || v === 'period' ? v : undefined;
+  const rawType = asEntryType(raw.type);
+  let type: EntryType = rawType ?? 'event';
+  let priority: 'low' | 'medium' | 'urgent' | undefined =
+    raw.priority === 'low' || raw.priority === 'medium' || raw.priority === 'urgent'
+      ? raw.priority
+      : undefined;
   let flowIntensity: 'light' | 'medium' | 'heavy' | 'super_heavy' | 'spotting' | undefined =
-    undefined;
-  let spottingColor: 'red' | 'brown' | undefined = undefined;
-  let cycleDay: number | undefined = undefined;
-  let subtasks: Array<{ text: string; done: boolean }> | undefined = undefined;
-  let birthYear: string | undefined = undefined;
+    raw.flowIntensity === 'light' ||
+    raw.flowIntensity === 'medium' ||
+    raw.flowIntensity === 'heavy' ||
+    raw.flowIntensity === 'super_heavy' ||
+    raw.flowIntensity === 'spotting'
+      ? raw.flowIntensity
+      : undefined;
+  let spottingColor: 'red' | 'brown' | undefined =
+    raw.spottingColor === 'red' || raw.spottingColor === 'brown' ? raw.spottingColor : undefined;
+  let cycleDay: number | undefined =
+    typeof raw.cycleDay === 'number' && Number.isFinite(raw.cycleDay) ? raw.cycleDay : undefined;
+  let subtasks: Array<{ text: string; done: boolean }> | undefined = Array.isArray(raw.subtasks)
+    ? raw.subtasks
+        .filter((s: unknown): s is Record<string, unknown> => typeof s === 'object' && s !== null)
+        .map((s: Record<string, unknown>) => ({ text: String(s.text ?? ''), done: Boolean(s.done) }))
+    : undefined;
+  let birthYear: string | undefined =
+    typeof raw.birthYear === 'string' && raw.birthYear.trim() ? raw.birthYear.trim() : undefined;
   let recurrenceParentId: string | undefined = raw.recurrenceParentId || raw.parentId;
   let originalStartTime: string | Date | undefined = raw.originalStartTime;
   let exdates: string[] | undefined = raw.exdates;
@@ -46,18 +70,19 @@ export function parseCalendarEvent(raw: any): CalendarEventLike {
     }
   }
 
-  // Extract structured metadata if present
+  // Extract structured metadata if present (fallback for non-DTO rows: the
+  // DTO path above already seeded every field the header could provide).
   const metaMatch = description.match(/__QUANT_META__:([\s\S]*?):__END_QUANT_META__/);
   if (metaMatch) {
     try {
       const parsed = JSON.parse(metaMatch[1]);
-      if (parsed.type) type = parsed.type;
-      if (parsed.priority) priority = parsed.priority;
-      if (parsed.flowIntensity) flowIntensity = parsed.flowIntensity;
-      if (parsed.spottingColor) spottingColor = parsed.spottingColor;
-      if (parsed.cycleDay) cycleDay = parsed.cycleDay;
-      if (parsed.subtasks) subtasks = parsed.subtasks;
-      if (parsed.birthYear) birthYear = parsed.birthYear;
+      if (!rawType && parsed.type) type = parsed.type;
+      if (priority === undefined && parsed.priority) priority = parsed.priority;
+      if (flowIntensity === undefined && parsed.flowIntensity) flowIntensity = parsed.flowIntensity;
+      if (spottingColor === undefined && parsed.spottingColor) spottingColor = parsed.spottingColor;
+      if (cycleDay === undefined && parsed.cycleDay) cycleDay = parsed.cycleDay;
+      if (subtasks === undefined && parsed.subtasks) subtasks = parsed.subtasks;
+      if (birthYear === undefined && parsed.birthYear) birthYear = parsed.birthYear;
       if (parsed.recurrenceParentId) recurrenceParentId = parsed.recurrenceParentId;
       if (parsed.originalStartTime) originalStartTime = parsed.originalStartTime;
       if (parsed.exdates) exdates = parsed.exdates;
