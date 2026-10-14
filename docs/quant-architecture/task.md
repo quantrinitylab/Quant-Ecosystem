@@ -3199,3 +3199,10 @@ LIVE (2026-10-14 ~06:05 IST, proxy 127.0.0.1:8888 healthy): /search?q=test -> ho
 NOT VERIFIED (needs live/auth, unchanged): staging DB GIN indexes; operator routing live on real data; overlapping-fetch flicker; Hinglish stemming; scope-chip live; search latency.
 Rotation -> QM-SCREEN-008/009 (calendar) ROUND 8 regression, queued.
 Status: [x] DONE (R8 regression audit complete 2026-10-14 ~06:15 IST; 103-commit window reviewed, 1 merged fix audited correct, 0 new findings, 7 opens carried; fixes tracked via their PRs)
+
+## QM-SCREEN-008/009 R8 — Calendar regression (ROUND 8)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-008-009-r8
+Audit started: 2026-10-14 ~06:40 IST (lane-1 deep audit loop, ROUND 8)
+Base: R7 @ a3b3e745 (origin/main 2026-10-13 ~13:36 IST) → origin/main 82bcbabe (fresh fetch, 2026-10-14 ~06:40 IST). 144 commits in range; calendar/booking-path commits: booking-journey v2 wave (#1101 tz-availability anchored to host IANA tz; #1104 RSVP series confirmation pre-write; #1108 dead-link panel actions; #1109 tz-free guest-day keys / slot-authoritative day enablement / DST host-date walk / in-flight RSVP guard / kill booking 404 negative cache / fail-loud on zero tests), RSVP occurrence-vs-series contract (#1100 scoped confirmation + atomic writes + v1 contract doc), booking slug race → honest 409 (#1131). Diff review delegated read-only (pending) + carryover re-verification on origin/main tree (pending); live logged-out checks pending.
