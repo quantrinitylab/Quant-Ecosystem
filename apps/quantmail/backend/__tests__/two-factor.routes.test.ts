@@ -18,8 +18,8 @@ const USER_ID = 'user-1';
 const PENDING_SECRET = 'PENDINGSECRETBASE32AAA';
 const LIVE_SECRET = 'LIVESECRETBASE32BBBBBB';
 
-const mocks = vi.hoisted(() => ({
-  prisma: {
+const mocks = vi.hoisted(() => {
+  const prisma: any = {
     user: {
       findUnique: vi.fn(),
       update: vi.fn(),
@@ -32,12 +32,21 @@ const mocks = vi.hoisted(() => ({
       updateMany: vi.fn(),
       count: vi.fn(),
     },
-  },
-  generateTokenPair: vi.fn(),
-  generateSecret: vi.fn(),
-  totpVerify: vi.fn(),
-  argon2Verify: vi.fn(),
-}));
+  };
+  // Backup-code issuance burns and creates inside one $transaction; the fake
+  // runs the callback against the same mocked model methods so call-shape and
+  // ordering assertions keep working through the transaction boundary.
+  prisma.$transaction = vi.fn(async (cb: (tx: any) => Promise<any>) =>
+    cb({ twoFactorBackupCode: prisma.twoFactorBackupCode }),
+  );
+  return {
+    prisma,
+    generateTokenPair: vi.fn(),
+    generateSecret: vi.fn(),
+    totpVerify: vi.fn(),
+    argon2Verify: vi.fn(),
+  };
+});
 
 vi.mock('@quant/auth/lib/prisma', () => ({ default: mocks.prisma, prisma: mocks.prisma }));
 
@@ -391,10 +400,24 @@ describe('recovery codes issued at enable', () => {
   });
 
   it('replaces any codes left over from an abandoned enrolment', async () => {
+    // A leftover batch to burn: the snapshot sees 3 live rows, the burn must
+    // delete exactly those 3 (compare-and-set), then the fresh batch is written.
+    mocks.prisma.twoFactorBackupCode.findMany.mockResolvedValue([
+      { id: 'bc-old-1' },
+      { id: 'bc-old-2' },
+      { id: 'bc-old-3' },
+    ]);
+    mocks.prisma.twoFactorBackupCode.deleteMany.mockResolvedValue({ count: 3 });
+
     await enableWithPending();
 
-    expect(mocks.prisma.twoFactorBackupCode.deleteMany).toHaveBeenCalledWith({
+    expect(mocks.prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(mocks.prisma.twoFactorBackupCode.findMany).toHaveBeenCalledWith({
       where: { userId: USER_ID },
+      select: { id: true },
+    });
+    expect(mocks.prisma.twoFactorBackupCode.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['bc-old-1', 'bc-old-2', 'bc-old-3'] } },
     });
     expect(mocks.prisma.twoFactorBackupCode.deleteMany.mock.invocationCallOrder[0]!).toBeLessThan(
       mocks.prisma.twoFactorBackupCode.createMany.mock.invocationCallOrder[0]!,
@@ -836,6 +859,8 @@ describe('POST /auth/2fa/disable', () => {
 describe('POST /auth/2fa/backup-codes', () => {
   it('replaces the whole set and returns the new codes once', async () => {
     mocks.prisma.user.findUnique.mockResolvedValue(enabledUser());
+    mocks.prisma.twoFactorBackupCode.findMany.mockResolvedValue([{ id: 'bc-a' }, { id: 'bc-b' }]);
+    mocks.prisma.twoFactorBackupCode.deleteMany.mockResolvedValue({ count: 2 });
 
     const reply = await call('/auth/2fa/backup-codes', authed({ password: 'pw' }));
     const codes: string[] = reply.body.data.backupCodes;
@@ -843,8 +868,15 @@ describe('POST /auth/2fa/backup-codes', () => {
     expect(reply.statusCode).toBe(200);
     expect(codes).toHaveLength(10);
     expect(reply.body.data.count).toBe(10);
-    expect(mocks.prisma.twoFactorBackupCode.deleteMany).toHaveBeenCalledWith({
+    // The burn and the create run inside one transaction: the burn snapshots
+    // the live rows first and deletes exactly that snapshot (compare-and-set).
+    expect(mocks.prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(mocks.prisma.twoFactorBackupCode.findMany).toHaveBeenCalledWith({
       where: { userId: USER_ID },
+      select: { id: true },
+    });
+    expect(mocks.prisma.twoFactorBackupCode.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['bc-a', 'bc-b'] } },
     });
     const written = mocks.prisma.twoFactorBackupCode.createMany.mock.calls[0]![0].data as Array<{
       codeHash: string;
@@ -872,6 +904,7 @@ describe('POST /auth/2fa/backup-codes', () => {
 
     expect(reply.statusCode).toBe(409);
     expect(reply.body.error.code).toBe('NOT_ENABLED');
+    expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
     expect(mocks.prisma.twoFactorBackupCode.createMany).not.toHaveBeenCalled();
   });
 
@@ -885,6 +918,7 @@ describe('POST /auth/2fa/backup-codes', () => {
     const wrong = await call('/auth/2fa/backup-codes', authed({ password: 'nope' }));
     expect(wrong.statusCode).toBe(401);
     expect(wrong.body.error.code).toBe('INVALID_CREDENTIALS');
+    expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
     expect(mocks.prisma.twoFactorBackupCode.deleteMany).not.toHaveBeenCalled();
   });
 
