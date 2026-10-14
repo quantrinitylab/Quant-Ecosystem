@@ -946,6 +946,31 @@ NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. FIX AGENTS: none (P0/P1-only protocol).
 LIVE (2026-10-14 ~07:55 IST, quantmail.in; proxy 127.0.0.1:8888 healthy): /drive → honest sign-in gate desktop 1440x900 + mobile 390x844 (provable copy only: "Mail + chat threads", "AI triage", "Encrypted in transit"); /drive/share/bogus-token-12345 → 200, honest "Share link not found" (mobile shot: clay living-logo mark, no leak); /api/drive/{files,quota,trash,shares/received,folders} → 401 (airtight). Signed-in flows needs-auth. Shots: /tmp/lane1-010r8-{desktop-drive,mobile-drive,mobile-share}.png.
 Rotation → QM-SCREEN-012 (contacts) ROUND 8 regression, queued.
 
+Lane-1 R9 REGRESSION — [x] DONE (2026-10-14 ~17:40–18:05 IST, lane-1 deep audit loop)
+Owner: LANE-1
+Branch: lane-1/audit-qm-screen-010-011-drive-r9
+Audit scope: origin/main @ 064db7e4c vs R8 base 477434bb (fresh fetch, 64 commits) — drive screens QM-SCREEN-010 + QM-SCREEN-011 combined (rotation queues them together).
+Method: git log path-filter + FULL-diff review of all 5 drive-path commits on origin/main tree only (working tree ignored per stale-tree lesson) + live logged-out desktop 1440x900 + mobile 390x844 via local Chrome + proxy 127.0.0.1:8888; signed-in flows needs-auth.
+DRIVE-PATH COMMITS in window — all VERIFIED SOUND (full diff reviewed, in declared scope):
+1. 5a7055cee (PR #1141, feat/docs-engine): on-device document previews (PDF/Word/PowerPoint/Excel) via Rust→WASM Quant Docs engines — REAL engines dir (build.sh, VERSION, deny.toml, 9383-line NOTICES.txt), Dockerfile engines stage, CSP wasm-unsafe-eval with honest comment, middleware matcher excludes /engines .wasm, cache-immutable versioned path. NO fake surface: honest "Unable to preview this file" + retry + Download, quarantined files excluded from engine path, fetch uses session auth, "Rendered on this device — the file isn't sent anywhere to be previewed" is provable copy (Web Worker render, no third-party preview service). Tests: 3 suites.
+2. 3d30ca4f6 (fix): all PDFs through quant-pdf (CSP object-src 'none' broke blob iframe viewer — seen live, documented) + dead browserCanShowPdfInline branch removed. SOUND.
+3. 54698e264 (PR #1155): fullscreen document previews + anchored zoom (50–300%, re-draw, anchored position kept). Modal.tsx gets fullScreenOnMobile + bodyClassName — DEFAULTS UNCHANGED (only drive passes the flags). Shared-UI diff clean. MOBILE-VIEWPORT FLAG (desktop-only lock): fullScreenOnMobile triggers below sm breakpoint + "slimmer gutters on phones" — merged pre-/outside any user waive on record → flag reference only, not a drive regression.
+4. 51062debd (fix/drive): ONE shared folder-resolution rule for Quanty organize Move/Copy — userId-scoped Prisma lookups only (no IDOR), suggest path read-only (folderId from backend, no client-side name matching), honest "copy NOT attempted when folder missing". SOUND.
+5. 4258a2578 (fix/qm-quantgit-ci-logs-allowlist): routes-config GET-only row for ci/builds/:id/logs — drive pattern /^drive(?:|(?:\/[^/]+)*)$/ :82 UNTOUCHED, no proxy gaps.
+All other 59 window commits = search/calendar/quantgit/quantchat/compose scope — drive files untouched (path-filter empty beyond the five above).
+CARRYOVERS — ALL STILL OPEN (re-verified on 064db7e4c, not re-filed):
+- R5-NEW-1 P2 mail-orange var(--quant-primary) in components/drive/* — STILL OPEN: 45 hits (AIDuplicateCleanerModal 5, DriveAISearchBar 3, FileAISummaryDrawer 14, FileActivityModal 1, FileVersionHistoryModal 4, QuantyFileWorkspace 12, StorageQuotaBar 6); +1 useCollabDoc.ts, +1 drive/page.tsx.
+- R5-NEW-2 P3 stale "FastCDC Deduplication Badges" section comment — STILL OPEN (DriveFilesSubView.tsx:384).
+- R3-P3 test fixture 'FastCDC 64KB CAS storage lowered cloud egress to $0.00' — STILL OPEN (drive-ai-insights.test.tsx:395,419).
+- "FastCDC tags" placeholder + "FastCDC Clean" naming — STILL OPEN (QuantPillarTopBar.tsx:348,400; locked by quant-pillar-topbar.test.tsx).
+- R6-NEW-1 P2 StorageQuotaBar orange meter/badge/CTA — STILL OPEN (:259,260,261,318,375,378).
+- R6-NEW-2 P3 stale "Sovereign Cyan Drive" header comment — STILL OPEN (QuantPillarTopBar.tsx:5).
+R1–R4 FIXES — ALL BYTE-VERIFIED INTACT: honest trash ("Trash is empty", page.tsx:1900); honest quota ("Calculating…", DriveFilesSubView.tsx:201,222, StorageQuotaBar.tsx); zero 4K/FLAC/RAW badges (only absence-noting comments); zero ?token= (sole hit = absence-asserting useCollabDoc.test.ts:17); catch-all + ALLOWED_BACKEND_ROUTES drive pattern intact (routes-config.ts:82); no new fetches → no proxy gaps.
+FRESH HUNT CLEAN: zero ?token=, zero coming-soon/lorem/dummy/mock copy, zero toast-theater, zero 4K/FLAC/RAW badges. DocumentEnginePreview spreadsheet-cell borders (border-[#22262E]) assessed ACCEPTABLE: document-content grid rendering, not UI divider hairlines (the no-divider-lines lock governs UI chrome).
+NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. FIX AGENTS: none (P0/P1-only protocol). findings.md: no new lines.
+LIVE (2026-10-14 ~17:50 IST, quantmail.in; proxy 127.0.0.1:8888 healthy): /drive → honest sign-in gate desktop 1440x900 + mobile 390x844 (provable copy only); /drive/share/bogus-token-12345 → honest "Share link not found" + Try again (QuantDrive clay living-logo, no leak); /api/drive/{files,quota,trash,shares/received,folders} → 401 all (airtight). Signed-in flows needs-auth. Shots reviewed then deleted per /tmp hygiene.
+Rotation → QM-SCREEN-012 (contacts) ROUND 9 regression, queued.
+
 Lane-1 R6 REGRESSION — [x] DONE (2026-10-13 ~14:35–15:10 IST, lane-1 deep audit loop)
 Owner: LANE-1
 Branch: lane-1/audit-qm-screen-010-011-drive-r6
