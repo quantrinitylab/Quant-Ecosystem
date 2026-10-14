@@ -3175,3 +3175,10 @@ LIVE (2026-10-13 ~22:55 IST, proxy 127.0.0.1:8888 healthy): /search?q=test -> ho
 NOT VERIFIED (needs live/auth, unchanged): staging DB GIN indexes; live 401 E2E; operator routing live on real data; overlapping-fetch flicker; Hinglish stemming; scope-chip live; search latency.
 Rotation -> QM-SCREEN-013 (QuantGit) ROUND 6 regression, queued.
 Status: [x] DONE (R7 regression audit complete 2026-10-13 ~23:05 IST; 101-commit window reviewed, 0 new findings, 7 opens carried; fixes tracked via their PRs)
+
+## QM-SCREEN-007 R8 — Search regression (ROUND 8)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-007r8
+Audit started: 2026-10-14 ~05:40 IST (lane-1 deep audit loop, ROUND 8)
+Base: R7 @ 5e7ea63e -> origin/main 86b10ca7 (fresh fetch).
