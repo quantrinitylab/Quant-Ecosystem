@@ -27,6 +27,9 @@ import type {
   Notification,
   AuthTokens,
   SendMessageRequest,
+  MessageRequest,
+  MessageRequestInboxView,
+  MessageRequestSentView,
   CreateStoryRequest,
   SendSnapRequest,
   InitiateCallRequest,
@@ -289,6 +292,39 @@ export class QuantChatApiClient {
 
   async sendMessage(request: SendMessageRequest): Promise<ApiResponse<Message>> {
     return this.post(`/conversations/${request.conversationId}/messages`, request);
+  }
+
+  // --------------------------------------------------------------------------
+  // Message requests (QC-F-321) — first-contact consent surface. A request
+  // is created ONLY when the target's whoCanMessage gate denies the sender
+  // as a stranger; the message is delivered only if the target accepts.
+  // --------------------------------------------------------------------------
+
+  async sendMessageRequest(
+    targetId: string,
+    message: string,
+  ): Promise<ApiResponse<MessageRequest>> {
+    return this.post('/message-requests', { targetId, message });
+  }
+
+  async getMessageRequestsInbox(): Promise<ApiResponse<MessageRequestInboxView[]>> {
+    return this.get('/message-requests/inbox');
+  }
+
+  async getMessageRequestsSent(): Promise<ApiResponse<MessageRequestSentView[]>> {
+    return this.get('/message-requests/sent');
+  }
+
+  async acceptMessageRequest(
+    id: string,
+  ): Promise<ApiResponse<{ request: MessageRequest; conversationId: string }>> {
+    return this.post(`/message-requests/${encodeURIComponent(id)}/accept`, {});
+  }
+
+  async declineMessageRequest(
+    id: string,
+  ): Promise<ApiResponse<{ request: MessageRequest }>> {
+    return this.post(`/message-requests/${encodeURIComponent(id)}/decline`, {});
   }
 
   async editMessage(messageId: string, newContent: string): Promise<ApiResponse<Message>> {
