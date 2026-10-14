@@ -136,7 +136,7 @@ function ChevronRightIcon({ className }: { className?: string }) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <polyline points="15 18 9 12 15 6" />
+      <polyline points="9 18 15 12 9 6" />
     </svg>
   );
 }

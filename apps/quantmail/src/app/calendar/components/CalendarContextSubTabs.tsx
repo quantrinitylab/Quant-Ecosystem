@@ -263,14 +263,17 @@ export const TAB_ICONS: Record<CalendarMergedTab, (props: { className?: string }
 };
 
 export const MERGED_TABS: ReadonlyArray<{ key: CalendarMergedTab; label: string; isLegacy?: boolean }> = [
-  { key: 'feed', label: 'Feed' },
-  { key: 'month', label: 'Month' },
+  // Day · Week · Month lead, in the bottom nav's order (approved structure
+  // 2026-10-09: real view modes). Day is a real single-day view now, not
+  // the multi-day feed it used to fall back to.
+  { key: 'day', label: 'Day' },
   { key: 'week', label: 'Week' },
+  { key: 'month', label: 'Month' },
+  { key: 'feed', label: 'Feed' },
   { key: 'events', label: 'Trackers' },
   { key: 'schedule', label: 'Schedule' },
   // Legacy merged tabs supported for backward compatibility with existing tests and deep links
   { key: 'agenda', label: 'Agenda', isLegacy: true },
-  { key: 'day', label: 'Day', isLegacy: true },
   { key: 'booking', label: 'Booking', isLegacy: true },
   { key: 'quantmeet', label: 'QuantMeet', isLegacy: true },
   { key: 'reminders', label: 'Reminders', isLegacy: true },

@@ -1073,7 +1073,9 @@ export function resolveActiveTab(
     ) {
       return 'schedule';
     }
-    return 'feed';
+    if (tabParam === 'feed' || tabParam === 'agenda') return 'feed';
+    // Bare /calendar opens the Day view (calendar-route.ts).
+    return 'day';
   }
 
   if (pillar === 'drive') {

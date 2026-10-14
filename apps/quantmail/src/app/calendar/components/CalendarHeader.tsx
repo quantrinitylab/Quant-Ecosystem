@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import type { EntryType } from '../types';
 import { IconCalendar, IconTarget, IconCake } from '../../../components/icons';
+import { useMinuteClock } from '../lib/use-minute-clock';
 
 export interface CalendarHeaderProps {
   activeMonthName: string;
@@ -191,12 +192,15 @@ function NewEntrySplitButton({
       <button
         type="button"
         onClick={() => openDedicatedSheet('event')}
+        // Compact (phone): icon-only so the month title keeps its room —
+        // "＋ Event ▾" squeezed "October 2026" down to "Oc…" at 390px.
+        aria-label={compact ? mainLabel : undefined}
         className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-l-lg rounded-r-none font-semibold text-xs ${baseActionClass} ${
-          compact ? 'px-3 py-1.5 gap-1' : 'px-3.5 py-1.5'
+          compact ? 'min-w-[44px] justify-center px-2.5' : 'px-3.5 py-1.5'
         }`}
       >
-        <HeaderPlusIcon className="size-3.5 text-[#111111]" />
-        <span>{mainLabel}</span>
+        <HeaderPlusIcon className={compact ? 'size-4 text-[#111111]' : 'size-3.5 text-[#111111]'} />
+        {!compact && <span>{mainLabel}</span>}
       </button>
       <button
         type="button"
@@ -250,13 +254,10 @@ export function CalendarHeader({
   onChangeTimezone: _onChangeTimezone,
   onOpenBookingLinks,
 }: CalendarHeaderProps) {
-  // Live Dual-Timezone Clock (IST: Asia/Kolkata, PST: America/Los_Angeles)
-  const [now, setNow] = useState<Date>(() => new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  // Live Dual-Timezone Clock (IST: Asia/Kolkata, PST: America/Los_Angeles).
+  // Minute-aligned: the pill shows h:mm, so a 1s interval only re-rendered
+  // the header 60x a minute for nothing.
+  const now = useMinuteClock();
 
   const istTime = useMemo(() => {
     try {
@@ -384,9 +385,9 @@ export function CalendarHeader({
         {/* Row 1: Month Title & Navigation + Sleek Single + New Event Button */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <h2 className="flex min-w-0 items-baseline gap-1.5 truncate text-base font-bold tracking-tight text-[var(--quant-foreground)]">
+            <h2 className="flex min-w-0 items-baseline gap-1 whitespace-nowrap text-[15px] font-bold tracking-tight text-[var(--quant-foreground)]">
               <span className="truncate">{activeMonthName}</span>
-              <span className="font-normal text-xs text-[var(--quant-muted-foreground)]">{activeYear}</span>
+              <span className="shrink-0 font-normal text-[11px] text-[var(--quant-muted-foreground)]">{activeYear}</span>
             </h2>
 
             <div className="flex shrink-0 items-center gap-1">
@@ -418,7 +419,7 @@ export function CalendarHeader({
 
           {/* Mobile primary action: Event in one tap; chevron carries the
               Task / Birthday rows the floating FAB used to carry. */}
-          <NewEntrySplitButton openDedicatedSheet={openDedicatedSheet} mainLabel="Event" compact />
+          <NewEntrySplitButton openDedicatedSheet={openDedicatedSheet} mainLabel="New event" compact />
         </div>
 
         {/* Row 2: Single Clean IST/PST Pill + Booking Links */}

@@ -249,6 +249,28 @@ function AgendaTimelineIcon({ className }: { className?: string; active?: boolea
   );
 }
 
+function DayAgendaIcon({ className }: { className?: string; active?: boolean }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <line x1="8" y1="14" x2="16" y2="14" />
+      <line x1="8" y1="18" x2="13" y2="18" />
+    </svg>
+  );
+}
+
 function MonthGridIcon({ className }: { className?: string; active?: boolean }) {
   return (
     <svg
@@ -820,14 +842,24 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
     activeContainerStyle: 'bg-[#4285F4]/15 border-[#4285F4]/40',
     activeTextStyle: 'text-[#4285F4]',
     badgeStyle: 'bg-[#4285F4] text-black',
+    // Day · Week · Month first — the approved real view modes (2026-10-09),
+    // same order as the phone bottom nav.
     tabs: [
       {
-        id: 'feed',
-        label: 'Feed',
-        icon: AgendaTimelineIcon,
+        id: 'day',
+        label: 'Day',
+        icon: DayAgendaIcon,
         targetPath: '/calendar',
-        queryParam: { key: 'tab', value: 'feed' },
-        description: 'Upcoming events, milestones & tracker dates',
+        queryParam: { key: 'tab', value: 'day' },
+        description: 'Single-day agenda with the week strip',
+      },
+      {
+        id: 'week',
+        label: 'Week',
+        icon: WeekGridIcon,
+        targetPath: '/calendar',
+        queryParam: { key: 'tab', value: 'week' },
+        description: '7-day time grid with drag-to-create',
       },
       {
         id: 'month',
@@ -838,12 +870,12 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         description: 'Continuous scroll month calendar',
       },
       {
-        id: 'week',
-        label: 'Week',
-        icon: WeekGridIcon,
+        id: 'feed',
+        label: 'Feed',
+        icon: AgendaTimelineIcon,
         targetPath: '/calendar',
-        queryParam: { key: 'tab', value: 'week' },
-        description: '7-day time grid with drag-to-create',
+        queryParam: { key: 'tab', value: 'feed' },
+        description: 'Upcoming events, milestones & tracker dates',
       },
       {
         id: 'events',
@@ -1044,7 +1076,9 @@ export function resolveContextTab(
     ) {
       return 'schedule';
     }
-    return 'feed';
+    if (tabParam === 'feed' || tabParam === 'agenda') return 'feed';
+    // Bare /calendar opens the Day view (calendar-route.ts).
+    return 'day';
   }
 
   if (pillar === 'drive') {

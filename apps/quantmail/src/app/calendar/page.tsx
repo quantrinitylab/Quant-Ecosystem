@@ -48,6 +48,8 @@ import {
   type CalendarMergedTab,
 } from './components/CalendarContextSubTabs';
 import { CalendarMobileTabStrip } from './components/CalendarMobileTabStrip';
+import { CalendarDayView } from './components/CalendarDayView';
+import { calendarRouteForTab } from './lib/calendar-route';
 import {
   CalendarFeedSubView,
   CalendarMonthSubView,
@@ -114,6 +116,11 @@ const isValidContextTab = (t: string | null): t is CalendarContextTab => {
   );
 };
 
+function initialCalendarRoute() {
+  if (typeof window === 'undefined') return calendarRouteForTab(null);
+  return calendarRouteForTab(new URLSearchParams(window.location.search).get('tab'));
+}
+
 function CalendarPageContent() {
   const today = useMemo(() => new Date(), []);
   const { user } = useAuth();
@@ -122,41 +129,23 @@ function CalendarPageContent() {
   const searchParams = useSearchParams();
   const queryTab = searchParams?.get('tab');
 
-  const [activeContextTab, setActiveContextTab] = useState<CalendarContextTab>(() => {
-    if (typeof window !== 'undefined') {
-      const p = new URLSearchParams(window.location.search).get('tab');
-      if (isValidContextTab(p)) return p;
-    }
-    return 'feed';
-  });
+  const [activeContextTab, setActiveContextTab] = useState<CalendarContextTab>(
+    () => initialCalendarRoute().contextTab,
+  );
 
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [activeView, setActiveView] = useState<CalendarView>('agenda');
-  const [isMonthExpanded, setIsMonthExpanded] = useState(false);
+  const [activeView, setActiveView] = useState<CalendarView>(() => initialCalendarRoute().view);
+  const [isMonthExpanded, setIsMonthExpanded] = useState(() => initialCalendarRoute().view === 'month');
 
-  // Synchronize with URL searchParams changes (?tab=...)
+  // Synchronize with URL searchParams changes (?tab=...). A bare /calendar
+  // (pillar switcher, deep link without a tab) lands on the Day view.
   useEffect(() => {
-    if (queryTab === 'week') {
-      // Merged Week tab: agenda context + week grid view.
-      setActiveContextTab('agenda');
-      setActiveView('week');
-      return;
-    }
-    if (queryTab === 'day') {
-      // Day tab (bottom nav): agenda context + single-day view.
-      setActiveContextTab('agenda');
-      setActiveView('day');
-      return;
-    }
-    if (isValidContextTab(queryTab)) {
-      setActiveContextTab(queryTab);
-      if (queryTab === 'month') {
-        setIsMonthExpanded(true);
-        setActiveView('month');
-      } else if (queryTab === 'feed' || queryTab === 'agenda') {
-        setActiveView('agenda');
-      }
+    const route = calendarRouteForTab(queryTab);
+    setActiveContextTab(route.contextTab);
+    if (route.view === 'month') setIsMonthExpanded(true);
+    if (route.contextTab === 'feed' || route.contextTab === 'agenda' || route.view === 'month') {
+      setActiveView(route.view);
     }
   }, [queryTab]);
 
@@ -1280,7 +1269,22 @@ function CalendarPageContent() {
         />
 
         {/* 4 Sovereign Contextual Sub-Views */}
-        {(activeContextTab === 'feed' || activeContextTab === 'agenda') && activeView === 'week' ? (
+        {(activeContextTab === 'feed' || activeContextTab === 'agenda') &&
+        activeView === 'day' &&
+        !searchFilter.trim() ? (
+          // Real single-day view. An active search falls through to the feed
+          // below, which lists matches across all loaded days with honest
+          // loading / degraded / no-match states.
+          <CalendarDayView
+            events={events}
+            holidaysByDay={holidaysByDay}
+            selectedDate={selectedDate}
+            onSelectDate={selectDate}
+            openDedicatedSheet={openDedicatedSheet}
+            onSelectEvent={setSelectedEvent}
+            isLoading={isInitialLoading}
+          />
+        ) : (activeContextTab === 'feed' || activeContextTab === 'agenda') && activeView === 'week' ? (
           <CalendarWeekSubView
             events={events}
             holidaysByDay={holidaysByDay}
