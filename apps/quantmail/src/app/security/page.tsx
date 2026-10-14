@@ -49,11 +49,14 @@ const describeOAuthScope = (scope: string): string =>
 //
 // The backend mints tokens only for these scopes
 // (backend/routes/settings-tokens.ts). Offered verbatim — nothing else exists.
+// Scope semantics on the backend (modules/code/routes/git-transport.ts):
+// repo:admin is a superset — it satisfies both repo:read and repo:write
+// checks, so a token minted with only repo:admin can clone and push.
 // ---------------------------------------------------------------------------
 const PAT_SCOPES = [
   { value: 'repo:read', label: 'repo:read', description: 'Read repositories' },
   { value: 'repo:write', label: 'repo:write', description: 'Read and write repositories' },
-  { value: 'repo:admin', label: 'repo:admin', description: 'Full repository administration' },
+  { value: 'repo:admin', label: 'repo:admin', description: 'Full access — reads and writes your repositories' },
 ] as const;
 
 const PAT_EXPIRIES = [

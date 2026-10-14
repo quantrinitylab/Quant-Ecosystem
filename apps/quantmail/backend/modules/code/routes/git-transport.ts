@@ -70,8 +70,22 @@ async function resolveCredential(
   return { userId: verified.userId, scopes: verified.scopes };
 }
 
+/**
+ * Which minted scopes satisfy a scope check. repo:admin is a true superset:
+ * it satisfies both repo:read and repo:write. Any new mintable scope must be
+ * added here so it is never mintable-but-dead.
+ */
+const PAT_SCOPE_INCLUDES: Record<'repo:read' | 'repo:write', readonly string[]> = {
+  'repo:read': ['repo:read', 'repo:admin'],
+  'repo:write': ['repo:write', 'repo:admin'],
+};
+
 function requireScope(credential: GitCredential, scope: 'repo:read' | 'repo:write'): void {
-  if (!credential.scopes.includes(scope)) {
+  // repo:admin is a superset of repo:read and repo:write — a token minted with
+  // only repo:admin must satisfy both checks. Keep this hierarchy as the
+  // single source of truth so no mintable scope is ever dead.
+  const acceptable = PAT_SCOPE_INCLUDES[scope];
+  if (!acceptable.some((s) => credential.scopes.includes(s))) {
     throw createAppError(`Token lacks required scope: ${scope}`, 403, 'INSUFFICIENT_SCOPE');
   }
 }
