@@ -9,30 +9,59 @@
  * per-person localStorage key, restored when the user returns, and cleared
  * when the reply actually sends.
  *
- * P0 qm-draft-privacy-isolation (CODEX-REVIEW on PR #1123): the original
- * namespace keyed drafts by `personKey` alone, and logout only cleared the
- * in-memory access token — so account B on the same browser could restore
- * account A's unsent body/subject for the same person. The namespace is now
- * account-scoped: `qm.threadReplyDraft.v2.<account>.<personKey>`, where the
- * account segment is the stable authenticated account identity (normalized
- * current-user email), not mutable display data.
+ * P0 qm-draft-privacy-isolation (CODEX-REVIEW on PR #1123, rework
+ * CODEX-REVIEW 6157628718 on PR #1133): the original namespace keyed drafts
+ * by `personKey` alone, and logout only cleared the in-memory access token —
+ * so account B on the same browser could restore account A's unsent
+ * body/subject for the same person. The v1 rework scoped by normalized
+ * email; CODEX rejected it because email is mutable/reassignable (address
+ * change + reassignment hands A's retained plaintext to B) and because the
+ * raw `account + "." + personKey` concatenation is not injective (both
+ * segments may contain dots). The v3 namespace below fixes both:
+ *
+ * - The account segment is the backend-verified IMMUTABLE user id
+ *   (`AuthUser.id`, the access-token `sub` / DB primary key), never email.
+ *   An address change keeps the account's drafts; a reassigned address
+ *   cannot inherit them.
+ * - The tenant slot is the product's fixed single-tenant scope. QuantMail
+ *   has no workspace/tenant dimension — enforced contract, published here
+ *   instead of silently omitted (per CODEX):
+ *     * GET /oauth/userinfo (apps/quantmail/backend/routes/oauth.ts) returns
+ *       { id, email, username, displayName, role, phoneNumber, phoneVerified }
+ *       — no tenant field;
+ *     * the access token carries `sub` = immutable user id with no tenant
+ *       claim (packages/auth/src/services/token-service.ts);
+ *     * middleware/workspace-tenant.ts belongs to the ERPGo company/agent
+ *       modules, not QuantMail auth, and the DAV "tenant boundary isolation"
+ *       is a CalDAV/CardDAV Basic-Auth realm boundary (sync protocol), not
+ *       a product workspace model.
+ *   The slot stays in the key so a future workspace model slots in without
+ *   inventing a new collision class; the regression suite proves two
+ *   tenants with the same user id get disjoint namespaces.
+ * - Every tuple segment is length-prefixed (`<len>:<segment>`), which is
+ *   provably injective: the key decodes back to exactly one
+ *   (tenant, userId, personKey) tuple, so delimiter collisions are
+ *   impossible by construction.
  *
  * Threat/retention policy, stated honestly:
  * - This is same-device plaintext persistence (localStorage). The app can
- *   never read across accounts: every read/write is namespaced by account,
- *   and an unknown/empty account means NO persistence at all (fail closed),
- *   never a shared fallback key. A party with full browser access (DevTools
- *   on the same profile) can still read raw localStorage — that is outside
- *   the app's isolation boundary, exactly like every other same-device
- *   cache. The stronger end state is an authorized server draft; this
- *   module invents no backend endpoint and touches nothing on the server.
- * - Legacy v1 keys (`qm.threadReplyDraft.v1.<personKey>`) are NOT
- *   attributable to any account, so they are never migrated into a v2
- *   namespace (that would move A's plaintext into B's session — the leak
- *   itself). They are purged: on logout and once per page load when the
- *   composer first mounts under an authenticated session. Upgrading users
- *   lose their pre-upgrade drafts; that is the honest price of fixing the
- *   leak, and the send path still creates its own per-send draft (#771).
+ *   never read across accounts: every read/write is namespaced by
+ *   (tenant, immutable user id), and an unknown/empty account means NO
+ *   persistence at all (fail closed), never a shared fallback key. A party
+ *   with full browser access (DevTools on the same profile) can still read
+ *   raw localStorage — that is outside the app's isolation boundary,
+ *   exactly like every other same-device cache. The stronger end state is
+ *   an authorized server draft; this module invents no backend endpoint
+ *   and touches nothing on the server.
+ * - Legacy v1 keys (`qm.threadReplyDraft.v1.<personKey>`, unscoped) and v2
+ *   keys (`qm.threadReplyDraft.v2.<email>.<personKey>`, email-scoped) are
+ *   NOT attributable to a stable account identity, so they are never
+ *   migrated into v3 (that would move A's plaintext into B's session — the
+ *   leak itself). They are purged: on logout and once per page load when
+ *   the composer first mounts under an authenticated session. Upgrading
+ *   users lose their pre-upgrade drafts; that is the honest price of
+ *   fixing the leak, and the send path still creates its own per-send
+ *   draft (#771).
  * - Drafts expire after 30 days (updatedAt), so abandoned text rots away
  *   instead of accumulating forever.
  *
@@ -59,34 +88,103 @@ export interface ThreadReplyDraft {
 export const LEGACY_THREAD_DRAFT_STORAGE_PREFIX = 'qm.threadReplyDraft.v1.';
 
 /**
- * Account-scoped namespace. One key per (account, person) pair:
- * `qm.threadReplyDraft.v2.<accountKey>.<personKey>`.
+ * Legacy v2 namespace — written by the first rework attempt, keyed by
+ * NORMALIZED EMAIL (`qm.threadReplyDraft.v2.<email>.<personKey>`).
+ * CODEX-REVIEW 6157628718 rejected it: email is mutable/reassignable, so a
+ * reassigned address hands the previous holder's retained plaintext to the
+ * new holder. Retired as of v3; purge-only, never migrated, never read.
  */
-export const THREAD_DRAFT_STORAGE_PREFIX = 'qm.threadReplyDraft.v2.';
+export const LEGACY_V2_THREAD_DRAFT_STORAGE_PREFIX = 'qm.threadReplyDraft.v2.';
+
+/**
+ * Account+tenant-scoped namespace. One key per (tenant, user, person) tuple:
+ * `qm.threadReplyDraft.v3.<len>:<tenant>.<len>:<userId>.<len>:<personKey>`.
+ * Length-prefixing makes the encoding injective — the key decodes back to
+ * exactly one tuple, so delimiter collisions are impossible by
+ * construction (see encodeDraftKeySegment).
+ */
+export const THREAD_DRAFT_STORAGE_PREFIX = 'qm.threadReplyDraft.v3.';
+
+/**
+ * The tenant slot of the v3 namespace. QuantMail's account model is
+ * single-tenant — one immutable user id is one account, and no
+ * workspace/tenant dimension exists anywhere in the enforced identity
+ * contract (see the module header for the published sources). The slot is
+ * kept (rather than collapsed) so a future workspace model extends the key
+ * instead of inventing a new collision class; today it is always this
+ * constant. Overrideable only as a function parameter for tests and a
+ * future multi-tenant product — never from user-controlled input.
+ */
+export const THREAD_DRAFT_TENANT_SCOPE = 'quantmail';
 
 /** Stale drafts degrade to null instead of resurfacing months later. */
 export const THREAD_DRAFT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
- * The stable authenticated account identity used as the namespace segment.
- * Normalizes the current-user email (trim + lowercase) — the account
- * identity, not mutable display data. Returns '' when no account is known;
- * an empty account key means "no persistence available" (fail closed — the
- * module never falls back to an unscoped shared key).
+ * Unambiguous tuple-segment encoding. `<len>:<segment>` is injective AND
+ * decodable: scanning `<len>`, then taking exactly `<len>` characters,
+ * recovers each segment regardless of dots, colons, or digits inside it.
+ * Two different (tenant, userId, personKey) tuples can never produce the
+ * same storage key — the delimiter-collision class CODEX flagged in v1
+ * cannot exist here. Length is measured in UTF-16 code units (string
+ * length), matching how the decoder below consumes the key.
  */
-export function threadDraftAccountKey(
-  currentUserEmail: string | null | undefined,
-): string {
-  return (currentUserEmail ?? '').trim().toLowerCase();
+export function encodeDraftKeySegment(segment: string): string {
+  return `${segment.length}:${segment}`;
 }
 
 /**
- * The storage key for one (account, person) pair. Returns null when either
- * identity is missing — callers treat null as "no persistence available".
+ * Decode one length-prefixed segment starting at `offset`. Returns the
+ * segment and the offset just past it, or null when the key is malformed.
+ * Exported so tests can prove the encoding round-trips (injectivity).
+ */
+export function decodeDraftKeySegment(
+  key: string,
+  offset: number,
+): { segment: string; nextOffset: number } | null {
+  const colon = key.indexOf(':', offset);
+  if (colon < 0) return null;
+  const len = Number(key.slice(offset, colon));
+  if (!Number.isInteger(len) || len < 0) return null;
+  const start = colon + 1;
+  const end = start + len;
+  if (end > key.length) return null;
+  return { segment: key.slice(start, end), nextOffset: end };
+}
+
+/**
+ * The stable authenticated account identity used as the namespace segment:
+ * the backend-verified IMMUTABLE user id (`AuthUser.id` — the access-token
+ * `sub`, the users-table primary key), never the mutable email. The id is
+ * opaque: no case folding or normalization is applied (folding an opaque
+ * identifier could merge two distinct accounts). Returns '' when no id is
+ * known; an empty account key means "no persistence available" (fail
+ * closed — the module never falls back to an unscoped shared key).
+ *
+ * The optional `tenant` parameter exists for the cross-tenant regression
+ * proof and a future multi-tenant product; callers always omit it today,
+ * which pins the published single-tenant scope.
+ */
+export function threadDraftAccountKey(
+  userId: string | null | undefined,
+  tenant: string = THREAD_DRAFT_TENANT_SCOPE,
+): string {
+  const id = (userId ?? '').trim();
+  if (!id) return '';
+  const scope = (tenant ?? '').trim() || THREAD_DRAFT_TENANT_SCOPE;
+  return `${encodeDraftKeySegment(scope)}.${encodeDraftKeySegment(id)}`;
+}
+
+/**
+ * The storage key for one (tenant, account, person) tuple. Returns null
+ * when either identity is missing — callers treat null as "no persistence
+ * available". The accountKey already carries the encoded (tenant, userId)
+ * pair (see threadDraftAccountKey); the personKey segment is encoded here,
+ * so the full key is `v3.<len>:<tenant>.<len>:<userId>.<len>:<personKey>`.
  */
 export function threadDraftKey(personKey: string, accountKey: string): string | null {
   if (!personKey || !accountKey) return null;
-  return `${THREAD_DRAFT_STORAGE_PREFIX}${accountKey}.${personKey}`;
+  return `${THREAD_DRAFT_STORAGE_PREFIX}${accountKey}.${encodeDraftKeySegment(personKey)}`;
 }
 
 /**
@@ -252,10 +350,41 @@ export function clearThreadDraft(
  * of keys removed.
  */
 export function purgeLegacyThreadDraftKeys(store: ThreadDraftStorage | null): number {
+  return purgeThreadDraftKeysWithPrefix(store, LEGACY_THREAD_DRAFT_STORAGE_PREFIX);
+}
+
+/**
+ * Remove every legacy v2 (email-scoped) draft key. v2 keys ARE attributable
+ * to an email address, but the address is mutable/reassignable — migrating
+ * them into v3 would hand the previous holder's retained plaintext to
+ * whoever holds the address now (the exact leak class CODEX-REVIEW
+ * 6157628718 killed). Purged on logout and once per page load, never
+ * migrated, never read. Returns the number of keys removed.
+ */
+export function purgeLegacyV2ThreadDraftKeys(store: ThreadDraftStorage | null): number {
+  return purgeThreadDraftKeysWithPrefix(store, LEGACY_V2_THREAD_DRAFT_STORAGE_PREFIX);
+}
+
+/**
+ * Remove every legacy draft key from BOTH retired namespaces (v1 unscoped,
+ * v2 email-scoped). v3 (tenant + immutable-id-scoped) keys are never
+ * touched — they partition safely and survive logout for the account's own
+ * next sign-in. Returns the total number of keys removed.
+ */
+export function purgeAllLegacyThreadDraftKeys(store: ThreadDraftStorage | null): number {
+  return (
+    purgeLegacyThreadDraftKeys(store) + purgeLegacyV2ThreadDraftKeys(store)
+  );
+}
+
+function purgeThreadDraftKeysWithPrefix(
+  store: ThreadDraftStorage | null,
+  prefix: string,
+): number {
   if (!store || typeof store.keys !== 'function') return 0;
   let removed = 0;
   try {
-    for (const key of store.keys(LEGACY_THREAD_DRAFT_STORAGE_PREFIX)) {
+    for (const key of store.keys(prefix)) {
       try {
         store.removeItem(key);
         removed += 1;
@@ -269,12 +398,12 @@ export function purgeLegacyThreadDraftKeys(store: ThreadDraftStorage | null): nu
   return removed;
 }
 
-/** One-time per page load: drop unscoped v1 keys now that v2 is authoritative. */
+/** One-time per page load: drop the retired v1+v2 keys now that v3 is authoritative. */
 let legacyPurgeDone = false;
-export function ensureThreadDraftNamespaceV2(store: ThreadDraftStorage | null): void {
+export function ensureThreadDraftNamespaceV3(store: ThreadDraftStorage | null): void {
   if (legacyPurgeDone) return;
   legacyPurgeDone = true;
-  purgeLegacyThreadDraftKeys(store);
+  purgeAllLegacyThreadDraftKeys(store);
 }
 
 /**

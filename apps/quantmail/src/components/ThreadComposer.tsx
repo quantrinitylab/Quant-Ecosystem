@@ -7,7 +7,7 @@ import { UndoSendContext } from './UndoSendCountdownBar';
 import type { PersonConversation } from '../lib/peopleGrouping';
 import {
   clearThreadDraft,
-  ensureThreadDraftNamespaceV2,
+  ensureThreadDraftNamespaceV3,
   isThreadDraftEmpty,
   loadThreadDraft,
   saveThreadDraft,
@@ -19,7 +19,16 @@ import { draftSaveStateLabel } from './useDraftAutosave';
 
 export interface ThreadComposerProps {
   conversation: PersonConversation;
-  currentUserEmail: string;
+  /**
+   * The backend-verified IMMUTABLE user id (`AuthUser.id` — the
+   * access-token `sub`, the users-table primary key). The thread-reply
+   * draft namespace is keyed by this id (+ the fixed single-tenant scope),
+   * never by the mutable email: an address change keeps the account's
+   * drafts, and a reassigned address cannot inherit them (P0
+   * qm-draft-privacy-isolation, CODEX-REVIEW 6157628718). Empty string =
+   * unknown account = no draft persistence at all (fail closed).
+   */
+  currentUserId: string;
   /**
    * Fired when the send is CONFIRMED — i.e. after the undo window closes and
    * the real compose+send resolved. The host refetches and swaps the
@@ -150,7 +159,7 @@ export async function executeThreadSend(
  * text is preserved, nothing navigates, and no discard handler is ever
  * called — there is no `onDiscard` prop on this component by design.
  */
-export function ThreadComposer({ conversation, currentUserEmail, suggestedReply, onSent, onSendStart, onSendError, onSendUndo }: ThreadComposerProps) {
+export function ThreadComposer({ conversation, currentUserId, suggestedReply, onSent, onSendStart, onSendError, onSendUndo }: ThreadComposerProps) {
   // QM fix qm-threadcomposer-draft-persist: a draft restore on mount. If the
   // user left unsent text for this person (same-device localStorage draft),
   // it comes back instead of an empty box — and survives a full reload, not
@@ -158,13 +167,15 @@ export function ThreadComposer({ conversation, currentUserEmail, suggestedReply,
   // a chip tap is an intentional "use these words" gesture (this also matches
   // the mount-time effect below, which overwrites the box on a fresh tap).
   //
-  // QM fix qm-draft-privacy-isolation (P0, CODEX-REVIEW on PR #1123): drafts
+  // QM fix qm-draft-privacy-isolation (P0, CODEX-REVIEW 6157628718): drafts
   // are namespaced by the authenticated account — `threadDraftAccountKey`
-  // derives the stable account identity from currentUserEmail, and every
-  // read/write goes through it. A different account on this browser gets a
-  // different namespace and can never restore this account's drafts. An
-  // empty account key means no persistence at all (fail closed).
-  const accountKey = threadDraftAccountKey(currentUserEmail);
+  // derives the namespace from the IMMUTABLE backend-verified user id
+  // (currentUserId, never the mutable email) plus the fixed single-tenant
+  // scope, with length-prefixed (unambiguous) tuple encoding. A different
+  // account on this browser gets a different namespace and can never
+  // restore this account's drafts. An empty account key means no
+  // persistence at all (fail closed).
+  const accountKey = threadDraftAccountKey(currentUserId);
   const [restoredDraft] = useState(() =>
     loadThreadDraft(windowThreadDraftStorage(), conversation.personKey, accountKey),
   );
@@ -192,12 +203,13 @@ export function ThreadComposer({ conversation, currentUserEmail, suggestedReply,
   const settledPersonKeyRef = useRef(conversation.personKey);
   const settledAccountKeyRef = useRef(accountKey);
 
-  // qm-draft-privacy-isolation: once per page load, drop the legacy v1
-  // unscoped draft keys (they are not attributable to any account and the
-  // next sign-in on this browser could restore them). Account-scoped v2
-  // keys are left alone — they partition safely.
+  // qm-draft-privacy-isolation: once per page load, drop the retired v1
+  // (unscoped) and v2 (mutable-email-scoped) draft keys — neither is
+  // attributable to a stable account identity, and the next sign-in on
+  // this browser could otherwise restore them. v3 keys (tenant +
+  // immutable-id-scoped) are left alone — they partition safely.
   useEffect(() => {
-    ensureThreadDraftNamespaceV2(windowThreadDraftStorage());
+    ensureThreadDraftNamespaceV3(windowThreadDraftStorage());
   }, []);
 
   // Write-through persistence: every edit lands in the current (account,
