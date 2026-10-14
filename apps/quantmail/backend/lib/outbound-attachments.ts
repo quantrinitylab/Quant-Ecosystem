@@ -179,6 +179,39 @@ async function resolveOne(
 }
 
 /**
+ * The Drive file a composer attachment entry references, when it is a QuantDrive pick.
+ * Internal delivery uses this to find the entries a recipient cannot read as-is: Drive
+ * serves a file to its owner, and the recipient of the mail is not the owner.
+ */
+export function driveAttachmentFileId(entry: unknown): string | undefined {
+  if (!entry || typeof entry !== 'object') return undefined;
+  return driveFileIdOf(entry as ComposerAttachmentEntry);
+}
+
+/**
+ * Read a QuantDrive pick's bytes as its sender — the same owner check, decryption and
+ * integrity check external delivery uses. Throws ATTACHMENT_UNRESOLVABLE when the entry
+ * is not a Drive pick, or the file is gone, not the sender's, empty or undecryptable.
+ */
+export async function readDriveAttachment(
+  entry: unknown,
+  senderUserId: string,
+  db?: OutboundAttachmentDb,
+): Promise<SesAttachment> {
+  const composerEntry = (entry ?? {}) as ComposerAttachmentEntry;
+  const filename =
+    asString(composerEntry.filename) ?? asString(composerEntry.name) ?? 'attachment';
+  const contentType =
+    asString(composerEntry.mimeType) ??
+    asString(composerEntry.type) ??
+    asString(composerEntry.contentType) ??
+    'application/octet-stream';
+  const fileId = driveFileIdOf(composerEntry);
+  if (!fileId) throw attachmentError(filename, 'it is not a QuantDrive file');
+  return resolveDriveAttachment(composerEntry, fileId, filename, contentType, senderUserId, db);
+}
+
+/**
  * Resolve the composer-posted `Email.attachments` JSON into real bytes for
  * external delivery. Returns `[]` for no attachments. Throws a typed
  * `ATTACHMENT_UNRESOLVABLE` error on the first entry that cannot be
