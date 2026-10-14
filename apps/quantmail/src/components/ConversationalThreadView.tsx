@@ -3555,7 +3555,8 @@ export function ConversationalThreadView({
                 }}
                 className="min-h-[44px] rounded-xl bg-rose-500 px-4 text-xs font-bold text-white"
               >
-                Confirm
+                {/* Name the action, not "Confirm" — the button is the decision. */}
+                Move to Trash
               </button>
             </div>
           </div>
