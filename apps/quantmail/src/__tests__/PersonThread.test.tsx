@@ -529,7 +529,14 @@ describe('PersonThread attachments (interactive chips)', () => {
           id: 'm1',
           attachments: [
             // AttachmentService row: bytes readable → Save button is honest.
-            { id: 'att_9f3c2a1b', filename: 'saved.pdf', mimeType: 'application/pdf', size: 100, url: 'https://example.com/saved.pdf' },
+            { id: 'att_9f3c2a1b-4d5e-4f60-8a7b-1c2d3e4f5a6b', filename: 'saved.pdf', mimeType: 'application/pdf', size: 100, url: 'https://example.com/saved.pdf' },
+          ],
+        }),
+        makeAttachmentEmail({
+          id: 'm3',
+          attachments: [
+            // Composer id: shares the att_ prefix, names no stored object → no Save button.
+            { id: 'att_1760000000000_k3j4h5', filename: 'sent.pdf', mimeType: 'application/pdf', size: 100, url: 'data:application/pdf;base64,JVBERi0=' },
           ],
         }),
         makeAttachmentEmail({

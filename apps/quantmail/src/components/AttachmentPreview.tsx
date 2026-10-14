@@ -2,14 +2,24 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Modal } from '@quant/shared-ui';
 import { browserApiRequest } from '../services/browser-api-request';
 import { DriveFilePreview } from './DriveFilePreview';
+import { DocumentEnginePreview } from './drive/DocumentEnginePreview';
+import { docsEngineKindFor, type DocsEngineKind } from '../lib/docs-engine/formats';
+import {
+  attachmentByteSource,
+  loadAttachmentBytes,
+  saveBytesAs,
+  type AttachmentByteSource,
+} from '../lib/mail-attachments';
 
 interface Attachment {
   id: string;
   filename: string;
   mimeType: string;
   size: number;
+  /** Inline `data:` URL (composer-sent mail) or an image URL; absent for metadata-only parts. */
   url?: string;
   /**
    * QM-M39-010: the AttachmentService row id (e.g. "att_<uuid>") when the
@@ -51,6 +61,15 @@ const MAX_ZOOM = 3.0;
 
 const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
 
+const isImageType = (mimeType: string) => mimeType.startsWith('image/');
+
+/** A document attachment open in the on-device engine (PDF, Word, PowerPoint, Excel). */
+interface DocumentPreviewTarget {
+  attachment: Attachment;
+  kind: DocsEngineKind;
+  source: AttachmentByteSource;
+}
+
 /**
  * Inline attachment preview with thumbnails.
  * Gmail shows attachment chips at the bottom of each email.
@@ -68,6 +87,11 @@ export function AttachmentPreview({
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({});
   // QM-M39-010: the saved Drive file currently open in the Drive preview.
   const [previewFile, setPreviewFile] = useState<SavedDriveFile | null>(null);
+  const [documentPreview, setDocumentPreview] = useState<DocumentPreviewTarget | null>(null);
+  // Why an attachment could not be opened or downloaded, keyed by the rendered id.
+  const [openErrors, setOpenErrors] = useState<Record<string, string>>({});
+  // Object URL behind a stored image in the lightbox; revoked when the lightbox closes.
+  const objectUrlRef = useRef<string | null>(null);
   /*
    * Refs (not state) for the in-progress gesture: updated dozens of times per
    * second during a pinch, and we don't want a re-render per touchmove — the
@@ -272,6 +296,85 @@ export function AttachmentPreview({
     });
   }, []);
 
+  const loadDocumentBytes = useCallback(
+    (signal: AbortSignal) => {
+      if (!documentPreview) return Promise.reject(new Error('No attachment selected'));
+      return loadAttachmentBytes(documentPreview.source, signal);
+    },
+    [documentPreview],
+  );
+
+  const reportOpenError = useCallback((id: string, err: unknown, fallback: string) => {
+    setOpenErrors((prev) => ({ ...prev, [id]: err instanceof Error && err.message ? err.message : fallback }));
+  }, []);
+
+  const downloadAttachment = useCallback(
+    async (att: Attachment, source: AttachmentByteSource) => {
+      try {
+        saveBytesAs(await loadAttachmentBytes(source), att.filename, att.mimeType);
+      } catch (err) {
+        reportOpenError(att.id, err, 'Download failed');
+      }
+    },
+    [reportOpenError],
+  );
+
+  const closeImagePreview = useCallback(() => {
+    setPreviewUrl(null);
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    },
+    [],
+  );
+
+  /*
+   * Documents open in the on-device engine, images in the lightbox, anything else downloads.
+   * The lightbox used to receive every attachment's URL, so a PDF or a Word file landed in an
+   * <img> and showed a broken-image icon.
+   */
+  const openAttachment = useCallback(
+    async (att: Attachment) => {
+      setOpenErrors((prev) => {
+        if (!(att.id in prev)) return prev;
+        const next = { ...prev };
+        delete next[att.id];
+        return next;
+      });
+      const source = attachmentByteSource(att);
+      const kind = docsEngineKindFor(att.mimeType, att.filename);
+      if (kind && source) {
+        setDocumentPreview({ attachment: att, kind, source });
+        return;
+      }
+      if (isImageType(att.mimeType)) {
+        if (att.url) {
+          setPreviewUrl(att.url);
+          return;
+        }
+        if (!source) return;
+        try {
+          const bytes = await loadAttachmentBytes(source);
+          const objectUrl = URL.createObjectURL(new Blob([bytes], { type: att.mimeType }));
+          if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+          objectUrlRef.current = objectUrl;
+          setPreviewUrl(objectUrl);
+        } catch (err) {
+          reportOpenError(att.id, err, 'Could not open this image');
+        }
+        return;
+      }
+      if (source) await downloadAttachment(att, source);
+    },
+    [downloadAttachment, reportOpenError],
+  );
+
   if (!attachments || attachments.length === 0) return null;
 
   const isImage = (mimeType: string) => mimeType.startsWith('image/');
@@ -413,13 +516,22 @@ export function AttachmentPreview({
           // metadata-only attachments get no button — a button that could
           // never work would be a fake control.
           const canSaveToDrive = Boolean(att.attachmentId);
+          // Openable when its bytes are reachable (inline data or a stored object), or when it
+          // is an image with a URL the <img> can load. Metadata-only parts open nothing.
+          const canOpen =
+            Boolean(attachmentByteSource(att)) || (isImage(att.mimeType) && Boolean(att.url));
+          const openError = openErrors[att.id];
           return (
             <div key={att.id} className="attachment-preview-cell">
               <button
                 type="button"
                 className="attachment-preview-item"
-                onClick={() => att.url && setPreviewUrl(att.url)}
+                onClick={() => {
+                  if (canOpen) void openAttachment(att);
+                }}
                 title={att.filename}
+                aria-disabled={canOpen ? undefined : true}
+                style={canOpen ? undefined : { cursor: 'default' }}
               >
                 <div className="attachment-preview-thumb">
                   {isImage(att.mimeType) && att.url ? (
@@ -432,9 +544,17 @@ export function AttachmentPreview({
                 </div>
                 <div className="attachment-preview-info">
                   <span className="attachment-preview-name">{att.filename}</span>
-                  <span className="attachment-preview-size">{formatSize(att.size)}</span>
+                  <span className="attachment-preview-size">
+                    {formatSize(att.size)}
+                    {canOpen ? null : ' · unavailable'}
+                  </span>
                 </div>
               </button>
+              {openError && (
+                <p className="attachment-save-error" role="alert">
+                  {openError}
+                </p>
+              )}
               {canSaveToDrive && saveState?.status !== 'saved' && (
                 <div className="attachment-save-row">
                   <button
@@ -492,7 +612,7 @@ export function AttachmentPreview({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setPreviewUrl(null)}
+            onClick={closeImagePreview}
           >
             <motion.div
               className="attachment-lightbox-content"
@@ -526,7 +646,7 @@ export function AttachmentPreview({
               <button
                 type="button"
                 className="attachment-lightbox-close"
-                onClick={() => setPreviewUrl(null)}
+                onClick={closeImagePreview}
                 aria-label="Close preview"
               >
                 ×
@@ -585,6 +705,35 @@ export function AttachmentPreview({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Documents preview on this device, in the same engine and dialog as Drive: wide on a
+          desktop, the whole screen on a phone. */}
+      {documentPreview && (
+        <Modal
+          isOpen
+          onClose={() => setDocumentPreview(null)}
+          title={documentPreview.attachment.filename}
+          size="full"
+          fullScreenOnMobile
+          bodyClassName="px-3 py-3 sm:px-6 sm:py-4"
+        >
+          <div className="rounded-xl bg-[var(--quant-surface)] p-2 shadow-[inset_0_0_0_1px_var(--quant-surface-elevated)] sm:p-4">
+            <DocumentEnginePreview
+              key={documentPreview.attachment.id}
+              kind={documentPreview.kind}
+              name={documentPreview.attachment.filename}
+              size={documentPreview.attachment.size > 0 ? documentPreview.attachment.size : null}
+              loadBytes={loadDocumentBytes}
+              onDownload={() =>
+                void downloadAttachment(documentPreview.attachment, documentPreview.source)
+              }
+            />
+            <p className="mt-2 text-left text-xs text-[var(--quant-muted-foreground)]">
+              {documentPreview.attachment.mimeType} · {formatSize(documentPreview.attachment.size)}
+            </p>
+          </div>
+        </Modal>
+      )}
 
       {/* QM-M39-010: preview the saved file through the Drive preview system.
           Uses the existing DriveFilePreview surface on main (QM-M39-004's
