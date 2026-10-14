@@ -938,6 +938,45 @@ export interface SendMessageRequest {
   metadata?: Record<string, unknown>;
 }
 
+/** QC-F-321: a first-contact message request, exactly as the backend stores it. */
+export interface MessageRequest {
+  id: string;
+  senderId: string;
+  targetId: string;
+  firstMessage: string;
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED';
+  conversationId: string | null;
+  createdAt: string;
+  respondedAt: string | null;
+}
+
+/** The other party's public identity on a request row (never email/phone). */
+export interface MessageRequestParty {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+/** QC-F-321: inbox row (a pending request addressed to me). */
+export interface MessageRequestInboxView {
+  id: string;
+  sender: MessageRequestParty;
+  firstMessage: string;
+  createdAt: string;
+}
+
+/** QC-F-321: sent row (a request I sent, with its true state). */
+export interface MessageRequestSentView {
+  id: string;
+  target: MessageRequestParty;
+  firstMessage: string;
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED';
+  conversationId: string | null;
+  createdAt: string;
+  respondedAt: string | null;
+}
+
 export interface CreateStoryRequest {
   type: StoryType;
   mediaUrl: string;
