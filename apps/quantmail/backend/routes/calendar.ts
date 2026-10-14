@@ -447,7 +447,7 @@ function toEventDto(event: EventRow | CalendarEvent) {
       if (Array.isArray(meta.subtasks))
         subtasks = meta.subtasks
           .filter((s: unknown): s is Record<string, unknown> => typeof s === 'object' && s !== null)
-          .map((s) => ({ text: String(s.text ?? ''), done: Boolean(s.done) }));
+          .map((s: Record<string, unknown>) => ({ text: String(s.text ?? ''), done: Boolean(s.done) }));
       if (typeof meta.birthYear === 'string' && meta.birthYear.trim())
         birthYear = meta.birthYear.trim();
       if (
