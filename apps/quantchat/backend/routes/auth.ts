@@ -21,6 +21,7 @@ import { passwordService } from '@quant/auth';
 import type { OtpService } from '../lib/otp-service';
 import type { SessionTokenIssuer } from '../lib/session-tokens';
 import { RefreshTokenStore, type RefreshSessionMeta } from '../lib/refresh-token-store';
+import { validateMediaUrl } from '../lib/media-url';
 import { fetchWithTimeout, getTimeoutMs } from '@quant/server-core';
 
 const loginSchema = z.object({
@@ -197,6 +198,26 @@ export default async function authRoutes(fastify: FastifyInstance) {
       });
     }
     const { displayName, bio, avatarUrl } = parsed.data;
+    // QC-F-330: User.avatarUrl renders in other users' browsers across
+    // the network (chat list, search, stories, map) — a bare `.url()`
+    // check let any external host become a tracking avatar. Only
+    // own-storage URLs are accepted here; `data:` is NOT (no shipped
+    // caller sends one — generated avatars go through /avatar/select).
+    // Runs after the 401 gate above so the URL policy is never an oracle
+    // for unauthenticated callers. Envelope matches this handler's style.
+    if (
+      avatarUrl !== undefined &&
+      !validateMediaUrl(avatarUrl, { ownerId: authUserId, allowData: false }).ok
+    ) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: 'MEDIA_URL_NOT_ALLOWED',
+          message: 'Media URL must be an upload issued for your account or an inline data URL',
+          statusCode: 400,
+        },
+      });
+    }
     if (displayName === undefined && bio === undefined && avatarUrl === undefined) {
       return reply.status(400).send({
         success: false,

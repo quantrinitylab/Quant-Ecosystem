@@ -12,6 +12,7 @@
 
 import type { PrismaClient } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
+import { assertMediaUrlAllowed } from '../lib/media-url';
 import type { SpotlightSourceReel } from './spotlight.service';
 
 /** Reel shape returned to clients (matches the established feed contract). */
@@ -222,6 +223,15 @@ export class ReelService {
 
   /** Create a reel. The creator is the authenticated user. */
   async createReel(input: CreateReelInput): Promise<ReelFeedItem> {
+    // QC-F-330: a reel's videoUrl/thumbnailUrl are loaded verbatim by
+    // every feed/discover viewer's player — they must be own-storage.
+    // No shipped client sends `data:` video, so data is rejected here.
+    // The derived thumbnail (`${videoUrl}#t=0.1`) comes from the already
+    // validated videoUrl and needs no separate check.
+    assertMediaUrlAllowed(input.videoUrl, { ownerId: input.creatorId, allowData: false });
+    if (input.thumbnailUrl) {
+      assertMediaUrlAllowed(input.thumbnailUrl, { ownerId: input.creatorId, allowData: false });
+    }
     const row = (await this.prisma.reel.create({
       data: {
         creatorId: input.creatorId,

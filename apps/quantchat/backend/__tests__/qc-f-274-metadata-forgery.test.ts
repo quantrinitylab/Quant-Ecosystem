@@ -134,7 +134,7 @@ describe('QC-F-274 send path strips forged server-owned metadata', () => {
       senderId: 'user-1',
       content: 'ordinary photo',
       type: 'image',
-      mediaUrl: 'https://cdn.example.com/photo.jpg',
+      mediaUrl: 'https://quantchat-media.s3.amazonaws.com/user-1/media_fixture/photo.jpg',
       metadata: { viewOnce: true, isSnap: true, duration: 5, disappearMode: 'after_view' },
     });
 
@@ -178,7 +178,7 @@ describe('QC-F-274 send path strips forged server-owned metadata', () => {
       senderId: 'user-1',
       content: 'photo',
       type: 'image',
-      mediaUrl: 'https://cdn.example.com/photo.jpg',
+      mediaUrl: 'https://quantchat-media.s3.amazonaws.com/user-1/media_fixture/photo.jpg',
       metadata: { caption: 'My photo', clientTag: 'holiday', width: 640 },
     });
 

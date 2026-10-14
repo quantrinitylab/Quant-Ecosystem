@@ -2,6 +2,7 @@ import type { PrismaClient, Message } from '@prisma/client';
 import { Prisma, MessageType } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import { StorageClient, resolveStorageConfigFromEnv } from '@quant/storage';
+import { assertMediaUrlAllowed } from '../lib/media-url';
 import { PrismaOutboxService, type OutboxService } from './outbox.service';
 import { StreakService } from './streak.service';
 
@@ -340,6 +341,20 @@ export class MessageService {
           'MEDIA_URL_NOT_OWNED',
         );
       }
+    }
+
+    // QC-F-330: NON-snap media is rendered from the stored URL by other
+    // members' browsers (thread/discover), so it must be own-storage or
+    // inline data — never an arbitrary host (viewer IP/open-time leak +
+    // post-delivery content swap). Snap sends are NOT gated here: the
+    // QC-F-329 branch above owns them (a snap's stored URL is never
+    // browser-loaded; consumeSnap mediates it). Every sendMessage caller
+    // is bound, including the voice-notes sink (type 'audio').
+    if (!isSnapSend && mediaUrl) {
+      assertMediaUrlAllowed(mediaUrl, {
+        ownerId: senderId,
+        allowData: ['image/', 'video/', 'audio/'],
+      });
     }
 
     // QC-F-019: persist the view-once intent the client actually sent.
