@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ModelRouter } from '../core/model-router';
+import { UnknownModelError } from '../core/errors';
 import { CircuitBreakerRegistry } from '../core/circuit-breaker';
 import { RoutingTable } from '../core/routing-table';
 import { ProviderHealthMonitor } from '../core/provider-health';
@@ -58,7 +59,7 @@ describe('ModelRouter', () => {
       expect(model.capabilities).toContain('text_generation');
     });
 
-    it('falls back to default when model not found', () => {
+    it('fails closed with UnknownModelError when the requested model is unknown (CODEX gate 3)', () => {
       const request: AIInferenceRequest = {
         prompt: 'test',
         model: 'nonexistent-model',
@@ -66,9 +67,12 @@ describe('ModelRouter', () => {
         app: 'quantchat',
         feature: 'test',
       };
-      const model = router.selectModel(request);
-      expect(model).toBeDefined();
-      expect(model.id).toBeDefined();
+      // Silent substitution is forbidden: an unknown request.model must
+      // throw instead of quietly scoring a different model.
+      expect(() => router.selectModel(request)).toThrow(UnknownModelError);
+      expect(() => router.selectModel(request)).toThrow(
+        expect.objectContaining({ code: 'UNKNOWN_MODEL' }),
+      );
     });
   });
 
@@ -122,7 +126,7 @@ describe('ModelRouter', () => {
     it('returns default fallback chain for text generation', () => {
       const chain = router.getFallbackChain('text_generation');
       expect(chain).toEqual([
-        '@cf/meta/llama-3.1-70b-instruct',
+        '@cf/meta/llama-3.2-1b-instruct',
         '@cf/meta/llama-3.1-8b-instruct-fast',
         'gpt-4o',
         'gpt-4o-mini',
@@ -134,7 +138,7 @@ describe('ModelRouter', () => {
       const chain = router.getFallbackChain('code_generation');
       expect(chain).toEqual([
         '@cf/qwen/qwen2.5-coder-32b-instruct',
-        '@cf/meta/llama-3.1-70b-instruct',
+        '@cf/meta/llama-3.2-1b-instruct',
         'gpt-4o',
         'claude-sonnet-4',
         'gpt-4o-mini',

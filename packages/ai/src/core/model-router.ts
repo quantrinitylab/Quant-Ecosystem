@@ -13,6 +13,7 @@ import type {
 import type { CircuitBreakerRegistry } from './circuit-breaker';
 import { RoutingTable } from './routing-table';
 import type { ProviderHealthMonitor } from './provider-health';
+import { UnknownModelError } from './errors';
 
 /**
  * Model Router
@@ -54,13 +55,22 @@ export class ModelRouter {
   }
 
   /**
-   * Select the best model for a given request
+   * Select the best model for a given request.
+   *
+   * Fail-closed (CODEX-REVIEW gate, PR #1119): an explicitly requested model
+   * that is not registered (or whose provider is not configured), and an
+   * `AI_DEFAULT_MODEL` that is not registered/available, THROW instead of
+   * silently scoring a different model. This is how the deprecated
+   * `@cf/meta/llama-3.1-70b-instruct` silently won production traffic; it
+   * must never happen again.
    */
   selectModel(request: AIInferenceRequest): AIModelConfig {
-    // If specific model requested, use it
+    // If a specific model was requested, use it — fail closed when it is
+    // unknown or its provider is not configured.
     if (request.model) {
       const model = this.models.get(request.model);
       if (model && this.isModelAvailable(model)) return model;
+      throw new UnknownModelError(request.model, 'request.model');
     }
 
     // Operator override: when no explicit model is requested, prefer the
@@ -68,13 +78,14 @@ export class ModelRouter {
     // provider is configured. This gives single-provider deployments (e.g.
     // Bedrock-only) a deterministic model instead of relying on scoring, which
     // could otherwise pick a higher-"quality" model that is gated (e.g. an
-    // Anthropic model needing the AWS use-case form).
-    if (!request.model) {
-      const defaultId = process.env['AI_DEFAULT_MODEL'];
-      if (defaultId) {
-        const preferred = this.models.get(defaultId);
-        if (preferred && this.isModelAvailable(preferred)) return preferred;
-      }
+    // Anthropic model needing the AWS use-case form). A configured-but-
+    // unknown (or unavailable) default fails closed instead of falling
+    // through to scoring.
+    const defaultId = process.env['AI_DEFAULT_MODEL'];
+    if (defaultId) {
+      const preferred = this.models.get(defaultId);
+      if (preferred && this.isModelAvailable(preferred)) return preferred;
+      throw new UnknownModelError(defaultId, 'AI_DEFAULT_MODEL');
     }
 
     // Determine required capabilities from the request
@@ -184,6 +195,14 @@ export class ModelRouter {
   registerModel(config: AIModelConfig): void {
     this.models.set(config.id, config);
     this.modelLoad.set(config.id, 0);
+  }
+
+  /**
+   * Look up a registered model by id (used by the deployed-environment
+   * adapter for fail-closed startup validation).
+   */
+  getModel(id: string): AIModelConfig | undefined {
+    return this.models.get(id);
   }
 
   /**
@@ -379,9 +398,15 @@ export class ModelRouter {
         qualityScore: 0.95,
       },
       // Cloudflare Workers AI models (serverless edge inference)
+      // Production pin (infra/helm/quant-platform/values-production-v2.yaml):
+      // `@cf/meta/llama-3.2-1b-instruct`. Registered so the deployed
+      // `AI_DEFAULT_MODEL` / `CLOUDFLARE_AI_MODEL` resolves exactly instead of
+      // silently falling back to a deprecated model (CODEX-REVIEW gate, PR
+      // #1119). `@cf/meta/llama-3.1-70b-instruct` was removed: Cloudflare
+      // deprecated it on 2026-05-30.
       {
-        id: '@cf/meta/llama-3.1-70b-instruct',
-        name: 'Llama 3.1 70B Instruct (Cloudflare Workers AI)',
+        id: '@cf/meta/llama-3.2-1b-instruct',
+        name: 'Llama 3.2 1B Instruct (Cloudflare Workers AI)',
         provider: 'cloudflare',
         capabilities: [
           'text_generation',
@@ -390,16 +415,13 @@ export class ModelRouter {
           'translation',
           'sentiment_analysis',
           'content_moderation',
-          'recommendation',
-          'device_control',
-          'long_context',
         ],
         maxContextLength: 128000,
         maxOutputTokens: 4096,
-        costPerInputToken: 0.00000005,
-        costPerOutputToken: 0.0000002,
-        latencyMs: 180,
-        qualityScore: 0.94,
+        costPerInputToken: 0.00000001,
+        costPerOutputToken: 0.00000004,
+        latencyMs: 100,
+        qualityScore: 0.82,
       },
       {
         id: '@cf/meta/llama-3.1-8b-instruct-fast',
@@ -421,6 +443,28 @@ export class ModelRouter {
         costPerOutputToken: 0.00000008,
         latencyMs: 120,
         qualityScore: 0.88,
+      },
+      // Staging pin (.github/workflows/setup-k8s.yml AI_MODEL):
+      // `@cf/meta/llama-3.1-8b-instruct`. Registered so the
+      // AI_PROVIDER=custom adapter resolves it exactly (fail-closed).
+      {
+        id: '@cf/meta/llama-3.1-8b-instruct',
+        name: 'Llama 3.1 8B Instruct (Cloudflare Workers AI)',
+        provider: 'cloudflare',
+        capabilities: [
+          'text_generation',
+          'text_summarization',
+          'code_generation',
+          'translation',
+          'sentiment_analysis',
+          'content_moderation',
+        ],
+        maxContextLength: 128000,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0.00000002,
+        costPerOutputToken: 0.00000008,
+        latencyMs: 120,
+        qualityScore: 0.87,
       },
       {
         id: '@cf/qwen/qwen2.5-coder-32b-instruct',
@@ -908,7 +952,7 @@ export class ModelRouter {
       {
         capability: 'text_generation',
         models: [
-          '@cf/meta/llama-3.1-70b-instruct',
+          '@cf/meta/llama-3.2-1b-instruct',
           '@cf/meta/llama-3.1-8b-instruct-fast',
           'gpt-4o',
           'gpt-4o-mini',
@@ -919,7 +963,7 @@ export class ModelRouter {
         capability: 'code_generation',
         models: [
           '@cf/qwen/qwen2.5-coder-32b-instruct',
-          '@cf/meta/llama-3.1-70b-instruct',
+          '@cf/meta/llama-3.2-1b-instruct',
           'gpt-4o',
           'claude-sonnet-4',
           'gpt-4o-mini',
@@ -928,7 +972,7 @@ export class ModelRouter {
       {
         capability: 'text_summarization',
         models: [
-          '@cf/meta/llama-3.1-70b-instruct',
+          '@cf/meta/llama-3.2-1b-instruct',
           '@cf/meta/llama-3.1-8b-instruct-fast',
           'gpt-4o-mini',
           'claude-haiku-4',

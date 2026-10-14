@@ -4,6 +4,37 @@
 
 import type { SemanticCacheEntry } from '../types';
 
+/**
+ * Cache scope — the isolation dimensions for a cache entry.
+ *
+ * CODEX-REVIEW gate (PR #1119): the semantic cache is process-wide and was
+ * keyed on the prompt alone, so two users submitting the same (or
+ * >=0.92-similar) prompt could receive each other's cached results. Entries
+ * are now scoped: a lookup only matches entries with an identical scope, so
+ * cached output can never cross user/app/feature/model boundaries.
+ */
+export interface CacheScope {
+  /** Owning user/tenant — the primary isolation dimension. */
+  userId: string;
+  /** Quant app that issued the request. */
+  app?: string;
+  /** Feature surface that issued the request. */
+  feature?: string;
+  /** Model that produced the cached response. */
+  model?: string;
+}
+
+/** Canonical string key for a scope (stable field order). */
+function scopeKey(scope: CacheScope | undefined): string {
+  if (!scope) return '';
+  return JSON.stringify({
+    userId: scope.userId,
+    app: scope.app ?? '',
+    feature: scope.feature ?? '',
+    model: scope.model ?? '',
+  });
+}
+
 /** Default TTL for cache entries: 5 minutes */
 const DEFAULT_TTL_MS = 300_000;
 
@@ -26,17 +57,27 @@ export class SemanticCache {
   }
 
   /**
-   * Get a cached response for a semantically similar prompt
+   * Get a cached response for a semantically similar prompt.
+   *
+   * Only entries with a scope identical to the query scope are considered:
+   * an unscoped lookup never matches a scoped entry and vice versa, so one
+   * user's cached result can never be served to another user.
    */
-  get(prompt: string, threshold: number = DEFAULT_THRESHOLD): string | null {
+  get(
+    prompt: string,
+    threshold: number = DEFAULT_THRESHOLD,
+    scope?: CacheScope,
+  ): string | null {
     this.evictExpired();
 
     const queryWords = this.extractWordSet(prompt);
+    const queryKey = scopeKey(scope);
 
     let bestMatch: SemanticCacheEntry | null = null;
     let bestSimilarity = -1;
 
     for (const entry of this.entries) {
+      if (scopeKey(entry.scope) !== queryKey) continue;
       const entryWords = this.extractWordSet(entry.prompt);
       const similarity = this.jaccardSimilarity(queryWords, entryWords);
       if (similarity >= threshold && similarity > bestSimilarity) {
@@ -49,9 +90,12 @@ export class SemanticCache {
   }
 
   /**
-   * Store a prompt-response pair in the cache
+   * Store a prompt-response pair in the cache.
+   *
+   * Pass a scope to isolate the entry to one user/app/feature/model; entries
+   * written without a scope are only ever served to unscoped lookups.
    */
-  set(prompt: string, response: string, ttl?: number): void {
+  set(prompt: string, response: string, ttl?: number, scope?: CacheScope): void {
     const embedding = this.computeEmbedding(prompt);
     const entry: SemanticCacheEntry = {
       prompt,
@@ -59,6 +103,7 @@ export class SemanticCache {
       embedding,
       createdAt: Date.now(),
       ttl: ttl ?? this.defaultTtl,
+      scope,
     };
     this.entries.push(entry);
   }

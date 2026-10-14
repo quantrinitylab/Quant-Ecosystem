@@ -28,8 +28,10 @@ import { ModelRouter } from './model-router';
 import { CircuitBreakerRegistry } from './circuit-breaker';
 import { retryWithBackoff } from './retry';
 import { SemanticCache } from './semantic-cache';
+import type { CacheScope } from './semantic-cache';
 import { SafetyPipeline } from './safety';
 import { CostTracker } from './cost-tracker';
+import { UnknownModelError } from './errors';
 import {
   compatChatCompletion,
   compatChatCompletionStream,
@@ -69,6 +71,20 @@ interface RoundResult {
   completionTokens: number;
   pendingConfirmation?: AIInferenceResponse['pendingConfirmation'];
   truncated?: boolean;
+}
+
+/**
+ * Read a required env var for the deployed-environment adapter. Throws at
+ * engine startup (fail-closed) instead of building a broken endpoint URL.
+ */
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `AI_PROVIDER=${(process.env['AI_PROVIDER'] ?? '').toLowerCase()} requires ${name} to be set.`,
+    );
+  }
+  return value;
 }
 
 /** Default engine configuration */
@@ -116,6 +132,14 @@ export class AIEngine {
    * by `ai@5` (see openai-compatible-transport.ts).
    */
   private cloudflareEndpoint: OpenAICompatibleEndpoint | null = null;
+  /**
+   * Deployed-environment model pin (CODEX-REVIEW gate, PR #1119):
+   * AI_PROVIDER=custom → AI_MODEL (staging); AI_PROVIDER=cloudflare →
+   * CLOUDFLARE_AI_MODEL ?? AI_DEFAULT_MODEL (production). When set and the
+   * caller did not name a model, the pin wins over router scoring so the
+   * deployed contract is honored exactly.
+   */
+  private deployedModelPin: string | null = null;
   private openaiProvider: ReturnType<typeof createOpenAI> | null = null;
   private anthropicProvider: ReturnType<typeof createAnthropic> | null = null;
   private googleProvider: ReturnType<typeof createGoogleGenerativeAI> | null = null;
@@ -145,21 +169,69 @@ export class AIEngine {
   }
 
   /**
-   * Initialize AI SDK providers from environment variables
+   * Initialize AI SDK providers from environment variables.
+   *
+   * Deployed-environment adapter (CODEX-REVIEW gate, PR #1119): exactly one
+   * explicit, fail-closed adapter per environment. `AI_PROVIDER=custom`
+   * (staging contract: .github/workflows/setup-k8s.yml) honors `AI_BASE_URL`
+   * + `AI_MODEL`; `AI_PROVIDER=cloudflare` (production contract:
+   * infra/helm/quant-platform/values-production-v2.yaml) honors
+   * `CLOUDFLARE_AI_BASE_URL` + `CLOUDFLARE_ACCOUNT_ID` (+ optional
+   * `CLOUDFLARE_AI_MODEL` / `AI_DEFAULT_MODEL` pin). A configured-but-
+   * unregistered model throws at startup instead of silently routing to a
+   * different (e.g. deprecated) model.
    */
   private initializeProviders(): void {
-    // Cloudflare Workers AI: ultra-fast edge inference powered by Cloudflare
-    const cloudflareToken =
-      process.env['CLOUDFLARE_API_TOKEN'] ?? process.env['CLOUDFLARE_API_KEY'];
-    const cloudflareAccountId =
-      process.env['CLOUDFLARE_ACCOUNT_ID'] ?? '9af698848a5edd00e756c3a2c908ec8d';
-    if (cloudflareToken) {
-      const cloudflareBaseURL = `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/ai/v1`;
+    const aiProvider = (process.env['AI_PROVIDER'] ?? '').toLowerCase();
+    if (aiProvider === 'custom') {
+      // Staging: OpenAI-compatible worker at AI_BASE_URL, no account-scoped URL.
+      const baseURL = requiredEnv('AI_BASE_URL');
+      const pinnedModel = requiredEnv('AI_MODEL');
+      this.assertModelRegistered(pinnedModel, 'AI_MODEL');
+      this.deployedModelPin = pinnedModel;
+      // Optional bearer key, mirroring the backend's ai-provider.service.ts
+      // convention (header omitted entirely when no key is configured).
+      this.cloudflareEndpoint = { baseURL, apiKey: process.env['AI_API_KEY'] };
+    } else if (aiProvider === 'cloudflare') {
+      // Production: direct Cloudflare Workers AI account endpoint.
+      const baseRoot = (
+        process.env['CLOUDFLARE_AI_BASE_URL'] ?? 'https://api.cloudflare.com/client/v4/accounts'
+      ).replace(/\/+$/, '');
+      const cloudflareAccountId = requiredEnv('CLOUDFLARE_ACCOUNT_ID');
+      const cloudflareToken =
+        process.env['CLOUDFLARE_API_TOKEN'] ?? process.env['CLOUDFLARE_API_KEY'];
+      if (!cloudflareToken) {
+        throw new Error(
+          'AI_PROVIDER=cloudflare requires CLOUDFLARE_API_TOKEN (or CLOUDFLARE_API_KEY) to be set.',
+        );
+      }
+      const pinnedModel =
+        process.env['CLOUDFLARE_AI_MODEL'] ?? process.env['AI_DEFAULT_MODEL'];
+      if (pinnedModel) {
+        this.assertModelRegistered(pinnedModel, 'CLOUDFLARE_AI_MODEL/AI_DEFAULT_MODEL');
+        this.deployedModelPin = pinnedModel;
+      }
+      const cloudflareBaseURL = `${baseRoot}/${cloudflareAccountId}/ai/v1`;
       this.cloudflareProvider = createOpenAI({
         apiKey: cloudflareToken,
         baseURL: cloudflareBaseURL,
       });
       this.cloudflareEndpoint = { baseURL: cloudflareBaseURL, apiKey: cloudflareToken };
+    } else {
+      // Legacy: Cloudflare Workers AI via a Cloudflare API token, ultra-fast
+      // edge inference. (Unchanged behavior when AI_PROVIDER is unset.)
+      const cloudflareToken =
+        process.env['CLOUDFLARE_API_TOKEN'] ?? process.env['CLOUDFLARE_API_KEY'];
+      const cloudflareAccountId =
+        process.env['CLOUDFLARE_ACCOUNT_ID'] ?? '9af698848a5edd00e756c3a2c908ec8d';
+      if (cloudflareToken) {
+        const cloudflareBaseURL = `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/ai/v1`;
+        this.cloudflareProvider = createOpenAI({
+          apiKey: cloudflareToken,
+          baseURL: cloudflareBaseURL,
+        });
+        this.cloudflareEndpoint = { baseURL: cloudflareBaseURL, apiKey: cloudflareToken };
+      }
     }
 
     // Meta AI: primary provider for the ecosystem (Muse Spark models,
@@ -219,7 +291,7 @@ export class AIEngine {
     // Tell the router which providers are actually configured so it never
     // selects a model whose credentials are missing.
     const configured = new Set<AIProvider>();
-    if (this.cloudflareProvider) configured.add('cloudflare');
+    if (this.cloudflareProvider || this.cloudflareEndpoint) configured.add('cloudflare');
     if (this.openaiProvider) configured.add('openai');
     if (this.anthropicProvider) configured.add('anthropic');
     if (this.googleProvider) configured.add('google');
@@ -227,6 +299,18 @@ export class AIEngine {
     if (this.metaProvider) configured.add('meta');
     if (this.bedrockClient) configured.add('bedrock');
     this.modelRouter.setAvailableProviders(configured);
+  }
+
+  /**
+   * Fail-closed startup validation for the deployed-environment adapter: the
+   * configured model pin must be registered in the model router. Throws
+   * {@link UnknownModelError} instead of letting scoring silently substitute
+   * a different (possibly deprecated) model.
+   */
+  private assertModelRegistered(modelId: string, source: string): void {
+    if (!this.modelRouter.getModel(modelId)) {
+      throw new UnknownModelError(modelId, source);
+    }
   }
 
   /**
@@ -671,14 +755,36 @@ export class AIEngine {
     const safetyResult = this.safetyPipeline.processInput(request.prompt);
     const safePrompt = safetyResult.text;
 
-    // Check semantic cache
+    // Deployed-environment model contract: when the environment pins a model
+    // (AI_PROVIDER=custom → AI_MODEL; AI_PROVIDER=cloudflare →
+    // CLOUDFLARE_AI_MODEL ?? AI_DEFAULT_MODEL), the pin wins over scoring
+    // unless the caller named a model explicitly.
+    const effectiveRequest =
+      this.deployedModelPin && !request.model
+        ? { ...request, model: this.deployedModelPin }
+        : request;
+
+    // Route to the model FIRST. Fail-closed: selectModel throws on an
+    // unknown/unavailable configured or requested model instead of silently
+    // substituting a different (possibly deprecated) model.
+    const model = this.modelRouter.selectModel(effectiveRequest);
+
+    // Check semantic cache. The scope (user + app + feature + model) is the
+    // CODEX-REVIEW isolation gate: one user's cached result can never serve
+    // another user's request, even for byte-identical prompts.
+    const cacheScope: CacheScope = {
+      userId: effectiveRequest.userId,
+      app: effectiveRequest.app,
+      feature: effectiveRequest.feature,
+      model: model.id,
+    };
     if (this.config.enableCaching && !request.stream) {
-      const cached = this.semanticCache.get(safePrompt);
+      const cached = this.semanticCache.get(safePrompt, undefined, cacheScope);
       if (cached) {
         return {
           id: this.generateRequestId(),
           content: cached,
-          model: request.model || this.config.defaultModel,
+          model: model.id,
           finishReason: 'stop',
           usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0 },
           latencyMs: 0,
@@ -686,9 +792,6 @@ export class AIEngine {
         };
       }
     }
-
-    // Route to appropriate model
-    const model = this.modelRouter.selectModel(request);
 
     // Build context-enriched prompt (via memory facade; legacy mode = unchanged).
     // Stateless requests (one-shot analyses) never read conversation memory.
@@ -770,9 +873,10 @@ export class AIEngine {
       const outputSafety = this.safetyPipeline.processOutput(content);
 
       // Cache the response (skip caching when tool calls are involved,
-      // since the response depends on tool execution results)
+      // since the response depends on tool execution results). Writes carry
+      // the same (user, app, feature, model) scope as reads.
       if (this.config.enableCaching && toolCalls.length === 0 && !runToolLoop) {
-        this.semanticCache.set(safePrompt, outputSafety.text);
+        this.semanticCache.set(safePrompt, outputSafety.text, undefined, cacheScope);
       }
 
       // Update conversation context (via memory facade; legacy mode = unchanged)
@@ -813,7 +917,13 @@ export class AIEngine {
     const safetyResult = this.safetyPipeline.processInput(request.prompt);
     const safePrompt = safetyResult.text;
 
-    const model = this.modelRouter.selectModel(request);
+    // Deployed-environment model contract (see infer()): the environment
+    // pin wins over scoring unless the caller named a model explicitly.
+    const effectiveRequest =
+      this.deployedModelPin && !request.model
+        ? { ...request, model: this.deployedModelPin }
+        : request;
+    const model = this.modelRouter.selectModel(effectiveRequest);
     const enrichedPrompt = request.stateless
       ? safePrompt
       : await this.memory.enrich(request.userId, safePrompt, request.context || []);

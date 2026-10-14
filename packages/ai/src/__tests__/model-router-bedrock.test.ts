@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ModelRouter } from '../core/model-router';
+import { UnknownModelError } from '../core/errors';
 import type { AIInferenceRequest } from '../types';
 
 /**
@@ -36,11 +37,11 @@ describe('ModelRouter — Bedrock provider gating', () => {
     expect(model.capabilities).toContain('text_generation');
   });
 
-  it('never selects an OpenAI model when only Bedrock is available', () => {
+  it('fails closed when a requested model\u2019s provider is not configured (CODEX gate 3)', () => {
     router.setAvailableProviders(new Set(['bedrock']));
-    // Even if a specific unavailable model is requested, it must not be returned.
-    const model = router.selectModel(req({ model: 'gpt-4o' }));
-    expect(model.provider).toBe('bedrock');
+    // A registered model whose provider is not configured must throw, not
+    // silently substitute another provider's model.
+    expect(() => router.selectModel(req({ model: 'gpt-4o' }))).toThrow(UnknownModelError);
   });
 
   it('honours a specific available Bedrock model when requested', () => {

@@ -369,6 +369,12 @@ export interface SemanticCacheEntry {
   embedding: number[];
   createdAt: number;
   ttl: number;
+  /**
+   * Isolation scope (CODEX-REVIEW gate, PR #1119). A lookup only matches
+   * entries with an identical scope; entries written without a scope are
+   * only served to unscoped lookups.
+   */
+  scope?: import('./core/semantic-cache').CacheScope;
 }
 
 /** Safety pipeline result */
