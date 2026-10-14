@@ -7,6 +7,11 @@ import { spring } from '@quant/brand';
 import { AppShell, TopBar, BottomNav, ChatList, useAuth } from '@quant/shared-ui';
 import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
 import { useConversations } from '../hooks/useConversations';
+import { useMessageRequests } from '../hooks/useMessageRequests';
+import MessageRequestsSection from '../components/MessageRequestsSection';
+import { apiClient } from '../services/api-client';
+import { apiFetchRaw } from '@quant/api-client';
+import { getAuthHeaders } from '../lib/auth';
 import { usePresence, type PresenceStatus } from '../hooks/usePresence';
 import { useChatSocket } from '../hooks/useChatSocket';
 import { navItems, routes } from '../lib/navigation';
@@ -212,6 +217,79 @@ export default function ChatListPage() {
   // OTHER participant's real name (declared here, not in UserIndicator).
   const { user } = useAuth();
   const { conversations, isLoading, error, refetch } = useConversations();
+  // QC-F-321: pending first-contact requests. Rendered in BOTH list
+  // branches below — a brand-new user has an empty conversation list,
+  // which is exactly when an incoming request matters most.
+  const {
+    requests: messageRequests,
+    isLoading: messageRequestsLoading,
+    error: messageRequestsError,
+    refetch: refetchMessageRequests,
+  } = useMessageRequests();
+  const [acceptingRequestId, setAcceptingRequestId] = useState<string | null>(null);
+  const [decliningRequestId, setDecliningRequestId] = useState<string | null>(null);
+
+  const handleAcceptRequest = useCallback(
+    async (id: string) => {
+      setAcceptingRequestId(id);
+      try {
+        const res = await apiClient.acceptMessageRequest(id);
+        if (res.success && res.data?.conversationId) {
+          await Promise.all([refetchMessageRequests(), refetch()]);
+          router.push(`/chat/${res.data.conversationId}`);
+          return;
+        }
+        void refetchMessageRequests();
+      } catch {
+        void refetchMessageRequests();
+      } finally {
+        setAcceptingRequestId(null);
+      }
+    },
+    [refetch, refetchMessageRequests, router],
+  );
+
+  const handleDeclineRequest = useCallback(
+    async (id: string) => {
+      setDecliningRequestId(id);
+      try {
+        await apiClient.declineMessageRequest(id);
+      } finally {
+        setDecliningRequestId(null);
+        void refetchMessageRequests();
+      }
+    },
+    [refetchMessageRequests],
+  );
+
+  // Block goes through QC-F-317's settings writer (POST
+  // /api/settings/blocked/:userId). It THROWS on failure so the section
+  // can show the error and NOT decline — a failed block must never look
+  // like a successful one.
+  const handleBlockRequestSender = useCallback(async (senderId: string) => {
+    const response = await apiFetchRaw(
+      `/api/settings/blocked/${encodeURIComponent(senderId)}`,
+      { method: 'POST', headers: { ...getAuthHeaders() } },
+    );
+    if (!response.ok) {
+      throw new Error(`Block failed (${response.status})`);
+    }
+  }, []);
+
+  const requestsSection = (
+    <MessageRequestsSection
+      requests={messageRequests}
+      isLoading={messageRequestsLoading}
+      error={messageRequestsError}
+      onAccept={handleAcceptRequest}
+      onDecline={handleDeclineRequest}
+      onBlock={handleBlockRequestSender}
+      onRetry={() => void refetchMessageRequests()}
+      acceptingId={acceptingRequestId}
+      decliningId={decliningRequestId}
+    />
+  );
+
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
 
@@ -276,6 +354,7 @@ export default function ChatListPage() {
           />
         }
       >
+        {requestsSection}
         <EmptyState
           title="No conversations"
           description="Start a new chat to get connected"
@@ -372,6 +451,7 @@ export default function ChatListPage() {
         initial="hidden"
         animate="visible"
       >
+        {requestsSection}
         <div className="px-3 py-2 space-y-1">
           <AnimatePresence>
             {enhancedItems.map((item) => (
