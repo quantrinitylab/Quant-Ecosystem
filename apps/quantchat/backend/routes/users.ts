@@ -24,6 +24,9 @@ import { getPrivacyService } from '../services/privacy.service';
 const searchUsersSchema = z.object({
   q: z.string().min(1).max(100),
   limit: z.coerce.number().int().min(1).max(50).optional(),
+  // QC-F-348: optional page (default 1). Callers that never send it (web)
+  // keep the exact legacy behaviour — first page, bare-array `data`.
+  page: z.coerce.number().int().min(1).optional(),
 });
 
 interface DirectoryUser {
@@ -54,8 +57,15 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     }
 
     const prisma = (fastify as unknown as { prisma: DirectoryPrisma }).prisma;
-    const { q, limit = 20 } = parseResult.data;
+    const { q, limit = 20, page = 1 } = parseResult.data;
 
+    // QC-F-348: real paging. `take: limit + 1` is a probe — one extra row
+    // tells us honestly whether another page exists (hasMore) without a
+    // separate count query; the probe row is sliced off before the
+    // response. The order MUST be total for skip/take paging to be
+    // truthful, so displayName ties break on id (equal display names
+    // otherwise page in database-arbitrary order — the same person could
+    // appear on two pages or on none).
     const users = await prisma.user.findMany({
       where: {
         id: { not: userId },
@@ -74,9 +84,13 @@ export default async function usersRoutes(fastify: FastifyInstance) {
         avatarUrl: true,
         bio: true,
       },
-      take: limit,
-      orderBy: { displayName: 'asc' },
+      skip: (page - 1) * limit,
+      take: limit + 1,
+      orderBy: [{ displayName: 'asc' }, { id: 'asc' }],
     });
+
+    const hasMore = users.length > limit;
+    const pageUsers = users.slice(0, limit);
 
     // QC-F-042: hideFromSearch post-filter. A user who turned on "Hide
     // profile from search" must not be discoverable here — by username,
@@ -84,17 +98,26 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     // batch-resolved from the same store; a prefs failure hides the user
     // (fail-closed — being undiscoverable for one page is reversible,
     // being exposed after opting out is not) and never 500s the search.
-    // Honest v1 limit: the query's `take: limit` applies before this
-    // filter, so a page can come back shorter than `limit` when hidden
-    // users matched; over-fetching to backfill is a deliberate non-goal
-    // here (it would change the query's cost profile silently).
+    // Honest v1 limit: the query's page slice (`skip` + `take: limit + 1`
+    // probe) applies before this filter, so a page can come back shorter
+    // than `limit` when hidden users matched; over-fetching to backfill
+    // is a deliberate non-goal here (it would change the query's cost
+    // profile silently). The filter therefore runs on the sliced page
+    // (probe row already removed above), never on the probe row.
     const privacy = getPrivacyService(prisma);
-    const resolved = await privacy.resolveMany(users.map((u) => u.id));
-    const visible = users.filter((u) => {
+    const resolved = await privacy.resolveMany(pageUsers.map((u) => u.id));
+    const visible = pageUsers.filter((u) => {
       const entry = resolved.get(u.id);
       return !(entry?.prefs.hideFromSearch ?? false);
     });
 
-    return reply.send({ success: true, data: visible });
+    // `data` stays the bare array the web caller parses (QC-F-348 §3.2F);
+    // paging truth rides in the `pagination` sibling, which old callers
+    // ignore and the Flutter directory client reads.
+    return reply.send({
+      success: true,
+      data: visible,
+      pagination: { page, pageSize: limit, hasMore },
+    });
   });
 }
