@@ -774,8 +774,22 @@ export class QuantMailApiClient {
     return this.post('/emails/compose', data);
   }
 
-  async updateDraft(id: string, data: ComposeEmailRequest): Promise<ApiResponse<Email>> {
-    return this.put(`/emails/${id}`, data);
+  /**
+   * Update a server draft. Pass `options.expectedVersion` (the version the
+   * composer last observed) for optimistic concurrency: the backend answers
+   * 409 VERSION_CONFLICT instead of silently overwriting another tab's or
+   * device's save. Omit it for the legacy unguarded write.
+   */
+  async updateDraft(
+    id: string,
+    data: ComposeEmailRequest,
+    options?: { expectedVersion?: number },
+  ): Promise<ApiResponse<Email>> {
+    const body =
+      options?.expectedVersion !== undefined
+        ? { ...data, expectedVersion: options.expectedVersion }
+        : data;
+    return this.put(`/emails/${id}`, body);
   }
 
   async sendEmail(

@@ -90,6 +90,13 @@ export interface Email extends BaseEntity {
   aiSummary?: string;
   aiCategory?: EmailCategory;
   phishingScore?: number;
+  /**
+   * Optimistic-concurrency version (QM-BACK-002). The backend increments it
+   * on every draft write and answers 409 VERSION_CONFLICT when a client sends
+   * a stale `expectedVersion`. Composers track it to detect edits from other
+   * tabs/devices. Absent on rows written before the column existed.
+   */
+  version?: number;
 }
 
 export interface EmailAttachment extends BaseEntity {
