@@ -1562,7 +1562,8 @@ R4 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 0 P2 (2 P1 + 3 P2 carryovers confirmed stil
 Rotation → QM-SCREEN-018 (help) R4, queued.
 
 ## QM-SCREEN-018 — Help / privacy / terms / invite / groups / SSO / legacy route disposition
-Status: [x] DONE (ROUND 8 regression audit complete 2026-10-14 ~15:10 IST — Owner: LANE-1, Branch: lane1-audit-018r8; 0 new findings, no fix agents per P0/P1-only protocol)
+Status: [~] ROUND 9 regression audit IN PROGRESS (2026-10-15 ~01:40 IST) — Owner: LANE-1, Branch: lane1-audit-018r9
+R9-CLAIM: 2026-10-15 ~01:40 IST. Base: R8 @ 4d46a43c.
 R8-CLAIM: 2026-10-14 ~14:35 IST. Window scan: a0a07b8f..4d46a43c, 51 commits. ZERO in-scope help-path file changes (full window file list grepped for help|privacy|terms|invite|groups/join|sso|edge-public = empty). Pure re-verification pass vs R7. All code read from origin/main tree only (qe-main working tree NOT trusted, 4d46a43c post-fresh-fetch).
 R8-AUDIT (2026-10-14 ~14:35–15:10 IST): read-only code audit (git show/grep on origin/main) + live Chrome desktop(1440x900)+mobile(390x844) via ~/workspace/tools/desktop_chrome.py + mobile_chrome.py (proxy 127.0.0.1:8888 healthy throughout) + live curl.
 R8 REGRESSION DIFF (help/SSO scope): ZERO files changed — pure re-verification pass.
