@@ -12,6 +12,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 export interface FriendLocation {
   userId: string;
   username: string;
+  /**
+   * Backend GET /map/friends har friend ke saath displayName bhi bhejta hai.
+   * Pin render use NAHI dikhata — woh sirf map search (QC-F-331) ke naam-match
+   * aur results panel ke liye hai. Socket updates se aane wale doston par ye
+   * field NAHI hota (frame me hai hi NAHI), isiliye optional hai.
+   */
+  displayName?: string;
   avatarUrl: string;
   position: [number, number]; // [lng, lat] → mapped to % for display
   lastUpdated: Date;
@@ -26,10 +33,22 @@ interface FriendPinProps {
   left: string;
   /** Called when "Open Chat" is tapped */
   onOpenChat?: (conversationId: string) => void;
+  /**
+   * QC-F-331: map search se chuna gaya pin. True ho to pin highlight hoga
+   * aur uska popup card khula dikhega — ye is div-canvas par "focus" ka
+   * ekmatra imaandaar arth hai (koi geographic camera maujood NAHI hai).
+   */
+  focused?: boolean;
 }
 
-export function FriendPin({ friend, top, left, onOpenChat }: FriendPinProps) {
+export function FriendPin({ friend, top, left, onOpenChat, focused }: FriendPinProps) {
   const [showPopup, setShowPopup] = useState(false);
+
+  // Effective popup sthiti: search-focus popup ko khula rakhta hai; internal
+  // tap state bhi aparivartit kaam karta hai. Dhyaan: tap-outside dismiss
+  // overlay sirf internal state band karta hai — page-side focus saaf karna
+  // page ka kaam hai (query/tab badlaav par).
+  const popupVisible = focused === true || showPopup;
 
   const lastActiveMinutes = Math.floor(
     (Date.now() - new Date(friend.lastUpdated).getTime()) / 60000,
@@ -46,7 +65,10 @@ export function FriendPin({ friend, top, left, onOpenChat }: FriendPinProps) {
     <>
       {/* Task 8.4: Animated pin movement using CSS transition (500ms) */}
       <motion.div
-        className="absolute z-20 flex flex-col items-center cursor-pointer"
+        className={`absolute flex flex-col items-center cursor-pointer ${
+          focused ? 'z-50' : 'z-20'
+        }`}
+        data-focused={focused ? 'true' : undefined}
         style={{ top, left }}
         animate={{ top, left }}
         transition={{ duration: 0.5, ease: 'easeInOut' }}
@@ -56,7 +78,11 @@ export function FriendPin({ friend, top, left, onOpenChat }: FriendPinProps) {
         {/* Pin: circular avatar (32px) with pointed tail */}
         <div className="relative">
           {/* Avatar circle */}
-          <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white shadow-lg">
+          <div
+            className={`w-8 h-8 rounded-full overflow-hidden border-2 border-white shadow-lg ${
+              focused ? 'ring-2 ring-emerald-400 scale-110' : ''
+            }`}
+          >
             {friend.avatarUrl ? (
               <img
                 src={friend.avatarUrl}
@@ -87,7 +113,7 @@ export function FriendPin({ friend, top, left, onOpenChat }: FriendPinProps) {
 
       {/* Task 8.3: Tap popup card */}
       <AnimatePresence>
-        {showPopup && (
+        {popupVisible && (
           <>
             {/* Tap-outside dismiss overlay */}
             <div className="fixed inset-0 z-40" onClick={() => setShowPopup(false)} />
