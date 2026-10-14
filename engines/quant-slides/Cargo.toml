@@ -1,0 +1,33 @@
+[package]
+name = "quant-slides-engine"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Quant Docs — on-device PPTX slide rendering, built on the DeckCraft engine (MIT OR Apache-2.0)."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Only the import, model and render crates: not deckcraft-engine, which also brings the editor,
+# PDF export and the media stack (audio/video decoders, incl. MPL-2.0 and H.264/HEVC code) that
+# a slide preview never uses.
+deckcraft-format = { git = "https://github.com/storytold/deckcraft", rev = "457406a7a5b62425e915926c8ccb0984e61a198c" }
+deckcraft-model = { git = "https://github.com/storytold/deckcraft", rev = "457406a7a5b62425e915926c8ccb0984e61a198c" }
+deckcraft-pptx = { git = "https://github.com/storytold/deckcraft", rev = "457406a7a5b62425e915926c8ccb0984e61a198c" }
+deckcraft-render = { git = "https://github.com/storytold/deckcraft", rev = "457406a7a5b62425e915926c8ccb0984e61a198c" }
+wasm-bindgen = "0.2"
+
+# quick-xml ^0.38 (used by deckcraft-pptx) → our shim re-exporting 0.41: RUSTSEC-2026-0194/0195.
+[patch.crates-io]
+quick-xml = { path = "../shims/quick-xml-0.38" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[workspace]

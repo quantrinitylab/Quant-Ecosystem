@@ -59,3 +59,7 @@ android-project/local.properties
 
 # bare entry matches symlinks too (trailing-slash form does not)
 node_modules
+
+# Quant Docs engines (Rust/WebAssembly): build output and the locally built bundle
+engines/target/
+apps/quantmail/public/engines/

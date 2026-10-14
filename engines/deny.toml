@@ -1,0 +1,59 @@
+# cargo-deny policy for the Quant Docs engines. Run per crate, with an absolute --config path
+# (cargo-deny resolves a relative one against the crate):
+#   cargo deny --manifest-path engines/quant-pdf/Cargo.toml check --config "$PWD/engines/deny.toml" Permissive licences only — no copyleft,
+# no share-alike (e.g. PdfCraft's CC-BY-SA OCR models are not part of these builds), no
+# unknown registries, and git sources limited to the pinned ArtCraft engine repositories.
+[graph]
+targets = ["wasm32-unknown-unknown"]
+
+[licenses]
+confidence-threshold = 0.9
+allow = [
+    "MIT",
+    "MIT-0",
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "BSL-1.0",
+    "CC0-1.0",
+    "OFL-1.1",
+    # Ubuntu Font Licence: egui's default UI fonts (epaint_default_fonts), embedded by DeckCraft's
+    # font crate as last-resort fallbacks. Permits bundling with software, like the OFL.
+    "Ubuntu-font-1.0",
+]
+# One shared policy for four crates: an allowed licence one of them doesn't use is not an error.
+unused-allowed-license = "allow"
+
+[licenses.private]
+ignore = false
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+unused-allowed-source = "allow"
+allow-git = [
+    "https://github.com/storytold/pdfcraft",
+    "https://github.com/storytold/wordcraft",
+    "https://github.com/storytold/deckcraft",
+    "https://github.com/storytold/gridcraft",
+]
+
+[advisories]
+yanked = "warn"
+ignore = [
+    # `unmaintained` notices (no vulnerability) for the text-shaping stack of krilla, the PDF
+    # *writer* WordCraft's engine links for PDF export. The preview engine never writes PDFs, so
+    # this code is linked but unreachable. Revisit when WordCraft moves krilla to harfrust.
+    { id = "RUSTSEC-2026-0206", reason = "rustybuzz unmaintained; only reachable through PDF export, unused by the preview" },
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser unmaintained; only reachable through PDF export, unused by the preview" },
+]

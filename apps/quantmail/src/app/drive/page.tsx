@@ -49,6 +49,8 @@ import { FileAISummaryDrawer } from '../../components/drive/FileAISummaryDrawer'
 import { AIDuplicateCleanerModal } from '../../components/drive/AIDuplicateCleanerModal';
 import { QuantyFileWorkspace } from '../../components/drive/QuantyFileWorkspace';
 import { apiFetchRaw } from '@quant/api-client';
+import { DocumentEnginePreview } from '../../components/drive/DocumentEnginePreview';
+import { docsEngineKindFor } from '../../lib/docs-engine/formats';
 import { browserApiRequest } from '../../services/browser-api-request';
 import { browserAuthSession } from '../../services/browser-auth-session';
 
@@ -285,6 +287,9 @@ function isImageOrDocument(mimeType: string, name: string): boolean {
 }
 
 function isTextOrCodeFile(mimeType: string, name: string): boolean {
+  // Office/PDF files go to the on-device document engines. Their MIME types contain "xml"
+  // (…openxmlformats…), which used to send .docx/.xlsx/.pptx to the text viewer as zip bytes.
+  if (docsEngineKindFor(mimeType, name)) return false;
   const m = (mimeType || '').toLowerCase();
   const n = (name || '').toLowerCase();
   if (
@@ -309,7 +314,7 @@ function isTextOrCodeFile(mimeType: string, name: string): boolean {
 // QM-SCREEN-011: honest states for the authenticated blob-preview path. Media
 // bytes arrive via fetch (media tags cannot send the session's Authorization
 // header), so a spinner and the backend's real error beat a broken
-// <img>/<iframe>/<audio>/<video>. Same visual language as the text preview.
+// <img>/<audio>/<video>. Same visual language as the text preview.
 function MediaPreviewStatus({ loading, error }: { loading: boolean; error: string | null }) {
   if (loading) {
     return (
@@ -574,6 +579,30 @@ function DrivePageContent() {
   const [textPreviewError, setTextPreviewError] = useState<string | null>(null);
   const [copiedTextPreview, setCopiedTextPreview] = useState(false);
 
+  // On-device document preview (Quant Docs engines): PDF, Word, PowerPoint, Excel. PDFs use the
+  // engine too: the old blob: <iframe> inherits this page's CSP (object-src 'none'), so Chromium
+  // blocks its PDF viewer there (broken-page icon), and mobile browsers have no inline viewer.
+  const previewEngineKind = useMemo(() => {
+    if (!previewItem || previewItem.scanStatus === 'quarantined') return null;
+    return docsEngineKindFor(previewItem.mimeType, previewItem.name);
+  }, [previewItem]);
+
+  const loadPreviewBytes = useCallback(
+    async (signal: AbortSignal): Promise<ArrayBuffer> => {
+      if (!previewItem) throw new Error('No file selected');
+      const res = await apiFetchRaw(getDownloadUrl(previewItem.id), {
+        signal,
+        token: browserAuthSession.getAccessToken() ?? undefined,
+      });
+      if (!res.ok) {
+        const instruction = await readErrorInstruction(res);
+        throw new Error(instruction || `Failed to load file preview (${res.status})`);
+      }
+      return res.arrayBuffer();
+    },
+    [previewItem, getDownloadUrl],
+  );
+
   // QM-SCREEN-011: blob object URL for the media preview (image/pdf/audio/
   // video). Media tags cannot send the session's Authorization header — the
   // token lives only in browser memory — so bytes are fetched with the
@@ -642,7 +671,7 @@ function DrivePageContent() {
     };
   }, [previewItem, getDownloadUrl]);
 
-  // QM-SCREEN-011: authenticated media preview. <img>/<iframe>/<audio>/<video>
+  // QM-SCREEN-011: authenticated media preview. <img>/<audio>/<video>
   // never send the Authorization header, and no access-token cookie exists —
   // so the preview src was a bare URL that 401d for signed-in users. Fetch
   // the bytes with the session attached (same as the download button) and
@@ -656,7 +685,6 @@ function DrivePageContent() {
       item.scanStatus !== 'quarantined' &&
       !isTextOrCodeFile(item.mimeType, item.name) &&
       (item.mimeType.startsWith('image/') ||
-        item.mimeType === 'application/pdf' ||
         item.mimeType.startsWith('audio/') ||
         item.mimeType.startsWith('video/'));
     if (!isMediaPreview || !item) {
@@ -2074,6 +2102,7 @@ function DrivePageContent() {
           isOpen={!!previewItem}
           onClose={handleClosePreview}
           title={previewItem?.name || 'File Preview'}
+          size={previewEngineKind ? 'xl' : 'md'}
         >
           <div className="p-4 space-y-4 text-center">
             {/* QM-M39-007: details panel entry — one button for the full file
@@ -2132,6 +2161,20 @@ function DrivePageContent() {
                   this file.
                 </p>
               </div>
+            ) : previewItem && previewEngineKind ? (
+              <div className="rounded-xl bg-[var(--quant-surface)] p-4 shadow-[inset_0_0_0_1px_var(--quant-surface-elevated)]">
+                <DocumentEnginePreview
+                  key={previewItem.id}
+                  kind={previewEngineKind}
+                  name={previewItem.name}
+                  size={previewItem.size}
+                  loadBytes={loadPreviewBytes}
+                  onDownload={() => downloadFile(previewItem.id, previewItem.name)}
+                />
+                <p className="text-xs text-[var(--quant-muted-foreground)] mt-2 text-left">
+                  {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
+                </p>
+              </div>
             ) : previewItem && previewItem.mimeType.startsWith('image/') ? (
               <div className="rounded-xl bg-[var(--quant-surface)] p-4 shadow-[inset_0_0_0_1px_var(--quant-surface-elevated)]">
                 {/* QM-SCREEN-011: blob object URL — the bare download URL 401s
@@ -2145,24 +2188,6 @@ function DrivePageContent() {
                     className="max-h-96 mx-auto rounded-lg object-contain"
                     loading="lazy"
                     decoding="async"
-                  />
-                )}
-                <h4 className="text-sm font-bold text-[var(--quant-foreground)] mt-3">{previewItem.name}</h4>
-                <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
-                  {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
-                </p>
-              </div>
-            ) : previewItem && previewItem.mimeType === 'application/pdf' ? (
-              <div className="rounded-xl bg-[var(--quant-surface)] p-4 shadow-[inset_0_0_0_1px_var(--quant-surface-elevated)]">
-                {/* QM-SCREEN-011: blob object URL (frame-src allows blob:);
-                    the bare download URL 401s in the iframe. */}
-                {isLoadingMediaPreview || mediaPreviewError ? (
-                  <MediaPreviewStatus loading={isLoadingMediaPreview} error={mediaPreviewError} />
-                ) : (
-                  <iframe
-                    src={mediaPreviewUrl ?? undefined}
-                    className="w-full h-96 rounded-lg border border-[var(--quant-border)]"
-                    title={previewItem.name}
                   />
                 )}
                 <h4 className="text-sm font-bold text-[var(--quant-foreground)] mt-3">{previewItem.name}</h4>

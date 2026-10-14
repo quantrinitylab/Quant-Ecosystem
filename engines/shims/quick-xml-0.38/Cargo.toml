@@ -1,0 +1,22 @@
+# Security shim: DeckCraft's PPTX reader (deckcraft-pptx 0.6.1) asks for quick-xml "0.38",
+# which has RUSTSEC-2026-0194 (quadratic duplicate-attribute check) and RUSTSEC-2026-0195
+# (unbounded namespace allocation); the fixes are in 0.41, a semver-incompatible release.
+# quant-slides patches crates-io `quick-xml ^0.38` with this crate, which re-exports
+# quick-xml 0.41 unchanged. deckcraft-pptx only uses `Reader`, `events::{Event, BytesStart}`
+# and attribute decoding, all source-compatible (its test suite passes against 0.41).
+# Delete this shim once upstream DeckCraft depends on quick-xml >= 0.41.
+[package]
+name = "quick-xml"
+version = "0.38.99"
+edition = "2021"
+license = "MIT"
+authors = ["Quant Ecosystem contributors"]
+publish = false
+description = "Re-export of quick-xml 0.41 under the 0.38 version line (security shim for deckcraft-pptx)."
+
+[lib]
+name = "quick_xml"
+path = "src/lib.rs"
+
+[dependencies]
+quick-xml-041 = { package = "quick-xml", version = "0.41" }
