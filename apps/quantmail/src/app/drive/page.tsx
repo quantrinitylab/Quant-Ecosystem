@@ -2102,9 +2102,13 @@ function DrivePageContent() {
           isOpen={!!previewItem}
           onClose={handleClosePreview}
           title={previewItem?.name || 'File Preview'}
-          size={previewEngineKind ? 'xl' : 'md'}
+          // Documents get the room they need: a wide dialog on desktop, the whole screen on a
+          // phone (where every gutter is taken out of the page width).
+          size={previewEngineKind ? 'full' : 'md'}
+          fullScreenOnMobile={!!previewEngineKind}
+          bodyClassName={previewEngineKind ? 'px-3 py-3 sm:px-6 sm:py-4' : undefined}
         >
-          <div className="p-4 space-y-4 text-center">
+          <div className={previewEngineKind ? 'space-y-3 text-center sm:space-y-4 sm:p-2' : 'p-4 space-y-4 text-center'}>
             {/* QM-M39-007: details panel entry — one button for the full file
                 identity (owner, location, sharing, scan state, versions). */}
             {previewItem && (
@@ -2162,7 +2166,7 @@ function DrivePageContent() {
                 </p>
               </div>
             ) : previewItem && previewEngineKind ? (
-              <div className="rounded-xl bg-[var(--quant-surface)] p-4 shadow-[inset_0_0_0_1px_var(--quant-surface-elevated)]">
+              <div className="rounded-xl bg-[var(--quant-surface)] p-2 shadow-[inset_0_0_0_1px_var(--quant-surface-elevated)] sm:p-4">
                 <DocumentEnginePreview
                   key={previewItem.id}
                   kind={previewEngineKind}

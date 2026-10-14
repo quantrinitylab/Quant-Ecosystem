@@ -28,6 +28,14 @@ export interface ModalProps {
    * with no name. `title` still wins when both are given, via `aria-labelledby`.
    */
   'aria-label'?: string;
+  /**
+   * Below the `sm` breakpoint the panel fills the screen — no outer gutter, no rounded corners,
+   * full height — for viewers (documents, slides) where a phone's width is all content. From
+   * `sm` up it is the usual centred dialog.
+   */
+  fullScreenOnMobile?: boolean;
+  /** Replaces the body's default padding (`px-5 py-4 sm:px-6`). */
+  bodyClassName?: string;
 }
 
 const SURFACE = 'var(--quant-popover, #16181D)';
@@ -50,6 +58,8 @@ export const Modal: React.FC<ModalProps> = ({
   footer,
   className = '',
   'aria-label': ariaLabel,
+  fullScreenOnMobile = false,
+  bodyClassName = 'px-5 py-4 sm:px-6',
 }) => {
   const [mounted, setMounted] = useState(false);
 
@@ -115,7 +125,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
+      className={`fixed inset-0 z-[100] flex items-center justify-center ${fullScreenOnMobile ? 'p-0 sm:p-6' : 'p-4 sm:p-6'}`}
       ref={trapRef}
       role="dialog"
       aria-modal="true"
@@ -140,12 +150,18 @@ export const Modal: React.FC<ModalProps> = ({
         aria-hidden="true"
       />
       <div
-        className={`quant-modal-panel relative w-full ${sizeStyles[size]} flex max-h-[88vh] flex-col overflow-hidden ${className}`}
+        className={`quant-modal-panel relative w-full ${sizeStyles[size]} flex ${
+          fullScreenOnMobile
+            ? 'h-[100dvh] max-h-[100dvh] rounded-none sm:h-auto sm:max-h-[88vh] sm:rounded-xl'
+            : 'max-h-[88vh]'
+        } flex-col overflow-hidden ${className}`}
         style={{
           background: SURFACE,
           color: FOREGROUND,
           border: `1px solid ${BORDER}`,
-          borderRadius: RADIUS,
+          // Full-screen-on-mobile takes its corners from the classes above (square on a phone,
+          // RADIUS from `sm` up): an inline radius can't vary by breakpoint.
+          borderRadius: fullScreenOnMobile ? undefined : RADIUS,
           boxShadow: SHADOW,
         }}
       >
@@ -189,7 +205,7 @@ export const Modal: React.FC<ModalProps> = ({
             )}
           </div>
         )}
-        <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6">{children}</div>
+        <div className={`flex-1 overflow-y-auto ${bodyClassName}`}>{children}</div>
         {footer && (
           <div
             className="flex flex-col-reverse gap-2 px-5 py-4 sm:flex-row sm:justify-end sm:gap-3 sm:px-6"

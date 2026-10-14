@@ -95,6 +95,65 @@ describe('DocumentEnginePreview — pages', () => {
     await unmount();
   });
 
+  it('zooms from fit-to-width in steps, re-drawing pages at the new resolution', async () => {
+    const client = fakeClient();
+    await mount(<DocumentEnginePreview kind="pdf" name="report.pdf" loadBytes={async () => new ArrayBuffer(1)} client={client as unknown as DocsEngineClient} />);
+    const { act } = await import('react');
+    const button = (label: string) => container.querySelector<HTMLButtonElement>(`[role="group"][aria-label="Zoom"] button[aria-label^="${label}"]`)!;
+    const click = async (label: string) => {
+      await act(async () => {
+        button(label).click();
+      });
+      for (let i = 0; i < 5; i++) await act(async () => Promise.resolve());
+    };
+    const lastScale = (page: number) => {
+      const calls = client.render.mock.calls.filter((call) => call[1] === page);
+      return calls[calls.length - 1]![2] as number;
+    };
+    const firstPage = () => container.querySelector<HTMLElement>('[data-page="0"]')!;
+
+    const fit = lastScale(0);
+    expect(button('100%').textContent).toBe('100%');
+    expect(firstPage().style.width).toBe('100%');
+
+    await click('Zoom in');
+    expect(firstPage().style.width).toBe('125%');
+    expect(lastScale(0)).toBeCloseTo(fit * 1.25, 6);
+    expect(lastScale(1)).toBeGreaterThan(0);
+    expect(button('125%').getAttribute('title')).toBe('Fit to width');
+
+    await click('Zoom in');
+    await click('Zoom in');
+    expect(firstPage().style.width).toBe('200%');
+    expect(lastScale(0)).toBeCloseTo(fit * 2, 6);
+
+    // The percentage resets to fit-to-width.
+    await click('200%');
+    expect(firstPage().style.width).toBe('100%');
+    expect(lastScale(0)).toBeCloseTo(fit, 6);
+
+    await click('Zoom out');
+    await click('Zoom out');
+    expect(firstPage().style.width).toBe('50%');
+    expect(button('Zoom out').disabled).toBe(true);
+    expect(button('Zoom in').disabled).toBe(false);
+    // Pages and the page counter are unaffected by zoom.
+    expect(container.querySelectorAll('[data-page]')).toHaveLength(2);
+    expect(container.textContent).toContain('Page 1 of 2');
+    await unmount();
+  });
+
+  it('does not re-draw a page whose resolution is already close enough', async () => {
+    const client = fakeClient();
+    await mount(<DocumentEnginePreview kind="pdf" name="report.pdf" loadBytes={async () => new ArrayBuffer(1)} client={client as unknown as DocsEngineClient} />);
+    const before = client.render.mock.calls.length;
+    expect(before).toBe(2); // the two pages, once each
+    const { act } = await import('react');
+    for (let i = 0; i < 5; i++) await act(async () => Promise.resolve());
+    expect(client.render.mock.calls.length).toBe(before);
+    await unmount();
+  });
+
   it('shows a download-instead message for password-protected files, without a retry', async () => {
     const onDownload = vi.fn();
     const client = fakeClient({ open: vi.fn(async () => Promise.reject(new Error('E_PASSWORD: encrypted'))) });
