@@ -229,6 +229,12 @@ export default function ContactsPage() {
           id: pairId,
           recordA: toDedupRecord(cluster.primaryContact, 'Primary'),
           recordB: toDedupRecord(cluster.duplicates[0], 'Duplicate'),
+          // qm-dedup-cluster: carry EVERY record the merge will touch (primary
+          // + all duplicates) so the wizard renders the true merge scope and
+          // the button copy counts it — never just the two previewed records.
+          allRecords: [cluster.primaryContact, ...cluster.duplicates].map((c, i) =>
+            toDedupRecord(c, i === 0 ? 'Primary' : i === 1 ? 'Duplicate' : `Duplicate ${i + 1}`),
+          ),
           // matchConfidence omitted: the API does not supply one — never invent it.
         });
         idMap[pairId] = {
@@ -274,14 +280,25 @@ export default function ContactsPage() {
   // the pair reappeared on the next rescan. It now persists via
   // POST /contacts/duplicates/dismiss; the local filter only runs after the
   // backend confirms the dismissal was recorded.
+  // qm-dedup-cluster: the wizard reviews the WHOLE cluster, so "keep separate"
+  // dismisses every (primary, duplicate) pair — dismissing only the previewed
+  // pair would let the cluster reappear on the next rescan with the next
+  // duplicate as the representative. Dismissal rows are idempotent server-side.
   const handleDedupKeepSeparate = useCallback(async (collisionId?: string) => {
     const target = dedupPairs?.find((p) => p.id === collisionId) ?? dedupPairs?.[0];
     if (!target) return;
+    const ids = dedupIdsRef.current[target.id];
+    const pairsToDismiss: Array<[string, string]> =
+      ids && ids.duplicateIds.length > 0
+        ? ids.duplicateIds.map((dupId): [string, string] => [ids.primaryId, dupId])
+        : [[target.recordA.id, target.recordB.id]];
     try {
-      const res = await apiClient.dismissDuplicatePair(target.recordA.id, target.recordB.id);
-      if (!res.success) {
-        showToast({ text: 'Could not save this choice — the pair may reappear on rescan', type: 'error' });
-        return;
+      for (const [primaryId, duplicateId] of pairsToDismiss) {
+        const res = await apiClient.dismissDuplicatePair(primaryId, duplicateId);
+        if (!res.success) {
+          showToast({ text: 'Could not save this choice — the pair may reappear on rescan', type: 'error' });
+          return;
+        }
       }
     } catch {
       showToast({ text: 'Could not save this choice — the pair may reappear on rescan', type: 'error' });
