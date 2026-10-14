@@ -1,360 +1,506 @@
 'use client';
 
-// ============================================================================
-// QuantChat - Broadcast Channels (Telegram-style one-to-many)
-// ============================================================================
-//
-// Real identity + real backend: the caller's owned/subscribed channels, a
-// per-channel feed, subscribe/unsubscribe, and an admin-only publish composer.
-// Posting is gated SERVER-SIDE (OWNER/ADMIN -> 403 CHANNEL_POST_FORBIDDEN for a
-// subscriber); the client composer is hidden when `canPost` is false purely as
-// UX — the backend stays authoritative. There is no public channel directory
-// endpoint, so discovery is honest: your channels + create + join-by-ID (no
-// fabricated "explore" list).
-
-import { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  AppShell,
-  TopBar,
-  BottomNav,
-  LoadingState,
-  ErrorState,
-  EmptyState,
-} from '@quant/shared-ui';
+import { motion } from 'framer-motion';
+import { spring } from '@quant/brand';
+import { BottomNav } from '@quant/shared-ui';
+import { chatSocket } from '../../services/chat-socket';
+import { MapCanvas } from '../../components/map/MapCanvas';
+import { FriendPin } from '../../components/map/FriendPin';
+import { GhostModeToggle } from '../../components/map/GhostModeToggle';
+import { HeatmapOverlay } from '../../components/map/HeatmapOverlay';
 import { navItems, routes } from '../../lib/navigation';
-import {
-  useChannels,
-  useChannelFeed,
-  useCreateChannel,
-  useSubscribeChannel,
-  useUnsubscribeChannel,
-  usePublishToChannel,
-} from '../../hooks/useChannels';
-import type { SubscribedChannelView } from '../../types';
+import { shouldBroadcastLocation } from './locationBroadcast';
+import { applyFriendLocationUpdate, type FriendLocationUpdate } from './friendLocationUpdate';
+import { filterFriendsOnMap } from './friendSearch';
+import type { GeoPosition, FriendLocation } from '../../components/map';
+import { apiFetchRaw } from '@quant/api-client';
 
-function formatTime(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+// ============================================================================
+// Task 8.1: Map page — MapCanvas + GhostModeToggle header + FriendPins
+//           + HeatmapOverlay (Explore tab). Tab switching Friends/Explore.
+// Task 8.6: Location broadcast every 30s when ghost mode is OFF
+// Task 8.8: Zoom/pan gestures (delegated to MapCanvas)
+// Task 8.9: Geolocation-denied fallback (delegated to MapCanvas)
+// ============================================================================
+
+/** Convert lng/lat offsets from the user's real center into percentage positions.
+ *  Returns null when the user's own location is unknown — pins are never
+ *  placed at invented positions. */
+function positionToPercent(
+  friendPos: [number, number],
+  userPos: GeoPosition | null,
+): { top: string; left: string } | null {
+  if (!userPos) {
+    return null;
+  }
+
+  // Simple linear mapping: each 0.01 degree ≈ ~1km
+  // Map to viewport: center is 50%, scale factor for visibility
+  const scaleFactor = 800; // Pixels per degree
+  const dx = (friendPos[0] - userPos.longitude) * scaleFactor;
+  const dy = -(friendPos[1] - userPos.latitude) * scaleFactor; // Invert Y
+
+  const left = Math.max(5, Math.min(90, 50 + dx));
+  const top = Math.max(10, Math.min(85, 50 + dy));
+
+  return { top: `${top}%`, left: `${left}%` };
 }
 
-export default function ChannelsPage() {
+/** Shape returned by GET /api/map/friends (proxied from the backend). */
+interface FriendsOnMapResponse {
+  success?: boolean;
+  data?: {
+    friends?: Array<{
+      userId: string;
+      username?: string;
+      // Backend serializeFriendOnMap displayName pehle se bhejta hai
+      // (QC-F-331: map search ke naam-match ke liye page use rakhta hai).
+      displayName?: string;
+      avatarUrl?: string | null;
+      latitude: number;
+      longitude: number;
+      updatedAt?: string;
+    }>;
+  };
+}
+
+export default function MapPage() {
   const router = useRouter();
-  const { channels, isLoading, error, refetch } = useChannels();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const selected = useMemo<SubscribedChannelView | null>(
-    () => channels.find((c) => c.id === selectedId) ?? null,
-    [channels, selectedId],
+  // QM-UIUX-060: migrated from the dead RealtimeProvider (`/ws`) to the
+  // working `chatSocket` singleton (`/ws/chat`). Honest transport note: the
+  // backend `/ws/chat` handler has no map channel today, so location frames
+  // below are best-effort hints on the single real connection (the old
+  // provider's socket had the same limitation) — the source of truth for
+  // friend positions is the real REST endpoint, which is refetched on the
+  // same 30s cadence as the location broadcast.
+  const publish = useCallback((event: Record<string, unknown>) => {
+    chatSocket.send({ type: String(event.type ?? ''), ...event });
+  }, []);
+
+  const [activeTab, setActiveTab] = useState<'friends' | 'explore'>('friends');
+  const [ghostMode, setGhostMode] = useState(false);
+  const [userLocation, setUserLocation] = useState<GeoPosition | null>(null);
+  // Starts empty and is filled only with real backend data. No demo or
+  // fallback friends: with nothing shared, the map shows an honest empty state.
+  const [friends, setFriends] = useState<FriendLocation[]>([]);
+  const [friendsLoaded, setFriendsLoaded] = useState(false);
+  const [locationDenied, setLocationDenied] = useState(false);
+
+  // QC-F-331 Slice 1: map search state. Results koi alag state NAHI hai —
+  // woh har render par current `friends` list se derived hain, taaki 30s
+  // refetch / socket update ke baad panel apne-aap sahi rahe.
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [focusedFriendId, setFocusedFriendId] = useState<string | null>(null);
+  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
+
+  const searchResults = filterFriendsOnMap(friends, searchQuery);
+
+  // Query badalte hi purana pin-focus saaf (stale focus NAHI rehta) aur
+  // panel dobara khulta hai.
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    setFocusedFriendId(null);
+    setSearchPanelOpen(true);
+  }, []);
+
+  // Result select: pin focus + panel band + pins sirf Friends tab par
+  // render hote hain, isiliye Explore se select Friends tab par le jata hai.
+  const handleSelectFriend = useCallback(
+    (friend: FriendLocation) => {
+      setFocusedFriendId(friend.userId);
+      setSearchPanelOpen(false);
+      if (activeTab !== 'friends') setActiveTab('friends');
+    },
+    [activeTab],
   );
 
-  if (isLoading) return <LoadingState variant="skeleton" text="Loading channels..." />;
-  if (error) return <ErrorState message={error.message} onRetry={() => void refetch()} />;
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery('');
+    setFocusedFriendId(null);
+    setSearchPanelOpen(false);
+  }, []);
 
-  return (
-    <AppShell topBar={<TopBar title={selected ? (selected.name ?? 'Channel') : 'Channels'} profileHref="/profile" />}>
-      <div className="flex h-full flex-col overflow-y-auto pb-20">
-        {selected ? (
-          <ChannelDetail
-            channel={selected}
-            onBack={() => setSelectedId(null)}
-            onChanged={() => void refetch()}
-          />
-        ) : (
-          <ChannelList
-            channels={channels}
-            onOpen={(id) => setSelectedId(id)}
-            onChanged={() => void refetch()}
-          />
-        )}
-      </div>
-      <BottomNav
-        items={navItems}
-        activeId="profile"
-        onChange={(id) => {
-          const route = routes[id];
-          if (route) router.push(route);
-        }}
-      />
-    </AppShell>
+  const broadcastIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Fetch the caller's close friends who are currently sharing their location
+  // from the real backend (GET /api/map/friends → Fastify GET /map/friends).
+  const loadFriends = useCallback(async (isCancelled: () => boolean) => {
+    try {
+      const res = await apiFetchRaw('/api/map/friends');
+      const json = res.ok ? ((await res.json()) as FriendsOnMapResponse) : null;
+      if (isCancelled() || !json?.success) return;
+      const list = Array.isArray(json.data?.friends) ? json.data.friends : [];
+      setFriends(
+        list.map((f) => ({
+          userId: String(f.userId),
+          username: f.username ?? '',
+          displayName: f.displayName ?? undefined,
+          avatarUrl: f.avatarUrl ?? '',
+          position: [Number(f.longitude), Number(f.latitude)] as [number, number],
+          lastUpdated: f.updatedAt ? new Date(f.updatedAt) : new Date(),
+          // The backend does not expose presence for map friends, and the
+          // map has no presence source — so this starts false rather than
+          // inventing an online state.
+          isOnline: false,
+        })),
+      );
+    } catch {
+      // Leave the list as-is: the empty state below is honest about that.
+    } finally {
+      if (!isCancelled()) setFriendsLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const isCancelled = () => cancelled;
+
+    void loadFriends(isCancelled);
+    // Refetch on the broadcast cadence so friend pins track the real backend
+    // state even though the socket has no map channel (see publish note).
+    const refetchInterval = setInterval(() => {
+      void loadFriends(isCancelled);
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(refetchInterval);
+    };
+  }, [loadFriends]);
+
+  // Handle location acquired from MapCanvas
+  const handleLocationAcquired = useCallback((pos: GeoPosition) => {
+    setUserLocation(pos);
+  }, []);
+
+  const handleLocationDenied = useCallback(() => {
+    setLocationDenied(true);
+  }, []);
+
+  // ─── Task 8.2: Subscribe to friend location updates via WebSocket ─────
+  // Over the shared chatSocket singleton (QM-UIUX-060). Normalized events
+  // carry their payload in `data`; legacy passthrough frames use `payload`.
+  useEffect(() => {
+    chatSocket.acquire();
+
+    const unsubscribeMessage = chatSocket.onMessage((event: any) => {
+      if (event?.type !== 'friend-location-update') return;
+      const update = (event?.data ?? event?.payload) as FriendLocationUpdate | undefined;
+      if (!update?.userId || !Array.isArray(update.position)) return;
+      setFriends((prev) => applyFriendLocationUpdate(prev, update));
+    });
+
+    return () => {
+      unsubscribeMessage();
+      chatSocket.release();
+    };
+  }, []);
+
+  // ─── Task 8.6: Location broadcast every 30s when ghost mode is OFF ────
+  useEffect(() => {
+    // Clear any existing interval
+    if (broadcastIntervalRef.current) {
+      clearInterval(broadcastIntervalRef.current);
+      broadcastIntervalRef.current = null;
+    }
+
+    if (!shouldBroadcastLocation(ghostMode)) {
+      // Task 8.5: When ghost mode enabled, send hide event and never broadcast
+      publish({
+        type: 'ghost-mode-enabled',
+        timestamp: Date.now(),
+      });
+      return;
+    }
+
+    // Start broadcasting location every 30s
+    const broadcastLocation = () => {
+      if (!navigator.geolocation) return;
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          publish({
+            type: 'location-update',
+            payload: {
+              position: [pos.coords.longitude, pos.coords.latitude],
+              timestamp: Date.now(),
+            },
+          });
+        },
+        () => {
+          // Silently fail — location not available
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 15000 },
+      );
+    };
+
+    // Broadcast immediately once
+    broadcastLocation();
+
+    // Then every 30 seconds
+    broadcastIntervalRef.current = setInterval(broadcastLocation, 30000);
+
+    return () => {
+      if (broadcastIntervalRef.current) {
+        clearInterval(broadcastIntervalRef.current);
+        broadcastIntervalRef.current = null;
+      }
+    };
+  }, [ghostMode, publish]);
+
+  // ─── Task 8.5: Ghost mode toggle handler ──────────────────────────────
+  const handleGhostModeToggle = useCallback(
+    (enabled: boolean) => {
+      setGhostMode(enabled);
+
+      if (enabled) {
+        // Clear broadcast interval immediately (Task 8.6)
+        if (broadcastIntervalRef.current) {
+          clearInterval(broadcastIntervalRef.current);
+          broadcastIntervalRef.current = null;
+        }
+        // Send ghost mode event to hide pin from friends within 5s
+        publish({
+          type: 'ghost-mode-enabled',
+          timestamp: Date.now(),
+        });
+      } else {
+        // Disable ghost mode → resume broadcasting
+        publish({
+          type: 'ghost-mode-disabled',
+          timestamp: Date.now(),
+        });
+      }
+    },
+    [publish],
   );
-}
 
-// ---------------------------------------------------------------------------
-
-function ChannelList({
-  channels,
-  onOpen,
-  onChanged,
-}: {
-  channels: SubscribedChannelView[];
-  onOpen: (id: string) => void;
-  onChanged: () => void;
-}) {
-  const createChannel = useCreateChannel();
-  const subscribe = useSubscribeChannel();
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [joinId, setJoinId] = useState('');
-  const [formError, setFormError] = useState<string | null>(null);
-
-  const handleCreate = useCallback(async () => {
-    setFormError(null);
-    if (name.trim().length === 0) {
-      setFormError('Enter a channel name');
-      return;
-    }
-    try {
-      await createChannel.mutateAsync({ name: name.trim(), description: description.trim() });
-      setName('');
-      setDescription('');
-      onChanged();
-    } catch (e) {
-      setFormError(e instanceof Error ? e.message : 'Failed to create channel');
-    }
-  }, [name, description, createChannel, onChanged]);
-
-  const handleJoin = useCallback(async () => {
-    setFormError(null);
-    if (joinId.trim().length === 0) {
-      setFormError('Enter a channel ID to join');
-      return;
-    }
-    try {
-      await subscribe.mutateAsync(joinId.trim());
-      setJoinId('');
-      onChanged();
-    } catch (e) {
-      setFormError(e instanceof Error ? e.message : 'Failed to join channel');
-    }
-  }, [joinId, subscribe, onChanged]);
+  // ─── Task 8.3: Navigate to chat on "Open Chat" tap ────────────────────
+  const handleOpenChat = useCallback(
+    (conversationId: string) => {
+      router.push(`/chat/${conversationId}`);
+    },
+    [router],
+  );
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 py-4">
-      <section className="space-y-3 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-muted)]/30 p-4">
-        <h3 className="text-sm font-semibold text-[var(--quant-foreground)]">Create a channel</h3>
-        {formError && (
-          <div role="alert" className="text-sm text-red-500">
-            {formError}
+    <motion.div
+      className="relative h-dvh w-full overflow-hidden"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ type: 'spring', ...spring.gentle }}
+    >
+      {/* Map canvas with gestures, user location dot, and geolocation fallback */}
+      <MapCanvas
+        onLocationAcquired={handleLocationAcquired}
+        onLocationDenied={handleLocationDenied}
+      >
+        {/* Friend pins (Friends tab) — rendered only from real backend data and
+            only once the user's own location is known, so pins are never
+            placed at invented positions. */}
+        {activeTab === 'friends' &&
+          userLocation &&
+          friends.map((friend) => {
+            const pos = positionToPercent(friend.position, userLocation);
+            if (!pos) return null;
+            return (
+              <FriendPin
+                key={friend.userId}
+                friend={friend}
+                top={pos.top}
+                left={pos.left}
+                onOpenChat={handleOpenChat}
+                focused={focusedFriendId === friend.userId}
+              />
+            );
+          })}
+
+        {/* Honest empty state: no close friends are sharing their location. */}
+        {activeTab === 'friends' && friendsLoaded && friends.length === 0 && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+            <div className="bg-[var(--quant-card)]/90 backdrop-blur-md rounded-xl px-6 py-5 mx-8 text-center shadow-lg border border-[var(--quant-border)]">
+              <p className="text-[var(--quant-foreground)] text-sm font-medium">
+                No shared locations
+              </p>
+              <p className="text-[var(--quant-muted-foreground)] text-xs mt-1">
+                When your close friends share their location, they will appear
+                here.
+              </p>
+            </div>
           </div>
         )}
-        <input
-          aria-label="Channel name"
-          placeholder="Channel name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 py-2 text-[var(--quant-foreground)]"
-        />
-        <input
-          aria-label="Channel description"
-          placeholder="Description (optional)"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 py-2 text-[var(--quant-foreground)]"
-        />
-        <button
-          type="button"
-          onClick={() => void handleCreate()}
-          disabled={createChannel.isPending}
-          className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-        >
-          {createChannel.isPending ? 'Creating…' : 'Create channel'}
-        </button>
-      </section>
 
-      <section className="flex items-end gap-2 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-muted)]/30 p-4">
-        <div className="flex-1">
-          <label htmlFor="joinId" className="mb-1 block text-sm font-semibold">
-            Join by channel ID
-          </label>
+        {/* Heatmap overlay (Explore tab) — Task 8.7 */}
+        <HeatmapOverlay visible={activeTab === 'explore'} />
+      </MapCanvas>
+
+      {/* Search bar + Ghost mode toggle header */}
+      <div className="absolute top-4 left-4 right-4 z-30">
+        <div className="bg-[var(--quant-card)]/90 backdrop-blur-md rounded-xl px-4 py-3 flex items-center gap-3 shadow-lg border border-[var(--quant-border)]">
+          <span className="text-[var(--quant-muted-foreground)]">&#128270;</span>
           <input
-            id="joinId"
-            placeholder="Channel ID"
-            value={joinId}
-            onChange={(e) => setJoinId(e.target.value)}
-            className="w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 py-2 text-[var(--quant-foreground)]"
+            type="text"
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            onFocus={() => {
+              setSearchFocused(true);
+              setSearchPanelOpen(true);
+            }}
+            onBlur={() => setSearchFocused(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') handleClearSearch();
+            }}
+            placeholder="Search friends on the map..."
+            aria-label="Search friends on the map"
+            className="flex-1 bg-transparent text-[var(--quant-foreground)] placeholder:text-[var(--quant-muted-foreground)] text-base outline-none"
           />
-        </div>
-        <button
-          type="button"
-          onClick={() => void handleJoin()}
-          disabled={subscribe.isPending}
-          className="rounded-lg border border-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-600 disabled:opacity-60"
-        >
-          {subscribe.isPending ? 'Joining…' : 'Join'}
-        </button>
-      </section>
-
-      <section>
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-[var(--quant-muted-foreground)]">
-          Your channels
-        </h3>
-        {channels.length === 0 ? (
-          <EmptyState
-            title="No channels yet"
-            description="Create a channel or join one with its ID to get started"
-          />
-        ) : (
-          <ul className="space-y-2">
-            {channels.map((c) => (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  onClick={() => onOpen(c.id)}
-                  className="flex w-full items-center justify-between rounded-xl border border-[var(--quant-border)] bg-[var(--quant-background)] p-3 text-left transition hover:bg-[var(--quant-muted)]"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-[var(--quant-foreground)]">
-                      {c.name ?? 'Untitled channel'}
-                    </span>
-                    <span className="block truncate text-xs text-[var(--quant-muted-foreground)]">
-                      {c.subscriberCount} subscriber{c.subscriberCount === 1 ? '' : 's'} ·{' '}
-                      {c.role.toLowerCase()}
-                    </span>
-                  </span>
-                  {c.canPost && (
-                    <span className="ml-2 flex-shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
-                      admin
-                    </span>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-
-function ChannelDetail({
-  channel,
-  onBack,
-  onChanged,
-}: {
-  channel: SubscribedChannelView;
-  onBack: () => void;
-  onChanged: () => void;
-}) {
-  const { messages, isLoading, error, refetch } = useChannelFeed(channel.id);
-  const unsubscribe = useUnsubscribeChannel();
-  const publish = usePublishToChannel(channel.id);
-  const [draft, setDraft] = useState('');
-  const [publishError, setPublishError] = useState<string | null>(null);
-
-  const handleUnsubscribe = useCallback(async () => {
-    try {
-      await unsubscribe.mutateAsync(channel.id);
-      onBack();
-      onChanged();
-    } catch {
-      // React Query surfaces the error; the list refetch keeps state honest.
-    }
-  }, [unsubscribe, channel.id, onBack, onChanged]);
-
-  const handlePublish = useCallback(async () => {
-    setPublishError(null);
-    if (draft.trim().length === 0) return;
-    try {
-      await publish.mutateAsync(draft.trim());
-      setDraft('');
-      void refetch();
-    } catch (e) {
-      // Surfaces the backend's authoritative 403 for read-only subscribers.
-      setPublishError(e instanceof Error ? e.message : 'Failed to publish');
-    }
-  }, [draft, publish, refetch]);
-
-  return (
-    <div className="mx-auto flex h-full w-full max-w-2xl flex-col px-4 py-4">
-      <div className="mb-3 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={onBack}
-          className="text-sm font-medium text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
-        >
-          ← All channels
-        </button>
-        <button
-          type="button"
-          onClick={() => void handleUnsubscribe()}
-          disabled={unsubscribe.isPending || channel.role === 'OWNER'}
-          title={channel.role === 'OWNER' ? 'Owners cannot unsubscribe' : undefined}
-          className="rounded-lg border border-[var(--quant-border)] px-3 py-1.5 text-xs font-semibold text-[var(--quant-foreground)] disabled:opacity-50"
-        >
-          {unsubscribe.isPending ? 'Leaving…' : 'Unsubscribe'}
-        </button>
-      </div>
-
-      {channel.description && (
-        <p className="mb-3 text-sm text-[var(--quant-muted-foreground)]">{channel.description}</p>
-      )}
-
-      <div className="flex-1 space-y-2 overflow-y-auto">
-        {isLoading ? (
-          <LoadingState variant="skeleton" text="Loading feed..." />
-        ) : error ? (
-          <ErrorState message={error.message} onRetry={() => void refetch()} />
-        ) : messages.length === 0 ? (
-          <EmptyState title="No posts yet" description="Broadcasts will appear here" />
-        ) : (
-          messages.map((m) => (
-            <div
-              key={m.id}
-              className="rounded-xl border border-[var(--quant-border)] bg-[var(--quant-background)] p-3"
-            >
-              <p className="whitespace-pre-wrap break-words text-sm text-[var(--quant-foreground)]">
-                {m.content}
-              </p>
-              <span className="mt-1 block text-[10px] text-[var(--quant-muted-foreground)]">
-                {formatTime(String(m.createdAt))}
-              </span>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Admin-only composer. Hidden for read-only subscribers (UX); the backend
-          403 stays authoritative regardless of this client gate. */}
-      {channel.canPost ? (
-        <div className="mt-3 space-y-2 border-t border-[var(--quant-border)] pt-3">
-          {publishError && (
-            <div role="alert" className="text-sm text-red-500">
-              {publishError}
-            </div>
-          )}
-          <div className="flex items-end gap-2">
-            <textarea
-              aria-label="Broadcast message"
-              placeholder="Broadcast to subscribers…"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              rows={2}
-              className="flex-1 resize-none rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 py-2 text-sm text-[var(--quant-foreground)]"
-            />
+          {searchQuery !== '' && (
             <button
               type="button"
-              onClick={() => void handlePublish()}
-              disabled={publish.isPending || draft.trim().length === 0}
-              className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              aria-label="Clear search"
+              onClick={handleClearSearch}
+              className="text-[var(--quant-muted-foreground)] text-sm leading-none px-1"
             >
-              {publish.isPending ? 'Posting…' : 'Post'}
+              &#10005;
             </button>
-          </div>
+          )}
+          {/* Task 8.5: Ghost mode toggle in header */}
+          <GhostModeToggle enabled={ghostMode} onToggle={handleGhostModeToggle} />
         </div>
-      ) : (
-        <p className="mt-3 border-t border-[var(--quant-border)] pt-3 text-center text-xs text-[var(--quant-muted-foreground)]">
-          This is a read-only channel. Only admins can post.
-        </p>
-      )}
-    </div>
+
+        {/* QC-F-331 Slice 1: search results — sirf asal sharing friends.
+            Panel tab dikhta hai jab search sakriya ho (focus ya query) aur
+            koi result select NAHI hua ho. Koi place/geocoding result NAHI —
+            woh data is page ke paas hai hi NAHI. */}
+        {searchPanelOpen && (
+          <div
+            aria-label="Friends sharing their location"
+            className="mt-2 bg-[var(--quant-card)]/90 backdrop-blur-md rounded-xl border border-[var(--quant-border)] shadow-lg px-2 py-2"
+          >
+            {friends.length === 0 ? (
+              <p className="px-2 py-1 text-sm text-[var(--quant-foreground)]">
+                No friends are sharing their location right now.
+              </p>
+            ) : searchResults.length === 0 ? (
+              <div className="px-2 py-1">
+                <p className="text-sm text-[var(--quant-foreground)]">
+                  No sharing friends match &apos;{searchQuery.trim()}&apos;.
+                </p>
+                <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
+                  This search only finds friends who are sharing their location
+                  — place search isn&apos;t available yet.
+                </p>
+              </div>
+            ) : (
+              searchResults.map((friend) => (
+                <button
+                  key={friend.userId}
+                  type="button"
+                  onClick={() => handleSelectFriend(friend)}
+                  className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-left hover:bg-black/5"
+                >
+                  <span className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+                    {friend.avatarUrl ? (
+                      <img
+                        src={friend.avatarUrl}
+                        alt={friend.username}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="w-full h-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold">
+                        {friend.username.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm text-[var(--quant-foreground)] truncate">
+                      {friend.username}
+                    </span>
+                    {friend.displayName && friend.displayName !== friend.username && (
+                      <span className="block text-xs text-[var(--quant-muted-foreground)] truncate">
+                        {friend.displayName}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Tab bar: Friends / Explore */}
+      <div className="absolute top-20 left-4 right-4 z-30">
+        <div className="flex bg-black/40 backdrop-blur-sm rounded-full p-1">
+          <button
+            onClick={() => {
+              setActiveTab('friends');
+              setFocusedFriendId(null);
+            }}
+            className={`flex-1 py-2 text-sm font-medium rounded-full transition-colors min-h-[44px] flex items-center justify-center ${
+              activeTab === 'friends'
+                ? 'bg-emerald-500 text-white'
+                : 'text-white/70 hover:text-white'
+            }`}
+          >
+            Friends
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('explore');
+              setFocusedFriendId(null);
+            }}
+            className={`flex-1 py-2 text-sm font-medium rounded-full transition-colors min-h-[44px] flex items-center justify-center ${
+              activeTab === 'explore'
+                ? 'bg-emerald-500 text-white'
+                : 'text-white/70 hover:text-white'
+            }`}
+          >
+            Explore
+          </button>
+        </div>
+      </div>
+
+      {/* My Location re-center button */}
+      <div className="absolute bottom-24 right-4 z-30">
+        <button
+          className="w-12 h-12 bg-white dark:bg-slate-800 rounded-full shadow-lg flex items-center justify-center text-lg border border-[var(--quant-border)]"
+          onClick={() => {
+            if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                  setUserLocation({
+                    latitude: pos.coords.latitude,
+                    longitude: pos.coords.longitude,
+                    accuracy: pos.coords.accuracy,
+                    timestamp: pos.timestamp,
+                  });
+                },
+                () => {},
+              );
+            }
+          }}
+          aria-label="Center on my location"
+        >
+          &#128205;
+        </button>
+      </div>
+
+      {/* Bottom nav */}
+      <div className="absolute bottom-0 left-0 right-0 z-30">
+        <BottomNav
+          items={navItems}
+          activeId="map"
+          onChange={(id) => {
+            const route = routes[id];
+            if (route) router.push(route);
+          }}
+        />
+      </div>
+    </motion.div>
   );
 }
