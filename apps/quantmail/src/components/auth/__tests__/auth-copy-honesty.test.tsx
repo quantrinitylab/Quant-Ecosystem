@@ -208,3 +208,80 @@ describe('AuthBrandPanel "AI triage" card copy honesty', () => {
     expect(el.textContent).toMatch(/sums up long threads/i);
   });
 });
+
+// ============================================================================
+// Login/register brand-subtitle copy honesty (2026-10-15, P1 auth-sso
+// finding).
+//
+// The login brand panel (login-skeleton.tsx LoginBrand) and the register
+// page subtitle promised "assisted drafting" — the same invented-AI-claim
+// class as the "drafts the reply" card fixed in PR #1083. The only AI-writing
+// path (compose/page.tsx handleAIAssist → POST /api/ai/compose) has no
+// user-facing trigger: EmailComposer's onAIAssist prop is declared but never
+// rendered (dead plumbing). Per the provable-truth rule, the claim was
+// dropped and both subtitles were restricted to shipped features (threads,
+// schedules / mail, scheduling).
+//
+// These tests pin the fixed copy so the unprovable claim cannot come back.
+// ============================================================================
+
+describe('Auth brand-subtitle "assisted drafting" copy honesty', () => {
+  // Locate sources from wherever vitest was invoked (same walk-up
+  // convention as the tests above).
+  const findSource = (...rels: string[]): string => {
+    let dir = process.cwd();
+    for (let depth = 0; depth < 8; depth++) {
+      for (const rel of rels) {
+        const candidate = join(dir, rel);
+        if (existsSync(candidate)) return candidate;
+      }
+      const parent = join(dir, '..');
+      if (parent === dir) break;
+      dir = parent;
+    }
+    throw new Error(
+      `auth-copy-honesty: could not locate ${rels[0]} from ${process.cwd()}`,
+    );
+  };
+
+  const stripComments = (src: string): string =>
+    src
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+      .replace(/(^|\s)\/\/[^\n]*/g, '');
+
+  const loginSkeletonUserFacing = stripComments(
+    readFileSync(
+      findSource(
+        'src/app/login/login-skeleton.tsx',
+        'apps/quantmail/src/app/login/login-skeleton.tsx',
+      ),
+      'utf8',
+    ),
+  );
+
+  const registerUserFacing = stripComments(
+    readFileSync(
+      findSource(
+        'src/app/register/page.tsx',
+        'apps/quantmail/src/app/register/page.tsx',
+      ),
+      'utf8',
+    ),
+  );
+
+  it('never promises "assisted drafting" in the login brand subtitle', () => {
+    expect(loginSkeletonUserFacing).not.toMatch(/assisted drafting/i);
+  });
+
+  it('never promises "assisted drafting" in the register brand subtitle', () => {
+    expect(registerUserFacing).not.toMatch(/assisted drafting/i);
+  });
+
+  it('keeps the provable login promise (threads and schedules)', () => {
+    expect(loginSkeletonUserFacing).toMatch(/threads and schedules/i);
+  });
+
+  it('keeps the provable register promise (mail and scheduling)', () => {
+    expect(registerUserFacing).toMatch(/mail and scheduling/i);
+  });
+});
