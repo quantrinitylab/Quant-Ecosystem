@@ -710,3 +710,164 @@ describe('SearchQueryService.search', () => {
     expect(callArg.where.AND).toContainEqual({ isTrash: true });
   });
 });
+
+describe('SearchQueryService.parse in:anywhere', () => {
+  const service = new SearchQueryService();
+
+  it('recognizes in:anywhere as a scope modifier, not a folder id', () => {
+    const p = service.parse('in:anywhere');
+    expect(p.inAnywhere).toBe(true);
+    expect(p.inFolderTypes).toEqual([]);
+    expect(p.folderIds).toEqual([]);
+    expect(p.terms).toEqual([]);
+  });
+
+  it('keeps in:anywhere alongside free text and other operators', () => {
+    const p = service.parse('in:anywhere invoice from:alice');
+    expect(p.inAnywhere).toBe(true);
+    expect(p.terms).toEqual(['invoice']);
+    expect(p.from).toEqual(['alice']);
+    expect(p.folderIds).toEqual([]);
+  });
+
+  it('matches in:ANYWHERE case-insensitively', () => {
+    expect(service.parse('in:ANYWHERE').inAnywhere).toBe(true);
+  });
+
+  it('does not treat folder:anywhere as the scope modifier', () => {
+    const p = service.parse('folder:anywhere');
+    expect(p.inAnywhere).toBeUndefined();
+    expect(p.folderIds).toEqual(['anywhere']);
+  });
+});
+
+describe('SearchQueryService.buildEmailWhere in:anywhere', () => {
+  const service = new SearchQueryService();
+
+  it('drops the default trash/spam exclusions and adds no folder predicate', () => {
+    const where = service.buildEmailWhere('user-1', 'in:anywhere');
+    expect(where.userId).toBe('user-1');
+    expect(where.deletedAt).toBeNull();
+    expect(where.isTrash).toBeUndefined();
+    expect(where.isSpam).toBeUndefined();
+    expect(where.AND).toBeUndefined();
+  });
+
+  it('combines in:anywhere with free-text terms (no isTrash/isSpam defaults)', () => {
+    const where = service.buildEmailWhere('user-1', 'in:anywhere invoice');
+    expect(where.isTrash).toBeUndefined();
+    expect(where.isSpam).toBeUndefined();
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toHaveLength(1);
+    expect(and[0]).toHaveProperty('OR');
+  });
+});
+
+describe('SearchQueryService in:anywhere acceptance (CODEX-REVIEW follow-up for #1132)', () => {
+  const service = new SearchQueryService();
+
+  /** Minimal in-memory evaluator for the Prisma `where` shapes this service
+   *  emits for the tested queries: field equality, AND/OR nesting, and
+   *  contains (case-insensitive). */
+  function matchesWhere(row: Record<string, unknown>, where: Record<string, unknown>): boolean {
+    for (const [key, value] of Object.entries(where)) {
+      if (key === 'AND') {
+        if (!(value as Record<string, unknown>[]).every((c) => matchesWhere(row, c))) return false;
+      } else if (key === 'OR') {
+        if (!(value as Record<string, unknown>[]).some((c) => matchesWhere(row, c))) return false;
+      } else if (value !== null && typeof value === 'object' && 'contains' in value) {
+        const hay = String(row[key] ?? '');
+        const needle = String((value as { contains: unknown }).contains);
+        const insensitive = (value as { mode?: string }).mode === 'insensitive';
+        const h = insensitive ? hay.toLowerCase() : hay;
+        const n = insensitive ? needle.toLowerCase() : needle;
+        if (!h.includes(n)) return false;
+      } else {
+        if (row[key] !== value) return false;
+      }
+    }
+    return true;
+  }
+
+  const rows: Record<string, unknown>[] = [
+    { id: 'inbox', userId: 'u1', deletedAt: null, isTrash: false, isSpam: false, subject: 'invoice Q3', snippet: '', bodyPlain: '' },
+    { id: 'spam', userId: 'u1', deletedAt: null, isTrash: false, isSpam: true, subject: 'invoice lottery', snippet: '', bodyPlain: '' },
+    { id: 'trash', userId: 'u1', deletedAt: null, isTrash: true, isSpam: false, subject: 'invoice old', snippet: '', bodyPlain: '' },
+    { id: 'deleted', userId: 'u1', deletedAt: new Date('2026-09-01T00:00:00.000Z'), isTrash: false, isSpam: false, subject: 'invoice gone', snippet: '', bodyPlain: '' },
+    { id: 'other-user', userId: 'u2', deletedAt: null, isTrash: false, isSpam: false, subject: 'invoice theirs', snippet: '', bodyPlain: '' },
+  ];
+
+  const matchedIds = (query: string) =>
+    rows.filter((r) => matchesWhere(r, service.buildEmailWhere('u1', query))).map((r) => r.id);
+
+  it('in:anywhere includes inbox + spam + trash, excludes soft-deleted and other-user rows', () => {
+    expect(matchedIds('in:anywhere').sort()).toEqual(['inbox', 'spam', 'trash']);
+  });
+
+  it('in:anywhere invoice includes inbox + spam + trash matches, excludes soft-deleted and other-user rows', () => {
+    expect(matchedIds('in:anywhere invoice').sort()).toEqual(['inbox', 'spam', 'trash']);
+  });
+
+  it('control: a plain invoice search still excludes trash and spam by default', () => {
+    expect(matchedIds('invoice').sort()).toEqual(['inbox']);
+  });
+});
+
+describe('SearchQueryService.search in:anywhere', () => {
+  function createMockPrisma() {
+    return {
+      $queryRawUnsafe: vi.fn().mockRejectedValue(new Error('raw query disabled in base mock')),
+      email: { findMany: vi.fn(), count: vi.fn() },
+    };
+  }
+
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: SearchQueryService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new SearchQueryService(prisma as never);
+  });
+
+  it('Prisma path: in:anywhere carries no isTrash/isSpam exclusions, keeps userId + deletedAt:null', async () => {
+    prisma.email.findMany.mockResolvedValue([{ id: 'e1' }]);
+    prisma.email.count.mockResolvedValue(1);
+
+    await service.search('user-1', 'in:anywhere', { limit: 10 });
+
+    const callArg = prisma.email.findMany.mock.calls[0]?.[0] as {
+      where: Record<string, unknown>;
+    };
+    expect(callArg.where.userId).toBe('user-1');
+    expect(callArg.where.deletedAt).toBeNull();
+    expect(callArg.where.isTrash).toBeUndefined();
+    expect(callArg.where.isSpam).toBeUndefined();
+  });
+
+  it('raw FTS path: in:anywhere invoice drops trash/spam exclusions, keeps user/deleted/terms clauses', async () => {
+    prisma.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*)::int AS total')) {
+        return [{ total: 3 }];
+      }
+      return [{ id: 'e1' }, { id: 'e2' }, { id: 'e3' }];
+    });
+
+    const result = await service.search('user-1', 'in:anywhere invoice', { page: 1, limit: 10 });
+
+    expect(result.total).toBe(3);
+    const calls = prisma.$queryRawUnsafe.mock.calls;
+    const dataCall = calls.find((c: any[]) => String(c[0]).includes('SELECT id, "userId"'));
+    expect(dataCall).toBeDefined();
+    const sql = String(dataCall![0]);
+    // Core scope preserved: user, soft-delete, and the full-text term match.
+    expect(sql).toContain('"userId" = $1');
+    expect(sql).toContain('"deletedAt" IS NULL');
+    expect(sql).toContain("plainto_tsquery('english', $2)");
+    expect(dataCall![1]).toBe('user-1');
+    expect(dataCall![2]).toBe('invoice');
+    // Both default exclusions dropped: no isTrash/isSpam predicates at all.
+    expect(sql).not.toContain('"isTrash" = $');
+    expect(sql).not.toContain('"isSpam" = $');
+    expect(dataCall!.filter((p) => p === false)).toHaveLength(0);
+  });
+});
