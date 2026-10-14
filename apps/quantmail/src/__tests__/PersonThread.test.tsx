@@ -14,6 +14,21 @@ import React, { act } from 'react';
 
 // Silence React 19's "not configured to support act(...)" warning under vitest.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+// framer-motion (used by AttachmentPreview) reads matchMedia, which jsdom
+// does not implement. The shim is a test-environment concern, not product
+// behaviour: reduced-motion is off so previews render their default markup.
+if (typeof window !== 'undefined' && !window.matchMedia) {
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+}
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { PersonThread, type PersonConversation } from '../components/PersonThread';
@@ -385,5 +400,161 @@ describe('PersonThread', () => {
     const timeSlot = row!.querySelector('.text-right');
     expect(timeSlot).not.toBeNull();
     expect(timeSlot!.textContent!.trim()).toBe('');
+  });
+});
+
+// ============================================================================
+// PersonThread attachments — interactive preview chips (fix/qm-personthread-attachments).
+//
+// The PersonThread attachment block used to render plain non-interactive
+// divs (filename + size, no preview/download path). It now reuses the
+// AttachmentPreview component (thumbnails, lightbox, honest Save-to-Drive).
+// These pins prove: chips are real buttons, clicking one with a url opens
+// the preview lightbox, a url-less attachment opens nothing fake, and the
+// Save-to-Drive button appears only when the backend can actually read the
+// bytes (AttachmentService "att_<uuid>" rows — QM-M39-010).
+// ============================================================================
+
+function makeAttachmentEmail(over: {
+  id: string;
+  attachments: Array<{
+    id: string;
+    filename: string;
+    mimeType: string;
+    size: number;
+    url?: string;
+  }>;
+}) {
+  return makeEmail({
+    id: over.id,
+    bodyText: 'see attached',
+    attachments: over.attachments.map((a) => ({
+      id: a.id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      emailId: over.id,
+      filename: a.filename,
+      mimeType: a.mimeType,
+      size: a.size,
+      url: a.url ?? '',
+      isInline: false,
+    })),
+  });
+}
+
+describe('PersonThread attachments (interactive chips)', () => {
+  it('keeps the thread-attachments testid and renders each attachment as a real button', () => {
+    const conversation = makeConversation({
+      messages: [
+        makeAttachmentEmail({
+          id: 'm1',
+          attachments: [
+            { id: 'a1', filename: 'invoice.pdf', mimeType: 'application/pdf', size: 1536, url: 'https://example.com/invoice.pdf' },
+          ],
+        }),
+      ],
+    });
+    const container = renderIntoDom(
+      <PersonThread conversation={conversation} currentUserEmail={ME} />,
+    );
+    const block = container.querySelector('[data-testid="thread-attachments"]');
+    expect(block).not.toBeNull();
+    // The chip is a <button>, not a bare div: keyboard-focusable, clickable.
+    const chip = block!.querySelector('button');
+    expect(chip).not.toBeNull();
+    expect(chip!.tagName).toBe('BUTTON');
+    expect(chip!.getAttribute('title')).toBe('invoice.pdf');
+    expect(chip!.textContent).toContain('invoice.pdf');
+    expect(chip!.textContent).toContain('1.5 KB');
+  });
+
+  it('opens the preview lightbox when a chip with a real url is clicked', () => {
+    const conversation = makeConversation({
+      messages: [
+        makeAttachmentEmail({
+          id: 'm1',
+          attachments: [
+            { id: 'a1', filename: 'photo.png', mimeType: 'image/png', size: 2048, url: 'https://example.com/photo.png' },
+          ],
+        }),
+      ],
+    });
+    const container = renderIntoDom(
+      <PersonThread conversation={conversation} currentUserEmail={ME} />,
+    );
+    const chip = container.querySelector(
+      '[data-testid="thread-attachments"] button',
+    ) as HTMLButtonElement;
+    expect(chip).not.toBeNull();
+    act(() => {
+      chip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const lightbox = container.querySelector('.attachment-lightbox');
+    expect(lightbox).not.toBeNull();
+    const img = lightbox!.querySelector('img');
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute('src')).toBe('https://example.com/photo.png');
+  });
+
+  it('opens no fake preview for an attachment with no url', () => {
+    const conversation = makeConversation({
+      messages: [
+        makeAttachmentEmail({
+          id: 'm1',
+          attachments: [
+            { id: 'a1', filename: 'orphan.pdf', mimeType: 'application/pdf', size: 100 },
+          ],
+        }),
+      ],
+    });
+    const container = renderIntoDom(
+      <PersonThread conversation={conversation} currentUserEmail={ME} />,
+    );
+    const chip = container.querySelector(
+      '[data-testid="thread-attachments"] button',
+    ) as HTMLButtonElement;
+    expect(chip).not.toBeNull();
+    act(() => {
+      chip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    // No url on the wire → no lightbox. A button that opened an empty
+    // preview would be a fake control.
+    expect(container.querySelector('.attachment-lightbox')).toBeNull();
+  });
+
+  it('offers Save to Drive only when the backend can read the bytes (att_ rows)', () => {
+    const conversation = makeConversation({
+      messages: [
+        makeAttachmentEmail({
+          id: 'm1',
+          attachments: [
+            // AttachmentService row: bytes readable → Save button is honest.
+            { id: 'att_9f3c2a1b', filename: 'saved.pdf', mimeType: 'application/pdf', size: 100, url: 'https://example.com/saved.pdf' },
+          ],
+        }),
+        makeAttachmentEmail({
+          id: 'm2',
+          attachments: [
+            // Inbound metadata-only row: no readable bytes → no Save button.
+            { id: 'a2', filename: 'meta.pdf', mimeType: 'application/pdf', size: 100, url: 'https://example.com/meta.pdf' },
+          ],
+        }),
+      ],
+    });
+    const container = renderIntoDom(
+      <PersonThread conversation={conversation} currentUserEmail={ME} />,
+    );
+    const saveButtons = Array.from(container.querySelectorAll('button')).filter(
+      (b) => b.textContent === 'Save to Drive',
+    );
+    expect(saveButtons).toHaveLength(1);
+  });
+
+  it('renders nothing for the attachments block when there are no attachments', () => {
+    const conversation = makeConversation();
+    const container = renderIntoDom(
+      <PersonThread conversation={conversation} currentUserEmail={ME} />,
+    );
+    expect(container.querySelector('[data-testid="thread-attachments"]')).toBeNull();
   });
 });

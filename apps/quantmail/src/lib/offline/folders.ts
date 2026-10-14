@@ -50,6 +50,25 @@ export function folderTypeOf(queryKey: readonly unknown[]): string | undefined {
   return typeof folderType === 'string' ? folderType : undefined;
 }
 
+/**
+ * A send that is queued for a future time — the Scheduled mailbox's rule,
+ * mirrored from `GET /emails?folderType=SCHEDULED` (`isSent`,
+ * `deliveryStatus = 'queued'`, fire time in the future). `isSent` and
+ * `deliveryStatus` are server-sent fields the client `Email` type does not
+ * declare; `scheduledAt` is the fire time `formatEmailRecord` bridges onto the
+ * wire for queued rows.
+ */
+export function isPendingScheduledSend(email: Email, now: number = Date.now()): boolean {
+  const server = email as { isSent?: boolean; deliveryStatus?: string };
+  const scheduledAtMs = email.scheduledAt ? new Date(email.scheduledAt).getTime() : NaN;
+  return (
+    server.isSent === true &&
+    server.deliveryStatus === 'queued' &&
+    !Number.isNaN(scheduledAtMs) &&
+    scheduledAtMs > now
+  );
+}
+
 /** Whether a message belongs in a folder view, judged purely from its fields. */
 export function belongsInFolder(email: Email, folderType: string | undefined): boolean {
   const isTrashed = Boolean(email.trashedAt);
@@ -88,15 +107,7 @@ export function belongsInFolder(email: Email, folderType: string | undefined): b
       // bug class as the SENT/SPAM cases above. `isSent`/`deliveryStatus`
       // are server-sent fields the client `Email` type does not declare;
       // read them the same way `lib/threading.ts` does.
-      const server = email as { isSent?: boolean; deliveryStatus?: string };
-      const scheduledAtMs = email.scheduledAt ? new Date(email.scheduledAt).getTime() : NaN;
-      return (
-        !isTrashed &&
-        server.isSent === true &&
-        server.deliveryStatus === 'queued' &&
-        !Number.isNaN(scheduledAtMs) &&
-        scheduledAtMs > Date.now()
-      );
+      return !isTrashed && isPendingScheduledSend(email);
     }
     case 'DRAFTS':
       // Drafts is the server's `isDraft` flag, not a folder: the backend's
@@ -114,7 +125,11 @@ export function belongsInFolder(email: Email, folderType: string | undefined): b
     case 'SNOOZED':
       return !isTrashed && Boolean(email.snoozedUntil);
     case 'INBOX':
-      return !isTrashed && !email.isArchived && !email.snoozedUntil;
+      // A scheduled send joins the conversation when it fires, not when it is
+      // scheduled — the server's inbox filter excludes it the same way.
+      return (
+        !isTrashed && !email.isArchived && !email.snoozedUntil && !isPendingScheduledSend(email)
+      );
     default:
       // Search results and label views: everything except the trash.
       return !isTrashed;

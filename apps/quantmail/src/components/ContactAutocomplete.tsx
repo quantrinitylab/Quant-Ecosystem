@@ -278,9 +278,13 @@ export function ContactAutocomplete({
           return (
             <span
               key={email}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--quant-primary)]/15 border border-[var(--quant-primary)]/30 text-[var(--brand-accent)] text-xs font-mono animate-in fade-in zoom-in-95 duration-100 shadow-sm"
+              // max-w-full + min-w-0: on a phone the To row is narrower than
+              // the 200px label cap plus padding and the remove button, so a
+              // long "Name (address)" chip pushed past the row edge instead of
+              // truncating inside it.
+              className="inline-flex max-w-full min-w-0 items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--quant-primary)]/15 border border-[var(--quant-primary)]/30 text-[var(--brand-accent)] text-xs font-mono animate-in fade-in zoom-in-95 duration-100 shadow-sm"
             >
-              <span className="font-medium text-white truncate max-w-[200px]">
+              <span className="min-w-0 font-medium text-white truncate max-w-[200px]">
                 {displayName ? `${displayName} (${bareEmail})` : bareEmail}
               </span>
               <button

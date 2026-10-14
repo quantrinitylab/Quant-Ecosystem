@@ -44,7 +44,7 @@
  */
 
 import type { Email, EmailAddress } from '../types';
-import { isFromMe, messageKindOf, normalizeSubject, sanitizeSnippetText } from './threading';
+import { isFromMe, messageKindOf, messagePreviewText, normalizeSubject } from './threading';
 
 /** Which of the three People-view worlds a conversation belongs to. */
 export type ConversationWorld = 'log' | 'groups' | 'updates';
@@ -412,12 +412,20 @@ const SNIPPET_CHARS = 80;
 
 /**
  * The one-line preview for a person row: `You: <snippet>` when the latest
- * message is the reader's own, otherwise the snippet. The snippet is the last
- * message's snippet, repaired (mojibake/markup stripped) and trimmed to ~80
- * characters.
+ * message is the reader's own, otherwise the snippet. The text comes from
+ * `messagePreviewText` — the stored snippet, or the body when the row was
+ * saved without one (the sender's own Sent copy, which is what a note-to-self
+ * or a just-sent message shows) — then the subject when the message has no
+ * text at all. Repaired (mojibake/markup stripped) and trimmed to ~80
+ * characters. Never a bare "You:".
  */
 export function personSnippet(c: PersonConversation): string {
-  const clean = sanitizeSnippetText(c.lastMessage.snippet || '');
+  const clean =
+    messagePreviewText(c.lastMessage) ||
+    // Display form of the subject: reply/forward prefixes dropped, case kept
+    // (normalizeSubject is the lowercase comparable form).
+    (c.lastMessage.subject || '').replace(/^\s*((re|fwd?|aw|wg)\s*:\s*)+/i, '').trim();
   const snippet = clean.length > SNIPPET_CHARS ? clean.slice(0, SNIPPET_CHARS).trimEnd() : clean;
+  if (!snippet) return '';
   return c.lastMessageFromMe ? `You: ${snippet}` : snippet;
 }

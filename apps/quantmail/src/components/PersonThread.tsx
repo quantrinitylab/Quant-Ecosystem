@@ -15,10 +15,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Email } from '../types';
 import { isFromMe } from '../lib/threading';
-import { formatBytes } from '../lib/format-bytes';
 import { htmlToPlainText } from '../lib/htmlToPlainText';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailSafetyBanner } from './EmailSafetyBanner';
+import { AttachmentPreview } from './AttachmentPreview';
 import type { ConversationWorld, PersonConversation } from '../lib/peopleGrouping';
 
 // Re-exported so thread consumers can get the contract types from one place.
@@ -55,7 +55,7 @@ function formatMessageTime(receivedAt: Date): string {
   if (Number.isNaN(date.getTime())) return '';
   const now = new Date();
   const sameDay = date.toDateString() === now.toDateString();
-  const time = date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const time = date.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
   if (sameDay) return time;
   const day = date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
   return `${day}, ${time}`;
@@ -96,8 +96,32 @@ function MessageRow({
   const visibleText = expanded || !isLong ? fullText : `${fullText.slice(0, SNIPPET_LENGTH).trimEnd()}…`;
   const attachments = message.attachments ?? [];
 
+  // Map the message's EmailAttachment rows onto the AttachmentPreview
+  // contract (same defensive mapping as ConversationalThreadView, plus the
+  // QM-M39-010 rule): only AttachmentService rows ("att_<uuid>") carry
+  // readable bytes on the backend — inbound metadata-only rows get no
+  // attachmentId, so no Save-to-Drive button is ever offered on bytes the
+  // backend cannot read. A row with no url simply opens no preview — no
+  // fake preview, no invented download path.
+  const previewAttachments = attachments.map((attachment) => ({
+    id: attachment.id,
+    filename: attachment.filename ?? 'attachment',
+    mimeType: attachment.mimeType ?? 'application/octet-stream',
+    size: attachment.size ?? 0,
+    url: attachment.url,
+    attachmentId:
+      typeof attachment.id === 'string' && attachment.id.startsWith('att_')
+        ? attachment.id
+        : null,
+  }));
+
+  const scrollToMessage = () => {
+    const el = document.getElementById(`mail-message-${message.id}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
-    <div data-testid="thread-message" data-sent={fromMe ? 'true' : 'false'}>
+    <div data-testid="thread-message" data-sent={fromMe ? 'true' : 'false'} id={`mail-message-${message.id}`}>
       {/*
         QM-SCREEN-005 R2: sender-safety indicators on inbound messages —
         external-sender note plus the real backend phishing scan (lazy, per
@@ -163,24 +187,12 @@ function MessageRow({
             </button>
           )}
           {attachments.length > 0 && (
-            <div className="mt-2 space-y-1.5" data-testid="thread-attachments">
-              {attachments.map((attachment) => (
-                <div
-                  key={attachment.id}
-                  data-testid="thread-attachment"
-                  className="flex items-center gap-2 rounded-lg bg-black/40 px-2.5 py-1.5"
-                >
-                  <span
-                    className="min-w-0 flex-1 truncate text-xs text-zinc-300"
-                    title={attachment.filename}
-                  >
-                    {attachment.filename}
-                  </span>
-                  <span className="flex-none text-[11px] text-zinc-500">
-                    {formatBytes(attachment.size)}
-                  </span>
-                </div>
-              ))}
+            <div className="mt-2 personthread-attachments" data-testid="thread-attachments">
+              <AttachmentPreview
+                attachments={previewAttachments}
+                messageId={message.id}
+                onBackToMail={scrollToMessage}
+              />
             </div>
           )}
           <div className="mt-1 text-right text-[11px] text-zinc-500">

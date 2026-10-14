@@ -4,7 +4,9 @@
  * PeopleList — the conversation list for the unified People view.
  *
  * One row per person (`PersonConversation` from `lib/peopleGrouping`):
- * IdentityAvatar seeded by the person's email, name, a one-line snippet via
+ * IdentityAvatar seeded by the person's name (email when there is none) — the
+ * same seed PersonThread's header uses, so a person keeps one avatar colour
+ * from the list into the conversation — then the name, a one-line snippet via
  * `personSnippet()`, relative time, and an unread pill that shows the REAL
  * unread count — rendered only when it is above zero, never faked.
  *
@@ -16,6 +18,7 @@
 
 import { useMemo, type CSSProperties } from 'react';
 import { IdentityAvatar } from './IdentityAvatar';
+import { IconPaperclip } from './icons';
 import { Button, Skeleton } from '@quant/shared-ui';
 import { APP_THEMES } from '../lib/app-theme';
 import { personSnippet, type PersonConversation } from '../lib/peopleGrouping';
@@ -172,6 +175,9 @@ export function PeopleList({
           <ul className="pb-4">
           {visible.map((c) => {
             const unread = c.unreadCount > 0;
+            // Paperclip signal: any message in this conversation carrying
+            // attachments. Real rows only — never inferred, never faked.
+            const hasAttachments = c.messages.some((m) => (m.attachments ?? []).length > 0);
             return (
               <li key={c.personKey}>
                 <button
@@ -180,7 +186,7 @@ export function PeopleList({
                   aria-label={unread ? `${c.name}, ${c.unreadCount} unread` : c.name}
                   className="people-row flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.04] active:bg-white/[0.07]"
                 >
-                  <IdentityAvatar name={c.email} size="md" className="people-row-avatar" />
+                  <IdentityAvatar name={c.name || c.email} size="md" className="people-row-avatar" />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2">
                       <span
@@ -209,6 +215,16 @@ export function PeopleList({
                             <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
                             <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                           </svg>
+                        )}
+                        {hasAttachments && (
+                          <span
+                            data-testid="row-attachments"
+                            role="img"
+                            aria-label="Includes attachments"
+                            className="inline-flex flex-none text-zinc-500"
+                          >
+                            <IconPaperclip size={13} />
+                          </span>
                         )}
                       </span>
                       <span className="flex-none text-xs text-zinc-500">

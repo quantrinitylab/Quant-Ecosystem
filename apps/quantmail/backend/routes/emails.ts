@@ -15,6 +15,7 @@ import {
 } from '../services/outbound-delivery.service';
 import { validateComposeEmail, sanitizeHtml } from '../middleware/validate-email';
 import { formatEmailRecord } from '../lib/format-email';
+import { buildSnippet } from '../lib/snippet';
 import { threadRealtimeHub } from '../services/thread-realtime';
 import { MboxParserService } from '../services/mbox-parser.service';
 import { ImapImporterService } from '../services/imap-importer.service';
@@ -233,7 +234,11 @@ const composeSchema = z
     cc: recipientArray(0).optional(),
     bccAddresses: recipientArray(0).optional(),
     bcc: recipientArray(0).optional(),
-    subject: z.string().min(1).max(500),
+    // Subject is OPTIONAL: a draft or message may carry an empty subject
+    // (Gmail-style "send without a subject", confirmed client-side). The DB
+    // column is non-nullable, so empty stays '' rather than null, and the
+    // readers already fall back to a display label for ''.
+    subject: z.string().max(500),
     bodyHtml: z.string().optional(),
     bodyPlain: z.string().optional(),
     bodyText: z.string().optional(),
@@ -332,6 +337,10 @@ export default async function emailsRoutes(
   options: EmailsRouteOptions = {},
 ) {
   // K4: Idempotency-Key support on compose/send/reply (and other mutating routes).
+  // WR-MAIL-104: the active catalog commands below (mail.draft.create,
+  // mail.draft.update, mail.send.execute, mail.thread.archive,
+  // mail.thread.restore) REQUIRE a valid Idempotency-Key — missing/malformed
+  // keys are rejected with 4xx before the handler executes.
   enableIdempotency(fastify);
 
   const smartInbox = options.smartInbox ?? new SmartInboxService();
@@ -475,13 +484,19 @@ export default async function emailsRoutes(
   };
 
   // POST /emails - Compose or send an email
-  fastify.post('/', handleComposeOrSend);
+  // WR-MAIL-104: mail.draft.create is an active catalog command — key required.
+  fastify.post('/', { config: { idempotencyRequired: true } }, handleComposeOrSend);
 
   // POST /emails/compose - Unified composer contract (M07)
-  fastify.post('/compose', handleComposeOrSend);
+  // WR-MAIL-104: mail.draft.create is an active catalog command — key required.
+  fastify.post('/compose', { config: { idempotencyRequired: true } }, handleComposeOrSend);
 
   // PUT /emails/:id - update an owned draft without creating duplicates.
-  fastify.put<{ Params: { id: string } }>('/:id', async (request, reply) => {
+  // WR-MAIL-104: mail.draft.update is an active catalog command — key required.
+  fastify.put<{ Params: { id: string } }>(
+    '/:id',
+    { config: { idempotencyRequired: true } },
+    async (request, reply) => {
     const parsed = composeSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
@@ -508,6 +523,13 @@ export default async function emailsRoutes(
     const raw = (request.body ?? {}) as Record<string, unknown>;
     const provided = (key: string) => Object.prototype.hasOwnProperty.call(raw, key);
 
+    // The stored preview follows the body: recompute it whenever either body
+    // is part of this edit, from the values the row will hold afterwards.
+    const htmlProvided = provided('bodyHtml');
+    const plainProvided = provided('bodyText') || provided('bodyPlain');
+    const nextHtml = htmlProvided ? (d.bodyHtml ? sanitizeHtml(d.bodyHtml) : '') : existing.bodyHtml;
+    const nextPlain = plainProvided ? (d.bodyPlain ?? '') : existing.bodyPlain;
+
     // QM-BACK-002: guard + correlation for draft edits (autosave races).
     const draftOpts = mutationOpts(request, reply);
     // K1: draft update + outbox row in ONE transaction (doc 05).
@@ -523,8 +545,9 @@ export default async function emailsRoutes(
           subject: d.subject,
           ...(provided('cc') || provided('ccAddresses') ? { ccAddresses: d.ccAddresses } : {}),
           ...(provided('bcc') || provided('bccAddresses') ? { bccAddresses: d.bccAddresses } : {}),
-          ...(provided('bodyHtml') ? { bodyHtml: d.bodyHtml ? sanitizeHtml(d.bodyHtml) : '' } : {}),
-          ...(provided('bodyText') || provided('bodyPlain') ? { bodyPlain: d.bodyPlain ?? '' } : {}),
+          ...(htmlProvided ? { bodyHtml: nextHtml } : {}),
+          ...(plainProvided ? { bodyPlain: nextPlain } : {}),
+          ...(htmlProvided || plainProvided ? { snippet: buildSnippet(nextPlain, nextHtml) } : {}),
           ...(provided('inReplyTo') ? { inReplyTo: d.inReplyTo ?? null } : {}),
           ...(provided('threadId') ? { threadId: d.threadId ?? null } : {}),
           ...(d.priority ? { priority: toPriority(d.priority) } : {}),
@@ -556,7 +579,11 @@ export default async function emailsRoutes(
   });
 
   // POST /emails/:id/send - durably queue an owned draft for delivery.
-  fastify.post<{ Params: { id: string } }>('/:id/send', async (request, reply) => {
+  // WR-MAIL-104: mail.send.execute is an active catalog command — key required.
+  fastify.post<{ Params: { id: string } }>(
+    '/:id/send',
+    { config: { idempotencyRequired: true } },
+    async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
 
@@ -986,7 +1013,11 @@ export default async function emailsRoutes(
   });
 
   // POST /emails/:id/archive - move to the owner's archive folder without trashing it.
-  fastify.post<{ Params: { id: string } }>('/:id/archive', async (request, reply) => {
+  // WR-MAIL-104: mail.thread.archive is an active catalog command — key required.
+  fastify.post<{ Params: { id: string } }>(
+    '/:id/archive',
+    { config: { idempotencyRequired: true } },
+    async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     const prisma = getPrisma(fastify);
@@ -1061,7 +1092,11 @@ export default async function emailsRoutes(
   });
 
   // POST /emails/:id/restore - restore a recoverable trashed email to the inbox.
-  fastify.post<{ Params: { id: string } }>('/:id/restore', async (request, reply) => {
+  // WR-MAIL-104: mail.thread.restore is an active catalog command — key required.
+  fastify.post<{ Params: { id: string } }>(
+    '/:id/restore',
+    { config: { idempotencyRequired: true } },
+    async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     const prisma = getPrisma(fastify);
@@ -1481,6 +1516,27 @@ export default async function emailsRoutes(
             { threadId: null },
             { thread: { is: { snoozedUntil: null } } },
             { thread: { is: { snoozedUntil: { lte: new Date() } } } },
+          ],
+        },
+        /*
+         * A scheduled send is not part of the conversation until it fires.
+         *
+         * The `isSent` arm above admitted it the moment it was scheduled, and the
+         * send service stamps the future fire time into `sentAt`/`receivedAt`, so a
+         * message set for tomorrow 8 AM sat at the TOP of the inbox and of People
+         * ("You: …", "now") as if it had already gone out. It belongs to the
+         * Scheduled mailbox only (`isSent, deliveryStatus = 'queued', sentAt > now`)
+         * and joins the timeline at its fire time. Written as the complement of that
+         * filter, arm by arm, so no NULL can drop a row: `deliveryStatus` is a
+         * non-null enum and `sentAt` gets an explicit null arm. An undo-window send
+         * is not affected — its `sentAt` is the moment Send was pressed.
+         */
+        {
+          OR: [
+            { isSent: false },
+            { deliveryStatus: { not: 'queued' } },
+            { sentAt: null },
+            { sentAt: { lte: new Date() } },
           ],
         },
       ];

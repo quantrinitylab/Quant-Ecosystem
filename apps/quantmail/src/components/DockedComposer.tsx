@@ -470,10 +470,9 @@ export function DockedComposer({
       ccRecipients,
       bccRecipients,
     );
-    // The backend requires a non-empty subject to create a draft; without one
-    // the save honestly fails and the indicator says "Couldn't save" instead
-    // of pretending.
-    if (!subject.trim()) return false;
+    // Subject is optional: empty-subject drafts autosave exactly like the rest.
+    // The backend composeSchema accepts an empty subject (stored as ''), so
+    // there is no reason to silently skip persisting a subjectless draft.
     try {
       if (!serverDraftIdRef.current) {
         const res = await apiClient.composeEmail({
@@ -828,12 +827,33 @@ export function DockedComposer({
       return;
     }
     if (!subject.trim()) {
-      showToast({ text: 'Please enter an email subject', type: 'error' });
-      return;
+      // Gmail-style: a subject is optional, but sending without one must be
+      // an explicit choice — never a silent send. The user confirms, or the
+      // send is abandoned and the draft stays exactly where it was.
+      const sendAnyway = await confirm({
+        title: 'Send without a subject?',
+        message:
+          'Your message has no subject. Recipients may overlook it in their inbox.',
+        confirmLabel: 'Send anyway',
+        cancelLabel: 'Keep editing',
+      });
+      if (!sendAnyway) return;
     }
+    // Empty body is a confirm, not a hard block — the same contract as
+    // EmailComposer's needsEmptyBodyConfirm (recipients and subject passed
+    // the hard-block guards above, so only the body is missing). Gmail-style
+    // "Send this message without text in the body?" with an explicit
+    // send-anyway override, so attached-only emails can be sent. Asked
+    // BEFORE the composer minimizes or the recall window is queued, so the
+    // 10s undo bar is never promised for an unconfirmed send.
     if (!body.trim()) {
-      showToast({ text: 'Please write your message body', type: 'error' });
-      return;
+      const sendAnyway = await confirm({
+        title: 'Send this message without text in the body?',
+        message: 'Your recipients and subject are set — only the body is empty.',
+        confirmLabel: 'Send anyway',
+        cancelLabel: 'Keep writing',
+      });
+      if (!sendAnyway) return;
     }
 
     // PR #908 past-time convention: the modal rejects past times and the
@@ -873,8 +893,9 @@ export function DockedComposer({
       bccRecipients,
     );
 
-    // A chat message is a thread start, not a letter: the backend requires a
-    // non-empty subject, so fall back to the recipient line.
+    // A chat message is a thread start, not a letter: it keeps a recipient-line
+    // subject so the thread has a readable title. An email kind may go out
+    // with an empty subject (confirmed above); the backend accepts ''.
     const sendSubject =
       draftSnapshot.subject ||
       (initialMessageKind === 'chat' ? `Chat with ${toList.map((t) => t.email).join(', ')}` : '');

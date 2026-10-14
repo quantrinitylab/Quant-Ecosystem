@@ -20,7 +20,11 @@ import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
 import { parseEmailString, dedupeRecipientPayload, type RecipientOption } from './RecipientChipInput';
-import { getInvalidRecipientReason } from '../lib/email-validation';
+import {
+  getSendBlockReason,
+  getSendBlockReaction,
+  needsEmptyBodyConfirm,
+} from './composeValidation';
 import { ContactAutocomplete, type ContactSuggestion } from './ContactAutocomplete';
 import { useContactSuggestions } from '../hooks/useContactSuggestions';
 import {
@@ -39,6 +43,7 @@ import {
   IconX,
 } from './icons';
 import { useConfirm } from '../hooks/useConfirm';
+import { useEdgeSwipeBack } from '../hooks/useEdgeSwipeBack';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { apiClient } from '../services/api-client';
 import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
@@ -108,39 +113,16 @@ export interface ComposerMessageData {
 }
 
 /**
- * Send-readiness validation for the composer (QM-UIUX-024).
- *
- * SINGLE SOURCE OF TRUTH: both the Send button's `disabled` attribute and
- * `handleSend`'s error toasts derive from this, so the button can never look
- * tappable while tapping it would just toast an error.
- *
- * Returns the exact error message shown to the user, or `null` when the
- * composer is send-ready. Validation is intentionally strict — To, subject
- * AND body are all required, exactly as `handleSend` enforced before this
- * fix, and every recipient address must be well-formed (a malformed chip
- * blocks the send with a named reason instead of failing on a server
- * round-trip). Weakening validation is not allowed; if a field ever becomes
- * optional (e.g. subject behind a confirm dialog), that decision lives
- * here, in one place, and the disabled state follows it automatically.
- *
- * `recipients` carries the To/Cc/Bcc chips; the malformed-address block sits
- * right after the empty-To block and before subject/body, in the order a
- * user fixes the form top-down. Callers must pass the same recipient list
- * `to` was derived from, so the string check and the address check agree.
+ * Send-readiness validation lives in `./composeValidation` — the QM-UIUX-024
+ * single source of truth, shared by the full composer and the docked
+ * composer. Re-exported here so existing importers and tests keep working
+ * unchanged; the component body below imports the same names from there.
  */
-export function getSendBlockReason(
-  to: string,
-  subject: string,
-  body: string,
-  recipients: Array<{ email: string }> = [],
-): string | null {
-  if (!to.trim()) return 'Please specify at least one recipient (To:)';
-  const invalidReason = getInvalidRecipientReason(recipients);
-  if (invalidReason) return invalidReason;
-  if (!subject.trim()) return 'Please enter an email subject';
-  if (!body.trim()) return 'Please enter your message body';
-  return null;
-}
+export {
+  getSendBlockReason,
+  getSendBlockReaction,
+  needsEmptyBodyConfirm,
+} from './composeValidation';
 
 /**
  * Full-page compose detection (CUST-P0-3).
@@ -163,28 +145,23 @@ export function isFullPageComposePath(pathname: string | null | undefined): bool
 }
 
 /**
- * Which Quanty reaction a blocked send announces (QM-UIUX-025).
- *
- * Mirrors `getSendBlockReason` field-for-field and in the same order, so the
- * mascot, the error toast and the Send button's disabled state can never
- * disagree about what is missing. Before this, every block — missing subject
- * and missing body included — fired `mail:noRecipients`, a copy-paste bug
- * that made Quanty react "no recipients" to problems that had nothing to do
- * with recipients. Returns `null` exactly when `getSendBlockReason` does. A
- * malformed recipient address maps to `mail:noRecipients` — it is a
- * recipient problem, in the same position as in `getSendBlockReason`.
+ * Which Quanty reaction a blocked send announces (QM-UIUX-025) now lives in
+ * `./composeValidation` — see the re-export above. Kept here as a pointer so
+ * the QM-UIUX-025 history stays greppable next to `handleSend`'s usage.
  */
-export function getSendBlockReaction(
-  to: string,
-  subject: string,
-  body: string,
-  recipients: Array<{ email: string }> = [],
-): 'mail:noRecipients' | 'mail:noSubject' | 'mail:noBody' | null {
-  if (!to.trim()) return 'mail:noRecipients';
-  if (getInvalidRecipientReason(recipients)) return 'mail:noRecipients';
-  if (!subject.trim()) return 'mail:noSubject';
-  if (!body.trim()) return 'mail:noBody';
-  return null;
+
+/**
+ * Why the current content cannot be stored as a draft yet, or `null` when it
+ * can. Mirrors the backend compose contract (routes/emails.ts composeSchema):
+ * at least one recipient. The subject is optional there (#1126 — Gmail-style,
+ * an empty subject is stored as '' and readers show a fallback label), so it
+ * is not a reason to refuse a draft.
+ * The close path uses this to skip a save that would only bounce off a 400
+ * and to tell the person exactly what is missing before anything is lost.
+ */
+export function getDraftUnsavableReason(to: string): string | null {
+  const hasRecipient = to.split(/[,;\s]+/).some(Boolean);
+  return hasRecipient ? null : 'a recipient';
 }
 
 export interface EmailComposerProps {
@@ -524,28 +501,8 @@ export function EmailComposer({
     opening.trim().length > 0 ||
     attachments.length > 0;
 
-  // Back Navigation Helper (Back exactly 1 page in history)
-  const handleBack = async () => {
-    if (hasUnsavedContent) {
-      const discard = await confirm({
-        title: 'Discard draft?',
-        message: 'You have unsaved changes. Discard this draft and go back?',
-        confirmLabel: 'Discard',
-        cancelLabel: 'Keep editing',
-        variant: 'destructive',
-      });
-      if (!discard) return;
-    }
-    if (onClose) {
-      onClose();
-    } else if (onDiscard) {
-      onDiscard();
-    } else if (typeof window !== 'undefined' && window.history.length > 1) {
-      router.back();
-    } else {
-      router.push('/');
-    }
-  };
+  // Back / Close / Discard handlers live below the draft-autosave wiring
+  // (search "Leaving the composer") — they need its flush/settle.
 
   // Formatting state
   const [showFormattingBar, setShowFormattingBar] = useState(false);
@@ -914,10 +871,32 @@ export function EmailComposer({
   const handleSend = async (scheduledAt?: string) => {
     if (sendBlockReason) {
       // QM-UIUX-025: announce the field that is actually missing — subject
-      // and body blocks must not fire the recipients reaction.
+      // and recipient blocks must not fire each other's reaction.
       quantyReact(getSendBlockReaction(to, subject, body, allRecipients) ?? 'mail:noRecipients');
       showToast({ text: sendBlockReason, type: 'error' });
       return;
+    }
+
+    // Empty body is a confirm, not a hard block (QM-UIUX-024 as amended):
+    // Gmail-style "Send this message without text in the body?" with an
+    // explicit send-anyway override, so attached-only emails can be sent.
+    // Asked BEFORE anything is dismissed or queued, so the 10s undo-send
+    // countdown is never started — and never promised — for a send the
+    // user never confirmed.
+    if (needsEmptyBodyConfirm(to, subject, body, allRecipients)) {
+      const sendAnyway = await confirm({
+        title: 'Send this message without text in the body?',
+        message: 'Your recipients and subject are set — only the body is empty.',
+        confirmLabel: 'Send anyway',
+        cancelLabel: 'Keep writing',
+      });
+      if (!sendAnyway) {
+        // Unconfirmed: the draft stays exactly as it was. Announce the
+        // missing field to Quanty (an unfinished draft is worried, not
+        // error) exactly like a block would.
+        quantyReact(getSendBlockReaction(to, subject, body, allRecipients) ?? 'mail:noRecipients');
+        return;
+      }
     }
 
     const { bodyText, bodyHtml } = buildOutgoingBodies();
@@ -1204,7 +1183,8 @@ export function EmailComposer({
           inReplyTo: inReplyTo || initialReplyToId,
         });
       } else {
-        if (!subject.trim()) return false;
+        // A recipient is the only hard requirement (subject optional, #1126).
+        if (getDraftUnsavableReason(to)) return false;
         if (!fallbackDraftIdRef.current) {
           const res = await apiClient.composeEmail({
             to: toList,
@@ -1286,6 +1266,9 @@ export function EmailComposer({
   const {
     saveState: draftSaveState,
     notifyManualSave: notifyDraftSaved,
+    flush: flushDraft,
+    settle: settleDraft,
+    hasSavedOnce: hasSavedDraftOnce,
   } = useDraftAutosave({
     snapshot: draftSnapshot,
     hasContent: draftHasContent,
@@ -1293,6 +1276,129 @@ export function EmailComposer({
     enabled: !isSending,
   });
   const draftSaveLabel = draftSaveStateLabel(draftSaveState);
+
+  // ---------------------------------------------------------------------------
+  // Leaving the composer: Back (←), Close (×) and the left-edge swipe KEEP the
+  // work — save the draft, say so, leave. Deleting is a separate, explicit act
+  // (the trash button and "Discard message").
+  //
+  // Before: Back/Close asked "Discard draft?" and, on /compose, confirming
+  // called the page's discard handler, which DELETED the server draft — even
+  // one autosave had already stored. The page's edge swipe called that same
+  // handler with no prompt at all, so a stray swipe from the left edge
+  // silently destroyed the message.
+  // ---------------------------------------------------------------------------
+  const openedSnapshotRef = useRef(draftSnapshot);
+  const closingRef = useRef(false);
+  // Read at call time: the host's discard handler closes over the draft id,
+  // and an autosave that just landed may not have re-rendered it in yet.
+  const onDiscardRef = useRef(onDiscard);
+  onDiscardRef.current = onDiscard;
+
+  const leaveComposer = () => {
+    if (onClose) {
+      onClose();
+    } else if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/');
+    }
+  };
+
+  const handleBack = async () => {
+    if (closingRef.current || isSending) return;
+    // Nothing to keep: empty, or untouched since it opened and never saved.
+    // A resumed draft stays exactly as it is on the server, and an untouched
+    // reply/prefill leaves no junk draft behind.
+    if (
+      !hasUnsavedContent ||
+      (draftSnapshot === openedSnapshotRef.current && !hasSavedDraftOnce())
+    ) {
+      leaveComposer();
+      return;
+    }
+    closingRef.current = true;
+    try {
+      const missing = getDraftUnsavableReason(to);
+      if (!missing && (await flushDraft())) {
+        quantyReact('mail:draftSaved');
+        showToast({ text: 'Draft saved', type: 'success' });
+        leaveComposer();
+        return;
+      }
+      const leave = await confirm(
+        missing
+          ? {
+              title: 'Discard this message?',
+              message: `Drafts need ${missing} before they can be saved. Discard this message, or keep editing?`,
+              confirmLabel: 'Discard',
+              cancelLabel: 'Keep editing',
+              variant: 'destructive',
+            }
+          : {
+              title: "Couldn't save draft",
+              message:
+                'Your latest changes were not saved. Leave without saving, or keep editing and try again?',
+              confirmLabel: 'Leave without saving',
+              cancelLabel: 'Keep editing',
+              variant: 'destructive',
+            },
+      );
+      if (leave) leaveComposer();
+    } finally {
+      closingRef.current = false;
+    }
+  };
+
+  // Trash button and "Discard message": the one explicit way to delete.
+  const handleDiscardDraft = async () => {
+    if (closingRef.current || isSending) return;
+    const savedOnServer = hasSavedDraftOnce();
+    if (hasUnsavedContent || savedOnServer) {
+      const discard = await confirm({
+        title: 'Discard draft?',
+        message: savedOnServer
+          ? "This deletes the saved draft. This can't be undone."
+          : "This message hasn't been saved. Discard it?",
+        confirmLabel: 'Discard',
+        cancelLabel: 'Keep editing',
+        variant: 'destructive',
+      });
+      if (!discard) return;
+    }
+    closingRef.current = true;
+    try {
+      // An autosave still on the wire would land AFTER the delete and
+      // resurrect the draft; wait it out so the delete sees its id.
+      await settleDraft();
+      const discardDraft = onDiscardRef.current;
+      if (discardDraft) {
+        // The host owns its server draft: it deletes it and navigates.
+        discardDraft();
+        return;
+      }
+      if (fallbackDraftIdRef.current) {
+        try {
+          await apiClient.deleteEmail(fallbackDraftIdRef.current);
+        } catch {
+          // Best effort — still leave; the draft stays in Drafts if this failed.
+        }
+        fallbackDraftIdRef.current = null;
+      }
+      leaveComposer();
+    } finally {
+      closingRef.current = false;
+    }
+  };
+
+  // The system back gesture on touch devices means "go back", never "delete".
+  // Full-page only: a modal/popover composer does not own the screen edge.
+  useEdgeSwipeBack(
+    () => {
+      void handleBack();
+    },
+    { disabled: modal || Boolean(onClose) },
+  );
 
   const handleSaveDraft = async () => {
     setIsSaving(true);
@@ -1562,8 +1668,8 @@ export function EmailComposer({
                       <button
                         type="button"
                         onClick={() => {
-                          handleBack();
                           setShowThreeDotsMenu(false);
+                          void handleDiscardDraft();
                         }}
                         className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-rose-400 hover:bg-rose-500/10"
                       >
@@ -2744,7 +2850,7 @@ export function EmailComposer({
               {/* Discard Draft Trash Button (Right next to QuantDrive) */}
               <button
                 type="button"
-                onClick={handleBack}
+                onClick={() => void handleDiscardDraft()}
                 className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[var(--quant-muted-foreground)] hover:text-rose-400 hover:bg-[var(--quant-surface)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 title="Discard draft"
                 aria-label="Discard draft"

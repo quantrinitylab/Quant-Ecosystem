@@ -75,6 +75,54 @@ export async function revokeSecretOnServer(
   }
 }
 
+/**
+ * Apply a CodeQL recommended fix via the REAL backend endpoint
+ * POST /api/repos/:id/security/codeql/:alertId/fix (Next proxy -> Fastify).
+ *
+ * There is currently no fix engine: the endpoint honestly refuses with 501
+ * CODEQL_FIX_NOT_SUPPORTED until patch generation is wired up. This helper
+ * NEVER claims a patch was applied unless the server confirms
+ * data.status === 'fixed'. Any other outcome returns ok:false with an honest
+ * message and the caller must NOT flip local state or toast success.
+ * Exported for unit tests (component handlers are not directly testable with
+ * renderToStaticMarkup).
+ */
+export type ApplyCodeqlFixResult = { ok: true; message: string } | { ok: false; message: string };
+
+export async function applyCodeqlFixOnServer(
+  targetRepo: string,
+  alertId: string,
+): Promise<ApplyCodeqlFixResult> {
+  try {
+    const res = await apiFetchRaw(
+      `/api/repos/${encodeURIComponent(targetRepo)}/security/codeql/${encodeURIComponent(alertId)}/fix`,
+      { method: 'POST' },
+    );
+    const json = (await res.json().catch(() => null)) as {
+      success?: boolean;
+      data?: { status?: string; message?: string };
+      error?: { message?: string; code?: string };
+    } | null;
+    if (res.ok && json?.success && json?.data?.status === 'fixed') {
+      return { ok: true, message: json.data.message || 'CodeQL fix applied.' };
+    }
+    // Server refused or returned something unexpected — surface its honest
+    // message (e.g. 501 CODEQL_FIX_NOT_SUPPORTED, 404 ALERT_NOT_FOUND) instead
+    // of inventing a success claim.
+    return {
+      ok: false,
+      message:
+        json?.error?.message ||
+        'CodeQL auto-fix is not wired up yet for this alert. No code was changed.',
+    };
+  } catch {
+    return {
+      ok: false,
+      message: 'Fix request failed — no code was changed and no patch was applied.',
+    };
+  }
+}
+
 export function SecurityTab({
   securityAlerts: propAlerts,
   showToast = () => {},
@@ -130,6 +178,11 @@ export function SecurityTab({
   const [selectedCodeqlSeverity, setSelectedCodeqlSeverity] = useState<
     'all' | 'critical' | 'high' | 'medium' | 'low'
   >('all');
+  // Per-alert in-flight CodeQL fix markers — honest loading state while the
+  // real backend POST /api/repos/:id/security/codeql/:alertId/fix is pending.
+  // The alert's state is NEVER flipped until the server confirms 'fixed',
+  // so a refused fix needs no rollback: no false state was ever rendered.
+  const [applyingCodeqlIds, setApplyingCodeqlIds] = useState<ReadonlySet<string>>(new Set());
 
   // 4. Security Policy & Branch Rules State
   const [securityPolicy, setSecurityPolicy] = useState<string>(DEFAULT_SECURITY_POLICY);
@@ -431,11 +484,37 @@ export function SecurityTab({
     });
   }, [codeqlAlerts, selectedCodeqlSeverity, codeqlSearch]);
 
-  const handleApplyCodeqlFix = (id: string, ruleName: string) => {
-    setCodeqlAlerts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, state: 'fixed' as const } : a)),
-    );
-    showToast(`Applied recommended code patch for ${ruleName}`);
+  // HONESTY (fix/qm-quantgit-codeql-toast): the "Apply recommended fix" button
+  // calls the real backend POST /api/repos/:id/security/codeql/:alertId/fix.
+  // There is no fix engine yet — the endpoint refuses with 501
+  // CODEQL_FIX_NOT_SUPPORTED — so the handler toasts the server's honest
+  // refusal and NEVER flips local state to 'fixed' on failure. No success
+  // toast for a patch that never landed.
+  const handleApplyCodeqlFix = async (id: string, ruleName: string) => {
+    const targetRepo = repoId || selectedRepo?.id;
+    if (!targetRepo) {
+      showToast('Select a repository before applying a CodeQL fix.');
+      return;
+    }
+    if (applyingCodeqlIds.has(id)) return;
+    setApplyingCodeqlIds((prev) => new Set(prev).add(id));
+    try {
+      const result = await applyCodeqlFixOnServer(targetRepo, id);
+      if (!result.ok) {
+        showToast(result.message);
+        return;
+      }
+      setCodeqlAlerts((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, state: 'fixed' as const } : a)),
+      );
+      showToast(result.message || `Applied recommended code patch for ${ruleName}`);
+    } finally {
+      setApplyingCodeqlIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
   const handleDismissCodeql = (id: string, ruleName: string) => {
@@ -1207,9 +1286,10 @@ export function SecurityTab({
                             type="button"
                             data-testid={`codeql-apply-fix-${alert.id}`}
                             onClick={() => handleApplyCodeqlFix(alert.id, alert.ruleName)}
-                            className="px-3 py-1.5 rounded bg-[#238636] hover:bg-[#2EA043] text-white font-semibold text-xs transition-colors"
+                            disabled={applyingCodeqlIds.has(alert.id)}
+                            className="px-3 py-1.5 rounded bg-[#238636] hover:bg-[#2EA043] text-white font-semibold text-xs transition-colors disabled:opacity-60"
                           >
-                            Apply recommended fix
+                            {applyingCodeqlIds.has(alert.id) ? 'Applying…' : 'Apply recommended fix'}
                           </button>
                           <button
                             type="button"

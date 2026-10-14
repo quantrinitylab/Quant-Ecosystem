@@ -2096,6 +2096,54 @@ body {
   transform: scale(0.97);
 }
 
+/* QM-QUANTY-002 evidence links ("Sources") under Quanty output.
+   These classes shipped with no rules at all, so the caption and the chip
+   label ran together as one body-size line ("SourcesDesign review notes…")
+   with the link icon stranded on the line above. */
+.quanty-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--quant-muted-foreground);
+  font-size: 0.6875rem;
+  line-height: 1.25;
+}
+.quanty-evidence-inline {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.quanty-evidence-caption {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.quanty-evidence-caption svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+}
+.quanty-evidence-chip {
+  display: inline-block;
+  min-width: 0;
+  max-width: 16rem;
+  overflow: hidden;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--quant-border);
+  border-radius: 999px;
+  background: var(--quant-surface);
+  color: var(--quant-foreground);
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ==========================================================================
    Read Time Estimate
    ========================================================================== */
@@ -2591,6 +2639,12 @@ body {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--quant-accent-faint);
   z-index: 10;
 }
+/* Where the bar can show (fine pointer, ≥640px), it takes the row's right
+   edge and the timestamp peeked out half-covered above it. Gmail swaps the
+   date for the actions; so does this — the time returns when the bar goes. */
+@media (hover: hover) and (pointer: fine) and (min-width: 640px) {
+  .mail-row.has-hover-actions .mail-row-meta time { visibility: hidden; }
+}
 .hover-action-btn {
   display: grid;
   place-items: center;
@@ -2652,6 +2706,11 @@ body {
 /* P1 mobile fix: toast stack must clear the mobile bottom nav */
 @media (max-width: 767px) {
   .inbox-toast-container { bottom: 76px; }
+}
+/* 640–767px: the toast is centred and the FAB is still shown (md:hidden);
+   cap the width so the centred toast clears the FAB's corner on both sides. */
+@media (min-width: 640px) and (max-width: 767px) {
+  body:has([data-quant-fab]) .inbox-toast-container { max-width: calc(100vw - 12rem); }
 }
 .inbox-toast {
   display: flex;
@@ -2958,6 +3017,10 @@ body {
   /* Clears the bottom nav, and both controls go to the full 44px because a toast
      auto-dismisses in ~3s — a missed tap costs you the action, not just a retry. */
   .inbox-toast-container { bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px)); left: 1rem; right: 1rem; transform: none; }
+  /* The compose FAB (QuantFab, right 1rem, 3.5rem wide) owns the bottom-right
+     corner on phones. A full-width toast covered it — and its Undo sat where
+     the thumb reaches for Compose. Toasts stop short of the FAB instead. */
+  body:has([data-quant-fab]) .inbox-toast-container { right: 5.25rem; }
   .inbox-toast { min-width: unset; width: 100%; padding: 0.5rem 0.6rem 0.5rem 1rem; }
   .inbox-toast-undo { min-height: 44px; padding: 0 0.8rem; }
   .inbox-toast-dismiss { min-width: 44px; min-height: 44px; }
@@ -3933,6 +3996,15 @@ body {
   border-color: #3A404D;
   background: var(--quant-surface-elevated);
 }
+/* PersonThread (People view): attachment chips live inside the message
+ * bubble — the preview container's top rule would draw a divider line,
+ * which the user-locked QuantMail visual language forbids (pure black,
+ * hierarchy through spacing and typography only). */
+.personthread-attachments .attachment-preview-container {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0.5rem;
+}
 .attachment-lightbox {
   position: fixed;
   inset: 0;
@@ -4337,6 +4409,8 @@ body {
 .status-bounced { color: #fbbf24; }
 .status-sending { color: #60a5fa; animation: pulse-fade 1.5s ease infinite; }
 .status-draft { color: #a78bfa; }
+/* A scheduled send is waiting, not in flight: brand colour, no "sending" pulse. */
+.status-scheduled { color: var(--quant-primary); font-weight: 600; }
 @keyframes pulse-fade {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }

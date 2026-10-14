@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IconChevronLeft, IconChevronRight, IconX } from './icons';
 
@@ -256,20 +256,41 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
     return minute * 6;
   }, [clockMode, hour, minute]);
 
+  // Escape closes, like every other dialog in the app.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm select-none">
+          {/*
+            Height-capped column: header and footer stay put, the presets +
+            calendar + clock scroll between them. Uncapped, the ~1000px sheet
+            was centred in an 844px phone viewport, so the title was cut off
+            at the top and "Schedule Send" sat half off the bottom edge with
+            no way to scroll to it.
+          */}
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="schedule-send-title"
+            data-testid="schedule-send-dialog"
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="w-full max-w-lg rounded-3xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] p-4 sm:p-6 shadow-2xl space-y-4"
+            className="flex w-full max-w-lg max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] flex-col gap-4 rounded-3xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] p-4 sm:p-6 shadow-2xl"
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-[var(--quant-surface-elevated)]/80 pb-3">
+            <div className="flex shrink-0 items-center justify-between border-b border-[var(--quant-surface-elevated)]/80 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="size-8 rounded-xl bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] flex items-center justify-center border border-[var(--quant-primary)]/20">
                   <svg
@@ -284,7 +305,9 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Schedule Send</h3>
+                  <h3 id="schedule-send-title" className="text-sm font-bold text-white">
+                    Schedule Send
+                  </h3>
                   <p className="text-[11px] text-[var(--quant-muted-foreground)]">
                     Pick date & time to deliver your message
                   </p>
@@ -300,272 +323,279 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
               </button>
             </div>
 
-            {/* Quick Presets (Exactly 2: Today 6 PM and Tomorrow 8 AM) */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <button
-                type="button"
-                onClick={() => handleQuickPreset('today_evening')}
-                disabled={todayEveningPresetPast}
-                title={
-                  todayEveningPresetPast
-                    ? '6:00 PM has already passed — pick another time'
-                    : undefined
-                }
-                className="px-3.5 py-2.5 rounded-2xl bg-[var(--quant-surface)]/80 hover:bg-[var(--quant-surface-elevated)]/90 border border-[var(--quant-surface-elevated)] text-left transition-all hover:border-[var(--quant-primary)]/40 group disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--quant-surface-elevated)]"
-              >
-                <span className="block font-medium text-[var(--quant-foreground)] text-xs group-hover:text-white">
-                  Today
-                </span>
-                <span className="text-xs text-[var(--quant-primary)] font-semibold">6:00 PM</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickPreset('tomorrow_morning')}
-                className="px-3.5 py-2.5 rounded-2xl bg-[var(--quant-surface)]/80 hover:bg-[var(--quant-surface-elevated)]/90 border border-[var(--quant-surface-elevated)] text-left transition-all hover:border-[var(--quant-primary)]/40 group"
-              >
-                <span className="block font-medium text-[var(--quant-foreground)] text-xs group-hover:text-white">
-                  Tomorrow
-                </span>
-                <span className="text-xs text-[var(--quant-primary)] font-semibold">8:00 AM</span>
-              </button>
-            </div>
-
-            {/* Calendar & Clock Body */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-              {/* Left Column: Calendar with Gesture Swipe Support */}
-              <motion.div
-                drag="x"
-                dragConstraints={{ left: 0, right: 0 }}
-                onDragEnd={handleCalendarDragEnd}
-                className="space-y-2.5 bg-[var(--quant-background)]/40 p-3 rounded-2xl border border-[var(--quant-surface-elevated)]/80 touch-pan-y"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-white">
-                    {MONTH_NAMES[viewMonth]} {viewYear}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={handlePrevMonth}
-                      className="inline-flex items-center justify-center size-7 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
-                      title="Previous month (or swipe right)"
-                      aria-label="Previous month"
-                    >
-                      <IconChevronLeft size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleNextMonth}
-                      className="inline-flex items-center justify-center size-7 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
-                      title="Next month (or swipe left)"
-                      aria-label="Next month"
-                    >
-                      <IconChevronRight size={14} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Weekday headers */}
-                <div className="grid grid-cols-7 text-center text-[10px] font-semibold text-[var(--quant-muted-foreground)]">
-                  {WEEKDAYS.map((w, idx) => (
-                    <span key={idx}>{w}</span>
-                  ))}
-                </div>
-
-                {/* Days Grid */}
-                <div className="grid grid-cols-7 gap-1 text-center text-xs select-none">
-                  {calendarDays.map((item, idx) => {
-                    const isSelected =
-                      item.date.getFullYear() === selectedDate.getFullYear() &&
-                      item.date.getMonth() === selectedDate.getMonth() &&
-                      item.date.getDate() === selectedDate.getDate();
-
-                    const isToday =
-                      item.date.getFullYear() === today.getFullYear() &&
-                      item.date.getMonth() === today.getMonth() &&
-                      item.date.getDate() === today.getDate();
-
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        disabled={item.isPast}
-                        onClick={() => handleSelectDay(item.date, item.isPast)}
-                        className={`size-11 mx-auto rounded-lg flex items-center justify-center text-[11px] font-medium transition-all ${
-                          isSelected
-                            ? 'bg-[var(--quant-primary)] text-black font-bold shadow-md scale-105'
-                            : isToday
-                              ? 'border border-[var(--quant-primary)]/50 text-[var(--quant-primary)]'
-                              : item.isPast
-                                ? // Genuinely `disabled`, so 1.4.3 does not
-                                  // apply — but #3A404D is 1.91:1 and the past
-                                  // half of the grid read as empty holes rather
-                                  // than as dates you cannot pick.
-                                  'text-[var(--quant-text-muted)] cursor-not-allowed'
-                                : item.currentMonth
-                                  ? 'text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)]'
-                                  : 'text-[var(--quant-muted-foreground)]'
-                        }`}
-                      >
-                        {item.day}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-[10px] text-[var(--quant-muted-foreground)] text-center">
-                  Swipe left/right to change month
-                </p>
-              </motion.div>
-
-              {/* Right Column: Google Clock Material Style Picker with Drag Gestures */}
-              <div className="flex flex-col items-center justify-between bg-[var(--quant-background)]/40 p-3 rounded-2xl border border-[var(--quant-surface-elevated)]/80 space-y-2 select-none">
-                {/* Digital Time Display */}
-                <div className="flex items-center justify-center gap-2">
-                  <div className="flex items-center rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] p-1">
-                    <button
-                      type="button"
-                      onClick={() => setClockMode('hours')}
-                      className={`px-2.5 py-1 rounded-lg text-sm font-bold transition-all ${
-                        clockMode === 'hours'
-                          ? 'bg-[var(--quant-primary)] text-black shadow'
-                          : 'text-[var(--quant-muted-foreground)] hover:text-white'
-                      }`}
-                    >
-                      {hour.toString().padStart(2, '0')}
-                    </button>
-                    <span className="px-1 text-[var(--quant-text-muted)] font-bold">:</span>
-                    <button
-                      type="button"
-                      onClick={() => setClockMode('minutes')}
-                      className={`px-2.5 py-1 rounded-lg text-sm font-bold transition-all ${
-                        clockMode === 'minutes'
-                          ? 'bg-[var(--quant-primary)] text-black shadow'
-                          : 'text-[var(--quant-muted-foreground)] hover:text-white'
-                      }`}
-                    >
-                      {minute.toString().padStart(2, '0')}
-                    </button>
-                  </div>
-
-                  {/* AM/PM Toggle */}
-                  <div className="flex rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] p-0.5 text-xs font-bold">
-                    <button
-                      type="button"
-                      onClick={() => setPeriod('AM')}
-                      className={`px-2 py-1 rounded-lg transition-all ${
-                        period === 'AM'
-                          ? 'bg-[var(--quant-primary)] text-black'
-                          : 'text-[var(--quant-muted-foreground)] hover:text-white'
-                      }`}
-                    >
-                      AM
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPeriod('PM')}
-                      className={`px-2 py-1 rounded-lg transition-all ${
-                        period === 'PM'
-                          ? 'bg-[var(--quant-primary)] text-black'
-                          : 'text-[var(--quant-muted-foreground)] hover:text-white'
-                      }`}
-                    >
-                      PM
-                    </button>
-                  </div>
-                </div>
-
-                {/* Radial Clock Face with full touch/drag gesture support */}
-                <div
-                  ref={clockRef}
-                  onPointerDown={handleClockPointerDown}
-                  onPointerMove={handleClockPointerMove}
-                  onPointerUp={handleClockPointerUp}
-                  className="relative size-40 rounded-full bg-[var(--quant-surface)]/90 border border-[var(--quant-surface-elevated)] flex items-center justify-center shadow-inner cursor-pointer touch-none"
+            {/* Scrollable body: presets, calendar, clock */}
+            <div
+              data-testid="schedule-send-body"
+              className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-1"
+            >
+              {/* Quick Presets (Exactly 2: Today 6 PM and Tomorrow 8 AM) */}
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <button
+                  type="button"
+                  onClick={() => handleQuickPreset('today_evening')}
+                  disabled={todayEveningPresetPast}
+                  title={
+                    todayEveningPresetPast
+                      ? '6:00 PM has already passed — pick another time'
+                      : undefined
+                  }
+                  className="px-3.5 py-2.5 rounded-2xl bg-[var(--quant-surface)]/80 hover:bg-[var(--quant-surface-elevated)]/90 border border-[var(--quant-surface-elevated)] text-left transition-all hover:border-[var(--quant-primary)]/40 group disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--quant-surface-elevated)]"
                 >
-                  {/* Center Pin */}
-                  <div className="size-2 rounded-full bg-[var(--quant-primary)] z-10 pointer-events-none" />
+                  <span className="block font-medium text-[var(--quant-foreground)] text-xs group-hover:text-white">
+                    Today
+                  </span>
+                  <span className="text-xs text-[var(--quant-primary)] font-semibold">6:00 PM</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickPreset('tomorrow_morning')}
+                  className="px-3.5 py-2.5 rounded-2xl bg-[var(--quant-surface)]/80 hover:bg-[var(--quant-surface-elevated)]/90 border border-[var(--quant-surface-elevated)] text-left transition-all hover:border-[var(--quant-primary)]/40 group"
+                >
+                  <span className="block font-medium text-[var(--quant-foreground)] text-xs group-hover:text-white">
+                    Tomorrow
+                  </span>
+                  <span className="text-xs text-[var(--quant-primary)] font-semibold">8:00 AM</span>
+                </button>
+              </div>
 
-                  {/* Clock Hand / Pointer */}
-                  <div
-                    className="absolute bottom-1/2 left-1/2 w-0.5 origin-bottom bg-[var(--quant-primary)] transition-transform duration-100 z-0 pointer-events-none"
-                    style={{
-                      height: '56px',
-                      transform: `translateX(-50%) rotate(${pointerRotation}deg)`,
-                    }}
-                  >
-                    <div className="size-6 -top-3 -left-[11px] absolute rounded-full bg-[var(--quant-primary)]/30 border border-[var(--quant-primary)]" />
+              {/* Calendar & Clock Body */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                {/* Left Column: Calendar with Gesture Swipe Support */}
+                <motion.div
+                  drag="x"
+                  dragConstraints={{ left: 0, right: 0 }}
+                  onDragEnd={handleCalendarDragEnd}
+                  className="space-y-2.5 bg-[var(--quant-background)]/40 p-3 rounded-2xl border border-[var(--quant-surface-elevated)]/80 touch-pan-y"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white">
+                      {MONTH_NAMES[viewMonth]} {viewYear}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={handlePrevMonth}
+                        className="inline-flex items-center justify-center size-7 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        title="Previous month (or swipe right)"
+                        aria-label="Previous month"
+                      >
+                        <IconChevronLeft size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleNextMonth}
+                        className="inline-flex items-center justify-center size-7 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        title="Next month (or swipe left)"
+                        aria-label="Next month"
+                      >
+                        <IconChevronRight size={14} />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Numbers accurately plotted at angle = (val * 30 - 90) deg */}
-                  {(clockMode === 'hours' ? hoursList : minutesList).map((val) => {
-                    const angleDeg =
-                      (clockMode === 'hours' ? val * 30 : val === 0 ? 360 : val * 6) - 90;
-                    const angleRad = angleDeg * (Math.PI / 180);
-                    const radius = 56;
-                    const x = Math.cos(angleRad) * radius;
-                    const y = Math.sin(angleRad) * radius;
-                    const isCur = clockMode === 'hours' ? hour === val : minute === val;
+                  {/* Weekday headers */}
+                  <div className="grid grid-cols-7 text-center text-[10px] font-semibold text-[var(--quant-muted-foreground)]">
+                    {WEEKDAYS.map((w, idx) => (
+                      <span key={idx}>{w}</span>
+                    ))}
+                  </div>
 
-                    return (
-                      <div
-                        key={val}
-                        style={{
-                          transform: `translate(${x}px, ${y}px)`,
-                        }}
-                        className={`absolute size-6 rounded-full flex items-center justify-center text-[10px] font-semibold pointer-events-none transition-all ${
-                          isCur
-                            ? 'bg-[var(--quant-primary)] text-black font-bold shadow scale-110'
-                            : 'text-[var(--quant-muted-foreground)]'
+                  {/* Days Grid */}
+                  <div className="grid grid-cols-7 gap-1 text-center text-xs select-none">
+                    {calendarDays.map((item, idx) => {
+                      const isSelected =
+                        item.date.getFullYear() === selectedDate.getFullYear() &&
+                        item.date.getMonth() === selectedDate.getMonth() &&
+                        item.date.getDate() === selectedDate.getDate();
+
+                      const isToday =
+                        item.date.getFullYear() === today.getFullYear() &&
+                        item.date.getMonth() === today.getMonth() &&
+                        item.date.getDate() === today.getDate();
+
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          disabled={item.isPast}
+                          onClick={() => handleSelectDay(item.date, item.isPast)}
+                          className={`size-11 mx-auto rounded-lg flex items-center justify-center text-[11px] font-medium transition-all ${
+                            isSelected
+                              ? 'bg-[var(--quant-primary)] text-black font-bold shadow-md scale-105'
+                              : isToday
+                                ? 'border border-[var(--quant-primary)]/50 text-[var(--quant-primary)]'
+                                : item.isPast
+                                  ? // Genuinely `disabled`, so 1.4.3 does not
+                                    // apply — but #3A404D is 1.91:1 and the past
+                                    // half of the grid read as empty holes rather
+                                    // than as dates you cannot pick.
+                                    'text-[var(--quant-text-muted)] cursor-not-allowed'
+                                  : item.currentMonth
+                                    ? 'text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)]'
+                                    : 'text-[var(--quant-muted-foreground)]'
+                          }`}
+                        >
+                          {item.day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-[var(--quant-muted-foreground)] text-center">
+                    Swipe left/right to change month
+                  </p>
+                </motion.div>
+
+                {/* Right Column: Google Clock Material Style Picker with Drag Gestures */}
+                <div className="flex flex-col items-center justify-between bg-[var(--quant-background)]/40 p-3 rounded-2xl border border-[var(--quant-surface-elevated)]/80 space-y-2 select-none">
+                  {/* Digital Time Display */}
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] p-1">
+                      <button
+                        type="button"
+                        onClick={() => setClockMode('hours')}
+                        className={`px-2.5 py-1 rounded-lg text-sm font-bold transition-all ${
+                          clockMode === 'hours'
+                            ? 'bg-[var(--quant-primary)] text-black shadow'
+                            : 'text-[var(--quant-muted-foreground)] hover:text-white'
                         }`}
                       >
-                        {clockMode === 'hours' ? val : val.toString().padStart(2, '0')}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Minute Slider / Gesture Fine Tuner */}
-                <div className="w-full space-y-1">
-                  <div className="flex items-center justify-between text-[10px] text-[var(--quant-muted-foreground)]">
-                    <span>
-                      Fine-tune Minute:{' '}
-                      <strong className="text-[var(--quant-primary)]">
+                        {hour.toString().padStart(2, '0')}
+                      </button>
+                      <span className="px-1 text-[var(--quant-text-muted)] font-bold">:</span>
+                      <button
+                        type="button"
+                        onClick={() => setClockMode('minutes')}
+                        className={`px-2.5 py-1 rounded-lg text-sm font-bold transition-all ${
+                          clockMode === 'minutes'
+                            ? 'bg-[var(--quant-primary)] text-black shadow'
+                            : 'text-[var(--quant-muted-foreground)] hover:text-white'
+                        }`}
+                      >
                         {minute.toString().padStart(2, '0')}
-                      </strong>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setClockMode(clockMode === 'hours' ? 'minutes' : 'hours')}
-                      className="text-[var(--quant-primary)] hover:underline capitalize"
-                    >
-                      Switch to {clockMode === 'hours' ? 'Minutes' : 'Hours'}
-                    </button>
+                      </button>
+                    </div>
+
+                    {/* AM/PM Toggle */}
+                    <div className="flex rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] p-0.5 text-xs font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setPeriod('AM')}
+                        className={`px-2 py-1 rounded-lg transition-all ${
+                          period === 'AM'
+                            ? 'bg-[var(--quant-primary)] text-black'
+                            : 'text-[var(--quant-muted-foreground)] hover:text-white'
+                        }`}
+                      >
+                        AM
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPeriod('PM')}
+                        className={`px-2 py-1 rounded-lg transition-all ${
+                          period === 'PM'
+                            ? 'bg-[var(--quant-primary)] text-black'
+                            : 'text-[var(--quant-muted-foreground)] hover:text-white'
+                        }`}
+                      >
+                        PM
+                      </button>
+                    </div>
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="59"
-                    aria-label="Minute"
-                    value={minute}
-                    onChange={(e) => {
-                      setMinute(parseInt(e.target.value, 10));
-                      setClockMode('minutes');
-                    }}
-                    className="w-full accent-[var(--quant-primary)] h-1.5 bg-[var(--quant-surface-elevated)] rounded-lg cursor-pointer"
-                  />
+
+                  {/* Radial Clock Face with full touch/drag gesture support */}
+                  <div
+                    ref={clockRef}
+                    onPointerDown={handleClockPointerDown}
+                    onPointerMove={handleClockPointerMove}
+                    onPointerUp={handleClockPointerUp}
+                    className="relative size-40 rounded-full bg-[var(--quant-surface)]/90 border border-[var(--quant-surface-elevated)] flex items-center justify-center shadow-inner cursor-pointer touch-none"
+                  >
+                    {/* Center Pin */}
+                    <div className="size-2 rounded-full bg-[var(--quant-primary)] z-10 pointer-events-none" />
+
+                    {/* Clock Hand / Pointer */}
+                    <div
+                      className="absolute bottom-1/2 left-1/2 w-0.5 origin-bottom bg-[var(--quant-primary)] transition-transform duration-100 z-0 pointer-events-none"
+                      style={{
+                        height: '56px',
+                        transform: `translateX(-50%) rotate(${pointerRotation}deg)`,
+                      }}
+                    >
+                      <div className="size-6 -top-3 -left-[11px] absolute rounded-full bg-[var(--quant-primary)]/30 border border-[var(--quant-primary)]" />
+                    </div>
+
+                    {/* Numbers accurately plotted at angle = (val * 30 - 90) deg */}
+                    {(clockMode === 'hours' ? hoursList : minutesList).map((val) => {
+                      const angleDeg =
+                        (clockMode === 'hours' ? val * 30 : val === 0 ? 360 : val * 6) - 90;
+                      const angleRad = angleDeg * (Math.PI / 180);
+                      const radius = 56;
+                      const x = Math.cos(angleRad) * radius;
+                      const y = Math.sin(angleRad) * radius;
+                      const isCur = clockMode === 'hours' ? hour === val : minute === val;
+
+                      return (
+                        <div
+                          key={val}
+                          style={{
+                            transform: `translate(${x}px, ${y}px)`,
+                          }}
+                          className={`absolute size-6 rounded-full flex items-center justify-center text-[10px] font-semibold pointer-events-none transition-all ${
+                            isCur
+                              ? 'bg-[var(--quant-primary)] text-black font-bold shadow scale-110'
+                              : 'text-[var(--quant-muted-foreground)]'
+                          }`}
+                        >
+                          {clockMode === 'hours' ? val : val.toString().padStart(2, '0')}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Minute Slider / Gesture Fine Tuner */}
+                  <div className="w-full space-y-1">
+                    <div className="flex items-center justify-between text-[10px] text-[var(--quant-muted-foreground)]">
+                      <span>
+                        Fine-tune Minute:{' '}
+                        <strong className="text-[var(--quant-primary)]">
+                          {minute.toString().padStart(2, '0')}
+                        </strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setClockMode(clockMode === 'hours' ? 'minutes' : 'hours')}
+                        className="text-[var(--quant-primary)] hover:underline capitalize"
+                      >
+                        Switch to {clockMode === 'hours' ? 'Minutes' : 'Hours'}
+                      </button>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="59"
+                      aria-label="Minute"
+                      value={minute}
+                      onChange={(e) => {
+                        setMinute(parseInt(e.target.value, 10));
+                        setClockMode('minutes');
+                      }}
+                      className="w-full accent-[var(--quant-primary)] h-1.5 bg-[var(--quant-surface-elevated)] rounded-lg cursor-pointer"
+                    />
+                  </div>
                 </div>
               </div>
+
             </div>
 
             {/* Footer Preview & Actions */}
-            <div className="pt-3 border-t border-[var(--quant-surface-elevated)] space-y-2">
+            <div className="shrink-0 pt-3 border-t border-[var(--quant-surface-elevated)] space-y-2">
               {scheduleError && (
                 <p role="alert" className="text-xs text-red-300">
                   {scheduleError}
                 </p>
               )}
-              <div className="flex items-center justify-between">
-                <div className="text-xs text-[var(--quant-muted-foreground)] truncate pr-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-xs text-[var(--quant-muted-foreground)] sm:truncate sm:pr-2">
                   <span>Send on: </span>
                   <strong className="text-[var(--quant-primary)] font-semibold">
                     {`${selectedDate.toLocaleDateString([], {
@@ -576,18 +606,18 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                   </strong>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center justify-end gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all"
+                    className="min-h-[44px] sm:min-h-0 px-3.5 py-1.5 rounded-xl text-xs font-medium text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all"
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
                     onClick={handleConfirm}
-                    className="px-4 py-1.5 rounded-xl bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-[#111111] text-xs font-semibold shadow-sm transition-all"
+                    className="min-h-[44px] sm:min-h-0 px-4 py-1.5 rounded-xl bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] text-[#111111] text-xs font-semibold shadow-sm transition-all"
                   >
                     Schedule Send
                   </button>

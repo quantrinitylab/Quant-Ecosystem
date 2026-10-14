@@ -516,6 +516,17 @@ export function seedSecurityAlertsForTests(
   memorySecurityAlertsStore.set(repoId, alerts);
 }
 
+/**
+ * Test-only seam: seed CodeQL alerts into the in-memory SAST store so route
+ * tests can exercise handlers that read real alert rows. Production code
+ * never fabricates alerts — the store starts empty (see GET
+ * /:id/security/alerts). Exists solely to test the codeql fix handler's
+ * honest refusal path without inventing data in the handler itself.
+ */
+export function seedCodeqlAlertsForTests(repoId: string, alerts: BackendCodeqlAlert[]): void {
+  memoryCodeqlAlertsStore.set(repoId, alerts);
+}
+
 export async function dispatchWebhook(
   hook: WebhookRecord,
   event: string,
@@ -3903,6 +3914,37 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       501,
       'FIX_PR_NOT_SUPPORTED',
       { alertId, package: target.package, patchedVersion: target.patchedVersion },
+    );
+  });
+
+  fastify.post<{
+    Params: { id: string; alertId: string };
+  }>('/:id/security/codeql/:alertId/fix', async (request) => {
+    const repo = await loadWritableRepo(request, request.params.id);
+    const { alertId } = request.params;
+    const codeql = memoryCodeqlAlertsStore.get(repo.id) ?? [];
+
+    const target = codeql.find((a) => a.id === alertId);
+    if (!target) {
+      throw createAppError('CodeQL alert not found', 404, 'ALERT_NOT_FOUND');
+    }
+
+    // HONESTY: CodeQL auto-fix is NOT wired up. A real patch would require
+    // locating the rule's findings in the repo's stored files, generating a
+    // correct code edit from target.recommendedFix, committing it on a new
+    // branch, and re-running the scan to confirm the alert is fixed. None of
+    // that exists yet, so fail loudly with 501 instead of claiming a patch
+    // was applied. No code was changed and no file was written.
+    throw createAppError(
+      `CodeQL auto-fix is not wired up yet for rule "${target.ruleName}". No code was changed and no patch was applied.`,
+      501,
+      'CODEQL_FIX_NOT_SUPPORTED',
+      {
+        alertId,
+        ruleId: target.ruleId,
+        ruleName: target.ruleName,
+        filePath: target.filePath,
+      },
     );
   });
 

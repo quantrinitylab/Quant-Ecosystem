@@ -110,8 +110,13 @@ export function forgetUndo(toastId: string): void {
   if (pendingUndo?.toastId === toastId) pendingUndo = null;
 }
 
-/** Fire a toast from anywhere (no provider needed). */
-export function showToast(msg: Omit<ToastMessage, 'id'>) {
+/**
+ * Fire a toast from anywhere (no provider needed).
+ *
+ * Returns the toast's id so a caller that showed an optimistic confirmation can
+ * take it back with {@link dismissToast} if the server later refuses the change.
+ */
+export function showToast(msg: Omit<ToastMessage, 'id'>): string {
   const toast: ToastMessage = {
     ...msg,
     id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -122,9 +127,22 @@ export function showToast(msg: Omit<ToastMessage, 'id'>) {
     // Never let feedback vanish silently — render a fallback DOM toast so
     // the user always sees what happened (e.g. calendar Save/Close errors).
     renderFallbackDomToast(toast);
-    return;
+    return toast.id;
   }
   toastSubscribers.forEach((fn) => fn(toast));
+  return toast.id;
+}
+
+/**
+ * Take a toast off screen and drop its Undo.
+ *
+ * Used when an optimistic "Conversation archived · Undo" turns out to be wrong:
+ * the change was rolled back, so an Undo offering to reverse it would be a lie.
+ * Safe to call for a toast that has already expired.
+ */
+export function dismissToast(toastId: string): void {
+  forgetUndo(toastId);
+  dismissSubscribers.forEach((fn) => fn(toastId));
 }
 
 /**

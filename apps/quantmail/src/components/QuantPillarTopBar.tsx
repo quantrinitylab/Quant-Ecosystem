@@ -20,6 +20,8 @@ import { Quanty } from './Quanty';
 import { AccountBadge } from './AccountBadge';
 import { MoreAppsMenu } from './MoreAppsMenu';
 import { LiquidTrack } from './workplace/LiquidTrack';
+import { useKeyboardSurfaces } from './KeyboardProvider';
+import { CommandIcon } from '../lib/keyboard/command-icons';
 
 export type PillarId = 'mail' | 'calendar' | 'drive' | 'contacts' | 'quantgit';
 
@@ -562,6 +564,21 @@ export function executeVoiceMicClick(currentPillar: PillarId) {
   }
 }
 
+/**
+ * Command-palette trigger (mobile-nav P1, 2026-10-14): the palette was
+ * reachable only through the desktop ⌘K/Ctrl+K binding (KeyboardProvider
+ * `run: openPalette`) and the desktop-only `QuantMailShortcutDock`
+ * (`hidden md:flex`) — mobile had no way to open it at all. This opens the
+ * SAME palette surface through the keyboard-surfaces context, so the mobile
+ * button and the ⌘K binding stay one surface with one open state.
+ */
+export function executePaletteButtonClick(options?: { openPalette?: () => void }) {
+  // Haptic-feel micro-interaction: 10ms tap pulse on supporting platforms,
+  // silent everywhere else. Called synchronously inside the tap gesture.
+  triggerHapticTap(10);
+  options?.openPalette?.();
+}
+
 export function executeSearchKeyDown(
   key: string,
   currentValue: string,
@@ -608,6 +625,13 @@ export function QuantPillarTopBar({
 }: QuantPillarTopBarProps) {
   const router = useRouter();
   const pathname = usePathname() ?? '/';
+
+  // Command-palette trigger: `useKeyboardSurfaces` returns inert no-ops
+  // outside the provider, so this stays safe if the bar ever renders above it.
+  const { openPalette } = useKeyboardSurfaces();
+  const handlePaletteClick = useCallback(() => {
+    executePaletteButtonClick({ openPalette });
+  }, [openPalette]);
 
   // Internal search state when not controlled
   const effectiveQuery = searchValue ?? searchQuery ?? '';
@@ -1376,6 +1400,25 @@ export function QuantPillarTopBar({
             <MicrophoneIcon className="size-4" />
           </button>
         </div>
+
+        {/*
+          Command palette — the phone's one-tap entry to the palette. It was
+          keyboard-only (⌘K) plus a desktop-only dock (`hidden md:flex`), so
+          mobile had zero way to open it. This bar is mobile-only (AppShell
+          mounts it inside `md:hidden`); the ⌘ glyph is the palette's own
+          `command` icon, so the button reads as the same control as the ⌘K
+          binding — no new design language.
+        */}
+        <button
+          type="button"
+          onClick={handlePaletteClick}
+          aria-label="Open command palette"
+          title="Command palette"
+          data-testid="topbar-command-palette"
+          className="flex items-center justify-center rounded-full shrink-0 size-11 min-h-[44px] min-w-[44px] bg-[#16181F] border border-[#232938] text-[#94A3B8] transition active:scale-95 hover:text-white hover:border-[var(--app-accent)]/60 outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+        >
+          <CommandIcon name="command" className="size-5" />
+        </button>
 
         {/*
           Quanty — the user's chosen teammate (Ember by default, see

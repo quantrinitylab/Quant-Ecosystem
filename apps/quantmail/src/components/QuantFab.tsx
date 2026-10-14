@@ -172,6 +172,9 @@ export function QuantFab({ actions, label = 'Create' }: QuantFabProps) {
   return (
     <div
       ref={rootRef}
+      // Marker for the toast stack (globals.css): while a FAB owns the
+      // bottom-right corner, toasts keep out of it.
+      data-quant-fab=""
       aria-hidden={!chromeVisible}
       // Sits above the bottom bar when the chrome is visible; drops to the
       // screen edge when the bar collapses (the bar is in-flow now, so the

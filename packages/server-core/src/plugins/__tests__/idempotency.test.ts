@@ -5,6 +5,7 @@ import idempotencyPlugin, {
   MemoryIdempotencyStore,
   RedisIdempotencyStore,
   enableIdempotency,
+  requireIdempotency,
   type IdempotencyStore,
 } from '../idempotency';
 
@@ -216,6 +217,166 @@ describe('idempotency plugin (K4)', () => {
   });
 });
 
+describe('idempotency plugin required-key mode (WR-MAIL-104)', () => {
+  /**
+   * Builds a bare Fastify app with the idempotency plugin registered and a
+   * required-key route file (file-level `fastify.idempotencyRequired()`), plus
+   * a per-route required route in an honor-key-if-present file, plus a plain
+   * optional route — mirroring how the QuantMail route files mix both modes.
+   */
+  async function buildRequiredApp() {
+    const app = Fastify({ logger: false });
+    await app.register(idempotencyPlugin, { store: new MemoryIdempotencyStore() });
+
+    app.addHook('onRequest', async (request: FastifyRequest) => {
+      const user = request.headers['x-test-user'];
+      (request as unknown as { auth?: { userId: string } }).auth = {
+        userId: typeof user === 'string' && user ? user : 'user-1',
+      };
+    });
+
+    let executions = 0;
+
+    // File-level required-key mode (like ai-compose.ts).
+    await app.register(async (instance: FastifyInstance) => {
+      instance.idempotencyRequired();
+      instance.post('/required', async (_request, reply) => {
+        executions += 1;
+        return reply.code(201).send({ success: true, n: executions });
+      });
+      instance.get('/required', async (_request, reply) => {
+        executions += 1;
+        return reply.send({ success: true, n: executions });
+      });
+    });
+
+    // Per-route required config inside an honor-key-if-present file
+    // (like emails.ts / ai.ts).
+    await app.register(async (instance: FastifyInstance) => {
+      enableIdempotency(instance);
+      instance.post(
+        '/mixed-required',
+        { config: { idempotencyRequired: true } },
+        async (_request, reply) => {
+          executions += 1;
+          return reply.send({ success: true, n: executions });
+        },
+      );
+      instance.post('/mixed-optional', async (_request, reply) => {
+        executions += 1;
+        return reply.send({ success: true, n: executions });
+      });
+    });
+
+    // Per-route required config WITHOUT any file-level opt-in: required
+    // implies enabled.
+    await app.register(async (instance: FastifyInstance) => {
+      instance.post(
+        '/bare-required',
+        { config: { idempotencyRequired: true } },
+        async (_request, reply) => {
+          executions += 1;
+          return reply.send({ success: true, n: executions });
+        },
+      );
+    });
+
+    return {
+      app,
+      get executions() {
+        return executions;
+      },
+    };
+  }
+
+  function postReq(app: FastifyInstance, url: string, key?: string, body = { a: 1 }) {
+    return app.inject({
+      method: 'POST',
+      url,
+      headers: {
+        ...(key !== undefined ? { 'idempotency-key': key } : {}),
+        'x-test-user': 'user-1',
+      },
+      payload: body,
+    });
+  }
+
+  it('rejects a missing key with 400 IDEMPOTENCY_KEY_REQUIRED and zero mutation', async () => {
+    const ctx = await buildRequiredApp();
+    const res = await postReq(ctx.app, '/required');
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
+    expect(ctx.executions).toBe(0);
+  });
+
+  it('rejects a malformed key with 400 IDEMPOTENCY_KEY_INVALID and zero mutation', async () => {
+    const ctx = await buildRequiredApp();
+    const res = await postReq(ctx.app, '/required', 'not a valid key!!');
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('IDEMPOTENCY_KEY_INVALID');
+    expect(ctx.executions).toBe(0);
+  });
+
+  it('executes once and replays on same key + same payload', async () => {
+    const ctx = await buildRequiredApp();
+    const first = await postReq(ctx.app, '/required', 'req-key-1');
+    expect(first.statusCode).toBe(201);
+    expect(first.json()).toEqual({ success: true, n: 1 });
+    expect(first.headers['idempotent-replayed']).toBeUndefined();
+
+    const second = await postReq(ctx.app, '/required', 'req-key-1');
+    expect(second.statusCode).toBe(201);
+    expect(second.json()).toEqual({ success: true, n: 1 });
+    expect(second.headers['idempotent-replayed']).toBe('true');
+    expect(ctx.executions).toBe(1);
+  });
+
+  it('rejects same key + different payload with 422 (key identifies one operation)', async () => {
+    const ctx = await buildRequiredApp();
+    await postReq(ctx.app, '/required', 'req-key-2', { a: 1 });
+    const res = await postReq(ctx.app, '/required', 'req-key-2', { a: 2 });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.code).toBe('IDEMPOTENCY_KEY_REUSE');
+    expect(ctx.executions).toBe(1);
+  });
+
+  it('enforces required-key per route inside an honor-key-if-present file', async () => {
+    const ctx = await buildRequiredApp();
+    const required = await postReq(ctx.app, '/mixed-required');
+    expect(required.statusCode).toBe(400);
+    expect(required.json().error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
+
+    // The sibling route in the same file stays honor-key-if-present.
+    const optional = await postReq(ctx.app, '/mixed-optional');
+    expect(optional.statusCode).toBe(200);
+    expect(ctx.executions).toBe(1);
+  });
+
+  it('per-route required config implies enabled without file-level opt-in', async () => {
+    const ctx = await buildRequiredApp();
+    const missing = await postReq(ctx.app, '/bare-required');
+    expect(missing.statusCode).toBe(400);
+    expect(missing.json().error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
+
+    const ok = await postReq(ctx.app, '/bare-required', 'bare-key-1');
+    expect(ok.statusCode).toBe(200);
+    const replay = await postReq(ctx.app, '/bare-required', 'bare-key-1');
+    expect(replay.headers['idempotent-replayed']).toBe('true');
+    expect(ctx.executions).toBe(1);
+  });
+
+  it('non-mutating routes stay callable without a key even in required files', async () => {
+    const ctx = await buildRequiredApp();
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: '/required',
+      headers: { 'x-test-user': 'user-1' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(ctx.executions).toBe(1);
+  });
+});
+
 describe('enableIdempotency helper', () => {
   it('no-ops when the plugin is not registered (isolated route unit tests)', async () => {
     const app = Fastify({ logger: false });
@@ -239,6 +400,37 @@ describe('enableIdempotency helper', () => {
     expect(first.json()).toEqual({ n: 1 });
     expect(second.json()).toEqual({ n: 1 });
     expect(second.headers['idempotent-replayed']).toBe('true');
+    expect(n).toBe(1);
+  });
+});
+
+describe('requireIdempotency helper', () => {
+  it('no-ops when the plugin is not registered (isolated route unit tests)', async () => {
+    const app = Fastify({ logger: false });
+    expect(() => requireIdempotency(app)).not.toThrow();
+  });
+
+  it('marks routes as required once the plugin IS registered', async () => {
+    const app = Fastify({ logger: false });
+    await app.register(idempotencyPlugin, { store: new MemoryIdempotencyStore() });
+    let n = 0;
+    await app.register(async (instance: FastifyInstance) => {
+      requireIdempotency(instance);
+      instance.post('/y', async (_request, reply) => {
+        n += 1;
+        return reply.send({ n });
+      });
+    });
+    const keyless = await app.inject({ method: 'POST', url: '/y', payload: {} });
+    expect(keyless.statusCode).toBe(400);
+    expect(keyless.json().error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
+    expect(n).toBe(0);
+
+    const headers = { 'idempotency-key': 'k2' };
+    const first = await app.inject({ method: 'POST', url: '/y', headers, payload: {} });
+    expect(first.json()).toEqual({ n: 1 });
+    const replay = await app.inject({ method: 'POST', url: '/y', headers, payload: {} });
+    expect(replay.headers['idempotent-replayed']).toBe('true');
     expect(n).toBe(1);
   });
 });
@@ -292,5 +484,28 @@ describe('RedisIdempotencyStore', () => {
     expect(await store.get('k')).toEqual(entry);
     await store.release('k');
     expect(await store.get('k')).toBeNull();
+  });
+
+  it('exactly one concurrent claimant wins (the two-pod exactly-once contract)', async () => {
+    // Two pods racing on the same key both call claimProcessing; the Redis
+    // SET … NX makes the claim atomic, so exactly one pod may execute the
+    // handler. The fake below serialises like real Redis would.
+    const backing = new Map<string, string>();
+    const fakeRedis = {
+      get: async (k: string) => backing.get(k) ?? null,
+      set: async (k: string, v: string, ..._args: unknown[]) => {
+        const nx = _args.includes('NX');
+        if (nx && backing.has(k)) return null;
+        backing.set(k, v);
+        return 'OK';
+      },
+      del: async (k: string) => (backing.delete(k) ? 1 : 0),
+    };
+    const store = new RedisIdempotencyStore(fakeRedis as never);
+
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () => store.claimProcessing('race-key', 'fp', 60_000)),
+    );
+    expect(results.filter(Boolean)).toHaveLength(1);
   });
 });
