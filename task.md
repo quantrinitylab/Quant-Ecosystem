@@ -194,3 +194,34 @@ A phase may be marked COMPLETE only when:
 
 ## Working Rule
 Never install an engine because it is popular. Measure the gap in Quant first. Prefer existing proven Quant code; extend it when sound; borrow narrowly from OSS; replace only with evidence. Every future discovery must be added to this file as an atomic task before implementation.
+
+
+## Screen Audit 001 — QuantMail Sign-in / SSO Entry
+### Evidence verdict
+- **KEEP:** server-rendered auth shell + Suspense skeleton + isolated interactive LoginForm island. Existing regression notes show the previous client-only shell caused ~2.5s slower mobile paint and a ~659.8KB JS/spinner-wall path.
+- **KEEP/HARDEN:** memory-scoped access token + HttpOnly refresh-cookie browser boundary; Argon2 login; rate limits; 2FA/recovery-code flow; opaque external SSO handoff ticket instead of bearer-in-URL.
+- **REDESIGN:** visual identity, hierarchy, component tokens and responsive composition must move to the final Quant Design System; do not copy competitor trade dress.
+- **VERIFY:** existing CI definitions are not proof of current deployed success. Capture fresh CI + browser/device evidence before closure.
+- **ENGINE:** no identity-engine replacement approved. Compare current Quant Identity against Keycloak/authentik/ZITADEL only after a capability/security/ops/license gap matrix.
+
+### Atomic implementation tasks
+- [ ] QM-AUTH-001 Capture current /login renders at phone 360/390, tablet, 1366, 1440 and large desktop; light/dark where supported.
+- [ ] QM-AUTH-002 Measure SSR first paint, LCP, INP, CLS, transferred JS and hydrated JS; preserve or improve the server-island architecture.
+- [ ] QM-AUTH-003 Inventory AuthShell/AuthBrandPanel/LoginForm hardcoded zinc/white/red/emerald values and migrate them to semantic design tokens.
+- [ ] QM-AUTH-004 Define final Quant identity lockup/logo treatment before visual sign-off; temporary wordmark must not become accidental brand lock.
+- [ ] QM-AUTH-005 Redesign credentials state: hierarchy, spacing, fields, password reveal, forgot-password, primary action, account creation and legal/help affordances.
+- [ ] QM-AUTH-006 Redesign 2FA state with TOTP/recovery switching, expiry state, retry, focus restoration and accessible live announcements.
+- [ ] QM-AUTH-007 Design account chooser/add-account/switch-account states as first-class screens, not query-param-only visual patches.
+- [ ] QM-AUTH-008 Design session-expired, revoked-device, offline, server-unavailable, rate-limited and maintenance states.
+- [ ] QM-AUTH-009 Add passkey/WebAuthn sign-in UX only after backend capability is verified; progressive enhancement, password recovery remains viable.
+- [ ] QM-AUTH-010 Ensure 44px+ touch targets, visible focus, 200% zoom, screen-reader labels/errors, autofill/password-manager compatibility and reduced motion.
+- [ ] QM-AUTH-011 Verify no access/refresh/SSO bearer appears in URL, localStorage, sessionStorage, analytics, logs or referrer.
+- [ ] QM-AUTH-012 Test credential stuffing/rate limit, enumeration resistance, open redirect, SSO replay, expired ticket, CSRF/origin, 2FA bypass and recovery-code reuse.
+- [ ] QM-AUTH-013 Playwright journeys: success, bad password, 2FA success/failure/expiry, forgot-password, registration return, external SSO handoff, logout→login, refresh restore.
+- [ ] QM-AUTH-014 Browser matrix: Chromium, Firefox, WebKit; mobile emulation is not sufficient for final gate—run real Android/iOS acceptance.
+- [ ] QM-AUTH-015 Visual regression snapshots for every auth state and breakpoint; intentional diffs require review.
+- [ ] QM-AUTH-016 Performance gate: prevent return of client-only spinner wall or static-shell dependency on offline mail stores.
+- [ ] QM-AUTH-017 Native auth contract: Android Custom Tabs / iOS system auth session + PKCE + verified deep/universal link; never embedded credential-stealing WebView.
+- [ ] QM-AUTH-018 Desktop auth contract: system-browser PKCE callback, secure credential store and single logout/revocation behavior.
+- [ ] QM-AUTH-019 OSS identity matrix: current Quant vs Keycloak vs authentik vs ZITADEL—protocols, WebAuthn/passkeys, MFA, device/session admin, enterprise federation, SCIM, HA, upgrade path, license, resource cost and migration blast radius.
+- [ ] QM-AUTH-020 Close only with fresh CI artifacts + screenshots + accessibility report + security negatives + performance measurements + real-device evidence.
