@@ -1,3 +1,24 @@
+# Quant Docs engines: Rust → WebAssembly document renderers (see engines/README.md). BuildKit
+# runs this stage in parallel with the Node stages; only its static output (.wasm/.js, the
+# notices and a manifest) reaches the runtime image, under public/engines/docs/<version>/.
+FROM rust:1.99.0-slim AS engines
+ARG WASM_BINDGEN_VERSION=0.2.129
+ARG WASM_BINDGEN_SHA256_X86_64=82d12bb940e2d4e72e0d5605387fc1b8ca179044e012b620f0ce4e7440e8320e
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/* \
+ && rustup target add wasm32-unknown-unknown \
+ && if [ "$(uname -m)" = "x86_64" ]; then \
+      pkg="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl"; \
+      curl -fsSL -o /tmp/wb.tgz "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${pkg}.tar.gz" \
+      && echo "${WASM_BINDGEN_SHA256_X86_64}  /tmp/wb.tgz" | sha256sum -c - \
+      && tar -xzf /tmp/wb.tgz -C /tmp && install -m 0755 "/tmp/${pkg}/wasm-bindgen" /usr/local/bin/wasm-bindgen \
+      && rm -rf /tmp/wb.tgz "/tmp/${pkg}"; \
+    else \
+      cargo install wasm-bindgen-cli --version "${WASM_BINDGEN_VERSION}" --locked --root /usr/local; \
+    fi
+WORKDIR /src/engines
+COPY engines/ ./
+RUN bash ./build.sh /out
+
 FROM node:22-slim AS deps
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 WORKDIR /app
@@ -41,6 +62,8 @@ COPY --from=builder --chown=quantapp:nodejs /app/packages/ ./packages/
 COPY --from=builder --chown=quantapp:nodejs /app/apps/quantmail/ ./apps/quantmail/
 COPY --from=builder --chown=quantapp:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=quantapp:nodejs /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+# On-device document engines, served as static files (immutable; versioned path).
+COPY --from=engines --chown=quantapp:nodejs /out/ ./apps/quantmail/public/engines/docs/
 
 USER quantapp
 EXPOSE 3010

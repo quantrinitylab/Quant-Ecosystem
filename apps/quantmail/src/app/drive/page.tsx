@@ -49,6 +49,8 @@ import { FileAISummaryDrawer } from '../../components/drive/FileAISummaryDrawer'
 import { AIDuplicateCleanerModal } from '../../components/drive/AIDuplicateCleanerModal';
 import { QuantyFileWorkspace } from '../../components/drive/QuantyFileWorkspace';
 import { apiFetchRaw } from '@quant/api-client';
+import { DocumentEnginePreview } from '../../components/drive/DocumentEnginePreview';
+import { browserCanShowPdfInline, docsEngineKindFor } from '../../lib/docs-engine/formats';
 import { browserApiRequest } from '../../services/browser-api-request';
 import { browserAuthSession } from '../../services/browser-auth-session';
 
@@ -285,6 +287,9 @@ function isImageOrDocument(mimeType: string, name: string): boolean {
 }
 
 function isTextOrCodeFile(mimeType: string, name: string): boolean {
+  // Office/PDF files go to the on-device document engines. Their MIME types contain "xml"
+  // (…openxmlformats…), which used to send .docx/.xlsx/.pptx to the text viewer as zip bytes.
+  if (docsEngineKindFor(mimeType, name)) return false;
   const m = (mimeType || '').toLowerCase();
   const n = (name || '').toLowerCase();
   if (
@@ -574,6 +579,31 @@ function DrivePageContent() {
   const [textPreviewError, setTextPreviewError] = useState<string | null>(null);
   const [copiedTextPreview, setCopiedTextPreview] = useState(false);
 
+  // On-device document preview (Quant Docs engines): Word, PowerPoint, Excel — and PDF where
+  // the browser has no inline viewer (Android) or the upload lost its PDF MIME type.
+  const previewEngineKind = useMemo(() => {
+    if (!previewItem || previewItem.scanStatus === 'quarantined') return null;
+    const kind = docsEngineKindFor(previewItem.mimeType, previewItem.name);
+    if (kind === 'pdf' && previewItem.mimeType === 'application/pdf' && browserCanShowPdfInline()) return null;
+    return kind;
+  }, [previewItem]);
+
+  const loadPreviewBytes = useCallback(
+    async (signal: AbortSignal): Promise<ArrayBuffer> => {
+      if (!previewItem) throw new Error('No file selected');
+      const res = await apiFetchRaw(getDownloadUrl(previewItem.id), {
+        signal,
+        token: browserAuthSession.getAccessToken() ?? undefined,
+      });
+      if (!res.ok) {
+        const instruction = await readErrorInstruction(res);
+        throw new Error(instruction || `Failed to load file preview (${res.status})`);
+      }
+      return res.arrayBuffer();
+    },
+    [previewItem, getDownloadUrl],
+  );
+
   // QM-SCREEN-011: blob object URL for the media preview (image/pdf/audio/
   // video). Media tags cannot send the session's Authorization header — the
   // token lives only in browser memory — so bytes are fetched with the
@@ -656,7 +686,7 @@ function DrivePageContent() {
       item.scanStatus !== 'quarantined' &&
       !isTextOrCodeFile(item.mimeType, item.name) &&
       (item.mimeType.startsWith('image/') ||
-        item.mimeType === 'application/pdf' ||
+        (item.mimeType === 'application/pdf' && browserCanShowPdfInline()) ||
         item.mimeType.startsWith('audio/') ||
         item.mimeType.startsWith('video/'));
     if (!isMediaPreview || !item) {
@@ -2074,6 +2104,7 @@ function DrivePageContent() {
           isOpen={!!previewItem}
           onClose={handleClosePreview}
           title={previewItem?.name || 'File Preview'}
+          size={previewEngineKind || previewItem?.mimeType === 'application/pdf' ? 'xl' : 'md'}
         >
           <div className="p-4 space-y-4 text-center">
             {/* QM-M39-007: details panel entry — one button for the full file
@@ -2130,6 +2161,20 @@ function DrivePageContent() {
                 <p className="text-xs text-[var(--quant-muted-foreground)] mt-2 max-w-md">
                   Contact your workspace administrator to request a security review — do not share
                   this file.
+                </p>
+              </div>
+            ) : previewItem && previewEngineKind ? (
+              <div className="rounded-xl bg-[var(--quant-surface)] p-4 shadow-[inset_0_0_0_1px_var(--quant-surface-elevated)]">
+                <DocumentEnginePreview
+                  key={previewItem.id}
+                  kind={previewEngineKind}
+                  name={previewItem.name}
+                  size={previewItem.size}
+                  loadBytes={loadPreviewBytes}
+                  onDownload={() => downloadFile(previewItem.id, previewItem.name)}
+                />
+                <p className="text-xs text-[var(--quant-muted-foreground)] mt-2 text-left">
+                  {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
                 </p>
               </div>
             ) : previewItem && previewItem.mimeType.startsWith('image/') ? (

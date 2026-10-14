@@ -1,17 +1,31 @@
 //! Quant Docs — Slides engine (WebAssembly).
 //!
-//! A thin, typed adapter over the DeckCraft engine: open a .pptx (or DeckCraft's own format)
-//! and rasterize one slide at a time — on the user's device, inside a Web Worker.
+//! A thin, typed adapter over DeckCraft's import, model and render crates: open a .pptx (or
+//! DeckCraft's own format) and rasterize one slide at a time — on the user's device, inside a
+//! Web Worker.
 //!
 //! Pixels come back as straight RGBA8 flattened onto white. Errors are `JsError`s whose
 //! message starts with a stable code (`E_INVALID`, `E_RANGE`).
 
-use deckcraft_engine::cmd::file::open_presentation;
-use deckcraft_engine::model::Presentation;
-use deckcraft_engine::render::{RenderOpts, render_slide};
+use deckcraft_model::Presentation;
+use deckcraft_render::{RenderOpts, render_slide};
 use wasm_bindgen::prelude::*;
 
 const MAX_SCALE: f64 = 8.0;
+
+/// DeckCraft's own format first, then Office Open XML — the order of DeckCraft's
+/// `cmd::file::open_presentation`, without its plain-text outline import.
+fn open_presentation(bytes: &[u8]) -> Result<Presentation, String> {
+    if deckcraft_format::sniff(bytes) {
+        return deckcraft_format::load(bytes).map_err(|e| e.to_string());
+    }
+    if deckcraft_pptx::sniff(bytes) {
+        let mut pres = deckcraft_pptx::import(bytes).map_err(|e| e.to_string())?;
+        deckcraft_format::repair(&mut pres);
+        return Ok(pres);
+    }
+    Err("not a presentation this engine can read (expected .pptx)".into())
+}
 
 /// Premultiplied RGBA8 → straight RGBA8 composited over white (opaque).
 fn flatten_on_white(px: &mut [u8]) {
@@ -59,10 +73,11 @@ pub struct Document {
 
 #[wasm_bindgen]
 impl Document {
-    /// Open `bytes`; `name` (the file name) helps detect the format.
+    /// Open `bytes` (the format is detected from the content; `name` is kept for API parity
+    /// with the other engines).
     #[wasm_bindgen(constructor)]
-    pub fn new(name: &str, bytes: Vec<u8>) -> Result<Document, JsError> {
-        let pres = open_presentation(name, &bytes).map_err(|e| JsError::new(&format!("E_INVALID: {e}")))?;
+    pub fn new(_name: &str, bytes: Vec<u8>) -> Result<Document, JsError> {
+        let pres = open_presentation(&bytes).map_err(|e| JsError::new(&format!("E_INVALID: {e}")))?;
         if pres.slides.is_empty() {
             return Err(JsError::new("E_INVALID: the presentation has no slides"));
         }

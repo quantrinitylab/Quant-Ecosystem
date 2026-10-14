@@ -10,6 +10,7 @@ import type { DocsEngineKind } from './formats';
 import { DOCS_ENGINE_WORKER_URL } from './version';
 
 export interface OpenedDocument {
+  /** Handle for `render`/`close`; it goes stale when the worker restarts (calls then fail with E_CLOSED). */
   docId: number;
   pageCount: number;
   /** [w0, h0, w1, h1, …] in points. */
@@ -81,8 +82,13 @@ export function describeEngineError(error: unknown): string {
   }
 }
 
+/** Handles are `generation · 2^20 + worker doc id`: a restarted worker never sees an old handle. */
+const HANDLE_SPAN = 2 ** 20;
+
 export class DocsEngineClient {
   private worker: Worker | null = null;
+  /** Bumped whenever the worker is replaced; documents opened earlier are gone with it. */
+  private generation = 0;
   private seq = 0;
   private readonly pending = new Map<number, Pending>();
 
@@ -121,6 +127,7 @@ export class DocsEngineClient {
   private reset(reason: Error, keep?: number): void {
     this.worker?.terminate();
     this.worker = null;
+    this.generation++;
     for (const [id, entry] of this.pending) {
       if (id === keep) continue;
       clearTimeout(entry.timer);
@@ -149,20 +156,36 @@ export class DocsEngineClient {
     });
   }
 
+  /** The worker's doc id for a live handle, or null when the handle predates a restart. */
+  private workerDocId(handle: number): number | null {
+    return this.worker && Math.floor(handle / HANDLE_SPAN) === this.generation ? handle % HANDLE_SPAN : null;
+  }
+
   /** Open a PDF, document or presentation. `bytes` is transferred (do not reuse it). */
-  open(kind: Exclude<DocsEngineKind, 'sheets'>, name: string, bytes: ArrayBuffer, password?: string): Promise<OpenedDocument> {
-    return this.call<OpenedDocument>({ op: 'open', kind, name, bytes, password }, [bytes]);
+  async open(kind: Exclude<DocsEngineKind, 'sheets'>, name: string, bytes: ArrayBuffer, password?: string): Promise<OpenedDocument> {
+    const generation = this.generation;
+    const doc = await this.call<OpenedDocument>({ op: 'open', kind, name, bytes, password }, [bytes]);
+    // A restart while opening means the document is already gone.
+    if (generation !== this.generation) throw new Error('E_CLOSED: the engine restarted');
+    return { ...doc, docId: generation * HANDLE_SPAN + doc.docId };
   }
 
   /** Rasterize one page (0-based) at `scale` device pixels per point. */
   async render(docId: number, page: number, scale: number): Promise<RenderedPage> {
-    const out = await this.call<{ width: number; height: number; rgba: Uint8Array }>({ op: 'render', docId, page, scale });
+    const id = this.workerDocId(docId);
+    if (id === null) throw new Error('E_CLOSED: the engine restarted');
+    const out = await this.call<{ width: number; height: number; rgba: Uint8Array }>({ op: 'render', docId: id, page, scale });
     return { width: out.width, height: out.height, rgba: new Uint8ClampedArray(out.rgba.buffer, out.rgba.byteOffset, out.rgba.byteLength) };
   }
 
+  /** Release a document. Never rejects; a stale handle is a no-op. */
   close(docId: number): Promise<void> {
-    if (!this.worker) return Promise.resolve();
-    return this.call<void>({ op: 'close', docId }, [], 10_000).catch(() => undefined);
+    const id = this.workerDocId(docId);
+    if (id === null) return Promise.resolve();
+    return this.call<void>({ op: 'close', docId: id }, [], 10_000).then(
+      () => undefined,
+      () => undefined,
+    );
   }
 
   /** A bounded preview of every visible sheet. `bytes` is transferred. */

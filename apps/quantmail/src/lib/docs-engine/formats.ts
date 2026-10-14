@@ -25,6 +25,7 @@ const MIME_KINDS: Record<string, DocsEngineKind> = {
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'sheets',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.template': 'sheets',
   'application/vnd.ms-excel.sheet.macroenabled.12': 'sheets',
+  'application/vnd.ms-excel.sheet.binary.macroenabled.12': 'sheets',
   'application/vnd.ms-excel': 'sheets',
   'application/vnd.oasis.opendocument.spreadsheet': 'sheets',
 };
@@ -43,6 +44,7 @@ const EXT_KINDS: Record<string, DocsEngineKind> = {
   xlsx: 'sheets',
   xlsm: 'sheets',
   xltx: 'sheets',
+  xlsb: 'sheets',
   xls: 'sheets',
   ods: 'sheets',
 };

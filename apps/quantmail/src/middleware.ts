@@ -107,9 +107,10 @@ export function middleware(request: NextRequest): NextResponse {
   return NextResponse.next();
 }
 
-// Run on page routes only: never on API, Next internals, or static assets.
+// Run on page routes only: never on API, Next internals, or static assets
+// (incl. the document engines' .wasm under /engines/docs/).
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|json|txt|xml|woff2?)).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|json|txt|xml|woff2?|wasm)).*)',
   ],
 };
