@@ -44,30 +44,22 @@ interface EnhancedMessage {
   replyTo?: { id: string; content: string; sender: string } | null;
   imageUrl?: string;
   mediaUrl?: string;
-  linkPreview?: { url: string; title: string; description?: string; imageUrl?: string } | null;
+  linkPreview?: { url: string } | null;
   type: 'text' | 'image' | 'voice' | 'snap_photo' | 'snap_video';
   voiceDurationMs?: number;
   snapDurationSec?: number;
 }
 
-function detectLink(text: string): { url: string; title: string; description?: string } | null {
-  const urlRegex = /https?:\/\/[^\s]+/;
-  const match = text.match(urlRegex);
-  if (match) {
-    const url = match[0];
-    let hostname = url;
-    try {
-      hostname = new URL(url).hostname;
-    } catch {
-      /* use raw */
-    }
-    return {
-      url,
-      title: `Link from ${hostname}`,
-      description: `Shared content from ${hostname}`,
-    };
-  }
-  return null;
+// QC-F-309: a link card may only show what is actually known — the URL
+// itself, taken from the message text. The previous link detector invented
+// a title ("Link from <hostname>") and description ("Shared content from
+// <hostname>") and presented them as the page's real metadata; no fetch
+// ever happened. Real previews arrive only from the verified unfurl
+// endpoint (QC-F-309 Slice 2); until then the card is honest: URL +
+// hostname, nothing fabricated.
+function extractFirstLink(text: string): { url: string } | null {
+  const match = text.match(/https?:\/\/[^\s]+/);
+  return match ? { url: match[0] } : null;
 }
 
 // Delivery status ordering so out-of-order receipt events never downgrade a
@@ -362,7 +354,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           snapDurationSec?: number;
         }) => {
           const content = msg.message ?? msg.content ?? '';
-          const linkPreview = detectLink(content);
+          const linkPreview = extractFirstLink(content);
           const rawType = msg.type || 'text';
           const type = (
             ['text', 'image', 'voice', 'snap_photo', 'snap_video'].includes(rawType)
@@ -394,7 +386,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         },
       ),
       ...incomingMessages.map((msg: any) => {
-        const linkPreview = detectLink(msg.content);
+        const linkPreview = extractFirstLink(msg.content);
         const rawType = msg.type || 'text';
         const type = (
           ['text', 'image', 'voice', 'snap_photo', 'snap_video'].includes(rawType)
@@ -1024,12 +1016,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                   <div
                     className={`mt-1 ${msg.sender === 'self' ? 'flex justify-end' : 'flex justify-start'}`}
                   >
-                    <LinkPreviewCard
-                      url={msg.linkPreview.url}
-                      title={msg.linkPreview.title}
-                      description={msg.linkPreview.description}
-                      imageUrl={msg.linkPreview.imageUrl}
-                    />
+                    <LinkPreviewCard url={msg.linkPreview.url} />
                   </div>
                 )}
 
