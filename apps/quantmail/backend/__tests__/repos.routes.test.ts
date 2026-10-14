@@ -6,8 +6,8 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { errorHandlerPlugin } from '@quant/server-core';
-import reposRoutes, { resetRepoStores, seedSecurityAlertsForTests, seedCodeqlAlertsForTests } from '../routes/repos';
-import type { BackendSecurityAlert, BackendCodeqlAlert } from '../routes/repos';
+import reposRoutes, { resetRepoStores, seedSecurityAlertsForTests, seedCodeqlAlertsForTests, seedSecretAlertsForTests } from '../routes/repos';
+import type { BackendSecurityAlert, BackendCodeqlAlert, BackendSecretAlert } from '../routes/repos';
 import { execFile } from 'node:child_process';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -3456,6 +3456,76 @@ describe('QuantGit Security Endpoints Honesty (no security-scan theater)', () =>
     const row = alerts.json().data.codeql.find((a: { id: string }) => a.id === 'codeql-1');
     expect(row).toBeDefined();
     expect(row.state).toBe('open');
+  });
+});
+
+describe('GET /repos/:id/security/alerts (fix/qm-securitytab-alerts-wired server list contract)', () => {
+  beforeEach(() => {
+    resetRepoStores();
+  });
+
+  it('returns the stored secrets and codeql lists that the SecurityTab renders', async () => {
+    const app = await buildApp();
+    const secret: BackendSecretAlert = {
+      id: 'sec-1',
+      secretType: 'AWS Access Key',
+      maskedSecret: 'AKIA••••••••••••XYZ1',
+      filePath: '.env',
+      lineNumber: 12,
+      detectedAt: '2026-10-13T10:20:00.000Z',
+      status: 'active',
+    };
+    const codeql: BackendCodeqlAlert = {
+      id: 'codeql-1',
+      ruleId: 'js/sql-injection',
+      ruleName: 'SQL Injection',
+      severity: 'high',
+      filePath: 'src/db.ts',
+      lineStart: 42,
+      lineEnd: 44,
+      description: 'Unescaped user input in SQL query',
+      codeSnippet: 'query(`SELECT * FROM users WHERE id = ${id}`)',
+      recommendedFix: 'Use parameterized queries',
+      state: 'open',
+    };
+    seedSecretAlertsForTests('repo-1', [secret]);
+    seedCodeqlAlertsForTests('repo-1', [codeql]);
+
+    const res = await app.inject({ method: 'GET', url: '/repos/repo-1/security/alerts' });
+    expect(res.statusCode).toBe(200);
+    const data = res.json().data;
+    // The tab reads data.secrets / data.codeql — both must round-trip.
+    expect(data.secrets).toHaveLength(1);
+    expect(data.secrets[0]).toMatchObject({
+      id: 'sec-1',
+      secretType: 'AWS Access Key',
+      maskedSecret: 'AKIA••••••••••••XYZ1',
+      filePath: '.env',
+      status: 'active',
+    });
+    expect(data.codeql).toHaveLength(1);
+    expect(data.codeql[0]).toMatchObject({
+      id: 'codeql-1',
+      ruleId: 'js/sql-injection',
+      ruleName: 'SQL Injection',
+      severity: 'high',
+      state: 'open',
+    });
+    // The summary the tab badges render counts the stored rows.
+    expect(data.summary.openSecretsCount).toBe(1);
+    expect(data.summary.openSastCount).toBe(1);
+  });
+
+  it('returns empty lists — never fabricated rows — when nothing is stored', async () => {
+    const app = await buildApp();
+
+    const res = await app.inject({ method: 'GET', url: '/repos/repo-1/security/alerts' });
+    expect(res.statusCode).toBe(200);
+    const data = res.json().data;
+    expect(data.secrets).toEqual([]);
+    expect(data.codeql).toEqual([]);
+    expect(data.summary.openSecretsCount).toBe(0);
+    expect(data.summary.openSastCount).toBe(0);
   });
 });
 

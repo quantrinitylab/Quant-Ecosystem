@@ -527,6 +527,17 @@ export function seedCodeqlAlertsForTests(repoId: string, alerts: BackendCodeqlAl
   memoryCodeqlAlertsStore.set(repoId, alerts);
 }
 
+/**
+ * Test-only seam: seed secret-scanning alerts into the in-memory secrets
+ * store so route tests can exercise handlers that read real alert rows
+ * (GET /:id/security/alerts returns data.secrets, which the SecurityTab
+ * renders). Production code never fabricates alerts — the store starts
+ * empty (see GET /:id/security/alerts).
+ */
+export function seedSecretAlertsForTests(repoId: string, alerts: BackendSecretAlert[]): void {
+  memorySecretAlertsStore.set(repoId, alerts);
+}
+
 export async function dispatchWebhook(
   hook: WebhookRecord,
   event: string,
