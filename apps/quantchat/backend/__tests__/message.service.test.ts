@@ -130,7 +130,7 @@ describe('MessageService', () => {
         senderId: 'user-1',
         content: 'Check this out',
         type: 'image',
-        mediaUrl: 'https://cdn.example.com/photo.jpg',
+        mediaUrl: 'https://quantchat-media.s3.amazonaws.com/user-1/media_fixture/photo.jpg',
         replyToId: 'msg-original',
         metadata: { caption: 'My photo' },
       });
@@ -141,7 +141,7 @@ describe('MessageService', () => {
           senderId: 'user-1',
           content: 'Check this out',
           type: 'IMAGE',
-          mediaUrl: 'https://cdn.example.com/photo.jpg',
+          mediaUrl: 'https://quantchat-media.s3.amazonaws.com/user-1/media_fixture/photo.jpg',
           replyToId: 'msg-original',
           isAIGenerated: false,
           metadata: { caption: 'My photo' },

@@ -173,13 +173,20 @@ describe('QC-F-329 send-bind: a snap may only reference the sender’s own uploa
     expect(prisma.message.create).toHaveBeenCalledTimes(1);
   });
 
-  it('S9 (control, scope pin): ordinary non-snap media is NOT bound by this slice (QC-F-330 owns it)', async () => {
+  it('S9 (control, scope pin): ordinary non-snap media is NOT bound by THIS slice — since QC-F-330 landed, the ordinary branch is bound by QC-F-330 instead (own-storage persists here)', async () => {
+    // Scope transfer (QC-F-330 brief §7.1): this case originally pinned
+    // that an ordinary external URL persisted untouched because 329's
+    // bind covered only snaps. QC-F-330 has since landed its own gate on
+    // the non-snap branch (400 MEDIA_URL_NOT_ALLOWED for external hosts —
+    // see qc-f-330-media-url-validator.test.ts M1), so the control now
+    // uses an own-storage URL: it persists, proving 329's snap bind does
+    // not leak into the ordinary branch.
     await service.sendMessage({
       conversationId: 'conv-1',
       senderId: 'user-1',
       content: 'Photo',
       type: 'image',
-      mediaUrl: 'https://cdn.example.com/photo.jpg',
+      mediaUrl: 'https://quantchat-media.s3.amazonaws.com/user-1/media_abc/photo.jpg',
     });
     expect(prisma.message.create).toHaveBeenCalledTimes(1);
   });
