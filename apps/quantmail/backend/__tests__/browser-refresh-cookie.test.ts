@@ -325,8 +325,6 @@ describe('QuantMail refresh embeds the user profile (single-trip hydration)', ()
         username: 'user',
         displayName: 'User',
         role: 'USER',
-        phoneNumber: null,
-        phoneVerified: false,
       },
     );
 
@@ -337,8 +335,6 @@ describe('QuantMail refresh embeds the user profile (single-trip hydration)', ()
       username: 'user',
       displayName: 'User',
       role: 'USER',
-      phoneNumber: null,
-      phoneVerified: false,
     });
     // Rotation itself is unchanged.
     expect(reply.body.data.accessToken).toBe('rotated-access-token');
@@ -385,8 +381,6 @@ describe('QuantMail refresh embeds the user profile (single-trip hydration)', ()
       displayName: 'User',
       passwordHash: 'hashed_password',
       role: 'ADMIN',
-      phoneNumber: '+911234567890',
-      phoneVerified: true,
     });
 
     const handlers = await loadHandlers();
@@ -403,8 +397,6 @@ describe('QuantMail refresh embeds the user profile (single-trip hydration)', ()
       username: 'user',
       displayName: 'User',
       role: 'ADMIN',
-      phoneNumber: '+911234567890',
-      phoneVerified: true,
     });
     expect(reply.body.data).not.toHaveProperty('refreshToken');
   });

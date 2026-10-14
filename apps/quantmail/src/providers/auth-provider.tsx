@@ -23,8 +23,6 @@ export interface AuthUser {
   username: string;
   displayName: string;
   role: string;
-  phoneNumber?: string | null;
-  phoneVerified?: boolean;
 }
 
 /**
@@ -114,8 +112,6 @@ export function AuthProvider({
       username: profile.data.username,
       displayName: profile.data.displayName,
       role: profile.data.role,
-      phoneNumber: profile.data.phoneNumber ?? null,
-      phoneVerified: Boolean(profile.data.phoneVerified),
     };
   }, []);
 

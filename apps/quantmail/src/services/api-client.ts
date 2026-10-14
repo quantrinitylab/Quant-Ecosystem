@@ -732,8 +732,6 @@ export class QuantMailApiClient {
       username: string;
       displayName: string;
       role: string;
-      phoneNumber?: string | null;
-      phoneVerified?: boolean | null;
     }>
   > {
     return this.get('/oauth/userinfo');

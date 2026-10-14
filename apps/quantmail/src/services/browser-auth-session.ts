@@ -70,8 +70,6 @@ export interface BrowserSessionUser {
   username: string;
   displayName?: string | null;
   role?: string | null;
-  phoneNumber?: string | null;
-  phoneVerified?: boolean | null;
 }
 
 export interface BrowserAccessSession {
