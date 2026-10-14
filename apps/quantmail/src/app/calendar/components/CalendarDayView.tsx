@@ -186,14 +186,14 @@ function GuestInitials({ ev }: { ev: CalendarEventLike }) {
         <span
           key={p.key}
           title={p.label}
-          className={`grid size-6 place-items-center rounded-full text-[9px] font-semibold tracking-wide text-white shadow-[0_0_0_2px_var(--quant-background)] ${i > 0 ? '-ml-2' : ''}`}
+          className={`grid size-6 place-items-center rounded-full text-[10px] font-semibold tracking-wide text-white shadow-[0_0_0_2px_var(--quant-background)] ${i > 0 ? '-ml-2' : ''}`}
           style={{ background: `hsl(${hueFor(p.key)} 55% 42%)` }}
         >
           {p.initials}
         </span>
       ))}
       {extra > 0 && (
-        <span className="-ml-2 grid size-6 place-items-center rounded-full bg-[var(--quant-surface-elevated)] text-[9px] font-semibold text-[var(--quant-foreground)] shadow-[0_0_0_2px_var(--quant-background)]">
+        <span className="-ml-2 grid size-6 place-items-center rounded-full bg-[var(--quant-surface-elevated)] text-[10px] font-semibold text-[var(--quant-foreground)] shadow-[0_0_0_2px_var(--quant-background)]">
           +{extra}
         </span>
       )}
