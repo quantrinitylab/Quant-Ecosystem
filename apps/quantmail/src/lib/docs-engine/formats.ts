@@ -67,18 +67,6 @@ export function docsEngineKindFor(mimeType: string | null | undefined, name: str
   return EXT_KINDS[ext] ?? null;
 }
 
-/**
- * PDFs keep the browser's own viewer where it exists (desktop: text selection, search,
- * print) and use the on-device engine where it doesn't — Android Chrome reports
- * `navigator.pdfViewerEnabled === false` and shows a blank frame for inline PDFs.
- */
-export function browserCanShowPdfInline(nav: Pick<Navigator, 'userAgent'> & { pdfViewerEnabled?: boolean } | undefined =
-  typeof navigator === 'undefined' ? undefined : navigator): boolean {
-  if (!nav) return true;
-  if (typeof nav.pdfViewerEnabled === 'boolean') return nav.pdfViewerEnabled;
-  return !/Android|iPhone|iPad|iPod/i.test(nav.userAgent || '');
-}
-
 /** Human label for the engine kind ("Document", "Presentation", …). */
 export function docsEngineLabel(kind: DocsEngineKind): string {
   switch (kind) {

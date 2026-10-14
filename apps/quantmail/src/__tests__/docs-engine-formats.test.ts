@@ -4,7 +4,6 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
-  browserCanShowPdfInline,
   docsEngineKindFor,
   docsEngineLabel,
   DOCS_ENGINE_MAX_BYTES,
@@ -42,23 +41,6 @@ describe('docsEngineKindFor', () => {
     expect(docsEngineKindFor('image/png', 'a.png')).toBeNull();
     expect(docsEngineKindFor('application/vnd.ms-powerpoint', 'old.ppt')).toBeNull();
     expect(docsEngineKindFor('', '')).toBeNull();
-  });
-});
-
-describe('browserCanShowPdfInline', () => {
-  it('trusts navigator.pdfViewerEnabled when the browser reports it', () => {
-    expect(browserCanShowPdfInline({ userAgent: 'Mozilla/5.0 (Linux; Android 14)', pdfViewerEnabled: true })).toBe(true);
-    expect(browserCanShowPdfInline({ userAgent: 'Mozilla/5.0 (Windows NT 10.0)', pdfViewerEnabled: false })).toBe(false);
-  });
-
-  it('assumes no inline viewer on mobile user agents otherwise', () => {
-    expect(browserCanShowPdfInline({ userAgent: 'Mozilla/5.0 (Linux; Android 14) Mobile' })).toBe(false);
-    expect(browserCanShowPdfInline({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)' })).toBe(false);
-    expect(browserCanShowPdfInline({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)' })).toBe(true);
-  });
-
-  it('defaults to the browser viewer when there is no navigator (server render)', () => {
-    expect(browserCanShowPdfInline(undefined)).toBe(true);
   });
 });
 
