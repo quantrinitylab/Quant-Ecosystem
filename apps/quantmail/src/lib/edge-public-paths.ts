@@ -63,6 +63,19 @@ export function isPublicPath(pathname: string): boolean {
   // Legacy document share URLs redirect server-side to /drive/share/<token>;
   // the redirect must run before any auth bounce.
   if (pathname.startsWith('/documents/public/')) return true;
+  // OIDC Discovery 1.0 (public discovery document): MUST be fetchable by
+  // unauthenticated relying parties doing provider discovery
+  // (fix/qm-oidc-discovery-public). The edge middleware previously bounced
+  // signed-out clients to /login here, so any external SSO client got an
+  // HTML login page instead of JSON. Both guards (edge middleware +
+  // AuthGuard) consume this list, so exempting it here fixes both at once.
+  // Trailing-slash variant too: the middleware runs before Next's own
+  // trailing-slash normalization, so it must not bounce first.
+  if (
+    pathname === '/.well-known/openid-configuration' ||
+    pathname === '/.well-known/openid-configuration/'
+  )
+    return true;
   return false;
 }
 
@@ -148,10 +161,9 @@ export function isKnownAppPath(pathname: string): boolean {
   for (const prefix of KNOWN_PRIVATE_PREFIXES) {
     if (pathname.startsWith(`/${prefix}/`)) return true;
   }
-  // OIDC discovery route handler (app/.well-known/openid-configuration).
-  // Known (so it keeps today's login-bounce, not a 404) — making it public
-  // per the OIDC spec is tracked as a separate finding (it must be fetchable
-  // by unauthenticated SSO clients); see the qm-auto findings queue.
+  // Other /.well-known/* route handlers (if any are added) stay known so they
+  // bounce to /login instead of 404ing — the OIDC discovery document itself
+  // is public per isPublicPath above (fix/qm-oidc-discovery-public).
   if (pathname === '/.well-known' || pathname.startsWith('/.well-known/')) return true;
   return false;
 }
