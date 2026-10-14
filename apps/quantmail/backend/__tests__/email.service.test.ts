@@ -1,4 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// deliverInternally copies QuantDrive picks per recipient; the Drive read itself is stubbed.
+const drive = vi.hoisted(() => ({
+  plaintext: vi.fn(async (_row: unknown) => Buffer.from('%PDF-1.7 from drive')),
+}));
+vi.mock('../services/drive-storage.service', () => ({
+  checkedPlaintext: drive.plaintext,
+}));
+
 import { EmailService } from '../services/email.service';
 
 function createMockPrisma() {
@@ -1103,5 +1112,132 @@ describe('EmailService.deliverInternally applies recipient filters (P0)', () => 
     const delivered = await service.deliverInternally(baseInput);
 
     expect(delivered).toBe(1);
+  });
+});
+
+describe('EmailService.deliverInternally gives recipients their own copy of QuantDrive picks', () => {
+  const STORED_ID = 'att_0b8f1c9e-2a4d-4c6b-9f1e-7d3a5b2c8e10';
+  const DRIVE_PICK = {
+    id: 'drive_f1_1760000000000',
+    name: 'Q3.pdf',
+    filename: 'Q3.pdf',
+    size: 19,
+    type: 'application/pdf',
+    mimeType: 'application/pdf',
+    url: '/api/drive/files/f1/download',
+  };
+
+  function deliverPrisma() {
+    const base = createMockPrisma();
+    return {
+      ...base,
+      mailFilter: { findMany: vi.fn().mockResolvedValue([]) },
+      emailFolder: { findFirst: vi.fn().mockResolvedValue({ id: 'inbox-folder' }) },
+      // Drive serves f1 to its owner, the sender (user-1), and to nobody else.
+      file: {
+        findFirst: vi.fn(async ({ where }: { where: { id: string; userId: string } }) =>
+          where.id === 'f1' && where.userId === 'user-1'
+            ? {
+                id: 'f1',
+                userId: 'user-1',
+                encryptedContent: 'drive/user-1/f1',
+                encryptionIV: 'iv',
+                encryptionAuthTag: 'tag',
+                encryptionKey: 'key',
+                contentHash: null,
+              }
+            : null,
+        ),
+      },
+    };
+  }
+
+  function recordingStore() {
+    return {
+      storeBytes: vi.fn(
+        async (args: { userId: string; filename: string; contentType: string; body: Buffer }) => ({
+          id: STORED_ID,
+          filename: args.filename,
+          contentType: args.contentType,
+          size: args.body.byteLength,
+        }),
+      ),
+    };
+  }
+
+  const input = {
+    fromUserId: 'user-1',
+    subject: 'Q3 numbers',
+    bodyPlain: 'attached',
+    toAddresses: ['user-2@quantmail.in'],
+    attachments: [DRIVE_PICK],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("stores the sender's Drive file as the recipient's attachment and links it on their copy", async () => {
+    const prisma = deliverPrisma();
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'user-2', email: 'user-2@quantmail.in', username: 'user2' },
+    ]);
+    prisma.email.create.mockResolvedValue({ id: 'email-new' });
+    const store = recordingStore();
+    const service = new EmailService(prisma as never, undefined, undefined, {
+      store: store as never,
+      storageReady: () => true,
+    });
+
+    const delivered = await service.deliverInternally(input);
+
+    expect(delivered).toBe(1);
+    // Read as the sender (owner check), stored for the recipient.
+    expect(prisma.file.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: 'f1', userId: 'user-1' }) }),
+    );
+    expect(store.storeBytes).toHaveBeenCalledTimes(1);
+    const stored = store.storeBytes.mock.calls[0][0];
+    expect(stored).toMatchObject({
+      userId: 'user-2',
+      filename: 'Q3.pdf',
+      contentType: 'application/pdf',
+    });
+    expect(stored.body.toString()).toBe('%PDF-1.7 from drive');
+
+    const data = prisma.email.create.mock.calls[0][0].data;
+    expect(data.userId).toBe('user-2');
+    expect(data.hasAttachments).toBe(true);
+    expect(data.attachments).toEqual([
+      {
+        id: STORED_ID,
+        name: 'Q3.pdf',
+        filename: 'Q3.pdf',
+        size: 19,
+        type: 'application/pdf',
+        mimeType: 'application/pdf',
+      },
+    ]);
+  });
+
+  it('keeps the reference and still delivers when the copy cannot be stored', async () => {
+    const prisma = deliverPrisma();
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'user-2', email: 'user-2@quantmail.in', username: 'user2' },
+    ]);
+    prisma.email.create.mockResolvedValue({ id: 'email-new' });
+    const store = { storeBytes: vi.fn().mockRejectedValue(new Error('s3 down')) };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const service = new EmailService(prisma as never, undefined, undefined, {
+      store: store as never,
+      storageReady: () => true,
+    });
+
+    const delivered = await service.deliverInternally(input);
+
+    expect(delivered).toBe(1);
+    expect(prisma.email.create.mock.calls[0][0].data.attachments).toEqual([DRIVE_PICK]);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

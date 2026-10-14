@@ -10,6 +10,10 @@ import { emitOutbox, MailOutboxEvents } from '../lib/outbox-events';
 import { MutationOptions, resolveRequestId } from '../lib/mutation-context';
 import { versionedUpdate, VersionedTx } from '../lib/optimistic-update';
 import { buildSnippet } from '../lib/snippet';
+import {
+  RecipientAttachmentCopier,
+  type RecipientAttachmentStore,
+} from './internal-attachments.service';
 
 export type { MutationOptions };
 
@@ -185,6 +189,11 @@ export class EmailService {
       filterAllowedRecipients(
         recipients: string[],
       ): Promise<{ allowed: string[]; suppressed: string[] }>;
+    },
+    /** Where recipients' copies of the sender's QuantDrive picks are stored (tests inject). */
+    private readonly recipientAttachments?: {
+      store?: RecipientAttachmentStore;
+      storageReady?: () => boolean;
     },
   ) {}
 
@@ -362,9 +371,20 @@ export class EmailService {
       sender?.displayName || sender?.username || senderEmail.split('@')[0] || 'QuantMail User';
 
     const hasAttachments = Array.isArray(input.attachments) && input.attachments.length > 0;
+    // A QuantDrive pick is a reference only its owner can open; each recipient gets a copy.
+    const attachmentCopies = new RecipientAttachmentCopier({
+      attachments: input.attachments ?? [],
+      senderUserId: input.fromUserId,
+      db: this.prisma as unknown as OutboundAttachmentDb,
+      store: this.recipientAttachments?.store,
+      storageReady: this.recipientAttachments?.storageReady,
+      // eslint-disable-next-line no-console
+      log: { warn: (obj, msg) => console.warn(msg, obj) },
+    });
     let delivered = 0;
     const folderDelegate = userModel.emailFolder || userModel.folder;
     for (const recipient of matches) {
+      const recipientAttachments = await attachmentCopies.forRecipient(recipient.id);
       const inboxFolder = folderDelegate
         ? await folderDelegate
             .findFirst({
@@ -406,7 +426,7 @@ export class EmailService {
             threadId: recipientThreadId ?? input.threadId ?? null,
             inReplyTo: input.inReplyTo ?? null,
             hasAttachments,
-            attachments: input.attachments ?? [],
+            attachments: recipientAttachments,
             isRead: false,
             isSent: false,
             isDraft: false,
