@@ -10,11 +10,13 @@ import type {
   SecurityAlert,
   SecretScanningAlert,
   CodeQLAlert,
+  CodeQLSeverity,
   BranchSecurityRules,
   SecurityTabSubTab,
   SecuritySeverity,
   SecurityAlertState,
   SecretAlertStatus,
+  SecretType,
   Repo,
 } from '../types';
 import { DEFAULT_SECURITY_POLICY } from '../constants';
@@ -167,6 +169,133 @@ export async function markSecretFalsePositiveOnServer(
       message: 'False-positive request failed — the alert was not updated. Nothing was changed.',
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Server alert-list wiring (fix/qm-securitytab-alerts-wired)
+// ---------------------------------------------------------------------------
+//
+// GET /:id/security/alerts returns the server's stored alert lists as
+// data.secrets and data.codeql (see backend/routes/repos.ts). The tab used to
+// read only data.securityPolicy and discard both lists, so the secrets and
+// CodeQL sub-tabs could never render real server rows — the real revoke and
+// false-positive endpoints were unreachable from the UI.
+//
+// These helpers normalize the server rows into the tab's shapes. A row that
+// lacks the fields the UI needs to render (id, type/rule, location, masked
+// value, and a recognizable status/state) is DROPPED — never rendered with
+// invented placeholders. The UI shows exactly what the server returned.
+
+const SECRET_STATUSES: ReadonlySet<string> = new Set([
+  'active',
+  'revoked',
+  'false_positive',
+]);
+const CODEQL_SEVERITIES: ReadonlySet<string> = new Set([
+  'critical',
+  'high',
+  'medium',
+  'low',
+]);
+const CODEQL_STATES: ReadonlySet<string> = new Set(['open', 'fixed', 'dismissed']);
+
+/**
+ * Normalize one server secret-scanning row into SecretScanningAlert.
+ * Returns null when the row is not renderable (missing id, secretType,
+ * maskedSecret, filePath, or an unrecognized status) — such rows are
+ * dropped rather than rendered with fabricated values.
+ * Exported for unit tests (component handlers are not directly testable with
+ * renderToStaticMarkup).
+ */
+export function toSecretScanningAlert(raw: unknown): SecretScanningAlert | null {
+  const row = (raw ?? {}) as Record<string, unknown>;
+  if (typeof row.id !== 'string' || !row.id) return null;
+  if (typeof row.secretType !== 'string' || !row.secretType) return null;
+  if (typeof row.maskedSecret !== 'string' || !row.maskedSecret) return null;
+  if (typeof row.filePath !== 'string' || !row.filePath) return null;
+  // An unrecognized status cannot be rendered honestly (it would need an
+  // invented badge) — drop the row instead of guessing 'active'.
+  if (typeof row.status !== 'string' || !SECRET_STATUSES.has(row.status)) return null;
+  return {
+    id: row.id,
+    // The server may send a secret type outside the documented union; render
+    // the server's own label verbatim rather than mapping it to a wrong
+    // known type.
+    secretType: row.secretType as unknown as SecretType,
+    rawMatch: typeof row.rawMatch === 'string' ? row.rawMatch : undefined,
+    maskedSecret: row.maskedSecret,
+    filePath: row.filePath,
+    lineNumber: typeof row.lineNumber === 'number' ? row.lineNumber : 0,
+    detectedAt:
+      typeof row.detectedAt === 'string' && row.detectedAt ? row.detectedAt : 'Recently',
+    status: row.status as unknown as SecretAlertStatus,
+    commitSha: typeof row.commitSha === 'string' ? row.commitSha : undefined,
+  };
+}
+
+/**
+ * Normalize one server CodeQL row into CodeQLAlert.
+ * Returns null when the row is not renderable (missing id, ruleId, ruleName,
+ * filePath, description, or an unrecognized severity/state).
+ * Exported for unit tests.
+ */
+export function toCodeQLAlert(raw: unknown): CodeQLAlert | null {
+  const row = (raw ?? {}) as Record<string, unknown>;
+  if (typeof row.id !== 'string' || !row.id) return null;
+  if (typeof row.ruleId !== 'string' || !row.ruleId) return null;
+  if (typeof row.ruleName !== 'string' || !row.ruleName) return null;
+  if (typeof row.severity !== 'string' || !CODEQL_SEVERITIES.has(row.severity)) return null;
+  if (typeof row.filePath !== 'string' || !row.filePath) return null;
+  if (typeof row.description !== 'string' || !row.description) return null;
+  if (typeof row.state !== 'string' || !CODEQL_STATES.has(row.state)) return null;
+  return {
+    id: row.id,
+    ruleId: row.ruleId,
+    ruleName: row.ruleName,
+    severity: row.severity as unknown as CodeQLSeverity,
+    filePath: row.filePath,
+    lineStart: typeof row.lineStart === 'number' ? row.lineStart : 0,
+    lineEnd: typeof row.lineEnd === 'number' ? row.lineEnd : 0,
+    description: row.description,
+    codeSnippet: typeof row.codeSnippet === 'string' ? row.codeSnippet : '',
+    recommendedFix: typeof row.recommendedFix === 'string' ? row.recommendedFix : '',
+    state: row.state as unknown as CodeQLAlert['state'],
+  };
+}
+
+/**
+ * The alert-bearing slice of the GET /:id/security/alerts response envelope.
+ */
+export type SecurityAlertsPayload = {
+  securityPolicy?: unknown;
+  secrets?: unknown;
+  codeql?: unknown;
+};
+
+/**
+ * Normalize the GET /:id/security/alerts envelope's data payload into what
+ * the tab renders: the saved policy plus the server's stored alert lists.
+ * Missing or non-array lists stay empty — the sub-tabs keep their honest
+ * empty state instead of rendering fabricated rows.
+ * Exported for unit tests.
+ */
+export function normalizeSecurityAlertsPayload(data: unknown): {
+  policy: string | null;
+  secrets: SecretScanningAlert[];
+  codeql: CodeQLAlert[];
+} {
+  const payload = (data ?? {}) as SecurityAlertsPayload;
+  return {
+    policy: typeof payload.securityPolicy === 'string' ? payload.securityPolicy : null,
+    secrets: Array.isArray(payload.secrets)
+      ? payload.secrets
+          .map(toSecretScanningAlert)
+          .filter((a): a is SecretScanningAlert => a !== null)
+      : [],
+    codeql: Array.isArray(payload.codeql)
+      ? payload.codeql.map(toCodeQLAlert).filter((a): a is CodeQLAlert => a !== null)
+      : [],
+  };
 }
 
 export function SecurityTab({
@@ -609,9 +738,11 @@ export function SecurityTab({
   // Policy & Branch Rules Actions
   // --------------------------------------------------------------------------
 
-  // Load the saved SECURITY.md policy (QM-SCREEN-013 P1). The real source of
-  // truth is GET /:id/security/alerts → data.securityPolicy; when nothing
-  // was saved yet the endpoint reports null and the template default stays.
+  // Load the saved SECURITY.md policy (QM-SCREEN-013 P1) plus the server's
+  // stored secret-scanning and CodeQL alert lists from the single
+  // GET /:id/security/alerts call (fix/qm-securitytab-alerts-wired). The lists
+  // render as stored; when the server truly has none the sub-tabs keep their
+  // honest empty state.
   useEffect(() => {
     const target = repoId || selectedRepo?.id;
     if (!target) return;
@@ -621,13 +752,18 @@ export function SecurityTab({
         if (cancelled || !res.ok) return;
         const json = (await res.json().catch(() => null)) as {
           success?: boolean;
-          data?: { securityPolicy?: string | null };
+          data?: SecurityAlertsPayload;
         } | null;
-        const saved = json?.data?.securityPolicy;
-        if (!cancelled && typeof saved === 'string') setSecurityPolicy(saved);
+        if (cancelled) return;
+        const { policy, secrets, codeql } = normalizeSecurityAlertsPayload(json?.data);
+        if (cancelled) return;
+        if (policy !== null) setSecurityPolicy(policy);
+        setSecretAlerts(secrets);
+        setCodeqlAlerts(codeql);
       })
       .catch(() => {
-        // Keep the template default — the preview never claims a saved policy.
+        // Keep the template default and the empty lists — the preview never
+        // claims a saved policy or alerts the server did not return.
       });
     return () => {
       cancelled = true;
@@ -1096,13 +1232,17 @@ export function SecurityTab({
             <div className="space-y-1">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <span>🔑 Git Credential & Secret Scanner</span>
-                <span className="px-2 py-px rounded-full bg-[#7D8590]/20 text-[#7D8590] font-mono text-[10px]">
-                  Not wired up
+                <span
+                  data-testid="secret-scanner-badge"
+                  className="px-2 py-px rounded-full bg-[#7D8590]/20 text-[#7D8590] font-mono text-[10px]"
+                >
+                  {secretAlerts.length > 0 ? 'Stored findings' : 'Not wired up'}
                 </span>
               </h3>
               <p className="text-[#7D8590] text-xs">
-                Secret scanning is not wired up yet — nothing is being scanned. Findings from a
-                future scan will appear here.
+                {secretAlerts.length > 0
+                  ? 'No live scan engine is wired up yet — these are the findings stored on the server.'
+                  : 'Secret scanning is not wired up yet — nothing is being scanned. Findings from a future scan will appear here.'}
               </p>
             </div>
 
@@ -1269,13 +1409,17 @@ export function SecurityTab({
             <div className="space-y-1">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <span>🔬 CodeQL Static Application Security Testing (SAST)</span>
-                <span className="px-2 py-px rounded-full bg-[#7D8590]/20 text-[#7D8590] font-mono text-[10px]">
-                  Not wired up
+                <span
+                  data-testid="codeql-scanner-badge"
+                  className="px-2 py-px rounded-full bg-[#7D8590]/20 text-[#7D8590] font-mono text-[10px]"
+                >
+                  {codeqlAlerts.length > 0 ? 'Stored findings' : 'Not wired up'}
                 </span>
               </h3>
               <p className="text-[#7D8590] text-xs">
-                SAST scanning is not wired up yet — nothing is being analyzed. Findings from a
-                future scan will appear here.
+                {codeqlAlerts.length > 0
+                  ? 'No live scan engine is wired up yet — these are the findings stored on the server.'
+                  : 'SAST scanning is not wired up yet — nothing is being analyzed. Findings from a future scan will appear here.'}
               </p>
             </div>
 
