@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import fastify, { type FastifyInstance } from 'fastify';
 import ciLogsRoutes from '../routes/ci-logs';
 
@@ -128,5 +128,96 @@ describe('CI Build Real-Time Log Streaming Route (Task W34-04)', () => {
     expect(res.headers['content-type']).toContain('text/event-stream');
     expect(res.body).toContain('event: connected');
     expect(res.body).toContain('channel:ci:build:build-456:logs');
+  });
+});
+
+describe('CI logs SSE hijack regression (fix/qm-ci-logs-hijack)', () => {
+  let app: FastifyInstance;
+  let mockPrisma: any;
+  const hijackCalls: string[] = [];
+  let onSendFired = false;
+
+  beforeAll(async () => {
+    mockPrisma = {
+      repository: {
+        findMany: vi.fn().mockResolvedValue([{ id: 'repo-1' }]),
+      },
+      ciRun: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ id: 'build-h', repoId: 'repo-1', status: 'RUNNING' }),
+      },
+    };
+
+    app = fastify();
+    app.decorate('prisma', mockPrisma);
+
+    // Assign req.auth directly in the hook — no credential-shaped literals.
+    app.addHook('preHandler', async (request: any, reply: any) => {
+      request.auth = { userId: 'user-1' };
+      const origHijack = reply.hijack.bind(reply);
+      reply.hijack = ((...args: unknown[]) => {
+        hijackCalls.push(request.url);
+        return (origHijack as (...a: unknown[]) => unknown)(...args);
+      }) as typeof reply.hijack;
+    });
+
+    app.addHook('onSend', async () => {
+      onSendFired = true;
+    });
+
+    await app.register(ciLogsRoutes);
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(() => {
+    hijackCalls.length = 0;
+    onSendFired = false;
+  });
+
+  it('hijacks the reply before the first SSE write (once=true probe)', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/ci/builds/build-h/logs?once=true',
+      headers: { accept: 'text/event-stream' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/event-stream');
+    expect(res.body).toContain('event: connected');
+    // Regression: the pre-fix code never called hijack(), so Fastify's
+    // post-handler send path fired on the already-flowing raw response and
+    // killed the stream right after the `event: connected` frame.
+    expect(hijackCalls).toEqual(['/api/ci/builds/build-h/logs?once=true']);
+  });
+
+  it('does not run Fastify send-path hooks on the hijacked SSE response', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/ci/builds/build-h/logs?once=true',
+      headers: { accept: 'text/event-stream' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('event: connected');
+    // Pre-fix `return reply` after raw.end() re-entered the send path.
+    expect(onSendFired).toBe(false);
+  });
+
+  it('does not hijack the JSON snapshot path', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/ci/builds/build-h/logs',
+      headers: { accept: 'application/json' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().success).toBe(true);
+    expect(hijackCalls).toEqual([]);
+    expect(onSendFired).toBe(true);
   });
 });

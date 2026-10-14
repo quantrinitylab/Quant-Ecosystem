@@ -84,6 +84,13 @@ export default async function ciLogsRoutes(fastify: FastifyInstance) {
       });
     }
 
+    // Hijack FIRST — auth/ownership checks and the JSON snapshot path above are all
+    // resolved before this point. After hijack, Fastify skips its post-handler send
+    // path, so the raw SSE response stays open (repo convention: sse-transport.ts).
+    // Without hijack, returning the reply triggers send on an already-flowing raw
+    // response and Fastify kills the stream right after the `event: connected` frame.
+    reply.hijack();
+
     // Configure Server-Sent Events (SSE) streaming headers
     reply.raw.setHeader('Content-Type', 'text/event-stream');
     reply.raw.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -107,7 +114,8 @@ export default async function ciLogsRoutes(fastify: FastifyInstance) {
     // If caller requested a one-shot probe / test stream
     if (request.headers['x-test-stream-once'] === 'true' || request.query?.once === 'true') {
       reply.raw.end();
-      return reply;
+      // Hijacked: no Fastify send on return — just end the handler.
+      return;
     }
 
     // Connect Redis subscriber for this build stream
@@ -195,8 +203,10 @@ export default async function ciLogsRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // Keep request alive for SSE streaming
-    return reply;
+    // Keep request alive for SSE streaming.
+    // Hijacked: handler must not return the reply (that would re-trigger the send
+    // path); the stream stays open until the client disconnects or cleanup runs.
+    return;
   };
 
   // Mount both /api/ci/builds/:id/logs and /ci/builds/:id/logs endpoints
