@@ -354,11 +354,16 @@ export function AttachmentPreview({
         return;
       }
       if (isImageType(att.mimeType)) {
-        if (att.url) {
-          setPreviewUrl(att.url);
+        // An <img> loads a data: URL itself; bytes behind the session (a stored attachment, a
+        // QuantDrive file) have to be fetched with it — a bare <img src> sends no token.
+        if (source?.kind === 'inline') {
+          setPreviewUrl(source.dataUrl);
           return;
         }
-        if (!source) return;
+        if (!source) {
+          if (att.url) setPreviewUrl(att.url);
+          return;
+        }
         try {
           const bytes = await loadAttachmentBytes(source);
           const objectUrl = URL.createObjectURL(new Blob([bytes], { type: att.mimeType }));
@@ -516,10 +521,15 @@ export function AttachmentPreview({
           // metadata-only attachments get no button — a button that could
           // never work would be a fake control.
           const canSaveToDrive = Boolean(att.attachmentId);
-          // Openable when its bytes are reachable (inline data or a stored object), or when it
-          // is an image with a URL the <img> can load. Metadata-only parts open nothing.
-          const canOpen =
-            Boolean(attachmentByteSource(att)) || (isImage(att.mimeType) && Boolean(att.url));
+          // Openable when its bytes are reachable (inline data, a stored object, a QuantDrive
+          // file), or when it is an image with a URL the <img> can load. Metadata-only parts
+          // open nothing.
+          const source = attachmentByteSource(att);
+          const canOpen = Boolean(source) || (isImage(att.mimeType) && Boolean(att.url));
+          // Only a URL the <img> can load on its own makes a thumbnail; a Drive reference
+          // needs the session and would render as a broken image.
+          const thumbnailUrl =
+            isImage(att.mimeType) && att.url && source?.kind !== 'drive' ? att.url : null;
           const openError = openErrors[att.id];
           return (
             <div key={att.id} className="attachment-preview-cell">
@@ -534,8 +544,8 @@ export function AttachmentPreview({
                 style={canOpen ? undefined : { cursor: 'default' }}
               >
                 <div className="attachment-preview-thumb">
-                  {isImage(att.mimeType) && att.url ? (
-                    <img src={att.url} alt={att.filename} className="attachment-preview-img" loading="lazy" decoding="async" />
+                  {thumbnailUrl ? (
+                    <img src={thumbnailUrl} alt={att.filename} className="attachment-preview-img" loading="lazy" decoding="async" />
                   ) : (
                     <span className="attachment-preview-icon">
                       {renderAttachmentIcon(att.mimeType)}
