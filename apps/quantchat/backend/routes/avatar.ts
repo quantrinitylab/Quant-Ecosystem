@@ -21,6 +21,7 @@ import {
   toPrismaStyle,
   type AlienStyle,
 } from '../lib/avatar-generator';
+import { assertMediaUrlAllowed } from '../lib/media-url';
 
 const generateSchema = z.object({
   image: z.string().min(1),
@@ -117,6 +118,13 @@ export default async function avatarRoutes(fastify: FastifyInstance) {
     }
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
+
+    // QC-F-330: the selected avatar renders in every other user's
+    // browser network-wide. The real generate→select flow round-trips a
+    // server-issued `data:image/svg+xml` URL — that stays allowed; an
+    // arbitrary external host (a tracking avatar) does not.
+    assertMediaUrlAllowed(parsed.data.imageUrl, { ownerId: userId, allowData: ['image/'] });
+    assertMediaUrlAllowed(parsed.data.thumbnailUrl, { ownerId: userId, allowData: ['image/'] });
 
     const reactions = buildReactionMap();
     const data = {

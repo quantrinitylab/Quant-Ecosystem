@@ -20,6 +20,7 @@ import { createAppError } from '@quant/server-core';
 import { ConversationService } from '../services/conversation.service';
 import { MessageService } from '../services/message.service';
 import { publishConversationEvent } from '../services/realtime-publisher';
+import { assertMediaUrlAllowed } from '../lib/media-url';
 
 const STORY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -29,7 +30,11 @@ const clientToPrismaType = { photo: 'IMAGE', video: 'VIDEO', text: 'TEXT' } as c
 
 const createStoryBodySchema = z.object({
   type: z.enum(['photo', 'video', 'text']).default('photo'),
-  mediaUrl: z.string().min(1).max(4096).optional(),
+  // QC-F-330: the cap is 12 Mi chars so a real inline `data:` photo story
+  // (the shipped client's only photo path — a canvas JPEG is 100KB+) is no
+  // longer rejected by the schema; the media-url validator re-imposes the
+  // historic 4096 bound on non-`data:` URLs itself, so nothing loosens.
+  mediaUrl: z.string().min(1).max(12_582_912).optional(),
   // Text-story body. Only meaningful for type 'text'; silently dropped (never
   // stored) for photo/video so a media story can never smuggle stray text.
   text: z.string().min(1).max(500).optional(),
@@ -354,6 +359,18 @@ export default async function storiesRoutes(fastify: FastifyInstance) {
     const textBody = parsed.data.text?.trim();
     if (parsed.data.type === 'text' && !textBody) {
       throw createAppError('Text content is required for text stories', 400, 'BAD_REQUEST');
+    }
+
+    // QC-F-330: a story's mediaUrl is loaded verbatim by every viewer's
+    // browser — it must be own-storage or inline data, never an arbitrary
+    // host. Text stories carry no mediaUrl and skip the gate.
+    if (parsed.data.mediaUrl) {
+      assertMediaUrlAllowed(parsed.data.mediaUrl, {
+        ownerId: userId,
+        allowData: ['image/', 'video/'],
+        maxDataLength: 12_582_912,
+        maxUrlLength: 4096,
+      });
     }
 
     const story = await prisma.story.create({
