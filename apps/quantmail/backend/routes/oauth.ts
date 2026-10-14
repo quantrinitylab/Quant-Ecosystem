@@ -14,9 +14,13 @@ import {
 } from '../services/oauth-consent-session';
 
 /** The OIDC issuer identifier. MUST match the `iss` claim in issued id_tokens
- *  and the `issuer` field of the discovery document (env-overridable). */
-function getIssuer(): string {
-  return process.env['QUANTMAIL_ISSUER'] ?? 'https://quantmail.com';
+ *  and the `issuer` field of the discovery documents (env-overridable).
+ *  Default is the live domain https://quantmail.in — the same default used by
+ *  the Next public discovery (src/app/.well-known/openid-configuration/route.ts)
+ *  — so a relying party reading discovery always gets an issuer that matches
+ *  the id_tokens this backend mints, even when QUANTMAIL_ISSUER is unset. */
+export function getIssuer(): string {
+  return process.env['QUANTMAIL_ISSUER'] ?? 'https://quantmail.in';
 }
 
 /** Build an absolute endpoint URL under the issuer origin. */
@@ -775,7 +779,22 @@ export async function oauthRoutes(fastify: FastifyInstance) {
   });
 
   // Discovery (OpenID Connect Discovery 1.0 + RFC 8414)
-  fastify.get('/.well-known/openid-configuration', async () => ({
+  fastify.get('/.well-known/openid-configuration', async () => buildOpenIdConfiguration());
+
+  // JWKS — the public half of QuantMail's OIDC signing key(s). Relying parties
+  // fetch this to verify id_tokens. Served from the asymmetric key resolved by
+  // the OidcKeyService (env-provided in production, ephemeral in dev).
+  fastify.get('/.well-known/jwks.json', async () => oidcKeyService.getPublicJwks());
+}
+
+/**
+ * Build the OIDC discovery document served at GET /.well-known/openid-configuration
+ * (OpenID Connect Discovery 1.0 + RFC 8414). Exported for tests: it must keep
+ * agreeing with `getIssuer()` and with the id_token `iss` minted in the token
+ * handler, so the issuer-default regression test has a seam.
+ */
+export function buildOpenIdConfiguration(): Record<string, unknown> {
+  return {
     issuer: getIssuer(),
     authorization_endpoint: endpoint('/oauth/authorize'),
     token_endpoint: endpoint('/oauth/token'),
@@ -802,10 +821,5 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       'name',
       'preferred_username',
     ],
-  }));
-
-  // JWKS — the public half of QuantMail's OIDC signing key(s). Relying parties
-  // fetch this to verify id_tokens. Served from the asymmetric key resolved by
-  // the OidcKeyService (env-provided in production, ephemeral in dev).
-  fastify.get('/.well-known/jwks.json', async () => oidcKeyService.getPublicJwks());
+  };
 }

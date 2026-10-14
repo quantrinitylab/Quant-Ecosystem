@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { getIssuer, buildOpenIdConfiguration } from '../routes/oauth';
 
 vi.mock('@quant/auth/lib/prisma', () => ({
   prisma: {
@@ -266,21 +267,24 @@ describe('E2E OAuth Flows', () => {
 
   describe('OpenID Discovery', () => {
     it('returns correct discovery document', () => {
-      const discovery = {
-        issuer: 'https://quantmail.com',
-        authorization_endpoint: '/oauth/authorize',
-        token_endpoint: '/oauth/token',
-        revocation_endpoint: '/oauth/revoke',
-        registration_endpoint: '/oauth/register',
-        jwks_uri: '/.well-known/jwks.json',
-        response_types_supported: ['code'],
-        grant_types_supported: ['authorization_code', 'refresh_token'],
-      };
+      // Use the real discovery builder: the issuer must be the live domain
+      // (or QUANTMAIL_ISSUER when set), never a hardcoded placeholder.
+      const discovery = buildOpenIdConfiguration();
 
-      expect(discovery.issuer).toBe('https://quantmail.com');
+      expect(discovery.issuer).toBe(getIssuer());
       expect(discovery.response_types_supported).toContain('code');
       expect(discovery.grant_types_supported).toContain('authorization_code');
       expect(discovery.grant_types_supported).toContain('refresh_token');
+    });
+
+    it('defaults the issuer to the live domain when QUANTMAIL_ISSUER is unset', () => {
+      const saved = process.env.QUANTMAIL_ISSUER;
+      delete process.env.QUANTMAIL_ISSUER;
+      try {
+        expect(buildOpenIdConfiguration().issuer).toBe('https://quantmail.in');
+      } finally {
+        if (saved !== undefined) process.env.QUANTMAIL_ISSUER = saved;
+      }
     });
   });
 });
