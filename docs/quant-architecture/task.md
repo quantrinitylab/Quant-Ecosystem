@@ -1340,7 +1340,9 @@ STILL-UNVERIFIED: VAPID keys provisioned in staging; live E2E push delivery; thr
 R3 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 0 P2 (1 R2 carryover P2 confirmed still present). No fix agents spawned (no P0/P1). Rotation -> QM-SCREEN-016 R3.
 
 ## QM-SCREEN-016 — Settings / profile / identity / devices / sessions / security
-Status: [x] DONE (R7 regression audit complete 2026-10-14 ~02:35–03:05 IST — Owner: LANE-1, Branch: lane1-audit-016r7; 0 new findings, carryovers confirmed, fixes tracked via their PRs separately).
+Status: [~] IN-PROGRESS (R8 regression audit — Owner: LANE-1, Branch: lane1-audit-016r8, claimed 2026-10-14 ~12:35 IST; prior R7 DONE, 0 findings).
+
+R8 REGRESSION AUDIT IN PROGRESS (pending): read-only vs origin/main after fresh fetch; working tree ignored per stale-tree lesson.
 
 R7 REGRESSION AUDIT COMPLETE: [x] DONE — LANE-1, branch lane1-audit-016r7 (2026-10-14 ~02:35–03:05 IST), read-only vs origin/main 87af7ef8914e6b8a6e85f7ce04b02ed91dc2fa2e (fresh fetch; working tree ignored per stale-tree lesson).
 NET-EFFECT DIFF ab8dcfd13efc (R6 base)..87af7ef8914e6b8a6e85f7ce04b02ed91dc2fa2e (71 commits): ZERO in-scope settings/security commits — path-filtered log on app/settings, app/security, api-client, backend auth.ts/settings-tokens.ts/oauth.ts/routes-config.ts returned EMPTY; wider keyword sweep caught only 3 out-of-scope items, each diff-reviewed in full: (1) AuthBrandPanel.tsx zero-JS logo swap (QuantMailLogo→QuantMailLogoStatic, aria accessibility comment) — brand-lockup cosmetics only, no copy/security impact; (2) AppShell.tsx + AuthShellExitGate.tsx (9cfdd4f8: mail folder routes keep suite nav on mobile) — no sessions/grants/PAT surface touched; (3) ai-security-scan.service.ts one-line `stateless: true` — backend-internal Workers AI flag, no settings/security surface. Pure re-verification pass.
