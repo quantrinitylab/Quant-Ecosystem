@@ -93,6 +93,20 @@ export class FakeStorage {
   put(key: string, body: Buffer, contentType: string) {
     this.objects.set(key, { body, contentType });
   }
+
+  uploads: Array<{ key: string; contentType: string; metadata?: Record<string, string> }> = [];
+
+  /** The server-side write, for bytes the backend already holds (inbound mail). */
+  async upload(
+    key: string,
+    body: Buffer,
+    contentType: string,
+    metadata?: Record<string, string>,
+  ): Promise<{ key: string; etag: string }> {
+    this.uploads.push({ key, contentType, metadata });
+    this.objects.set(key, { body: Buffer.from(body), contentType });
+    return { key, etag: '"etag"' };
+  }
 }
 
 export type Row = Record<string, unknown>;

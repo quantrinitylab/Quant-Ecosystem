@@ -30,6 +30,18 @@ export function buildStorageKey(userId: string, attachmentId: string, safeName: 
   return `attachments/${userId}/${attachmentId}/${safeName}`;
 }
 
+/**
+ * A MIME type safe to store and later send back as a `Content-Type` header. Server-held
+ * bytes take their type from a sender's MIME headers, which can carry anything; a value
+ * that is not a plain `type/subtype` token pair is stored as opaque bytes instead.
+ */
+export function safeContentType(value: string | null | undefined): string {
+  const type = (value ?? '').trim().toLowerCase();
+  return /^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$/.test(type)
+    ? type
+    : 'application/octet-stream';
+}
+
 export interface UploadUrlResult {
   attachmentId: string;
   uploadUrl: string;
@@ -296,6 +308,67 @@ export class AttachmentService {
 
   async getAttachment(attachmentId: string, userId: string): Promise<AttachmentMetadata> {
     return toMetadata(await this.requireOwnedRow(attachmentId, userId));
+  }
+
+  /**
+   * Store bytes the server already holds — a received message's attachment — as a READY
+   * attachment owned by `userId`.
+   *
+   * The browser path (presigned PUT, then `finalizeUpload` checking what landed) exists
+   * because the server never sees those bytes. Here it has them, so the size is a fact
+   * rather than a declaration and the row is written READY with that size. The object is
+   * written first and removed again if the row cannot be: a row is what makes an object
+   * reachable, and an unreachable object is only a storage bill.
+   */
+  async storeBytes(args: {
+    userId: string;
+    emailId?: string | null;
+    filename: string;
+    contentType: string;
+    body: Buffer;
+  }): Promise<AttachmentMetadata> {
+    const size = args.body.byteLength;
+    if (size > this.maxBytes) {
+      throw createAppError(
+        'Attachment exceeds maximum allowed size of 25MB',
+        413,
+        'ATTACHMENT_TOO_LARGE',
+      );
+    }
+    if (size <= 0) {
+      throw createAppError('Attachment size must be greater than 0', 400, 'INVALID_SIZE');
+    }
+    const storage = this.requireStorage();
+    const rows = this.rows();
+    const safeName = sanitizeFilename(args.filename);
+    const contentType = safeContentType(args.contentType);
+    const attachmentId = `att_${crypto.randomUUID()}`;
+    const storageKey = buildStorageKey(args.userId, attachmentId, safeName);
+
+    await storage.upload(storageKey, args.body, contentType, {
+      'owner-id': args.userId,
+      'attachment-id': attachmentId,
+    });
+    try {
+      const row = await rows.create({
+        data: {
+          id: attachmentId,
+          userId: args.userId,
+          emailId: args.emailId ?? null,
+          filename: safeName,
+          contentType,
+          declaredSize: size,
+          storedSize: size,
+          storageKey,
+          status: 'READY',
+          uploadedAt: new Date(),
+        },
+      });
+      return toMetadata(row);
+    } catch (error) {
+      await storage.delete(storageKey).catch(() => undefined);
+      throw error;
+    }
   }
 
   /** Short-lived presigned GET. Bypasses the malware scanner: see route comments. */

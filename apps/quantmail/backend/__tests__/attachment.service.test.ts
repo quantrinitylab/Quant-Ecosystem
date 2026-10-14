@@ -223,6 +223,88 @@ describe('AttachmentService (real storage)', () => {
     expect(db.rows.has(attachmentId)).toBe(false);
   });
 
+  // -- storeBytes (server-held bytes: inbound mail) -------------------------
+
+  it('storeBytes writes the object and a READY row with the exact size', async () => {
+    const body = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x00, 0xff]);
+    const stored = await service.storeBytes({
+      userId: OWNER,
+      emailId: 'email-1',
+      filename: 'Q3.pdf',
+      contentType: 'application/pdf',
+      body,
+    });
+
+    expect(stored.id).toMatch(/^att_[0-9a-f-]{36}$/);
+    expect(stored).toMatchObject({
+      userId: OWNER,
+      emailId: 'email-1',
+      filename: 'Q3.pdf',
+      contentType: 'application/pdf',
+      size: body.byteLength,
+      storedSize: body.byteLength,
+      status: 'READY',
+    });
+    expect(stored.storageKey).toBe(`attachments/${OWNER}/${stored.id}/Q3.pdf`);
+    expect(storage.uploads[0]).toMatchObject({
+      key: stored.storageKey,
+      contentType: 'application/pdf',
+      metadata: { 'owner-id': OWNER, 'attachment-id': stored.id },
+    });
+
+    // The same read path the download route and Save to Drive use.
+    const read = await service.readAttachment(stored.id, OWNER);
+    expect(read.body.equals(body)).toBe(true);
+  });
+
+  it('storeBytes sanitizes the name and refuses a header-breaking content type', async () => {
+    const stored = await service.storeBytes({
+      userId: OWNER,
+      filename: '../../etc/pass\r\nwd.pdf',
+      contentType: 'application/pdf\r\nX-Injected: 1',
+      body: Buffer.from('x'),
+    });
+
+    expect(stored.storageKey).not.toContain('..');
+    expect(stored.filename).not.toMatch(/[\r\n\/]/);
+    expect(stored.contentType).toBe('application/octet-stream');
+    expect(stored.emailId).toBeNull();
+  });
+
+  it('storeBytes 413s over the cap and stores nothing', async () => {
+    const small = new AttachmentService({
+      storage: storage as never,
+      db: db as never,
+      maxBytes: 4,
+    });
+    await expect(
+      small.storeBytes({
+        userId: OWNER,
+        filename: 'big.bin',
+        contentType: 'application/octet-stream',
+        body: Buffer.alloc(5),
+      }),
+    ).rejects.toMatchObject({ statusCode: 413, code: 'ATTACHMENT_TOO_LARGE' });
+    expect(storage.uploads).toHaveLength(0);
+    expect(db.rows.size).toBe(0);
+  });
+
+  it('storeBytes removes the object again when the row cannot be written', async () => {
+    db.mailAttachment.create.mockRejectedValueOnce(new Error('db down'));
+
+    await expect(
+      service.storeBytes({
+        userId: OWNER,
+        filename: 'orphan.pdf',
+        contentType: 'application/pdf',
+        body: Buffer.from('abc'),
+      }),
+    ).rejects.toThrow('db down');
+    expect(storage.uploads).toHaveLength(1);
+    expect(storage.deleted).toEqual([storage.uploads[0]!.key]);
+    expect(storage.objects.size).toBe(0);
+  });
+
   // -- fail-loud wiring (W15-3) --------------------------------------------
 
   it('throws loudly when the mailAttachment delegate is missing', async () => {

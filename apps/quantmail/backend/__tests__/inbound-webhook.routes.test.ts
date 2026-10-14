@@ -78,7 +78,11 @@ vi.mock('@aws-sdk/client-s3', () => ({
 }));
 
 import { GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
-import inboundWebhookRoutes, { __setInboundIngestAdapter } from '../routes/inbound-webhook';
+import inboundWebhookRoutes, {
+  __setInboundAttachmentKeeper,
+  __setInboundIngestAdapter,
+} from '../routes/inbound-webhook';
+import type { InboundAttachmentKeeper } from '../services/inbound-attachments.service';
 import type { InboundIngestAdapter } from '../services/inbound-ingest.service';
 import { suppressionService } from '../services/suppression.service';
 
@@ -146,6 +150,7 @@ function notification(receipt: ReceiptOverrides = {}, envelope: Record<string, u
 
 let app: FastifyInstance;
 let ingest: ReturnType<typeof vi.fn>;
+let keepAttachments: ReturnType<typeof vi.fn>;
 /**
  * The subscription handshake is the one place this route makes an outbound request,
  * and the check that it only ever GETs an AWS URL is only meaningful if a refusal
@@ -298,12 +303,15 @@ beforeEach(async () => {
     snippet: 'Hello Bob.',
   }));
   __setInboundIngestAdapter({ ingest } as unknown as InboundIngestAdapter);
+  keepAttachments = vi.fn(async () => ({ stored: 1, failed: 0 }));
+  __setInboundAttachmentKeeper({ keep: keepAttachments } as unknown as InboundAttachmentKeeper);
   app = await buildTestApp();
 });
 
 afterEach(async () => {
   await app.close();
   __setInboundIngestAdapter(undefined);
+  __setInboundAttachmentKeeper(undefined);
   globalThis.fetch = realFetch;
   process.env = { ...savedEnv };
 });
@@ -794,6 +802,81 @@ describe('POST /webhook/inbound — new mail creates an in-app notification (QM-
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ ok: true, delivered: 1 });
+  });
+});
+
+describe('POST /webhook/inbound — received attachments keep their bytes', () => {
+  it('hands each delivered copy, with the raw message, to the attachment keeper', async () => {
+    state.users.push(localUser());
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification(),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(keepAttachments).toHaveBeenCalledTimes(1);
+    const [args] = keepAttachments.mock.calls[0]!;
+    expect(args).toMatchObject({ userId: 'u-bob', emailId: 'email-1', rawEmail: RAW_EMAIL });
+    expect(args.parts).toEqual([
+      expect.objectContaining({ partIndex: 0, filename: 'Q3.pdf', isInline: false }),
+    ]);
+  });
+
+  it('still answers 200 and notifies when keeping the bytes fails', async () => {
+    state.users.push(localUser());
+    keepAttachments.mockRejectedValueOnce(new Error('R2 is down'));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification(),
+    });
+
+    // A non-2xx here would make SNS redeliver mail that has already landed.
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ ok: true, delivered: 1 });
+    expect(state.notifications).toHaveLength(1);
+  });
+
+  it('does not copy the parts of a message SES flagged as a virus', async () => {
+    state.users.push(localUser());
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification({ virusVerdict: { status: 'FAIL' } }),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(ingestCall().options.quarantine).toBe(true);
+    expect(keepAttachments).not.toHaveBeenCalled();
+  });
+
+  it('skips the keeper for a message with nothing to download', async () => {
+    state.users.push(localUser());
+    s3ReturnsRawEmail(
+      [
+        'From: Ada Lovelace <ada@example.com>',
+        'To: bob@quantmail.in',
+        'Subject: Plain',
+        'Message-ID: <mid-plain@example.com>',
+        'Content-Type: text/plain; charset=utf-8',
+        '',
+        'No files here.',
+        '',
+      ].join('\r\n'),
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification(),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(keepAttachments).not.toHaveBeenCalled();
   });
 });
 

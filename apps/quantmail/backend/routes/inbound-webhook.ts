@@ -45,6 +45,7 @@ import {
   type AuthVerdict,
 } from '../services/deliverability-auth.service';
 import { InboundIngestAdapter, type InboundRawMessage } from '../services/inbound-ingest.service';
+import { InboundAttachmentKeeper } from '../services/inbound-attachments.service';
 import { deliverPushToUser } from '../services/push-delivery.service';
 import { MailFilterService } from '../services/mail-filter.service';
 import { suppressionService } from '../services/suppression.service';
@@ -323,9 +324,26 @@ export function __setInboundIngestAdapter(adapter: InboundIngestAdapter | undefi
   adapterSingleton = adapter;
 }
 
+/** Lazy for the same reason as the adapter: no storage client is built at import time. */
+let keeperSingleton: InboundAttachmentKeeper | undefined;
+
+function attachmentKeeper(): InboundAttachmentKeeper {
+  if (!keeperSingleton) {
+    keeperSingleton = new InboundAttachmentKeeper();
+  }
+  return keeperSingleton;
+}
+
+/** Exposed for tests, which assert what is kept without object storage behind them. */
+export function __setInboundAttachmentKeeper(keeper: InboundAttachmentKeeper | undefined): void {
+  keeperSingleton = keeper;
+}
+
 export interface InboundWebhookRouteOptions {
   /** Process-scoped mail runtime injected by buildApp; fallback preserves tests. */
   inboundIngest?: InboundIngestAdapter;
+  /** Copies attachment bytes out of the raw message; defaults to the process keeper. */
+  inboundAttachments?: InboundAttachmentKeeper;
 }
 
 /**
@@ -374,6 +392,7 @@ async function deliverStoredMessage(
   key: string,
   receipt: SesReceipt | undefined,
   inboundIngest: InboundIngestAdapter,
+  keeper?: InboundAttachmentKeeper,
 ): Promise<DeliveryOutcome> {
   const rawEmail = await fetchRawEmail(bucket, key);
   const parsed = parseRawEmail(rawEmail);
@@ -397,6 +416,8 @@ async function deliverStoredMessage(
     parsed,
     users.map((user) => user.email),
   );
+  // A part SES's own scanner flagged is not copied anywhere a click can reach it.
+  const keepAttachments = receipt?.virusVerdict?.status?.toUpperCase() !== 'FAIL';
 
   const failures: string[] = [];
   let delivered = 0;
@@ -404,6 +425,14 @@ async function deliverStoredMessage(
     try {
       const email = await inboundIngest.ingest(raw, { userId: user.id, verdict, quarantine });
       delivered += 1;
+      if (keepAttachments) {
+        await keepAttachmentBytes(log, keeper ?? attachmentKeeper(), {
+          userId: user.id,
+          emailId: email.id,
+          rawEmail,
+          parts: parsed.attachments,
+        });
+      }
       // QM-UIUX-052: new inbound mail → in-app notification so the bell fires.
       // Quarantined (spam/virus/DMARC-fail) mail never notifies — same as Gmail.
       // A notification failure must never lose mail, so it is contained here.
@@ -420,6 +449,27 @@ async function deliverStoredMessage(
   }
   log.info({ key, delivered, quarantine, dmarc: verdict.dmarc }, '[inbound] delivered');
   return { key, delivered };
+}
+
+/**
+ * Copy the delivered copy's attachment bytes into attachment storage. The mail is
+ * already delivered, so a failure here is logged and contained: it must never answer
+ * non-2xx, because SNS would redeliver a message that has already landed.
+ */
+async function keepAttachmentBytes(
+  log: FastifyInstance['log'],
+  keeper: InboundAttachmentKeeper,
+  args: Parameters<InboundAttachmentKeeper['keep']>[0],
+): Promise<void> {
+  if (!args.parts.some((part) => !part.isInline)) return;
+  try {
+    await keeper.keep(args, log);
+  } catch (error) {
+    log.error(
+      { err: error, userId: args.userId, emailId: args.emailId },
+      '[inbound] attachment bytes not kept — mail already delivered, continuing',
+    );
+  }
 }
 
 /**
@@ -516,6 +566,7 @@ export default async function inboundWebhookRoutes(
   options: InboundWebhookRouteOptions = {},
 ): Promise<void> {
   const inboundIngest = options.inboundIngest ?? ingestAdapter();
+  const inboundAttachments = options.inboundAttachments;
   app.post('/webhook/inbound', async (request, reply) => {
     const sns = (request.body ?? {}) as SnsEnvelope;
 
@@ -730,7 +781,14 @@ export default async function inboundWebhookRoutes(
 
     // 6) Deliver through the shared ingest pipeline.
     try {
-      const outcome = await deliverStoredMessage(app.log, bucket, key, receipt, inboundIngest);
+      const outcome = await deliverStoredMessage(
+        app.log,
+        bucket,
+        key,
+        receipt,
+        inboundIngest,
+        inboundAttachments,
+      );
       return reply.send({ ok: true, ...outcome });
     } catch (error) {
       // Non-2xx so SNS redelivers. Idempotency on `(userId, messageId)` makes the
@@ -813,6 +871,7 @@ export default async function inboundWebhookRoutes(
           key,
           undefined,
           inboundIngest,
+          inboundAttachments,
         );
         delivered += outcome.delivered;
         if (outcome.skipped) {
