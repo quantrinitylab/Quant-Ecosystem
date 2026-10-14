@@ -359,7 +359,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             placeholder={placeholder}
             disabled={disabled}
             rows={1}
-            className="w-full resize-none rounded-2xl border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            className="w-full resize-none rounded-2xl border border-gray-300 px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed"
             style={{ maxHeight: '150px' }}
             aria-label={ariaLabel}
           />

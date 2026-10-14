@@ -327,7 +327,7 @@ export function ReelEditor({ videoUrl, onPublish, onCancel }: ReelEditorProps) {
               value={selectedOverlay.text}
               onChange={(e) => updateOverlay(selectedOverlay.id, { text: e.target.value })}
               placeholder="Overlay text"
-              className="w-full rounded-md bg-gray-800 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-purple-500"
+              className="w-full rounded-md bg-gray-800 px-3 py-2 text-base outline-none focus:ring-1 focus:ring-purple-500"
             />
             <div className="flex items-center justify-between">
               <div className="flex gap-2">

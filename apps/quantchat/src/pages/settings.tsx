@@ -140,7 +140,7 @@ const LANGUAGES = [
 
 const SECTIONS = ['privacy', 'notifications', 'theme', 'blocked', 'data', 'account'] as const;
 
-const selectClassName = 'quant-field min-h-[44px] px-3 py-2 text-sm';
+const selectClassName = 'quant-field min-h-[44px] px-3 py-2 text-base';
 const checkboxClassName = 'h-5 w-5 shrink-0 accent-emerald-500';
 
 function ToggleRow({

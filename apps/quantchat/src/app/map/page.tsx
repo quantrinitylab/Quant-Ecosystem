@@ -356,7 +356,7 @@ export default function MapPage() {
             }}
             placeholder="Search friends on the map..."
             aria-label="Search friends on the map"
-            className="flex-1 bg-transparent text-[var(--quant-foreground)] placeholder:text-[var(--quant-muted-foreground)] text-sm outline-none"
+            className="flex-1 bg-transparent text-[var(--quant-foreground)] placeholder:text-[var(--quant-muted-foreground)] text-base outline-none"
           />
           {searchQuery !== '' && (
             <button

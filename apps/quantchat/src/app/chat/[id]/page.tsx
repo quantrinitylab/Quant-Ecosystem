@@ -1360,7 +1360,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                   placeholder="Add a caption... (optional)"
                   value={snapCaption}
                   onChange={(e) => setSnapCaption(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-[var(--quant-muted)] border border-[var(--quant-border)] text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-amber-500"
+                  className="w-full px-3 py-2 text-base rounded-xl bg-[var(--quant-muted)] border border-[var(--quant-border)] text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-amber-500"
                 />
               </div>
 

@@ -53,7 +53,7 @@ export function MemorySearch({ filters, onChange, onClear }: MemorySearchProps) 
             onChange={(e) => update({ q: e.target.value })}
             onKeyDown={(e) => e.key === 'Enter' && apply()}
             placeholder="Search captions…"
-            className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:border-fuchsia-400 focus:outline-none"
+            className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-base text-white placeholder:text-gray-500 focus:border-fuchsia-400 focus:outline-none"
           />
         </label>
         <label className="flex flex-col gap-1 text-xs text-gray-300">
@@ -64,7 +64,7 @@ export function MemorySearch({ filters, onChange, onClear }: MemorySearchProps) 
             onChange={(e) => update({ location: e.target.value })}
             onKeyDown={(e) => e.key === 'Enter' && apply()}
             placeholder="e.g. Tokyo"
-            className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:border-fuchsia-400 focus:outline-none"
+            className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-base text-white placeholder:text-gray-500 focus:border-fuchsia-400 focus:outline-none"
           />
         </label>
         <label className="flex flex-col gap-1 text-xs text-gray-300">
@@ -73,7 +73,7 @@ export function MemorySearch({ filters, onChange, onClear }: MemorySearchProps) 
             type="date"
             value={local.from ? local.from.slice(0, 10) : ''}
             onChange={(e) => update({ from: e.target.value })}
-            className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:border-fuchsia-400 focus:outline-none"
+            className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-base text-white focus:border-fuchsia-400 focus:outline-none"
           />
         </label>
         <label className="flex flex-col gap-1 text-xs text-gray-300">
@@ -82,7 +82,7 @@ export function MemorySearch({ filters, onChange, onClear }: MemorySearchProps) 
             type="date"
             value={local.to ? local.to.slice(0, 10) : ''}
             onChange={(e) => update({ to: e.target.value })}
-            className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:border-fuchsia-400 focus:outline-none"
+            className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-base text-white focus:border-fuchsia-400 focus:outline-none"
           />
         </label>
       </div>

@@ -338,7 +338,7 @@ function ChannelDetail({
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               rows={2}
-              className="flex-1 resize-none rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 py-2 text-sm text-[var(--quant-foreground)]"
+              className="flex-1 resize-none rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 py-2 text-base text-[var(--quant-foreground)]"
             />
             <button
               type="button"
