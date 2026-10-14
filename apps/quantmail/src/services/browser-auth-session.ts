@@ -11,6 +11,26 @@
 // QUANTMAIL_BACKEND_URL and always fails closed with a JSON response.
 const AUTH_BASE_URL = (process.env.NEXT_PUBLIC_AUTH_URL || '/api').replace(/\/$/, '');
 
+// QM fix qm-draft-privacy-isolation (CODEX-REVIEW 6157628718): logout must
+// also drop the retired thread-reply draft namespaces — v1 (unscoped) AND
+// v2 (mutable-email-scoped). Neither is attributable to a stable account
+// identity, so leaving them on disk lets the next account on this browser
+// restore the previous account's unsent text (v2: a reassigned address
+// hands the previous holder's plaintext to the new holder). v3 keys
+// (tenant + immutable-id-scoped) partition safely and survive logout for
+// the account's own next sign-in. The import is lazy (dynamic) so the auth
+// boundary module keeps its import graph minimal and test stubs of
+// threadReplyDrafts still work.
+async function purgeUnscopedThreadDrafts(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    const mod = await import('../lib/threadReplyDrafts');
+    mod.purgeAllLegacyThreadDraftKeys(mod.windowThreadDraftStorage());
+  } catch {
+    // Best effort: a storage failure must never strand a logout.
+  }
+}
+
 /**
  * Global ceiling for any single authenticated request (including one 401
  * refresh retry). Mirrors the PR #621 auth-check pattern: a hung backend must
@@ -227,6 +247,11 @@ export const browserAuthSession = {
       await post<{ message: string }>('/auth/logout');
     } finally {
       accessToken = null;
+      // qm-draft-privacy-isolation: v1 thread-reply draft keys are unscoped
+      // plaintext the next account could restore — purge them at session
+      // end. Account-scoped v2 keys partition safely and survive for the
+      // account's own next sign-in.
+      await purgeUnscopedThreadDrafts();
     }
   },
 

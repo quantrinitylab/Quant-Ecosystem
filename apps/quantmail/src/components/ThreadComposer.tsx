@@ -7,17 +7,28 @@ import { UndoSendContext } from './UndoSendCountdownBar';
 import type { PersonConversation } from '../lib/peopleGrouping';
 import {
   clearThreadDraft,
+  ensureThreadDraftNamespaceV3,
   isThreadDraftEmpty,
   loadThreadDraft,
   saveThreadDraft,
   switchThreadDraft,
+  threadDraftAccountKey,
   windowThreadDraftStorage,
 } from '../lib/threadReplyDrafts';
 import { draftSaveStateLabel } from './useDraftAutosave';
 
 export interface ThreadComposerProps {
   conversation: PersonConversation;
-  currentUserEmail: string;
+  /**
+   * The backend-verified IMMUTABLE user id (`AuthUser.id` — the
+   * access-token `sub`, the users-table primary key). The thread-reply
+   * draft namespace is keyed by this id (+ the fixed single-tenant scope),
+   * never by the mutable email: an address change keeps the account's
+   * drafts, and a reassigned address cannot inherit them (P0
+   * qm-draft-privacy-isolation, CODEX-REVIEW 6157628718). Empty string =
+   * unknown account = no draft persistence at all (fail closed).
+   */
+  currentUserId: string;
   /**
    * Fired when the send is CONFIRMED — i.e. after the undo window closes and
    * the real compose+send resolved. The host refetches and swaps the
@@ -148,15 +159,25 @@ export async function executeThreadSend(
  * text is preserved, nothing navigates, and no discard handler is ever
  * called — there is no `onDiscard` prop on this component by design.
  */
-export function ThreadComposer({ conversation, suggestedReply, onSent, onSendStart, onSendError, onSendUndo }: ThreadComposerProps) {
+export function ThreadComposer({ conversation, currentUserId, suggestedReply, onSent, onSendStart, onSendError, onSendUndo }: ThreadComposerProps) {
   // QM fix qm-threadcomposer-draft-persist: a draft restore on mount. If the
   // user left unsent text for this person (same-device localStorage draft),
   // it comes back instead of an empty box — and survives a full reload, not
   // just in-app navigation. An explicit `suggestedReply` still wins the box:
   // a chip tap is an intentional "use these words" gesture (this also matches
   // the mount-time effect below, which overwrites the box on a fresh tap).
+  //
+  // QM fix qm-draft-privacy-isolation (P0, CODEX-REVIEW 6157628718): drafts
+  // are namespaced by the authenticated account — `threadDraftAccountKey`
+  // derives the namespace from the IMMUTABLE backend-verified user id
+  // (currentUserId, never the mutable email) plus the fixed single-tenant
+  // scope, with length-prefixed (unambiguous) tuple encoding. A different
+  // account on this browser gets a different namespace and can never
+  // restore this account's drafts. An empty account key means no
+  // persistence at all (fail closed).
+  const accountKey = threadDraftAccountKey(currentUserId);
   const [restoredDraft] = useState(() =>
-    loadThreadDraft(windowThreadDraftStorage(), conversation.personKey),
+    loadThreadDraft(windowThreadDraftStorage(), conversation.personKey, accountKey),
   );
   const [body, setBody] = useState(suggestedReply?.text ?? restoredDraft?.body ?? '');
   const [newTopic, setNewTopic] = useState(restoredDraft?.newTopic ?? false);
@@ -175,49 +196,92 @@ export function ThreadComposer({ conversation, suggestedReply, onSent, onSendSta
   // person-switch flush below can never lose a keystroke that raced the tap.
   const latestDraftRef = useRef({ body, newTopic, customSubject });
   latestDraftRef.current = { body, newTopic, customSubject };
-  // Which person's draft is currently settled in the box. Guards the
-  // write-through effect during a switch so it can't write one person's
-  // text under another person's key.
+  // Which person's draft is currently settled in the box, and under which
+  // account namespace. Guards the write-through effect during a switch so it
+  // can't write one person's text under another person's key — or one
+  // account's text under another account's key.
   const settledPersonKeyRef = useRef(conversation.personKey);
+  const settledAccountKeyRef = useRef(accountKey);
 
-  // Write-through persistence: every edit lands in the current person's
-  // draft immediately. Switching people only ever swaps which saved draft is
-  // shown — typed text is never silently discarded. An emptied box deletes
-  // its draft, so cleared text never resurfaces (e.g. after a send).
+  // qm-draft-privacy-isolation: once per page load, drop the retired v1
+  // (unscoped) and v2 (mutable-email-scoped) draft keys — neither is
+  // attributable to a stable account identity, and the next sign-in on
+  // this browser could otherwise restore them. v3 keys (tenant +
+  // immutable-id-scoped) are left alone — they partition safely.
+  useEffect(() => {
+    ensureThreadDraftNamespaceV3(windowThreadDraftStorage());
+  }, []);
+
+  // Write-through persistence: every edit lands in the current (account,
+  // person) draft immediately. Switching people only ever swaps which saved
+  // draft is shown — typed text is never silently discarded. An emptied box
+  // deletes its draft, so cleared text never resurfaces (e.g. after a send).
+  // No account identity → no writes at all (fail closed, never a shared key).
   useEffect(() => {
     if (settledPersonKeyRef.current !== conversation.personKey) return;
+    if (settledAccountKeyRef.current !== accountKey) return;
+    if (!accountKey) return;
     const store = windowThreadDraftStorage();
     const draft = { body, newTopic, customSubject, updatedAt: Date.now() };
     if (isThreadDraftEmpty(draft)) {
-      clearThreadDraft(store, conversation.personKey);
+      clearThreadDraft(store, conversation.personKey, accountKey);
       setDraftSaveState('pristine');
       return;
     }
-    setDraftSaveState(saveThreadDraft(store, conversation.personKey, draft) ? 'saved' : 'error');
-  }, [body, newTopic, customSubject, conversation.personKey]);
+    setDraftSaveState(
+      saveThreadDraft(store, conversation.personKey, accountKey, draft) ? 'saved' : 'error',
+    );
+  }, [body, newTopic, customSubject, conversation.personKey, accountKey]);
 
   // A different person is a different draft: flush the outgoing person's
   // latest text synchronously, then restore the incoming person's saved
   // draft (or an empty box when they have none). Declared AFTER the
   // write-through effect so that effect's guard sees the stale
   // settledPersonKey and yields to this one during a switch.
+  //
+  // qm-draft-privacy-isolation: a different ACCOUNT is also a different
+  // draft namespace. The outgoing account's text is flushed under ITS OWN
+  // account key first (it stays that account's draft), then the incoming
+  // account loads from its own namespace — a switch can never write
+  // account A's words into account B's draft or hand A back B's text.
   useEffect(() => {
     const prevKey = settledPersonKeyRef.current;
+    const prevAccount = settledAccountKeyRef.current;
     const nextKey = conversation.personKey;
-    if (prevKey === nextKey) return;
-    const restored = switchThreadDraft({
-      store: windowThreadDraftStorage(),
-      prevPersonKey: prevKey,
-      nextPersonKey: nextKey,
-      latest: latestDraftRef.current,
-      now: Date.now(),
-    });
-    setBody(restored.body);
-    setNewTopic(restored.newTopic);
-    setCustomSubject(restored.customSubject);
-    setDraftSaveState(restored.hadSavedDraft ? 'saved' : 'pristine');
+    const nextAccount = accountKey;
+    if (prevKey === nextKey && prevAccount === nextAccount) return;
+    const store = windowThreadDraftStorage();
+    const latest = latestDraftRef.current;
+    const now = Date.now();
+    let incoming: { body: string; newTopic: boolean; customSubject: string } | null;
+    let hadSavedDraft = false;
+    if (prevAccount !== nextAccount) {
+      // Account switch (no remount): keep the outgoing account's text in its
+      // own namespace, then start the new account from its own.
+      if (prevAccount && !isThreadDraftEmpty(latest)) {
+        saveThreadDraft(store, prevKey, prevAccount, { ...latest, updatedAt: now });
+      }
+      incoming = loadThreadDraft(store, nextKey, nextAccount, now);
+      hadSavedDraft = incoming !== null;
+    } else {
+      const restored = switchThreadDraft({
+        store,
+        prevPersonKey: prevKey,
+        nextPersonKey: nextKey,
+        accountKey: nextAccount,
+        latest,
+        now,
+      });
+      incoming = { body: restored.body, newTopic: restored.newTopic, customSubject: restored.customSubject };
+      hadSavedDraft = restored.hadSavedDraft;
+    }
+    setBody(incoming?.body ?? '');
+    setNewTopic(incoming?.newTopic ?? false);
+    setCustomSubject(incoming?.customSubject ?? '');
+    setDraftSaveState(hadSavedDraft ? 'saved' : 'pristine');
     settledPersonKeyRef.current = nextKey;
-  }, [conversation.personKey]);
+    settledAccountKeyRef.current = nextAccount;
+  }, [conversation.personKey, accountKey]);
 
   // QM fix qm-personthread-smart-replies: a tapped smart-reply chip lands
   // here. Fill the box and put the caret at the end so the user can edit or

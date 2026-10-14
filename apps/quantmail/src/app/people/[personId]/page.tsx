@@ -30,6 +30,10 @@ export default function PersonPage() {
   const router = useRouter();
   const { user } = useAuth();
   const currentUserEmail = user?.email ?? '';
+  // P0 qm-draft-privacy-isolation (CODEX-REVIEW 6157628718): the
+  // ThreadComposer draft namespace is keyed by the backend-verified
+  // IMMUTABLE user id, never the mutable email.
+  const currentUserId = user?.id ?? '';
   const mutations = useMailMutations();
 
   const rawPersonId = typeof params?.personId === 'string' ? params.personId : '';
@@ -292,7 +296,7 @@ export default function PersonPage() {
                     />
                     <ThreadComposer
                       conversation={conversation}
-                      currentUserEmail={currentUserEmail}
+                      currentUserId={currentUserId}
                       suggestedReply={suggestedReply}
                     onSendStart={(text, subject) => {
                       const clientId =
