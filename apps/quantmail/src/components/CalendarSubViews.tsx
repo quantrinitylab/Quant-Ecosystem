@@ -5,6 +5,7 @@ import type { CalendarEventLike, EntryType } from '../app/calendar/types';
 import { MONTH_NAMES, FULL_WEEKDAYS } from '../app/calendar/types';
 import { dayKey, startOf, endOf, hhmm } from '../app/calendar/lib/calendar-geometry';
 import { calendarEventMatchesQuery } from '../app/calendar/lib/calendar-search';
+import { longDayLabel, plural } from '../app/calendar/lib/calendar-copy';
 import type { Holiday } from '../lib/holidays';
 import { showToast } from './InboxToast';
 import {
@@ -434,7 +435,7 @@ export function CalendarFeedSubView({
                       <span className="text-xs font-normal text-[var(--quant-muted-foreground)]">{day.dateLabel}</span>
                     </h3>
                     <p className="text-[11px] text-[var(--quant-muted-foreground)]">
-                      {day.events.length} entries · {day.holidays.length} holidays
+                      {plural(day.events.length, 'entry', 'entries')} · {plural(day.holidays.length, 'holiday')}
                     </p>
                   </div>
                 </div>
@@ -919,6 +920,9 @@ export function CalendarMonthSubView({
                     key={day.key}
                     type="button"
                     data-day-key={day.key}
+                    aria-label={`${longDayLabel(day.date)}${totalItems > 0 ? `, ${plural(totalItems, 'item')}` : ''}`}
+                    aria-pressed={day.isSelected}
+                    aria-current={day.isToday ? 'date' : undefined}
                     onPointerDown={handleDayPointerDown(day.key)}
                     onClick={handleDayClick(day.date)}
                     className={`min-h-16 sm:min-h-20 p-1.5 rounded-xl border flex flex-col justify-between text-left transition-all min-w-0 ${
@@ -949,7 +953,7 @@ export function CalendarMonthSubView({
                       </span>
 
                       {totalItems > 0 && (
-                        <span className="size-2 rounded-full bg-[var(--app-accent)] animate-pulse" />
+                        <span aria-hidden="true" className="size-2 rounded-full bg-[var(--app-accent)]" />
                       )}
                     </div>
 
