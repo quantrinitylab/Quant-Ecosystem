@@ -4,13 +4,16 @@
 // reply on person switch (useEffect on personKey -> setBody('')). Drafts now
 // persist per person in localStorage, restore on return, and clear on send.
 //
-// P0 qm-draft-privacy-isolation (CODEX-REVIEW on PR #1123): the original
-// namespace keyed drafts by personKey alone, and logout only cleared the
-// in-memory access token — account B on the same browser could restore
-// account A's unsent text. Drafts are now namespaced by the authenticated
-// account (qm.threadReplyDraft.v2.<account>.<personKey>); the
-// two-account regression tests below prove B can never read A's draft,
-// and legacy v1 keys are purged rather than migrated.
+// P0 qm-draft-privacy-isolation (CODEX-REVIEW on PR #1123, rework
+// CODEX-REVIEW 6157628718 on PR #1133): the original namespace keyed drafts
+// by personKey alone, and logout only cleared the in-memory access token —
+// account B on the same browser could restore account A's unsent text. The
+// v3 namespace keys drafts by (tenant, IMMUTABLE AuthUser.id, personKey)
+// with length-prefixed (unambiguous) tuple encoding — never by the mutable
+// email. The regression suites below prove: email reuse across user ids is
+// isolated, an email change keeps the account's drafts, delimiter-collision
+// tuple pairs get disjoint keys, and tenants are isolated. Legacy v1
+// (unscoped) and v2 (email-scoped) keys are purged rather than migrated.
 //
 // The persistence logic lives in the framework-free `threadReplyDrafts`
 // module and is asserted directly (no DOM needed). The component-level half
@@ -21,17 +24,23 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   clearThreadDraft,
-  ensureThreadDraftNamespaceV2,
+  decodeDraftKeySegment,
+  encodeDraftKeySegment,
+  ensureThreadDraftNamespaceV3,
   isThreadDraftEmpty,
   isThreadDraftExpired,
   LEGACY_THREAD_DRAFT_STORAGE_PREFIX,
+  LEGACY_V2_THREAD_DRAFT_STORAGE_PREFIX,
   loadThreadDraft,
   parseThreadDraft,
+  purgeAllLegacyThreadDraftKeys,
   purgeLegacyThreadDraftKeys,
+  purgeLegacyV2ThreadDraftKeys,
   saveThreadDraft,
   switchThreadDraft,
   THREAD_DRAFT_MAX_AGE_MS,
   THREAD_DRAFT_STORAGE_PREFIX,
+  THREAD_DRAFT_TENANT_SCOPE,
   threadDraftAccountKey,
   threadDraftKey,
   type ThreadDraftStorage,
@@ -45,8 +54,11 @@ vi.mock('../services/api-client', () => ({
 vi.mock('../components/InboxToast', () => ({ showToast: vi.fn() }));
 
 const NOW = 1_700_000_000_000;
-const ACCOUNT_A = threadDraftAccountKey('a@quantmail.in');
-const ACCOUNT_B = threadDraftAccountKey('b@quantmail.in');
+// Opaque backend-verified user ids (AuthUser.id — the access-token sub).
+const UID_A = '01JABCDEF0000000000000001';
+const UID_B = '01JABCDEF0000000000000002';
+const ACCOUNT_A = threadDraftAccountKey(UID_A);
+const ACCOUNT_B = threadDraftAccountKey(UID_B);
 
 function mapStore(backing = new Map<string, string>()): ThreadDraftStorage & { backing: Map<string, string> } {
   return {
@@ -84,33 +96,174 @@ function makeConversation(personKey = 'ada@quantmail.in') {
   };
 }
 
-describe('threadDraftAccountKey', () => {
-  it('normalizes the account identity (trim + lowercase) — one identity, one namespace', () => {
-    expect(threadDraftAccountKey('  A@QuantMail.IN ')).toBe('a@quantmail.in');
+/** Test-local decoder: proves the length-prefix encoding round-trips. */
+function decodeThreadDraftKey(key: string): [string, string, string] | null {
+  if (!key.startsWith(THREAD_DRAFT_STORAGE_PREFIX)) return null;
+  const rest = key.slice(THREAD_DRAFT_STORAGE_PREFIX.length);
+  const segs: string[] = [];
+  let off = 0;
+  for (let i = 0; i < 3; i += 1) {
+    const d = decodeDraftKeySegment(rest, off);
+    if (!d) return null;
+    segs.push(d.segment);
+    off = d.nextOffset;
+    if (i < 2) {
+      if (rest[off] !== '.') return null;
+      off += 1;
+    }
+  }
+  if (off !== rest.length) return null;
+  return [segs[0], segs[1], segs[2]];
+}
+
+describe('encodeDraftKeySegment / decodeDraftKeySegment', () => {
+  it('round-trips segments containing dots, colons, digits, and unicode', () => {
+    for (const s of ['', 'a', 'john.doe@corp.com', '5:12', '0:0', 'u.1.x', 'ñø✓', 'a'.repeat(200)]) {
+      const enc = encodeDraftKeySegment(s);
+      const dec = decodeDraftKeySegment(enc, 0);
+      expect(dec).not.toBeNull();
+      expect(dec!.segment).toBe(s);
+      expect(dec!.nextOffset).toBe(enc.length);
+    }
   });
 
-  it('is empty when no account is known — the fail-closed path', () => {
-    expect(threadDraftAccountKey(null)).toBe('');
-    expect(threadDraftAccountKey(undefined)).toBe('');
-    expect(threadDraftAccountKey('   ')).toBe('');
+  it('rejects malformed input instead of mis-splitting', () => {
+    expect(decodeDraftKeySegment('abc', 0)).toBeNull(); // no colon
+    expect(decodeDraftKeySegment('x:ab', 0)).toBeNull(); // non-numeric length
+    expect(decodeDraftKeySegment('5:ab', 0)).toBeNull(); // length overruns
+    expect(decodeDraftKeySegment('-1:ab', 0)).toBeNull(); // negative length
   });
 });
 
-describe('threadDraftKey', () => {
-  it('namespaces per (account, person) so drafts never collide', () => {
-    expect(threadDraftKey('a@x.in', 'me@q.in')).not.toBe(threadDraftKey('b@x.in', 'me@q.in'));
+describe('threadDraftAccountKey (immutable id, not email)', () => {
+  it('derives the namespace from the immutable user id only — email is not an input', () => {
+    // Same id => same namespace, no matter what the email does.
+    expect(threadDraftAccountKey(UID_A)).toBe(ACCOUNT_A);
+    expect(threadDraftAccountKey(UID_A)).toBe(threadDraftAccountKey(UID_A));
+  });
+
+  it('treats the id as opaque: no case folding, no email-style normalization', () => {
+    // Folding an opaque identifier could merge two distinct accounts — the
+    // v1 email normalization (trim + lowercase) must NOT apply to ids.
+    expect(threadDraftAccountKey('AbC-9')).not.toBe(threadDraftAccountKey('abc-9'));
+    expect(threadDraftAccountKey('  uid-x  ')).toBe(threadDraftAccountKey('uid-x'));
+  });
+
+  it('is empty when no id is known — the fail-closed path', () => {
+    expect(threadDraftAccountKey(null)).toBe('');
+    expect(threadDraftAccountKey(undefined)).toBe('');
+    expect(threadDraftAccountKey('')).toBe('');
+    expect(threadDraftAccountKey('   ')).toBe('');
+  });
+
+  it('pins the published single-tenant scope by default', () => {
+    expect(threadDraftAccountKey(UID_A)).toBe(threadDraftAccountKey(UID_A, THREAD_DRAFT_TENANT_SCOPE));
+    expect(THREAD_DRAFT_TENANT_SCOPE).toBe('quantmail');
+  });
+});
+
+describe('threadDraftKey (v3, unambiguous)', () => {
+  it('namespaces per (tenant, account, person) so drafts never collide', () => {
+    expect(threadDraftKey('a@x.in', ACCOUNT_A)).not.toBe(threadDraftKey('b@x.in', ACCOUNT_A));
     // Same person, different accounts — the P0 regression shape.
-    expect(threadDraftKey('a@x.in', 'a1@q.in')).not.toBe(threadDraftKey('a@x.in', 'a2@q.in'));
-    expect(threadDraftKey('a@x.in', 'me@q.in')).toContain('a@x.in');
-    expect(threadDraftKey('a@x.in', 'me@q.in')).toContain(THREAD_DRAFT_STORAGE_PREFIX);
-    // v2 namespace is disjoint from the legacy v1 namespace.
-    expect(threadDraftKey('a@x.in', 'me@q.in')).not.toContain(LEGACY_THREAD_DRAFT_STORAGE_PREFIX);
+    expect(threadDraftKey('a@x.in', ACCOUNT_A)).not.toBe(threadDraftKey('a@x.in', ACCOUNT_B));
+    const key = threadDraftKey('a@x.in', ACCOUNT_A)!;
+    expect(key.startsWith(THREAD_DRAFT_STORAGE_PREFIX)).toBe(true);
+    // v3 namespace is disjoint from both retired namespaces.
+    expect(key.startsWith(LEGACY_THREAD_DRAFT_STORAGE_PREFIX)).toBe(false);
+    expect(key.startsWith(LEGACY_V2_THREAD_DRAFT_STORAGE_PREFIX)).toBe(false);
   });
 
   it('returns null when either identity is missing — never a shared fallback key', () => {
-    expect(threadDraftKey('', 'me@q.in')).toBeNull();
+    expect(threadDraftKey('', ACCOUNT_A)).toBeNull();
     expect(threadDraftKey('a@x.in', '')).toBeNull();
     expect(threadDraftKey('', '')).toBeNull();
+  });
+
+  it('decodes back to exactly the (tenant, userId, personKey) tuple', () => {
+    const key = threadDraftKey('john.doe@corp.com', threadDraftAccountKey('u.1.x'))!;
+    expect(decodeThreadDraftKey(key)).toEqual([THREAD_DRAFT_TENANT_SCOPE, 'u.1.x', 'john.doe@corp.com']);
+  });
+});
+
+describe('CODEX regressions (6157628718)', () => {
+  it('(1) same email, different user ids: a reassigned address cannot inherit the previous holder\u2019s draft', () => {
+    const store = mapStore();
+    // A holds a@quantmail.in (immutable id UID_A) and types an unsent reply.
+    saveThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey(UID_A), {
+      body: 'A\u2019s unsent private reply',
+      newTopic: false,
+      customSubject: '',
+      updatedAt: NOW,
+    });
+    // The address is later reassigned to B (immutable id UID_B). The email
+    // string is identical, but the namespace must be disjoint — email is
+    // not part of the key at all.
+    expect(threadDraftAccountKey(UID_B)).not.toBe(threadDraftAccountKey(UID_A));
+    expect(loadThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey(UID_B), NOW)).toBeNull();
+    // The stored key contains no trace of the email address: the account
+    // namespace is the opaque id alone.
+    expect(threadDraftAccountKey('uid-A')).not.toContain('@');
+    expect(threadDraftAccountKey('uid-B')).not.toContain('@');
+  });
+
+  it('(2) same user id after an email change keeps the account\u2019s drafts', () => {
+    const store = mapStore();
+    saveThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey(UID_A), {
+      body: 'typed before the address change',
+      newTopic: false,
+      customSubject: '',
+      updatedAt: NOW,
+    });
+    // A changes address from old@quantmail.in to new@quantmail.in. The
+    // immutable id is unchanged, so the namespace — and the draft — is
+    // unchanged. (Email is not an input to the key function at all.)
+    expect(threadDraftAccountKey(UID_A)).toBe(ACCOUNT_A);
+    expect(loadThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey(UID_A), NOW)?.body).toBe(
+      'typed before the address change',
+    );
+  });
+
+  it('(3) delimiter-collision tuple pairs get disjoint keys', () => {
+    // Under the retired naive `a + "." + p` concatenation these pairs
+    // collided (CODEX's example shape: dots inside both segments). The
+    // length-prefix encoding keeps them apart — and each key still decodes
+    // to exactly its own tuple.
+    const pairs: Array<[[string, string], [string, string]]> = [
+      // (userId, personKey) pairs whose naive concatenation is identical.
+      [['u.a', 'b'], ['u', 'a.b']],
+      [['u1.x', 'y.z'], ['u1', 'x.y.z']],
+      // Segments engineered to look like length tags / separators.
+      [['5:ab', 'c.d'], ['5', 'ab.c.d']],
+    ];
+    for (const [[u1, p1], [u2, p2]] of pairs) {
+      const k1 = threadDraftKey(p1, threadDraftAccountKey(u1))!;
+      const k2 = threadDraftKey(p2, threadDraftAccountKey(u2))!;
+      expect(k1).not.toBe(k2);
+      expect(decodeThreadDraftKey(k1)).toEqual([THREAD_DRAFT_TENANT_SCOPE, u1, p1]);
+      expect(decodeThreadDraftKey(k2)).toEqual([THREAD_DRAFT_TENANT_SCOPE, u2, p2]);
+    }
+    // Empty segments are rejected by threadDraftKey at the API boundary…
+    expect(threadDraftKey('', threadDraftAccountKey('x'))).toBeNull();
+    expect(threadDraftKey('x', '')).toBeNull();
+  });
+
+  it('(4) the same user id in different tenants gets disjoint namespaces', () => {
+    const store = mapStore();
+    const tenantA = threadDraftAccountKey(UID_A, 'tenant-a');
+    const tenantB = threadDraftAccountKey(UID_A, 'tenant-b');
+    expect(tenantA).not.toBe(tenantB);
+    saveThreadDraft(store, 'ada@quantmail.in', tenantA, {
+      body: 'tenant A\u2019s draft',
+      newTopic: false,
+      customSubject: '',
+      updatedAt: NOW,
+    });
+    expect(loadThreadDraft(store, 'ada@quantmail.in', tenantB, NOW)).toBeNull();
+    expect(loadThreadDraft(store, 'ada@quantmail.in', tenantA, NOW)?.body).toBe('tenant A\u2019s draft');
+    // QuantMail itself is single-tenant: omitting the parameter pins the
+    // published scope constant.
+    expect(threadDraftKey('ada@quantmail.in', tenantA)).not.toBe(threadDraftKey('ada@quantmail.in', ACCOUNT_A));
   });
 });
 
@@ -263,53 +416,75 @@ describe('two-account isolation regression (P0 qm-draft-privacy-isolation)', () 
     expect(loadThreadDraft(store, 'ada@quantmail.in', ACCOUNT_A, NOW)?.body).toBe('A\u2019s text');
     expect(loadThreadDraft(store, 'ada@quantmail.in', ACCOUNT_B, NOW)).toBeNull();
   });
-
-  it('account identity normalizes: the same account in different casing shares one draft', () => {
-    const store = mapStore();
-    saveThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey('A@QuantMail.in'), {
-      body: 'x',
-      newTopic: false,
-      customSubject: '',
-      updatedAt: NOW,
-    });
-    expect(loadThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey('  a@quantmail.in  '), NOW)?.body).toBe('x');
-  });
 });
 
-describe('legacy v1 purge (logout/account-switch isolation)', () => {
-  it('purges unscoped v1 keys but never touches account-scoped v2 keys', () => {
+describe('legacy namespace purge (logout/account-switch isolation)', () => {
+  it('purges unscoped v1 keys but never touches v3 keys', () => {
     const store = mapStore();
     const v1Key = `${LEGACY_THREAD_DRAFT_STORAGE_PREFIX}ada@quantmail.in`;
     store.backing.set(v1Key, JSON.stringify({ body: 'A\u2019s legacy draft', newTopic: false, customSubject: '', updatedAt: 1 }));
-    const v2Key = threadDraftKey('ada@quantmail.in', ACCOUNT_A)!;
-    store.backing.set(v2Key, JSON.stringify({ body: 'A\u2019s v2 draft', newTopic: false, customSubject: '', updatedAt: NOW }));
+    const v3Key = threadDraftKey('ada@quantmail.in', ACCOUNT_A)!;
+    store.backing.set(v3Key, JSON.stringify({ body: 'A\u2019s v3 draft', newTopic: false, customSubject: '', updatedAt: NOW }));
     const removed = purgeLegacyThreadDraftKeys(store);
     expect(removed).toBe(1);
     expect(store.backing.has(v1Key)).toBe(false);
     // The account-scoped draft survives for the account's own next sign-in.
-    expect(store.backing.has(v2Key)).toBe(true);
+    expect(store.backing.has(v3Key)).toBe(true);
     // Re-running is idempotent.
     expect(purgeLegacyThreadDraftKeys(store)).toBe(0);
   });
 
-  it('a legacy v1 key is unreadable through the v2 API — no migration, no leak', () => {
+  it('purges retired v2 (email-scoped) keys — they are never migrated', () => {
+    const store = mapStore();
+    // A v2 key from the first rework attempt: attributable to an email, but
+    // the email is reassignable, so the whole namespace is retired.
+    const v2Key = `${LEGACY_V2_THREAD_DRAFT_STORAGE_PREFIX}a@quantmail.in.ada@quantmail.in`;
+    store.backing.set(v2Key, JSON.stringify({ body: 'A\u2019s v2 draft', newTopic: false, customSubject: '', updatedAt: NOW }));
+    const v3Key = threadDraftKey('ada@quantmail.in', ACCOUNT_A)!;
+    store.backing.set(v3Key, JSON.stringify({ body: 'A\u2019s v3 draft', newTopic: false, customSubject: '', updatedAt: NOW }));
+    expect(purgeLegacyV2ThreadDraftKeys(store)).toBe(1);
+    expect(store.backing.has(v2Key)).toBe(false);
+    expect(store.backing.has(v3Key)).toBe(true);
+  });
+
+  it('purgeAllLegacyThreadDraftKeys drops v1+v2 together and keeps v3', () => {
+    const store = mapStore();
+    store.backing.set(`${LEGACY_THREAD_DRAFT_STORAGE_PREFIX}p1`, '{}');
+    store.backing.set(`${LEGACY_V2_THREAD_DRAFT_STORAGE_PREFIX}a@x.in.p1`, '{}');
+    const v3Key = threadDraftKey('p1', ACCOUNT_A)!;
+    store.backing.set(v3Key, '{}');
+    expect(purgeAllLegacyThreadDraftKeys(store)).toBe(2);
+    expect(store.backing.size).toBe(1);
+    expect(store.backing.has(v3Key)).toBe(true);
+  });
+
+  it('a legacy v1/v2 key is unreadable through the v3 API — no migration, no leak', () => {
     const store = mapStore();
     store.backing.set(
       `${LEGACY_THREAD_DRAFT_STORAGE_PREFIX}ada@quantmail.in`,
       JSON.stringify({ body: 'legacy plaintext', newTopic: false, customSubject: '', updatedAt: 1 }),
     );
-    // Neither account can read it via the namespaced API…
+    store.backing.set(
+      `${LEGACY_V2_THREAD_DRAFT_STORAGE_PREFIX}a@quantmail.in.ada@quantmail.in`,
+      JSON.stringify({ body: 'v2 plaintext', newTopic: false, customSubject: '', updatedAt: 1 }),
+    );
+    // Neither account can read them via the namespaced API…
     expect(loadThreadDraft(store, 'ada@quantmail.in', ACCOUNT_A, NOW)).toBeNull();
     expect(loadThreadDraft(store, 'ada@quantmail.in', ACCOUNT_B, NOW)).toBeNull();
-    // …and the mount-time one-shot purge removes it (the logout path in
+    // …and the mount-time one-shot purge removes both (the logout path in
     // browser-auth-session calls the same purge).
-    ensureThreadDraftNamespaceV2(store);
+    ensureThreadDraftNamespaceV3(store);
     expect(store.backing.size).toBe(0);
   });
 
   it('degrades to no-op when the store cannot enumerate keys', () => {
     expect(purgeLegacyThreadDraftKeys(null)).toBe(0);
-    expect(purgeLegacyThreadDraftKeys({ getItem: () => null, setItem: () => {}, removeItem: () => {} })).toBe(0);
+    expect(purgeLegacyV2ThreadDraftKeys(null)).toBe(0);
+    expect(purgeAllLegacyThreadDraftKeys(null)).toBe(0);
+    const noEnum = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+    expect(purgeLegacyThreadDraftKeys(noEnum)).toBe(0);
+    expect(purgeLegacyV2ThreadDraftKeys(noEnum)).toBe(0);
+    expect(purgeAllLegacyThreadDraftKeys(noEnum)).toBe(0);
   });
 });
 
@@ -435,7 +610,7 @@ describe('ThreadComposer draft restore (static render)', () => {
 
   it('restores the saved draft into the box on mount (survives navigation + reload)', () => {
     const store = mapStore();
-    saveThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey('me@quantmail.in'), {
+    saveThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey('uid-me'), {
       body: 'half-typed reply to Ada',
       newTopic: false,
       customSubject: '',
@@ -443,7 +618,7 @@ describe('ThreadComposer draft restore (static render)', () => {
     });
     stubWindow(store);
     const html = renderToStaticMarkup(
-      <ThreadComposer conversation={makeConversation('ada@quantmail.in') as any} currentUserEmail="me@quantmail.in" />,
+      <ThreadComposer conversation={makeConversation('ada@quantmail.in') as any} currentUserId="uid-me" />,
     );
     expect(html).toContain('half-typed reply to Ada');
     // Restored draft is real saved state — the honest indicator shows it.
@@ -452,7 +627,7 @@ describe('ThreadComposer draft restore (static render)', () => {
 
   it('restores new-topic subject state with the draft', () => {
     const store = mapStore();
-    saveThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey('me@quantmail.in'), {
+    saveThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey('uid-me'), {
       body: 'body under a new topic',
       newTopic: true,
       customSubject: 'Weekend plans',
@@ -460,7 +635,7 @@ describe('ThreadComposer draft restore (static render)', () => {
     });
     stubWindow(store);
     const html = renderToStaticMarkup(
-      <ThreadComposer conversation={makeConversation('ada@quantmail.in') as any} currentUserEmail="me@quantmail.in" />,
+      <ThreadComposer conversation={makeConversation('ada@quantmail.in') as any} currentUserId="uid-me" />,
     );
     expect(html).toContain('aria-label="New topic subject"');
     expect(html).toContain('Weekend plans');
@@ -470,7 +645,7 @@ describe('ThreadComposer draft restore (static render)', () => {
   it('renders an empty quiet box when the person has no draft (pristine shows nothing)', () => {
     stubWindow(mapStore());
     const html = renderToStaticMarkup(
-      <ThreadComposer conversation={makeConversation('bob@quantmail.in') as any} currentUserEmail="me@quantmail.in" />,
+      <ThreadComposer conversation={makeConversation('bob@quantmail.in') as any} currentUserId="uid-me" />,
     );
     // Pristine: the indicator is null, so the chat-style bar stays quiet.
     expect(html).not.toContain('Saved');
@@ -480,7 +655,7 @@ describe('ThreadComposer draft restore (static render)', () => {
 
   it('an explicit smart-reply chip still wins over a stored draft', () => {
     const store = mapStore();
-    saveThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey('me@quantmail.in'), {
+    saveThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey('uid-me'), {
       body: 'stored draft',
       newTopic: false,
       customSubject: '',
@@ -490,7 +665,7 @@ describe('ThreadComposer draft restore (static render)', () => {
     const html = renderToStaticMarkup(
       <ThreadComposer
         conversation={makeConversation('ada@quantmail.in') as any}
-        currentUserEmail="me@quantmail.in"
+        currentUserId="uid-me"
         suggestedReply={{ text: 'Sounds great!', nonce: 1 }}
       />,
     );
@@ -500,8 +675,8 @@ describe('ThreadComposer draft restore (static render)', () => {
 
   it('P0: the same browser, a different signed-in account, never sees another account\u2019s draft', () => {
     const store = mapStore();
-    // Account A typed an unsent reply to Ada on this browser.
-    saveThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey('a@quantmail.in'), {
+    // Account A (immutable id uid-A) typed an unsent reply to Ada on this browser.
+    saveThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey('uid-A'), {
       body: 'A\u2019s unsent private reply',
       newTopic: false,
       customSubject: '',
@@ -510,20 +685,39 @@ describe('ThreadComposer draft restore (static render)', () => {
     // Account B signs in on the same browser and opens the same thread.
     stubWindow(store);
     const htmlForB = renderToStaticMarkup(
-      <ThreadComposer conversation={makeConversation('ada@quantmail.in') as any} currentUserEmail="b@quantmail.in" />,
+      <ThreadComposer conversation={makeConversation('ada@quantmail.in') as any} currentUserId="uid-B" />,
     );
     expect(htmlForB).not.toContain('A\u2019s unsent private reply');
     expect(htmlForB).not.toContain('Saved');
     // Account A, back on its own session, still gets its own draft.
     const htmlForA = renderToStaticMarkup(
-      <ThreadComposer conversation={makeConversation('ada@quantmail.in') as any} currentUserEmail="a@quantmail.in" />,
+      <ThreadComposer conversation={makeConversation('ada@quantmail.in') as any} currentUserId="uid-A" />,
     );
     expect(htmlForA).toContain('A\u2019s unsent private reply');
   });
 
+  it('P0: email reuse — B holding A\u2019s old address still cannot read A\u2019s draft', () => {
+    const store = mapStore();
+    // A (uid-A) used old@quantmail.in and typed an unsent reply.
+    saveThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey('uid-A'), {
+      body: 'A\u2019s unsent private reply',
+      newTopic: false,
+      customSubject: '',
+      updatedAt: Date.now(),
+    });
+    // The address is reassigned to B (uid-B). The composer only ever sees
+    // the immutable id, so B's box stays empty even though a v1-style
+    // email-keyed lookup would have matched.
+    stubWindow(store);
+    const htmlForB = renderToStaticMarkup(
+      <ThreadComposer conversation={makeConversation('ada@quantmail.in') as any} currentUserId="uid-B" />,
+    );
+    expect(htmlForB).not.toContain('A\u2019s unsent private reply');
+  });
+
   it('renders an empty box with no restore attempt when the account identity is missing', () => {
     const store = mapStore();
-    saveThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey('a@quantmail.in'), {
+    saveThreadDraft(store, 'ada@quantmail.in', threadDraftAccountKey('uid-A'), {
       body: 'someone\u2019s draft',
       newTopic: false,
       customSubject: '',
@@ -531,7 +725,7 @@ describe('ThreadComposer draft restore (static render)', () => {
     });
     stubWindow(store);
     const html = renderToStaticMarkup(
-      <ThreadComposer conversation={makeConversation('ada@quantmail.in') as any} currentUserEmail="" />,
+      <ThreadComposer conversation={makeConversation('ada@quantmail.in') as any} currentUserId="" />,
     );
     expect(html).not.toContain('someone\u2019s draft');
     expect(html).not.toContain('Saved');
