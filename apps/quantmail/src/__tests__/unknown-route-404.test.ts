@@ -89,11 +89,9 @@ describe('isKnownAppPath classification', () => {
     '/search',
     '/scheduled', // schedule-send outbox view: signed-in mailbox folder
     '/notifications',
-    '/scheduled',
-    // OIDC discovery route handler: known (keeps today's login bounce, not
-    // a 404) — making it public per the OIDC spec is a separate finding in
-    // the qm-auto queue.
-    '/.well-known/openid-configuration',
+    // NOTE: /.well-known/openid-configuration used to live here (known
+    // private, login-bounce); it is PUBLIC now per OIDC Discovery 1.0 —
+    // see the fix/qm-oidc-discovery-public describe block below.
   ];
   for (const path of knownPrivate) {
     it(`classifies ${path} as a known private route`, () => {
@@ -122,6 +120,42 @@ describe('isKnownAppPath classification', () => {
     expect(isKnownAppPath('/drive/share/abc123')).toBe(false);
     expect(isKnownAppPath('/login')).toBe(false);
     expect(isKnownAppPath('/invite/abc')).toBe(false);
+  });
+});
+
+describe('OIDC discovery is public for signed-out clients (fix/qm-oidc-discovery-public)', () => {
+  // OIDC Discovery 1.0 requires the discovery document to be fetchable by
+  // unauthenticated relying parties. Before the fix, the edge middleware
+  // bounced signed-out clients to /login, so external SSO clients doing
+  // provider discovery got an HTML login page instead of JSON.
+  const doc = '/.well-known/openid-configuration';
+
+  it('classifies the discovery document as public (never known-private)', () => {
+    expect(isPublicPath(doc)).toBe(true);
+    expect(isKnownAppPath(doc)).toBe(false);
+    // Trailing-slash variant: the middleware runs before Next's own
+    // trailing-slash normalization, so it must not bounce first.
+    expect(isPublicPath(`${doc}/`)).toBe(true);
+    expect(isKnownAppPath(`${doc}/`)).toBe(false);
+  });
+
+  it('does NOT bounce a signed-out request to /login', () => {
+    expect(locationOf(`http://x.test${doc}`, false)).toBeNull();
+    expect(locationOf(`http://x.test${doc}/`, false)).toBeNull();
+  });
+
+  it('lets it through when the session cookie is present too', () => {
+    expect(locationOf(`http://x.test${doc}`, true)).toBeNull();
+  });
+
+  it('keeps other /.well-known/* routes known (login-bounce, not 404)', () => {
+    expect(isPublicPath('/.well-known/change-password')).toBe(false);
+    expect(isKnownAppPath('/.well-known/change-password')).toBe(true);
+    expect(
+      new URL(
+        locationOf('http://x.test/.well-known/change-password', false)!,
+      ).pathname,
+    ).toBe('/login');
   });
 });
 
