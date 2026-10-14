@@ -450,7 +450,15 @@ export class QuantyFileWorkspaceManager {
   }
 
   /**
-   * Copy the file into the suggested folder (resolved by name when needed).
+   * Copy the file into the suggested folder.
+   *
+   * The destination folder id comes straight from the organize-suggest
+   * response: the backend resolves it with the single shared rule both
+   * buttons use (exact-case, root-level folder named for the category), so
+   * "Move here" and "Copy here" can never target different real folders
+   * while reporting the same label. No client-side name matching is done —
+   * the old case-insensitive any-depth lookup here could pick a nested
+   * folder the move would never use.
    *
    * Honesty rule: if the folder does not exist, the copy is NOT attempted.
    * Posting { targetFolderId: null } would silently duplicate the file in
@@ -465,9 +473,7 @@ export class QuantyFileWorkspaceManager {
     this.state.organize = { ...this.state.organize, status: 'busy', error: null, missingFolderName: null };
     this.notify();
     try {
-      // The organize-suggest call does not create the folder (apply=false), so
-      // resolve the destination folder id via the folder listing first.
-      const folderId = await this.resolveFolderId(suggestion.category);
+      const folderId = suggestion.folderId;
       if (!folderId) {
         this.state.organize = {
           ...this.state.organize,
@@ -550,17 +556,6 @@ export class QuantyFileWorkspaceManager {
       };
     }
     this.notify();
-  }
-
-  private async resolveFolderId(category: string): Promise<string | null> {
-    const res = await this.apiFetch('/api/drive/folders', { method: 'GET' });
-    const data = await this.parseJson(res);
-    if (!res.ok || !Array.isArray(data?.folders)) return null;
-    const match = data.folders.find(
-      (f: Record<string, unknown>) =>
-        typeof f.name === 'string' && f.name.toLowerCase() === category.toLowerCase(),
-    );
-    return typeof match?.id === 'string' ? match.id : null;
   }
 
   // -- Summarize ---------------------------------------------------------------

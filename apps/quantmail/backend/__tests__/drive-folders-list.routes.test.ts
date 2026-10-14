@@ -2,15 +2,17 @@
 // ============================================================================
 // QM-FIX drive-folders-405 — GET /drive/folders backend route tests.
 //
-// Quanty's organize flow resolves a suggested category name to a folder id via
-// GET /api/drive/folders (QuantyFileWorkspace resolveFolderId), which the Next
-// proxy forwards to this backend route. Before the fix the Next route only
-// exported POST, so every GET 405'd and the lookup silently fell back to null.
+// (History: Quanty's organize flow once resolved a suggested category name
+// to a folder id via GET /api/drive/folders, which the Next proxy forwards
+// to this backend route; resolution now happens server-side and the suggest
+// response carries the backend-resolved folderId. This flat-list route stays
+// for the general Drive UI.) Before the fix the Next route only exported
+// POST, so every GET 405'd and the lookup silently fell back to null.
 //
 // The backend had no GET /drive/folders at all: `GET /folders` lists *mail*
 // label folders (emailFolder), and `GET /drive/files?filter=folders` returns
 // only one level. This route returns a flat list of ALL non-deleted drive
-// folders for the user (every depth) so name lookups see nested folders too.
+// folders for the user (every depth) for the general Drive UI.
 //
 // No fake data: every folder asserted here comes from the stubbed prisma query
 // in the shape the route projects; an empty drive yields an honest empty list.

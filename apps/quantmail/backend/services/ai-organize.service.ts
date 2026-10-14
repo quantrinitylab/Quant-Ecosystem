@@ -120,6 +120,24 @@ export class AIOrganizeService {
     return { suggestedFolder: `/${heuristic}`, category: heuristic, confidence: 0.7 };
   }
 
+  /**
+   * The ONE folder-resolution rule for Quanty's organize flow, shared by both
+   * "Move here" (apply=true) and "Copy here" (the frontend copies into the
+   * suggest response's folderId, which this resolves). The destination is the
+   * exact-case, ROOT-level (parentId: null) folder named for the category —
+   * never a nested or differently-cased folder with the same name. Read-only:
+   * it never creates the folder; autoOrganize(apply=true) creates it when
+   * missing.
+   */
+  private async findRootCategoryFolder(
+    userId: string,
+    category: DriveCategory,
+  ): Promise<OrganizeFolderRow | null> {
+    return this.prisma.folder.findFirst({
+      where: { userId, parentId: null, name: category, isDeleted: false },
+    });
+  }
+
   async autoOrganize(
     fileId: string,
     userId: string,
@@ -132,11 +150,14 @@ export class AIOrganizeService {
       throw createAppError('Not authorized to access this file', 403, 'FORBIDDEN');
     }
     const result = await this.categorizeFile(file.name, file.mimeType, contentPreview, userId);
-    if (!apply) return { fileId, ...result, folderId: null, applied: false };
+    if (!apply) {
+      // Suggest only: resolve the existing root-level folder with the same
+      // rule the move uses, but never create one and never touch the file.
+      const existing = await this.findRootCategoryFolder(userId, result.category);
+      return { fileId, ...result, folderId: existing?.id ?? null, applied: false };
+    }
 
-    let folder = await this.prisma.folder.findFirst({
-      where: { userId, parentId: null, name: result.category, isDeleted: false },
-    });
+    let folder = await this.findRootCategoryFolder(userId, result.category);
     if (!folder) {
       folder = await this.prisma.folder.create({
         data: { userId, name: result.category, parentId: null, path: `/${result.category}` },
