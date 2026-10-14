@@ -13,6 +13,8 @@
  * - A composer for the SAME key that has not created/adopted a draft yet
  *   adopts the announced id+version, so its autosave PUTs to the same draft
  *   instead of POSTing a second one.
+ * - Late subscribers (mounted after the announcement) call `requestDraft`
+ *   once after subscribing; the announcing tab re-announces its held id.
  * - Announcements from the same tab (same origin id) are ignored.
  * - Fresh composes (no reply context) never share a key: two blank compose
  *   windows are legitimately different drafts and must not adopt each other.
@@ -29,7 +31,9 @@ export const DRAFT_BROADCAST_CHANNEL = 'qm.serverDraft.v1';
  * Channel messages. `adopt` shares a newly created draft id with sibling
  * tabs; `retire` tells siblings a draft id is dead (sent or discarded), so
  * they drop it proactively instead of discovering it via a 404 on the next
- * autosave and then silently minting a duplicate.
+ * autosave and then silently minting a duplicate. `sync-request` is a
+ * late-subscriber catch-up: a composer that mounted AFTER a sibling announced
+ * asks "does anyone hold a draft for this key?" and holders re-announce.
  */
 export type DraftChannelMessage =
   | {
@@ -48,6 +52,12 @@ export type DraftChannelMessage =
       key: string;
       draftId: string;
       reason: 'sent' | 'discarded';
+      origin: string;
+      ts: number;
+    }
+  | {
+      type: 'sync-request';
+      key: string;
       origin: string;
       ts: number;
     };
@@ -96,17 +106,24 @@ export interface DraftRetirement {
  * One tab's endpoint of the draft-adoption channel. Call `announce` after
  * creating a server draft; subscribe with `onAdoption` to adopt drafts other
  * tabs created for the same key. Call `retire` after sending/discarding a
- * draft; subscribe with `onRetirement` to drop dead ids proactively.
+ * draft; subscribe with `onRetirement` to drop dead ids proactively. A tab
+ * that mounted after a sibling's announcement calls `requestDraft` once to
+ * trigger a re-announcement (late-subscriber catch-up).
  */
 export class DraftBroadcast {
   private channel: DraftBroadcastChannelLike | null;
   private readonly origin: string;
   private listeners = new Set<(event: { data: DraftChannelMessage }) => void>();
   private seen = new Set<string>();
+  /** Keys this tab announced, so sync-requests can be answered. */
+  private announced = new Map<string, { draftId: string; version?: number }>();
+  /** Last re-announce per key+origin — throttles sync-request storms. */
+  private lastSyncReply = new Map<string, number>();
 
   constructor(factory: DraftBroadcastFactory = defaultDraftBroadcastFactory) {
     this.channel = factory(DRAFT_BROADCAST_CHANNEL);
     this.origin = randomOrigin();
+    this.listenForSyncRequests();
   }
 
   private post(message: DraftChannelMessage): void {
@@ -121,6 +138,7 @@ export class DraftBroadcast {
   /** Announce a newly created server draft to sibling tabs. */
   announce(key: string, draftId: string, version?: number): void {
     if (!key || !draftId) return;
+    this.announced.set(key, { draftId, version });
     const dedupeKey = `adopt:${key}:${draftId}`;
     if (this.seen.has(dedupeKey)) return;
     this.seen.add(dedupeKey);
@@ -130,10 +148,58 @@ export class DraftBroadcast {
   /** Announce that a draft id is dead (sent or discarded) to sibling tabs. */
   retire(key: string, draftId: string, reason: 'sent' | 'discarded'): void {
     if (!key || !draftId) return;
+    this.announced.delete(key);
     const dedupeKey = `retire:${key}:${draftId}:${reason}`;
     if (this.seen.has(dedupeKey)) return;
     this.seen.add(dedupeKey);
     this.post({ type: 'retire', key, draftId, reason, origin: this.origin, ts: Date.now() });
+  }
+
+  /**
+   * Ask sibling tabs whether one of them already holds a draft for `key`.
+   * Holders re-announce their id+version, which arrives through the normal
+   * `onAdoption` subscription. Call once after subscribing, only when this
+   * tab has no draft id yet — it closes the late-subscriber gap where a
+   * composer mounted after the sibling's announcement and would otherwise
+   * mint a second draft for the same reply.
+   */
+  requestDraft(key: string): void {
+    if (!key) return;
+    this.post({ type: 'sync-request', key, origin: this.origin, ts: Date.now() });
+  }
+
+  /**
+   * Answer sync-requests for keys this tab announced. The re-announcement is
+   * a fresh message (new ts), so it is not swallowed by the `announce`
+   * dedupe, and it is throttled to one reply per key+origin per second so a
+   * burst of late subscribers cannot turn into a message storm.
+   */
+  private listenForSyncRequests(): void {
+    if (!this.channel) return;
+    const listener = (event: { data: DraftChannelMessage }) => {
+      const msg = event?.data;
+      if (!msg || msg.type !== 'sync-request' || msg.origin === this.origin) return;
+      const held = this.announced.get(msg.key);
+      if (!held) return;
+      const throttleKey = `${msg.key}:${msg.origin}`;
+      const now = Date.now();
+      if (now - (this.lastSyncReply.get(throttleKey) ?? 0) < 1000) return;
+      this.lastSyncReply.set(throttleKey, now);
+      this.post({
+        type: 'adopt',
+        key: msg.key,
+        draftId: held.draftId,
+        version: held.version,
+        origin: this.origin,
+        ts: now,
+      });
+    };
+    this.listeners.add(listener);
+    try {
+      this.channel.addEventListener('message', listener);
+    } catch {
+      this.listeners.delete(listener);
+    }
   }
 
   private subscribe(

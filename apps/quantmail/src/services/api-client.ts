@@ -79,7 +79,11 @@ export interface EmailFolder {
 interface ApiResponse<T> {
   success: boolean;
   data?: T;
-  error?: { code: string; message: string; statusCode: number };
+  // The backend error envelope serializes `details` for machine-readable
+  // context (e.g. VERSION_CONFLICT carries { resource, id, expectedVersion,
+  // currentVersion }); the fetch path returns the parsed JSON directly, so
+  // details survive the cast at runtime.
+  error?: { code: string; message: string; statusCode: number; details?: Record<string, unknown> };
   metadata?: Record<string, unknown>;
 }
 

@@ -177,4 +177,50 @@ describe('DraftBroadcast', () => {
     unsub();
     tabA.dispose();
   });
+
+  it('re-announces a held draft when a late sibling asks (sync-request)', () => {
+    const tabA = new DraftBroadcast(factory);
+    tabA.announce('reply:e1', 'draft_1', 3);
+
+    // Tab B mounts after the announcement; its request triggers tabA's
+    // re-announcement, which arrives as a normal adoption.
+    const tabB = new DraftBroadcast(factory);
+    const received: { draftId: string; version?: number }[] = [];
+    const unsub = tabB.onAdoption('reply:e1', (a) => received.push(a));
+    tabB.requestDraft('reply:e1');
+
+    expect(received).toHaveLength(1);
+    expect(received[0]).toEqual({ draftId: 'draft_1', version: 3 });
+    unsub();
+    tabA.dispose();
+    tabB.dispose();
+  });
+
+  it('does not answer a sync-request for a key it never announced', () => {
+    const tabA = new DraftBroadcast(factory);
+    const tabB = new DraftBroadcast(factory);
+    const received: unknown[] = [];
+    const unsub = tabB.onAdoption('reply:e9', (a) => received.push(a));
+
+    tabB.requestDraft('reply:e9');
+
+    expect(received).toHaveLength(0);
+    unsub();
+    tabA.dispose();
+    tabB.dispose();
+  });
+
+  it('does not answer its own sync-request', () => {
+    const tabA = new DraftBroadcast(factory);
+    tabA.announce('reply:e1', 'draft_1', 0);
+    const received: unknown[] = [];
+    const unsub = tabA.onAdoption('reply:e1', (a) => received.push(a));
+
+    tabA.requestDraft('reply:e1');
+
+    // No self-adoption: the holder already knows its own draft.
+    expect(received).toHaveLength(0);
+    unsub();
+    tabA.dispose();
+  });
 });

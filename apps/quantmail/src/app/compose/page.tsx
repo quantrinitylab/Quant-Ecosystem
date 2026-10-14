@@ -13,6 +13,7 @@ import { invalidateMailLists } from '../../lib/offline/folders';
 import { apiClient } from '../../services/api-client';
 import type { MessageKind } from '../../types';
 import { UndoSendProvider } from '../../components/UndoSendCountdownBar';
+import { ServerDraftRef, saveServerDraft } from '../../lib/serverDraft';
 
 /**
  * REG-1: the prefill used to strip *every* "Re:" via /^(Re:\s*)+/i, so a reply
@@ -34,11 +35,23 @@ export default function ComposePage() {
   const prefillBody = searchParams?.get('body') ?? null;
   const prefillSubject = searchParams?.get('subject') ?? null;
   const prefillTo = searchParams?.get('to') ?? null;
-  // The id of the draft the server holds, read at call time. A ref, not
-  // state: discard can run right after an autosave lands — before React would
-  // re-render a new id into this page's callbacks — and a stale `null` there
-  // skipped the delete and left an orphan draft in Drafts.
-  const currentDraftIdRef = useRef<string | null>(draftId);
+  // The server draft this page is saving to, plus the optimistic-concurrency
+  // version it last observed. (qm-draft-conflict-tabs: two tabs on the same
+  // ?draftId= used to keep only a per-tab id and save with no version, so
+  // they silently overwrote each other's drafts. Updates now carry
+  // expectedVersion: a 409 retries once with the server's fresh version
+  // (last-writer-wins) with a toast, and a 404 drops the id so the next save
+  // honestly mints one fresh draft instead of 404ing forever.)
+  // A ref, not state: discard can run right after an autosave lands — before
+  // React would re-render a new id into this page's callbacks — and a stale
+  // `null` there skipped the delete and left an orphan draft in Drafts.
+  const pageDraftRef = useRef<ServerDraftRef | null>(null);
+  if (!pageDraftRef.current) {
+    const ref = new ServerDraftRef();
+    if (draftId) ref.adopt(draftId);
+    pageDraftRef.current = ref;
+  }
+  const serverDraftRef = pageDraftRef.current;
 
   const [draftData, setDraftData] = useState<{
     to?: Array<{ email: string }>;
@@ -75,6 +88,15 @@ export default function ComposePage() {
             toAddresses?: string[];
             bodyPlain?: string;
           };
+          // Adopt the row version the server just reported, so the first
+          // autosave is version-guarded — but only if no save has landed
+          // since (its fresher version would be regressed by this older read).
+          if (
+            serverDraftRef.getId() === draftId &&
+            serverDraftRef.getExpectedVersion() === undefined
+          ) {
+            serverDraftRef.adopt(draftId, response.data.version ?? null);
+          }
           setDraftData({
             to: storedDraft.to ?? storedDraft.toAddresses?.map((email) => ({ email })),
             subject: storedDraft.subject ?? '',
@@ -165,17 +187,39 @@ export default function ComposePage() {
         // comes from what the sender actually chose.
         messageKind: composeKind,
       };
-      const existingId = currentDraftIdRef.current;
-      const response = existingId
-        ? await apiClient.updateDraft(existingId, payload)
-        : await apiClient.composeEmail(payload);
-
-      if (!response.success || !response.data) {
-        throw new Error(response.error?.message || 'Draft could not be saved.');
+      const ref = serverDraftRef;
+      const runGuardedSave = () =>
+        saveServerDraft({
+          ref,
+          create: () => apiClient.composeEmail(payload),
+          update: (id, expectedVersion) =>
+            apiClient.updateDraft(id, payload, { expectedVersion }),
+          onConflict: () => {
+            showToast({
+              text: 'Another tab or device edited this draft too — your latest changes were saved.',
+              type: 'warning',
+            });
+          },
+          onDeleted: () => {
+            showToast({
+              text: 'This draft was deleted elsewhere — saving as a new draft.',
+              type: 'warning',
+            });
+          },
+        });
+      let saved = await runGuardedSave();
+      if (!saved && !ref.getId()) {
+        // The draft died server-side (sent or deleted elsewhere): the ref was
+        // cleared, so exactly one more attempt honestly mints a single fresh
+        // draft instead of failing the save. (A false from a network error or
+        // a lost conflict-retry keeps the id, so this never double-mints.)
+        saved = await runGuardedSave();
       }
-
-      if (!existingId) currentDraftIdRef.current = response.data.id;
-      return response.data;
+      const id = ref.getId();
+      if (!saved || !id) {
+        throw new Error('Draft could not be saved.');
+      }
+      return { id };
     },
     [replyTo, searchParams],
   );
@@ -262,14 +306,14 @@ export default function ComposePage() {
 
   const handleDiscard = useCallback(async () => {
     // Delete the saved server draft (if any) so "Discard" actually discards.
-    const savedId = currentDraftIdRef.current;
+    const savedId = serverDraftRef.getId();
     if (savedId) {
       try {
         await apiClient.deleteEmail(savedId);
       } catch {
         // Best-effort: still navigate away even if the delete fails.
       }
-      currentDraftIdRef.current = null;
+      serverDraftRef.clear();
     }
     if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back();
