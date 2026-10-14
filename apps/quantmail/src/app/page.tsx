@@ -233,7 +233,9 @@ function formatReceivedAt(value?: string | Date) {
   const date = new Date(value);
   const today = new Date();
   if (date.toDateString() === today.toDateString()) {
-    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    // `numeric`, not `2-digit`: "1:53 PM", the way Gmail and the clock write it.
+    // `2-digit` padded rows to "01:53 PM".
+    return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   }
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }

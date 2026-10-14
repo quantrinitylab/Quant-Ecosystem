@@ -220,7 +220,7 @@ export default function ScheduledPage() {
                         <span className="sent-row-recipients">
                           {formatSentRecipientLine(email.to)}
                         </span>
-                        <span className="delivery-status status-sending">
+                        <span className="delivery-status status-scheduled">
                           Sends {formatScheduledDate(scheduledAtOf(email))}
                         </span>
                       </div>

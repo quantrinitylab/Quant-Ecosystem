@@ -24,7 +24,7 @@ import {
 import { mailboxKey, readMailbox, writeMailbox, patchEmail } from '../lib/offline/mail-cache';
 import { InboxCursorPager } from '../lib/inbox-cursor-pager';
 import { enqueue, type MailMutationKind } from '../lib/offline/outbox';
-import { showToast } from '../lib/toast-bus';
+import { dismissToast, showToast } from '../lib/toast-bus';
 import { apiRequestError, backoffInterval } from '../lib/query-retry';
 import { getFts5Indexer, type Fts5SearchResult, type Fts5SearchOptions } from '../lib/sqlite-fts5';
 import type { Email, EmailCategory, EmailThread, SearchEmailRequest } from '../types';
@@ -442,6 +442,28 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
       const rollback = applyOptimistic(ids, patch);
       if (removesFromView) onRemovedRef.current?.(ids);
 
+      /*
+       * Confirm the moment the change is applied, the way Gmail does. The toast
+       * used to wait for the outbox round trip (IndexedDB write, the request,
+       * the IndexedDB cleanup). Live on staging, trashing from a thread put the
+       * user back in the inbox and "Conversation moved to trash · Undo" only
+       * showed up about 2.7 s later. In another run it had still not appeared
+       * after 8 s. The row is already gone, so the toast and its Undo belong
+       * to that same instant. If the server refuses, the toast is withdrawn
+       * below.
+       */
+      const confirmationId = toast
+        ? showToast({
+            text: toast,
+            type: 'success',
+            undoAction: undo
+              ? () => {
+                  void run({ kind: undo.kind, ids, patch: undo.patch });
+                }
+              : undefined,
+          })
+        : null;
+
       const results = await Promise.all(
         ids.map((id) => enqueue(kind, id, snoozeUntil ? { snoozeUntil } : {})),
       );
@@ -449,24 +471,15 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
 
       if (rejection) {
         rollback();
+        // The change did not happen, so neither the confirmation nor its Undo
+        // may stay on screen.
+        if (confirmationId) dismissToast(confirmationId);
         showToast({
           text: rejection.lastError || 'That change could not be saved',
           type: 'error',
         });
         scheduleReconcile();
         return;
-      }
-
-      if (toast) {
-        showToast({
-          text: toast,
-          type: 'success',
-          undoAction: undo
-            ? () => {
-                void run({ kind: undo.kind, ids, patch: undo.patch });
-              }
-            : undefined,
-        });
       }
 
       scheduleReconcile();

@@ -4409,6 +4409,8 @@ body {
 .status-bounced { color: #fbbf24; }
 .status-sending { color: #60a5fa; animation: pulse-fade 1.5s ease infinite; }
 .status-draft { color: #a78bfa; }
+/* A scheduled send is waiting, not in flight: brand colour, no "sending" pulse. */
+.status-scheduled { color: var(--quant-primary); font-weight: 600; }
 @keyframes pulse-fade {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }

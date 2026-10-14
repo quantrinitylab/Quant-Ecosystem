@@ -55,7 +55,7 @@ function formatMessageTime(receivedAt: Date): string {
   if (Number.isNaN(date.getTime())) return '';
   const now = new Date();
   const sameDay = date.toDateString() === now.toDateString();
-  const time = date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const time = date.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
   if (sameDay) return time;
   const day = date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
   return `${day}, ${time}`;

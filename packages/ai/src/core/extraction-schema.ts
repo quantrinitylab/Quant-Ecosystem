@@ -88,9 +88,17 @@ export function trustForProvenance(
 
 // ─── Fingerprint (ADR-009 idempotency) ───────────────────────────────────────
 
+/**
+ * Idempotency fingerprint for a fact. Not a security boundary, but the key
+ * embeds the owner (user id), so it uses SHA-256 rather than SHA-1. CodeQL
+ * flags SHA-1 over user-derived data as a weak hash (high severity).
+ * Fingerprints stored before the switch (SHA-1) simply stop matching. A
+ * re-extracted identical fact is still skipped by the acceptance policy's
+ * same-slot/same-value rule (`duplicate_skip`), so no duplicates appear.
+ */
 export function fingerprintFact(owner: string, fact: ExtractedFact): string {
   const key = `${owner}:${fact.slot || fact.value}:${fact.value.trim().toLowerCase()}:${fact.operation}`;
-  return createHash('sha1').update(key).digest('hex');
+  return createHash('sha256').update(key).digest('hex');
 }
 
 // ─── Slot → kind/level mapping ───────────────────────────────────────────────

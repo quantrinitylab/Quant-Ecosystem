@@ -14,6 +14,8 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { useInbox } from '../../hooks/useInbox';
 import { apiClient } from '../../services/api-client';
 import { listContainerVariants, listItemVariants } from '../../lib/motion-variants';
+import { messagePreviewText } from '../../lib/threading';
+import { formatListDate } from '../../lib/honest-date';
 
 export default function TrashPage() {
   const router = useRouter();
@@ -261,23 +263,29 @@ export default function TrashPage() {
                         onChange={() => handleToggleSelect(email.id)}
                         className="mt-1 w-4 h-4 rounded border-[var(--quant-border)]"
                       />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-[var(--quant-muted-foreground)]">
+                      {/*
+                       * Phone layout: sender + date share the top line and the
+                       * subject/preview truncate to one line each. The date used
+                       * to sit in the action cluster, which squeezed the subject
+                       * into a ~120px column that wrapped over three lines.
+                       */}
+                      <div className="flex-1 min-w-0" data-testid="trash-row-text">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="truncate text-sm font-medium text-[var(--quant-muted-foreground)]">
                             {email.from?.name || email.from?.email || 'Unknown'}
                           </span>
+                          <span className="shrink-0 text-xs text-[var(--quant-muted-foreground)] whitespace-nowrap">
+                            {formatListDate(email.receivedAt)}
+                          </span>
                         </div>
-                        <h3 className="text-sm mt-1 text-[var(--quant-muted-foreground)]">
+                        <h3 className="text-sm mt-1 truncate text-[var(--quant-muted-foreground)]">
                           {email.subject || '(no subject)'}
                         </h3>
                         <p className="text-xs text-[var(--quant-muted-foreground)] mt-1 truncate">
-                          {email.snippet}
+                          {messagePreviewText(email)}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2 ml-4">
-                        <span className="text-xs text-[var(--quant-muted-foreground)] whitespace-nowrap">
-                          {email.receivedAt ? new Date(email.receivedAt).toLocaleDateString() : ''}
-                        </span>
+                      <div className="flex shrink-0 items-center gap-1 self-center">
                         <button
                           className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[var(--quant-foreground)] hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded-lg"
                           onClick={() => handleRestore(email.id)}
