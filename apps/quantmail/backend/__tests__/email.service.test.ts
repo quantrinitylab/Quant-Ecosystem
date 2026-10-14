@@ -133,6 +133,8 @@ describe('EmailService', () => {
           subject: 'Test Subject',
           bodyHtml: '<p>Hello</p>',
           bodyPlain: 'Hello',
+          // The sender's own row carries its preview (Sent, Drafts, People).
+          snippet: 'Hello',
           fromAddress: 'user-1@quantchat.online',
           fromName: 'User One',
           isDraft: true,
@@ -171,6 +173,48 @@ describe('EmailService', () => {
           data: expect.objectContaining({ messageKind: 'CHAT' }),
         }),
       );
+    });
+  });
+
+  describe('compose — stored snippet', () => {
+    beforeEach(() => {
+      prisma.user.findUnique.mockResolvedValue({
+        email: 'user-1@quantchat.online',
+        displayName: 'User One',
+        username: 'user1',
+      });
+      prisma.email.create.mockResolvedValue({ id: 'email-s' });
+    });
+
+    const snippetOf = () =>
+      (prisma.email.create.mock.calls[0][0] as { data: { snippet: string } }).data.snippet;
+
+    it('falls back to the HTML body (markup, styles and entities removed)', async () => {
+      await service.compose({
+        userId: 'user-1',
+        toAddresses: ['recipient@test.com'],
+        subject: 'Hi',
+        bodyHtml: '<style>p{color:red}</style><p>Hello&nbsp;<b>there</b> &amp; welcome</p>',
+        bodyPlain: '',
+      });
+      expect(snippetOf()).toBe('Hello there & welcome');
+    });
+
+    it('collapses whitespace and stops at 140 characters', async () => {
+      await service.compose({
+        userId: 'user-1',
+        toAddresses: ['recipient@test.com'],
+        subject: 'Long',
+        bodyPlain: `Line one\n\n   ${'x'.repeat(300)}`,
+      });
+      const snippet = snippetOf();
+      expect(snippet.startsWith('Line one x')).toBe(true);
+      expect(snippet).toHaveLength(140);
+    });
+
+    it('is empty for a message with no text (readers show the subject)', async () => {
+      await service.compose({ userId: 'user-1', toAddresses: ['recipient@test.com'], subject: '' });
+      expect(snippetOf()).toBe('');
     });
   });
 

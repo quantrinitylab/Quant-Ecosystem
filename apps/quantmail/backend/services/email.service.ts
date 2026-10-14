@@ -9,6 +9,7 @@ import { MailFilterService } from './mail-filter.service';
 import { emitOutbox, MailOutboxEvents } from '../lib/outbox-events';
 import { MutationOptions, resolveRequestId } from '../lib/mutation-context';
 import { versionedUpdate, VersionedTx } from '../lib/optimistic-update';
+import { buildSnippet } from '../lib/snippet';
 
 export type { MutationOptions };
 
@@ -230,6 +231,8 @@ export class EmailService {
           subject: input.subject,
           bodyHtml: input.bodyHtml ?? '',
           bodyPlain: input.bodyPlain ?? '',
+          // The sender's own row needs its preview too (Sent, Drafts, People).
+          snippet: buildSnippet(input.bodyPlain, input.bodyHtml),
           fromAddress: senderEmail,
           fromName: senderName,
           isDraft: true,
@@ -342,7 +345,7 @@ export class EmailService {
       select: { id: true, email: true, username: true },
     });
 
-    const snippet = (input.bodyPlain ?? input.bodyHtml ?? '').replace(/<[^>]+>/g, '').slice(0, 140);
+    const snippet = buildSnippet(input.bodyPlain, input.bodyHtml);
     const hasValidSender = Boolean(sender?.email?.includes('@') || sender?.username);
     if (!hasValidSender) {
       throw createAppError(

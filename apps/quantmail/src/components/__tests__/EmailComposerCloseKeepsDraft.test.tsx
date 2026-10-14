@@ -13,7 +13,7 @@
 //   • Back / Close / edge swipe → save the draft, toast "Draft saved", leave.
 //     Never call onDiscard.
 //   • Untouched since open → leave quietly (no save, no prompt, no junk draft).
-//   • Content that cannot be a draft yet (no recipient/subject) → say exactly
+//   • Content that cannot be a draft yet (no recipient) → say exactly
 //     what is missing and let the person choose; nothing is lost silently.
 //   • Save failure → "Couldn't save draft" with Leave without saving / Keep
 //     editing; never a false "Draft saved".
@@ -171,16 +171,11 @@ const BODY = 'textarea#composer-body';
 const left = () => mocks.router.back.mock.calls.length + mocks.router.push.mock.calls.length;
 
 describe('getDraftUnsavableReason — mirrors the backend compose contract', () => {
-  it('names exactly what is missing', () => {
-    expect(getDraftUnsavableReason('', '')).toBe('a recipient and a subject');
-    expect(getDraftUnsavableReason('a@b.com', '  ')).toBe('a subject');
-    expect(getDraftUnsavableReason(' , ', 'Hi')).toBe('a recipient');
-    expect(getDraftUnsavableReason('a@b.com', 'Hi')).toBeNull();
-  });
-
-  it('exempts chat threads from the subject rule (the page fills "Chat with …")', () => {
-    expect(getDraftUnsavableReason('a@b.com', '', 'chat')).toBeNull();
-    expect(getDraftUnsavableReason('', '', 'chat')).toBe('a recipient');
+  it('a recipient is the one hard requirement', () => {
+    expect(getDraftUnsavableReason('')).toBe('a recipient');
+    expect(getDraftUnsavableReason(' , ')).toBe('a recipient');
+    expect(getDraftUnsavableReason('a@b.com')).toBeNull();
+    expect(getDraftUnsavableReason('a@b.com; c@d.com')).toBeNull();
   });
 });
 
@@ -205,6 +200,20 @@ describe('EmailComposer — leaving keeps the draft', () => {
       expect(mocks.confirm).not.toHaveBeenCalled();
     });
   }
+
+  it('no subject is fine (subject optional since #1126): saves with "" and leaves', async () => {
+    const onSaveDraft = vi.fn(async () => {});
+    await mount({ initialTo: 'priya@quantmail.in', onSaveDraft, onDiscard: vi.fn() });
+    await type(BODY, 'Quick note, no subject');
+
+    await click(BACK);
+
+    expect(mocks.confirm).not.toHaveBeenCalled();
+    expect(onSaveDraft).toHaveBeenCalledTimes(1);
+    expect(onSaveDraft.mock.calls[0][0]).toMatchObject({ subject: '' });
+    expect(mocks.showToast).toHaveBeenCalledWith({ text: 'Draft saved', type: 'success' });
+    expect(left()).toBe(1);
+  });
 
   it('the left-edge swipe is Back: saves and leaves, never deletes', async () => {
     const onSaveDraft = vi.fn(async () => {});
@@ -266,7 +275,7 @@ describe('EmailComposer — leaving keeps the draft', () => {
     expect(mocks.confirm).toHaveBeenCalledTimes(1);
     const opts = mocks.confirm.mock.calls[0][0];
     expect(opts.title).toBe('Discard this message?');
-    expect(opts.message).toContain('a recipient and a subject');
+    expect(opts.message).toContain('a recipient');
     expect(left()).toBe(0);
     expect(q<HTMLTextAreaElement>(BODY).value).toBe('Only a body so far');
   });

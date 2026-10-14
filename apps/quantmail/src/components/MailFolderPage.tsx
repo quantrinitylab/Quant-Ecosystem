@@ -15,7 +15,7 @@ import { useAuth } from '../providers/auth-provider';
 import { resolveThreadTarget } from '../lib/route-ids';
 import {
   groupEmailsIntoThreads,
-  sanitizeSnippetText,
+  messagePreviewText,
   threadMessageIds,
   type ConversationThread,
 } from '../lib/threading';
@@ -256,7 +256,7 @@ export function MailFolderPage({
                         </button>
                       </h3>
                       <p className="sent-row-snippet">
-                        {sanitizeSnippetText(thread.latestEmail.snippet)}
+                        {messagePreviewText(thread.latestEmail)}
                       </p>
                     </div>
                     {rowAction && (

@@ -242,6 +242,49 @@ export function sanitizeSnippetText(text?: string): string {
     .trim();
 }
 
+const PREVIEW_PLAIN_CHARS = 600;
+const PREVIEW_HTML_CHARS = 4000;
+const PREVIEW_ENTITIES: Record<string, string> = {
+  '&nbsp;': ' ',
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+  '&#x27;': "'",
+  '&apos;': "'",
+};
+
+/**
+ * The one-line preview for a message row (People, Sent, Scheduled, folders).
+ *
+ * The stored `snippet` when there is one. Otherwise the body itself: the
+ * server used to save the sender's own drafts and Sent copies without a
+ * snippet, so those rows showed an empty line — or a bare "You:" in People.
+ * Plain text first, then the HTML body with style/script blocks, tags and
+ * the common entities removed. The source is bounded before cleaning, so a
+ * long body costs no more than a short one. Returns '' only when the message
+ * really has no text.
+ */
+export function messagePreviewText(m: {
+  snippet?: string | null;
+  bodyText?: string | null;
+  bodyPlain?: string | null;
+  bodyHtml?: string | null;
+}): string {
+  const stored = sanitizeSnippetText(m.snippet ?? '');
+  if (stored) return stored;
+  const plain = sanitizeSnippetText((m.bodyText || m.bodyPlain || '').slice(0, PREVIEW_PLAIN_CHARS));
+  if (plain) return plain;
+  const html = (m.bodyHtml || '')
+    .slice(0, PREVIEW_HTML_CHARS)
+    .replace(/<(style|script|head|title)\b[^>]*>[\s\S]*?(<\/\1\s*>|$)/gi, ' ')
+    .replace(/<!--[\s\S]*?(-->|$)/g, ' ')
+    .replace(/<\/?[a-zA-Z][^>]*(>|$)/g, ' ')
+    .replace(/&(nbsp|amp|lt|gt|quot|apos|#39|#x27);/gi, (e) => PREVIEW_ENTITIES[e.toLowerCase()] ?? e);
+  return sanitizeSnippetText(html).slice(0, PREVIEW_PLAIN_CHARS);
+}
+
 /**
  * The comparable form of a subject: repaired, stripped of every reply or forward
  * prefix, trimmed and lowercased.

@@ -153,22 +153,15 @@ export function isFullPageComposePath(pathname: string | null | undefined): bool
 /**
  * Why the current content cannot be stored as a draft yet, or `null` when it
  * can. Mirrors the backend compose contract (routes/emails.ts composeSchema):
- * at least one recipient and a non-empty subject. Chat threads are exempt from
- * the subject rule because the compose page fills "Chat with …" for them.
+ * at least one recipient. The subject is optional there (#1126 — Gmail-style,
+ * an empty subject is stored as '' and readers show a fallback label), so it
+ * is not a reason to refuse a draft.
  * The close path uses this to skip a save that would only bounce off a 400
  * and to tell the person exactly what is missing before anything is lost.
  */
-export function getDraftUnsavableReason(
-  to: string,
-  subject: string,
-  messageKind: 'mail' | 'chat' = 'mail',
-): string | null {
+export function getDraftUnsavableReason(to: string): string | null {
   const hasRecipient = to.split(/[,;\s]+/).some(Boolean);
-  const hasSubject = messageKind === 'chat' || subject.trim().length > 0;
-  if (!hasRecipient && !hasSubject) return 'a recipient and a subject';
-  if (!hasRecipient) return 'a recipient';
-  if (!hasSubject) return 'a subject';
-  return null;
+  return hasRecipient ? null : 'a recipient';
 }
 
 export interface EmailComposerProps {
@@ -1190,7 +1183,8 @@ export function EmailComposer({
           inReplyTo: inReplyTo || initialReplyToId,
         });
       } else {
-        if (!subject.trim()) return false;
+        // A recipient is the only hard requirement (subject optional, #1126).
+        if (getDraftUnsavableReason(to)) return false;
         if (!fallbackDraftIdRef.current) {
           const res = await apiClient.composeEmail({
             to: toList,
@@ -1325,7 +1319,7 @@ export function EmailComposer({
     }
     closingRef.current = true;
     try {
-      const missing = getDraftUnsavableReason(to, subject, initialMessageKind);
+      const missing = getDraftUnsavableReason(to);
       if (!missing && (await flushDraft())) {
         quantyReact('mail:draftSaved');
         showToast({ text: 'Draft saved', type: 'success' });
