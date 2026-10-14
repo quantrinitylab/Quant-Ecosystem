@@ -104,6 +104,13 @@ function label(pkg) {
   return `${pkg.name} ${pkg.version}`;
 }
 
+/** "Jane Doe <jane@example.com>" -> "Jane Doe" (plain-text output; drops the first "<…>" part). */
+function withoutEmail(author) {
+  const open = author.indexOf('<');
+  const close = open === -1 ? -1 : author.indexOf('>', open);
+  return close === -1 ? author : author.slice(0, open).trimEnd() + author.slice(close + 1);
+}
+
 const packages = new Map(); // id -> { pkg, engines:Set }
 for (const engine of ENGINES) {
   const meta = metadata(engine);
@@ -171,7 +178,7 @@ if (missing.length) {
   lines.push('Packages without a licence file in their published source (licence by the SPDX expression above;');
   lines.push('the standard texts of those licences are reproduced below):');
   for (const pkg of missing.sort((a, b) => cmp(a.name, b.name))) {
-    const authors = (pkg.authors || []).map((a) => a.replace(/\s*<[^>]*>/, '')).join(', ');
+    const authors = (pkg.authors || []).map(withoutEmail).join(', ');
     lines.push(`  ${label(pkg)} — ${pkg.license || 'UNKNOWN'} — Copyright (c) ${authors || `the ${pkg.name} authors`}`);
   }
   // Apache-2.0 has a licence file in the texts below already (many packages ship it).
