@@ -924,6 +924,28 @@ VERIFIED CLEAN: zero ?token= in production drive flows (share token is server-si
 - [ ] R4-NEW-7 P3 (note): user-facing "FastCDC tags" placeholder + "FastCDC Clean" label overstate | evidence: QuantPillarTopBar.tsx:343,395
 FIX AGENTS (PR-only to main, never merge; reconcile on return — diff their branch before flipping findings): lane1-fix-010-011r4-dedup-badge-honesty (R4-NEW-1 P1) → PR #1041 OPEN (diff vs origin/main VERIFIED CLEAN — exactly 2 in-scope files: DriveFilesSubView.tsx (both "FastCDC Deduped" badges + "CAS: 64KB" label removed, explanatory comments) + drive-subviews.test.tsx (2 new absence regression tests); no unrelated edits, no arch-branch touch; tsc clean on touched files, 36/36 + 117/117 drive tests green). Backend has NO per-file dedup field (fileDto, drive.ts:372 — only save-attachment one-off) → frontend-only honest removal; per-file badges need backend fileDto work first. R4-NEW-1 stays [ ] until #1041 merged + deployed + live-verified (merge pipeline owns); lane1-fix-010-011r4-accent-cleanup (R4-NEW-2/3/4/5) → PR #1040 OPEN (commit 709c55f4; diff vs origin/main VERIFIED CLEAN — exactly 9 in-scope TS/TSX files, 39+/17-, no unrelated edits, no arch-branch touch; tsc clean, drive-green-accents 100/100, 129/129 related drive tests green). R4-NEW-2/3/4/5 stay [ ] until #1040 merged + deployed + live-verified (merge pipeline owns). Agent follow-ups (out of scope, candidates for R5): header "+ New Email" icon still text-sky-400 (QuantMailSuperAppHeader.tsx:1065); broader var(--quant-primary) in components/drive/* (FileActivityModal timeline/restore/badges, FileAISummaryDrawer orange theme, DriveAISearchBar, AIDuplicateCleanerModal) — bigger strict-lock follow-up round if the user wants it. Rotation → QM-SCREEN-012 R4.
 
+Lane-1 R8 REGRESSION — [x] DONE (2026-10-14 ~07:35–08:05 IST, lane-1 deep audit loop)
+Owner: LANE-1
+Branch: lane-1/audit-qm-screen-010-011-drive-r8
+Audit scope: origin/main @ 477434bb vs R6 base 4de85b2a (fresh fetch, 144 commits; NOTE: drive skipped R7 — no R7 block exists) — drive screens QM-SCREEN-010 + QM-SCREEN-011 combined (rotation queues them together).
+Method: git log path-filter + full-diff review of all drive-path commits on origin/main tree only (working tree ignored per stale-tree lesson) + live logged-out desktop 1440x900 + mobile 390x844 via local Chrome + proxy 127.0.0.1:8888; signed-in flows needs-auth.
+DRIVE-PATH COMMITS in window: exactly TWO, both VERIFIED SOUND (full diff reviewed, in declared scope):
+1. d086115e (PR #1130 mobile command palette): QuantPillarTopBar.tsx +43/-0 — one-tap command-palette trigger button in the mobile search row (md:hidden chrome), reuses palette's own 'command' icon, per-app-accent focus ring, 44px touch target. No drive-logic change; no fake/copy/accent/proxy changes. NOTE: this is mobile-viewport chrome merged pre-desktop-lock-tightening — flag reference only, not a drive regression.
+2. a41f7a3d (PR #1082 living-logos / Workplace shell, CEO-endorsed): QuantDriveLogo.tsx +14/-3 useLivingLogo('drive') — already reviewed SOUND in 014 R7 block; drive mark stays green.
+All other 142 window commits = mail-search/calendar/quantchat/quantgit scope — drive files untouched (path-filter + commit-msg grep both empty beyond the two above).
+R1–R4 FIXES — ALL BYTE-VERIFIED INTACT on 477434bb: honest trash ("Trash is empty", page.tsx:1872); honest quota ("Calculating…", DriveFilesSubView.tsx:201,222, StorageQuotaBar.tsx:20,222,339); zero 4K/FLAC/RAW badges (remaining hits = comments + mime-type matching + an absence-noting comment); zero ?token= (sole hit = absence-asserting useCollabDoc.test.ts:17); catch-all + ALLOWED_BACKEND_ROUTES drive pattern intact (routes-config.ts:82); no new fetches → no proxy gaps.
+CARRYOVERS — ALL STILL OPEN (re-verified, not re-filed):
+- R5-NEW-1 P2 mail-orange var(--quant-primary) in components/drive/* — STILL OPEN: 47 hits across AIDuplicateCleanerModal (5), DriveAISearchBar (3), FileAISummaryDrawer (14), FileActivityModal (1), FileVersionHistoryModal (4), QuantyFileWorkspace (12), StorageQuotaBar (6); +1 in useCollabDoc.ts, +1 drive/page.tsx. Recommendation stands: batch as one "drive accent + FastCDC honesty" PR.
+- R5-NEW-2 P3 stale "FastCDC Deduplication Badges" section comment — STILL OPEN (DriveFilesSubView.tsx:384).
+- R3-P3 test fixture 'FastCDC 64KB CAS storage lowered cloud egress to $0.00' — STILL OPEN (drive-ai-insights.test.tsx:395,419).
+- "FastCDC tags" placeholder + "FastCDC Clean" naming — STILL OPEN (QuantPillarTopBar.tsx:348,400; now at shifted lines 343→348, 395→400).
+- R6-NEW-1 P2 StorageQuotaBar orange meter/badge/CTA — STILL OPEN (:259,260,261,318,375,378).
+- R6-NEW-2 P3 stale "Sovereign Cyan Drive" header comment — STILL OPEN (QuantPillarTopBar.tsx:5).
+FRESH HUNT CLEAN: zero ?token=, zero fake/coming-soon/dummy copy, zero toast-theater, zero divider hairlines in drive surfaces, zero 4K/FLAC/RAW badges.
+NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. FIX AGENTS: none (P0/P1-only protocol). findings.md: no new lines.
+LIVE (2026-10-14 ~07:55 IST, quantmail.in; proxy 127.0.0.1:8888 healthy): /drive → honest sign-in gate desktop 1440x900 + mobile 390x844 (provable copy only: "Mail + chat threads", "AI triage", "Encrypted in transit"); /drive/share/bogus-token-12345 → 200, honest "Share link not found" (mobile shot: clay living-logo mark, no leak); /api/drive/{files,quota,trash,shares/received,folders} → 401 (airtight). Signed-in flows needs-auth. Shots: /tmp/lane1-010r8-{desktop-drive,mobile-drive,mobile-share}.png.
+Rotation → QM-SCREEN-012 (contacts) ROUND 8 regression, queued.
+
 Lane-1 R6 REGRESSION — [x] DONE (2026-10-13 ~14:35–15:10 IST, lane-1 deep audit loop)
 Owner: LANE-1
 Branch: lane-1/audit-qm-screen-010-011-drive-r6
