@@ -3281,6 +3281,29 @@ NOT VERIFIED (needs live/auth, unchanged): staging DB GIN indexes; operator rout
 Rotation -> QM-SCREEN-008/009 (calendar) ROUND 8 regression, queued.
 Status: [x] DONE (R8 regression audit complete 2026-10-14 ~06:15 IST; 103-commit window reviewed, 1 merged fix audited correct, 0 new findings, 7 opens carried; fixes tracked via their PRs)
 
+## QM-SCREEN-007 R9 — Search regression (ROUND 9)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-007r9
+Audit started: 2026-10-14 ~15:35 IST (lane-1 deep audit loop, ROUND 9)
+Base: R8 @ 86b10ca7 -> origin/main b80dcf2d (fresh fetch, 49 commits). All code read from origin/main tree only.
+R9 REGRESSION DIFF (search scope): exactly 1 commit — 4f95a4fdf "fix(qm-search): recognize in:anywhere as a scope modifier (incl. Spam and Trash)" (+44/-10 lines, tests incl.). Diff-reviewed IN FULL — VERIFIED SOUND: `in:anywhere` parses to parsed.inAnywhere (no folder predicate added); buildEmailWhere() + raw-SQL FTS branch both treat inAnywhere as wantTrash+wantSpam (SYMMETRIC — no new branch divergence); userId scope + `deletedAt IS NULL` always preserved; comment block documents Gmail-parity semantics honestly. api-client.ts window diff = idempotency-outbox work only (mutation-key plumbing; search GET methods untouched) — out of 007 scope.
+R9 NUANCE on R2-P2 "spam/trash unfindable": the backend operator path now CAN search Spam+Trash via `in:anywhere` — but GET /search/emails still has ZERO UI callers anywhere in apps/quantmail (git grep clean on origin/main), so the parser reachability BLOCKER stands: wire UI to parser or drop it (dropping now even cheaper). Client-side spam mitigation (#899 inbox whole-mailbox corpus) unchanged.
+R8 OPENS RE-VERIFIED STILL PRESENT (byte-checked on b80dcf2d, not re-filed):
+- [ ] FINDING P2: is: operator — still silently drops unknown values (search-query.service.ts:206-214: unread/read/starred/important/spam only; no trash branch); a dropped `is:trash` now silently NARROWS scope (default trash/spam exclusion) instead of widening — same root cause, needs is:trash -> inFolderTypes support. NOTE: in:anywhere now gives users an explicit escape, but the silent-drop UX stays.
+- [ ] FINDING P3: 0 `signal` refs in useSearchEmails.ts/useUniversalSearch.ts — no abort of in-flight search requests.
+- [ ] FINDING P3: universal mail leg pageSize-less — useUniversalSearch.ts:69 `apiClient.searchEmails({ query: trimmed } as never)`, no pageSize.
+- [ ] FINDING P3: main search input no Esc-to-clear — app/search/page.tsx:328-330 onKeyDown Enter-only.
+- [ ] FINDING P3: operator syntax zero UI discoverability — placeholder unchanged (:333), EXAMPLE_SEARCHES = plain strings (:20).
+- [ ] FINDING P3: branch semantic divergence — quoted-phrase exact-substring vs stemmed-AND; label:/to: exact-array vs ILIKE. (4f95a4fdf symmetric — no new divergence.)
+- [ ] FINDING P3: document search under-covers vs access policy — searchDocuments userId-scoped (:657 area) vs Gate N-G5 shared/public -> BLOCKER: product decision (unchanged).
+R9 FRESH HUNT CLEAN: zero ?token=<redacted> zero coming-soon/lorem/dummy/mock copy, zero toast-theater in all search paths.
+R9 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents spawned (protocol: P0/P1 only). findings.md: no new lines (clean pass).
+LIVE (2026-10-14 ~15:50 IST, proxy 127.0.0.1:8888 healthy): /search?q=test -> honest sign-in gate desktop (1440x900) + mobile (390x844 iPhone 14), pure black, mail-orange accents, provable copy only. GET /api/search/all?q=test logged-out -> honest 401 {"code":"UNAUTHORIZED"}. Signed-in search UI = needs-auth (no test session). Evidence: /tmp/lane1-007r9-{desktop,mobile}-search.png. /tmp 11MB; chrome orphans cleaned.
+NOT VERIFIED (needs live/auth, unchanged): staging DB GIN indexes; operator routing live on real data; overlapping-fetch flicker; Hinglish stemming; scope-chip live; search latency.
+Rotation -> QM-SCREEN-008/009 (calendar) ROUND 9 regression, queued.
+Status: [x] DONE (R9 regression audit complete 2026-10-14 ~15:55 IST; 49-commit window reviewed, 1 merged fix audited correct, 0 new findings, 7 opens carried; fixes tracked via their PRs)
+
 ## QM-SCREEN-008/009 R8 — Calendar regression (ROUND 8)
 Status: [~] IN PROGRESS
 Owner: LANE-1
