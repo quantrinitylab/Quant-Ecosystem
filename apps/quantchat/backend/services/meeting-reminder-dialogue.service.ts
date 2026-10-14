@@ -116,12 +116,24 @@ export class MeetingReminderDialogueService {
       case 'JOIN_NOW': {
         // QC-F-070: nothing performs the redirect/connect — the request is
         // handed to the caller via actionRequired/actionPayload. Speech
-        // must not claim the connect already happened; the join link in
-        // the payload is the real, usable artefact.
+        // must not claim the connect already happened.
+        // QC-F-343: a join link in the payload is the producer's artefact
+        // ONLY when the producer actually supplied one. There is no
+        // meetingId -> roomId lookup in this codebase (a calendar event
+        // id is not a meeting-room id), so when no joinUrl was supplied
+        // this service must NOT fabricate one — the old default
+        // `/meetings/join/<meetingId>` is not a registered route and
+        // 404s. In that case the payload carries `joinUrl: null` and the
+        // speech says so honestly instead of claiming a link is ready.
+        const joinUrl = context.joinUrl ? context.joinUrl : null;
         const speechText =
-          locale === 'hinglish'
-            ? `Bilkul! Meeting room mein judne ke liye join link taiyaar hai. Have a great meeting!`
-            : `Sure! Your join link for '${context.title}' is ready — use it to enter the meeting room. Have a productive meeting!`;
+          joinUrl !== null
+            ? locale === 'hinglish'
+              ? `Bilkul! Meeting room mein judne ke liye join link taiyaar hai. Have a great meeting!`
+              : `Sure! Your join link for '${context.title}' is ready — use it to enter the meeting room. Have a productive meeting!`
+            : locale === 'hinglish'
+              ? `Bilkul! Sach ye hai ki is meeting ka join link mere paas nahi hai — kripya apne calendar se meeting kholkar join kar dein.`
+              : `Sure! To be clear, I don't have a join link for this meeting — please open it from your calendar to join.`;
         return {
           speechText,
           intent,
@@ -129,7 +141,7 @@ export class MeetingReminderDialogueService {
           actionExecuted: false,
           actionPayload: {
             meetingId: context.meetingId,
-            joinUrl: context.joinUrl || `/meetings/join/${context.meetingId}`,
+            joinUrl,
           },
           shouldEndCall: true,
           state: 'RESOLVED',
