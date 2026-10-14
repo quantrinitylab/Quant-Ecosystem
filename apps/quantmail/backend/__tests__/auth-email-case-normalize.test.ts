@@ -328,7 +328,9 @@ describe('POST /auth/register — canonical storage + case-insensitive pre-check
     expect(user.username).toBe('alice_99');
     // The verification mail goes to the canonical address.
     expect(fakes.sendVerificationEmail).toHaveBeenCalledTimes(1);
-    expect(fakes.sendVerificationEmail.mock.calls[0][0].to).toBe('mixedcase@example.com');
+    expect(
+      (fakes.sendVerificationEmail.mock.calls as unknown as Array<[{ to: string }]>)[0]?.[0]?.to,
+    ).toBe('mixedcase@example.com');
   });
 
   it('a duplicate registration with different case 409s USER_EXISTS (takenField=email)', async () => {
@@ -502,7 +504,9 @@ describe('POST /auth/resend-verification — case-insensitive lookup', () => {
     expect(reply.statusCode).toBe(200);
     expect(reply.body.data.emailSent).toBe(true);
     expect(fakes.sendVerificationEmail).toHaveBeenCalledTimes(1);
-    expect(fakes.sendVerificationEmail.mock.calls[0][0].to).toBe('LegacyCase@Example.com');
+    expect(
+      (fakes.sendVerificationEmail.mock.calls as unknown as Array<[{ to: string }]>)[0]?.[0]?.to,
+    ).toBe('LegacyCase@Example.com');
     expect(fakes.state.codes.filter((c) => c.userId === user.id).length).toBe(1);
   });
 

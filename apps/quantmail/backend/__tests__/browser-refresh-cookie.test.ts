@@ -5,6 +5,15 @@ const mocks = vi.hoisted(() => {
   const user = {
     findUnique: vi.fn(),
     findFirst: vi.fn(),
+    // login/verify-email/resend-verification resolve accounts through a
+    // case-insensitive findMany lookup (findUserByEmailInsensitive in
+    // backend/routes/auth.ts). Default it to the findUnique stub so the
+    // existing login setups keep working unchanged; a test needing an
+    // explicit findMany shape can still mockResolvedValue on it directly.
+    findMany: vi.fn(async () => {
+      const one = await user.findUnique();
+      return one ? [one] : [];
+    }),
     create: vi.fn(),
     update: vi.fn(),
   };
