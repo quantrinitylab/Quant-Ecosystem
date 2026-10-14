@@ -9,7 +9,7 @@ import foldersRoutes from './routes/folders';
 import contactsRoutes from './routes/contacts';
 import contactGroupsRoutes from './routes/contact-groups';
 import aiRoutes from './routes/ai';
-import aiServicesRoutes from './routes/ai-services';
+import aiServicesRoutes, { aiThreadSummaryRoutes } from './routes/ai-services';
 import mailFiltersRoutes from './routes/mail-filters';
 import vacationResponderRoutes from './routes/vacation-responder';
 import emailTemplatesRoutes from './routes/email-templates';
@@ -429,6 +429,9 @@ export async function buildApp(config?: AppConfig) {
   await app.register(aiChatRoutes, { prefix: '/ai' });
   await app.register(aiRoutes, { prefix: '/emails' });
   await app.register(aiServicesRoutes, { prefix: '/api/v1' });
+  // The staging ingress strips `/api`, so the browser's POST /api/ai/summarize-thread
+  // lands on /ai/summarize-thread — mounted at the root as well (see the plugin).
+  await app.register(aiThreadSummaryRoutes);
   await app.register(mailFiltersRoutes, { prefix: '/mail-filters' });
   await app.register(vacationResponderRoutes, { prefix: '/vacation-responder' });
   await app.register(emailTemplatesRoutes, { prefix: '/email-templates' });
