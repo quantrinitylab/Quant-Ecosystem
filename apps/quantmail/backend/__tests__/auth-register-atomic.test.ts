@@ -58,6 +58,19 @@ const fakes = vi.hoisted(() => {
   let seq = 0;
   const nextId = (prefix: string) => `${prefix}-${++seq}`;
 
+  // Mirrors Postgres `{ equals, mode: 'insensitive' }` string-filter semantics
+  // for the register pre-check (the handler normalizes once and pre-checks
+  // case-insensitively, so a legacy mixed-case row must still block).
+  const insensitiveEquals = (stored: unknown, filter: any): boolean => {
+    if (typeof filter === 'string') return stored === filter;
+    if (filter && typeof filter === 'object' && 'equals' in filter) {
+      const lhs = String(stored ?? '');
+      const rhs = String(filter.equals);
+      return filter.mode === 'insensitive' ? lhs.toLowerCase() === rhs.toLowerCase() : lhs === rhs;
+    }
+    return false;
+  };
+
   const userApi = (store: Map<string, any>) => ({
     findFirst: async ({ where }: any) => {
       for (const u of store.values()) {
@@ -65,8 +78,8 @@ const fakes = vi.hoisted(() => {
         if (
           or.some(
             (c: any) =>
-              (c.email !== undefined && c.email === u.email) ||
-              (c.username !== undefined && c.username === u.username),
+              (c.email !== undefined && insensitiveEquals(u.email, c.email)) ||
+              (c.username !== undefined && insensitiveEquals(u.username, c.username)),
           )
         ) {
           return { ...u };

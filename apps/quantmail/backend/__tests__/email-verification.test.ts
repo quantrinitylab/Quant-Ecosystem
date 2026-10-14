@@ -96,9 +96,41 @@ const mocks = vi.hoisted(() => {
     }),
   };
 
+  // Mirrors Postgres `{ equals, mode: 'insensitive' }` string-filter semantics
+  // for the identity lookups the verify/resend handlers now perform (the
+  // handler normalizes once and looks up case-insensitively, so a legacy
+  // mixed-case row must still match).
+  const matchEmail = (stored: unknown, filter: any): boolean => {
+    if (typeof filter === 'string') return stored === filter;
+    if (filter && typeof filter === 'object' && 'equals' in filter) {
+      const lhs = String(stored ?? '');
+      const rhs = String(filter.equals);
+      return filter.mode === 'insensitive' ? lhs.toLowerCase() === rhs.toLowerCase() : lhs === rhs;
+    }
+    return false;
+  };
+  const matchUser = (u: any, where: any): boolean => {
+    if (!where) return true;
+    if (where.email !== undefined && !matchEmail(u.email, where.email)) return false;
+    if (where.id !== undefined && u.id !== where.id) return false;
+    if (where.deletedAt !== undefined) {
+      const wantNull = where.deletedAt === null;
+      if (wantNull ? u.deletedAt != null : u.deletedAt == null) return false;
+    }
+    return true;
+  };
+
   const user = {
     findFirst: vi.fn(async () => null),
-    findUnique: vi.fn(async (args: any) => db.users[args?.where?.email ?? ''] ?? null),
+    findUnique: vi.fn(async (args: any) =>
+      Object.values(db.users).find((u: any) => matchUser(u, args?.where ?? {})) ?? null,
+    ),
+    findMany: vi.fn(async (args: any) => {
+      const matches = Object.values(db.users).filter((u: any) =>
+        matchUser(u, args?.where ?? {}),
+      );
+      return args?.take !== undefined ? matches.slice(0, args.take) : matches;
+    }),
     create: vi.fn(async (args: any) => {
       const u = { id: 'user-1', ...args.data };
       db.users[args.data.email] = u;
@@ -267,7 +299,10 @@ describe('POST /auth/register — address is not proven at signup', () => {
     const { sendVerificationEmail } = await import('../lib/email-verification');
     expect(sendVerificationEmail).toHaveBeenCalledTimes(1);
     const sent = (sendVerificationEmail as any).mock.calls[0][0];
-    expect(sent.to).toBe(USER.email);
+    // The canonical (normalized) address is mailed: the account is stored
+    // lowercase, so the verification mail must go to the stored form, not
+    // the raw body casing.
+    expect(sent.to).toBe(USER.email.toLowerCase());
     expect(/^\d{6}$/.test(sent.code)).toBe(true);
     // …and the stored row must be a digest, never the plaintext code.
     const stored = mocks.prisma.emailVerificationCode.create.mock.calls[0][0].data;
