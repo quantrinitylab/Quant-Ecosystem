@@ -691,9 +691,72 @@ export async function authRoutes(fastify: FastifyInstance) {
       }
 
       const passwordHash = await argon2.hash(newPassword);
-      await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
 
-      return reply.send({ success: true, data: { message: 'Password updated.' } });
+      // Security: a password change is the "I may be compromised" remediation
+      // path, and the industry-standard behavior (Google) is to sign the user
+      // out of every OTHER session. Identify this browser session from its
+      // refresh cookie so it survives; every other live family is revoked —
+      // browser sessions AND third-party OAuth grants, since a stolen OAuth
+      // grant must not survive a password change either. Before this fix the
+      // handler only rewrote the argon2 hash and left every other 30-day
+      // refresh-token family live, so an attacker who stole a session stayed
+      // signed in after the victim changed their password.
+      const presented = (request as { cookies?: Record<string, unknown> }).cookies?.[
+        REFRESH_COOKIE_NAME
+      ];
+      let currentFamily: string | null = null;
+      if (typeof presented === 'string' && presented) {
+        const digest = createHash('sha256').update(presented).digest('hex');
+        const current = await prisma.refreshToken.findFirst({
+          where: { token: digest, userId, isRevoked: false },
+          select: { family: true },
+        });
+        currentFamily = current?.family ?? null;
+      }
+
+      // Hash rewrite + session revocation commit atomically: a password change
+      // that leaves other sessions live is a lie, and a revocation that fails
+      // without rolling back is a half-applied security action. When the
+      // current session cannot be identified from the cookie, revoke EVERYTHING
+      // (fail safe, not fail closed): the caller proved knowledge of the
+      // current password, and the current access token keeps working for its
+      // ~15 minutes, so re-sign-in is one step away. This is deliberately
+      // different from /auth/sessions/revoke-others' 409 fail-closed — a
+      // password change is the remediation path, and failing it would leave the
+      // compromised account unprotected.
+      const { revokedSessions } = await prisma.$transaction(async (tx: any) => {
+        await tx.user.update({ where: { id: userId }, data: { passwordHash } });
+
+        const others = await tx.refreshToken.findMany({
+          where: {
+            userId,
+            isRevoked: false,
+            ...(currentFamily ? { family: { not: currentFamily } } : {}),
+          },
+          select: { family: true },
+        });
+        const families = [...new Set(others.map((row: { family: string }) => row.family))];
+        if (families.length > 0) {
+          await tx.refreshToken.updateMany({
+            where: { userId, family: { in: families } },
+            data: { isRevoked: true },
+          });
+        }
+        return { revokedSessions: families.length };
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          message: 'Password updated.',
+          revokedSessions,
+          ...(currentFamily
+            ? {}
+            : {
+                note: 'This session could not be identified from its sign-in cookie, so it was signed out too. Please sign in again with your new password.',
+              }),
+        },
+      });
     },
   );
 
