@@ -34,7 +34,10 @@ function createMockPrisma() {
 describe('MessageService', () => {
   let service: MessageService;
   let prisma: ReturnType<typeof createMockPrisma>;
-  let mockStorage: { getSignedUrl: ReturnType<typeof vi.fn> };
+  let mockStorage: {
+    getSignedUrl: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     prisma = createMockPrisma();
@@ -42,6 +45,10 @@ describe('MessageService', () => {
       getSignedUrl: vi.fn().mockImplementation(async (key: string, ttl: number) => {
         return `https://s3.example.com/${key}?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=${ttl}&X-Amz-Signature=mock-sig`;
       }),
+      // QC-F-329: consumeSnap's recipient path hard-deletes the storage
+      // object; the mock must provide the spy so that call is observable
+      // (previously it threw inside consumeSnap's swallow-errors catch).
+      delete: vi.fn().mockResolvedValue(undefined),
     };
     service = new MessageService(prisma as never, undefined, undefined, mockStorage as never);
   });
@@ -547,7 +554,7 @@ describe('MessageService', () => {
         conversationId: 'conv-1',
         senderId: 'sender-1',
         type: 'IMAGE',
-        mediaUrl: 'https://s3.example.com/snaps/photo-1.jpg',
+        mediaUrl: 'https://s3.example.com/sender-1/media_fixture/photo-1.jpg',
         metadata: { viewOnce: true, duration: 10 },
       });
       // Caller is not a member of the conversation
@@ -567,7 +574,7 @@ describe('MessageService', () => {
         conversationId: 'conv-1',
         senderId: 'sender-1',
         type: 'IMAGE',
-        mediaUrl: 'https://s3.example.com/snaps/photo-1.jpg',
+        mediaUrl: 'https://s3.example.com/sender-1/media_fixture/photo-1.jpg',
         metadata: { viewOnce: true, duration: 10 },
       });
       prisma.conversationMember.findFirst.mockResolvedValue({
@@ -586,7 +593,7 @@ describe('MessageService', () => {
 
       const result = await service.consumeSnap('snap-1', 'viewer-1');
 
-      expect(result.mediaUrl).toContain('snaps/photo-1.jpg');
+      expect(result.mediaUrl).toContain('sender-1/media_fixture/photo-1.jpg');
       expect(result.mediaUrl).toContain('X-Amz-Expires=60');
       expect(result.mediaUrl).toContain('X-Amz-Signature=');
       expect(result.duration).toBe(10);
@@ -604,7 +611,7 @@ describe('MessageService', () => {
         conversationId: 'conv-1',
         senderId: 'sender-1',
         type: 'IMAGE',
-        mediaUrl: 'https://s3.example.com/snaps/photo-1.jpg',
+        mediaUrl: 'https://s3.example.com/sender-1/media_fixture/photo-1.jpg',
         metadata: { viewOnce: true, duration: 10 },
       });
       prisma.conversationMember.findFirst.mockResolvedValue({
@@ -642,7 +649,7 @@ describe('MessageService', () => {
           conversationId: 'conv-race',
           senderId: 'author-1',
           type: 'IMAGE',
-          mediaUrl: 'https://s3.example.com/snaps/race.jpg',
+          mediaUrl: 'https://s3.example.com/author-1/media_fixture/race.jpg',
           metadata: { viewOnce: true, duration: 10 },
         });
         prisma.conversationMember.findFirst.mockResolvedValue({
@@ -689,7 +696,7 @@ describe('MessageService', () => {
         expect(rejected).toHaveLength(1);
 
         if (fulfilled[0]?.status === 'fulfilled') {
-          expect(fulfilled[0].value.mediaUrl).toContain('snaps/race.jpg');
+          expect(fulfilled[0].value.mediaUrl).toContain('author-1/media_fixture/race.jpg');
           expect(fulfilled[0].value.mediaUrl).toContain('X-Amz-Expires=60');
           expect(fulfilled[0].value.mediaUrl).toContain('X-Amz-Signature=');
           expect(fulfilled[0].value.duration).toBe(10);
@@ -710,7 +717,7 @@ describe('MessageService', () => {
         conversationId: 'conv-1',
         senderId: 'sender-author',
         type: 'IMAGE',
-        mediaUrl: 'https://s3.example.com/snaps/photo-1.jpg',
+        mediaUrl: 'https://s3.example.com/sender-author/media_fixture/photo-1.jpg',
         metadata: { viewOnce: true, duration: 10 },
       });
       prisma.conversationMember.findFirst.mockResolvedValue({
@@ -723,7 +730,7 @@ describe('MessageService', () => {
 
       // First review by author: receives authentic 60s presigned URL
       const res1 = await service.consumeSnap('snap-1', 'sender-author');
-      expect(res1.mediaUrl).toContain('snaps/photo-1.jpg');
+      expect(res1.mediaUrl).toContain('sender-author/media_fixture/photo-1.jpg');
       expect(res1.mediaUrl).toContain('X-Amz-Expires=60');
       expect(res1.mediaUrl).toContain('X-Amz-Signature=');
       expect(res1.duration).toBe(10);
@@ -732,7 +739,7 @@ describe('MessageService', () => {
 
       // Second review by author also succeeds with presigned URL
       const res2 = await service.consumeSnap('snap-1', 'sender-author');
-      expect(res2.mediaUrl).toContain('snaps/photo-1.jpg');
+      expect(res2.mediaUrl).toContain('sender-author/media_fixture/photo-1.jpg');
       expect(res2.mediaUrl).toContain('X-Amz-Expires=60');
       expect(res2.mediaUrl).toContain('X-Amz-Signature=');
       expect(res2.duration).toBe(10);
@@ -745,7 +752,7 @@ describe('MessageService', () => {
         conversationId: 'group-conv-1',
         senderId: 'sender-alice',
         type: 'IMAGE',
-        mediaUrl: 'https://s3.example.com/snaps/group-photo.jpg',
+        mediaUrl: 'https://s3.example.com/sender-alice/media_fixture/group-photo.jpg',
         metadata: { viewOnce: true, duration: 10 },
       });
       // Both Bob and Charlie are active members
@@ -780,7 +787,7 @@ describe('MessageService', () => {
 
       // Bob's first view consumes for Bob
       const bobResult = await service.consumeSnap('group-snap', 'bob');
-      expect(bobResult.mediaUrl).toContain('snaps/group-photo.jpg');
+      expect(bobResult.mediaUrl).toContain('sender-alice/media_fixture/group-photo.jpg');
       expect(bobResult.mediaUrl).toContain('X-Amz-Expires=60');
       expect(bobResult.mediaUrl).toContain('X-Amz-Signature=');
       expect(prisma.snapView.create).toHaveBeenCalledWith({
@@ -795,7 +802,7 @@ describe('MessageService', () => {
 
       // Charlie views for the first time: Charlie receives view successfully
       const charlieResult = await service.consumeSnap('group-snap', 'charlie');
-      expect(charlieResult.mediaUrl).toContain('snaps/group-photo.jpg');
+      expect(charlieResult.mediaUrl).toContain('sender-alice/media_fixture/group-photo.jpg');
       expect(charlieResult.mediaUrl).toContain('X-Amz-Expires=60');
       expect(charlieResult.mediaUrl).toContain('X-Amz-Signature=');
       expect(prisma.snapView.create).toHaveBeenCalledWith({
@@ -815,7 +822,7 @@ describe('MessageService', () => {
         conversationId: 'conv-1',
         senderId: 'sender-1',
         type: 'IMAGE',
-        mediaUrl: 'https://s3.example.com/snaps/secret.jpg',
+        mediaUrl: 'https://s3.example.com/sender-1/media_fixture/secret.jpg',
         metadata: { viewOnce: true, duration: 10 },
       });
       prisma.conversationMember.findFirst.mockResolvedValue({
