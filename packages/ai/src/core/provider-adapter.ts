@@ -322,10 +322,96 @@ export class OpenRouterAdapter implements ProviderAdapter {
   }
 }
 
+/**
+ * Meta — the ecosystem's declared primary provider (Muse Spark models,
+ * multimodal, voice, agentic). OpenAI-compatible API at api.meta.ai.
+ *
+ * Mirrors the working Meta path in AIEngine (core/engine.ts): the key is
+ * read as `META_API_KEY ?? META_AI_API_KEY` and requests go to
+ * `META_API_BASE_URL ?? 'https://api.meta.ai/v1'`. The `??` (not `||`)
+ * semantics are deliberate and match round-4's PROVIDER_CONFIGS entry: an
+ * empty-string META_API_KEY does NOT fall through to META_AI_API_KEY.
+ */
+export class MetaAdapter implements ProviderAdapter {
+  readonly id = 'meta';
+  readonly name = 'Meta';
+  private provider: ReturnType<typeof createOpenAI> | null = null;
+
+  constructor() {
+    const key = process.env['META_API_KEY'] ?? process.env['META_AI_API_KEY'];
+    if (key) {
+      this.provider = createOpenAI({
+        apiKey: key,
+        baseURL: process.env['META_API_BASE_URL'] ?? 'https://api.meta.ai/v1',
+      });
+    }
+  }
+
+  isAvailable(): boolean {
+    return this.provider !== null;
+  }
+
+  getModel(modelId: string): unknown {
+    if (!this.provider) throw new Error('Meta provider not configured');
+    return this.provider(modelId);
+  }
+
+  async generate(
+    model: AIModelConfig,
+    options: ProviderGenerateOptions,
+  ): Promise<ProviderGenerateResult> {
+    const providerModel = this.getModel(model.id);
+    const result = await generateText({
+      model: providerModel as any,
+      messages: options.messages,
+      temperature: options.temperature ?? 0.7,
+      maxOutputTokens: options.maxOutputTokens ?? model.maxOutputTokens,
+    });
+
+    const promptTokens = (result.usage as any)?.promptTokens ?? result.usage?.inputTokens ?? 0;
+    const completionTokens =
+      (result.usage as any)?.completionTokens ?? result.usage?.outputTokens ?? 0;
+
+    return {
+      text: result.text || '',
+      usage: {
+        promptTokens,
+        completionTokens,
+        totalTokens: promptTokens + completionTokens,
+        estimatedCost:
+          promptTokens * model.costPerInputToken + completionTokens * model.costPerOutputToken,
+      },
+      finishReason: 'stop',
+    };
+  }
+
+  async stream(
+    model: AIModelConfig,
+    options: ProviderGenerateOptions,
+  ): Promise<ProviderStreamResult> {
+    const providerModel = this.getModel(model.id);
+    const result = streamText({
+      model: providerModel as any,
+      messages: options.messages,
+      temperature: options.temperature ?? 0.7,
+      maxOutputTokens: options.maxOutputTokens ?? model.maxOutputTokens,
+    });
+    return { textStream: result.textStream };
+  }
+
+  countTokens(text: string, _model: AIModelConfig): number {
+    return estimateTokens(text);
+  }
+}
+
 export class ProviderAdapterRegistry {
   private adapters: Map<string, ProviderAdapter> = new Map();
 
   constructor() {
+    // Meta is registered first: it is the ecosystem's primary provider, and
+    // this ordering matches PROVIDER_CONFIGS (config/providers.ts) so
+    // availability checks and fallback chains prefer it.
+    this.register(new MetaAdapter());
     this.register(new OpenAIAdapter());
     this.register(new AnthropicAdapter());
     this.register(new GoogleAdapter());
