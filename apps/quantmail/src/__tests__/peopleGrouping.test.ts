@@ -354,6 +354,30 @@ describe('personSnippet', () => {
     expect(personSnippet(conv)).toHaveLength(80);
   });
 
+  it('falls back to the body when the row was stored without a snippet (own Sent copy)', () => {
+    const conv = convWith({ snippet: '', bodyText: 'Body\n\n  only   text' }, true);
+    expect(personSnippet(conv)).toBe('You: Body only text');
+  });
+
+  it('falls back to the HTML body with styles, tags and entities removed', () => {
+    const conv = convWith(
+      {
+        snippet: '',
+        bodyText: '',
+        bodyHtml: '<style>p{color:red}</style><p>Hello&nbsp;<b>there</b> &amp; welcome</p>',
+      },
+      false,
+    );
+    expect(personSnippet(conv)).toBe('Hello there & welcome');
+  });
+
+  it('uses the subject when the message has no text, and is never a bare "You:"', () => {
+    expect(
+      personSnippet(convWith({ snippet: '', bodyText: '', subject: 'Re: Lunch plan' }, true)),
+    ).toBe('You: Lunch plan');
+    expect(personSnippet(convWith({ snippet: '', bodyText: '', subject: '' }, true))).toBe('');
+  });
+
   it('repairs markup in the snippet instead of printing it', () => {
     const conv = convWith({ snippet: '**bold** and `code` here' }, false);
     expect(personSnippet(conv)).toBe('bold and code here');

@@ -135,3 +135,97 @@ describe('draftSaveStateLabel', () => {
     expect(draftSaveStateLabel('error')).toBe("Couldn't save");
   });
 });
+
+// Close-time save (compose Back / Close / edge swipe) and the discard guard.
+describe('DraftAutosaveController.flush / settle', () => {
+  function deferred() {
+    let resolve!: (v: boolean) => void;
+    const promise = new Promise<boolean>((r) => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  }
+
+  it('waits out an in-flight autosave instead of racing a second POST', async () => {
+    const gate = deferred();
+    let calls = 0;
+    let concurrent = 0;
+    let maxConcurrent = 0;
+    const { c } = makeController(async () => {
+      calls += 1;
+      concurrent += 1;
+      maxConcurrent = Math.max(maxConcurrent, concurrent);
+      const ok = calls === 1 ? await gate.promise : true;
+      concurrent -= 1;
+      return ok;
+    });
+    c.setPendingSnapshot('{"a":1}');
+    c.contentChanged('{"a":1}', true);
+    await vi.advanceTimersByTimeAsync(DRAFT_AUTOSAVE_DELAY_MS); // autosave now on the wire
+    expect(c.getSaveState()).toBe('saving');
+
+    const flushed = c.flush('{"a":2}'); // person edits again and hits Back
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toBe(1); // no second save while the first is in flight
+    gate.resolve(true);
+
+    await expect(flushed).resolves.toBe(true);
+    expect(calls).toBe(2);
+    expect(maxConcurrent).toBe(1);
+    c.dispose();
+  });
+
+  it('resolves true without saving again when the server already has this content', async () => {
+    const { c, save } = makeController();
+    c.setPendingSnapshot('{"a":1}');
+    c.contentChanged('{"a":1}', true);
+    await vi.advanceTimersByTimeAsync(DRAFT_AUTOSAVE_DELAY_MS);
+    expect(save).toHaveBeenCalledTimes(1);
+
+    await expect(c.flush('{"a":1}')).resolves.toBe(true);
+    expect(save).toHaveBeenCalledTimes(1);
+    c.dispose();
+  });
+
+  it('cancels the pending countdown and saves right away', async () => {
+    const { c, save } = makeController();
+    c.setPendingSnapshot('{"a":1}');
+    c.contentChanged('{"a":1}', true);
+
+    await expect(c.flush('{"a":1}')).resolves.toBe(true);
+    expect(save).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(DRAFT_AUTOSAVE_DELAY_MS + 1000);
+    expect(save).toHaveBeenCalledTimes(1); // the old timer did not fire a duplicate
+    c.dispose();
+  });
+
+  it('reports failure honestly so the caller never toasts a false "Draft saved"', async () => {
+    const { c } = makeController(async () => false);
+    await expect(c.flush('{"a":1}')).resolves.toBe(false);
+    expect(c.getSaveState()).toBe('error');
+    expect(c.hasEverSaved()).toBe(false);
+    c.dispose();
+  });
+
+  it('settle waits for the in-flight save without starting one', async () => {
+    const gate = deferred();
+    const { c, save } = makeController(() => gate.promise);
+    c.setPendingSnapshot('{"a":1}');
+    c.contentChanged('{"a":1}', true);
+    await vi.advanceTimersByTimeAsync(DRAFT_AUTOSAVE_DELAY_MS);
+
+    let settled = false;
+    const settling = c.settle().then(() => {
+      settled = true;
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(settled).toBe(false);
+    gate.resolve(true);
+    await settling;
+
+    expect(settled).toBe(true);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(c.hasEverSaved()).toBe(true);
+    c.dispose();
+  });
+});

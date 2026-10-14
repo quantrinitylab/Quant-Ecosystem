@@ -4,7 +4,9 @@
  * PeopleList — the conversation list for the unified People view.
  *
  * One row per person (`PersonConversation` from `lib/peopleGrouping`):
- * IdentityAvatar seeded by the person's email, name, a one-line snippet via
+ * IdentityAvatar seeded by the person's name (email when there is none) — the
+ * same seed PersonThread's header uses, so a person keeps one avatar colour
+ * from the list into the conversation — then the name, a one-line snippet via
  * `personSnippet()`, relative time, and an unread pill that shows the REAL
  * unread count — rendered only when it is above zero, never faked.
  *
@@ -184,7 +186,7 @@ export function PeopleList({
                   aria-label={unread ? `${c.name}, ${c.unreadCount} unread` : c.name}
                   className="people-row flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.04] active:bg-white/[0.07]"
                 >
-                  <IdentityAvatar name={c.email} size="md" className="people-row-avatar" />
+                  <IdentityAvatar name={c.name || c.email} size="md" className="people-row-avatar" />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2">
                       <span

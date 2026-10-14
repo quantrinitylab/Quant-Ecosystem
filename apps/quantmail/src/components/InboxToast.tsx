@@ -19,7 +19,7 @@ import {
  * from `./InboxToast`, and the toast API is genuinely part of what this module
  * offers. Callers should not need to know where the plumbing sits.
  */
-export { hasPendingUndo, runPendingUndo, showToast } from '../lib/toast-bus';
+export { dismissToast, hasPendingUndo, runPendingUndo, showToast } from '../lib/toast-bus';
 export type { ToastMessage } from '../lib/toast-bus';
 
 /**

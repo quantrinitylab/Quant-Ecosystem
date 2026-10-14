@@ -7,9 +7,14 @@ import type { PrismaClient } from '@prisma/client';
  * Supported operators (whitespace-separated; values may be "quoted"):
  *   from:alice            subject:invoice      to:bob@x.com
  *   label:work            in:inbox|sent|...    folder:<folderId>
- *   has:attachment        is:unread|read|starred|important|spam
+ *   in:anywhere           has:attachment        is:unread|read|starred|important|spam
  *   before:YYYY-MM-DD     after:YYYY-MM-DD     newer_than:7d  older_than:2w
  *   "exact phrase"        free text terms
+ *
+ * `in:anywhere` is a scope modifier (Gmail parity): it searches ALL mail
+ * including Spam and Trash. It adds no folder predicate and drops the default
+ * trash/spam exclusions — the userId scope and the soft-delete exclusion
+ * (deletedAt IS NULL) are always preserved.
  *
  * Anything not recognised as an operator becomes a free-text term, matched
  * (case-insensitive) against subject, snippet, and plain body.
@@ -24,6 +29,12 @@ export interface ParsedSearchQuery {
   inFolderTypes: string[];
   /** Folder by explicit id. */
   folderIds: string[];
+  /**
+   * `in:anywhere` scope modifier (Gmail parity): search all mail including
+   * Spam and Trash. Adds no folder predicate; drops the default trash/spam
+   * exclusions while keeping userId + deletedAt:null.
+   */
+  inAnywhere?: boolean;
   hasAttachment?: boolean;
   isUnread?: boolean;
   isStarred?: boolean;
@@ -174,7 +185,13 @@ export class SearchQueryService {
         case 'in':
         case 'folder': {
           const v = value.toLowerCase();
-          if (op === 'in' && KNOWN_FOLDER_TYPES.has(v)) {
+          if (op === 'in' && v === 'anywhere') {
+            // Gmail's `in:anywhere` is a scope modifier, not a folder:
+            // search everything including Spam and Trash. No folder
+            // predicate is added; buildEmailWhere() drops the default
+            // trash/spam exclusions when this flag is set.
+            parsed.inAnywhere = true;
+          } else if (op === 'in' && KNOWN_FOLDER_TYPES.has(v)) {
             parsed.inFolderTypes.push(v);
           } else {
             parsed.folderIds.push(value);
@@ -226,15 +243,24 @@ export class SearchQueryService {
 
   /**
    * Build a Prisma `where` filter for the Email model from a query string,
-   * always scoped to `userId` and excluding soft-deleted rows. Multiple
-   * operators of the same kind combine with AND.
-   * Build a Prisma `where` filter for the Email model from a query string,
-   * always scoped to `userId` and excluding soft-deleted rows. Multiple
-   * operators of the same kind combine with AND.
+   * always scoped to `userId` and excluding soft-deleted rows. Trash and spam
+   * are excluded by default (Gmail parity) — an operator search is a way of
+   * finding mail you filed, not of exhuming mail you threw away — with
+   * explicit `in:trash`, `in:spam`, `is:spam`, or the `in:anywhere` scope
+   * modifier as the escape hatch.
+   * Multiple operators of the same kind combine with AND.
    */
   buildEmailWhere(userId: string, query: string, now: Date = new Date()): Record<string, unknown> {
     const parsed = this.parse(query, now);
     const and: Record<string, unknown>[] = [];
+
+    // Explicit folder operators override the default trash/spam exclusion:
+    // `in:trash` wants trash, `in:spam`/`is:spam` wants spam, and
+    // `in:anywhere` wants everything (inbox + spam + trash). ANDing the
+    // default exclusion with the explicit request would match nothing.
+    const wantTrash = parsed.inFolderTypes.includes('trash') || parsed.inAnywhere === true;
+    const wantSpam =
+      parsed.inFolderTypes.includes('spam') || parsed.isSpam === true || parsed.inAnywhere === true;
 
     for (const from of parsed.from) {
       and.push({ fromAddress: { contains: from, mode: 'insensitive' } });
@@ -287,6 +313,12 @@ export class SearchQueryService {
     }
 
     const where: Record<string, unknown> = { userId, deletedAt: null };
+    if (!wantTrash) {
+      where.isTrash = false;
+    }
+    if (!wantSpam) {
+      where.isSpam = false;
+    }
     if (and.length > 0) {
       where.AND = and;
     }
@@ -332,6 +364,15 @@ export class SearchQueryService {
     if (parsed.terms.length > 0 && typeof (this.prisma as any).$queryRawUnsafe === 'function') {
       try {
         const fullTerms = parsed.terms.join(' ');
+        // Same trash/spam rule as buildEmailWhere(): excluded by default,
+        // with explicit `in:trash` / `in:spam` / `is:spam` / `in:anywhere`
+        // as the escape hatch (an in:trash isTrash clause would contradict
+        // the default exclusion; in:anywhere drops both exclusions).
+        const wantTrash = parsed.inFolderTypes.includes('trash') || parsed.inAnywhere === true;
+        const wantSpam =
+          parsed.inFolderTypes.includes('spam') ||
+          parsed.isSpam === true ||
+          parsed.inAnywhere === true;
         const whereClauses: string[] = [
           `"userId" = $1`,
           `"deletedAt" IS NULL`,
@@ -339,6 +380,14 @@ export class SearchQueryService {
         ];
         const params: any[] = [userId, fullTerms];
         let paramIdx = 3;
+        if (!wantTrash) {
+          whereClauses.push(`"isTrash" = $${paramIdx++}`);
+          params.push(false);
+        }
+        if (!wantSpam) {
+          whereClauses.push(`"isSpam" = $${paramIdx++}`);
+          params.push(false);
+        }
 
         for (const from of parsed.from) {
           whereClauses.push(`"fromAddress" ILIKE $${paramIdx++}`);

@@ -128,12 +128,24 @@ export function parseStoredBookingLinks(raw: string | null | undefined): Booking
 }
 
 /**
- * Best-effort server sync for a newly created booking link.
- * Returns true only when the backend accepted the link (HTTP 2xx).
- * The caller must surface a false result honestly instead of silently
- * pretending the save succeeded.
+ * Honest result of a booking-link server sync.
+ * - ok: the backend accepted the link (HTTP 2xx).
+ * - slugTaken: the backend rejected it with 409 BOOKING_LINK_SLUG_TAKEN —
+ *   the slug belongs to another host's link, so it can NEVER sync and the
+ *   caller must not keep a local copy (fix/qm-booking-slug-409).
  */
-export async function persistBookingLinkToServer(link: BookingLinkItem): Promise<boolean> {
+export interface BookingLinkSyncResult {
+  ok: boolean;
+  slugTaken: boolean;
+}
+
+/**
+ * Best-effort server sync for a newly created booking link.
+ * Returns whether the backend accepted the link plus whether it rejected the
+ * slug as taken. The caller must surface a false result honestly instead of
+ * silently pretending the save succeeded.
+ */
+export async function persistBookingLinkToServer(link: BookingLinkItem): Promise<BookingLinkSyncResult> {
   try {
     const res = await apiFetchRaw('/api/booking/links', {
       method: 'POST',
@@ -151,10 +163,42 @@ export async function persistBookingLinkToServer(link: BookingLinkItem): Promise
         timezone: link.timezone,
       }),
     });
-    return res.ok;
+    if (res.ok) return { ok: true, slugTaken: false };
+    // fix/qm-booking-slug-409: detect the duplicate-slug rejection. The
+    // backend answers 409 BOOKING_LINK_SLUG_TAKEN (body code preferred;
+    // plain 409 status as fallback for proxies that strip bodies).
+    let slugTaken = res.status === 409;
+    try {
+      const body = (await res.json()) as { error?: { code?: string } };
+      slugTaken = body?.error?.code === 'BOOKING_LINK_SLUG_TAKEN' || (res.status === 409 && !body?.error);
+    } catch {
+      // Non-JSON error body — keep the status-based verdict.
+    }
+    return { ok: false, slugTaken };
   } catch {
-    return false;
+    return { ok: false, slugTaken: false };
   }
+}
+
+/**
+ * Honest toast copy for the booking-link save outcome. Kept as a pure
+ * function so the exact user-facing words are unit-testable:
+ * - slugTaken: the slug belongs to someone else's link and can never sync —
+ *   the host must pick another (no local copy is kept).
+ * - ok: the server accepted the link.
+ * - otherwise: the link lives on this device only (may sync later) — say so.
+ */
+export function bookingLinkSaveToast(sync: BookingLinkSyncResult): { text: string; type: 'success' | 'error' } {
+  if (sync.slugTaken) {
+    return { text: 'This URL slug is already taken — pick another', type: 'error' };
+  }
+  if (sync.ok) {
+    return { text: 'Booking link created successfully!', type: 'success' };
+  }
+  return {
+    text: 'Booking link saved on this device only — server sync failed. The link is not yet shareable from other devices.',
+    type: 'error',
+  };
 }
 
 /**
@@ -433,15 +477,27 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    // Sync the link to the backend. The save is local-first: the link always
-    // lands in local state, but we are honest about whether the server
-    // actually accepted it — a failed sync surfaces an error toast instead
+    // Sync the link to the backend. The save is local-first (except for a
+    // duplicate-slug rejection, which can never sync): the link lands in
+    // local state, but we are honest about whether the server actually
+    // accepted it — a failed sync surfaces an error toast instead
     // of a fake success. On success we re-read the list so the canonical
     // server record (server-assigned id) is what renders — that is what
     // DELETE needs later.
-    const serverSynced = await persistBookingLinkToServer(newLink);
+    // fix/qm-booking-slug-409: a 409 BOOKING_LINK_SLUG_TAKEN means the slug
+    // belongs to another host's link — it can NEVER sync, so no local copy
+    // is kept (a pendingSync copy would be permanently unsyncable dead
+    // weight). The form stays open with the values intact so the host can
+    // pick another slug.
+    const sync = await persistBookingLinkToServer(newLink);
 
-    if (serverSynced) {
+    if (sync.slugTaken) {
+      setIsSubmitting(false);
+      showToast(bookingLinkSaveToast(sync));
+      return;
+    }
+
+    if (sync.ok) {
       const refreshed = await fetchBookingLinksFromServer();
       if (refreshed !== null) {
         setLinks((prev) => mergeServerAndLocalLinks(refreshed, [newLink]));
@@ -451,14 +507,11 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
         setLinks((prev) => [{ ...newLink, pendingSync: true }, ...prev]);
       }
       setIsSubmitting(false);
-      showToast({ text: 'Booking link created successfully!', type: 'success' });
+      showToast(bookingLinkSaveToast(sync));
     } else {
       setIsSubmitting(false);
       setLinks((prev) => [{ ...newLink, pendingSync: true }, ...prev]);
-      showToast({
-        text: 'Booking link saved on this device only — server sync failed. The link is not yet shareable from other devices.',
-        type: 'error',
-      });
+      showToast(bookingLinkSaveToast(sync));
     }
 
     // Reset form

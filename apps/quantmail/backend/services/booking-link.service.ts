@@ -57,6 +57,17 @@ export interface SlotLock {
   bookerEmail: string;
   expiresAt: Date;
 }
+
+/**
+ * Prisma unique-constraint violation (P2002), duck-typed on `code` so the
+ * check works without importing the generated client — same style as
+ * routes/auth.ts and services/collab-persistence.ts. BookingLink.slug is
+ * globally @unique (not per-user); two hosts racing on the same slug is a
+ * P2002, never a 500.
+ */
+function isUniqueConstraintViolation(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === 'P2002';
+}
 export interface BookingConfirmationResult {
   event: unknown;
   icsContent: string;
@@ -383,22 +394,40 @@ export class BookingLinkService {
 
   async createBookingLink(input: CreateBookingLinkInput): Promise<BookingLink> {
     const now = new Date();
-    const link = await this.prisma.bookingLink.create({
-      data: {
-        userId: input.userId,
-        slug: input.slug,
-        title: input.title,
-        description: input.description ?? '',
-        duration: input.duration,
-        availableDays: JSON.stringify(input.availableDays ?? [1, 2, 3, 4, 5]),
-        startHour: input.startHour ?? 9,
-        endHour: input.endHour ?? 17,
-        timezone: hostAnchorTimeZone({ timezone: input.timezone }),
-        isActive: true,
-        createdAt: now,
-        updatedAt: now,
-      },
-    });
+    let link;
+    try {
+      link = await this.prisma.bookingLink.create({
+        data: {
+          userId: input.userId,
+          slug: input.slug,
+          title: input.title,
+          description: input.description ?? '',
+          duration: input.duration,
+          availableDays: JSON.stringify(input.availableDays ?? [1, 2, 3, 4, 5]),
+          startHour: input.startHour ?? 9,
+          endHour: input.endHour ?? 17,
+          timezone: hostAnchorTimeZone({ timezone: input.timezone }),
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+    } catch (err) {
+      // BookingLink.slug is globally @unique (not per-user): a host creating
+      // a link whose slug another host already took hits P2002 (a pre-check
+      // would be TOCTOU). Map it to an honest 409 BOOKING_LINK_SLUG_TAKEN so
+      // the client can tell the host to pick another slug — before this fix
+      // the unmapped P2002 escaped as a raw 500 and the modal kept a
+      // permanently unsyncable local copy (fix/qm-booking-slug-409).
+      if (isUniqueConstraintViolation(err)) {
+        throw createAppError(
+          'This URL slug is already taken — pick another',
+          409,
+          'BOOKING_LINK_SLUG_TAKEN',
+        );
+      }
+      throw err;
+    }
     return this.toBookingLink(link);
   }
 

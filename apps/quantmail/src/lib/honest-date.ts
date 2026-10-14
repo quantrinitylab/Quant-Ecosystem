@@ -48,3 +48,25 @@ export function formatDetailDate(message: DatedMessage, fallback = 'Unknown date
   const date = resolveMessageDate(message);
   return date ? date.toLocaleString() : fallback;
 }
+
+/**
+ * Compact list-row date, the way the inbox writes it: a time for today
+ * ("1:53 PM"), "Oct 13" earlier this year, "Oct 13, 2025" before that.
+ * Returns '' for a missing or unparseable value, never "Invalid Date".
+ *
+ * Trash rows printed a bare `toLocaleDateString()` ("10/13/2026"). On a
+ * phone that number sat in the action cluster and squeezed the subject into
+ * a column that wrapped over three lines.
+ */
+export function formatListDate(value: DateLike, now: Date = new Date()): string {
+  const date = toValidDate(value);
+  if (!date) return '';
+  if (date.toDateString() === now.toDateString()) {
+    return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  }
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+  });
+}

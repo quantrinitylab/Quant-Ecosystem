@@ -26,6 +26,7 @@ import {
   slugify,
   parseStoredBookingLinks,
   persistBookingLinkToServer,
+  bookingLinkSaveToast,
   type BookingLinkItem,
 } from '../app/calendar/components/BookingLinksModal';
 import { CalendarHeader } from '../app/calendar/components/CalendarHeader';
@@ -703,9 +704,12 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
       vi.mocked(apiFetchRaw).mockReset();
     });
 
-    it('returns true when the backend accepts the link (HTTP 2xx)', async () => {
-      vi.mocked(apiFetchRaw).mockResolvedValue({ ok: true } as Response);
-      await expect(persistBookingLinkToServer(link)).resolves.toBe(true);
+    it('returns ok when the backend accepts the link (HTTP 2xx)', async () => {
+      vi.mocked(apiFetchRaw).mockResolvedValue({ ok: true, status: 201 } as Response);
+      await expect(persistBookingLinkToServer(link)).resolves.toEqual({
+        ok: true,
+        slugTaken: false,
+      });
       expect(apiFetchRaw).toHaveBeenCalledWith(
         '/api/booking/links',
         expect.objectContaining({ method: 'POST' }),
@@ -715,21 +719,99 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
     // fix/qm-booking-tz-availability-2: the host's IANA timezone must ride
     // along in the create payload so availability is anchored honestly.
     it('sends the link timezone in the create payload', async () => {
-      vi.mocked(apiFetchRaw).mockResolvedValue({ ok: true } as Response);
+      vi.mocked(apiFetchRaw).mockResolvedValue({ ok: true, status: 201 } as Response);
       await persistBookingLinkToServer(link);
       const [, init] = vi.mocked(apiFetchRaw).mock.calls[0] as [string, RequestInit];
       const body = JSON.parse(init.body as string);
       expect(body.timezone).toBe('America/New_York');
     });
 
-    it('returns false on non-2xx responses instead of silently pretending success', async () => {
+    it('returns not-ok on non-2xx responses instead of silently pretending success', async () => {
       vi.mocked(apiFetchRaw).mockResolvedValue({ ok: false, status: 404 } as Response);
-      await expect(persistBookingLinkToServer(link)).resolves.toBe(false);
+      await expect(persistBookingLinkToServer(link)).resolves.toEqual({
+        ok: false,
+        slugTaken: false,
+      });
     });
 
-    it('returns false on network failure instead of throwing', async () => {
+    it('returns not-ok on network failure instead of throwing', async () => {
       vi.mocked(apiFetchRaw).mockRejectedValue(new Error('network down'));
-      await expect(persistBookingLinkToServer(link)).resolves.toBe(false);
+      await expect(persistBookingLinkToServer(link)).resolves.toEqual({
+        ok: false,
+        slugTaken: false,
+      });
+    });
+
+    // fix/qm-booking-slug-409: the backend rejects a slug another host owns
+    // with 409 BOOKING_LINK_SLUG_TAKEN — the client must detect it so it can
+    // tell the host to pick another slug instead of keeping a permanently
+    // unsyncable local copy.
+    it('flags slugTaken on 409 BOOKING_LINK_SLUG_TAKEN', async () => {
+      vi.mocked(apiFetchRaw).mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({
+          success: false,
+          error: {
+            code: 'BOOKING_LINK_SLUG_TAKEN',
+            message: 'This URL slug is already taken — pick another',
+            statusCode: 409,
+          },
+        }),
+      } as Response);
+      await expect(persistBookingLinkToServer(link)).resolves.toEqual({
+        ok: false,
+        slugTaken: true,
+      });
+    });
+
+    it('flags slugTaken on a bare 409 when the error body is unavailable', async () => {
+      vi.mocked(apiFetchRaw).mockResolvedValue({ ok: false, status: 409 } as Response);
+      await expect(persistBookingLinkToServer(link)).resolves.toEqual({
+        ok: false,
+        slugTaken: true,
+      });
+    });
+
+    it('does not flag slugTaken on a 409 carrying a different error code', async () => {
+      vi.mocked(apiFetchRaw).mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({
+          success: false,
+          error: { code: 'SOME_OTHER_CONFLICT', message: 'conflict', statusCode: 409 },
+        }),
+      } as Response);
+      await expect(persistBookingLinkToServer(link)).resolves.toEqual({
+        ok: false,
+        slugTaken: false,
+      });
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 3d. Honest modal copy: bookingLinkSaveToast (fix/qm-booking-slug-409)
+  // --------------------------------------------------------------------------
+  describe('bookingLinkSaveToast (honest save-outcome copy)', () => {
+    it('tells the host the slug is taken and to pick another', () => {
+      expect(bookingLinkSaveToast({ ok: false, slugTaken: true })).toEqual({
+        text: 'This URL slug is already taken — pick another',
+        type: 'error',
+      });
+    });
+
+    it('announces success only when the server accepted the link', () => {
+      expect(bookingLinkSaveToast({ ok: true, slugTaken: false })).toEqual({
+        text: 'Booking link created successfully!',
+        type: 'success',
+      });
+    });
+
+    it('is honest about the local-only state instead of faking success', () => {
+      const toast = bookingLinkSaveToast({ ok: false, slugTaken: false });
+      expect(toast.type).toBe('error');
+      expect(toast.text).toContain('saved on this device only');
+      expect(toast.text).not.toContain('created successfully');
     });
   });
 

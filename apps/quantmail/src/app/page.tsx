@@ -52,6 +52,7 @@ import {
   filterThreadsByQuery,
   findConversation,
   groupEmailsIntoThreads,
+  isDraftOnlyConversation,
   isFromMe,
   sanitizeSnippetText,
   threadAddresses,
@@ -232,7 +233,9 @@ function formatReceivedAt(value?: string | Date) {
   const date = new Date(value);
   const today = new Date();
   if (date.toDateString() === today.toDateString()) {
-    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    // `numeric`, not `2-digit`: "1:53 PM", the way Gmail and the clock write it.
+    // `2-digit` padded rows to "01:53 PM".
+    return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   }
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
@@ -369,6 +372,12 @@ type EmailRowProps = {
    */
   canToggleRead?: boolean;
   onSnooze: (emailId: string, snoozeUntil: Date) => void;
+  /**
+   * Avatar identity for a conversation with nobody else in it (a note to
+   * self). Without it the row fell back to the literal label "me", so every
+   * self-thread wore an "M" instead of the account's own initial.
+   */
+  selfName?: string;
 };
 
 function EmailRow({
@@ -391,6 +400,7 @@ function EmailRow({
   onMarkUnread,
   canToggleRead = true,
   onSnooze,
+  selfName = 'me',
 }: EmailRowProps) {
   const [isHovered, setIsHovered] = useState(false);
   /*
@@ -597,7 +607,7 @@ function EmailRow({
         // an inline `transition`, so it cannot clobber the row's own background
         // and border transitions. It is absent exactly while a finger is down,
         // which is what keeps travel 1:1 under the thumb.
-        className={`mail-row touch-pan-y ${swipe.phase === 'tracking' && !reducedMotion ? '' : 'is-swipe-settling'} ${thread.isRead ? '' : 'is-unread'} ${isActive ? 'is-active' : ''} ${isFocused ? 'is-focused' : ''}`}
+        className={`mail-row touch-pan-y ${swipe.phase === 'tracking' && !reducedMotion ? '' : 'is-swipe-settling'} ${thread.isRead ? '' : 'is-unread'} ${isActive ? 'is-active' : ''} ${isFocused ? 'is-focused' : ''} ${isHovered || showSnoozeMenu || isRowFocused ? 'has-hover-actions' : ''}`}
         style={
           swipe.offset === 0 ? undefined : { transform: `translate3d(${swipe.offset}px, 0, 0)` }
         }
@@ -642,7 +652,7 @@ function EmailRow({
                 .join('') || 'GP'}
             </span>
           ) : (
-            <IdentityAvatar name={thread.participants[0] || 'me'} size="sm" className="mail-row-avatar" />
+            <IdentityAvatar name={thread.participants[0] || selfName} size="sm" className="mail-row-avatar" />
           )}
         </span>
         <div className="mail-row-copy">
@@ -668,6 +678,9 @@ function EmailRow({
                   Spam
                 </span>
               )}
+              {/* Unsent writing reads as a draft everywhere it surfaces (search,
+                  All mail) — the same badge the Drafts tab uses. */}
+              {email?.isDraft && <span className="draft-badge shrink-0">Draft</span>}
             </div>
             {/*
               Green unread pill with the thread's REAL unread count (wired from
@@ -1049,7 +1062,8 @@ const MemoizedEmailRow = memo(
     prev.savedGroups === next.savedGroups &&
     prev.canToggleRead === next.canToggleRead &&
     prev.onRescueSpam === next.onRescueSpam &&
-    prev.isArchiveView === next.isArchiveView,
+    prev.isArchiveView === next.isArchiveView &&
+    prev.selfName === next.selfName,
 );
 
 
@@ -1913,6 +1927,10 @@ function InboxPageContent() {
 
   const { user: currentUser } = useAuth();
   const currentEmail = currentUser?.email || '';
+  // Same precedence as the sidebar AccountBadge, so "you" looks the same
+  // everywhere your own avatar appears.
+  const selfAvatarName =
+    currentUser?.displayName || currentUser?.username || currentEmail.split('@')[0] || 'me';
 
   /**
    * The ids the server matched.
@@ -3081,6 +3099,13 @@ function InboxPageContent() {
         setSelectedThread(null);
         return;
       }
+      // A draft-only row is unsent writing, not a conversation: resume it in
+      // the composer (as the Drafts tab does) instead of opening a thread view
+      // with nothing in it but the draft.
+      if (resolvedEmail && isDraftOnlyConversation(resolvedEmail, thread?.messages)) {
+        router.push(`/compose?draftId=${encodeURIComponent(resolvedEmail.id)}`);
+        return;
+      }
       setSelectedEmail(resolvedEmail);
       setSelectedThread(thread);
       // The whole conversation, not the message that was tapped. `isRead` on a row
@@ -3526,7 +3551,8 @@ function InboxPageContent() {
                     <line x1="12" y1="5" x2="12" y2="19" />
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
-                  <span>+ Folder</span>
+                  {/* The plus icon above is the "+"; the label is just the noun. */}
+                  <span>Folder</span>
                 </button>
                 {/* Trailing spacer: padding-right collapses inside overflow-x-auto,
                     so the last lens chip would otherwise sit flush-cut at the edge. */}
@@ -4025,6 +4051,7 @@ function InboxPageContent() {
                           <div key={thread.id} role="listitem">
                             <MemoizedEmailRow
                               thread={thread}
+                              selfName={selfAvatarName}
                               isChecked={selectedIds.has(thread.id)}
                               isActive={
                                 selectedEmail?.id === thread.id || selectedThread?.id === thread.id
@@ -4302,6 +4329,7 @@ function InboxPageContent() {
                       >
                         <MemoizedEmailRow
                           thread={thread}
+                          selfName={selfAvatarName}
                           isChecked={selectedIds.has(thread.id)}
                           isActive={
                             selectedEmail?.id === thread.id || selectedThread?.id === thread.id

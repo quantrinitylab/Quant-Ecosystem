@@ -15,6 +15,7 @@ import {
 } from '../services/outbound-delivery.service';
 import { validateComposeEmail, sanitizeHtml } from '../middleware/validate-email';
 import { formatEmailRecord } from '../lib/format-email';
+import { buildSnippet } from '../lib/snippet';
 import { threadRealtimeHub } from '../services/thread-realtime';
 import { MboxParserService } from '../services/mbox-parser.service';
 import { ImapImporterService } from '../services/imap-importer.service';
@@ -522,6 +523,13 @@ export default async function emailsRoutes(
     const raw = (request.body ?? {}) as Record<string, unknown>;
     const provided = (key: string) => Object.prototype.hasOwnProperty.call(raw, key);
 
+    // The stored preview follows the body: recompute it whenever either body
+    // is part of this edit, from the values the row will hold afterwards.
+    const htmlProvided = provided('bodyHtml');
+    const plainProvided = provided('bodyText') || provided('bodyPlain');
+    const nextHtml = htmlProvided ? (d.bodyHtml ? sanitizeHtml(d.bodyHtml) : '') : existing.bodyHtml;
+    const nextPlain = plainProvided ? (d.bodyPlain ?? '') : existing.bodyPlain;
+
     // QM-BACK-002: guard + correlation for draft edits (autosave races).
     const draftOpts = mutationOpts(request, reply);
     // K1: draft update + outbox row in ONE transaction (doc 05).
@@ -537,8 +545,9 @@ export default async function emailsRoutes(
           subject: d.subject,
           ...(provided('cc') || provided('ccAddresses') ? { ccAddresses: d.ccAddresses } : {}),
           ...(provided('bcc') || provided('bccAddresses') ? { bccAddresses: d.bccAddresses } : {}),
-          ...(provided('bodyHtml') ? { bodyHtml: d.bodyHtml ? sanitizeHtml(d.bodyHtml) : '' } : {}),
-          ...(provided('bodyText') || provided('bodyPlain') ? { bodyPlain: d.bodyPlain ?? '' } : {}),
+          ...(htmlProvided ? { bodyHtml: nextHtml } : {}),
+          ...(plainProvided ? { bodyPlain: nextPlain } : {}),
+          ...(htmlProvided || plainProvided ? { snippet: buildSnippet(nextPlain, nextHtml) } : {}),
           ...(provided('inReplyTo') ? { inReplyTo: d.inReplyTo ?? null } : {}),
           ...(provided('threadId') ? { threadId: d.threadId ?? null } : {}),
           ...(d.priority ? { priority: toPriority(d.priority) } : {}),
@@ -1507,6 +1516,27 @@ export default async function emailsRoutes(
             { threadId: null },
             { thread: { is: { snoozedUntil: null } } },
             { thread: { is: { snoozedUntil: { lte: new Date() } } } },
+          ],
+        },
+        /*
+         * A scheduled send is not part of the conversation until it fires.
+         *
+         * The `isSent` arm above admitted it the moment it was scheduled, and the
+         * send service stamps the future fire time into `sentAt`/`receivedAt`, so a
+         * message set for tomorrow 8 AM sat at the TOP of the inbox and of People
+         * ("You: …", "now") as if it had already gone out. It belongs to the
+         * Scheduled mailbox only (`isSent, deliveryStatus = 'queued', sentAt > now`)
+         * and joins the timeline at its fire time. Written as the complement of that
+         * filter, arm by arm, so no NULL can drop a row: `deliveryStatus` is a
+         * non-null enum and `sentAt` gets an explicit null arm. An undo-window send
+         * is not affected — its `sentAt` is the moment Send was pressed.
+         */
+        {
+          OR: [
+            { isSent: false },
+            { deliveryStatus: { not: 'queued' } },
+            { sentAt: null },
+            { sentAt: { lte: new Date() } },
           ],
         },
       ];
