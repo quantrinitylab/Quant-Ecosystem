@@ -21,6 +21,14 @@ import {
   type StoredLifeTracker,
 } from '../lib/calendar-trackers-storage';
 import {
+  reminderKey,
+  loadReminders,
+  applyCreateReminder,
+  applyToggleReminder,
+  applySnoozeReminder,
+  applyDeleteReminder,
+} from '../lib/calendar-reminders-storage';
+import {
   CalendarWeekView,
   type WeekViewSheetOpts,
 } from '../app/calendar/components/CalendarWeekView';
@@ -1685,6 +1693,8 @@ export interface CalendarScheduleSubViewProps {
   className?: string;
   /** Test seam — which sub-tab renders first. Defaults to 'clock'. */
   initialSubTab?: 'clock' | 'reminders';
+  /** Scopes reminder persistence per account (localStorage). Defaults to 'anon'. */
+  userId?: string;
 }
 
 export function CalendarScheduleSubView({
@@ -1694,6 +1704,7 @@ export function CalendarScheduleSubView({
   onSelectEvent,
   className = '',
   initialSubTab = 'clock',
+  userId = '',
 }: CalendarScheduleSubViewProps) {
   // Segmented sub-tabs: 'clock' vs 'reminders'
   const [subTab, setSubTab] = useState<'clock' | 'reminders'>(initialSubTab);
@@ -1725,9 +1736,14 @@ export function CalendarScheduleSubView({
   // Reminders State — starts EMPTY on purpose. There is no reminders backend
   // yet, so we never seed demo/fabricated items as if they were the user's
   // own data (fake-reminders purge, fix/qm-schedule-fake-reminders).
-  // The add/toggle/snooze/delete handlers below mutate session-local state
-  // only; the "not synced yet" disclosure is rendered under the add form.
-  const [reminders, setReminders] = useState<ScheduledReminder[]>([]);
+  // The list is PERSISTED in localStorage (per-user key), same pattern as the
+  // water/log trackers (PR #1065) — the "Reminder created" toast may only
+  // fire after the write lands; the "sync not wired up" disclosure is
+  // rendered under the add form.
+  const remindersKey = reminderKey(userId);
+  const [reminders, setReminders] = useState<ScheduledReminder[]>(() =>
+    loadReminders(safeStorage(), remindersKey),
+  );
 
   const [reminderFilter, setReminderFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [newTitle, setNewTitle] = useState('');
@@ -1735,53 +1751,52 @@ export function CalendarScheduleSubView({
   const [newPriority, setNewPriority] = useState<'urgent' | 'medium' | 'low'>('medium');
 
   const toggleReminder = (id: string) => {
-    setReminders((prev) =>
-      prev.map((r) => {
-        if (r.id === id) {
-          const next = !r.completed;
-          showToast({
-            text: next ? `Completed: "${r.title}"` : `Marked pending: "${r.title}"`,
-            type: 'info',
-          });
-          return { ...r, completed: next };
-        }
-        return r;
-      }),
-    );
+    // Write to storage FIRST; the info toast may only fire when the write
+    // actually landed. (Also: never toast inside the setState updater —
+    // React may invoke updaters twice, which double-fires the toast.)
+    // The persist/toast decision lives in applyToggleReminder so the
+    // honesty contract is unit-testable without a DOM.
+    const result = applyToggleReminder(safeStorage(), remindersKey, reminders, id);
+    if (result.persisted) {
+      setReminders(result.next);
+    }
+    if (result.toast) showToast(result.toast);
   };
 
   const handleSnooze = (id: string, mins: number) => {
-    setReminders((prev) =>
-      prev.map((r) => {
-        if (r.id === id) {
-          showToast({ text: `Snoozed for ${mins} minutes`, type: 'info' });
-          return { ...r, dueTime: `Snoozed +${mins}m` };
-        }
-        return r;
-      }),
-    );
+    const result = applySnoozeReminder(safeStorage(), remindersKey, reminders, id, mins);
+    if (result.persisted) {
+      setReminders(result.next);
+    }
+    if (result.toast) showToast(result.toast);
   };
 
   const handleAddReminder = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
-    const item: ScheduledReminder = {
-      id: `rem-${Date.now()}`,
+    // Persist before celebrating: only claim "created" when the list is
+    // stored. On storage failure show an honest error, never a fake success.
+    const result = applyCreateReminder(safeStorage(), remindersKey, reminders, {
       title: newTitle.trim(),
       dueTime: newDueTime || 'Today, 6:00 PM',
       priority: newPriority,
-      completed: false,
-    };
-
-    setReminders((prev) => [item, ...prev]);
+    });
+    if (!result.persisted) {
+      if (result.toast) showToast(result.toast);
+      return;
+    }
+    setReminders(result.next);
     setNewTitle('');
-    showToast({ text: `Reminder created: "${item.title}"`, type: 'success' });
+    if (result.toast) showToast(result.toast);
   };
 
   const handleDeleteReminder = (id: string) => {
-    setReminders((prev) => prev.filter((r) => r.id !== id));
-    showToast({ text: 'Reminder removed', type: 'info' });
+    const result = applyDeleteReminder(safeStorage(), remindersKey, reminders, id);
+    if (result.persisted) {
+      setReminders(result.next);
+    }
+    if (result.toast) showToast(result.toast);
   };
 
   const filteredReminders = reminders.filter((r) => {
@@ -2006,7 +2021,7 @@ export function CalendarScheduleSubView({
             </form>
 
             <p className="text-[10px] text-[var(--quant-muted-foreground)]/60">
-              Reminder sync is not wired up yet — reminders stay on this device for this session only.
+              Reminder sync is not wired up yet — reminders are saved on this device only.
             </p>
           </div>
 

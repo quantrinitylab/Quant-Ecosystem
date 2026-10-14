@@ -1429,6 +1429,7 @@ function CalendarPageContent() {
             selectedDate={selectedDate}
             openDedicatedSheet={openDedicatedSheet}
             onSelectEvent={setSelectedEvent}
+            userId={user?.id ?? ''}
           />
         )}
 
