@@ -181,6 +181,14 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
     const userId = reqUserId(request);
     const task = await loadTaskOwnedBy(request.params.id, userId);
 
+    // Hijack AFTER the auth/ownership checks above: from here on the raw
+    // response is ours and Fastify must skip its post-handler send path
+    // (repo SSE convention — see sse-transport.ts / ai-streaming.ts).
+    // Without hijack this endpoint only worked by accident: Fastify's
+    // wrap-thenable skips send when the handler resolves undefined with
+    // headers already sent.
+    reply.hijack();
+
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
