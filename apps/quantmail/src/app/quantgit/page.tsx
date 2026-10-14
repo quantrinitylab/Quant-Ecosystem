@@ -60,6 +60,7 @@ import { BranchesTab } from './components/BranchesTab';
 import { IssuesTab } from './components/IssuesTab';
 import { PullRequestsTab } from './components/PullRequestsTab';
 import { interpretMergeResult, mergeFailureToast } from './mergeOutcome';
+import { resolveBlobLoadOutcome } from './blobLoadOutcome';
 import { AgentsTab } from './components/AgentsTab';
 import { DiscussionsTab } from './components/DiscussionsTab';
 import { ActionsTab } from './components/ActionsTab';
@@ -621,65 +622,48 @@ function QuantGitContent() {  const router = useRouter();
         );
         const payload = await response.json().catch(() => null);
 
-        if (!response.ok || !payload?.success) {
-          if (response.status === 404) {
-            const fileName = file.path.split('/').pop() || file.name || 'file.txt';
-            let template = '';
-            if (fileName.toLowerCase() === 'package.json') {
-              template = JSON.stringify(
-                {
-                  name: repo.name,
-                  version: '1.0.0',
-                  private: true,
-                  dependencies: {},
-                },
-                null,
-                2,
-              );
-            } else if (fileName.toLowerCase().endsWith('.md')) {
-              template = `# ${fileName}\n\nSovereign workspace documentation.`;
-            } else if (
-              fileName.toLowerCase().endsWith('.ts') ||
-              fileName.toLowerCase().endsWith('.tsx')
-            ) {
-              template = `export function sovereignModule() {\n  return 'Quant Sovereign';\n}\n`;
-            } else if (fileName.toLowerCase().endsWith('.json')) {
-              template = `{\n  "name": "${repo.name}"\n}\n`;
-            } else {
-              template = file.content || '';
-            }
-            setViewingFile({
-              ...file,
-              content: template,
-            });
-            setViewingBlobSha('');
-            return;
-          }
-          throw new Error(
-            payload?.error?.message || payload?.message || 'Failed to load file content.',
-          );
+        const outcome = resolveBlobLoadOutcome({
+          ok: response.ok,
+          status: response.status,
+          payload,
+        });
+
+        if (outcome.kind === 'not-found') {
+          // Honest 404: the file does not exist at this ref. Never invent
+          // template content — report the miss and keep the editor closed.
+          const fileName = file.path.split('/').pop() || file.name || 'file.txt';
+          showToast(`File not found: ${fileName}`);
+          closeBlobEditor();
+          return;
+        }
+        if (outcome.kind === 'error') {
+          throw new Error(outcome.message);
         }
 
         setViewingFile({
           ...file,
-          content: payload.data.content ?? '',
+          content: outcome.content,
         });
-        setViewingBlobSha(payload.data.sha ?? payload.data.blobSha ?? '');
+        setViewingBlobSha(outcome.sha);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to load file.';
         showToast(message);
 
-        setViewingFile(
-          file.content !== undefined
-            ? file
-            : {
-                ...file,
-                content: '',
-              },
-        );
+        // Honest failure: keep the blob editor closed. Opening it with an
+        // invented empty string would present fake bytes as the file's real
+        // content — and a commit from that state could clobber the actual file.
+        closeBlobEditor();
       }
     },
-    [apiFetch, browsingCommitSha, currentBranch, repositoryOwner, selectedRepo],
+    [
+      apiFetch,
+      browsingCommitSha,
+      closeBlobEditor,
+      currentBranch,
+      repositoryOwner,
+      selectedRepo,
+      showToast,
+    ],
   );
 
   useEffect(() => {
