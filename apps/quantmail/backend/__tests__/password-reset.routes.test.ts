@@ -16,21 +16,30 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({
-  prisma: {
+const mocks = vi.hoisted(() => {
+  // $transaction runs the callback against this same mock: the suite is about
+  // the handler's logic, not the database, so the transactional and
+  // top-level paths share one mock. (The honest concurrency emulation lives
+  // in auth-password-reset-race.test.ts.)
+  const prisma: any = {
     user: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     passwordResetToken: {
       create: vi.fn(),
       deleteMany: vi.fn(),
+      findMany: vi.fn(),
       findUnique: vi.fn(),
       updateMany: vi.fn(),
     },
     refreshToken: { updateMany: vi.fn() },
-  },
-  sendViaSes: vi.fn(),
-  isSesConfigured: vi.fn(() => true),
-  argon2Hash: vi.fn(async (password: string) => `hashed_${password}`),
-}));
+    $transaction: vi.fn((cb: (tx: any) => Promise<unknown>) => cb(prisma)),
+  };
+  return {
+    prisma,
+    sendViaSes: vi.fn(),
+    isSesConfigured: vi.fn(() => true),
+    argon2Hash: vi.fn(async (password: string) => `hashed_${password}`),
+  };
+});
 
 vi.mock('@quant/auth/lib/prisma', () => ({ default: mocks.prisma, prisma: mocks.prisma }));
 
@@ -130,6 +139,7 @@ beforeEach(() => {
   mocks.prisma.user.findUnique.mockResolvedValue(USER);
   mocks.prisma.passwordResetToken.create.mockResolvedValue({ id: 'prt-1' });
   mocks.prisma.passwordResetToken.deleteMany.mockResolvedValue({ count: 0 });
+  mocks.prisma.passwordResetToken.findMany.mockResolvedValue([]);
   mocks.prisma.passwordResetToken.updateMany.mockResolvedValue({ count: 1 });
   mocks.prisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
 });
@@ -219,19 +229,69 @@ describe('POST /auth/password-reset — requesting a link', () => {
     expect(JSON.stringify(reply.body)).not.toContain(written.tokenHash);
   });
 
-  /** Otherwise repeated requests leave a pile of simultaneously-valid links, and
-   *  the oldest mail in a compromised mailbox stays usable. */
-  it('invalidates any outstanding link before issuing the new one', async () => {
+  /**
+   * One live link per account, issued atomically: the snapshot of live links,
+   * their compare-and-set burn, and the create run inside one transaction,
+   * so two concurrent requests cannot interleave (A burns, A creates L1, B
+   * burns L1, B creates L2) and mail a link that is already dead.
+   */
+  it('burns the snapshot of outstanding links and reissues inside one transaction', async () => {
     mocks.prisma.user.findFirst.mockResolvedValue(USER);
+    mocks.prisma.passwordResetToken.findMany.mockResolvedValue([{ id: 'prt-old' }]);
+    mocks.prisma.passwordResetToken.deleteMany.mockResolvedValue({ count: 1 });
 
     await request({ email: USER.email });
 
-    expect(mocks.prisma.passwordResetToken.deleteMany).toHaveBeenCalledWith({
+    expect(mocks.prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(mocks.prisma.passwordResetToken.findMany).toHaveBeenCalledWith({
       where: { userId: USER.id, usedAt: null },
+      select: { id: true },
     });
-    expect(mocks.prisma.passwordResetToken.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mocks.prisma.passwordResetToken.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['prt-old'] }, usedAt: null },
+    });
+    const order = [
+      mocks.prisma.passwordResetToken.findMany.mock.invocationCallOrder[0]!,
+      mocks.prisma.passwordResetToken.deleteMany.mock.invocationCallOrder[0]!,
       mocks.prisma.passwordResetToken.create.mock.invocationCallOrder[0]!,
-    );
+    ];
+    expect(order[0]).toBeLessThan(order[1]);
+    expect(order[1]).toBeLessThan(order[2]);
+    expect(mocks.sendViaSes).toHaveBeenCalledTimes(1);
+  });
+
+  it('issues cleanly when no link is outstanding (empty snapshot)', async () => {
+    mocks.prisma.user.findFirst.mockResolvedValue(USER);
+
+    const reply = await request({ email: USER.email });
+
+    expect(reply.statusCode).toBe(200);
+    expect(mocks.prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(mocks.prisma.passwordResetToken.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: [] }, usedAt: null },
+    });
+    expect(mocks.prisma.passwordResetToken.create).toHaveBeenCalledTimes(1);
+    expect(mocks.sendViaSes).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * A concurrent request burned this request's snapshot first: the
+   * compare-and-set comes up short, so this request loses. The loser answers
+   * the same non-committal 200 — a distinct status would be an enumeration
+   * oracle, since only an existing address can lose — and mails nothing, so
+   * no dead link is ever delivered. The winner's email carries the live link.
+   */
+  it('answers the race loser with the same non-committal 200 and mails nothing', async () => {
+    mocks.prisma.user.findFirst.mockResolvedValue(USER);
+    mocks.prisma.passwordResetToken.findMany.mockResolvedValue([{ id: 'prt-old' }]);
+    mocks.prisma.passwordResetToken.deleteMany.mockResolvedValue({ count: 0 });
+
+    const reply = await request({ email: USER.email });
+
+    expect(reply.statusCode).toBe(200);
+    expect(reply.body).toEqual({ success: true, data: { message: SENT_MESSAGE } });
+    expect(mocks.prisma.passwordResetToken.create).not.toHaveBeenCalled();
+    expect(mocks.sendViaSes).not.toHaveBeenCalled();
   });
 
   it('mails the stored spelling of the address, with the link and the name', async () => {

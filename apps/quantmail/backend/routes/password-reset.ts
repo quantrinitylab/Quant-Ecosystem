@@ -9,8 +9,10 @@
  * waits for a message that was never going to arrive.
  *
  * What is here instead: a 256-bit link stored only as a digest, single-use under
- * concurrency, hour-bounded, mailed through SES, and a confirm that revokes
- * every live session on success.
+ * concurrency (issuance is linearized — burn+create in one transaction, so a
+ * concurrent request cannot kill another's just-mailed link), hour-bounded,
+ * mailed through SES, and a confirm that revokes every live session on
+ * success.
  *
  * Two properties are deliberate and easy to break later:
  *   1. The request endpoint answers identically whether or not the address
@@ -43,6 +45,16 @@ const NON_COMMITTAL = {
   },
 };
 
+// Sentinel thrown inside the password-reset request transaction when a
+// concurrent request burned one of this request's snapshot rows between the
+// snapshot read and the burn — caught below, never escapes as a 500. The
+// loser answers the same non-committal 200 WITHOUT any email going out, so
+// no inbox ever receives a link that is already dead, and the loser path
+// reveals nothing about whether the address exists (only an existing
+// address can lose a race, so a distinct status here would be an
+// enumeration oracle).
+const RESET_REQUEST_SUPERSEDED = Symbol('reset-request-superseded');
+
 export async function passwordResetRoutes(fastify: FastifyInstance) {
   // ─── Request a link ───────────────────────────────────────────────────────
   // Rate-limited harder than login: each accepted call sends mail to an address
@@ -73,20 +85,55 @@ export async function passwordResetRoutes(fastify: FastifyInstance) {
       });
 
       if (user) {
-        // One live link per account. Without this, repeated requests leave a
-        // pile of simultaneously-valid links and the oldest mail in a
+        // One live link per account: without the burn, repeated requests
+        // leave a pile of simultaneously-valid links and the oldest mail in a
         // compromised mailbox stays usable.
-        await prisma.passwordResetToken.deleteMany({ where: { userId: user.id, usedAt: null } });
-
+        //
+        // The burn and the create must be atomic. As sequential awaits they
+        // interleave (A burns, A creates L1, B burns L1, B creates L2) and the
+        // link in A's just-sent email is already dead — the user clicks a
+        // seconds-old link and gets RESET_LINK_EXPIRED.
+        //
+        // Linearization, same style as the resend-verification fix (PR
+        // #1045): inside one transaction, snapshot the links live when THIS
+        // request began, delete exactly that snapshot with a compare-and-set
+        // ({ id: { in: ids }, usedAt: null }), and require the deleted count
+        // to match the snapshot size. A sibling request still in flight has
+        // its create uncommitted, hence invisible to the snapshot — a request
+        // can never delete a link whose email is still being sent. A loser
+        // fails BEFORE any email goes out: one winner, one live link, one
+        // email — a just-mailed link never arrives dead.
         const token = generateResetToken();
-        await prisma.passwordResetToken.create({
-          data: {
-            userId: user.id,
-            tokenHash: hashResetToken(token),
-            expiresAt: resetTokenExpiry(),
-            requestedIp: typeof request.ip === 'string' ? request.ip : null,
-          },
-        });
+        try {
+          await prisma.$transaction(async (tx: any) => {
+            const live = await tx.passwordResetToken.findMany({
+              where: { userId: user.id, usedAt: null },
+              select: { id: true },
+            });
+            const burned = await tx.passwordResetToken.deleteMany({
+              where: { id: { in: live.map((row: any) => row.id) }, usedAt: null },
+            });
+            if (burned.count !== live.length) {
+              throw RESET_REQUEST_SUPERSEDED;
+            }
+            await tx.passwordResetToken.create({
+              data: {
+                userId: user.id,
+                tokenHash: hashResetToken(token),
+                expiresAt: resetTokenExpiry(),
+                requestedIp: typeof request.ip === 'string' ? request.ip : null,
+              },
+            });
+          });
+        } catch (err) {
+          if (err === RESET_REQUEST_SUPERSEDED) {
+            // A sibling request won the race; its email carries the live
+            // link. Answering "sent" is honest — the account's mailbox did
+            // get a working link from this burst of requests.
+            return reply.send(NON_COMMITTAL);
+          }
+          throw err;
+        }
 
         // Not awaited: an SES round trip would make a real address answer
         // measurably slower than an unknown one, which is the enumeration
