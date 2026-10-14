@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { NextRequest } from 'next/server';
-import { errorHandlerPlugin } from '@quant/server-core';
+import { errorHandlerPlugin, idempotencyPlugin } from '@quant/server-core';
 import { EmailService } from '../services/email.service';
 import {
   DeliveryWorker,
@@ -52,6 +52,9 @@ import * as routeHandlers from '../../src/app/api/[...path]/route';
 function createMockPrisma() {
   const storedEmails = new Map<string, any>();
   const storedThreads = new Map<string, any>();
+  // fix/qm-idempotency-mail-routes-r4: transactional idempotency claims live
+  // in the idempotencyOperation table — in-memory for this harness.
+  const storedIdempotencyOps = new Map<string, any>();
   const storedDraft = {
     id: 'draft-1',
     userId: 'user-1',
@@ -226,6 +229,28 @@ function createMockPrisma() {
         ...data,
       })),
     },
+    // fix/qm-idempotency-mail-routes-r4: the transactional idempotency helper
+    // claims/replays through db.idempotencyOperation.
+    idempotencyOperation: {
+      findUnique: vi
+        .fn()
+        .mockImplementation(async ({ where }: any) => storedIdempotencyOps.get(where.operationId) ?? null),
+      create: vi.fn().mockImplementation(async ({ data }: any) => {
+        const row = { ...data, responseStatus: null, responseHeaders: null, responseBody: null };
+        storedIdempotencyOps.set(data.operationId, row);
+        return row;
+      }),
+      update: vi.fn().mockImplementation(async ({ where, data }: any) => {
+        const next = { ...(storedIdempotencyOps.get(where.operationId) ?? {}), ...data };
+        storedIdempotencyOps.set(where.operationId, next);
+        return next;
+      }),
+      delete: vi.fn().mockImplementation(async ({ where }: any) => {
+        const existing = storedIdempotencyOps.get(where.operationId) ?? null;
+        storedIdempotencyOps.delete(where.operationId);
+        return existing;
+      }),
+    },
     $transaction: null as unknown as ReturnType<typeof vi.fn>,
   };
   mock.$transaction = vi
@@ -237,6 +262,10 @@ function createMockPrisma() {
 async function buildTestFastifyApp(prisma: any, authenticatedUserId: string | null = 'user-1') {
   const app = Fastify();
   await app.register(errorHandlerPlugin);
+  // fix/qm-idempotency-mail-routes-r4: PUT /:id, archive and restore are
+  // transactional-idempotency routes — the preHandler must attach the context
+  // handleIdempotentTransaction() consumes, otherwise the handler throws 500.
+  await app.register(idempotencyPlugin);
   app.decorate('prisma', prisma);
   app.decorate('suppressionService', {
     filterAllowedRecipients: async (recipients: string[]) => ({
@@ -249,6 +278,17 @@ async function buildTestFastifyApp(prisma: any, authenticatedUserId: string | nu
   });
   await app.register(emailsRoutes, { prefix: '/emails' });
   await app.register(threadsRoutes, { prefix: '/threads' });
+  // WR-MAIL-104: required-key routes 4xx without a key — the harness supplies
+  // one per mutating request, the way a real client must.
+  const rawInject = app.inject.bind(app);
+  (app as any).inject = (opts: any) => {
+    const o = typeof opts === 'string' ? { url: opts } : { ...opts };
+    const method = String(o.method ?? 'GET').toUpperCase();
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && !(o.headers ?? {})['idempotency-key']) {
+      o.headers = { ...(o.headers ?? {}), 'idempotency-key': `t1-${Math.random().toString(36).slice(2, 10)}` };
+    }
+    return rawInject(o);
+  };
   return app;
 }
 
