@@ -34,7 +34,7 @@ export interface QuantGitModalsProps {
   setViewingFile: (file: FileNode | null) => void;
   viewingFile: FileNode | null;
   selectedRepo: Repo | null;
-  viewingBlobSha: string | null;
+  viewingHeadSha: string | null;
   closeBlobEditor: () => void;
   handleCommitBlob: (input: CommitBlobInput) => Promise<void>;
   selectedOfficeAgent: DeployedAgent | null;
@@ -233,7 +233,7 @@ export function QuantGitModals({
   setViewingFile,
   viewingFile,
   selectedRepo,
-  viewingBlobSha,
+  viewingHeadSha,
   closeBlobEditor,
   handleCommitBlob,
   selectedOfficeAgent,
@@ -484,7 +484,7 @@ export function QuantGitModals({
           branch={currentBranch}
           availableBranches={repoBranches}
           initialContent={viewingFile.content ?? ''}
-          expectedBlobSha={viewingBlobSha ?? ''}
+          expectedHeadSha={viewingHeadSha ?? ''}
           onClose={closeBlobEditor}
           onCommit={handleCommitBlob}
         />

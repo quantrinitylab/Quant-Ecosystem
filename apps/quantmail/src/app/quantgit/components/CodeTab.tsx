@@ -12,7 +12,13 @@ export type CommitBlobInput = {
   branch: string;
   content: string;
   message: string;
-  expectedBlobSha: string;
+  /**
+   * Optimistic-concurrency token: the commit SHA the file content was read
+   * at (branch HEAD at load time). Sent as `parentSha`; the backend rejects
+   * with 409 STALE_PARENT_SHA when the branch head moved since. NOT the
+   * blob (file-content) hash — sending that always 409s.
+   */
+  expectedHeadSha: string;
   originalPath?: string;
   isDelete?: boolean;
   newBranch?: string;
@@ -585,6 +591,14 @@ export interface CodeTabProps {
   browsingCommitSha?: string | null;
   onExitBrowseCommit?: () => void;
   showToast: (msg: string) => void;
+  /**
+   * Head commit SHA of `currentBranch` captured when the file tree was
+   * listed. Threaded into commit/delete/upload inputs as `expectedHeadSha`
+   * (the backend's `parentSha` optimistic-concurrency token). Null/undefined
+   * means unknown — the backend then rejects with an honest 409 on
+   * non-empty branches instead of silently misusing the blob hash.
+   */
+  branchHeadSha?: string | null;
   onCommitBlob?: (input: CommitBlobInput) => Promise<void>;
   onDeleteBlob?: (path: string, message: string, branch: string) => Promise<void>;
   onStartPullRequest?: (params: {
@@ -677,6 +691,7 @@ export function CodeTab({
   browsingCommitSha = null,
   onExitBrowseCommit,
   showToast,
+  branchHeadSha = null,
   onCommitBlob,
   onDeleteBlob,
   onStartPullRequest,
@@ -875,7 +890,7 @@ export function CodeTab({
           branch: currentBranch,
           content: '',
           message: finalMsg,
-          expectedBlobSha: (editingFile as any).sha || (editingFile as any).blobSha || '',
+          expectedHeadSha: branchHeadSha ?? '',
           isDelete: true,
         });
       } else {
@@ -1811,8 +1826,7 @@ pnpm install && pnpm dev
                       newBranch: chosenNewBranch,
                       content: editingFile.content || '',
                       message: finalMsg,
-                      expectedBlobSha:
-                        (editingFile as any).sha || (editingFile as any).blobSha || '',
+                      expectedHeadSha: branchHeadSha ?? '',
                       originalPath: isRenamed ? originalPath : undefined,
                     });
 
@@ -2253,7 +2267,7 @@ pnpm install && pnpm dev
                               branch: currentBranch,
                               content: textContent,
                               message: `Upload ${uploadedFile.name}`,
-                              expectedBlobSha: '',
+                              expectedHeadSha: branchHeadSha ?? '',
                             });
                             resolve(true);
                           } catch (err) {

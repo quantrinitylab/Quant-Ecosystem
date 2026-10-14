@@ -27,7 +27,18 @@ export interface GitBlob {
   path: string;
   content: string;
   size: number;
+  /**
+   * Echo of the raw ref the blob was read at (e.g. "main"). Kept for
+   * display compatibility; NOT a commit id.
+   */
   sha: string;
+  /**
+   * The commit SHA the requested ref resolved to at read time
+   * (`git rev-parse <ref>^{commit}`). This is the optimistic-concurrency
+   * token the blob editor must send back as `parentSha` when committing.
+   * Empty when the ref does not resolve (e.g. an unborn branch).
+   */
+  headSha: string;
 }
 
 export interface GitCommit {
@@ -93,6 +104,27 @@ export class GitInspectService {
     }
 
     const repoPath = this.repoStorage.getRepoPath(owner, name);
+
+    /*
+     * Resolve the requested ref to its commit SHA up front. The blob editor
+     * needs the branch HEAD sha as the optimistic-concurrency token
+     * (parentSha) for commits; `sha` below echoes the raw ref for display
+     * compatibility, so `headSha` is the authoritative commit id. Resolving
+     * before the read also lets the 404 path report the head, so creating a
+     * NEW file on a non-empty branch can still send a valid parentSha.
+     */
+    let headSha = '';
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        ['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`],
+        { cwd: repoPath, maxBuffer: MAX_GIT_OUTPUT_BUFFER, env: GIT_CHILD_ENV },
+      );
+      headSha = stdout.trim();
+    } catch {
+      headSha = '';
+    }
+
     try {
       const { stdout } = await execFileAsync(
         'git',
@@ -104,9 +136,10 @@ export class GitInspectService {
         content: stdout,
         size: Buffer.byteLength(stdout),
         sha: ref,
+        headSha,
       };
     } catch {
-      throw createAppError('File not found in ref', 404, 'FILE_NOT_FOUND');
+      throw createAppError('File not found in ref', 404, 'FILE_NOT_FOUND', { headSha });
     }
   }
 

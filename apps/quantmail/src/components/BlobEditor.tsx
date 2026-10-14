@@ -9,7 +9,13 @@ export type CommitBlobInput = {
   branch: string;
   content: string;
   message: string;
-  expectedBlobSha: string;
+  /**
+   * Optimistic-concurrency token: the commit SHA the file content was read
+   * at (branch HEAD at load time). Sent as `parentSha`; the backend rejects
+   * the commit with 409 STALE_PARENT_SHA when the branch head moved since.
+   * NOT the blob (file-content) hash — sending that always 409s.
+   */
+  expectedHeadSha: string;
   originalPath?: string;
   isDelete?: boolean;
   newBranch?: string;
@@ -20,7 +26,7 @@ export type BlobEditorProps = {
   branch: string;
   availableBranches?: string[];
   initialContent: string;
-  expectedBlobSha: string;
+  expectedHeadSha: string;
   language?: string;
   readOnly?: boolean;
   onClose: () => void;
@@ -97,7 +103,7 @@ export function BlobEditor({
   branch,
   availableBranches = [],
   initialContent,
-  expectedBlobSha,
+  expectedHeadSha,
   language,
   readOnly = false,
   onClose,
@@ -182,7 +188,7 @@ export function BlobEditor({
         branch: targetBranch.trim(),
         content,
         message: commitMessage.trim(),
-        expectedBlobSha,
+        expectedHeadSha,
       });
     } catch (commitError) {
       setError(
@@ -222,7 +228,12 @@ export function BlobEditor({
               <span aria-hidden="true">·</span>
               <span>{lines.length} lines</span>
               <span aria-hidden="true">·</span>
-              <span className="font-mono">{expectedBlobSha.slice(0, 12)}</span>
+              <span
+                className="font-mono"
+                title={`Base commit ${expectedHeadSha || 'unknown'} — the commit is rejected if the branch moved past it`}
+              >
+                {expectedHeadSha.slice(0, 12) || 'no base commit'}
+              </span>
 
               {dirty && (
                 <>

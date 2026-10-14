@@ -539,7 +539,30 @@ describe('GitInspectService', () => {
       content: 'hello world\nsecond line\n',
       size: Buffer.byteLength('hello world\nsecond line\n'),
       sha: 'refs/heads/main',
+      headSha: headCommit,
     });
+  });
+
+  it('resolves a branch name to its commit SHA as headSha', async () => {
+    const blob = await inspectService.getBlob(owner, 'inspect-repo', 'main', 'README.md');
+
+    expect(blob.headSha).toBe(headCommit);
+    expect(blob.headSha).toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  it('resolves a raw commit SHA ref to itself as headSha', async () => {
+    const blob = await inspectService.getBlob(owner, 'inspect-repo', headCommit, 'README.md');
+
+    expect(blob.headSha).toBe(headCommit);
+  });
+
+  it('carries headSha in FILE_NOT_FOUND details so new-file commits can send a valid parentSha', async () => {
+    const error = await inspectService
+      .getBlob(owner, 'inspect-repo', 'main', 'does/not-exist.txt')
+      .catch((err) => err);
+
+    expect(error?.code).toBe('FILE_NOT_FOUND');
+    expect(error?.details).toEqual({ headSha: headCommit });
   });
 
   it('returns patch and stat output for a real two-commit diff', async () => {
