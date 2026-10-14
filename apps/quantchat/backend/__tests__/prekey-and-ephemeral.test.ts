@@ -118,7 +118,7 @@ describe('QuantChat Prekey Registry & Ephemeral Snap Hard Purge (W36-02 & W36-05
         conversationId: 'c-1',
         senderId: 'user-bob',
         type: 'IMAGE',
-        mediaUrl: 's3://quantchat-attachments/snaps/photo123.jpg',
+        mediaUrl: 's3://quantchat-attachments/user-bob/media_fixture/photo123.jpg',
         metadata: { viewOnce: true, duration: 10 },
       };
 
@@ -140,7 +140,7 @@ describe('QuantChat Prekey Registry & Ephemeral Snap Hard Purge (W36-02 & W36-05
       });
 
       // Verify S3 delete was called with correct storage key
-      expect(mockStorage.delete).toHaveBeenCalledWith('snaps/photo123.jpg');
+      expect(mockStorage.delete).toHaveBeenCalledWith('user-bob/media_fixture/photo123.jpg');
 
       // Verify message was updated with consumedAt, consumedBy, and mediaUrl cleared
       expect(mockPrisma.message.update).toHaveBeenCalledWith({

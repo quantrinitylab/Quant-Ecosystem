@@ -33,6 +33,23 @@ export function extractStorageKey(mediaUrl: string): string {
 }
 
 /**
+ * QC-F-329: a snap's persisted mediaUrl is sender-controlled, so the storage
+ * key derived from it is too. The only ownership fact the system actually
+ * issues is the upload key shape (MediaService.generateUploadUrl:
+ * `${userId}/${mediaId}/${filename}`); there is no durable media registry
+ * to look up (MediaService keeps an in-memory map, and the Prisma `Media`
+ * table has no writers). Ownership is therefore structural: the derived
+ * key's first segment must be the message sender's own id. The URL host is
+ * deliberately NOT checked — presign/delete always act on the server's own
+ * bucket via StorageClient; only the key chooses the object.
+ */
+export function snapMediaKeyOwnedBy(mediaUrl: string, ownerId: string): boolean {
+  const key = extractStorageKey(mediaUrl);
+  if (!key) return false;
+  return key.split('/')[0] === ownerId;
+}
+
+/**
  * QC-F-274: message `metadata` keys that only the server may write.
  *
  * The send schema accepts `metadata` as an open record, and before this fix
@@ -304,6 +321,25 @@ export class MessageService {
 
     if (!membership) {
       throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
+    }
+
+    // QC-F-329: bind a snap's storage mediaUrl to its sender BEFORE
+    // anything is persisted. Without this, a member could store a snap
+    // pointing at any storage key and later have consumeSnap presign it
+    // (sender review) and hard-delete it (recipient consume). Only
+    // snap-intent sends are bound here; ordinary media is QC-F-330's
+    // surface, and `data:` URLs — the shipped client's only real snap
+    // path — carry no storage key and are never bound.
+    const isSnapSend =
+      disappearMode === 'after_view' || type === 'snap_photo' || type === 'snap_video';
+    if (isSnapSend && mediaUrl && !mediaUrl.startsWith('data:')) {
+      if (!snapMediaKeyOwnedBy(mediaUrl, senderId)) {
+        throw createAppError(
+          'Snap media must reference the sender’s own upload',
+          400,
+          'MEDIA_URL_NOT_OWNED',
+        );
+      }
     }
 
     // QC-F-019: persist the view-once intent the client actually sent.
@@ -666,6 +702,25 @@ export class MessageService {
         : typeof snapMeta.durationSec === 'number'
           ? snapMeta.durationSec
           : 10;
+
+    // QC-F-329: fail closed before ANY presign/delete: a non-data snap may
+    // only ever touch the sender's own storage namespace. This one gate
+    // covers the sender-review mint, the recipient mint, and the recipient
+    // hard-delete below — none of them may run for a foreign key, and no
+    // recipient view is burned for a forged row. Rows persisted before the
+    // send-bind existed (including the ownerless legacy `snaps/` shape)
+    // are refused here too — there is no proof tying them to their sender,
+    // so there is no grandfathering.
+    const rawMediaUrlForGate = message.mediaUrl ?? '';
+    if (rawMediaUrlForGate && !rawMediaUrlForGate.startsWith('data:')) {
+      if (!snapMediaKeyOwnedBy(rawMediaUrlForGate, message.senderId)) {
+        throw createAppError(
+          'Snap media is not owned by its sender',
+          403,
+          'SNAP_MEDIA_NOT_OWNED',
+        );
+      }
+    }
 
     // Helper to mint authentic SigV4 presigned view URL (60-second TTL) fail-closed (SEC-4)
     const mintPresignedSnapUrl = async (rawMediaUrl: string): Promise<string> => {
