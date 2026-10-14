@@ -483,19 +483,37 @@ export default async function emailsRoutes(
     return reply.status(201).send({ success: true, data: formatEmailRecord(email) });
   };
 
+  /*
+   * Compose payloads carry attachments as base64 data URLs (~4/3 inflation),
+   * so a legitimate payload at the advertised 25 MB total can be ~34 MB of
+   * JSON. Fastify's default 1 MiB bodyLimit would 413 it (the ~0.75 MB wall).
+   * 40 MB leaves headroom for the envelope while staying under the ingress
+   * 50m ceiling (infra/helm/quant-platform/templates/ingress.yaml) and the
+   * SESv2 40 MB raw-message cap.
+   */
+  const COMPOSE_BODY_LIMIT_BYTES = 40 * 1024 * 1024;
+
   // POST /emails - Compose or send an email
   // WR-MAIL-104: mail.draft.create is an active catalog command — key required.
-  fastify.post('/', { config: { idempotencyRequired: true } }, handleComposeOrSend);
+  fastify.post(
+    '/',
+    { config: { idempotencyRequired: true }, bodyLimit: COMPOSE_BODY_LIMIT_BYTES },
+    handleComposeOrSend,
+  );
 
   // POST /emails/compose - Unified composer contract (M07)
   // WR-MAIL-104: mail.draft.create is an active catalog command — key required.
-  fastify.post('/compose', { config: { idempotencyRequired: true } }, handleComposeOrSend);
+  fastify.post(
+    '/compose',
+    { config: { idempotencyRequired: true }, bodyLimit: COMPOSE_BODY_LIMIT_BYTES },
+    handleComposeOrSend,
+  );
 
   // PUT /emails/:id - update an owned draft without creating duplicates.
   // WR-MAIL-104: mail.draft.update is an active catalog command — key required.
   fastify.put<{ Params: { id: string } }>(
     '/:id',
-    { config: { idempotencyRequired: true } },
+    { config: { idempotencyRequired: true }, bodyLimit: COMPOSE_BODY_LIMIT_BYTES },
     async (request, reply) => {
     const parsed = composeSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
