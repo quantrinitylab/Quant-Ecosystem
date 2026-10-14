@@ -80,7 +80,16 @@ export { default as organizationsPlugin } from './plugins/organizations';
 export { default as auditPlugin } from './plugins/audit';
 export { default as idempotencyPlugin, enableIdempotency, requireIdempotency } from './plugins/idempotency';
 export type { IdempotencyPluginOptions, IdempotencyStore } from './plugins/idempotency';
-export { MemoryIdempotencyStore, RedisIdempotencyStore } from './plugins/idempotency';
+export { MemoryIdempotencyStore, RedisIdempotencyStore, DbIdempotencyStore } from './plugins/idempotency';
+export { runIdempotentOperation, IdempotencyConflictError } from './plugins/idempotency';
+export type {
+  IdempotencyOperationTable,
+  IdempotencyOperationRow,
+  IdempotencyOperationStatus,
+  IdempotencyDatabase,
+  IdempotentWorkOutcome,
+  IdempotentResult,
+} from './plugins/idempotency';
 export { default as identityPermissionsPlugin } from './plugins/identity-permissions';
 export { default as teamsPlugin } from './plugins/teams';
 export { ScopeEvaluator } from './permissions/scope-evaluator';

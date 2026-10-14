@@ -103,6 +103,15 @@ interface RequestOptions {
   headers?: Record<string, string>;
   params?: Record<string, string | number | boolean | undefined>;
   signal?: AbortSignal;
+  /**
+   * Durable operation id for this logical mutation. When supplied it is sent
+   * as the `Idempotency-Key` header verbatim (the caller owns reuse across
+   * retries — e.g. the offline outbox with its mutation ids). When omitted
+   * for a mutating call, the client mints one and keeps it in the
+   * pending-operation ledger so a retry of the SAME logical operation reuses
+   * it (see below).
+   */
+  idempotencyKey?: string;
 }
 
 /**
@@ -116,12 +125,155 @@ interface RequestOptions {
  *
  * One key per api-client call = one key per logical operation from the
  * caller's perspective. A caller that retries ONE operation across attempts
- * must hold a stable key and pass it via `options.headers` (the offline
- * outbox queue already does this with its mutation ids); a fresh key per
- * retry only dedupes concurrent duplicates, not sequential retries.
+ * must hold a stable key and pass it via `options.idempotencyKey` (the
+ * offline outbox queue already does this with its mutation ids); a fresh key
+ * per retry only dedupes concurrent duplicates, not sequential retries.
  */
 export function mintIdempotencyKey(): string {
   return crypto.randomUUID();
+}
+
+/**
+ * Durable operation ids across retry/restart (fix/qm-idempotency-outbox-r3 —
+ * answers the CODEX-REVIEW P0 "ordinary retry mints K2 after K1's lost
+ * response" on PR #1124).
+ *
+ * The client mints ONE id per logical mutating call and keeps it in a
+ * pending-operation ledger keyed by a fingerprint of (method, path, body).
+ * If the response never arrives (timeout / network failure / abort), the
+ * entry is kept, so the user's retry of the same logical operation reuses
+ * K1 instead of minting K2 — the server then replays the committed outcome
+ * (or answers 409 while it is still in flight) instead of executing the
+ * mutation twice. Any HTTP response — success or error — completes the
+ * operation and drops the entry, so a later identical call is a NEW logical
+ * operation with a fresh id (e.g. send → undo-send → send again).
+ *
+ * The ledger is mirrored to localStorage so the id survives a browser
+ * restart mid-operation; entries expire after 24h (the server's replay
+ * window) and the ledger is capped. A hash collision only causes the server
+ * to answer 422 IDEMPOTENCY_KEY_REUSE (fingerprint mismatch) — an honest
+ * error, never a silent wrong replay.
+ */
+const PENDING_OPERATIONS_STORAGE_KEY = 'quantmail.pending-operations.v1';
+const PENDING_OPERATION_TTL_MS = 24 * 3600 * 1000;
+const PENDING_OPERATION_MAX_ENTRIES = 200;
+
+interface PendingOperation {
+  key: string;
+  createdAt: number;
+}
+
+const pendingOperations = new Map<string, PendingOperation>();
+let pendingOperationsHydrated = false;
+
+function readPendingOperationsStorage(): Record<string, PendingOperation> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(PENDING_OPERATIONS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed as Record<string, PendingOperation>;
+  } catch {
+    return {};
+  }
+}
+
+function writePendingOperationsStorage(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const obj: Record<string, PendingOperation> = {};
+    for (const [fingerprint, op] of pendingOperations) obj[fingerprint] = op;
+    window.localStorage.setItem(PENDING_OPERATIONS_STORAGE_KEY, JSON.stringify(obj));
+  } catch {
+    /* A ledger we cannot persist still protects this session's retries. */
+  }
+}
+
+function hydratePendingOperations(): void {
+  if (pendingOperationsHydrated) return;
+  pendingOperationsHydrated = true;
+  const now = Date.now();
+  const stored = readPendingOperationsStorage();
+  for (const [fingerprint, op] of Object.entries(stored)) {
+    if (!op || typeof op.key !== 'string' || typeof op.createdAt !== 'number') continue;
+    if (now - op.createdAt > PENDING_OPERATION_TTL_MS) continue;
+    if (pendingOperations.size >= PENDING_OPERATION_MAX_ENTRIES) break;
+    pendingOperations.set(fingerprint, op);
+  }
+}
+
+function prunePendingOperations(now: number): void {
+  for (const [fingerprint, op] of pendingOperations) {
+    if (now - op.createdAt > PENDING_OPERATION_TTL_MS) pendingOperations.delete(fingerprint);
+  }
+  while (pendingOperations.size > PENDING_OPERATION_MAX_ENTRIES) {
+    const oldest = pendingOperations.keys().next();
+    if (oldest.done) break;
+    pendingOperations.delete(oldest.value);
+  }
+}
+
+/** Sync, non-cryptographic 64-bit hash (cyrb53) for the client-side ledger fingerprint. */
+function hashOperationFingerprint(input: string): string {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
+}
+
+/** Identifies one logical mutating call: method + path + stable body. */
+function operationFingerprint(method: string, path: string, body: unknown): string {
+  let bodyPart = '';
+  try {
+    bodyPart = JSON.stringify(body ?? null) ?? '';
+  } catch {
+    bodyPart = '';
+  }
+  return hashOperationFingerprint(`${method.toUpperCase()}\n${path}\n${bodyPart}`);
+}
+
+/**
+ * Returns the durable id for this logical operation: the pending ledger's
+ * key when this exact call is a retry of an unanswered operation, otherwise a
+ * freshly minted id that is remembered until the response arrives.
+ */
+function durableOperationKey(fingerprint: string): string {
+  hydratePendingOperations();
+  const now = Date.now();
+  prunePendingOperations(now);
+  const pending = pendingOperations.get(fingerprint);
+  if (pending) return pending.key; // Retry of an unanswered operation: reuse K1.
+  const key = mintIdempotencyKey();
+  pendingOperations.set(fingerprint, { key, createdAt: now });
+  prunePendingOperations(now);
+  writePendingOperationsStorage();
+  return key;
+}
+
+/** Marks the logical operation complete: any HTTP response arrived. */
+function completePendingOperation(fingerprint: string): void {
+  hydratePendingOperations();
+  if (pendingOperations.delete(fingerprint)) writePendingOperationsStorage();
+}
+
+/** Test seam: clears the in-memory ledger (and its persisted mirror). */
+export function __clearPendingOperationsForTests(): void {
+  pendingOperations.clear();
+  pendingOperationsHydrated = true;
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.removeItem(PENDING_OPERATIONS_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -819,9 +971,17 @@ export class QuantMailApiClient {
 
   async sendEmail(
     id: string,
-    options?: { sendAt?: string; delayMs?: number },
+    options?: { sendAt?: string; delayMs?: number; idempotencyKey?: string },
   ): Promise<ApiResponse<{ message: string; emailId: string; deliveryStatus: string }>> {
-    return this.post(`/emails/${id}/send`, options ?? {});
+    // The idempotencyKey (when the caller holds one durable id for the send
+    // attempt) travels via RequestOptions so request() sends it verbatim
+    // instead of consulting the pending-operation ledger.
+    const { idempotencyKey, ...sendBody } = options ?? {};
+    return this.post(
+      `/emails/${id}/send`,
+      sendBody,
+      idempotencyKey ? { idempotencyKey } : undefined,
+    );
   }
 
   async undoSend(id: string): Promise<ApiResponse<{ message: string; emailId: string }>> {
@@ -2088,11 +2248,23 @@ export class QuantMailApiClient {
       ...options?.headers,
     };
     // WR-MAIL-104: active mail commands require Idempotency-Key server-side.
-    // Mint one per mutating call unless the caller supplied its own stable key
-    // (e.g. the offline outbox retrying one queued mutation).
+    // fix/qm-idempotency-outbox-r3: ONE durable id per logical operation.
+    // A caller-supplied options.idempotencyKey (or Idempotency-Key header,
+    // e.g. the offline outbox retrying one queued mutation) is used verbatim.
+    // Otherwise the pending-operation ledger mints K1 once and reuses it when
+    // THIS exact call is retried after its response never arrived — an
+    // ordinary retry no longer mints K2 after K1's lost response.
+    let pendingFingerprint: string | undefined;
     if (MUTATING_METHODS.has(method.toUpperCase())) {
       const hasKey = Object.keys(headers).some((h) => h.toLowerCase() === 'idempotency-key');
-      if (!hasKey) headers['Idempotency-Key'] = mintIdempotencyKey();
+      if (!hasKey) {
+        if (options?.idempotencyKey) {
+          headers['Idempotency-Key'] = options.idempotencyKey;
+        } else {
+          pendingFingerprint = operationFingerprint(method, path, body);
+          headers['Idempotency-Key'] = durableOperationKey(pendingFingerprint);
+        }
+      }
     }
     const hadAccessToken = Boolean(browserAuthSession.getAccessToken());
 
@@ -2104,12 +2276,27 @@ export class QuantMailApiClient {
         signal: options?.signal,
       });
 
+      // Any HTTP response completes the logical operation: drop the pending
+      // id so a later identical call mints a fresh one (it is a NEW
+      // operation then, e.g. send → undo-send → send again). The one
+      // exception is 409: it may be IDEMPOTENCY_IN_FLIGHT for OUR OWN key
+      // (concurrent duplicate) — the operation is still unanswered, so keep
+      // K1; the retry reuses it and the server replays instead of executing
+      // twice. (A 409 from a handler-level conflict released the server-side
+      // claim, so reusing K1 there is equally safe.)
+      if (pendingFingerprint && response.status !== 409) {
+        completePendingOperation(pendingFingerprint);
+      }
+
       if (response.status === 401 && hadAccessToken) {
         this.onAuthError?.();
       }
 
       return (await response.json()) as ApiResponse<T>;
     } catch (error) {
+      // No response arrived (timeout / network failure / abort): the server
+      // may have committed the mutation, so KEEP the pending id — the retry
+      // reuses K1 and the server replays instead of executing twice.
       // A timed-out request (see FETCH_TIMEOUT_MS in browser-auth-session)
       // rejects with our Error reason; a caller-cancelled one rejects with a
       // DOMException. Surface timeouts distinctly so UIs can say "timed out"

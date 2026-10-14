@@ -49,6 +49,34 @@ import type { Redis } from 'ioredis';
  *  - Without Redis the guarantee is per-instance; multi-instance deployments
  *    must configure `redisUrl` for cluster-wide safety (same caveat as the
  *    rate limiter).
+ *
+ * Durable operation ledger (fix/qm-idempotency-outbox-r3 — answers the
+ * CODEX-REVIEW P0 on PR #1124):
+ *  - The response cache used to be written AFTER the handler ran, and a failed
+ *    cache write RELEASED the claim — so a lost response + retry could
+ *    execute the mutation twice. That hole is closed two ways:
+ *    1. `DbIdempotencyStore` persists the operation record in Postgres
+ *       (`idempotency_operations`). Claim = INSERT under the primary-key
+ *       uniqueness constraint: exactly one replica wins, enforced by the
+ *       database, with no Redis required.
+ *    2. `runIdempotentOperation()` runs claim + mutation + completed-outcome
+ *       (+ any outbox rows the handler writes) in ONE database transaction.
+ *       A store-write failure rolls the mutation back with it — the claim is
+ *       never released while a mutation stands.
+ *  - The generic plugin path (preHandler claim / onSend outcome) can never
+ *    run inside the handler's transaction, so it is the durable claim +
+ *    replay layer only: on an outcome-write failure it now KEEPS the claim
+ *    (retries get 409 `IDEMPOTENCY_IN_FLIGHT`) instead of releasing it.
+ *    Handlers whose mutation must be atomic with its outcome use
+ *    `runIdempotentOperation()` with `request.idempotencyContext.operationId`.
+ *  - The operation id is the scoped store key
+ *    (`<prefix>:<userId>:<method>:<route>:<key>`): the client mints ONE
+ *    durable id per logical action and reuses it across timeout, manual
+ *    retry, reconnect/restart and offline-outbox replay (see
+ *    `apps/quantmail/src/services/api-client.ts` pending-operation ledger).
+ *  - `durableStoreRequired: true` makes required-key deployments fail
+ *    readiness when the store is the per-instance memory fallback — no
+ *    silent per-instance guarantee.
  */
 
 // ---------------------------------------------------------------------------
@@ -113,11 +141,25 @@ export interface IdempotencyPluginOptions {
   processingTtlSeconds?: number;
   /** Redis key namespace. Default: `quant:idem`. */
   keyPrefix?: string;
+  /**
+   * Fail readiness when required-key routes exist but the store is the
+   * per-instance memory fallback. Required-key production deployments must
+   * set this: without it a missing Redis/DB silently downgrades the
+   * advertised retry guarantee to per-instance. Default: false (opt-in so
+   * isolated route unit tests keep working).
+   */
+  durableStoreRequired?: boolean;
 }
 
 interface IdempotencyRequestContext {
   storeKey: string;
   fingerprint: string;
+  /**
+   * Durable operation id — identical to `storeKey`. Handlers that need the
+   * mutation and its outcome to commit atomically pass this to
+   * `runIdempotentOperation()`.
+   */
+  operationId: string;
 }
 
 declare module 'fastify' {
@@ -287,6 +329,379 @@ export class RedisIdempotencyStore implements IdempotencyStore {
 }
 
 // ---------------------------------------------------------------------------
+// Durable operation ledger (Postgres)
+// ---------------------------------------------------------------------------
+
+/** Row states in `idempotency_operations`. `failed` is retryable. */
+export type IdempotencyOperationStatus = 'processing' | 'completed' | 'failed';
+
+/**
+ * One durable operation row. `responseHeaders` is the JSON text of the
+ * stored response headers (TEXT column, not JSONB — keeps this interface
+ * structurally compatible with the Prisma delegate without importing the
+ * generated client).
+ */
+export interface IdempotencyOperationRow {
+  operationId: string;
+  fingerprint: string;
+  status: string;
+  responseStatus: number | null;
+  responseHeaders: string | null;
+  responseBody: string | null;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
+/**
+ * Minimal structural interface over the Prisma `idempotencyOperation`
+ * delegate. The real delegate (`prisma.idempotencyOperation`) satisfies it
+ * without this module importing `@quant/database`, which keeps the plugin
+ * unit-testable without a generated client.
+ */
+export interface IdempotencyOperationTable {
+  create(args: {
+    data: {
+      operationId: string;
+      fingerprint: string;
+      status: string;
+      responseStatus?: number | null;
+      responseHeaders?: string | null;
+      responseBody?: string | null;
+      expiresAt: Date;
+    };
+  }): Promise<unknown>;
+  findUnique(args: {
+    where: { operationId: string };
+  }): Promise<IdempotencyOperationRow | null>;
+  update(args: {
+    where: { operationId: string };
+    data: {
+      status?: string;
+      fingerprint?: string;
+      responseStatus?: number | null;
+      responseHeaders?: string | null;
+      responseBody?: string | null;
+      expiresAt?: Date;
+    };
+  }): Promise<unknown>;
+  delete(args: { where: { operationId: string } }): Promise<unknown>;
+}
+
+/** Prisma error codes we interpret (stable across Prisma 5/6). */
+const PRISMA_UNIQUE_VIOLATION = 'P2002';
+const PRISMA_RECORD_NOT_FOUND = 'P2025';
+
+function isPrismaCode(err: unknown, code: string): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { code?: unknown }).code === code
+  );
+}
+
+/**
+ * Postgres-backed `IdempotencyStore`. Claim = INSERT under the primary-key
+ * uniqueness constraint, so concurrent claimants on any number of replicas
+ * serialize in the database: exactly one wins. Expired claims are cleared
+ * lazily on access.
+ */
+export class DbIdempotencyStore implements IdempotencyStore {
+  constructor(private readonly table: IdempotencyOperationTable) {}
+
+  private toEntry(row: IdempotencyOperationRow): StoredEntry | null {
+    if (row.expiresAt.getTime() <= Date.now()) return null;
+    if (row.status === 'processing') {
+      return {
+        status: 'processing',
+        fingerprint: row.fingerprint,
+        startedAt: row.createdAt.getTime(),
+      };
+    }
+    if (row.status === 'completed') {
+      let headers: Record<string, string> = {};
+      try {
+        const parsed: unknown = row.responseHeaders ? JSON.parse(row.responseHeaders) : {};
+        if (parsed && typeof parsed === 'object') {
+          headers = parsed as Record<string, string>;
+        }
+      } catch {
+        headers = {};
+      }
+      return {
+        status: 'completed',
+        fingerprint: row.fingerprint,
+        statusCode: row.responseStatus ?? 200,
+        headers,
+        body: row.responseBody ?? '',
+      };
+    }
+    // 'failed' (or any unknown state) is retryable: treated as absent.
+    return null;
+  }
+
+  async get(key: string): Promise<StoredEntry | null> {
+    const row = await this.table.findUnique({ where: { operationId: key } });
+    if (!row) return null;
+    if (row.expiresAt.getTime() <= Date.now()) {
+      // Lazy expiry: the replay window lapsed; drop the row best-effort.
+      await this.table.delete({ where: { operationId: key } }).catch(() => {});
+      return null;
+    }
+    return this.toEntry(row);
+  }
+
+  async claimProcessing(key: string, fingerprint: string, ttlMs: number): Promise<boolean> {
+    const now = Date.now();
+    try {
+      await this.table.create({
+        data: {
+          operationId: key,
+          fingerprint,
+          status: 'processing',
+          expiresAt: new Date(now + ttlMs),
+        },
+      });
+      return true;
+    } catch (err) {
+      if (!isPrismaCode(err, PRISMA_UNIQUE_VIOLATION)) throw err;
+      // Someone holds the id. A lapsed claim is clearable: drop it and try
+      // once more; otherwise the live claim stands and we lost the race.
+      const existing = await this.table.findUnique({ where: { operationId: key } });
+      if (!existing || existing.expiresAt.getTime() > now) return false;
+      await this.table.delete({ where: { operationId: key } }).catch(() => {});
+      try {
+        await this.table.create({
+          data: {
+            operationId: key,
+            fingerprint,
+            status: 'processing',
+            expiresAt: new Date(now + ttlMs),
+          },
+        });
+        return true;
+      } catch (retryErr) {
+        if (!isPrismaCode(retryErr, PRISMA_UNIQUE_VIOLATION)) throw retryErr;
+        return false;
+      }
+    }
+  }
+
+  async setCompleted(
+    key: string,
+    entry: Extract<StoredEntry, { status: 'completed' }>,
+    ttlMs: number,
+  ): Promise<void> {
+    const data = {
+      status: 'completed' as const,
+      fingerprint: entry.fingerprint,
+      responseStatus: entry.statusCode,
+      responseHeaders: JSON.stringify(entry.headers),
+      responseBody: entry.body,
+      expiresAt: new Date(Date.now() + ttlMs),
+    };
+    try {
+      await this.table.update({ where: { operationId: key }, data });
+    } catch (err) {
+      if (!isPrismaCode(err, PRISMA_RECORD_NOT_FOUND)) throw err;
+      // The claim row vanished between claim and completion (e.g. it
+      // expired mid-handler). Re-create as completed so the retry that is
+      // already past us still replays instead of re-executing.
+      await this.table.create({
+        data: { operationId: key, ...data },
+      });
+    }
+  }
+
+  async release(key: string): Promise<void> {
+    await this.table.delete({ where: { operationId: key } }).catch(() => {});
+  }
+}
+
+/**
+ * Structural minimum of PrismaClient for `runIdempotentOperation`: the
+ * operation table plus `$transaction`. The real PrismaClient satisfies it.
+ */
+export interface IdempotencyDatabase {
+  idempotencyOperation: IdempotencyOperationTable;
+  $transaction<T>(
+    fn: (tx: { idempotencyOperation: IdempotencyOperationTable }) => Promise<T>,
+  ): Promise<T>;
+}
+
+/** The mutation outcome a handler commits alongside its idempotency record. */
+export interface IdempotentWorkOutcome {
+  statusCode: number;
+  headers?: Record<string, string>;
+  body: string;
+}
+
+export type IdempotentResult =
+  | { replayed: true; statusCode: number; headers: Record<string, string>; body: string }
+  | { replayed: false; statusCode: number; headers: Record<string, string>; body: string };
+
+/**
+ * Thrown by `runIdempotentOperation` when the operation id is already owned:
+ * 409 `IDEMPOTENCY_IN_FLIGHT` (same fingerprint, still processing) or 422
+ * `IDEMPOTENCY_KEY_REUSE` (same id, different fingerprint — the key must
+ * identify one logical operation).
+ */
+export class IdempotencyConflictError extends Error {
+  readonly code: 'IDEMPOTENCY_IN_FLIGHT' | 'IDEMPOTENCY_KEY_REUSE';
+  readonly statusCode: 409 | 422;
+
+  constructor(
+    code: 'IDEMPOTENCY_IN_FLIGHT' | 'IDEMPOTENCY_KEY_REUSE',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'IdempotencyConflictError';
+    this.code = code;
+    this.statusCode = code === 'IDEMPOTENCY_IN_FLIGHT' ? 409 : 422;
+  }
+}
+
+const MAX_CLAIM_RACES = 3;
+
+function parseStoredHeaders(raw: string | null): Record<string, string> {
+  try {
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    if (parsed && typeof parsed === 'object') return parsed as Record<string, string>;
+  } catch {
+    // fall through
+  }
+  return {};
+}
+
+/**
+ * Executes one logical operation with a durable, DB-transactional
+ * idempotency guarantee.
+ *
+ * Contract (this is what closes the PR #1124 P0):
+ *  - The SAME `operationId` is reused across timeout, manual retry,
+ *    reconnect/restart and offline-outbox replay. A retry after the outcome
+ *    committed replays the stored response; the work runs AT MOST once per
+ *    committed outcome.
+ *  - Claim + `work` + completed-outcome (+ any outbox rows `work` writes via
+ *    `tx`) commit in ONE database transaction. There is no separate
+ *    outcome-store write that can fail after the mutation: a failure
+ *    anywhere rolls the claim back with the mutation, so the claim is NEVER
+ *    released while a mutation stands, and a retry after rollback safely
+ *    re-executes with zero durable effect from the failed attempt.
+ *  - Concurrent claimants on any number of replicas serialize on the
+ *    primary key: exactly one executes `work`; the loser reads the winner's
+ *    row and replays it (or gets 409 while it is still processing).
+ *
+ * Rules for `work`: EVERY write it performs MUST go through `tx`. Writes
+ * issued on the ambient client escape the transaction and void the atomicity
+ * guarantee.
+ *
+ * Throws `IdempotencyConflictError` (409/422) when the id is owned by a
+ * different logical operation or still in flight; rethrows anything `work`
+ * threw after rolling back.
+ */
+export async function runIdempotentOperation(
+  db: IdempotencyDatabase,
+  opts: {
+    operationId: string;
+    fingerprint: string;
+    /** Replay window for the completed outcome. Default: 24h. */
+    ttlMs?: number;
+    /** How long the in-flight claim blocks retries. Default: 5 minutes. */
+    processingTtlMs?: number;
+    work: (tx: { idempotencyOperation: IdempotencyOperationTable }) => Promise<IdempotentWorkOutcome>;
+  },
+): Promise<IdempotentResult> {
+  const ttlMs = opts.ttlMs ?? DEFAULT_TTL_SECONDS * 1000;
+  const processingTtlMs = opts.processingTtlMs ?? DEFAULT_PROCESSING_TTL_SECONDS * 1000;
+
+  for (let attempt = 0; attempt < MAX_CLAIM_RACES; attempt++) {
+    const existing = await db.idempotencyOperation.findUnique({
+      where: { operationId: opts.operationId },
+    });
+
+    if (existing) {
+      const now = Date.now();
+      const lapsed = existing.expiresAt.getTime() <= now;
+      if (lapsed || existing.status === 'failed') {
+        // Replay window over (or explicitly failed): clear and start over.
+        await db.idempotencyOperation
+          .delete({ where: { operationId: opts.operationId } })
+          .catch(() => {});
+        continue;
+      }
+      if (existing.status === 'completed') {
+        if (existing.fingerprint !== opts.fingerprint) {
+          throw new IdempotencyConflictError(
+            'IDEMPOTENCY_KEY_REUSE',
+            'This operation id was already used for a different request. Use a new id for a new operation.',
+          );
+        }
+        return {
+          replayed: true,
+          statusCode: existing.responseStatus ?? 200,
+          headers: parseStoredHeaders(existing.responseHeaders),
+          body: existing.responseBody ?? '',
+        };
+      }
+      // Still processing: same logical operation → wait-and-retry; anything
+      // else is a key collision on a different operation.
+      if (existing.fingerprint !== opts.fingerprint) {
+        throw new IdempotencyConflictError(
+          'IDEMPOTENCY_KEY_REUSE',
+          'This operation id was already used for a different request. Use a new id for a new operation.',
+        );
+      }
+      throw new IdempotencyConflictError(
+        'IDEMPOTENCY_IN_FLIGHT',
+        'A request with this operation id is already being processed. Wait and retry.',
+      );
+    }
+
+    try {
+      return await db.$transaction(async (tx) => {
+        // Claim INSIDE the transaction: concurrent transactions serialize on
+        // the primary key — exactly one wins; the loser blocks, then sees
+        // the winner's committed row (or a clean slate after rollback).
+        await tx.idempotencyOperation.create({
+          data: {
+            operationId: opts.operationId,
+            fingerprint: opts.fingerprint,
+            status: 'processing',
+            expiresAt: new Date(Date.now() + processingTtlMs),
+          },
+        });
+        const outcome = await opts.work(tx);
+        const headers = outcome.headers ?? {};
+        await tx.idempotencyOperation.update({
+          where: { operationId: opts.operationId },
+          data: {
+            status: 'completed',
+            responseStatus: outcome.statusCode,
+            responseHeaders: JSON.stringify(headers),
+            responseBody: outcome.body,
+            expiresAt: new Date(Date.now() + ttlMs),
+          },
+        });
+        return {
+          replayed: false as const,
+          statusCode: outcome.statusCode,
+          headers,
+          body: outcome.body,
+        };
+      });
+    } catch (err) {
+      if (err instanceof IdempotencyConflictError) throw err;
+      if (!isPrismaCode(err, PRISMA_UNIQUE_VIOLATION)) throw err;
+      // Lost the claim race inside the transaction: loop around and
+      // interpret the winner's row (replay / 409 / 422).
+    }
+  }
+  throw new Error(
+    `idempotency: claim race did not settle after ${MAX_CLAIM_RACES} attempts for ${opts.operationId}`,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -390,6 +805,29 @@ async function idempotencyPlugin(fastify: FastifyInstance, opts: IdempotencyPlug
   const store: IdempotencyStore =
     opts.store ?? (opts.redisClient ? new RedisIdempotencyStore(opts.redisClient) : new MemoryIdempotencyStore());
 
+  // Tracks whether any route requires an Idempotency-Key, so
+  // `durableStoreRequired` can fail readiness instead of silently running a
+  // required-key deployment on the per-instance memory fallback.
+  let requiredKeyRouteSeen = false;
+  fastify.addHook('onRoute', (routeOptions) => {
+    const config = routeOptions.config as { idempotencyRequired?: boolean } | undefined;
+    if (config?.idempotencyRequired === true) requiredKeyRouteSeen = true;
+  });
+
+  if (opts.durableStoreRequired === true) {
+    fastify.addHook('onReady', async () => {
+      if (requiredKeyRouteSeen && store instanceof MemoryIdempotencyStore) {
+        throw new Error(
+          '[idempotency] durableStoreRequired: required-key routes are registered ' +
+            'but the store is the per-instance memory fallback, which cannot serialize ' +
+            'two replicas and loses every claim on restart. Configure the durable ' +
+            'DbIdempotencyStore (Postgres idempotency_operations) or a shared Redis ' +
+            'before serving required-key traffic.',
+        );
+      }
+    });
+  }
+
   // One-line opt-in for route files. Runs inside the caller's encapsulated
   // context, so only routes registered in that file are marked.
   fastify.decorate('idempotency', function (this: FastifyInstance) {
@@ -484,7 +922,7 @@ async function idempotencyPlugin(fastify: FastifyInstance, opts: IdempotencyPlug
       return;
     }
 
-    request.idempotencyContext = { storeKey: sKey, fingerprint };
+    request.idempotencyContext = { storeKey: sKey, fingerprint, operationId: sKey };
   });
 
   fastify.addHook('onSend', async (request: FastifyRequest, reply: FastifyReply, payload: unknown) => {
@@ -515,12 +953,17 @@ async function idempotencyPlugin(fastify: FastifyInstance, opts: IdempotencyPlug
         await store.release(ctx.storeKey);
       }
     } catch (err) {
-      request.log.error({ err }, 'idempotency store write failed; releasing key');
-      try {
-        await store.release(ctx.storeKey);
-      } catch {
-        // Best effort — the processing claim expires on its own TTL.
-      }
+      // P0 fix (CODEX-REVIEW on PR #1124): a failed outcome write MUST NOT
+      // release the claim. The mutation may already be committed; releasing
+      // would let a retry execute it a second time. Keep the 'processing'
+      // claim (TTL-bounded) so a retry gets 409 IDEMPOTENCY_IN_FLIGHT
+      // instead of a second execution. With the durable DbIdempotencyStore
+      // the authoritative record survives regardless; handlers that need the
+      // outcome atomic with the mutation use runIdempotentOperation().
+      request.log.error(
+        { err, operationId: ctx.operationId },
+        'idempotency outcome store write failed; claim retained, retry will see in-flight',
+      );
     }
     return payload;
   });

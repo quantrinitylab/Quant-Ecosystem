@@ -19,7 +19,8 @@ import auditPlugin from './plugins/audit';
 import organizationsPlugin from './plugins/organizations';
 import identityPermissionsPlugin from './plugins/identity-permissions';
 import teamsPlugin from './plugins/teams';
-import idempotencyPlugin from './plugins/idempotency';
+import idempotencyPlugin, { DbIdempotencyStore } from './plugins/idempotency';
+import type { IdempotencyOperationTable } from './plugins/idempotency';
 import rateLimitPlugin from '@fastify/rate-limit';
 
 export async function createApp(config: AppConfig) {
@@ -104,10 +105,23 @@ export async function createApp(config: AppConfig) {
 
   // Register idempotency-key handling (K4). Global hooks, but strictly opt-in:
   // a route file calls `fastify.idempotency()` once to mark its mutating
-  // routes. Reuses the same Redis connection as the rate limiter above.
+  // routes. The durable operation ledger lives in Postgres
+  // (DbIdempotencyStore over @quant/database's idempotency_operations) — the
+  // claim is a PK insert so concurrent replicas serialize in the database,
+  // and handlers that need the outcome atomic with the mutation use
+  // runIdempotentOperation(). durableStoreRequired fails readiness rather
+  // than silently running required-key routes on the per-instance memory
+  // fallback (fix/qm-idempotency-outbox-r4, CODEX-REVIEW P0 on PR #1124).
+  // The prisma singleton is imported lazily: the prisma plugin registers
+  // below, and a static import here would couple module-eval order to it.
+  const { prisma: idempotencyPrisma } = await import('@quant/database');
+  const idempotencyTable = (
+    idempotencyPrisma as unknown as { idempotencyOperation: IdempotencyOperationTable }
+  ).idempotencyOperation;
   await fastify.register(idempotencyPlugin, {
-    redisClient,
+    store: new DbIdempotencyStore(idempotencyTable),
     ttlSeconds: 24 * 3600,
+    durableStoreRequired: true,
   });
 
   // Register request logger (after error handler so errors are logged)

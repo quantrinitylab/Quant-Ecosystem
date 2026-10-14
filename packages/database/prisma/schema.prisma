@@ -5062,3 +5062,43 @@ model QuantyIdea {
   @@index([userId, status])
   @@map("quanty_ideas")
 }
+
+/// Durable idempotency operation ledger (fix/qm-idempotency-outbox-r3).
+/// One row per logical mutating operation, keyed by the idempotency plugin's
+/// scoped store key (<prefix>:<userId>:<method>:<route>:<key>) so the SAME id
+/// is reused across timeout, manual retry, reconnect/restart and
+/// offline-outbox replay. The primary-key constraint is the cross-replica
+/// arbiter: exactly one claimant wins. The completed outcome is written in
+/// the SAME database transaction as the mutation (see runIdempotentOperation
+/// in packages/server-core/src/plugins/idempotency.ts), so a store-write
+/// failure rolls the mutation back with it and the claim is never released
+/// while a mutation stands.
+model IdempotencyOperation {
+  /// Durable operation id (the plugin's scoped store key).
+  operationId String @id @map("operation_id")
+
+  /// SHA-256 over method + route + body; a reused key with a different
+  /// fingerprint is rejected (the key identifies ONE logical operation).
+  fingerprint String
+
+  /// 'processing' | 'completed' | 'failed'. 'failed' is retryable: a new
+  /// attempt may claim the id again once the row is cleared.
+  status String
+
+  /// Stored completed outcome (replayed verbatim on retry). responseHeaders is
+  /// the JSON TEXT of the stored response headers (not jsonb — the store
+  /// interface reads/writes it as a string).
+  responseStatus  Int?    @map("response_status")
+  responseHeaders String? @map("response_headers") @db.Text
+  responseBody    String? @map("response_body") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  /// End of the replay window (default 24h). A janitor may delete expired
+  /// rows; reads treat expired rows as absent.
+  expiresAt DateTime @map("expires_at")
+
+  @@index([expiresAt])
+  @@map("idempotency_operations")
+}
