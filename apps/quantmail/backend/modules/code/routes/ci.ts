@@ -13,6 +13,90 @@ function getUserId(request: unknown): string {
   return userId;
 }
 
+type ReadableRepository = {
+  id: string;
+  ownerId: string;
+  name: string;
+  visibility: string;
+};
+
+/**
+ * Mirror of the canonical loadReadableRepo visibility gate (backend/routes/repos.ts):
+ * private repositories are invisible (404) to anyone who is neither the owner
+ * nor a collaborator. Returns 404 instead of 403 so non-authorized callers
+ * cannot even learn that a private repository exists.
+ */
+async function isRepoCollaborator(
+  prisma: PrismaClient,
+  repoId: string,
+  userId: string,
+): Promise<boolean> {
+  const client = prisma as unknown as {
+    repositoryCollaborator?: {
+      findFirst(args: unknown): Promise<{ role?: string } | null>;
+    };
+  };
+  if (!client.repositoryCollaborator) return false;
+  try {
+    const row = await client.repositoryCollaborator.findFirst({
+      where: { repoId, userId },
+    });
+    return row !== null;
+  } catch {
+    // Generated client predates the collaborators table: treat as no grant.
+    return false;
+  }
+}
+
+async function loadReadableRepository(
+  prisma: PrismaClient,
+  request: unknown,
+  owner: string,
+  name: string,
+): Promise<ReadableRepository> {
+  const userId = getUserId(request);
+  const repo = await prisma.repository.findFirst({
+    where: { ownerId: owner, name, deletedAt: null },
+    select: { id: true, ownerId: true, name: true, visibility: true },
+  });
+  if (!repo) {
+    throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+  }
+  if (repo.ownerId !== userId && String(repo.visibility).toUpperCase() === 'PRIVATE') {
+    const collaborator = await isRepoCollaborator(prisma, repo.id, userId);
+    if (!collaborator) {
+      throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+    }
+  }
+  return {
+    id: repo.id,
+    ownerId: repo.ownerId,
+    name: repo.name,
+    visibility: String(repo.visibility),
+  };
+}
+
+/**
+ * Loads the repository (with the visibility gate above) and scopes the CI run
+ * to it: run ids from other repositories must never resolve through this path.
+ */
+async function loadRepoRun(
+  prisma: PrismaClient,
+  request: unknown,
+  owner: string,
+  name: string,
+  runId: string,
+) {
+  const repo = await loadReadableRepository(prisma, request, owner, name);
+  const run = await prisma.ciRun.findFirst({
+    where: { id: runId, repoId: repo.id },
+  });
+  if (!run) {
+    throw createAppError('CI run not found', 404, 'CI_RUN_NOT_FOUND');
+  }
+  return { repo, run };
+}
+
 const ListRunsQuerySchema = z.object({
   branch: z.string().optional(),
   status: z.enum(['PENDING', 'RUNNING', 'SUCCESS', 'FAILED', 'CANCELLED']).optional(),
@@ -42,17 +126,10 @@ export default async function ciRoutes(fastify: FastifyInstance) {
   fastify.get<{ Params: { owner: string; name: string } }>(
     '/:owner/:name/ci/runs',
     async (request, reply) => {
-      const userId = getUserId(request);
       const { owner, name } = request.params;
       const query = ListRunsQuerySchema.parse(request.query);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadReadableRepository(prisma, request, owner, name);
 
       const where: Record<string, unknown> = { repoId: repo.id };
       if (query.branch) where.branch = query.branch;
@@ -77,13 +154,7 @@ export default async function ciRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const body = TriggerPipelineSchema.parse(request.body);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadReadableRepository(prisma, request, owner, name);
 
       const run = await pipelineService.triggerPipeline(repo.id, body.ref, {
         type: body.type,
@@ -102,8 +173,11 @@ export default async function ciRoutes(fastify: FastifyInstance) {
   fastify.get<{ Params: { owner: string; name: string; runId: string } }>(
     '/:owner/:name/ci/runs/:runId/status',
     async (request, reply) => {
-      const userId = getUserId(request);
-      const { runId } = request.params;
+      const { owner, name, runId } = request.params;
+
+      // Scope the run to the path's repository (visibility-checked above) so a
+      // run id from any other repository can never be enumerated through here.
+      await loadRepoRun(prisma, request, owner, name, runId);
 
       const status = await pipelineService.getRunStatus(runId);
 
@@ -115,16 +189,9 @@ export default async function ciRoutes(fastify: FastifyInstance) {
   fastify.get<{ Params: { owner: string; name: string; runId: string } }>(
     '/:owner/:name/ci/runs/:runId',
     async (request, reply) => {
-      const userId = getUserId(request);
-      const { runId } = request.params;
+      const { owner, name, runId } = request.params;
 
-      const run = await prisma.ciRun.findUnique({
-        where: { id: runId },
-      });
-
-      if (!run) {
-        throw createAppError('CI run not found', 404, 'CI_RUN_NOT_FOUND');
-      }
+      const { run } = await loadRepoRun(prisma, request, owner, name, runId);
 
       return reply.send({ success: true, data: run });
     },
@@ -134,19 +201,12 @@ export default async function ciRoutes(fastify: FastifyInstance) {
   fastify.get<{ Params: { owner: string; name: string; runId: string } }>(
     '/:owner/:name/ci/runs/:runId/jobs',
     async (request, reply) => {
-      const userId = getUserId(request);
-      const { runId } = request.params;
+      const { owner, name, runId } = request.params;
 
-      const run = await prisma.ciRun.findUnique({
-        where: { id: runId },
-      });
-
-      if (!run) {
-        throw createAppError('CI run not found', 404, 'CI_RUN_NOT_FOUND');
-      }
+      const { run } = await loadRepoRun(prisma, request, owner, name, runId);
 
       const jobs = await prisma.ciJob.findMany({
-        where: { runId },
+        where: { runId: run.id },
         orderBy: { createdAt: 'asc' },
       });
 
@@ -158,11 +218,12 @@ export default async function ciRoutes(fastify: FastifyInstance) {
   fastify.get<{
     Params: { owner: string; name: string; runId: string; jobId: string };
   }>('/:owner/:name/ci/runs/:runId/jobs/:jobId/logs', async (request, reply) => {
-    const userId = getUserId(request);
-    const { jobId } = request.params;
+    const { owner, name, runId, jobId } = request.params;
 
-    const job = await prisma.ciJob.findUnique({
-      where: { id: jobId },
+    const { run } = await loadRepoRun(prisma, request, owner, name, runId);
+
+    const job = await prisma.ciJob.findFirst({
+      where: { id: jobId, runId: run.id },
     });
 
     if (!job) {
@@ -183,16 +244,9 @@ export default async function ciRoutes(fastify: FastifyInstance) {
   fastify.post<{ Params: { owner: string; name: string; runId: string } }>(
     '/:owner/:name/ci/runs/:runId/retry',
     async (request, reply) => {
-      const userId = getUserId(request);
-      const { runId } = request.params;
+      const { owner, name, runId } = request.params;
 
-      const run = await prisma.ciRun.findUnique({
-        where: { id: runId },
-      });
-
-      if (!run) {
-        throw createAppError('CI run not found', 404, 'CI_RUN_NOT_FOUND');
-      }
+      const { run } = await loadRepoRun(prisma, request, owner, name, runId);
 
       if (run.status !== 'FAILED') {
         throw createAppError('Only failed runs can be retried', 409, 'RUN_NOT_FAILED');
